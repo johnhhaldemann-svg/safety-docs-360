@@ -15,55 +15,61 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
 
-const handleLogin = async (e: React.FormEvent) => {
-  e.preventDefault();
+  async function handleLogin() {
+    setLoading(true);
 
-  setLoading(true);
-  setErrorMsg("");
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) {
-    setErrorMsg(error.message);
     setLoading(false);
-    return;
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    router.push("/");
+    router.refresh();
   }
 
-  router.push("/");
-  router.refresh();
-};
   return (
-    <form onSubmit={handleLogin} className="space-y-4">
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Email"
-        className="w-full rounded border p-2 text-black"
-      />
+    <main className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
+      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
+        <div className="text-xs font-bold uppercase tracking-[0.25em] text-sky-600">
+          Anytime Safety
+        </div>
+        <h1 className="mt-2 text-3xl font-black text-slate-900">Login</h1>
+        <p className="mt-2 text-sm text-slate-600">Sign in to continue</p>
 
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Password"
-        className="w-full rounded border p-2 text-black"
-      />
+        <div className="mt-6 space-y-4">
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-black outline-none focus:border-sky-500"
+          />
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="rounded bg-white px-4 py-2 text-black border"
-      >
-        {loading ? "Logging in..." : "Login"}
-      </button>
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-black outline-none focus:border-sky-500"
+          />
 
-      {errorMsg && <p className="text-red-600">{errorMsg}</p>}
-    </form>
+          <button
+            onClick={handleLogin}
+            disabled={loading}
+            className="w-full rounded-xl bg-sky-600 py-3 font-bold text-white hover:bg-sky-700 disabled:opacity-60"
+          >
+            {loading ? "Logging in..." : "Login"}
+          </button>
+        </div>
+      </div>
+    </main>
   );
 }
