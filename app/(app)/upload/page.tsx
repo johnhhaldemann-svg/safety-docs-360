@@ -1,14 +1,14 @@
-export default function UploadPage() {
+export default function layoutpage() {
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-black">Upload Documents</h1>
+      <h1 className="text-3xl font-black">Search Documents</h1>
 
       <p className="text-black/60">
-        Upload controlled safety documents to the library.
+        Find documents by tag, type, or project.
       </p>
 
       <div className="rounded-xl border border-black/10 bg-white p-6">
-        File upload system coming next.
+        Search system coming next.
       </div>
     </div>
   );
