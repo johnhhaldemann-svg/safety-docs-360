@@ -2,7 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,26 +15,27 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [checkedAuth, setCheckedAuth] = useState(false);
+  const pathname = usePathname();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function checkUser() {
+    async function checkAuth() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (!session) {
-        router.push("/login");
+        router.replace("/login");
         return;
       }
 
-      setCheckedAuth(true);
+      setLoading(false);
     }
 
-    checkUser();
-  }, [router]);
+    checkAuth();
+  }, [router, pathname]);
 
-  if (!checkedAuth) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 text-black">
         Checking login...
