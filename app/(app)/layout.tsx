@@ -25,9 +25,10 @@ export default function AppLayout({
 
       if (!session) {
         router.replace("/login");
-      } else {
-        setLoading(false);
+        return;
       }
+
+      setLoading(false);
     }
 
     checkAuth();
@@ -35,15 +36,11 @@ export default function AppLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 text-black">
         Checking login...
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-zinc-50 text-black">
-      {children}
-    </div>
-  );
+  return <div className="min-h-screen bg-zinc-50 text-black">{children}</div>;
 }

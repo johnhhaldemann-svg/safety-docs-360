@@ -9,15 +9,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-console.log("SUPABASE URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
-console.log(
-  "SUPABASE KEY START:",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 20)
-);
-
 export default function LoginPage() {
   const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,8 +30,6 @@ export default function LoginPage() {
       return;
     }
 
-    // Force Next.js to reload routes after login
-    router.refresh();
     router.push("/");
   }
 
@@ -68,7 +59,7 @@ export default function LoginPage() {
           <button
             onClick={handleLogin}
             disabled={loading}
-            className="w-full rounded-xl bg-black py-3 font-bold text-white"
+            className="w-full rounded-xl bg-black py-3 font-bold text-white disabled:opacity-50"
           >
             {loading ? "Logging in..." : "Login"}
           </button>
