@@ -11,60 +11,59 @@ const supabase = createClient(
 
 export default function LoginPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  async function handleLogin() {
-    setLoading(true);
+const handleLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+  setLoading(true);
+  setErrorMsg("");
 
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    setErrorMsg(error.message);
     setLoading(false);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    router.push("/");
+    return;
   }
 
+  router.push("/");
+  router.refresh();
+};
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-100 p-6">
-      <div className="w-full max-w-md rounded-3xl border border-gray-300 bg-white p-8 shadow-lg">
-        <h1 className="text-3xl font-black text-black">Login</h1>
-        <p className="mt-2 text-sm text-gray-600">Sign in to continue</p>
+    <form onSubmit={handleLogin} className="space-y-4">
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Email"
+        className="w-full rounded border p-2 text-black"
+      />
 
-        <div className="mt-6 space-y-4">
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-xl border border-gray-400 px-4 py-3 text-black"
-          />
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Password"
+        className="w-full rounded border p-2 text-black"
+      />
 
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-xl border border-gray-400 px-4 py-3 text-black"
-          />
+      <button
+        type="submit"
+        disabled={loading}
+        className="rounded bg-white px-4 py-2 text-black border"
+      >
+        {loading ? "Logging in..." : "Login"}
+      </button>
 
-          <button
-            onClick={handleLogin}
-            disabled={loading}
-            className="w-full rounded-xl bg-black py-3 font-bold text-white disabled:opacity-50"
-          >
-            {loading ? "Logging in..." : "Login"}
-          </button>
-        </div>
-      </div>
-    </main>
+      {errorMsg && <p className="text-red-600">{errorMsg}</p>}
+    </form>
   );
 }
