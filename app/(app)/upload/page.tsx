@@ -1,14 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+import { useEffect, useMemo, useState } from "react";
 
-type UploadItem = {
-  id: number;
-  name: string;
-  type: string;
-  size: string;
-  status: "Ready" | "Uploading" | "Needs Review";
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+type DocumentRow = {
+  id: string;
+  created_at: string;
+  project_name: string | null;
+  document_title: string;
+  document_type: string | null;
+  category: string | null;
+  notes: string | null;
+  file_name: string;
+  file_path: string;
+  file_size: number | null;
+  uploaded_by: string | null;
 };
 
 export default function UploadPage() {
@@ -17,50 +29,111 @@ export default function UploadPage() {
   const [documentType, setDocumentType] = useState("Template");
   const [category, setCategory] = useState("PESHEP");
   const [notes, setNotes] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const [uploads] = useState<UploadItem[]>([
-    {
-      id: 1,
-      name: "Lilly_Area_B_PESHEP_Template.pdf",
-      type: "Template",
-      size: "2.4 MB",
-      status: "Ready",
-    },
-    {
-      id: 2,
-      name: "Excavation_Inspection_Form.docx",
-      type: "Form",
-      size: "1.1 MB",
-      status: "Needs Review",
-    },
-    {
-      id: 3,
-      name: "Weekly_Safety_Report_Area_C.pdf",
-      type: "Report",
-      size: "3.0 MB",
-      status: "Uploading",
-    },
-  ]);
+  const [documents, setDocuments] = useState<DocumentRow[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
+
+  async function loadDocuments() {
+    setLoadingDocs(true);
+    setMessage("");
+
+    const { data, error } = await supabase
+      .from("documents")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setMessage(`Error loading documents: ${error.message}`);
+      setLoadingDocs(false);
+      return;
+    }
+
+    setDocuments(data ?? []);
+    setLoadingDocs(false);
+  }
+
+  async function handleUpload() {
+    setMessage("");
+
+    if (!selectedFile) {
+      setMessage("Please choose a file first.");
+      return;
+    }
+
+    if (!documentTitle.trim()) {
+      setMessage("Please enter a document title.");
+      return;
+    }
+
+    setUploading(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const safeFileName = `${Date.now()}-${selectedFile.name}`;
+    const folderName = projectName.trim() ? projectName.trim() : "general";
+    const filePath = `${folderName}/${safeFileName}`;
+
+    const { error: storageError } = await supabase.storage
+      .from("documents")
+      .upload(filePath, selectedFile, { upsert: false });
+
+    if (storageError) {
+      setMessage(`Storage upload failed: ${storageError.message}`);
+      setUploading(false);
+      return;
+    }
+
+    const { error: insertError } = await supabase.from("documents").insert({
+      project_name: projectName || null,
+      document_title: documentTitle,
+      document_type: documentType,
+      category,
+      notes: notes || null,
+      file_name: selectedFile.name,
+      file_path: filePath,
+      file_size: selectedFile.size,
+      uploaded_by: user?.email ?? null,
+    });
+
+    if (insertError) {
+      setMessage(`Database save failed: ${insertError.message}`);
+      setUploading(false);
+      return;
+    }
+
+    setProjectName("");
+    setDocumentTitle("");
+    setDocumentType("Template");
+    setCategory("PESHEP");
+    setNotes("");
+    setSelectedFile(null);
+    setMessage("File uploaded successfully.");
+    setUploading(false);
+
+    await loadDocuments();
+  }
 
   const uploadCounts = useMemo(() => {
     return {
-      total: uploads.length,
-      ready: uploads.filter((item) => item.status === "Ready").length,
-      review: uploads.filter((item) => item.status === "Needs Review").length,
-      uploading: uploads.filter((item) => item.status === "Uploading").length,
+      total: documents.length,
+      templates: documents.filter((d) => d.document_type === "Template").length,
+      forms: documents.filter((d) => d.document_type === "Form").length,
+      reports: documents.filter((d) => d.document_type === "Report").length,
     };
-  }, [uploads]);
+  }, [documents]);
 
-  function statusClasses(status: UploadItem["status"]) {
-    if (status === "Ready") {
-      return "bg-emerald-100 text-emerald-700";
-    }
-
-    if (status === "Uploading") {
-      return "bg-sky-100 text-sky-700";
-    }
-
-    return "bg-amber-100 text-amber-700";
+  function getPublicUrl(path: string) {
+    const { data } = supabase.storage.from("documents").getPublicUrl(path);
+    return data.publicUrl;
   }
 
   return (
@@ -75,8 +148,7 @@ export default function UploadPage() {
               Upload Center
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              Add project documents, templates, forms, and reports into the
-              portal and organize them before publishing.
+              Upload files into Supabase Storage and save document records.
             </p>
           </div>
 
@@ -98,17 +170,17 @@ export default function UploadPage() {
       </section>
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Pending Files" value={String(uploadCounts.total)} note="Currently in upload queue" />
-        <StatCard title="Ready Files" value={String(uploadCounts.ready)} note="Prepared for publish" />
-        <StatCard title="Needs Review" value={String(uploadCounts.review)} note="Check metadata or format" />
-        <StatCard title="Uploading" value={String(uploadCounts.uploading)} note="Still processing" />
+        <StatCard title="Total Files" value={String(uploadCounts.total)} note="Saved in database" />
+        <StatCard title="Templates" value={String(uploadCounts.templates)} note="Template records" />
+        <StatCard title="Forms" value={String(uploadCounts.forms)} note="Form records" />
+        <StatCard title="Reports" value={String(uploadCounts.reports)} note="Report records" />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-bold text-slate-900">New Upload</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Add document details before sending files to the portal.
+            Upload a real file and save its details.
           </p>
 
           <div className="mt-6 grid gap-5 md:grid-cols-2">
@@ -121,7 +193,7 @@ export default function UploadPage() {
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
                 placeholder="Enter project name"
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
               />
             </div>
 
@@ -134,7 +206,7 @@ export default function UploadPage() {
                 value={documentTitle}
                 onChange={(e) => setDocumentTitle(e.target.value)}
                 placeholder="Enter document title"
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
               />
             </div>
 
@@ -181,174 +253,115 @@ export default function UploadPage() {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={4}
-                placeholder="Add notes for the document record..."
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                placeholder="Add notes..."
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
               />
             </div>
 
             <div className="md:col-span-2">
               <label className="mb-2 block text-sm font-semibold text-slate-700">
-                Select Files
+                Select File
               </label>
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-                <p className="text-sm font-semibold text-slate-700">
-                  Drag and drop files here
+              <input
+                type="file"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+              />
+              {selectedFile && (
+                <p className="mt-2 text-sm text-slate-600">
+                  Selected: {selectedFile.name}
                 </p>
-                <p className="mt-2 text-sm text-slate-500">
-                  or click to browse from your computer
-                </p>
-                <button
-                  type="button"
-                  className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
-                >
-                  Choose Files
-                </button>
-              </div>
+              )}
             </div>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <button className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500">
-              Start Upload
-            </button>
-            <button className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-              Save Draft
+            <button
+              onClick={handleUpload}
+              disabled={uploading}
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
+            >
+              {uploading ? "Uploading..." : "Start Upload"}
             </button>
           </div>
+
+          {message && (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              {message}
+            </div>
+          )}
         </div>
 
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Upload Tips</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Use consistent naming and categories for cleaner records.
-            </p>
-
-            <div className="mt-6 space-y-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                Include project name and document type in the filename.
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                Upload final approved files separately from draft working files.
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                Add notes when a file needs admin review or revision.
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Quick Actions</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Move between key portal areas.
-            </p>
-
-            <div className="mt-6 space-y-3">
-              <Link
-                href="/library"
-                className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                <span>Browse library</span>
-                <span>→</span>
-              </Link>
-
-              <Link
-                href="/search"
-                className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                <span>Search files</span>
-                <span>→</span>
-              </Link>
-
-              <Link
-                href="/admin"
-                className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                <span>Open admin panel</span>
-                <span>→</span>
-              </Link>
-
-              <Link
-                href="/"
-                className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                <span>Return to dashboard</span>
-                <span>→</span>
-              </Link>
-            </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-900">What to test</h2>
+          <div className="mt-4 space-y-3 text-sm text-slate-600">
+            <p>1. Choose a file.</p>
+            <p>2. Enter a document title.</p>
+            <p>3. Click Start Upload.</p>
+            <p>4. Confirm it appears in the table below.</p>
           </div>
         </div>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Upload Queue</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Files currently staged or recently added.
-            </p>
-          </div>
-        </div>
+        <h2 className="text-xl font-bold text-slate-900">Uploaded Documents</h2>
 
-        <div className="mt-6 overflow-x-auto">
-          <table className="min-w-full border-separate border-spacing-y-3">
-            <thead>
-              <tr>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  File
-                </th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Type
-                </th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Size
-                </th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Status
-                </th>
-                <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Action
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {uploads.map((item) => (
-                <tr key={item.id}>
-                  <td className="rounded-l-2xl border-y border-l border-slate-200 bg-slate-50 px-4 py-4">
-                    <p className="text-sm font-semibold text-slate-900">
-                      {item.name}
-                    </p>
-                  </td>
-
-                  <td className="border-y border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                    {item.type}
-                  </td>
-
-                  <td className="border-y border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                    {item.size}
-                  </td>
-
-                  <td className="border-y border-slate-200 bg-slate-50 px-4 py-4">
-                    <span
-                      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClasses(
-                        item.status
-                      )}`}
-                    >
-                      {item.status}
-                    </span>
-                  </td>
-
-                  <td className="rounded-r-2xl border-y border-r border-slate-200 bg-slate-50 px-4 py-4 text-right">
-                    <button className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white">
-                      View
-                    </button>
-                  </td>
+        {loadingDocs ? (
+          <p className="mt-4 text-sm text-slate-500">Loading documents...</p>
+        ) : (
+          <div className="mt-6 overflow-x-auto">
+            <table className="min-w-full border-separate border-spacing-y-3">
+              <thead>
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Title
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Type
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Category
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    File
+                  </th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Open
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+
+              <tbody>
+                {documents.map((doc) => (
+                  <tr key={doc.id}>
+                    <td className="rounded-l-2xl border-y border-l border-slate-200 bg-slate-50 px-4 py-4 text-sm font-semibold text-slate-900">
+                      {doc.document_title}
+                    </td>
+                    <td className="border-y border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
+                      {doc.document_type}
+                    </td>
+                    <td className="border-y border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
+                      {doc.category}
+                    </td>
+                    <td className="border-y border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                      {doc.file_name}
+                    </td>
+                    <td className="rounded-r-2xl border-y border-r border-slate-200 bg-slate-50 px-4 py-4 text-right">
+                      <a
+                        href={getPublicUrl(doc.file_path)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white"
+                      >
+                        Open
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   );
