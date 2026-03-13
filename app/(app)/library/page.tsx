@@ -1,104 +1,124 @@
+"use client";
+
 import Link from "next/link";
+import { createClient } from "@supabase/supabase-js";
+import { useEffect, useMemo, useState } from "react";
 
-const libraryStats = [
-  {
-    title: "Total Documents",
-    value: "146",
-    note: "12 added this month",
-  },
-  {
-    title: "Templates",
-    value: "38",
-    note: "Core reusable files",
-  },
-  {
-    title: "Project Records",
-    value: "82",
-    note: "Saved by active jobs",
-  },
-  {
-    title: "Standards",
-    value: "26",
-    note: "Reference material",
-  },
-];
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-const categories = [
-  {
-    title: "PESHEP Templates",
-    count: "14 Files",
-    description: "Project safety and health execution plan templates and examples.",
-  },
-  {
-    title: "Forms & Checklists",
-    count: "29 Files",
-    description: "Inspection forms, field checklists, and daily safety tools.",
-  },
-  {
-    title: "Reports",
-    count: "18 Files",
-    description: "Incident reports, weekly summaries, and safety reporting documents.",
-  },
-  {
-    title: "Reference Standards",
-    count: "26 Files",
-    description: "Policies, standards, guidance docs, and admin references.",
-  },
-];
-
-const recentDocs = [
-  {
-    name: "Lilly North Expansion PESHEP Template",
-    type: "Template",
-    updated: "Updated 2 days ago",
-    status: "Current",
-  },
-  {
-    name: "Excavation Daily Inspection Form",
-    type: "Form",
-    updated: "Updated yesterday",
-    status: "Current",
-  },
-  {
-    name: "Weekly Safety Report - Area B",
-    type: "Report",
-    updated: "Updated today",
-    status: "Review",
-  },
-  {
-    name: "Administrative Approval Matrix",
-    type: "Reference",
-    updated: "Updated 5 days ago",
-    status: "Current",
-  },
-  {
-    name: "Confined Space Entry Checklist",
-    type: "Checklist",
-    updated: "Updated 3 days ago",
-    status: "Archived",
-  },
-];
-
-const pinnedDocs = [
-  "Master PESHEP Template",
-  "Daily Inspection Form Pack",
-  "Weekly Report Starter",
-  "Project Startup Checklist",
-];
-
-function statusClasses(status: string) {
-  if (status === "Review") {
-    return "bg-amber-100 text-amber-700";
-  }
-
-  if (status === "Archived") {
-    return "bg-slate-200 text-slate-700";
-  }
-
-  return "bg-emerald-100 text-emerald-700";
-}
+type DocumentRow = {
+  id: string;
+  created_at: string;
+  user_id: string | null;
+  project_name: string | null;
+  document_title: string;
+  document_type: string | null;
+  category: string | null;
+  notes: string | null;
+  file_name: string;
+  file_path: string;
+  file_size: number | null;
+  uploaded_by: string | null;
+};
 
 export default function LibraryPage() {
+  const [documents, setDocuments] = useState<DocumentRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All Categories");
+  const [typeFilter, setTypeFilter] = useState("All Types");
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
+
+  async function loadDocuments() {
+    setLoading(true);
+    setMessage("");
+
+    const { data, error } = await supabase
+      .from("documents")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setMessage(`Error loading documents: ${error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    setDocuments(data ?? []);
+    setLoading(false);
+  }
+
+  async function handleOpenFile(path: string) {
+    setMessage("");
+
+    const { data, error } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(path, 60);
+
+    if (error) {
+      setMessage(`Open file failed: ${error.message}`);
+      return;
+    }
+
+    if (data?.signedUrl) {
+      window.open(data.signedUrl, "_blank");
+    }
+  }
+
+  const categories = useMemo(() => {
+    const values = Array.from(
+      new Set(documents.map((doc) => doc.category).filter(Boolean))
+    ) as string[];
+
+    return ["All Categories", ...values.sort()];
+  }, [documents]);
+
+  const types = useMemo(() => {
+    const values = Array.from(
+      new Set(documents.map((doc) => doc.document_type).filter(Boolean))
+    ) as string[];
+
+    return ["All Types", ...values.sort()];
+  }, [documents]);
+
+  const filteredDocuments = useMemo(() => {
+    return documents.filter((doc) => {
+      const matchesSearch =
+        doc.document_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (doc.project_name ?? "")
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        (doc.file_name ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (doc.category ?? "").toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesCategory =
+        categoryFilter === "All Categories"
+          ? true
+          : doc.category === categoryFilter;
+
+      const matchesType =
+        typeFilter === "All Types" ? true : doc.document_type === typeFilter;
+
+      return matchesSearch && matchesCategory && matchesType;
+    });
+  }, [documents, searchTerm, categoryFilter, typeFilter]);
+
+  const stats = useMemo(() => {
+    return {
+      total: documents.length,
+      templates: documents.filter((d) => d.document_type === "Template").length,
+      forms: documents.filter((d) => d.document_type === "Form").length,
+      reports: documents.filter((d) => d.document_type === "Report").length,
+    };
+  }, [documents]);
+
   return (
     <div className="space-y-8">
       <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -111,8 +131,7 @@ export default function LibraryPage() {
               Library
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              Browse templates, forms, reports, and reference documents from one
-              organized workspace.
+              Browse and open all uploaded documents from one place.
             </p>
           </div>
 
@@ -127,166 +146,184 @@ export default function LibraryPage() {
               href="/search"
               className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              Search Library
+              Search Records
             </Link>
           </div>
         </div>
       </section>
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        {libraryStats.map((item) => (
-          <div
-            key={item.title}
-            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-          >
-            <p className="text-sm font-medium text-slate-500">{item.title}</p>
-            <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">
-              {item.value}
-            </p>
-            <p className="mt-2 text-sm text-slate-500">{item.note}</p>
-          </div>
-        ))}
+        <StatCard
+          title="Total Documents"
+          value={String(stats.total)}
+          note="All uploaded records"
+        />
+        <StatCard
+          title="Templates"
+          value={String(stats.templates)}
+          note="Template documents"
+        />
+        <StatCard
+          title="Forms"
+          value={String(stats.forms)}
+          note="Form documents"
+        />
+        <StatCard
+          title="Reports"
+          value={String(stats.reports)}
+          note="Report documents"
+        />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">Categories</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Main groups of content available in the library.
-          </p>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {categories.map((category) => (
-              <div
-                key={category.title}
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-base font-semibold text-slate-900">
-                    {category.title}
-                  </h3>
-                  <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
-                    {category.count}
-                  </span>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
-                  {category.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">Pinned Documents</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Frequently used items for quick access.
-          </p>
-
-          <div className="mt-6 space-y-4">
-            {pinnedDocs.map((doc, index) => (
-              <div
-                key={doc}
-                className="flex items-center gap-4 rounded-2xl border border-slate-200 px-4 py-4"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sm font-bold text-sky-700">
-                  {index + 1}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-slate-800">{doc}</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Quick access item
-                  </p>
-                </div>
-                <button className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
-                  Open
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">
-                Recent Documents
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Most recently updated documents in the library.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="grid flex-1 gap-4 md:grid-cols-3">
+            <div className="md:col-span-1">
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Search Library
+              </label>
               <input
                 type="text"
-                placeholder="Search documents..."
-                className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                placeholder="Search title, project, file name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
-              <select className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-sky-500">
-                <option>All Types</option>
-                <option>Template</option>
-                <option>Form</option>
-                <option>Report</option>
-                <option>Reference</option>
-                <option>Checklist</option>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Category
+              </label>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+              >
+                {categories.map((category) => (
+                  <option key={category}>{category}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Document Type
+              </label>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+              >
+                {types.map((type) => (
+                  <option key={type}>{type}</option>
+                ))}
               </select>
             </div>
           </div>
 
+          <button
+            onClick={() => {
+              setSearchTerm("");
+              setCategoryFilter("All Categories");
+              setTypeFilter("All Types");
+            }}
+            className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Clear Filters
+          </button>
+        </div>
+
+        {message && (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            {message}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">Documents</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {filteredDocuments.length} document
+              {filteredDocuments.length === 1 ? "" : "s"} found
+            </p>
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="mt-6 text-sm text-slate-500">Loading library...</p>
+        ) : filteredDocuments.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-10 text-center">
+            <p className="text-sm font-semibold text-slate-700">
+              No documents found
+            </p>
+            <p className="mt-2 text-sm text-slate-500">
+              Try adjusting your filters or upload a new file.
+            </p>
+          </div>
+        ) : (
           <div className="mt-6 overflow-x-auto">
             <table className="min-w-full border-separate border-spacing-y-3">
               <thead>
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Document
+                    Title
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Project
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                     Type
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Updated
+                    Category
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Status
+                    File
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Action
+                    Open
                   </th>
                 </tr>
               </thead>
 
               <tbody>
-                {recentDocs.map((doc) => (
-                  <tr key={doc.name}>
+                {filteredDocuments.map((doc) => (
+                  <tr key={doc.id}>
                     <td className="rounded-l-2xl border-y border-l border-slate-200 bg-slate-50 px-4 py-4">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {doc.name}
-                      </p>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {doc.document_title}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Uploaded by {doc.uploaded_by ?? "Unknown"}
+                        </p>
+                      </div>
                     </td>
 
                     <td className="border-y border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                      {doc.type}
+                      {doc.project_name || "General"}
+                    </td>
+
+                    <td className="border-y border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
+                      {doc.document_type || "-"}
+                    </td>
+
+                    <td className="border-y border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
+                      {doc.category || "-"}
                     </td>
 
                     <td className="border-y border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                      {doc.updated}
-                    </td>
-
-                    <td className="border-y border-slate-200 bg-slate-50 px-4 py-4">
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClasses(
-                          doc.status
-                        )}`}
-                      >
-                        {doc.status}
-                      </span>
+                      {doc.file_name}
                     </td>
 
                     <td className="rounded-r-2xl border-y border-r border-slate-200 bg-slate-50 px-4 py-4 text-right">
-                      <button className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white">
+                      <button
+                        onClick={() => handleOpenFile(doc.file_path)}
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white"
+                      >
                         Open
                       </button>
                     </td>
@@ -295,49 +332,28 @@ export default function LibraryPage() {
               </tbody>
             </table>
           </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">Library Actions</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Quick links for document management.
-          </p>
-
-          <div className="mt-6 space-y-3">
-            <Link
-              href="/upload"
-              className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              <span>Upload a new file</span>
-              <span>→</span>
-            </Link>
-
-            <Link
-              href="/search"
-              className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              <span>Search document records</span>
-              <span>→</span>
-            </Link>
-
-            <Link
-              href="/admin"
-              className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              <span>Open admin controls</span>
-              <span>→</span>
-            </Link>
-
-            <Link
-              href="/"
-              className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              <span>Return to dashboard</span>
-              <span>→</span>
-            </Link>
-          </div>
-        </div>
+        )}
       </section>
+    </div>
+  );
+}
+
+function StatCard({
+  title,
+  value,
+  note,
+}: {
+  title: string;
+  value: string;
+  note: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <p className="text-sm font-medium text-slate-500">{title}</p>
+      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">
+        {value}
+      </p>
+      <p className="mt-2 text-sm text-slate-500">{note}</p>
     </div>
   );
 }
