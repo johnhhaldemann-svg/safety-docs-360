@@ -18,18 +18,22 @@ type NavItem = {
 
 const topTabs: NavItem[] = [
   { href: "/", label: "Dashboard", short: "DB" },
-  { href: "/pshsep", label: "PSHSEP", short: "PS" },
-  { href: "/forms", label: "Forms", short: "FO" },
-  { href: "/reports", label: "Reports", short: "RE" },
-  { href: "/settings", label: "Settings", short: "SE" },
+  { href: "/peshep", label: "PESHEP", short: "PE" },
+  { href: "/admin", label: "Admin", short: "AD" },
+  { href: "/csep", label: "CSEP", short: "CS" },
+  { href: "/library", label: "Library", short: "LI" },
+  { href: "/search", label: "Search", short: "SE" },
+  { href: "/upload", label: "Upload", short: "UP" },
 ];
 
 const sideLinks: NavItem[] = [
   { href: "/", label: "Home", short: "HM" },
-  { href: "/pshsep", label: "PSHSEP Builder", short: "PB" },
-  { href: "/forms", label: "Document Tools", short: "DT" },
-  { href: "/reports", label: "Reports", short: "RP" },
-  { href: "/settings", label: "Project Settings", short: "ST" },
+  { href: "/peshep", label: "PESHEP Builder", short: "PB" },
+  { href: "/admin", label: "Admin", short: "AD" },
+  { href: "/csep", label: "CSEP", short: "CS" },
+  { href: "/library", label: "Library", short: "LI" },
+  { href: "/search", label: "Search", short: "SR" },
+  { href: "/upload", label: "Upload", short: "UP" },
 ];
 
 function cx(...classes: Array<string | false | null | undefined>) {
