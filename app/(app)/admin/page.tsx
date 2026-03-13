@@ -33,7 +33,7 @@ const adminSections = [
   {
     title: "Project Controls",
     description: "Set up projects, assign teams, and track workspace ownership.",
-    href: "/admin/projects",
+    href: "/admin",
     button: "Open Projects",
   },
   {
@@ -209,7 +209,9 @@ export default function AdminPage() {
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">Recent Admin Activity</h2>
+          <h2 className="text-xl font-bold text-slate-900">
+            Recent Admin Activity
+          </h2>
           <p className="mt-1 text-sm text-slate-500">
             Latest changes made across the platform.
           </p>
