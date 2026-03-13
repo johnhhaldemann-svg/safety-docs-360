@@ -77,13 +77,26 @@ export default function UploadPage() {
 
     const {
       data: { user },
+      error: userError,
     } = await supabase.auth.getUser();
+
+    if (userError) {
+      setMessage(`User error: ${userError.message}`);
+      setUploading(false);
+      return;
+    }
+
+    if (!user) {
+      setMessage("You must be logged in to upload files.");
+      setUploading(false);
+      return;
+    }
 
     const safeFileName = `${Date.now()}-${selectedFile.name}`;
     const folderName = projectName.trim() ? projectName.trim() : "general";
     const filePath = `${folderName}/${safeFileName}`;
 
-    const { error: storageError } = await supabase.storage
+    const { data: uploadData, error: storageError } = await supabase.storage
       .from("documents")
       .upload(filePath, selectedFile, { upsert: false });
 
@@ -93,18 +106,18 @@ export default function UploadPage() {
       return;
     }
 
-const { error: insertError } = await supabase.from("documents").insert({
-  user_id: user?.id,
-  project_name: projectName || null,
-  document_title: documentTitle,
-  document_type: documentType,
-  category,
-  notes: notes || null,
-  file_name: selectedFile.name,
-  file_path: filePath,
-  file_size: selectedFile.size,
-  uploaded_by: user?.email ?? null,
-});
+    const { error: insertError } = await supabase.from("documents").insert({
+      user_id: user.id,
+      project_name: projectName || null,
+      document_title: documentTitle,
+      document_type: documentType,
+      category,
+      notes: notes || null,
+      file_name: selectedFile.name,
+      file_path: uploadData?.path ?? filePath,
+      file_size: selectedFile.size,
+      uploaded_by: user.email ?? null,
+    });
 
     if (insertError) {
       setMessage(`Database save failed: ${insertError.message}`);
@@ -124,6 +137,23 @@ const { error: insertError } = await supabase.from("documents").insert({
     await loadDocuments();
   }
 
+  async function handleOpenFile(path: string) {
+    setMessage("");
+
+    const { data, error } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(path, 60);
+
+    if (error) {
+      setMessage(`Open file failed: ${error.message}`);
+      return;
+    }
+
+    if (data?.signedUrl) {
+      window.open(data.signedUrl, "_blank");
+    }
+  }
+
   const uploadCounts = useMemo(() => {
     return {
       total: documents.length,
@@ -132,11 +162,6 @@ const { error: insertError } = await supabase.from("documents").insert({
       reports: documents.filter((d) => d.document_type === "Report").length,
     };
   }, [documents]);
-
-  function getPublicUrl(path: string) {
-    const { data } = supabase.storage.from("documents").getPublicUrl(path);
-    return data.publicUrl;
-  }
 
   return (
     <div className="space-y-8">
@@ -172,10 +197,26 @@ const { error: insertError } = await supabase.from("documents").insert({
       </section>
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Total Files" value={String(uploadCounts.total)} note="Saved in database" />
-        <StatCard title="Templates" value={String(uploadCounts.templates)} note="Template records" />
-        <StatCard title="Forms" value={String(uploadCounts.forms)} note="Form records" />
-        <StatCard title="Reports" value={String(uploadCounts.reports)} note="Report records" />
+        <StatCard
+          title="Total Files"
+          value={String(uploadCounts.total)}
+          note="Saved in database"
+        />
+        <StatCard
+          title="Templates"
+          value={String(uploadCounts.templates)}
+          note="Template records"
+        />
+        <StatCard
+          title="Forms"
+          value={String(uploadCounts.forms)}
+          note="Form records"
+        />
+        <StatCard
+          title="Reports"
+          value={String(uploadCounts.reports)}
+          note="Report records"
+        />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
@@ -301,6 +342,7 @@ const { error: insertError } = await supabase.from("documents").insert({
             <p>2. Enter a document title.</p>
             <p>3. Click Start Upload.</p>
             <p>4. Confirm it appears in the table below.</p>
+            <p>5. Click Open and verify it opens in a new tab.</p>
           </div>
         </div>
       </section>
@@ -349,14 +391,12 @@ const { error: insertError } = await supabase.from("documents").insert({
                       {doc.file_name}
                     </td>
                     <td className="rounded-r-2xl border-y border-r border-slate-200 bg-slate-50 px-4 py-4 text-right">
-                      <a
-                        href={getPublicUrl(doc.file_path)}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        onClick={() => handleOpenFile(doc.file_path)}
                         className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white"
                       >
                         Open
-                      </a>
+                      </button>
                     </td>
                   </tr>
                 ))}
