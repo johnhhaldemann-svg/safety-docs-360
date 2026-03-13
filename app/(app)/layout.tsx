@@ -18,12 +18,12 @@ type NavItem = {
 
 const topTabs: NavItem[] = [
   { href: "/", label: "Dashboard", short: "DB" },
-  { href: "/peshep", label: "PESHEP", short: "PE" },
-  { href: "/admin", label: "Admin", short: "AD" },
-  { href: "/csep", label: "CSEP", short: "CS" },
+  { href: "/submit", label: "Submit", short: "SB" },
   { href: "/library", label: "Library", short: "LI" },
   { href: "/search", label: "Search", short: "SR" },
   { href: "/upload", label: "Upload", short: "UP" },
+  { href: "/peshep", label: "PESHEP", short: "PE" },
+  { href: "/admin", label: "Admin", short: "AD" },
 ];
 
 const sideLinks: NavItem[] = [
