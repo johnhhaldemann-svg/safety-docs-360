@@ -39,7 +39,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
       <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
         <div className="text-xs font-bold uppercase tracking-[0.25em] text-sky-600">
-          Anytime Safety
+         
         </div>
         <h1 className="mt-2 text-3xl font-black text-slate-900">Login</h1>
         <p className="mt-2 text-sm text-slate-600">Sign in to continue</p>
