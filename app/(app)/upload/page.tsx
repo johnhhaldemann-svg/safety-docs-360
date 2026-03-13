@@ -12,6 +12,7 @@ const supabase = createClient(
 type DocumentRow = {
   id: string;
   created_at: string;
+  user_id: string | null;
   project_name: string | null;
   document_title: string;
   document_type: string | null;
@@ -92,17 +93,18 @@ export default function UploadPage() {
       return;
     }
 
-    const { error: insertError } = await supabase.from("documents").insert({
-      project_name: projectName || null,
-      document_title: documentTitle,
-      document_type: documentType,
-      category,
-      notes: notes || null,
-      file_name: selectedFile.name,
-      file_path: filePath,
-      file_size: selectedFile.size,
-      uploaded_by: user?.email ?? null,
-    });
+const { error: insertError } = await supabase.from("documents").insert({
+  user_id: user?.id,
+  project_name: projectName || null,
+  document_title: documentTitle,
+  document_type: documentType,
+  category,
+  notes: notes || null,
+  file_name: selectedFile.name,
+  file_path: filePath,
+  file_size: selectedFile.size,
+  uploaded_by: user?.email ?? null,
+});
 
     if (insertError) {
       setMessage(`Database save failed: ${insertError.message}`);
