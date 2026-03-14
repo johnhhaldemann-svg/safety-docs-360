@@ -104,11 +104,21 @@ export default function AppLayout({
     return found?.label ?? "Safety Docs 360";
   }, [pathname]);
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
+async function handleLogout() {
+  try {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Logout error:", error.message);
+      return;
+    }
+
     router.replace("/login");
     router.refresh();
+  } catch (err) {
+    console.error("Unexpected logout error:", err);
   }
+}
 
   if (loading) {
     return (
