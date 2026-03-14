@@ -106,17 +106,21 @@ export default function AppLayout({
 
 async function handleLogout() {
   try {
-    const { error } = await supabase.auth.signOut();
+    setLoading(true);
+    setUserEmail("");
+
+    const { error } = await supabase.auth.signOut({ scope: "global" });
 
     if (error) {
       console.error("Logout error:", error.message);
+      setLoading(false);
       return;
     }
 
-    router.replace("/login");
-    router.refresh();
+    window.location.href = "/login";
   } catch (err) {
     console.error("Unexpected logout error:", err);
+    setLoading(false);
   }
 }
 
