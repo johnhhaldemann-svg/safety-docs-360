@@ -8,10 +8,7 @@ import {
   HeadingLevel,
 } from "docx";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const runtime = "nodejs";
 
 type SubmitPayload = {
   user_id: string;
@@ -133,8 +130,25 @@ function buildPshsepDoc(projectName: string, formData: Record<string, unknown>) 
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as SubmitPayload;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      return NextResponse.json(
+        {
+          error: "Missing Supabase environment variables.",
+          missing: {
+            NEXT_PUBLIC_SUPABASE_URL: !supabaseUrl,
+            SUPABASE_SERVICE_ROLE_KEY: !supabaseServiceRoleKey,
+          },
+        },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    const body = (await request.json()) as SubmitPayload;
     const { user_id, document_type, project_name, form_data } = body;
 
     if (!user_id || !document_type || !project_name || !form_data) {
@@ -165,13 +179,14 @@ export async function POST(request: Request) {
 
     const doc = buildPshsepDoc(project_name, form_data);
     const buffer = await Packer.toBuffer(doc);
+    const fileData = new Uint8Array(buffer);
 
     const safeProjectName = project_name.replace(/[^a-zA-Z0-9-_]/g, "_");
     const filePath = `drafts/${user_id}/${insertedDoc.id}/${safeProjectName}_Draft.docx`;
 
     const { error: uploadError } = await supabase.storage
       .from("documents")
-      .upload(filePath, buffer, {
+      .upload(filePath, fileData, {
         contentType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         upsert: true,
