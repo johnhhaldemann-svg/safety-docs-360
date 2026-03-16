@@ -40,6 +40,8 @@ type CSEPForm = {
 
   required_ppe: string[];
   additional_permits: string[];
+  selected_hazards: string[];
+  included_sections: string[];
 };
 
 const tradeOptions = [
@@ -85,6 +87,20 @@ const permitOptions = [
   "Gravity Permit",
 ];
 
+const csepSectionOptions = [
+  "Project Information",
+  "Contractor Information",
+  "Trade Summary",
+  "Scope of Work",
+  "Site Specific Notes",
+  "Emergency Procedures",
+  "Required PPE",
+  "Additional Permits",
+  "OSHA References",
+  "Selected Hazards",
+  "Activity / Hazard Matrix",
+];
+
 const initialForm: CSEPForm = {
   project_name: "",
   project_number: "",
@@ -104,1361 +120,305 @@ const initialForm: CSEPForm = {
 
   required_ppe: [],
   additional_permits: [],
+  selected_hazards: [],
+  included_sections: [...csepSectionOptions],
 };
 
-const CSEP_TRADE_LIBRARY: CSEPTradeLibraryItem[] = [
+const BASE_ITEMS: CSEPRiskItem[] = [
   {
-    trade: "Survey / Layout",
-    sectionTitle: "Site-Specific Safety Requirements – Survey / Layout",
-    summary:
-      "Survey and layout activities expose workers to changing site conditions, uneven terrain, nearby equipment movement, overhead hazards, and utility-related hazards.",
-    oshaRefs: [
-      "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart K – Electrical",
-      "OSHA 1926 Subpart M – Fall Protection",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "High Visibility Vest",
-      "Gloves",
-      "Steel Toe Boots",
-    ],
-    items: [
-      {
-        activity: "Boundary survey",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Construction staking",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Utility locating",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Elevation verification",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "As-built survey",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General survey support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General survey support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General survey support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General survey support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General survey support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
+    activity: "General work access",
+    hazard: "Slips trips falls",
+    risk: "High",
+    controls: ["Housekeeping", "Maintain clear access", "Anti-slip footwear"],
+    permit: "None",
   },
   {
-    trade: "Demolition",
-    sectionTitle: "Site-Specific Safety Requirements – Demolition",
-    summary:
-      "Demolition activities expose workers to unstable materials, debris handling, heavy equipment interaction, electrical energy, dust generation, and falling object hazards.",
-    oshaRefs: [
-      "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart K – Electrical",
-      "OSHA 1926 Subpart M – Fall Protection",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "High Visibility Vest",
-      "Gloves",
-      "Steel Toe Boots",
-      "Hearing Protection",
-      "Respiratory Protection",
-    ],
-    items: [
-      {
-        activity: "Structural demolition",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Interior demolition",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Concrete cutting",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Debris removal",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Selective demolition",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General demolition support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General demolition support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General demolition support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General demolition support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General demolition support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
+    activity: "Material handling",
+    hazard: "Struck by equipment",
+    risk: "High",
+    controls: ["Spotters", "Equipment alarms", "Exclusion zones"],
+    permit: "Motion Permit",
   },
   {
-    trade: "Earthwork",
-    sectionTitle: "Site-Specific Safety Requirements – Earthwork",
-    summary:
-      "Earthwork operations involve active equipment movement, unstable terrain, grading, compaction, hauling, and changing site conditions with frequent struck-by and slip hazards.",
-    oshaRefs: [
-      "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart P – Excavations",
-      "OSHA 1926 Subpart M – Fall Protection",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "High Visibility Vest",
-      "Gloves",
-      "Steel Toe Boots",
-    ],
-    items: [
-      {
-        activity: "Clearing and grubbing",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Rough grading",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Site leveling",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Compaction",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Soil hauling",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General earthwork support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General earthwork support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General earthwork support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General earthwork support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General earthwork support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
+    activity: "Elevated task work",
+    hazard: "Falls from height",
+    risk: "High",
+    controls: ["Guardrails", "PFAS", "Pre-task planning"],
+    permit: "Ladder Permit",
   },
   {
-    trade: "Excavation / Utilities",
-    sectionTitle: "Site-Specific Safety Requirements – Excavation / Utilities",
-    summary:
-      "Excavation and utility work exposes workers to trench hazards, underground utility strikes, equipment interaction, changing soil conditions, and confined-space related hazards.",
-    oshaRefs: [
-      "OSHA 1926 Subpart P – Excavations",
-      "OSHA 1926 Subpart K – Electrical",
-      "OSHA 1926 Subpart E – PPE",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "High Visibility Vest",
-      "Gloves",
-      "Steel Toe Boots",
-    ],
-    items: [
-      {
-        activity: "Trenching",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "Trench Inspection Permit",
-      },
-      {
-        activity: "Pipe installation",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Manhole install",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Utility tie-ins",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Backfill and restoration",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General excavation support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General excavation support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General excavation support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General excavation support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General excavation support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
+    activity: "Temporary power / tools",
+    hazard: "Electrical shock",
+    risk: "High",
+    controls: ["LOTO", "GFCI protection", "Inspect cords and tools"],
+    permit: "LOTO Permit",
   },
   {
-    trade: "Concrete",
-    sectionTitle: "Site-Specific Safety Requirements – Concrete",
-    summary:
-      "Concrete work involves formwork, placement, finishing, equipment interaction, wet surfaces, manual handling, and elevated work exposures.",
-    oshaRefs: [
-      "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart M – Fall Protection",
-      "OSHA 1926 Subpart L – Scaffolding",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "High Visibility Vest",
-      "Gloves",
-      "Steel Toe Boots",
-      "Face Shield",
-    ],
-    items: [
-      {
-        activity: "Formwork installation",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Concrete placement",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Slab edge work",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Power tools and cords",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Saw cutting / repairs",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General concrete support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General concrete support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General concrete support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General concrete support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General concrete support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
+    activity: "Spark-producing work",
+    hazard: "Hot work / fire",
+    risk: "Medium",
+    controls: ["Fire watch", "Extinguishers", "Remove combustibles"],
+    permit: "Hot Work Permit",
   },
   {
-    trade: "Roofing",
-    sectionTitle: "Site-Specific Safety Requirements – Roofing",
-    summary:
-      "Roofing operations involve leading-edge work, falls from height, material handling, weather exposure, hot work, and falling object hazards.",
-    oshaRefs: [
-      "OSHA 1926 Subpart M – Fall Protection",
-      "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart L – Scaffolding",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "Gloves",
-      "Steel Toe Boots",
-      "Fall Protection Harness",
-    ],
-    items: [
-      {
-        activity: "Roof tear-off",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Material loading",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Roof installation",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Temporary power use",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Torch/applied repairs",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General roofing support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General roofing support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General roofing support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General roofing support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General roofing support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
+    activity: "Overhead work",
+    hazard: "Falling objects",
+    risk: "High",
+    controls: ["Toe boards", "Barricades", "Overhead protection"],
+    permit: "Gravity Permit",
   },
   {
-    trade: "Electrical",
-    sectionTitle: "Site-Specific Safety Requirements – Electrical",
-    summary:
-      "Electrical work exposes workers to energized systems, temporary power, overhead work, tool use, access equipment, and coordination with other active trades.",
-    oshaRefs: [
-      "OSHA 1926 Subpart K – Electrical",
-      "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart M – Fall Protection",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "Gloves",
-      "Steel Toe Boots",
-      "Face Shield",
-    ],
-    items: [
-      {
-        activity: "Conduit installation",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Material handling",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Light fixture installation",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Panel work",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Equipment tie-ins",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General electrical support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General electrical support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General electrical support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General electrical support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General electrical support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
+    activity: "Lifting support",
+    hazard: "Crane lift hazards",
+    risk: "Medium",
+    controls: ["Lift plans", "Signal persons", "Tag lines"],
+    permit: "Motion Permit",
   },
   {
-    trade: "Mechanical / HVAC",
-    sectionTitle: "Site-Specific Safety Requirements – Mechanical / HVAC",
-    summary:
-      "Mechanical and HVAC work involves material handling, duct and equipment installation, energized systems, elevated work, and coordination in active construction areas.",
-    oshaRefs: [
-      "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart K – Electrical",
-      "OSHA 1926 Subpart M – Fall Protection",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "High Visibility Vest",
-      "Gloves",
-      "Steel Toe Boots",
-      "Hearing Protection",
-    ],
-    items: [
-      {
-        activity: "Duct installation",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Equipment setting",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Overhead mechanical work",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Equipment connections",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Welding / brazing",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General mechanical support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General mechanical support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General mechanical support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General mechanical support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General mechanical support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
+    activity: "Portable access",
+    hazard: "Ladder misuse",
+    risk: "Medium",
+    controls: ["Ladder inspections", "Proper setup", "3 points of contact"],
+    permit: "Ladder Permit",
   },
   {
-    trade: "Plumbing",
-    sectionTitle: "Site-Specific Safety Requirements – Plumbing",
-    summary:
-      "Plumbing work involves piping installation, overhead work, equipment interaction, energized systems, confined areas, and hot work exposure.",
-    oshaRefs: [
-      "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart K – Electrical",
-      "OSHA 1926 Subpart M – Fall Protection",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "Gloves",
-      "Steel Toe Boots",
-    ],
-    items: [
-      {
-        activity: "Pipe rough-in",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Material delivery and staging",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Overhead piping",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Pump or equipment connections",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Torch work / soldering",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General plumbing support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General plumbing support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General plumbing support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General plumbing support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General plumbing support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
+    activity: "Entry support",
+    hazard: "Confined spaces",
+    risk: "Medium",
+    controls: ["Air monitoring", "Entry review", "Rescue planning"],
+    permit: "Confined Space Permit",
   },
   {
-    trade: "Low Voltage",
-    sectionTitle: "Site-Specific Safety Requirements – Low Voltage",
-    summary:
-      "Low voltage work includes data and security system installation, access equipment use, energized tie-ins, overhead work, and coordination in occupied or active spaces.",
-    oshaRefs: [
-      "OSHA 1926 Subpart K – Electrical",
-      "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart M – Fall Protection",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "Gloves",
-      "Steel Toe Boots",
-    ],
-    items: [
-      {
-        activity: "Data cabling",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Camera install",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Access control",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Security panels",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Network racks",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General low voltage support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General low voltage support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General low voltage support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General low voltage support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General low voltage support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
-  },
-  {
-    trade: "Elevator",
-    sectionTitle: "Site-Specific Safety Requirements – Elevator",
-    summary:
-      "Elevator work involves shaft access, heavy material movement, energized systems, overhead installation, and falling object hazards in vertical construction areas.",
-    oshaRefs: [
-      "OSHA 1926 Subpart M – Fall Protection",
-      "OSHA 1926 Subpart K – Electrical",
-      "OSHA 1926 Subpart E – PPE",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "Gloves",
-      "Steel Toe Boots",
-      "Fall Protection Harness",
-    ],
-    items: [
-      {
-        activity: "Guide rail install",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Car install",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Motor install",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Cable install",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Testing",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General elevator support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General elevator support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General elevator support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General elevator support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General elevator support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
-  },
-  {
-    trade: "Fire Protection",
-    sectionTitle: "Site-Specific Safety Requirements – Fire Protection",
-    summary:
-      "Fire protection work includes sprinkler and standpipe installation, system tie-ins, testing, elevated work, and coordination with electrical and mechanical systems.",
-    oshaRefs: [
-      "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart K – Electrical",
-      "OSHA 1926 Subpart M – Fall Protection",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "Gloves",
-      "Steel Toe Boots",
-    ],
-    items: [
-      {
-        activity: "Sprinkler install",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Standpipe install",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "System pressure testing",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Valve install",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Alarm tie-ins",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General fire protection support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General fire protection support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General fire protection support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General fire protection support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General fire protection support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
-  },
-  {
-    trade: "Landscaping",
-    sectionTitle: "Site-Specific Safety Requirements – Landscaping",
-    summary:
-      "Landscaping work includes grading, irrigation, planting, hardscape work, equipment use, and frequent exposure to changing weather and site traffic.",
-    oshaRefs: [
-      "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart K – Electrical",
-      "OSHA 1926 Subpart M – Fall Protection",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "High Visibility Vest",
-      "Gloves",
-      "Steel Toe Boots",
-    ],
-    items: [
-      {
-        activity: "Planting",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Sod install",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Irrigation install",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Grading",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Hardscape",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General landscaping support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General landscaping support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General landscaping support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General landscaping support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General landscaping support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
-  },
-  {
-    trade: "Asphalt / Paving",
-    sectionTitle: "Site-Specific Safety Requirements – Asphalt / Paving",
-    summary:
-      "Asphalt and paving work involves heavy equipment, haul routes, compaction, hot materials, live traffic interface, and manual handling exposure.",
-    oshaRefs: [
-      "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart M – Fall Protection",
-      "OSHA 1926 Subpart K – Electrical",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "High Visibility Vest",
-      "Gloves",
-      "Steel Toe Boots",
-    ],
-    items: [
-      {
-        activity: "Subgrade prep",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Asphalt placement",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Compaction",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Striping",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Parking lot paving",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General paving support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General paving support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General paving support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General paving support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General paving support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
-  },
-  {
-    trade: "Traffic Control",
-    sectionTitle: "Site-Specific Safety Requirements – Traffic Control",
-    summary:
-      "Traffic control work involves active vehicle exposure, barricade installation, lane closures, signage work, and constant struck-by risk around public and site traffic.",
-    oshaRefs: [
-      "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart M – Fall Protection",
-      "OSHA 1926 Subpart K – Electrical",
-    ],
-    defaultPPE: [
-      "Hard Hat",
-      "Safety Glasses",
-      "High Visibility Vest",
-      "Gloves",
-      "Steel Toe Boots",
-    ],
-    items: [
-      {
-        activity: "Flagging",
-        hazard: "Slips trips falls",
-        risk: "High",
-        controls: ["Housekeeping", "Anti-slip footwear"],
-        permit: "None",
-      },
-      {
-        activity: "Barricade setup",
-        hazard: "Struck by equipment",
-        risk: "High",
-        controls: ["Spotters", "Equipment alarms"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "Lane closures",
-        hazard: "Falls from height",
-        risk: "High",
-        controls: ["Guardrails", "PFAS"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "Traffic signage",
-        hazard: "Electrical shock",
-        risk: "High",
-        controls: ["LOTO", "GFCI protection"],
-        permit: "LOTO Permit",
-      },
-      {
-        activity: "Detour routing",
-        hazard: "Hot work / fire",
-        risk: "Medium",
-        controls: ["Fire watch", "Extinguishers"],
-        permit: "Hot Work Permit",
-      },
-      {
-        activity: "General traffic control support",
-        hazard: "Falling objects",
-        risk: "High",
-        controls: ["Toe boards", "Overhead protection"],
-        permit: "Gravity Permit",
-      },
-      {
-        activity: "General traffic control support",
-        hazard: "Crane lift hazards",
-        risk: "Medium",
-        controls: ["Lift plans", "Signal persons"],
-        permit: "Motion Permit",
-      },
-      {
-        activity: "General traffic control support",
-        hazard: "Ladder misuse",
-        risk: "Medium",
-        controls: ["Ladder inspections"],
-        permit: "Ladder Permit",
-      },
-      {
-        activity: "General traffic control support",
-        hazard: "Confined spaces",
-        risk: "Medium",
-        controls: ["Air monitoring"],
-        permit: "Confined Space Permit",
-      },
-      {
-        activity: "General traffic control support",
-        hazard: "Chemical exposure",
-        risk: "Medium",
-        controls: ["PPE", "SDS review"],
-        permit: "Chemical Permit",
-      },
-    ],
+    activity: "Chemical use",
+    hazard: "Chemical exposure",
+    risk: "Medium",
+    controls: ["PPE", "SDS review", "Proper storage"],
+    permit: "Chemical Permit",
   },
 ];
+
+const TRADE_SUMMARIES: Record<string, string> = {
+  "Survey / Layout":
+    "Survey and layout activities expose workers to changing site conditions, uneven terrain, nearby equipment movement, overhead hazards, and utility-related hazards.",
+  Demolition:
+    "Demolition activities expose workers to unstable materials, debris handling, heavy equipment interaction, electrical energy, dust generation, and falling object hazards.",
+  Earthwork:
+    "Earthwork operations involve active equipment movement, unstable terrain, grading, compaction, hauling, and changing site conditions.",
+  "Excavation / Utilities":
+    "Excavation and utility work exposes workers to trench hazards, underground utility strikes, equipment interaction, and changing soil conditions.",
+  Concrete:
+    "Concrete work involves formwork, placement, finishing, equipment interaction, wet surfaces, manual handling, and elevated work exposures.",
+  Roofing:
+    "Roofing operations involve leading-edge work, falls from height, material handling, weather exposure, hot work, and falling object hazards.",
+  Electrical:
+    "Electrical work exposes workers to energized systems, temporary power, overhead work, tool use, access equipment, and coordination with other active trades.",
+  "Mechanical / HVAC":
+    "Mechanical and HVAC work involves material handling, duct and equipment installation, energized systems, elevated work, and active construction coordination.",
+  Plumbing:
+    "Plumbing work involves piping installation, overhead work, equipment interaction, energized systems, confined areas, and hot work exposure.",
+  "Low Voltage":
+    "Low voltage work includes data and security system installation, access equipment use, energized tie-ins, and overhead work in active spaces.",
+  Elevator:
+    "Elevator work involves shaft access, heavy material movement, energized systems, overhead installation, and falling object hazards.",
+  "Fire Protection":
+    "Fire protection work includes sprinkler and standpipe installation, system tie-ins, testing, elevated work, and coordination with other systems.",
+  Landscaping:
+    "Landscaping work includes grading, irrigation, planting, hardscape work, equipment use, and frequent exposure to changing weather and site traffic.",
+  "Asphalt / Paving":
+    "Asphalt and paving work involves heavy equipment, haul routes, compaction, hot materials, live traffic interface, and manual handling exposure.",
+  "Traffic Control":
+    "Traffic control work involves active vehicle exposure, barricade installation, lane closures, signage work, and struck-by risk around public and site traffic.",
+};
+
+const TRADE_OSHA_REFS: Record<string, string[]> = {
+  "Survey / Layout": [
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart K – Electrical",
+    "OSHA 1926 Subpart M – Fall Protection",
+  ],
+  Demolition: [
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart K – Electrical",
+    "OSHA 1926 Subpart M – Fall Protection",
+  ],
+  Earthwork: [
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart P – Excavations",
+    "OSHA 1926 Subpart M – Fall Protection",
+  ],
+  "Excavation / Utilities": [
+    "OSHA 1926 Subpart P – Excavations",
+    "OSHA 1926 Subpart K – Electrical",
+    "OSHA 1926 Subpart E – PPE",
+  ],
+  Concrete: [
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart M – Fall Protection",
+    "OSHA 1926 Subpart L – Scaffolding",
+  ],
+  Roofing: [
+    "OSHA 1926 Subpart M – Fall Protection",
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart L – Scaffolding",
+  ],
+  Electrical: [
+    "OSHA 1926 Subpart K – Electrical",
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart M – Fall Protection",
+  ],
+  "Mechanical / HVAC": [
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart K – Electrical",
+    "OSHA 1926 Subpart M – Fall Protection",
+  ],
+  Plumbing: [
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart K – Electrical",
+    "OSHA 1926 Subpart M – Fall Protection",
+  ],
+  "Low Voltage": [
+    "OSHA 1926 Subpart K – Electrical",
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart M – Fall Protection",
+  ],
+  Elevator: [
+    "OSHA 1926 Subpart M – Fall Protection",
+    "OSHA 1926 Subpart K – Electrical",
+    "OSHA 1926 Subpart E – PPE",
+  ],
+  "Fire Protection": [
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart K – Electrical",
+    "OSHA 1926 Subpart M – Fall Protection",
+  ],
+  Landscaping: [
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart K – Electrical",
+    "OSHA 1926 Subpart M – Fall Protection",
+  ],
+  "Asphalt / Paving": [
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart M – Fall Protection",
+    "OSHA 1926 Subpart K – Electrical",
+  ],
+  "Traffic Control": [
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart M – Fall Protection",
+    "OSHA 1926 Subpart K – Electrical",
+  ],
+};
+
+const TRADE_PPE: Record<string, string[]> = {
+  "Survey / Layout": [
+    "Hard Hat",
+    "Safety Glasses",
+    "High Visibility Vest",
+    "Gloves",
+    "Steel Toe Boots",
+  ],
+  Demolition: [
+    "Hard Hat",
+    "Safety Glasses",
+    "High Visibility Vest",
+    "Gloves",
+    "Steel Toe Boots",
+    "Hearing Protection",
+    "Respiratory Protection",
+  ],
+  Earthwork: [
+    "Hard Hat",
+    "Safety Glasses",
+    "High Visibility Vest",
+    "Gloves",
+    "Steel Toe Boots",
+  ],
+  "Excavation / Utilities": [
+    "Hard Hat",
+    "Safety Glasses",
+    "High Visibility Vest",
+    "Gloves",
+    "Steel Toe Boots",
+  ],
+  Concrete: [
+    "Hard Hat",
+    "Safety Glasses",
+    "High Visibility Vest",
+    "Gloves",
+    "Steel Toe Boots",
+    "Face Shield",
+  ],
+  Roofing: [
+    "Hard Hat",
+    "Safety Glasses",
+    "Gloves",
+    "Steel Toe Boots",
+    "Fall Protection Harness",
+  ],
+  Electrical: [
+    "Hard Hat",
+    "Safety Glasses",
+    "Gloves",
+    "Steel Toe Boots",
+    "Face Shield",
+  ],
+  "Mechanical / HVAC": [
+    "Hard Hat",
+    "Safety Glasses",
+    "High Visibility Vest",
+    "Gloves",
+    "Steel Toe Boots",
+    "Hearing Protection",
+  ],
+  Plumbing: ["Hard Hat", "Safety Glasses", "Gloves", "Steel Toe Boots"],
+  "Low Voltage": ["Hard Hat", "Safety Glasses", "Gloves", "Steel Toe Boots"],
+  Elevator: [
+    "Hard Hat",
+    "Safety Glasses",
+    "Gloves",
+    "Steel Toe Boots",
+    "Fall Protection Harness",
+  ],
+  "Fire Protection": ["Hard Hat", "Safety Glasses", "Gloves", "Steel Toe Boots"],
+  Landscaping: [
+    "Hard Hat",
+    "Safety Glasses",
+    "High Visibility Vest",
+    "Gloves",
+    "Steel Toe Boots",
+  ],
+  "Asphalt / Paving": [
+    "Hard Hat",
+    "Safety Glasses",
+    "High Visibility Vest",
+    "Gloves",
+    "Steel Toe Boots",
+  ],
+  "Traffic Control": [
+    "Hard Hat",
+    "Safety Glasses",
+    "High Visibility Vest",
+    "Gloves",
+    "Steel Toe Boots",
+  ],
+};
+
+function buildTradeLibraryItem(trade: string): CSEPTradeLibraryItem {
+  return {
+    trade,
+    sectionTitle: `Site-Specific Safety Requirements – ${trade}`,
+    summary:
+      TRADE_SUMMARIES[trade] ??
+      "Trade-specific work exposes workers to changing site conditions, equipment interaction, access challenges, and task-specific hazards that must be managed through planning and controls.",
+    oshaRefs: TRADE_OSHA_REFS[trade] ?? ["OSHA 1926 Subpart E – PPE"],
+    defaultPPE: TRADE_PPE[trade] ?? [
+      "Hard Hat",
+      "Safety Glasses",
+      "Gloves",
+      "Steel Toe Boots",
+    ],
+    items: BASE_ITEMS,
+  };
+}
 
 function inputClassName() {
   return "w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-500";
@@ -1473,7 +433,8 @@ export default function CSEPPage() {
   const [loading, setLoading] = useState(false);
 
   const selectedTrade = useMemo(() => {
-    return CSEP_TRADE_LIBRARY.find((item) => item.trade === form.trade) ?? null;
+    if (!form.trade) return null;
+    return buildTradeLibraryItem(form.trade);
   }, [form.trade]);
 
   const derivedPermits = useMemo(() => {
@@ -1497,7 +458,11 @@ export default function CSEPPage() {
   }
 
   function toggleArrayValue(
-    field: "required_ppe" | "additional_permits",
+    field:
+      | "required_ppe"
+      | "additional_permits"
+      | "selected_hazards"
+      | "included_sections",
     value: string
   ) {
     setForm((prev) => {
@@ -1524,12 +489,20 @@ export default function CSEPPage() {
       additional_permits: Array.from(
         new Set([...prev.additional_permits, ...derivedPermits])
       ),
+      selected_hazards: Array.from(
+        new Set([...prev.selected_hazards, ...derivedHazards])
+      ),
     }));
   }
 
   async function handleExport() {
     try {
       setLoading(true);
+
+      const selectedTradeItems =
+        selectedTrade?.items.filter((item) =>
+          form.selected_hazards.includes(item.hazard)
+        ) ?? [];
 
       const res = await fetch("/api/csep/export", {
         method: "POST",
@@ -1540,21 +513,40 @@ export default function CSEPPage() {
           ...form,
           tradeSummary: selectedTrade?.summary ?? "",
           oshaRefs: selectedTrade?.oshaRefs ?? [],
-          tradeItems: selectedTrade?.items ?? [],
+          tradeItems: selectedTradeItems,
           derivedHazards,
           derivedPermits,
+          includedContent: {
+            project_information:
+              form.included_sections.includes("Project Information"),
+            contractor_information:
+              form.included_sections.includes("Contractor Information"),
+            trade_summary: form.included_sections.includes("Trade Summary"),
+            scope_of_work: form.included_sections.includes("Scope of Work"),
+            site_specific_notes:
+              form.included_sections.includes("Site Specific Notes"),
+            emergency_procedures:
+              form.included_sections.includes("Emergency Procedures"),
+            required_ppe: form.included_sections.includes("Required PPE"),
+            additional_permits:
+              form.included_sections.includes("Additional Permits"),
+            osha_references: form.included_sections.includes("OSHA References"),
+            selected_hazards:
+              form.included_sections.includes("Selected Hazards"),
+            activity_hazard_matrix:
+              form.included_sections.includes("Activity / Hazard Matrix"),
+          },
         }),
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Failed to generate CSEP.");
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to generate CSEP.");
       }
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
-
       a.href = url;
       a.download = `${form.project_name || "Project"}_${form.trade || "CSEP"}.docx`;
       document.body.appendChild(a);
@@ -1563,11 +555,49 @@ export default function CSEPPage() {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error(error);
-      alert("Failed to generate CSEP document.");
+
+      if (error instanceof Error) {
+        alert(error.message);
+      } else {
+        alert("Failed to generate CSEP document.");
+      }
     } finally {
       setLoading(false);
     }
   }
+
+  const autoPrograms = [
+    form.selected_hazards.includes("Falls from height")
+      ? "Fall Protection Program"
+      : null,
+    form.selected_hazards.includes("Electrical shock")
+      ? "Electrical Safety Program"
+      : null,
+    form.selected_hazards.includes("Hot work / fire")
+      ? "Hot Work Program"
+      : null,
+    form.selected_hazards.includes("Struck by equipment")
+      ? "Struck-By / Equipment Safety"
+      : null,
+    form.selected_hazards.includes("Ladder misuse")
+      ? "Ladder Safety Program"
+      : null,
+    form.selected_hazards.includes("Confined spaces")
+      ? "Confined Space Program"
+      : null,
+    form.selected_hazards.includes("Chemical exposure")
+      ? "Hazard Communication Program"
+      : null,
+    form.selected_hazards.includes("Falling objects")
+      ? "Falling Object Safety Program"
+      : null,
+    form.selected_hazards.includes("Crane lift hazards")
+      ? "Crane / Rigging Safety Program"
+      : null,
+    form.selected_hazards.includes("Slips trips falls")
+      ? "Housekeeping / STF Program"
+      : null,
+  ].filter(Boolean) as string[];
 
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8">
@@ -1578,8 +608,8 @@ export default function CSEPPage() {
           </h1>
           <p className="mt-2 text-sm text-slate-600">
             Build a trade-specific CSEP with project data, contractor data,
-            selected PPE, selected permits, and automatic activity / hazard /
-            control content tied to the selected trade.
+            selected PPE, selected permits, selected hazards, and only the
+            sections you want included in the final generated document.
           </p>
         </div>
 
@@ -1589,7 +619,6 @@ export default function CSEPPage() {
               <h2 className="mb-4 text-xl font-semibold text-slate-900">
                 Project Information
               </h2>
-
               <div className="grid gap-4 md:grid-cols-2">
                 <input
                   className={inputClassName()}
@@ -1628,7 +657,6 @@ export default function CSEPPage() {
               <h2 className="mb-4 text-xl font-semibold text-slate-900">
                 Contractor Information
               </h2>
-
               <div className="grid gap-4 md:grid-cols-2">
                 <input
                   className={inputClassName()}
@@ -1683,14 +711,21 @@ export default function CSEPPage() {
                   disabled={!selectedTrade}
                   className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Apply Trade PPE / Permits
+                  Apply Trade PPE / Permits / Hazards
                 </button>
               </div>
 
               <select
                 className={inputClassName()}
                 value={form.trade}
-                onChange={(e) => updateField("trade", e.target.value)}
+                onChange={(e) => {
+                  const newTrade = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    trade: newTrade,
+                    selected_hazards: [],
+                  }));
+                }}
               >
                 <option value="">Select Trade</option>
                 {tradeOptions.map((trade) => (
@@ -1714,9 +749,31 @@ export default function CSEPPage() {
 
             <section className="rounded-3xl bg-white p-6 shadow-lg">
               <h2 className="mb-4 text-xl font-semibold text-slate-900">
+                CSEP Sections to Include
+              </h2>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {csepSectionOptions.map((item) => (
+                  <label
+                    key={item}
+                    className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.included_sections.includes(item)}
+                      onChange={() =>
+                        toggleArrayValue("included_sections", item)
+                      }
+                    />
+                    <span>{item}</span>
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-3xl bg-white p-6 shadow-lg">
+              <h2 className="mb-4 text-xl font-semibold text-slate-900">
                 Scope and Site Content
               </h2>
-
               <div className="grid gap-4">
                 <textarea
                   className={textareaClassName()}
@@ -1747,7 +804,6 @@ export default function CSEPPage() {
               <h2 className="mb-4 text-xl font-semibold text-slate-900">
                 Required PPE
               </h2>
-
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {ppeOptions.map((item) => (
                   <label
@@ -1769,7 +825,6 @@ export default function CSEPPage() {
               <h2 className="mb-4 text-xl font-semibold text-slate-900">
                 Additional Permits
               </h2>
-
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {permitOptions.map((item) => (
                   <label
@@ -1786,6 +841,35 @@ export default function CSEPPage() {
                     <span>{item}</span>
                   </label>
                 ))}
+              </div>
+            </section>
+
+            <section className="rounded-3xl bg-white p-6 shadow-lg">
+              <h2 className="mb-4 text-xl font-semibold text-slate-900">
+                Hazards to Include in the CSEP
+              </h2>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
+                {derivedHazards.length ? (
+                  derivedHazards.map((hazard) => (
+                    <label
+                      key={hazard}
+                      className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.selected_hazards.includes(hazard)}
+                        onChange={() =>
+                          toggleArrayValue("selected_hazards", hazard)
+                        }
+                      />
+                      <span>{hazard}</span>
+                    </label>
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    Select a trade to load hazards.
+                  </p>
+                )}
               </div>
             </section>
 
@@ -1814,7 +898,6 @@ export default function CSEPPage() {
               <h2 className="text-xl font-semibold text-slate-900">
                 Live CSEP Preview
               </h2>
-
               <div className="mt-4 space-y-4 text-sm text-slate-700">
                 <div>
                   <div className="font-semibold text-slate-900">Project</div>
@@ -1822,7 +905,6 @@ export default function CSEPPage() {
                   <div>{form.project_number || "N/A"}</div>
                   <div>{form.project_address || "N/A"}</div>
                 </div>
-
                 <div>
                   <div className="font-semibold text-slate-900">Contractor</div>
                   <div>{form.contractor_company || "N/A"}</div>
@@ -1830,12 +912,10 @@ export default function CSEPPage() {
                   <div>{form.contractor_phone || "N/A"}</div>
                   <div>{form.contractor_email || "N/A"}</div>
                 </div>
-
                 <div>
                   <div className="font-semibold text-slate-900">Trade</div>
                   <div>{form.trade || "No trade selected"}</div>
                 </div>
-
                 <div>
                   <div className="font-semibold text-slate-900">Scope</div>
                   <div className="whitespace-pre-wrap">
@@ -1847,9 +927,28 @@ export default function CSEPPage() {
 
             <section className="rounded-3xl bg-white p-6 shadow-lg">
               <h2 className="text-xl font-semibold text-slate-900">
+                Included CSEP Sections
+              </h2>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {form.included_sections.length ? (
+                  form.included_sections.map((section) => (
+                    <span
+                      key={section}
+                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
+                    >
+                      {section}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-500">No sections selected.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-3xl bg-white p-6 shadow-lg">
+              <h2 className="text-xl font-semibold text-slate-900">
                 OSHA References
               </h2>
-
               <div className="mt-4 space-y-2">
                 {selectedTrade ? (
                   selectedTrade.oshaRefs.map((ref) => (
@@ -1870,12 +969,11 @@ export default function CSEPPage() {
 
             <section className="rounded-3xl bg-white p-6 shadow-lg">
               <h2 className="text-xl font-semibold text-slate-900">
-                Auto-Detected Hazards
+                Selected Hazards for CSEP
               </h2>
-
               <div className="mt-4 flex flex-wrap gap-2">
-                {derivedHazards.length ? (
-                  derivedHazards.map((hazard) => (
+                {form.selected_hazards.length ? (
+                  form.selected_hazards.map((hazard) => (
                     <span
                       key={hazard}
                       className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
@@ -1885,7 +983,29 @@ export default function CSEPPage() {
                   ))
                 ) : (
                   <p className="text-sm text-slate-500">
-                    Select a trade to load hazards.
+                    No hazards selected for the generated CSEP.
+                  </p>
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-3xl bg-white p-6 shadow-lg">
+              <h2 className="text-xl font-semibold text-slate-900">
+                Auto-Generated Safety Programs
+              </h2>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {autoPrograms.length ? (
+                  autoPrograms.map((program) => (
+                    <span
+                      key={program}
+                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
+                    >
+                      {program}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    Select hazards to auto-generate program sections in the CSEP.
                   </p>
                 )}
               </div>
@@ -1895,7 +1015,6 @@ export default function CSEPPage() {
               <h2 className="text-xl font-semibold text-slate-900">
                 Auto-Detected Permits
               </h2>
-
               <div className="mt-4 flex flex-wrap gap-2">
                 {derivedPermits.length ? (
                   derivedPermits.map((permit) => (
@@ -1916,36 +1035,37 @@ export default function CSEPPage() {
 
             <section className="rounded-3xl bg-white p-6 shadow-lg">
               <h2 className="text-xl font-semibold text-slate-900">
-                Trade Activity / Hazard Matrix
+                Selected Activity / Hazard Matrix
               </h2>
-
               <div className="mt-4 space-y-3">
                 {selectedTrade ? (
-                  selectedTrade.items.map((item, index) => (
-                    <div
-                      key={`${item.activity}-${item.hazard}-${index}`}
-                      className="rounded-2xl border border-slate-200 p-4"
-                    >
-                      <div className="text-sm font-semibold text-slate-900">
-                        {item.activity}
+                  selectedTrade.items
+                    .filter((item) => form.selected_hazards.includes(item.hazard))
+                    .map((item, index) => (
+                      <div
+                        key={`${item.activity}-${item.hazard}-${index}`}
+                        className="rounded-2xl border border-slate-200 p-4"
+                      >
+                        <div className="text-sm font-semibold text-slate-900">
+                          {item.activity}
+                        </div>
+                        <div className="mt-2 text-sm text-slate-700">
+                          <span className="font-semibold">Hazard:</span>{" "}
+                          {item.hazard}
+                        </div>
+                        <div className="text-sm text-slate-700">
+                          <span className="font-semibold">Risk:</span> {item.risk}
+                        </div>
+                        <div className="text-sm text-slate-700">
+                          <span className="font-semibold">Controls:</span>{" "}
+                          {item.controls.join(", ")}
+                        </div>
+                        <div className="text-sm text-slate-700">
+                          <span className="font-semibold">Permit:</span>{" "}
+                          {item.permit}
+                        </div>
                       </div>
-                      <div className="mt-2 text-sm text-slate-700">
-                        <span className="font-semibold">Hazard:</span>{" "}
-                        {item.hazard}
-                      </div>
-                      <div className="text-sm text-slate-700">
-                        <span className="font-semibold">Risk:</span> {item.risk}
-                      </div>
-                      <div className="text-sm text-slate-700">
-                        <span className="font-semibold">Controls:</span>{" "}
-                        {item.controls.join(", ")}
-                      </div>
-                      <div className="text-sm text-slate-700">
-                        <span className="font-semibold">Permit:</span>{" "}
-                        {item.permit}
-                      </div>
-                    </div>
-                  ))
+                    ))
                 ) : (
                   <p className="text-sm text-slate-500">
                     Select a trade to load the activity / hazard matrix.
