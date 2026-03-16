@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+
 async function downloadDocx(form: unknown) {
   const res = await fetch("/api/pshsep/export", {
     method: "POST",
@@ -23,8 +26,6 @@ if (!res.ok) {
 
   window.URL.revokeObjectURL(url);
 }
-
-import { useEffect, useMemo, useState } from "react";
 
 type YesNo = boolean;
 
@@ -221,16 +222,26 @@ function buildExportPayload(a: Answers) {
   };
 }
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 export default function PESHEPUniversalPage() {
+
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
 
-  const [siteMap, setSiteMap] = useState<string | null>(null);
+  const [siteMap, setSiteMap] = useState<string>("");
   const [aedLocation, setAedLocation] = useState("");
   const [firstAidLocation, setFirstAidLocation] = useState("");
   const [assemblyPoint, setAssemblyPoint] = useState("");
-const [nearestHospital, setNearestHospital] = useState("");
-const [emergencyContact, setEmergencyContact] = useState("");
+  const [nearestHospital, setNearestHospital] = useState("");
+  const [emergencyContact, setEmergencyContact] = useState("");
+
+  const [userId, setUserId] = useState("");
+  const [authLoading, setAuthLoading] = useState(true);
 
   const [a, setA] = useState<Answers>({
     company_name: "SafetyDocs",
@@ -253,12 +264,37 @@ const [emergencyContact, setEmergencyContact] = useState("");
     orientation_pass_score: "80",
 
     permits_selected: [],
-
     scope_of_work_selected: [],
-    
+
     lift_plans_required: true,
     critical_lift_review_required: true,
   });
+
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (error) {
+          console.error("Error loading user:", error.message);
+          return;
+        }
+
+        if (user) {
+          setUserId(user.id);
+        }
+      } catch (error) {
+        console.error("Unexpected auth error:", error);
+      } finally {
+        setAuthLoading(false);
+      }
+    }
+
+    loadUser();
+  }, []);
 
   // Load autosave
   useEffect(() => {
@@ -300,6 +336,49 @@ function handleSiteMapUpload(e: React.ChangeEvent<HTMLInputElement>) {
     setSiteMap(reader.result as string);
   };
   reader.readAsDataURL(file);
+}
+
+async function handleSubmitForReview() {
+  try {
+    if (authLoading) {
+      alert("Still loading your account. Please wait one second and try again.");
+      return;
+    }
+
+    if (!userId) {
+      alert("No logged-in user found. Please log in again.");
+      return;
+    }
+
+    setSubmitLoading(true);
+
+    const res = await fetch("/api/documents/submit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        document_type: "PSHSEP",
+        project_name: a.project_name,
+        form_data: a,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Failed to submit document.");
+      return;
+    }
+
+    alert("Document submitted for review.");
+  } catch (error) {
+    console.error("Submit error:", error);
+    alert("Something went wrong.");
+  } finally {
+    setSubmitLoading(false);
+  }
 }
 
 async function exportDocx() {
@@ -398,38 +477,31 @@ async function exportDocx() {
 return (
   <div className="space-y-6">
     {/* Header */}
-    <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="text-xl font-black tracking-tight">PESHEP – Universal Builder</div>
-          <div className="mt-1 text-sm font-semibold text-black/60">
-            Answer Yes/No and dropdowns. Export a finished DOCX.
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              localStorage.removeItem(LS_KEY);
-              location.reload();
-            }}
-            className="inline-flex h-10 items-center justify-center rounded-xl border border-black/15 bg-white px-4 text-sm font-extrabold hover:bg-black/5"
-          >
-            Reset
-          </button>
-
-          <button
-            type="button"
-            onClick={exportDocx}
-            disabled={loading}
-            className="inline-flex h-10 items-center justify-center rounded-xl border border-black bg-black px-4 text-sm font-extrabold text-white hover:bg-black/90 disabled:opacity-50"
-          >
-            {loading ? "Generating DOCX..." : "Export DOCX"}
-          </button>
-        </div>
+<div className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
+  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div>
+      <div className="text-xl font-black tracking-tight">
+        PESHEP – Universal Builder
+      </div>
+      <div className="mt-1 text-sm font-semibold text-black/60">
+        Answer Yes/No and dropdowns. Submit for review.
       </div>
     </div>
+
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={() => {
+          localStorage.removeItem(LS_KEY);
+          location.reload();
+        }}
+        className="inline-flex h-10 items-center justify-center rounded-xl border border-black/15 bg-white px-4 text-sm font-extrabold hover:bg-black/5"
+      >
+        Reset
+      </button>
+    </div>
+  </div>
+</div>
 
         {/* Crane & Rigging Program */}
     <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm space-y-4">
@@ -695,7 +767,7 @@ return (
       />
 
       <Field
-        label="Assembly / Muster Point"
+        label="Museter Point"
         value={assemblyPoint}
         onChange={(v) => setAssemblyPoint(v)}
       />
@@ -743,35 +815,38 @@ return (
   </div>
 )}
 
-        {step === 6 && (
-          <div className="space-y-5">
-            <div className="text-sm font-black">Export</div>
-            <div className="rounded-2xl border border-black/10 bg-white p-4">
-              <div className="text-sm font-extrabold">Ready to generate</div>
-              <div className="mt-1 text-sm font-semibold text-black/60">
-                This exports a DOCX using your answers and conditional blocks. You can refine the wording blocks over time.
-              </div>
+{step === 6 && (
+  <div className="space-y-5">
+    <div className="text-sm font-black">Submit for Review</div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={exportDocx}
-                  disabled={loading}
-                  className="inline-flex h-10 items-center justify-center rounded-xl border border-black bg-black px-4 text-sm font-extrabold text-white hover:bg-black/90 disabled:opacity-50"
-                >
-                  {loading ? "Generating DOCX..." : "Export DOCX"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStep(0)}
-                  className="inline-flex h-10 items-center justify-center rounded-xl border border-black/15 bg-white px-4 text-sm font-extrabold hover:bg-black/5"
-                >
-                  Back to Project Setup
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+    <div className="rounded-2xl border border-black/10 bg-white p-4">
+      <div className="text-sm font-extrabold">Ready to submit</div>
+      <div className="mt-1 text-sm font-semibold text-black/60">
+        This will send your PESHEP to the admin review queue. Once reviewed, the completed document can be returned to the user.
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+<button
+  type="button"
+  onClick={handleSubmitForReview}
+  disabled={submitLoading}
+  className="inline-flex h-10 items-center justify-center rounded-xl border border-green-700 bg-green-600 px-4 text-sm font-extrabold text-white hover:bg-green-700 disabled:opacity-50"
+>
+  {submitLoading ? "Submitting..." : "Submit for Review"}
+</button>
+
+        <button
+          type="button"
+          onClick={() => setStep(0)}
+          className="inline-flex h-10 items-center justify-center rounded-xl border border-black/15 bg-white px-4 text-sm font-extrabold hover:bg-black/5"
+        >
+          Back to Project Setup
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
       </div>
 
       {/* Navigation buttons */}

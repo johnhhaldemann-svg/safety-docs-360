@@ -137,22 +137,28 @@ export default function UploadPage() {
     await loadDocuments();
   }
 
-  async function handleOpenFile(path: string) {
-    setMessage("");
-
-    const { data, error } = await supabase.storage
-      .from("documents")
-      .createSignedUrl(path, 60);
-
-    if (error) {
-      setMessage(`Open file failed: ${error.message}`);
-      return;
-    }
-
-    if (data?.signedUrl) {
-      window.open(data.signedUrl, "_blank");
-    }
+async function handleOpenFile(path?: string | null) {
+  if (!path) {
+    setMessage("Open file failed: missing file path.");
+    return;
   }
+
+  const { data, error } = await supabase.storage
+    .from("documents")
+    .createSignedUrl(path, 60);
+
+  if (error) {
+    setMessage(`Open file failed: ${error.message}`);
+    return;
+  }
+
+  if (!data?.signedUrl) {
+    setMessage("Open file failed: no signed URL returned.");
+    return;
+  }
+
+  window.open(data.signedUrl, "_blank");
+}
 
   const uploadCounts = useMemo(() => {
     return {

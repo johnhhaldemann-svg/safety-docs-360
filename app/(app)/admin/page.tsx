@@ -31,10 +31,10 @@ const adminSections = [
     button: "Manage Users",
   },
   {
-    title: "Project Controls",
-    description: "Set up projects, assign teams, and track workspace ownership.",
-    href: "/admin",
-    button: "Open Projects",
+    title: "Review Queue",
+    description: "Open submitted PESHEP and other documents waiting for admin review.",
+    href: "/admin/review-documents",
+    button: "Review Documents",
   },
   {
     title: "Template Control",
