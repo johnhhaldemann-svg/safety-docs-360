@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const runtime = "nodejs";
 
 export async function GET(
   request: Request,
@@ -12,6 +9,24 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      return NextResponse.json(
+        {
+          error: "Missing Supabase environment variables.",
+          missing: {
+            NEXT_PUBLIC_SUPABASE_URL: !supabaseUrl,
+            SUPABASE_SERVICE_ROLE_KEY: !supabaseServiceRoleKey,
+          },
+        },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     const { data: doc, error: docError } = await supabase
       .from("documents")
