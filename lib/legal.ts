@@ -45,8 +45,8 @@ type MessageError = { message?: string | null };
 
 type SupabaseLikeClient = {
   from: (table: string) => unknown;
-  auth: {
-    admin: {
+  auth?: {
+    admin?: {
       getUserById: (userId: string) => PromiseLike<{
         data: { user?: { user_metadata?: Record<string, unknown> | null } | null };
         error: MessageError | null;
@@ -147,6 +147,13 @@ export async function getUserAgreementRecord(
     };
   }
 
+  if (!supabase.auth?.admin) {
+    return {
+      data: null,
+      error: null,
+    };
+  }
+
   const adminUserResult = await supabase.auth.admin.getUserById(userId);
   const fallbackData = parseAgreementFromMetadata(
     userId,
@@ -179,6 +186,16 @@ export async function acceptUserAgreement(params: {
 
   if (!isMissingAgreementTableError(tableResult.error)) {
     return tableResult;
+  }
+
+  if (!params.supabase.auth?.admin) {
+    return {
+      data: null,
+      error: {
+        message:
+          "Agreement storage is unavailable. Create the user_agreements table or configure the Supabase service role key.",
+      },
+    };
   }
 
   const adminUserResult = await params.supabase.auth.admin.getUserById(params.userId);

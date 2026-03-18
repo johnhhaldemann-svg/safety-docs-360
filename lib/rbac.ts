@@ -228,7 +228,7 @@ export async function authorizeRequest(
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return {
       error: NextResponse.json(
         {
@@ -264,6 +264,32 @@ export async function authorizeRequest(
   if (authError || !user) {
     return {
       error: NextResponse.json({ error: "Invalid auth token." }, { status: 401 }),
+    };
+  }
+
+  if (!supabaseServiceRoleKey) {
+    if (options.requireAdmin) {
+      return {
+        error: NextResponse.json(
+          {
+            error: "Missing Supabase environment variables.",
+            missing: {
+              NEXT_PUBLIC_SUPABASE_URL: !supabaseUrl,
+              NEXT_PUBLIC_SUPABASE_ANON_KEY: !supabaseAnonKey,
+              SUPABASE_SERVICE_ROLE_KEY: true,
+            },
+          },
+          { status: 500 }
+        ),
+      };
+    }
+
+    return {
+      supabase: authClient,
+      user,
+      role: getLegacyRole(user),
+      team: getLegacyTeam(user),
+      accountStatus: "active" as const,
     };
   }
 
