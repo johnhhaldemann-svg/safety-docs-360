@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 
 type YesNo = boolean;
 
@@ -50,6 +51,7 @@ export default function PESHEPUniversalPage() {
 
   const [step, setStep] = useState(0);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [agreedToSubmissionTerms, setAgreedToSubmissionTerms] = useState(false);
 
   const [siteMap, setSiteMap] = useState<string>("");
   const [aedLocation, setAedLocation] = useState("");
@@ -168,15 +170,29 @@ async function handleSubmitForReview() {
       return;
     }
 
+    if (!agreedToSubmissionTerms) {
+      alert(
+        "You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before submitting your PESHEP."
+      );
+      return;
+    }
+
     setSubmitLoading(true);
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      throw new Error("Your session has expired. Please log in again.");
+    }
 
     const res = await fetch("/api/documents/submit", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({
-        user_id: userId,
         document_type: "PSHSEP",
         project_name: a.project_name,
         form_data: a,
@@ -571,11 +587,18 @@ return (
         Submit your PESHEP to the admin review queue. The final document will only be available after admin review is complete.
       </div>
 
+      <div className="mt-4">
+        <LegalAcceptanceBlock
+          checked={agreedToSubmissionTerms}
+          onChange={setAgreedToSubmissionTerms}
+        />
+      </div>
+
       <div className="mt-4 flex flex-wrap gap-2">
 <button
   type="button"
   onClick={handleSubmitForReview}
-  disabled={submitLoading}
+  disabled={submitLoading || !agreedToSubmissionTerms}
   className="inline-flex h-10 items-center justify-center rounded-xl border border-green-700 bg-green-600 px-4 text-sm font-extrabold text-white hover:bg-green-700 disabled:opacity-50"
 >
   {submitLoading ? "Submitting..." : "Submit for Review"}

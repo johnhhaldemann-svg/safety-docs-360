@@ -90,6 +90,35 @@ export default function ReviewDocumentPage() {
     return session.access_token;
   }
 
+  const openDraftDocument = useCallback(async () => {
+    if (!documentItem?.id) {
+      return;
+    }
+
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`/api/documents/download/${documentItem.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error || "Failed to open draft document.");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 60_000);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to open draft document.");
+    }
+  }, [documentItem?.id]);
+
   const loadDocument = useCallback(async () => {
     if (!id) {
       setDocumentItem(null);
@@ -402,14 +431,15 @@ export default function ReviewDocumentPage() {
         <div className="rounded-lg border p-5 shadow-sm">
           <h3 className="mb-3 font-semibold">Draft Document</h3>
 
-          <a
-            href={`/api/documents/download/${documentItem.id}`}
-            target="_blank"
-            rel="noreferrer"
+          <button
+            type="button"
+            onClick={() => {
+              void openDraftDocument();
+            }}
             className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-900 no-underline hover:bg-slate-100"
           >
             Open Draft DOCX
-          </a>
+          </button>
         </div>
 
         <div className="rounded-lg border p-5 shadow-sm space-y-4">

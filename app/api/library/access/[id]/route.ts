@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { normalizePurchasedIds } from "@/lib/marketplace";
+import { getClientIpAddress, getUserAgreementRecord } from "@/lib/legal";
+import { getAgreementConfig } from "@/lib/legalSettings";
 import {
   listCreditTransactions,
   purchasedDocumentIdsFromTransactions,
 } from "@/lib/credits";
+import { logDocumentDownload } from "@/lib/downloadAudit";
 
 export const runtime = "nodejs";
 
@@ -20,6 +23,33 @@ export async function GET(
 
   const { supabase, user, role } = auth;
   const { id } = await context.params;
+  const downloadConfirmed =
+    request.headers.get("x-download-confirmed")?.trim().toLowerCase() === "true";
+
+  const [agreementResult, agreementConfig] = await Promise.all([
+    getUserAgreementRecord(supabase, user.id),
+    getAgreementConfig(supabase),
+  ]);
+
+  if (
+    !agreementResult.data?.accepted_terms ||
+    agreementResult.data?.terms_version !== agreementConfig.version
+  ) {
+    return NextResponse.json(
+      {
+        error: "Acceptance of the current agreement is required before downloading documents.",
+        termsVersion: agreementConfig.version,
+      },
+      { status: 403 }
+    );
+  }
+
+  if (!downloadConfirmed) {
+    return NextResponse.json(
+      { error: "Download confirmation is required before opening this document." },
+      { status: 400 }
+    );
+  }
 
   const { data: document, error: documentError } = await supabase
     .from("documents")
@@ -71,6 +101,19 @@ export async function GET(
       { status: 500 }
     );
   }
+
+  await logDocumentDownload({
+    supabase,
+    documentId: document.id,
+    actorUserId: user.id,
+    ownerUserId: document.user_id ?? null,
+    fileKind: "final",
+    ipAddress: getClientIpAddress(request),
+    metadata: {
+      route: "library_access",
+      project_name: document.project_name ?? null,
+    },
+  });
 
   return NextResponse.json({
     signedUrl: data.signedUrl,

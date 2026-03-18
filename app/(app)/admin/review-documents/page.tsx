@@ -81,6 +81,36 @@ export default function ReviewDocumentsPage() {
     return session.access_token;
   }, []);
 
+  const openDraftDocument = useCallback(
+    async (documentId: string) => {
+      try {
+        const token = await getAccessToken();
+        const res = await fetch(`/api/documents/download/${documentId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) {
+          const data = (await res.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(data?.error || "Failed to open draft document.");
+        }
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, "_blank", "noopener,noreferrer");
+        window.setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+        }, 60_000);
+      } catch (error) {
+        setMessage(
+          error instanceof Error ? error.message : "Failed to open draft document."
+        );
+      }
+    },
+    [getAccessToken]
+  );
+
   useEffect(() => {
     void loadDocuments();
   }, [loadDocuments]);
@@ -359,14 +389,15 @@ function ReviewSection({
                   </Link>
 
                   <div className="flex flex-wrap gap-2">
-                    <a
-                      href={`/api/documents/download/${doc.id}`}
-                      target="_blank"
-                      rel="noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void openDraftDocument(doc.id);
+                      }}
                       className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-extrabold text-slate-900 hover:bg-slate-100"
                     >
                       Open Draft DOCX
-                    </a>
+                    </button>
 
                     <Link
                       href={`/admin/review-documents/${doc.id}`}

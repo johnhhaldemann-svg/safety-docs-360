@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { authorizeRequest } from "@/lib/rbac";
+import { getClientIpAddress } from "@/lib/legal";
+import { logDocumentDownload } from "@/lib/downloadAudit";
 
 export const runtime = "nodejs";
 
@@ -8,29 +10,18 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await context.params;
+    const auth = await authorizeRequest(request, { requireAdmin: true });
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      return NextResponse.json(
-        {
-          error: "Missing Supabase environment variables.",
-          missing: {
-            NEXT_PUBLIC_SUPABASE_URL: !supabaseUrl,
-            SUPABASE_SERVICE_ROLE_KEY: !supabaseServiceRoleKey,
-          },
-        },
-        { status: 500 }
-      );
+    if ("error" in auth) {
+      return auth.error;
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const { id } = await context.params;
+    const { supabase, user } = auth;
 
     const { data: doc, error: docError } = await supabase
       .from("documents")
-      .select("id, project_name, draft_file_path")
+      .select("id, project_name, user_id, status, draft_file_path")
       .eq("id", id)
       .single();
 
@@ -44,6 +35,13 @@ export async function GET(
     if (!doc.draft_file_path) {
       return NextResponse.json(
         { error: "draft_file_path is empty for this document." },
+        { status: 404 }
+      );
+    }
+
+    if (doc.status?.trim().toLowerCase() === "archived") {
+      return NextResponse.json(
+        { error: "This document is archived and cannot be downloaded." },
         { status: 404 }
       );
     }
@@ -62,6 +60,19 @@ export async function GET(
         { status: 404 }
       );
     }
+
+    await logDocumentDownload({
+      supabase,
+      documentId: doc.id,
+      actorUserId: user.id,
+      ownerUserId: doc.user_id ?? null,
+      fileKind: "draft",
+      ipAddress: getClientIpAddress(request),
+      metadata: {
+        route: "admin_draft_download",
+        project_name: doc.project_name ?? null,
+      },
+    });
 
     const safeName = `${doc.project_name || "PSHSEP"}_Draft.docx`.replace(
       /[^a-zA-Z0-9._-]/g,

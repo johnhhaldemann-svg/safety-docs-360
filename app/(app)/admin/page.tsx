@@ -211,6 +211,7 @@ export default function AdminPage() {
     { href: "/admin/review-documents", label: "Open review queue" },
     { href: "/admin/archive", label: "Restore or delete archived records" },
     { href: "/admin/marketplace", label: "Manage marketplace listings" },
+    { href: "/admin/agreements", label: "Inspect agreement acceptance records" },
     { href: "/admin/transactions", label: "Inspect credit transactions" },
     { href: "/admin/users", label: "Manage users" },
     { href: "/admin/settings", label: "Edit admin settings" },
@@ -314,6 +315,12 @@ export default function AdminPage() {
               description="Set listing visibility, credit pricing, and see purchase activity."
               href="/admin/marketplace"
               button="Manage Marketplace"
+            />
+            <AdminToolCard
+              title="Agreement Audit"
+              description="Review who accepted the platform agreement, when they accepted it, and which version is on file."
+              href="/admin/agreements"
+              button="Open Agreements"
             />
             <AdminToolCard
               title="Transaction Audit"

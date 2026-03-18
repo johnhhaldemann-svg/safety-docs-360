@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 
 type RiskLevel = "Low" | "Medium" | "High";
 
@@ -439,6 +440,7 @@ export default function CSEPPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [userId, setUserId] = useState("");
   const [authLoading, setAuthLoading] = useState(true);
+  const [agreedToSubmissionTerms, setAgreedToSubmissionTerms] = useState(false);
 
   useEffect(() => {
     async function loadUser() {
@@ -541,7 +543,21 @@ export default function CSEPPage() {
         return;
       }
 
+      if (!agreedToSubmissionTerms) {
+        alert(
+          "You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before submitting your CSEP."
+        );
+        return;
+      }
+
       setSubmitLoading(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Your session has expired. Please log in again.");
+      }
 
       const selectedTradeItems =
         selectedTrade?.items.filter((item) =>
@@ -552,9 +568,9 @@ export default function CSEPPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          user_id: userId,
           document_type: "CSEP",
           project_name: form.project_name,
           form_data: {
@@ -922,11 +938,18 @@ export default function CSEPPage() {
                 Submit this CSEP to the admin review queue. The completed document will only be available after admin review is finished.
               </p>
 
+              <div className="mt-4">
+                <LegalAcceptanceBlock
+                  checked={agreedToSubmissionTerms}
+                  onChange={setAgreedToSubmissionTerms}
+                />
+              </div>
+
               <div className="mt-4 flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={handleSubmitForReview}
-                disabled={submitLoading}
+                disabled={submitLoading || !agreedToSubmissionTerms}
                 className="rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
               >
                 {submitLoading ? "Submitting..." : "Submit for Review"}

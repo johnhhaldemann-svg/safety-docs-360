@@ -5,6 +5,7 @@ import {
   isAdminRole,
 } from "@/lib/rbac";
 import { TERMS_VERSION, getUserAgreementRecord } from "@/lib/legal";
+import { getAgreementConfig } from "@/lib/legalSettings";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,14 @@ export async function GET(request: Request) {
     return auth.error;
   }
 
-  const agreementResult = await getUserAgreementRecord(auth.supabase, auth.user.id);
+  const [agreementResult, agreementConfig] = await Promise.all([
+    getUserAgreementRecord(auth.supabase, auth.user.id),
+    getAgreementConfig(auth.supabase),
+  ]);
+  const acceptedTerms = Boolean(
+    agreementResult.data?.accepted_terms &&
+      (agreementResult.data?.terms_version ?? "") === agreementConfig.version
+  );
 
   return NextResponse.json({
     user: {
@@ -26,9 +34,12 @@ export async function GET(request: Request) {
       team: auth.team,
       isAdmin: isAdminRole(auth.role),
       accountStatus: auth.accountStatus,
-      acceptedTerms: Boolean(agreementResult.data?.accepted_terms),
+      acceptedTerms,
       acceptedTermsAt: agreementResult.data?.accepted_at ?? null,
       termsVersion: agreementResult.data?.terms_version ?? TERMS_VERSION,
+      agreementCurrent:
+        (agreementResult.data?.terms_version ?? "") === agreementConfig.version,
+      requiredTermsVersion: agreementConfig.version,
     },
   });
 }

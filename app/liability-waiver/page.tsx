@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { AGREEMENT_SECTIONS, TERMS_VERSION } from "@/lib/legal";
+import { getAgreementConfig } from "@/lib/legalSettings";
 
-export default function LiabilityWaiverPage() {
-  const waiver = AGREEMENT_SECTIONS.liabilityWaiver;
+export default async function LiabilityWaiverPage() {
+  const config = await getAgreementConfig();
+  const waiver = config.liabilityWaiver;
 
   return (
     <main className="min-h-screen bg-slate-100 px-6 py-10">
@@ -15,7 +16,7 @@ export default function LiabilityWaiverPage() {
             <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-900">
               {waiver.title}
             </h1>
-            <p className="mt-2 text-sm text-slate-500">Version {TERMS_VERSION}</p>
+            <p className="mt-2 text-sm text-slate-500">Version {config.version}</p>
           </div>
 
           <Link

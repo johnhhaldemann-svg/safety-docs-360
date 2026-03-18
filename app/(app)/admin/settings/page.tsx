@@ -1,16 +1,194 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
+import { createClient } from "@supabase/supabase-js";
+import { useCallback, useEffect, useState } from "react";
+import {
+  type AgreementConfig,
+  type AgreementSectionGroup,
+  getDefaultAgreementConfig,
+} from "@/lib/legal";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+type AgreementAuditSummary = {
+  totalUsers: number;
+  acceptedCount: number;
+  pendingCount: number;
+  currentVersionCount: number;
+  outdatedCount: number;
+};
+
+function cloneConfig(config: AgreementConfig): AgreementConfig {
+  return {
+    version: config.version,
+    termsOfService: {
+      title: config.termsOfService.title,
+      sections: config.termsOfService.sections.map((section) => ({ ...section })),
+    },
+    liabilityWaiver: {
+      title: config.liabilityWaiver.title,
+      sections: config.liabilityWaiver.sections.map((section) => ({ ...section })),
+    },
+  };
+}
 
 export default function AdminSettingsPage() {
-  const [companyName, setCompanyName] = useState("Safety Docs 360");
-  const [defaultApprover, setDefaultApprover] = useState("John Haldemann");
-  const [supportEmail, setSupportEmail] = useState("admin@safetydocs360.com");
-  const [uploadsEnabled, setUploadsEnabled] = useState(true);
-  const [searchEnabled, setSearchEnabled] = useState(true);
-  const [libraryEditing, setLibraryEditing] = useState(true);
-  const [approvalRequired, setApprovalRequired] = useState(true);
+  const [config, setConfig] = useState<AgreementConfig>(getDefaultAgreementConfig());
+  const [summary, setSummary] = useState<AgreementAuditSummary>({
+    totalUsers: 0,
+    acceptedCount: 0,
+    pendingCount: 0,
+    currentVersionCount: 0,
+    outdatedCount: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const getAccessToken = useCallback(async () => {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+
+    if (error || !session?.access_token) {
+      throw new Error("You must be logged in as an admin.");
+    }
+
+    return session.access_token;
+  }, []);
+
+  const loadSettings = useCallback(async () => {
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const token = await getAccessToken();
+      const [configRes, auditRes] = await Promise.all([
+        fetch("/api/admin/legal/config", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+        fetch("/api/admin/legal/agreements", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+      ]);
+
+      const configData = (await configRes.json().catch(() => null)) as
+        | (AgreementConfig & { error?: string })
+        | null;
+      const auditData = (await auditRes.json().catch(() => null)) as
+        | {
+            summary?: Partial<AgreementAuditSummary>;
+            error?: string;
+          }
+        | null;
+
+      if (!configRes.ok) {
+        throw new Error(configData?.error || "Failed to load agreement settings.");
+      }
+
+      if (!auditRes.ok) {
+        throw new Error(auditData?.error || "Failed to load agreement audit summary.");
+      }
+
+      if (configData) {
+        setConfig(cloneConfig(configData));
+      }
+
+      setSummary({
+        totalUsers: Number(auditData?.summary?.totalUsers ?? 0),
+        acceptedCount: Number(auditData?.summary?.acceptedCount ?? 0),
+        pendingCount: Number(auditData?.summary?.pendingCount ?? 0),
+        currentVersionCount: Number(auditData?.summary?.currentVersionCount ?? 0),
+        outdatedCount: Number(auditData?.summary?.outdatedCount ?? 0),
+      });
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Failed to load legal settings."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [getAccessToken]);
+
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings]);
+
+  function updateGroupTitle(group: keyof Pick<AgreementConfig, "termsOfService" | "liabilityWaiver">, value: string) {
+    setConfig((prev) => ({
+      ...prev,
+      [group]: {
+        ...prev[group],
+        title: value,
+      },
+    }));
+  }
+
+  function updateSection(
+    group: keyof Pick<AgreementConfig, "termsOfService" | "liabilityWaiver">,
+    index: number,
+    field: keyof AgreementSectionGroup["sections"][number],
+    value: string
+  ) {
+    setConfig((prev) => ({
+      ...prev,
+      [group]: {
+        ...prev[group],
+        sections: prev[group].sections.map((section, sectionIndex) =>
+          sectionIndex === index ? { ...section, [field]: value } : section
+        ),
+      },
+    }));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setMessage("");
+
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/admin/legal/config", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(config),
+      });
+
+      const data = (await res.json().catch(() => null)) as
+        | (AgreementConfig & { error?: string })
+        | null;
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to save agreement settings.");
+      }
+
+      if (data) {
+        setConfig(cloneConfig(data));
+      }
+
+      setMessage(
+        "Agreement settings saved. If you changed the version, users with older accepted versions will be prompted to re-accept on their next session sync."
+      );
+      await loadSettings();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Failed to save agreement settings."
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -21,279 +199,230 @@ export default function AdminSettingsPage() {
               Administration
             </p>
             <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-900">
-              Admin Settings
+              Legal Agreement Settings
             </h1>
-            <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              Control workspace defaults, approvals, document behavior, and
-              platform options from one place.
+            <p className="mt-3 max-w-3xl text-sm text-slate-600">
+              Manage the live agreement version and legal text used by signup, first-login acceptance, submit controls, and document downloads.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <button className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500">
-              Save Changes
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || loading}
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
+            >
+              {saving ? "Saving..." : "Save Agreement Settings"}
             </button>
-            <Link
-              href="/admin"
+            <button
+              type="button"
+              onClick={() => setConfig(cloneConfig(getDefaultAgreementConfig()))}
               className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              Back to Admin
+              Reset to Defaults
+            </button>
+            <Link
+              href="/admin/agreements"
+              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Open Agreement Audit
             </Link>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="Total Users" value={String(summary.totalUsers)} note="Users included in agreement tracking" />
+        <StatCard title="Current" value={String(summary.currentVersionCount)} note={`Accepted on ${config.version}`} />
+        <StatCard title="Outdated" value={String(summary.outdatedCount)} note="Will be asked to re-accept" />
+        <StatCard title="Pending" value={String(summary.pendingCount)} note="No acceptance on file yet" />
+      </section>
+
+      {message ? (
+        <section className="rounded-2xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-700 shadow-sm">
+          {message}
+        </section>
+      ) : null}
+
+      <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
         <div className="space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Organization Settings</h2>
+            <h2 className="text-xl font-bold text-slate-900">Version Control</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Configure the main organization details used across the platform.
+              Bump the version whenever the legal text changes and users should be required to re-accept.
             </p>
 
-            <div className="mt-6 grid gap-5 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Company Name
-                </label>
-                <input
-                  type="text"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
-                />
-              </div>
+            <div className="mt-6">
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Active Agreement Version
+              </label>
+              <input
+                type="text"
+                value={config.version}
+                onChange={(event) =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    version: event.target.value,
+                  }))
+                }
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+              />
+            </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Default Approver
-                </label>
-                <input
-                  type="text"
-                  value={defaultApprover}
-                  onChange={(e) => setDefaultApprover(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Support Email
-                </label>
-                <input
-                  type="email"
-                  value={supportEmail}
-                  onChange={(e) => setSupportEmail(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
-                />
-              </div>
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              Saving a new version immediately makes that version the required agreement. Users with older accepted versions will be marked outdated and prompted to accept again.
             </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Workspace Controls</h2>
+            <h2 className="text-xl font-bold text-slate-900">Rollout Preview</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Turn major workspace features on or off.
+              Current impact based on today&apos;s acceptance records.
             </p>
 
             <div className="mt-6 space-y-4">
-              <ToggleRow
-                title="Enable uploads"
-                description="Allow users to upload files and project documents."
-                checked={uploadsEnabled}
-                onChange={() => setUploadsEnabled(!uploadsEnabled)}
+              <StatusRow
+                label="Users already current"
+                value={String(summary.currentVersionCount)}
+                tone="green"
               />
-
-              <ToggleRow
-                title="Enable search"
-                description="Allow search across reports, templates, and project files."
-                checked={searchEnabled}
-                onChange={() => setSearchEnabled(!searchEnabled)}
+              <StatusRow
+                label="Users needing re-acceptance"
+                value={String(summary.outdatedCount)}
+                tone="amber"
               />
-
-              <ToggleRow
-                title="Allow library editing"
-                description="Permit editors and admins to update library content."
-                checked={libraryEditing}
-                onChange={() => setLibraryEditing(!libraryEditing)}
+              <StatusRow
+                label="Users with no acceptance yet"
+                value={String(summary.pendingCount)}
+                tone="red"
               />
-
-              <ToggleRow
-                title="Require approval before publish"
-                description="Force admin or manager approval before documents go live."
-                checked={approvalRequired}
-                onChange={() => setApprovalRequired(!approvalRequired)}
-              />
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Document Defaults</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Standard behaviors for forms, reports, and plan generation.
-            </p>
-
-            <div className="mt-6 grid gap-5 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Default Status
-                </label>
-                <select className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500">
-                  <option>Draft</option>
-                  <option>Pending Review</option>
-                  <option>Approved</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Export Format
-                </label>
-                <select className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500">
-                  <option>PDF</option>
-                  <option>DOCX</option>
-                  <option>Both</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Retention Period
-                </label>
-                <select className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500">
-                  <option>1 Year</option>
-                  <option>3 Years</option>
-                  <option>5 Years</option>
-                  <option>7 Years</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Default Library Access
-                </label>
-                <select className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500">
-                  <option>View Only</option>
-                  <option>Editor Access</option>
-                  <option>Admin Only</option>
-                </select>
-              </div>
             </div>
           </div>
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">System Status</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Quick view of workspace services.
-            </p>
+          <AgreementGroupEditor
+            title="Terms of Service"
+            value={config.termsOfService}
+            onTitleChange={(value) => updateGroupTitle("termsOfService", value)}
+            onSectionChange={(index, field, value) =>
+              updateSection("termsOfService", index, field, value)
+            }
+          />
 
-            <div className="mt-6 space-y-4">
-              <StatusRow name="Dashboard" status="Online" color="green" />
-              <StatusRow name="Admin Controls" status="Active" color="green" />
-              <StatusRow name="Library" status="Ready" color="green" />
-              <StatusRow name="Uploads" status="Monitoring" color="amber" />
-              <StatusRow name="Search Index" status="Active" color="green" />
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Admin Notes</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Keep track of important configuration reminders.
-            </p>
-
-            <div className="mt-6 space-y-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                Review approval workflows before enabling live publishing.
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                Confirm support email routing for platform notifications.
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                Recheck retention settings before moving to production records.
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Danger Zone</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              High-impact actions should be handled carefully.
-            </p>
-
-            <div className="mt-6 space-y-3">
-              <button className="w-full rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50">
-                Reset Workspace Defaults
-              </button>
-              <button className="w-full rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50">
-                Disable User Invitations
-              </button>
-            </div>
-          </div>
+          <AgreementGroupEditor
+            title="Liability Waiver"
+            value={config.liabilityWaiver}
+            onTitleChange={(value) => updateGroupTitle("liabilityWaiver", value)}
+            onSectionChange={(index, field, value) =>
+              updateSection("liabilityWaiver", index, field, value)
+            }
+          />
         </div>
       </section>
     </div>
   );
 }
 
-function ToggleRow({
+function AgreementGroupEditor({
   title,
-  description,
-  checked,
-  onChange,
+  value,
+  onTitleChange,
+  onSectionChange,
 }: {
   title: string;
-  description: string;
-  checked: boolean;
-  onChange: () => void;
+  value: AgreementSectionGroup;
+  onTitleChange: (value: string) => void;
+  onSectionChange: (index: number, field: "heading" | "body", value: string) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 p-4">
-      <div>
-        <p className="text-sm font-semibold text-slate-900">{title}</p>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 className="text-xl font-bold text-slate-900">{title}</h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Edit the live text shown in the agreement gate and legal pages.
+      </p>
+
+      <div className="mt-6">
+        <label className="mb-2 block text-sm font-semibold text-slate-700">
+          Section Group Title
+        </label>
+        <input
+          type="text"
+          value={value.title}
+          onChange={(event) => onTitleChange(event.target.value)}
+          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+        />
       </div>
 
-      <button
-        type="button"
-        onClick={onChange}
-        className={`relative h-7 w-12 rounded-full transition ${
-          checked ? "bg-sky-600" : "bg-slate-300"
-        }`}
-      >
-        <span
-          className={`absolute top-1 h-5 w-5 rounded-full bg-white transition ${
-            checked ? "left-6" : "left-1"
-          }`}
-        />
-      </button>
+      <div className="mt-6 space-y-6">
+        {value.sections.map((section, index) => (
+          <div key={`${title}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <label className="mb-2 block text-sm font-semibold text-slate-700">
+              Heading {index + 1}
+            </label>
+            <input
+              type="text"
+              value={section.heading}
+              onChange={(event) => onSectionChange(index, "heading", event.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+            />
+
+            <label className="mb-2 mt-4 block text-sm font-semibold text-slate-700">
+              Body {index + 1}
+            </label>
+            <textarea
+              value={section.body}
+              onChange={(event) => onSectionChange(index, "body", event.target.value)}
+              rows={5}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StatCard({
+  title,
+  value,
+  note,
+}: {
+  title: string;
+  value: string;
+  note: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <p className="text-sm font-medium text-slate-500">{title}</p>
+      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">{value}</p>
+      <p className="mt-2 text-sm text-slate-500">{note}</p>
     </div>
   );
 }
 
 function StatusRow({
-  name,
-  status,
-  color,
+  label,
+  value,
+  tone,
 }: {
-  name: string;
-  status: string;
-  color: "green" | "amber";
+  label: string;
+  value: string;
+  tone: "green" | "amber" | "red";
 }) {
-  const statusClass =
-    color === "green"
+  const toneClass =
+    tone === "green"
       ? "bg-emerald-100 text-emerald-700"
-      : "bg-amber-100 text-amber-700";
+      : tone === "amber"
+        ? "bg-amber-100 text-amber-700"
+        : "bg-red-100 text-red-700";
 
   return (
     <div className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4">
-      <span className="text-sm font-medium text-slate-700">{name}</span>
-      <span
-        className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}
-      >
-        {status}
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${toneClass}`}>
+        {value}
       </span>
     </div>
   );

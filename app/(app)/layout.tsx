@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
+import { getDefaultAgreementConfig, type AgreementConfig } from "@/lib/legal";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,6 +32,7 @@ const adminTopTabs: NavItem[] = [
   { href: "/admin/review-documents", label: "Review Queue", short: "RQ" },
   { href: "/admin/archive", label: "Archive", short: "AR" },
   { href: "/admin/marketplace", label: "Marketplace", short: "MP" },
+  { href: "/admin/agreements", label: "Agreements", short: "AG" },
   { href: "/admin/transactions", label: "Transactions", short: "TX" },
   { href: "/admin/users", label: "Users", short: "US" },
   { href: "/admin/settings", label: "Settings", short: "ST" },
@@ -54,6 +56,7 @@ const adminSideLinks: NavItem[] = [
   { href: "/admin/review-documents", label: "Review Queue", short: "RQ" },
   { href: "/admin/archive", label: "Archive", short: "AR" },
   { href: "/admin/marketplace", label: "Marketplace", short: "MP" },
+  { href: "/admin/agreements", label: "Agreements", short: "AG" },
   { href: "/admin/transactions", label: "Transactions", short: "TX" },
   { href: "/admin/users", label: "Users", short: "US" },
   { href: "/admin/settings", label: "Settings", short: "ST" },
@@ -83,6 +86,12 @@ export default function AppLayout({
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [userRole, setUserRole] = useState("viewer");
   const [accountStatus, setAccountStatus] = useState("active");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptingTerms, setAcceptingTerms] = useState(false);
+  const [termsError, setTermsError] = useState("");
+  const [agreementConfig, setAgreementConfig] = useState<AgreementConfig>(
+    getDefaultAgreementConfig()
+  );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isAdminArea = pathname.startsWith("/admin");
   const topTabs = useMemo(() => {
@@ -103,6 +112,29 @@ export default function AppLayout({
 
     return base;
   }, [isAdminArea, isAdminUser]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAgreementConfig() {
+      try {
+        const res = await fetch("/api/legal/config");
+        const data = (await res.json().catch(() => null)) as AgreementConfig | null;
+
+        if (!cancelled && res.ok && data) {
+          setAgreementConfig(data);
+        }
+      } catch (error) {
+        console.error("Failed to load agreement config:", error);
+      }
+    }
+
+    void loadAgreementConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -131,6 +163,10 @@ export default function AppLayout({
                 role?: string;
                 isAdmin?: boolean;
                 accountStatus?: string;
+                acceptedTerms?: boolean;
+                termsVersion?: string;
+                agreementCurrent?: boolean;
+                requiredTermsVersion?: string;
               };
             }
           | null;
@@ -144,6 +180,8 @@ export default function AppLayout({
         setIsAdminUser(admin);
         setUserRole(data?.user?.role ?? "viewer");
         setAccountStatus(data?.user?.accountStatus ?? "active");
+        setAcceptedTerms(Boolean(data?.user?.acceptedTerms));
+        setTermsError("");
 
         if (data?.user?.accountStatus === "suspended") {
           setLoading(false);
@@ -160,6 +198,7 @@ export default function AppLayout({
         setIsAdminUser(false);
         setUserRole("viewer");
         setAccountStatus("active");
+        setAcceptedTerms(false);
 
         if (isAdminArea) {
           router.replace("/");
@@ -196,7 +235,7 @@ export default function AppLayout({
 
   const sectionTitle = useMemo(() => {
     const found = topTabs.find((item) => isActivePath(pathname, item.href));
-    return found?.label ?? (isAdminArea ? "Admin Workspace" : "Safety Docs 360");
+    return found?.label ?? (isAdminArea ? "Admin Workspace" : "Safety360Docs");
   }, [isAdminArea, pathname, topTabs]);
 
 async function handleLogout() {
@@ -206,6 +245,8 @@ async function handleLogout() {
     setIsAdminUser(false);
     setUserRole("viewer");
     setAccountStatus("active");
+    setAcceptedTerms(false);
+    setTermsError("");
 
     const { error } = await supabase.auth.signOut({ scope: "global" });
 
@@ -254,6 +295,131 @@ async function handleLogout() {
     );
   }
 
+  async function handleAcceptTerms() {
+    try {
+      setAcceptingTerms(true);
+      setTermsError("");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("You must be logged in to accept the agreement.");
+      }
+
+      const res = await fetch("/api/legal/accept", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to record agreement acceptance.");
+      }
+
+      setAcceptedTerms(true);
+    } catch (error) {
+      setTermsError(
+        error instanceof Error ? error.message : "Failed to record agreement acceptance."
+      );
+    } finally {
+      setAcceptingTerms(false);
+    }
+  }
+
+  if (!acceptedTerms) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 px-6 py-10">
+        <div className="w-full max-w-4xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
+            Agreement Required
+          </p>
+          <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
+            Accept the platform agreement before continuing
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            You must accept the Terms of Service, Liability Waiver, and Licensing Agreement before using Safety360Docs. Version {agreementConfig.version}.
+          </p>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            If the agreement version changes, you will be asked to review and accept the updated version before continuing.
+          </p>
+
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 p-5">
+              <h2 className="text-lg font-bold text-slate-900">
+                {agreementConfig.termsOfService.title}
+              </h2>
+              <div className="mt-3 max-h-64 space-y-4 overflow-y-auto pr-2 text-sm text-slate-600">
+                {agreementConfig.termsOfService.sections.map((section) => (
+                  <div key={section.heading}>
+                    <div className="font-semibold text-slate-900">{section.heading}</div>
+                    <p className="mt-1 leading-6">{section.body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 p-5">
+              <h2 className="text-lg font-bold text-slate-900">
+                {agreementConfig.liabilityWaiver.title}
+              </h2>
+              <div className="mt-3 max-h-64 space-y-4 overflow-y-auto pr-2 text-sm text-slate-600">
+                {agreementConfig.liabilityWaiver.sections.map((section) => (
+                  <div key={section.heading}>
+                    <div className="font-semibold text-slate-900">{section.heading}</div>
+                    <p className="mt-1 leading-6">{section.body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {termsError ? (
+            <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {termsError}
+            </div>
+          ) : null}
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/terms"
+              className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              View Terms
+            </Link>
+            <Link
+              href="/liability-waiver"
+              className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              View Liability Waiver
+            </Link>
+            <button
+              type="button"
+              onClick={handleAcceptTerms}
+              disabled={acceptingTerms}
+              className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-60"
+            >
+              {acceptingTerms ? "Accepting..." : "Accept & Continue"}
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <div className="flex min-h-screen">
@@ -273,7 +439,7 @@ async function handleLogout() {
         >
           <div className="border-b border-slate-800 px-6 py-6">
             <div className="text-3xl font-black tracking-tight text-white">
-              SafetyDocs360
+              Safety360Docs
             </div>
             <div className="mt-1 text-xs uppercase tracking-[0.2em] text-sky-400">
               {isAdminArea ? "Admin Control Center" : "Safety Management Platform"}

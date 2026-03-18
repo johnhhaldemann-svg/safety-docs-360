@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import type { CreditTransaction } from "@/lib/credits";
 import { getDocumentCreditCost } from "@/lib/marketplace";
 
@@ -60,6 +61,7 @@ export default function PurchasesPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [actionLoadingId, setActionLoadingId] = useState("");
+  const [pendingDocumentId, setPendingDocumentId] = useState<string>("");
   const [currentUserId, setCurrentUserId] = useState("");
   const [creditState, setCreditState] = useState<CreditState>({
     creditBalance: 0,
@@ -195,7 +197,7 @@ export default function PurchasesPage() {
   }, [purchaseTransactions]);
 
   const handleOpenDocument = useCallback(
-    async (documentId: string) => {
+    async (documentId: string, confirmed = false) => {
       setActionLoadingId(documentId);
       setMessage("");
 
@@ -204,6 +206,7 @@ export default function PurchasesPage() {
         const res = await fetch(`/api/library/access/${documentId}`, {
           headers: {
             Authorization: `Bearer ${token}`,
+            "x-download-confirmed": confirmed ? "true" : "false",
           },
         });
 
@@ -345,7 +348,7 @@ export default function PurchasesPage() {
 
                   <button
                     type="button"
-                    onClick={() => void handleOpenDocument(doc.id)}
+                    onClick={() => setPendingDocumentId(doc.id)}
                     disabled={actionLoadingId === doc.id}
                     className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
@@ -479,6 +482,21 @@ export default function PurchasesPage() {
           </div>
         )}
       </section>
+
+      <DownloadConfirmModal
+        open={Boolean(pendingDocumentId)}
+        loading={Boolean(pendingDocumentId) && actionLoadingId === pendingDocumentId}
+        onCancel={() => {
+          setPendingDocumentId("");
+          setActionLoadingId("");
+        }}
+        onConfirm={() => {
+          const documentId = pendingDocumentId;
+          void handleOpenDocument(documentId, true).then(() => {
+            setPendingDocumentId("");
+          });
+        }}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
+import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,15 +15,12 @@ export default function SubmitPage() {
   const [serviceType, setServiceType] = useState("document_review");
   const [customerNotes, setCustomerNotes] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [agreedToSubmissionTerms, setAgreedToSubmissionTerms] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
-
-  useEffect(() => {
-    checkSubscription();
-  }, []);
 
   async function checkSubscription() {
     setCheckingSubscription(true);
@@ -54,6 +52,14 @@ export default function SubmitPage() {
     setCheckingSubscription(false);
   }
 
+  useEffect(() => {
+    async function loadSubscription() {
+      await checkSubscription();
+    }
+
+    void loadSubscription();
+  }, []);
+
   async function handleSubmit() {
     setMessage("");
 
@@ -74,6 +80,13 @@ export default function SubmitPage() {
 
     if (subscriptionStatus !== "active") {
       setMessage("An active subscription is required before submitting documents.");
+      return;
+    }
+
+    if (!agreedToSubmissionTerms) {
+      setMessage(
+        "You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before submitting a document."
+      );
       return;
     }
 
@@ -244,12 +257,17 @@ export default function SubmitPage() {
                 </div>
               )}
             </div>
+
+            <LegalAcceptanceBlock
+              checked={agreedToSubmissionTerms}
+              onChange={setAgreedToSubmissionTerms}
+            />
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               onClick={handleSubmit}
-              disabled={submitting || checkingSubscription}
+              disabled={submitting || checkingSubscription || !agreedToSubmissionTerms}
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
             >
               {submitting ? "Submitting..." : "Submit Request"}

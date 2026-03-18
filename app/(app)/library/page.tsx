@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import { getDocumentCreditCost, isMarketplaceEnabled } from "@/lib/marketplace";
 import type { CreditTransaction } from "@/lib/credits";
 
@@ -37,6 +38,10 @@ type CreditState = {
   ledgerEnabled: boolean;
 };
 
+type PendingDownload =
+  | { mode: "direct"; path: string }
+  | { mode: "completed"; documentId: string };
+
 function isArchivedStatus(status?: string | null) {
   return status?.trim().toLowerCase() === "archived";
 }
@@ -57,6 +62,8 @@ export default function LibraryPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
   const [typeFilter, setTypeFilter] = useState("All Types");
+  const [pendingDownload, setPendingDownload] = useState<PendingDownload | null>(null);
+  const [downloadLoading, setDownloadLoading] = useState(false);
 
   const getAccessToken = useCallback(async () => {
     const {
@@ -145,27 +152,17 @@ export default function LibraryPage() {
       return;
     }
 
-    const { data, error } = await supabase.storage
-      .from("documents")
-      .createSignedUrl(path, 60);
-
-    if (error) {
-      setMessage(`Open file failed: ${error.message}`);
-      return;
-    }
-
-    if (data?.signedUrl) {
-      window.open(data.signedUrl, "_blank");
-    }
+    setPendingDownload({ mode: "direct", path });
   }
 
   const handleOpenCompletedDocument = useCallback(
-    async (documentId: string) => {
+    async (documentId: string, confirmed = false) => {
       try {
         const token = await getAccessToken();
         const res = await fetch(`/api/library/access/${documentId}`, {
           headers: {
             Authorization: `Bearer ${token}`,
+            "x-download-confirmed": confirmed ? "true" : "false",
           },
         });
 
@@ -185,6 +182,37 @@ export default function LibraryPage() {
     },
     [getAccessToken]
   );
+
+  const confirmPendingDownload = useCallback(async () => {
+    if (!pendingDownload) {
+      return;
+    }
+
+    setDownloadLoading(true);
+    setMessage("");
+
+    try {
+      if (pendingDownload.mode === "direct") {
+        const { data, error } = await supabase.storage
+          .from("documents")
+          .createSignedUrl(pendingDownload.path, 60);
+
+        if (error || !data?.signedUrl) {
+          throw new Error(error?.message || "Failed to create file access URL.");
+        }
+
+        window.open(data.signedUrl, "_blank");
+      } else {
+        await handleOpenCompletedDocument(pendingDownload.documentId, true);
+      }
+
+      setPendingDownload(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to open document.");
+    } finally {
+      setDownloadLoading(false);
+    }
+  }, [handleOpenCompletedDocument, pendingDownload]);
 
   const handlePurchaseDocument = useCallback(
     async (documentId: string) => {
@@ -533,7 +561,7 @@ export default function LibraryPage() {
         description={`${accessibleApprovedDocuments.length} completed document${accessibleApprovedDocuments.length === 1 ? "" : "s"} ready to open`}
         documents={accessibleApprovedDocuments}
         loading={loading}
-        onOpen={(doc) => handleOpenCompletedDocument(doc.id)}
+        onOpen={(doc) => setPendingDownload({ mode: "completed", documentId: doc.id })}
         emptyTitle="No unlocked completed documents yet"
         emptyMessage="Completed documents you own or purchase with credits will appear here."
       />
@@ -556,6 +584,18 @@ export default function LibraryPage() {
         }
         emptyTitle="No documents found"
         emptyMessage="Try adjusting your filters or upload a new file."
+      />
+
+      <DownloadConfirmModal
+        open={Boolean(pendingDownload)}
+        loading={downloadLoading}
+        onCancel={() => {
+          setPendingDownload(null);
+          setDownloadLoading(false);
+        }}
+        onConfirm={() => {
+          void confirmPendingDownload();
+        }}
       />
     </div>
   );

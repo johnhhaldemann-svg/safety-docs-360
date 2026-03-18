@@ -15,6 +15,8 @@ import {
   WidthType,
 } from "docx";
 import { NextResponse } from "next/server";
+import { DOCUMENT_DISCLAIMER_LINES } from "@/lib/legal";
+import { authorizeRequest } from "@/lib/rbac";
 
 type RiskLevel = "Low" | "Medium" | "High";
 
@@ -778,6 +780,11 @@ function buildDoc(form: CSEPInput) {
   children.push(
     body("Date: ___________________________________________________")
   );
+  children.push(new Paragraph({ children: [new PageBreak()] }));
+  children.push(heading1("Disclaimer"));
+  DOCUMENT_DISCLAIMER_LINES.forEach((line) => {
+    children.push(body(line));
+  });
 
   return new Document({
     sections: [
@@ -810,6 +817,12 @@ export async function generateCsepDocx(form: CSEPInput) {
 
 export async function POST(req: Request) {
   try {
+    const auth = await authorizeRequest(req);
+
+    if ("error" in auth) {
+      return auth.error;
+    }
+
     const form = (await req.json()) as CSEPInput;
     return await generateCsepDocx(form);
   } catch (error) {

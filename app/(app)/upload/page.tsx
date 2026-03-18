@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
+import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
+import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,10 +38,9 @@ export default function UploadPage() {
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    loadDocuments();
-  }, []);
+  const [agreedToUploadTerms, setAgreedToUploadTerms] = useState(false);
+  const [downloadPath, setDownloadPath] = useState<string | null>(null);
+  const [downloadLoading, setDownloadLoading] = useState(false);
 
   async function loadDocuments() {
     setLoadingDocs(true);
@@ -60,6 +61,14 @@ export default function UploadPage() {
     setLoadingDocs(false);
   }
 
+  useEffect(() => {
+    async function loadInitialDocuments() {
+      await loadDocuments();
+    }
+
+    void loadInitialDocuments();
+  }, []);
+
   async function handleUpload() {
     setMessage("");
 
@@ -70,6 +79,13 @@ export default function UploadPage() {
 
     if (!documentTitle.trim()) {
       setMessage("Please enter a document title.");
+      return;
+    }
+
+    if (!agreedToUploadTerms) {
+      setMessage(
+        "You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before uploading a document."
+      );
       return;
     }
 
@@ -138,26 +154,36 @@ export default function UploadPage() {
   }
 
 async function handleOpenFile(path?: string | null) {
-  if (!path) {
+  setDownloadPath(path ?? null);
+}
+
+async function confirmOpenFile() {
+  if (!downloadPath) {
     setMessage("Open file failed: missing file path.");
     return;
   }
 
+  setDownloadLoading(true);
+
   const { data, error } = await supabase.storage
     .from("documents")
-    .createSignedUrl(path, 60);
+    .createSignedUrl(downloadPath, 60);
 
   if (error) {
     setMessage(`Open file failed: ${error.message}`);
+    setDownloadLoading(false);
     return;
   }
 
   if (!data?.signedUrl) {
     setMessage("Open file failed: no signed URL returned.");
+    setDownloadLoading(false);
     return;
   }
 
   window.open(data.signedUrl, "_blank");
+  setDownloadPath(null);
+  setDownloadLoading(false);
 }
 
   const uploadCounts = useMemo(() => {
@@ -322,12 +348,19 @@ async function handleOpenFile(path?: string | null) {
                 </p>
               )}
             </div>
+
+            <div className="md:col-span-2">
+              <LegalAcceptanceBlock
+                checked={agreedToUploadTerms}
+                onChange={setAgreedToUploadTerms}
+              />
+            </div>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               onClick={handleUpload}
-              disabled={uploading}
+              disabled={uploading || !agreedToUploadTerms}
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
             >
               {uploading ? "Uploading..." : "Start Upload"}
@@ -411,6 +444,18 @@ async function handleOpenFile(path?: string | null) {
           </div>
         )}
       </section>
+
+      <DownloadConfirmModal
+        open={Boolean(downloadPath)}
+        loading={downloadLoading}
+        onCancel={() => {
+          setDownloadPath(null);
+          setDownloadLoading(false);
+        }}
+        onConfirm={() => {
+          void confirmOpenFile();
+        }}
+      />
     </div>
   );
 }
