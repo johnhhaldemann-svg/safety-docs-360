@@ -789,26 +789,29 @@ function buildDoc(form: CSEPInput) {
   });
 }
 
+export async function generateCsepDocx(form: CSEPInput) {
+  const doc = buildDoc(form);
+  const buffer = await Packer.toBuffer(doc);
+  const fileData = new Uint8Array(buffer);
+
+  const safeProject = valueOrNA(form.project_name).replace(/[^\w\-]+/g, "_");
+  const safeTrade = valueOrNA(form.trade).replace(/[^\w\-]+/g, "_");
+  const filename = `${safeProject}_${safeTrade}_CSEP.docx`;
+
+  return new NextResponse(fileData, {
+    status: 200,
+    headers: {
+      "Content-Type":
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const form = (await req.json()) as CSEPInput;
-
-    const doc = buildDoc(form);
-    const buffer = await Packer.toBuffer(doc);
-    const fileData = new Uint8Array(buffer);
-
-    const safeProject = valueOrNA(form.project_name).replace(/[^\w\-]+/g, "_");
-    const safeTrade = valueOrNA(form.trade).replace(/[^\w\-]+/g, "_");
-    const filename = `${safeProject}_${safeTrade}_CSEP.docx`;
-
-    return new NextResponse(fileData, {
-      status: 200,
-      headers: {
-        "Content-Type":
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-      },
-    });
+    return await generateCsepDocx(form);
   } catch (error) {
     console.error("CSEP export error:", error);
 

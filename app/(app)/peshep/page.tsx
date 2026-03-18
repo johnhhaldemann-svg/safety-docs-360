@@ -1,31 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-
-async function downloadDocx(form: unknown) {
-  const res = await fetch("/api/pshsep/export", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(form),
-  });
-
-if (!res.ok) {
-  throw new Error("DOCX export failed");
-}
-
-  const blob = await res.blob();
-  const url = window.URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "PSHSEP.docx";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-
-  window.URL.revokeObjectURL(url);
-}
 
 type YesNo = boolean;
 
@@ -64,164 +41,6 @@ function yesNoToggle(value: boolean) {
   return value ? "Yes" : "No";
 }
 
-function yn(value: boolean) {
-  return value ? "Yes" : "No";
-}
-
-function todayISO() {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function downloadBlob(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function safeFilePart(input: string) {
-  return (input || "Document")
-    .replace(/[^\w\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "_")
-    .slice(0, 60);
-}
-
-function permitYesNo(permits: string[], label: string) {
-  return permits.includes(label) ? "Yes" : "No";
-}
-
-const TRADE_OPTIONS = [
-  "Excavation / Trenching",
-  "Concrete / Masonry",
-  "Structural Steel",
-  "Crane / Rigging",
-  "Roofing",
-  "Electrical",
-  "Demolition",
-  "Scaffolds",
-  "MEWP / Aerial Lifts",
-  "Forklifts / Material Handling",
-  "Hot Work",
-  "Confined Space",
-  "LOTO / Hazardous Energy",
-  "Silica-Producing Work",
-  "Interior Buildout",
-  "Site Logistics / Traffic Control",
-];
-
-/**
- * IMPORTANT:
- * Your export API & master.docx placeholders use names like:
- *  - project_location, project_owner, general_contractor, etc.
- * This maps your page Answers -> export payload expected by the API/template.
- */
-function buildExportPayload(a: Answers) {
-  const osha30 = a.requires_osha30_pm_super_within_5yrs || a.requires_osha30_supervisor_on_site;
-
-  return {
-    // Branding / cover
-    company_name: a.company_name ?? "",
-    document_title: "Project Specific Health & Safety Plan (PSHSEP)",
-
-    // Project fields
-    project_name: a.project_name ?? "",
-    project_number: a.project_number ?? "",
-    project_location: a.project_address ?? "",
-    project_owner: a.owner_client ?? "",
-    general_contractor: a.gc_cm ?? "",
-    construction_manager: "",
-
-    // Document control
-    prepared_by: a.company_name ?? "SafetyDocs",
-    prepared_date: todayISO(),
-    revision_number: "01",
-
-    // Overview (not in your UI yet; leaving blank is fine)
-    project_description: a.project_description ?? "",
-    construction_type: "",
-    estimated_workforce: "",
-    project_start_date: "",
-    project_completion_date: "",
-
-    // Org (not in your UI yet)
-    safety_director: "",
-    project_manager: "",
-    site_superintendent: "",
-    site_safety_manager: "",
-    emergency_coordinator: "",
-
-    preconstruction_meeting_date: "",
-    risk_assessment_completed: "",
-
-    // Training matrix (template expects strings)
-    osha10_required: yn(a.requires_osha10),
-    osha30_required: yn(osha30),
-    fall_training: "Yes",
-    lift_training: "Yes",
-    confined_space_training: permitYesNo(a.permits_selected, "Confined Space"),
-
-    // Emergency (not in your UI yet)
-    emergency_phone: "",
-    hospital_name: "",
-    hospital_address: "",
-    assembly_point: "",
-
-    // Permit matrix
-    permit_hot_work: permitYesNo(a.permits_selected, "Hot Work"),
-    permit_excavation: permitYesNo(a.permits_selected, "Groundbreaking/Excavation"),
-    permit_loto: permitYesNo(a.permits_selected, "LOTO / Electrical"),
-    permit_confined_space: permitYesNo(a.permits_selected, "Confined Space"),
-
-    // Optional table placeholders (we can upgrade later to real loops)
-    contractor_table: "",
-
-    // Conditional sections (we will generate real paragraphs later; blank is OK now)
-    section_excavation: a.permits_selected.includes("Groundbreaking/Excavation")
-      ? "Excavation work is anticipated. Excavations will be planned, protected, and inspected by a competent person in accordance with OSHA 29 CFR 1926 Subpart P. Protective systems (sloping, shoring, or shielding) will be used as required. Access/egress, spoil placement, utility identification, and atmospheric considerations will be controlled."
-      : "",
-    section_crane_operations: a.permits_selected.includes("Crane / Critical Lift")
-      ? "Crane operations / critical lifts may occur. All lifts will follow an approved lift plan where required, include pre-lift meetings, qualified operators, inspected rigging, controlled swing radius, and established exclusion zones. Signal person/communications will be defined before lifting."
-      : "",
-    section_confined_space: a.permits_selected.includes("Confined Space")
-      ? "Confined space entry may occur. Entries will follow a written permit process where required, including atmospheric testing, ventilation, attendant/entry supervisor roles, rescue planning, and continuous monitoring as applicable."
-      : "",
-    section_hot_work: a.permits_selected.includes("Hot Work")
-      ? "Hot work may occur. Hot work will require authorization where applicable, fire watch, removal/protection of combustibles, appropriate extinguishers, and post-work monitoring. Welding/cutting/grinding will follow site-specific requirements and manufacturer instructions."
-      : "",
-    section_electrical: a.permits_selected.includes("LOTO / Electrical")
-      ? "Electrical work may occur. De-energization and lockout/tagout will be used where feasible. Qualified persons will perform electrical tasks; boundaries, arc-flash considerations, and appropriate PPE will be enforced. Energized work requires specific approval where applicable."
-      : "",
-    section_work_at_heights: a.permits_selected.includes("Work at Height")
-      ? "Work at heights may occur. Fall protection will be used in accordance with OSHA requirements, including guardrails, personal fall arrest systems, 100% tie-off where required, and rescue planning. Ladders and elevated platforms will be inspected and used per manufacturer/site rules."
-      : "",
-
-    // Appendices placeholders
-    appendix_site_map: "",
-    appendix_emergency_map: "",
-    appendix_inspection_forms: "",
-    appendix_training_records: "",
-    appendix_permit_forms: "",
-    appendix_equipment_logs: "",
-
-    // Keep these so your template doesn't error if you later add them
-    requires_background_check: yn(a.requires_background_check),
-    orientation_required: yn(a.orientation_required),
-    orientation_pass_score: a.orientation_pass_score,
-    requires_drug_card_ccs: yn(a.requires_drug_card_ccs),
-    requires_codex_access: yn(a.requires_codex_access),
-    requires_training_matrix_monthly: yn(a.requires_training_matrix_monthly),
-  };
-}
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -230,7 +49,6 @@ const supabase = createClient(
 export default function PESHEPUniversalPage() {
 
   const [step, setStep] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
 
   const [siteMap, setSiteMap] = useState<string>("");
@@ -270,31 +88,31 @@ export default function PESHEPUniversalPage() {
     critical_lift_review_required: true,
   });
 
-  useEffect(() => {
-    async function loadUser() {
-      try {
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser();
+useEffect(() => {
+  async function loadUser() {
+    try {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
 
-        if (error) {
-          console.error("Error loading user:", error.message);
-          return;
-        }
-
-        if (user) {
-          setUserId(user.id);
-        }
-      } catch (error) {
-        console.error("Unexpected auth error:", error);
-      } finally {
-        setAuthLoading(false);
+      if (error) {
+        console.error("Error loading user:", error.message);
+        return;
       }
-    }
 
-    loadUser();
-  }, []);
+      if (user) {
+        setUserId(user.id);
+      }
+    } catch (error) {
+      console.error("Unexpected auth error:", error);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  loadUser();
+}, []);
 
   // Load autosave
   useEffect(() => {
@@ -323,7 +141,7 @@ const steps = useMemo(
     { title: "Scope of Work" },
     { title: "Permits" },
     { title: "Emergency Map & Response Locations" },
-    { title: "Export" },
+    { title: "Export & Submit" },
   ],
   []
 );
@@ -372,80 +190,12 @@ async function handleSubmitForReview() {
       return;
     }
 
-    alert("Document submitted for review.");
+    alert("PSHSEP submitted successfully.");
   } catch (error) {
     console.error("Submit error:", error);
     alert("Something went wrong.");
   } finally {
     setSubmitLoading(false);
-  }
-}
-
-async function exportDocx() {
-  setLoading(true);
-
-  try {
-    const payload = {
-      ...buildExportPayload(a),
-      siteMap,
-      aedLocation,
-      firstAidLocation,
-      assemblyPoint,
-      nearestHospital,
-      emergencyContact,
-    };
-
-    const res = await fetch("/api/pshsep/export", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const ct = res.headers.get("content-type") || "";
-      let detail = "";
-
-      if (ct.includes("application/json")) {
-        const j = await res.json().catch(() => null);
-
-        if (j?.details?.length) {
-          const lines = j.details
-            .map((d: any, i: number) => {
-              const tag = d.tag ? `tag=${d.tag}` : "tag=?";
-              const msg = d.message || "Template error";
-              return `${i + 1}) ${tag} — ${msg}`;
-            })
-            .join("\n");
-
-          detail = `\n\nDOCX TEMPLATE DETAILS:\n${lines}`;
-        } else if (j?.error) {
-          detail = `\n\n${j.error}`;
-        } else if (j?.message) {
-          detail = `\n\n${j.message}`;
-        }
-      } else {
-        const t = await res.text().catch(() => "");
-        detail = t ? `\n\n${t.slice(0, 600)}` : "";
-      }
-
-      throw new Error(`Export failed (${res.status})${detail}`);
-    }
-
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "Project_Safety_Plan.docx";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    window.URL.revokeObjectURL(url);
-  } catch (err: any) {
-    alert(err?.message || "Export failed");
-  } finally {
-    setLoading(false);
   }
 }
 
@@ -481,7 +231,7 @@ return (
   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
     <div>
       <div className="text-xl font-black tracking-tight">
-        PESHEP – Universal Builder
+        PESHEP - Universal Builder
       </div>
       <div className="mt-1 text-sm font-semibold text-black/60">
         Answer Yes/No and dropdowns. Submit for review.
@@ -767,7 +517,7 @@ return (
       />
 
       <Field
-        label="Museter Point"
+        label="Muster Point"
         value={assemblyPoint}
         onChange={(v) => setAssemblyPoint(v)}
       />
@@ -790,14 +540,7 @@ return (
       <input
         type="file"
         accept="image/*,.pdf"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-
-          const reader = new FileReader();
-          reader.onloadend = () => setSiteMap(reader.result as string);
-          reader.readAsDataURL(file);
-        }}
+        onChange={handleSiteMapUpload}
         className="w-full rounded-2xl border border-black/15 bg-white px-4 py-3 text-sm"
       />
     </div>
@@ -805,10 +548,13 @@ return (
     {siteMap && (
       <div className="space-y-2">
         <div className="text-sm font-bold">Map Preview</div>
-        <img
+        <Image
           src={siteMap}
           alt="Emergency map preview"
-          className="max-h-96 rounded-2xl border border-black/15"
+          width={1200}
+          height={900}
+          unoptimized
+          className="max-h-96 w-auto rounded-2xl border border-black/15"
         />
       </div>
     )}
@@ -822,7 +568,7 @@ return (
     <div className="rounded-2xl border border-black/10 bg-white p-4">
       <div className="text-sm font-extrabold">Ready to submit</div>
       <div className="mt-1 text-sm font-semibold text-black/60">
-        This will send your PESHEP to the admin review queue. Once reviewed, the completed document can be returned to the user.
+        Submit your PESHEP to the admin review queue. The final document will only be available after admin review is complete.
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -969,3 +715,4 @@ function Select({
     </label>
   );
 }
+

@@ -16,24 +16,50 @@ type NavItem = {
   short: string;
 };
 
-const topTabs: NavItem[] = [
+const userTopTabs: NavItem[] = [
   { href: "/", label: "Dashboard", short: "DB" },
   { href: "/submit", label: "Submit", short: "SB" },
   { href: "/library", label: "Library", short: "LI" },
+  { href: "/purchases", label: "Purchases", short: "PU" },
   { href: "/search", label: "Search", short: "SR" },
   { href: "/upload", label: "Upload", short: "UP" },
   { href: "/peshep", label: "PESHEP", short: "PE" },
-  { href: "/admin", label: "Admin", short: "AD" },
 ];
 
-const sideLinks: NavItem[] = [
+const adminTopTabs: NavItem[] = [
+  { href: "/admin", label: "Admin Dashboard", short: "AD" },
+  { href: "/admin/review-documents", label: "Review Queue", short: "RQ" },
+  { href: "/admin/archive", label: "Archive", short: "AR" },
+  { href: "/admin/marketplace", label: "Marketplace", short: "MP" },
+  { href: "/admin/transactions", label: "Transactions", short: "TX" },
+  { href: "/admin/users", label: "Users", short: "US" },
+  { href: "/admin/settings", label: "Settings", short: "ST" },
+  { href: "/library", label: "Library", short: "LI" },
+  { href: "/search", label: "Search", short: "SR" },
+];
+
+const userSideLinks: NavItem[] = [
   { href: "/", label: "Home", short: "HM" },
   { href: "/peshep", label: "PESHEP Builder", short: "PB" },
-  { href: "/admin", label: "Admin Panel", short: "AD" },
   { href: "/csep", label: "CSEP", short: "CS" },
+  { href: "/submit", label: "Submit Request", short: "SB" },
   { href: "/library", label: "Library", short: "LB" },
+  { href: "/purchases", label: "My Purchases", short: "MP" },
   { href: "/search", label: "Search", short: "SR" },
   { href: "/upload", label: "Upload", short: "UP" },
+];
+
+const adminSideLinks: NavItem[] = [
+  { href: "/admin", label: "Admin Home", short: "AH" },
+  { href: "/admin/review-documents", label: "Review Queue", short: "RQ" },
+  { href: "/admin/archive", label: "Archive", short: "AR" },
+  { href: "/admin/marketplace", label: "Marketplace", short: "MP" },
+  { href: "/admin/transactions", label: "Transactions", short: "TX" },
+  { href: "/admin/users", label: "Users", short: "US" },
+  { href: "/admin/settings", label: "Settings", short: "ST" },
+  { href: "/library", label: "Library", short: "LB" },
+  { href: "/search", label: "Search", short: "SR" },
+  { href: "/upload", label: "Uploads", short: "UP" },
 ];
 
 function cx(...classes: Array<string | false | null | undefined>) {
@@ -54,16 +80,36 @@ export default function AppLayout({
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState("");
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [userRole, setUserRole] = useState("viewer");
+  const [accountStatus, setAccountStatus] = useState("active");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isAdminArea = pathname.startsWith("/admin");
+  const topTabs = useMemo(() => {
+    const base = isAdminArea ? adminTopTabs : userTopTabs;
+
+    if (!isAdminArea && isAdminUser) {
+      return [...base, { href: "/admin", label: "Admin", short: "AD" }];
+    }
+
+    return base;
+  }, [isAdminArea, isAdminUser]);
+  const sideLinks = useMemo(() => {
+    const base = isAdminArea ? adminSideLinks : userSideLinks;
+
+    if (!isAdminArea && isAdminUser) {
+      return [...base, { href: "/admin", label: "Admin Panel", short: "AD" }];
+    }
+
+    return base;
+  }, [isAdminArea, isAdminUser]);
 
   useEffect(() => {
     let mounted = true;
 
-    async function checkAuth() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
+    async function syncSession(session: Awaited<
+      ReturnType<typeof supabase.auth.getSession>
+    >["data"]["session"]) {
       if (!mounted) return;
 
       if (!session) {
@@ -71,11 +117,66 @@ export default function AppLayout({
         return;
       }
 
-      setUserEmail(session.user.email ?? "");
+      try {
+        const res = await fetch("/api/auth/me", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        const data = (await res.json().catch(() => null)) as
+          | {
+              user?: {
+                email?: string;
+                role?: string;
+                isAdmin?: boolean;
+                accountStatus?: string;
+              };
+            }
+          | null;
+
+        if (!mounted) return;
+
+        const email = data?.user?.email ?? session.user.email ?? "";
+        const admin = Boolean(data?.user?.isAdmin);
+
+        setUserEmail(email);
+        setIsAdminUser(admin);
+        setUserRole(data?.user?.role ?? "viewer");
+        setAccountStatus(data?.user?.accountStatus ?? "active");
+
+        if (data?.user?.accountStatus === "suspended") {
+          setLoading(false);
+          return;
+        }
+
+        if (isAdminArea && !admin) {
+          router.replace("/");
+          return;
+        }
+      } catch (error) {
+        console.error("Failed to load role context:", error);
+        setUserEmail(session.user.email ?? "");
+        setIsAdminUser(false);
+        setUserRole("viewer");
+        setAccountStatus("active");
+
+        if (isAdminArea) {
+          router.replace("/");
+          return;
+        }
+      }
+
       setLoading(false);
     }
 
-    checkAuth();
+    void (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      await syncSession(session);
+    })();
 
     const {
       data: { subscription },
@@ -84,30 +185,27 @@ export default function AppLayout({
         router.replace("/login");
         return;
       }
-
-      setUserEmail(session.user.email ?? "");
-      setLoading(false);
+      void syncSession(session);
     });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [router]);
-
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [pathname]);
+  }, [isAdminArea, router]);
 
   const sectionTitle = useMemo(() => {
     const found = topTabs.find((item) => isActivePath(pathname, item.href));
-    return found?.label ?? "Safety Docs 360";
-  }, [pathname]);
+    return found?.label ?? (isAdminArea ? "Admin Workspace" : "Safety Docs 360");
+  }, [isAdminArea, pathname, topTabs]);
 
 async function handleLogout() {
   try {
     setLoading(true);
     setUserEmail("");
+    setIsAdminUser(false);
+    setUserRole("viewer");
+    setAccountStatus("active");
 
     const { error } = await supabase.auth.signOut({ scope: "global" });
 
@@ -128,6 +226,30 @@ async function handleLogout() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 text-slate-700">
         Checking login...
+      </div>
+    );
+  }
+
+  if (accountStatus === "suspended") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 px-6">
+        <div className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-red-600">
+            Account Suspended
+          </p>
+          <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
+            This account is currently suspended
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Your access to the workspace has been temporarily disabled by an administrator. Contact your admin team if you believe this was done in error.
+          </p>
+          <button
+            onClick={handleLogout}
+            className="mt-6 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+          >
+            Logout
+          </button>
+        </div>
       </div>
     );
   }
@@ -154,7 +276,7 @@ async function handleLogout() {
               SafetyDocs360
             </div>
             <div className="mt-1 text-xs uppercase tracking-[0.2em] text-sky-400">
-              Safety Management Platform
+              {isAdminArea ? "Admin Control Center" : "Safety Management Platform"}
             </div>
           </div>
 
@@ -171,6 +293,7 @@ async function handleLogout() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
                     className={cx(
                       "flex items-center gap-3 rounded-xl px-3 py-3 transition",
                       active
@@ -205,6 +328,9 @@ async function handleLogout() {
               <div className="mt-2 truncate text-sm text-white">
                 {userEmail}
               </div>
+              <div className="mt-1 text-xs uppercase tracking-[0.18em] text-sky-300">
+                {userRole.replace(/_/g, " ")}
+              </div>
 
               <button
                 onClick={handleLogout}
@@ -231,7 +357,7 @@ async function handleLogout() {
 
                   <div>
                     <div className="text-xs font-bold uppercase tracking-[0.2em] text-sky-600">
-                      Project Workspace
+                      {isAdminArea ? "Admin Workspace" : "Project Workspace"}
                     </div>
 
                     <h1 className="mt-1 text-2xl font-black text-slate-900">
@@ -241,7 +367,7 @@ async function handleLogout() {
                 </div>
 
                 <div className="hidden rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 md:block">
-                  SafetyDocs360 Internal App
+                  {isAdminArea ? "Admin Workspace" : "User Workspace"}
                 </div>
               </div>
 
@@ -253,6 +379,7 @@ async function handleLogout() {
                     <Link
                       key={item.href}
                       href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
                       className={cx(
                         "rounded-xl px-4 py-2.5 text-sm font-bold transition",
                         active

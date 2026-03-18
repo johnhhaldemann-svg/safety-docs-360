@@ -41,7 +41,7 @@ type YesNoLike =
   | null
   | undefined;
 
-type PSHSEPInput = Record<string, unknown> & {
+export type PSHSEPInput = Record<string, unknown> & {
   // Admin / cover inputs (expand as you like)
   company_name?: string;
 
@@ -244,7 +244,13 @@ function parseBase64Image(dataUrl: string) {
   };
 }
 
-function buildEmergencyMapSection(data: any) {
+type EmergencyMapData = {
+  aedLocation?: string;
+  firstAidLocation?: string;
+  siteMap?: string;
+};
+
+function buildEmergencyMapSection(data: EmergencyMapData) {
   const content: Paragraph[] = [];
 
   content.push(
@@ -3927,42 +3933,53 @@ return new Document({
 });
 }
 
+export function normalizePshsepForm(form: PSHSEPInput): PSHSEPInput {
+  const normalized = { ...form };
+  const scopeSelections = Array.isArray(normalized.scope_of_work_selected)
+    ? normalized.scope_of_work_selected
+    : [];
+
+  if (scopeSelections.includes("Excavation / Trenching")) {
+    normalized.include_excavation = true;
+  }
+
+  if (scopeSelections.includes("Crane / Rigging")) {
+    normalized.include_crane_rigging = true;
+  }
+
+  if (scopeSelections.includes("Confined Space")) {
+    normalized.include_confined_space = true;
+  }
+
+  if (scopeSelections.includes("Electrical")) {
+    normalized.include_electrical_loto = true;
+  }
+
+  if (scopeSelections.includes("Hot Work")) {
+    normalized.include_hot_work = true;
+  }
+
+  return normalized;
+}
+
+export async function generatePshsepDocx(form: PSHSEPInput) {
+  const normalized = normalizePshsepForm(form);
+  const doc = buildDoc(normalized);
+  const buffer = await Packer.toBuffer(doc);
+
+  return {
+    body: new Uint8Array(buffer),
+    filename: `PSHSEP_${safeFilePart(normalized.project_name || "Project")}.docx`,
+  };
+}
+
 /* ROUTE HANDLER */
 /* ------------------------------------------------ */
 
 export async function POST(req: Request) {
   try {
     const form = (await req.json()) as PSHSEPInput;
-
-    const scopeSelections = Array.isArray(form.scope_of_work_selected)
-      ? form.scope_of_work_selected
-      : [];
-
-    if (scopeSelections.includes("Excavation / Trenching")) {
-      form.include_excavation = true;
-    }
-
-    if (scopeSelections.includes("Crane / Rigging")) {
-      form.include_crane_rigging = true;
-    }
-
-    if (scopeSelections.includes("Confined Space")) {
-      form.include_confined_space = true;
-    }
-
-    if (scopeSelections.includes("Electrical")) {
-      form.include_electrical_loto = true;
-    }
-
-    if (scopeSelections.includes("Hot Work")) {
-      form.include_hot_work = true;
-    }
-
-    const doc = buildDoc(form);
-    const buffer = await Packer.toBuffer(doc);
-    const body = new Uint8Array(buffer);
-
-    const filename = `PSHSEP_${safeFilePart(form.project_name || "Project")}.docx`;
+    const { body, filename } = await generatePshsepDocx(form);
 
     return new NextResponse(body, {
       status: 200,

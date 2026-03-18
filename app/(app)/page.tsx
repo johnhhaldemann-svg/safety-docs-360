@@ -1,27 +1,27 @@
-import Link from "next/link";
+"use client";
 
-const stats = [
-  {
-    title: "Active Projects",
-    value: "12",
-    note: "3 updated today",
-  },
-  {
-    title: "Open Reports",
-    value: "28",
-    note: "5 need review",
-  },
-  {
-    title: "Pending Uploads",
-    value: "7",
-    note: "2 overdue",
-  },
-  {
-    title: "Library Docs",
-    value: "146",
-    note: "12 added this month",
-  },
-];
+import Link from "next/link";
+import { createClient } from "@supabase/supabase-js";
+import { useEffect, useMemo, useState } from "react";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+type DocumentRow = {
+  id: string;
+  created_at: string;
+  project_name: string | null;
+  document_type: string | null;
+  status: string | null;
+  draft_file_path?: string | null;
+  final_file_path?: string | null;
+};
+
+function isArchivedStatus(status?: string | null) {
+  return status?.trim().toLowerCase() === "archived";
+}
 
 const quickActions = [
   {
@@ -44,28 +44,172 @@ const quickActions = [
   },
   {
     title: "Open Library",
-    description: "Browse templates, standards, and saved project content.",
+    description: "Browse templates, standards, and approved project content.",
     href: "/library",
     button: "View Library",
   },
+  {
+    title: "My Purchases",
+    description: "Open completed documents you already own or unlocked with credits.",
+    href: "/purchases",
+    button: "Open Purchases",
+  },
 ];
 
-const recentActivity = [
-  "PESHEP draft created for Lilly Expansion Area B",
-  "Excavation inspection form uploaded",
-  "Weekly safety report exported to PDF",
-  "New document template added to library",
-  "Admin settings updated for user permissions",
-];
+function formatRelative(timestamp?: string | null) {
+  if (!timestamp) return "Updated recently";
 
-const priorities = [
-  "Review open reports needing approval",
-  "Finish outstanding project uploads",
-  "Update active PESHEP packages",
-  "Verify library templates are current",
-];
+  const diffMs = Date.now() - new Date(timestamp).getTime();
+  const diffMinutes = Math.max(1, Math.round(diffMs / 60000));
+
+  if (diffMinutes < 60) return `${diffMinutes} min ago`;
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hr ago`;
+
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+}
 
 export default function DashboardPage() {
+  const [documents, setDocuments] = useState<DocumentRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void (async () => {
+      const { data, error } = await supabase
+        .from("documents")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Dashboard load error:", error.message);
+      } else {
+        setDocuments(data ?? []);
+      }
+
+      setLoading(false);
+    })();
+  }, []);
+
+  const activeDocuments = useMemo(() => {
+    return documents.filter((doc) => !isArchivedStatus(doc.status));
+  }, [documents]);
+
+  const stats = useMemo(() => {
+    const approved = activeDocuments.filter(
+      (doc) =>
+        doc.status?.trim().toLowerCase() === "approved" ||
+        Boolean(doc.final_file_path)
+    );
+    const pendingReview = activeDocuments.filter(
+      (doc) => doc.status?.trim().toLowerCase() === "submitted"
+    );
+    const drafts = activeDocuments.filter((doc) => Boolean(doc.draft_file_path));
+    const uniqueProjects = new Set(
+      activeDocuments.map((doc) => doc.project_name).filter(Boolean)
+    );
+
+    return [
+      {
+        title: "Active Projects",
+        value: String(uniqueProjects.size),
+        note: `${drafts.length} draft${drafts.length === 1 ? "" : "s"} created`,
+      },
+      {
+        title: "Pending Review",
+        value: String(pendingReview.length),
+        note: pendingReview.length
+          ? "Awaiting admin approval"
+          : "No documents waiting",
+      },
+      {
+        title: "Approved Files",
+        value: String(approved.length),
+        note: approved.length
+          ? "Final documents available"
+          : "Nothing approved yet",
+      },
+      {
+        title: "Library Docs",
+        value: String(activeDocuments.length),
+        note: `${activeDocuments.filter((doc) => doc.document_type === "PSHSEP").length} PSHSEP records`,
+      },
+    ];
+  }, [activeDocuments]);
+
+  const recentActivity = useMemo(() => {
+    return activeDocuments.slice(0, 5).map((doc) => {
+      const title =
+        doc.project_name ?? doc.document_type ?? "Untitled Document";
+      const status = doc.status?.trim().toLowerCase() ?? "saved";
+
+      let action = "updated";
+      if (status === "approved") action = "approved";
+      else if (status === "submitted") action = "submitted for review";
+      else if (doc.draft_file_path) action = "draft generated";
+
+      return {
+        id: doc.id,
+        label: `${title} ${action}`,
+        time: formatRelative(doc.created_at),
+      };
+    });
+  }, [activeDocuments]);
+
+  const priorities = useMemo(() => {
+    const pendingReview = activeDocuments.filter(
+      (doc) => doc.status?.trim().toLowerCase() === "submitted"
+    ).length;
+    const approved = activeDocuments.filter(
+      (doc) =>
+        doc.status?.trim().toLowerCase() === "approved" ||
+        Boolean(doc.final_file_path)
+    ).length;
+    const draftsMissingFinal = activeDocuments.filter(
+      (doc) => Boolean(doc.draft_file_path) && !doc.final_file_path
+    ).length;
+
+    return [
+      pendingReview
+        ? `${pendingReview} document${pendingReview === 1 ? "" : "s"} currently in review`
+        : "No documents are currently waiting in review",
+      draftsMissingFinal
+        ? `${draftsMissingFinal} draft${draftsMissingFinal === 1 ? "" : "s"} still need final approval`
+        : "All active drafts have been reviewed",
+      approved
+        ? `${approved} approved document${approved === 1 ? "" : "s"} ready in the library`
+        : "No approved documents available yet",
+      "Verify the latest PSHSEP submissions and final uploads",
+    ];
+  }, [activeDocuments]);
+
+  const systemStatus = useMemo(() => {
+    const pendingReview = activeDocuments.some(
+      (doc) => doc.status?.trim().toLowerCase() === "submitted"
+    );
+    const approved = activeDocuments.some(
+      (doc) =>
+        doc.status?.trim().toLowerCase() === "approved" ||
+        Boolean(doc.final_file_path)
+    );
+
+    return [
+      { label: "Dashboard", tone: "green", text: "Online" },
+      {
+        label: "Library",
+        tone: approved ? "green" : "amber",
+        text: approved ? "Approved Files Ready" : "Waiting on Approvals",
+      },
+      {
+        label: "Review Queue",
+        tone: pendingReview ? "amber" : "green",
+        text: pendingReview ? "In Progress" : "Clear",
+      },
+      { label: "Search", tone: "green", text: "Active" },
+    ];
+  }, [activeDocuments]);
+
   return (
     <div className="space-y-8">
       <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -78,23 +222,22 @@ export default function DashboardPage() {
               Dashboard
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              Manage projects, open safety tools, track documents, and keep your
-              portal organized from one place.
+              Track submissions, approvals, and approved deliverables from one place.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/upload"
+              href="/peshep"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
             >
-              Upload Files
+              Build PESHEP
             </Link>
             <Link
-              href="/search"
+              href="/submit"
               className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              Search Portal
+              Submit Request
             </Link>
           </div>
         </div>
@@ -108,7 +251,7 @@ export default function DashboardPage() {
           >
             <p className="text-sm font-medium text-slate-500">{item.title}</p>
             <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">
-              {item.value}
+              {loading ? "-" : item.value}
             </p>
             <p className="mt-2 text-sm text-slate-500">{item.note}</p>
           </div>
@@ -152,7 +295,7 @@ export default function DashboardPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-bold text-slate-900">Priority Items</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Focus items for today’s workflow.
+            Focus items for today&apos;s workflow.
           </p>
 
           <div className="mt-6 space-y-4">
@@ -179,20 +322,26 @@ export default function DashboardPage() {
           </p>
 
           <div className="mt-6 space-y-4">
-            {recentActivity.map((item, index) => (
-              <div
-                key={item}
-                className="flex items-center gap-4 rounded-2xl border border-slate-200 px-4 py-4"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-bold text-slate-700">
-                  {index + 1}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-800">{item}</p>
-                  <p className="mt-1 text-xs text-slate-500">Updated recently</p>
-                </div>
+            {recentActivity.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+                No document activity yet.
               </div>
-            ))}
+            ) : (
+              recentActivity.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-4 rounded-2xl border border-slate-200 px-4 py-4"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-bold text-slate-700">
+                    {index + 1}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{item.label}</p>
+                    <p className="mt-1 text-xs text-slate-500">{item.time}</p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -203,33 +352,24 @@ export default function DashboardPage() {
           </p>
 
           <div className="mt-6 space-y-4">
-            <div className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4">
-              <span className="text-sm font-medium text-slate-700">Dashboard</span>
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                Online
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4">
-              <span className="text-sm font-medium text-slate-700">Library</span>
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                Ready
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4">
-              <span className="text-sm font-medium text-slate-700">Uploads</span>
-              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-                Monitoring
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4">
-              <span className="text-sm font-medium text-slate-700">Search</span>
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                Active
-              </span>
-            </div>
+            {systemStatus.map((item) => (
+              <div
+                key={item.label}
+                className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4"
+              >
+                <span className="text-sm font-medium text-slate-700">{item.label}</span>
+                <span
+                  className={[
+                    "rounded-full px-3 py-1 text-xs font-semibold",
+                    item.tone === "green"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-amber-100 text-amber-700",
+                  ].join(" ")}
+                >
+                  {item.text}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </section>

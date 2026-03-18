@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 type RiskLevel = "Low" | "Medium" | "High";
 
@@ -428,9 +429,42 @@ function textareaClassName() {
   return "min-h-[120px] w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-500";
 }
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 export default function CSEPPage() {
   const [form, setForm] = useState<CSEPForm>(initialForm);
-  const [loading, setLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [userId, setUserId] = useState("");
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (error) {
+          console.error("Error loading user:", error.message);
+          return;
+        }
+
+        if (user) {
+          setUserId(user.id);
+        }
+      } catch (error) {
+        console.error("Unexpected auth error:", error);
+      } finally {
+        setAuthLoading(false);
+      }
+    }
+
+    void loadUser();
+  }, []);
 
   const selectedTrade = useMemo(() => {
     if (!form.trade) return null;
@@ -495,74 +529,81 @@ export default function CSEPPage() {
     }));
   }
 
-  async function handleExport() {
+  async function handleSubmitForReview() {
     try {
-      setLoading(true);
+      if (authLoading) {
+        alert("Still loading your account. Please wait one second and try again.");
+        return;
+      }
+
+      if (!userId) {
+        alert("No logged-in user found. Please log in again.");
+        return;
+      }
+
+      setSubmitLoading(true);
 
       const selectedTradeItems =
         selectedTrade?.items.filter((item) =>
           form.selected_hazards.includes(item.hazard)
         ) ?? [];
 
-      const res = await fetch("/api/csep/export", {
+      const res = await fetch("/api/documents/submit", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...form,
-          tradeSummary: selectedTrade?.summary ?? "",
-          oshaRefs: selectedTrade?.oshaRefs ?? [],
-          tradeItems: selectedTradeItems,
-          derivedHazards,
-          derivedPermits,
-          includedContent: {
-            project_information:
-              form.included_sections.includes("Project Information"),
-            contractor_information:
-              form.included_sections.includes("Contractor Information"),
-            trade_summary: form.included_sections.includes("Trade Summary"),
-            scope_of_work: form.included_sections.includes("Scope of Work"),
-            site_specific_notes:
-              form.included_sections.includes("Site Specific Notes"),
-            emergency_procedures:
-              form.included_sections.includes("Emergency Procedures"),
-            required_ppe: form.included_sections.includes("Required PPE"),
-            additional_permits:
-              form.included_sections.includes("Additional Permits"),
-            osha_references: form.included_sections.includes("OSHA References"),
-            selected_hazards:
-              form.included_sections.includes("Selected Hazards"),
-            activity_hazard_matrix:
-              form.included_sections.includes("Activity / Hazard Matrix"),
+          user_id: userId,
+          document_type: "CSEP",
+          project_name: form.project_name,
+          form_data: {
+            ...form,
+            tradeSummary: selectedTrade?.summary ?? "",
+            oshaRefs: selectedTrade?.oshaRefs ?? [],
+            tradeItems: selectedTradeItems,
+            derivedHazards,
+            derivedPermits,
+            includedContent: {
+              project_information:
+                form.included_sections.includes("Project Information"),
+              contractor_information:
+                form.included_sections.includes("Contractor Information"),
+              trade_summary: form.included_sections.includes("Trade Summary"),
+              scope_of_work: form.included_sections.includes("Scope of Work"),
+              site_specific_notes:
+                form.included_sections.includes("Site Specific Notes"),
+              emergency_procedures:
+                form.included_sections.includes("Emergency Procedures"),
+              required_ppe: form.included_sections.includes("Required PPE"),
+              additional_permits:
+                form.included_sections.includes("Additional Permits"),
+              osha_references: form.included_sections.includes("OSHA References"),
+              selected_hazards:
+                form.included_sections.includes("Selected Hazards"),
+              activity_hazard_matrix:
+                form.included_sections.includes("Activity / Hazard Matrix"),
+            },
           },
         }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "Failed to generate CSEP.");
+        throw new Error(data?.error || "Failed to submit CSEP.");
       }
 
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${form.project_name || "Project"}_${form.trade || "CSEP"}.docx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      alert("CSEP submitted successfully for admin review.");
     } catch (error) {
       console.error(error);
 
       if (error instanceof Error) {
         alert(error.message);
       } else {
-        alert("Failed to generate CSEP document.");
+        alert("Failed to submit CSEP.");
       }
     } finally {
-      setLoading(false);
+      setSubmitLoading(false);
     }
   }
 
@@ -873,14 +914,22 @@ export default function CSEPPage() {
               </div>
             </section>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="rounded-3xl bg-white p-6 shadow-lg">
+              <h2 className="text-xl font-semibold text-slate-900">
+                Submit for Review
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Submit this CSEP to the admin review queue. The completed document will only be available after admin review is finished.
+              </p>
+
+              <div className="mt-4 flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={handleExport}
-                disabled={loading}
+                onClick={handleSubmitForReview}
+                disabled={submitLoading}
                 className="rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
               >
-                {loading ? "Generating..." : "Generate CSEP"}
+                {submitLoading ? "Submitting..." : "Submit for Review"}
               </button>
 
               <button
@@ -891,40 +940,10 @@ export default function CSEPPage() {
                 Reset Form
               </button>
             </div>
+            </div>
           </div>
 
           <aside className="space-y-6">
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-900">
-                Live CSEP Preview
-              </h2>
-              <div className="mt-4 space-y-4 text-sm text-slate-700">
-                <div>
-                  <div className="font-semibold text-slate-900">Project</div>
-                  <div>{form.project_name || "N/A"}</div>
-                  <div>{form.project_number || "N/A"}</div>
-                  <div>{form.project_address || "N/A"}</div>
-                </div>
-                <div>
-                  <div className="font-semibold text-slate-900">Contractor</div>
-                  <div>{form.contractor_company || "N/A"}</div>
-                  <div>{form.contractor_contact || "N/A"}</div>
-                  <div>{form.contractor_phone || "N/A"}</div>
-                  <div>{form.contractor_email || "N/A"}</div>
-                </div>
-                <div>
-                  <div className="font-semibold text-slate-900">Trade</div>
-                  <div>{form.trade || "No trade selected"}</div>
-                </div>
-                <div>
-                  <div className="font-semibold text-slate-900">Scope</div>
-                  <div className="whitespace-pre-wrap">
-                    {form.scope_of_work || "No scope entered."}
-                  </div>
-                </div>
-              </div>
-            </section>
-
             <section className="rounded-3xl bg-white p-6 shadow-lg">
               <h2 className="text-xl font-semibold text-slate-900">
                 Included CSEP Sections
