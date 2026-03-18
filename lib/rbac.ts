@@ -26,6 +26,11 @@ type RoleRow = {
   account_status: string | null;
 };
 
+type MessageError = { message?: string | null };
+type SupabaseLikeClient = {
+  from: (table: string) => unknown;
+};
+
 type AuthorizeOptions = {
   requireAdmin?: boolean;
   allowSuspended?: boolean;
@@ -118,14 +123,21 @@ function getLegacyTeam(user: AuthLikeUser) {
 }
 
 async function getRoleRow(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseLikeClient,
   userId: string
 ) {
-  const { data, error } = await supabase
-    .from("user_roles")
+  const { data, error } = await (
+    supabase.from("user_roles") as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          maybeSingle: () => PromiseLike<{ data: unknown; error: MessageError | null }>;
+        };
+      };
+    }
+  )
     .select("user_id, role, team, account_status")
     .eq("user_id", userId)
-    .maybeSingle<RoleRow>();
+    .maybeSingle();
 
   if (error) {
     return {
@@ -135,13 +147,13 @@ async function getRoleRow(
   }
 
   return {
-    data: data ?? null,
+    data: (data as RoleRow | null) ?? null,
     error: null,
   };
 }
 
 async function upsertRoleRow(params: {
-  supabase: ReturnType<typeof createClient>;
+  supabase: SupabaseLikeClient;
   userId: string;
   role: AppRole;
   team: string;
@@ -150,7 +162,12 @@ async function upsertRoleRow(params: {
 }) {
   const { supabase, userId, role, team, accountStatus, actorUserId } = params;
 
-  return supabase.from("user_roles").upsert(
+  return (supabase.from("user_roles") as unknown as {
+    upsert: (
+      values: Record<string, unknown>,
+      options?: Record<string, unknown>
+    ) => PromiseLike<{ error: MessageError | null }>;
+  }).upsert(
     {
       user_id: userId,
       role,
@@ -166,7 +183,7 @@ async function upsertRoleRow(params: {
 }
 
 export async function getUserRoleContext(params: {
-  supabase: ReturnType<typeof createClient>;
+  supabase: SupabaseLikeClient;
   user: AuthLikeUser;
 }) {
   const { supabase, user } = params;

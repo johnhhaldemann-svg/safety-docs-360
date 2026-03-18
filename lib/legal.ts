@@ -1,5 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
-
 export const TERMS_VERSION = "v1.0";
 
 export const CLICKWRAP_LABEL =
@@ -43,7 +41,23 @@ export type AgreementConfig = {
   liabilityWaiver: AgreementSectionGroup;
 };
 
-type SupabaseLikeClient = ReturnType<typeof createClient>;
+type MessageError = { message?: string | null };
+
+type SupabaseLikeClient = {
+  from: (table: string) => unknown;
+  auth: {
+    admin: {
+      getUserById: (userId: string) => PromiseLike<{
+        data: { user?: { user_metadata?: Record<string, unknown> | null } | null };
+        error: MessageError | null;
+      }>;
+      updateUserById: (
+        userId: string,
+        attributes: { user_metadata: Record<string, unknown> }
+      ) => PromiseLike<{ data: unknown; error: MessageError | null }>;
+    };
+  };
+};
 
 function isMissingAgreementTableError(error?: { message?: string | null } | null) {
   const message = (error?.message ?? "").toLowerCase();
@@ -106,15 +120,22 @@ export async function getUserAgreementRecord(
   supabase: SupabaseLikeClient,
   userId: string
 ) {
-  const { data, error } = await supabase
-    .from("user_agreements")
+  const { data, error } = await (
+    supabase.from("user_agreements") as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          maybeSingle: () => PromiseLike<{ data: unknown; error: MessageError | null }>;
+        };
+      };
+    }
+  )
     .select("user_id, accepted_terms, accepted_at, ip_address, terms_version")
     .eq("user_id", userId)
-    .maybeSingle<UserAgreementRecord>();
+    .maybeSingle();
 
   if (!error) {
     return {
-      data: data ?? null,
+      data: (data as UserAgreementRecord | null) ?? null,
       error: null,
     };
   }
@@ -129,7 +150,7 @@ export async function getUserAgreementRecord(
   const adminUserResult = await supabase.auth.admin.getUserById(userId);
   const fallbackData = parseAgreementFromMetadata(
     userId,
-    adminUserResult.data.user?.user_metadata
+    adminUserResult.data.user?.user_metadata ?? undefined
   );
 
   return {
@@ -145,7 +166,14 @@ export async function acceptUserAgreement(params: {
   termsVersion?: string;
 }) {
   const payload = buildAgreementAcceptance(params);
-  const tableResult = await params.supabase.from("user_agreements").upsert(payload, {
+  const tableResult = await (
+    params.supabase.from("user_agreements") as unknown as {
+      upsert: (
+        values: Record<string, unknown>,
+        options?: Record<string, unknown>
+      ) => PromiseLike<{ data?: unknown; error: { message?: string | null } | null }>;
+    }
+  ).upsert(payload, {
     onConflict: "user_id",
   });
 

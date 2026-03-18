@@ -1,6 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
-
-type SupabaseLikeClient = ReturnType<typeof createClient>;
+type SupabaseLikeClient = {
+  from: (table: string) => unknown;
+};
 
 function isMissingDownloadAuditError(error?: { message?: string | null } | null) {
   const message = (error?.message ?? "").toLowerCase();
@@ -20,7 +20,13 @@ export async function logDocumentDownload(params: {
   ipAddress?: string | null;
   metadata?: Record<string, unknown>;
 }) {
-  const result = await params.supabase.from("document_downloads").insert({
+  const result = await (
+    params.supabase.from("document_downloads") as unknown as {
+      insert: (
+        values: Record<string, unknown>
+      ) => PromiseLike<{ error: { message?: string | null } | null }>;
+    }
+  ).insert({
     document_id: params.documentId,
     actor_user_id: params.actorUserId,
     owner_user_id: params.ownerUserId ?? null,

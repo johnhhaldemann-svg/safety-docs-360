@@ -265,6 +265,7 @@ export default function ReviewDocumentsPage() {
         emptyMessage="No submitted drafts are waiting for review."
         documents={pendingDocuments}
         actionLabel="Review"
+        onOpenDraft={openDraftDocument}
         selectedIds={selectedIds}
         setSelectedIds={setSelectedIds}
       />
@@ -274,6 +275,7 @@ export default function ReviewDocumentsPage() {
         emptyMessage="No approved documents yet."
         documents={approvedDocuments}
         actionLabel="Open Review"
+        onOpenDraft={openDraftDocument}
         selectedIds={selectedIds}
         setSelectedIds={setSelectedIds}
       />
@@ -286,6 +288,7 @@ function ReviewSection({
   emptyMessage,
   documents,
   actionLabel,
+  onOpenDraft,
   selectedIds,
   setSelectedIds,
 }: {
@@ -293,6 +296,7 @@ function ReviewSection({
   emptyMessage: string;
   documents: DocumentItem[];
   actionLabel: string;
+  onOpenDraft: (documentId: string) => Promise<void>;
   selectedIds: string[];
   setSelectedIds: Dispatch<SetStateAction<string[]>>;
 }) {
@@ -392,7 +396,7 @@ function ReviewSection({
                     <button
                       type="button"
                       onClick={() => {
-                        void openDraftDocument(doc.id);
+                        void onOpenDraft(doc.id);
                       }}
                       className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-extrabold text-slate-900 hover:bg-slate-100"
                     >

@@ -7,7 +7,10 @@ import {
 
 const LEGAL_SETTINGS_KEY = "legal_agreement_config";
 
-type SupabaseLikeClient = ReturnType<typeof createClient>;
+type MessageError = { message?: string | null };
+type SupabaseLikeClient = {
+  from: (table: string) => unknown;
+};
 
 function isMissingPlatformSettingsError(error?: { message?: string | null } | null) {
   const message = (error?.message ?? "").toLowerCase();
@@ -108,21 +111,28 @@ export async function getAgreementConfig(supabase?: SupabaseLikeClient) {
   const client = supabase ?? (await getServiceRoleClient());
   const fallback = getDefaultAgreementConfig();
 
-  const { data, error } = await client
-    .from("platform_settings")
+  const { data, error } = await (
+    client.from("platform_settings") as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          maybeSingle: () => PromiseLike<{ data: unknown; error: MessageError | null }>;
+        };
+      };
+    }
+  )
     .select("value")
     .eq("key", LEGAL_SETTINGS_KEY)
-    .maybeSingle<{ value: AgreementConfig }>();
+    .maybeSingle();
 
   if (error) {
     if (isMissingPlatformSettingsError(error)) {
       return fallback;
     }
 
-    throw new Error(error.message);
+    throw new Error(error.message ?? "Failed to load agreement settings.");
   }
 
-  return normalizeAgreementConfig(data?.value);
+  return normalizeAgreementConfig((data as { value?: AgreementConfig } | null)?.value);
 }
 
 export async function saveAgreementConfig(params: {
@@ -132,7 +142,14 @@ export async function saveAgreementConfig(params: {
 }) {
   const normalized = normalizeAgreementConfig(params.config);
 
-  const result = await params.supabase.from("platform_settings").upsert(
+  const result = await (
+    params.supabase.from("platform_settings") as unknown as {
+      upsert: (
+        values: Record<string, unknown>,
+        options?: Record<string, unknown>
+      ) => PromiseLike<{ error: MessageError | null }>;
+    }
+  ).upsert(
     {
       key: LEGAL_SETTINGS_KEY,
       value: normalized,

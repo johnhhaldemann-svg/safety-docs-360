@@ -33,24 +33,26 @@ export function purchasedDocumentIdsFromTransactions(
 }
 
 export async function listCreditTransactions(
-  supabase: {
-    from: (table: string) => {
-      select: (columns: string) => {
-        eq: (
-          column: string,
-          value: string
-        ) => {
-          order: (
-            column: string,
-            options?: { ascending?: boolean }
-          ) => Promise<{ data: CreditTransaction[] | null; error: { message: string } | null }>;
-        };
-      };
-    };
-  },
+  supabase: unknown,
   userId: string
 ) {
-  const { data, error } = await supabase
+  const { data, error } = await (
+    supabase as {
+      from: (table: string) => {
+        select: (columns: string) => {
+          eq: (column: string, value: string) => {
+            order: (
+              column: string,
+              options?: { ascending?: boolean }
+            ) => PromiseLike<{
+              data: CreditTransaction[] | null;
+              error: { message?: string | null } | null;
+            }>;
+          };
+        };
+      };
+    }
+  )
     .from("credit_transactions")
     .select(
       "id, user_id, amount, transaction_type, document_id, description, metadata, created_at"
@@ -65,11 +67,7 @@ export async function listCreditTransactions(
 }
 
 export async function ensureInitialCredits(params: {
-  supabase: {
-    from: (table: string) => {
-      insert: (values: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
-    };
-  };
+  supabase: unknown;
   userId: string;
   subscriptionStatus?: string | null;
   existingTransactions: CreditTransaction[];
@@ -80,7 +78,15 @@ export async function ensureInitialCredits(params: {
     return { granted: false, error: null as { message: string } | null };
   }
 
-  const { error } = await supabase.from("credit_transactions").insert({
+  const { error } = await (
+    supabase as {
+      from: (table: string) => {
+        insert: (
+          values: Record<string, unknown>
+        ) => PromiseLike<{ error: { message?: string | null } | null }>;
+      };
+    }
+  ).from("credit_transactions").insert({
     user_id: userId,
     amount: DEFAULT_DOCUMENT_CREDITS,
     transaction_type: "grant",

@@ -3917,7 +3917,7 @@ function buildDoc(form: PSHSEPInput) {
   const programs = buildPrograms(form, scopeSelections);
   const disclaimer = [
     pageBreak(),
-    sectionTitle("DISCLAIMER"),
+    formSectionTitle("DISCLAIMER"),
     ...DOCUMENT_DISCLAIMER_LINES.map((line) => p(line)),
   ];
 
