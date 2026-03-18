@@ -255,7 +255,17 @@ export async function authorizeRequest(
     };
   }
 
-  const authClient = createClient(supabaseUrl, supabaseAnonKey);
+  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
   const {
     data: { user },
     error: authError,
