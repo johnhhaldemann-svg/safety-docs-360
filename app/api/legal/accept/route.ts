@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import {
   acceptUserAgreement,
+  getDefaultAgreementConfig,
   getClientIpAddress,
   getUserAgreementRecord,
 } from "@/lib/legal";
@@ -16,9 +17,12 @@ export async function GET(request: Request) {
     return auth.error;
   }
 
+  const agreementConfigPromise = getAgreementConfig(auth.supabase).catch(() =>
+    getDefaultAgreementConfig()
+  );
   const [agreementResult, agreementConfig] = await Promise.all([
     getUserAgreementRecord(auth.supabase, auth.user.id),
-    getAgreementConfig(auth.supabase),
+    agreementConfigPromise,
   ]);
 
   return NextResponse.json({
@@ -40,7 +44,9 @@ export async function POST(request: Request) {
     return auth.error;
   }
 
-  const agreementConfig = await getAgreementConfig(auth.supabase);
+  const agreementConfig = await getAgreementConfig(auth.supabase).catch(() =>
+    getDefaultAgreementConfig()
+  );
   const ipAddress = getClientIpAddress(request);
   const { error } = await acceptUserAgreement({
     supabase: auth.supabase,

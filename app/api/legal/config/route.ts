@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getDefaultAgreementConfig } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 
 export const runtime = "nodejs";
@@ -8,12 +9,7 @@ export async function GET() {
     const config = await getAgreementConfig();
     return NextResponse.json(config);
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Failed to load agreement configuration.",
-      },
-      { status: 500 }
-    );
+    console.error("Failed to load agreement configuration:", error);
+    return NextResponse.json(getDefaultAgreementConfig());
   }
 }

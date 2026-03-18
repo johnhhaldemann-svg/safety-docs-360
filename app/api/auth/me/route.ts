@@ -4,7 +4,11 @@ import {
   formatAppRole,
   isAdminRole,
 } from "@/lib/rbac";
-import { TERMS_VERSION, getUserAgreementRecord } from "@/lib/legal";
+import {
+  TERMS_VERSION,
+  getDefaultAgreementConfig,
+  getUserAgreementRecord,
+} from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 
 export const runtime = "nodejs";
@@ -16,9 +20,12 @@ export async function GET(request: Request) {
     return auth.error;
   }
 
+  const agreementConfigPromise = getAgreementConfig(auth.supabase).catch(() =>
+    getDefaultAgreementConfig()
+  );
   const [agreementResult, agreementConfig] = await Promise.all([
     getUserAgreementRecord(auth.supabase, auth.user.id),
-    getAgreementConfig(auth.supabase),
+    agreementConfigPromise,
   ]);
   const acceptedTerms = Boolean(
     agreementResult.data?.accepted_terms &&
