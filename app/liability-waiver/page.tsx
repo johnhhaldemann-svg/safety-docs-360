@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { getDefaultAgreementConfig } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 
 export default async function LiabilityWaiverPage() {
-  const config = await getAgreementConfig();
+  const config = await getAgreementConfig().catch(() => getDefaultAgreementConfig());
   const waiver = config.liabilityWaiver;
 
   return (
