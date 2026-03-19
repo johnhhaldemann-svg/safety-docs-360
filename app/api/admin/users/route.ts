@@ -26,6 +26,18 @@ type FallbackUserRoleRow = {
   created_at?: string | null;
 };
 
+type RpcAdminUserRow = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  role: string | null;
+  team: string | null;
+  status: string | null;
+  created_at: string | null;
+  last_sign_in_at: string | null;
+  email_confirmed_at: string | null;
+};
+
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -106,6 +118,34 @@ export async function GET(request: Request) {
   const adminClient = createAdminClient();
 
   if (!adminClient) {
+    const { data: rpcData, error: rpcError } = await (
+      auth.supabase as {
+        rpc: (
+          fn: string
+        ) => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
+      }
+    ).rpc("admin_list_workspace_users");
+
+    if (!rpcError) {
+      const users = ((rpcData as RpcAdminUserRow[] | null) ?? []).map((row) => ({
+        id: row.id,
+        email: row.email ?? "",
+        name: row.name?.trim() || (row.email ? row.email.split("@")[0] : "Unnamed User"),
+        role: formatAppRole(row.role),
+        team: row.team?.trim() || "General",
+        status: row.status?.trim() || "Active",
+        created_at: row.created_at,
+        last_sign_in_at: row.last_sign_in_at,
+        email_confirmed_at: row.email_confirmed_at,
+      }));
+
+      return NextResponse.json({
+        users,
+        warning:
+          "Showing database-backed admin directory fallback because the Supabase service role key is unavailable at runtime.",
+      });
+    }
+
     const { data, error } = await auth.supabase
       .from("user_roles")
       .select("user_id, role, team, account_status, created_at")
