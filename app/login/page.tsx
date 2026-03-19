@@ -22,7 +22,6 @@ export default function LoginPage() {
   const router = useRouter();
 
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [portalRole, setPortalRole] = useState<"user" | "admin">("user");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -169,12 +168,6 @@ export default function LoginPage() {
                 ))}
               </div>
 
-              <div className="mt-6 grid max-w-md gap-3 sm:grid-cols-2">
-                <MetricCard value="98.9%" label="Uptime SLA" />
-                <MetricCard value="12K+" label="Active Users" />
-                <MetricCard value="4.2M" label="Docs Secured" />
-              </div>
-
               <div className="mt-auto pt-8">
                 <div className="flex flex-wrap gap-3">
                   {securityPills.map((pill) => (
@@ -216,34 +209,7 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                <div className="mt-8 grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-slate-900/35 p-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setPortalRole("user")}
-                    className={[
-                      "rounded-xl px-4 py-3 text-left text-sm font-semibold transition",
-                      portalRole === "user"
-                        ? "bg-amber-400/12 text-amber-300 ring-1 ring-amber-400/30"
-                        : "text-slate-400 hover:text-slate-200",
-                    ].join(" ")}
-                  >
-                    User
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPortalRole("admin")}
-                    className={[
-                      "rounded-xl px-4 py-3 text-left text-sm font-semibold transition",
-                      portalRole === "admin"
-                        ? "bg-amber-400/12 text-amber-300 ring-1 ring-amber-400/30"
-                        : "text-slate-400 hover:text-slate-200",
-                    ].join(" ")}
-                  >
-                    Administrator
-                  </button>
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-slate-900/30 p-1.5">
+                <div className="mt-8 grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-slate-900/30 p-1.5">
                   <button
                     type="button"
                     onClick={() => setMode("login")}
@@ -275,14 +241,14 @@ export default function LoginPage() {
                     <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
                       Employee ID / Email
                     </label>
-                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/35 px-4 py-3.5 text-slate-300 transition focus-within:border-amber-400/35">
+                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-slate-300 shadow-inner transition focus-within:border-amber-400/35 focus-within:bg-[#0d1521]">
                       <IconMail />
                       <input
                         type="email"
                         placeholder="name@company.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                        className="auth-input w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
                       />
                     </div>
                   </div>
@@ -291,14 +257,14 @@ export default function LoginPage() {
                     <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
                       Password
                     </label>
-                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/35 px-4 py-3.5 text-slate-300 transition focus-within:border-amber-400/35">
+                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-slate-300 shadow-inner transition focus-within:border-amber-400/35 focus-within:bg-[#0d1521]">
                       <IconLock />
                       <input
                         type="password"
                         placeholder="Enter password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                        className="auth-input w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
                       />
                       <IconEye />
                     </div>
@@ -309,14 +275,14 @@ export default function LoginPage() {
                       <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
                         Confirm Password
                       </label>
-                      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/35 px-4 py-3.5 text-slate-300 transition focus-within:border-amber-400/35">
+                      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-slate-300 shadow-inner transition focus-within:border-amber-400/35 focus-within:bg-[#0d1521]">
                         <IconLock />
                         <input
                           type="password"
                           placeholder="Confirm password"
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                          className="auth-input w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
                         />
                       </div>
                     </div>
@@ -391,15 +357,6 @@ export default function LoginPage() {
         </div>
       </div>
     </main>
-  );
-}
-
-function MetricCard({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-4 backdrop-blur">
-      <div className="text-3xl font-black tracking-tight text-amber-300">{value}</div>
-      <div className="mt-2 text-sm text-slate-400">{label}</div>
-    </div>
   );
 }
 
