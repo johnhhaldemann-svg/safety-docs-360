@@ -205,6 +205,7 @@ export async function GET(request: Request) {
         role: formatAppRole(roleContext.role),
         team: roleContext.team || getTeam(user),
         status:
+          roleContext.accountStatus === "pending" ||
           roleContext.accountStatus === "suspended"
             ? formatAccountStatus(roleContext.accountStatus)
             : getStatus(user),

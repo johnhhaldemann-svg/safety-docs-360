@@ -10,7 +10,7 @@ export const APP_ROLES = [
 ] as const;
 
 export type AppRole = (typeof APP_ROLES)[number];
-export type AccountStatus = "active" | "suspended";
+export type AccountStatus = "pending" | "active" | "suspended";
 
 type AuthLikeUser = {
   id: string;
@@ -34,6 +34,7 @@ type SupabaseLikeClient = {
 type AuthorizeOptions = {
   requireAdmin?: boolean;
   allowSuspended?: boolean;
+  allowPending?: boolean;
 };
 
 const DEFAULT_BOOTSTRAP_ADMIN_EMAILS = ["john.h.haldemann@gmail.com"];
@@ -81,13 +82,30 @@ export function isAdminRole(role?: string | null) {
 }
 
 export function normalizeAccountStatus(status?: string | null): AccountStatus {
-  return (status ?? "").trim().toLowerCase() === "suspended"
-    ? "suspended"
-    : "active";
+  const normalized = (status ?? "").trim().toLowerCase();
+
+  if (normalized === "suspended") return "suspended";
+  if (normalized === "pending") return "pending";
+  return "active";
 }
 
 export function formatAccountStatus(status?: string | null) {
-  return normalizeAccountStatus(status) === "suspended" ? "Suspended" : "Active";
+  const normalized = normalizeAccountStatus(status);
+
+  if (normalized === "pending") return "Pending";
+  if (normalized === "suspended") return "Suspended";
+  return "Active";
+}
+
+function getLegacyAccountStatus(user: AuthLikeUser): AccountStatus {
+  const metadataStatus =
+    typeof user.app_metadata?.account_status === "string"
+      ? user.app_metadata.account_status
+      : typeof user.user_metadata?.account_status === "string"
+        ? user.user_metadata.account_status
+        : "";
+
+  return normalizeAccountStatus(metadataStatus);
 }
 
 function getLegacyRole(user: AuthLikeUser): AppRole {
@@ -200,14 +218,20 @@ export async function getUserRoleContext(params: {
 
   const legacyRole = getLegacyRole(user);
   const legacyTeam = getLegacyTeam(user);
+  const legacyAccountStatus = getLegacyAccountStatus(user);
 
-  if (!roleRowResult.error && (legacyRole !== "viewer" || legacyTeam !== "General")) {
+  if (
+    !roleRowResult.error &&
+    (legacyRole !== "viewer" ||
+      legacyTeam !== "General" ||
+      legacyAccountStatus !== "active")
+  ) {
     await upsertRoleRow({
       supabase,
       userId: user.id,
       role: legacyRole,
       team: legacyTeam,
-      accountStatus: "active",
+      accountStatus: legacyAccountStatus,
       actorUserId: user.id,
     });
   }
@@ -215,7 +239,7 @@ export async function getUserRoleContext(params: {
   return {
     role: legacyRole,
     team: legacyTeam,
-    accountStatus: "active" as const,
+    accountStatus: legacyAccountStatus,
     source: roleRowResult.error ? ("legacy_missing_table" as const) : ("legacy" as const),
   };
 }
@@ -283,6 +307,15 @@ export async function authorizeRequest(
       user,
     });
 
+    if (!options.allowPending && roleContext.accountStatus === "pending") {
+      return {
+        error: NextResponse.json(
+          { error: "Your account is pending administrator approval." },
+          { status: 403 }
+        ),
+      };
+    }
+
     if (!options.allowSuspended && roleContext.accountStatus === "suspended") {
       return {
         error: NextResponse.json(
@@ -312,6 +345,15 @@ export async function authorizeRequest(
     supabase,
     user,
   });
+
+  if (!options.allowPending && roleContext.accountStatus === "pending") {
+    return {
+      error: NextResponse.json(
+        { error: "Your account is pending administrator approval." },
+        { status: 403 }
+      ),
+    };
+  }
 
   if (!options.allowSuspended && roleContext.accountStatus === "suspended") {
     return {

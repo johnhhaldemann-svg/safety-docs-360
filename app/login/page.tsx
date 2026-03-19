@@ -28,8 +28,11 @@ export default function LoginPage() {
   const [agreed, setAgreed] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [formMessage, setFormMessage] = useState("");
+  const [formTone, setFormTone] = useState<"error" | "success">("success");
 
   async function handleLogin() {
+    setFormMessage("");
     setLoading(true);
 
     const { error } = await supabase.auth.signInWithPassword({
@@ -40,7 +43,8 @@ export default function LoginPage() {
     setLoading(false);
 
     if (error) {
-      alert(error.message);
+      setFormTone("error");
+      setFormMessage(error.message);
       return;
     }
 
@@ -49,48 +53,61 @@ export default function LoginPage() {
   }
 
   async function handleCreateAccount() {
+    setFormMessage("");
+
     if (!agreed) {
-      alert("You must accept the agreement before creating an account.");
+      setFormTone("error");
+      setFormMessage("You must accept the agreement before creating an account.");
       return;
     }
 
     if (!email.trim() || !password.trim()) {
-      alert("Email and password are required.");
+      setFormTone("error");
+      setFormMessage("Email and password are required.");
       return;
     }
 
     if (password !== confirmPassword) {
-      alert("Passwords do not match.");
+      setFormTone("error");
+      setFormMessage("Passwords do not match.");
       return;
     }
 
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        agreed,
+      }),
     });
 
-    if (error) {
-      setLoading(false);
-      alert(error.message);
+    const data = (await res.json().catch(() => null)) as
+      | { error?: string; message?: string }
+      | null;
+
+    setLoading(false);
+
+    if (!res.ok) {
+      setFormTone("error");
+      setFormMessage(data?.error || "Failed to create your account.");
       return;
     }
 
-    const session = data.session;
-
-    if (session?.access_token) {
-      await fetch("/api/legal/accept", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-    }
-
-    setLoading(false);
-    router.push("/");
-    router.refresh();
+    setMode("login");
+    setPassword("");
+    setConfirmPassword("");
+    setAgreed(false);
+    setFormTone("success");
+    setFormMessage(
+      data?.message ||
+        "Account created. An administrator must approve your access before you can sign in."
+    );
   }
 
   return (
@@ -237,6 +254,19 @@ export default function LoginPage() {
                 </div>
 
                 <div className="mt-8 space-y-4">
+                  {formMessage ? (
+                    <div
+                      className={[
+                        "rounded-2xl border px-4 py-3 text-sm",
+                        formTone === "error"
+                          ? "border-red-500/25 bg-red-500/10 text-red-200"
+                          : "border-emerald-500/25 bg-emerald-500/10 text-emerald-200",
+                      ].join(" ")}
+                    >
+                      {formMessage}
+                    </div>
+                  ) : null}
+
                   <div>
                     <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
                       Employee ID / Email

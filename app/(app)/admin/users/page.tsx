@@ -207,9 +207,9 @@ export default function AdminUsersPage() {
         note: "Admin and super admin accounts",
       },
       {
-        title: "Pending Invites",
+        title: "Pending Approval",
         value: String(pendingInvites),
-        note: "Awaiting account acceptance",
+        note: "Awaiting admin approval",
       },
       {
         title: "Suspended",
@@ -227,8 +227,8 @@ export default function AdminUsersPage() {
 
     return [
       {
-        title: "Review pending user invitations",
-        note: `${pendingInvites} invitation${pendingInvites === 1 ? "" : "s"} have not yet been accepted.`,
+        title: "Review pending user approvals",
+        note: `${pendingInvites} account${pendingInvites === 1 ? "" : "s"} are waiting for approval.`,
       },
       {
         title: "Verify editor access for library team",
@@ -572,7 +572,13 @@ export default function AdminUsersPage() {
                           setEditingUser(user);
                           setEditRole(user.role);
                           setEditTeam(user.team);
-                          setEditStatus(user.status === "Suspended" ? "Suspended" : "Active");
+                          setEditStatus(
+                            user.status === "Pending"
+                              ? "Pending"
+                              : user.status === "Suspended"
+                                ? "Suspended"
+                                : "Active"
+                          );
                         }}
                         className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white"
                       >
@@ -605,7 +611,13 @@ export default function AdminUsersPage() {
                       setEditingUser(user);
                       setEditRole(user.role);
                       setEditTeam(user.team);
-                      setEditStatus(user.status === "Suspended" ? "Suspended" : "Active");
+                      setEditStatus(
+                        user.status === "Pending"
+                          ? "Pending"
+                          : user.status === "Suspended"
+                            ? "Suspended"
+                            : "Active"
+                      );
                     }}
                     className="mt-4 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                   >
@@ -729,6 +741,7 @@ export default function AdminUsersPage() {
                   onChange={(e) => setEditStatus(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
                 >
+                  <option>Pending</option>
                   <option>Active</option>
                   <option>Suspended</option>
                 </select>

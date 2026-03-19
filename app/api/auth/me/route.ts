@@ -14,7 +14,10 @@ import { getAgreementConfig } from "@/lib/legalSettings";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const auth = await authorizeRequest(request, { allowSuspended: true });
+  const auth = await authorizeRequest(request, {
+    allowPending: true,
+    allowSuspended: true,
+  });
 
   if ("error" in auth) {
     return auth.error;

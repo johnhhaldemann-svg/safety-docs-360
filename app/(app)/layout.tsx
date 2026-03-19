@@ -325,6 +325,35 @@ export default function AppLayout({
     );
   }
 
+  if (accountStatus === "pending") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f3f8ff] px-6 py-10">
+        <div className="w-full max-w-xl rounded-[1.9rem] border border-slate-200 bg-white p-8 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-600">
+            Approval Required
+          </p>
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+            Your account is waiting for administrator approval
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Your account has been created successfully, but access to the workspace stays
+            locked until an administrator reviews and activates it.
+          </p>
+          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            We&apos;ll open the full workspace as soon as your account status is changed
+            from pending to active.
+          </div>
+          <button
+            onClick={handleLogout}
+            className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (accountStatus === "suspended") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f3f8ff] px-6 py-10">
