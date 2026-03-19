@@ -5,6 +5,13 @@ import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
+import {
+  EmptyState,
+  InlineMessage,
+  PageHero,
+  SectionCard,
+  StartChecklist,
+} from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -38,6 +45,9 @@ export default function UploadPage() {
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">(
+    "neutral"
+  );
   const [agreedToUploadTerms, setAgreedToUploadTerms] = useState(false);
   const [downloadPath, setDownloadPath] = useState<string | null>(null);
   const [downloadLoading, setDownloadLoading] = useState(false);
@@ -53,6 +63,7 @@ export default function UploadPage() {
 
     if (error) {
       setMessage(`Error loading documents: ${error.message}`);
+      setMessageTone("error");
       setLoadingDocs(false);
       return;
     }
@@ -71,14 +82,17 @@ export default function UploadPage() {
 
   async function handleUpload() {
     setMessage("");
+    setMessageTone("neutral");
 
     if (!selectedFile) {
       setMessage("Please choose a file first.");
+      setMessageTone("warning");
       return;
     }
 
     if (!documentTitle.trim()) {
       setMessage("Please enter a document title.");
+      setMessageTone("warning");
       return;
     }
 
@@ -86,6 +100,7 @@ export default function UploadPage() {
       setMessage(
         "You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before uploading a document."
       );
+      setMessageTone("warning");
       return;
     }
 
@@ -98,12 +113,14 @@ export default function UploadPage() {
 
     if (userError) {
       setMessage(`User error: ${userError.message}`);
+      setMessageTone("error");
       setUploading(false);
       return;
     }
 
     if (!user) {
       setMessage("You must be logged in to upload files.");
+      setMessageTone("error");
       setUploading(false);
       return;
     }
@@ -118,6 +135,7 @@ export default function UploadPage() {
 
     if (storageError) {
       setMessage(`Storage upload failed: ${storageError.message}`);
+      setMessageTone("error");
       setUploading(false);
       return;
     }
@@ -137,6 +155,7 @@ export default function UploadPage() {
 
     if (insertError) {
       setMessage(`Database save failed: ${insertError.message}`);
+      setMessageTone("error");
       setUploading(false);
       return;
     }
@@ -148,6 +167,7 @@ export default function UploadPage() {
     setNotes("");
     setSelectedFile(null);
     setMessage("File uploaded successfully.");
+    setMessageTone("success");
     setUploading(false);
 
     await loadDocuments();
@@ -160,6 +180,7 @@ async function handleOpenFile(path?: string | null) {
 async function confirmOpenFile() {
   if (!downloadPath) {
     setMessage("Open file failed: missing file path.");
+    setMessageTone("error");
     return;
   }
 
@@ -171,12 +192,14 @@ async function confirmOpenFile() {
 
   if (error) {
     setMessage(`Open file failed: ${error.message}`);
+    setMessageTone("error");
     setDownloadLoading(false);
     return;
   }
 
   if (!data?.signedUrl) {
     setMessage("Open file failed: no signed URL returned.");
+    setMessageTone("error");
     setDownloadLoading(false);
     return;
   }
@@ -195,23 +218,21 @@ async function confirmOpenFile() {
     };
   }, [documents]);
 
+  const checklistItems = [
+    { label: "Add a project name or leave it general", done: projectName.trim().length > 0 || !selectedFile },
+    { label: "Enter a document title", done: documentTitle.trim().length > 0 },
+    { label: "Choose a file to upload", done: Boolean(selectedFile) },
+    { label: "Accept terms and upload", done: agreedToUploadTerms },
+  ];
+
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
-              Document Intake
-            </p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-900">
-              Upload Center
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              Upload files into Supabase Storage and save document records.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+      <PageHero
+        eyebrow="Document Intake"
+        title="Upload Center"
+        description="Upload files into storage, capture the right metadata, and keep new records moving cleanly into the rest of the platform."
+        actions={
+          <>
             <Link
               href="/library"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
@@ -224,9 +245,9 @@ async function confirmOpenFile() {
             >
               Search Records
             </Link>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -252,13 +273,12 @@ async function confirmOpenFile() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">New Upload</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Upload a real file and save its details.
-          </p>
-
-          <div className="mt-6 grid gap-5 md:grid-cols-2">
+        <SectionCard
+          title="New Upload"
+          description="Upload a real file, set its metadata, and save it into the workspace."
+          className="h-full"
+        >
+          <div className="grid gap-5 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Project Name
@@ -357,7 +377,7 @@ async function confirmOpenFile() {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="sticky bottom-3 mt-6 flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
             <button
               onClick={handleUpload}
               disabled={uploading || !agreedToUploadTerms}
@@ -367,32 +387,41 @@ async function confirmOpenFile() {
             </button>
           </div>
 
-          {message && (
-            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              {message}
-            </div>
-          )}
-        </div>
+          {message ? <div className="mt-4"><InlineMessage tone={messageTone}>{message}</InlineMessage></div> : null}
+        </SectionCard>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">What to test</h2>
-          <div className="mt-4 space-y-3 text-sm text-slate-600">
-            <p>1. Choose a file.</p>
-            <p>2. Enter a document title.</p>
-            <p>3. Click Start Upload.</p>
-            <p>4. Confirm it appears in the table below.</p>
-            <p>5. Click Open and verify it opens in a new tab.</p>
-          </div>
+        <div className="space-y-6">
+          <StartChecklist title="Upload Checklist" items={checklistItems} />
+
+          <SectionCard
+            title="What Happens Next"
+            description="Standard flow after a document is uploaded."
+          >
+            <div className="space-y-3 text-sm text-slate-600">
+              <p>1. Upload the source file and save its details.</p>
+              <p>2. Confirm it appears in the recent records list below.</p>
+              <p>3. Open it to verify the file loads correctly.</p>
+              <p>4. Submit it for review when it needs admin action.</p>
+              <p>5. Open the final version from the library after approval.</p>
+            </div>
+          </SectionCard>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-bold text-slate-900">Uploaded Documents</h2>
-
+      <SectionCard
+        title="Uploaded Documents"
+        description="Recent records saved into the workspace."
+      >
         {loadingDocs ? (
-          <p className="mt-4 text-sm text-slate-500">Loading documents...</p>
+          <InlineMessage>Loading documents...</InlineMessage>
+        ) : documents.length === 0 ? (
+          <EmptyState
+            title="No uploaded documents yet"
+            description="Upload your first file to start building out the workspace record history."
+          />
         ) : (
-          <div className="mt-6 overflow-x-auto">
+          <>
+            <div className="hidden mt-6 overflow-x-auto md:block">
             <table className="min-w-full border-separate border-spacing-y-3">
               <thead>
                 <tr>
@@ -441,9 +470,30 @@ async function confirmOpenFile() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:hidden">
+              {documents.map((doc) => (
+                <div key={doc.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-base font-semibold text-slate-900">{doc.document_title}</div>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                    <InfoBox label="Type" value={doc.document_type || "Not set"} />
+                    <InfoBox label="Category" value={doc.category || "Not set"} />
+                    <InfoBox label="File" value={doc.file_name} />
+                    <InfoBox label="Uploader" value={doc.uploaded_by || "Unknown"} />
+                  </div>
+                  <button
+                    onClick={() => handleOpenFile(doc.file_path)}
+                    className="mt-4 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    Open File
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
         )}
-      </section>
+      </SectionCard>
 
       <DownloadConfirmModal
         open={Boolean(downloadPath)}
@@ -456,6 +506,17 @@ async function confirmOpenFile() {
           void confirmOpenFile();
         }}
       />
+    </div>
+  );
+}
+
+function InfoBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+        {label}
+      </div>
+      <div className="mt-1 text-sm font-medium text-slate-700">{value}</div>
     </div>
   );
 }

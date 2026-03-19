@@ -423,11 +423,11 @@ function buildTradeLibraryItem(trade: string): CSEPTradeLibraryItem {
 }
 
 function inputClassName() {
-  return "w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-500";
+  return "w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-500";
 }
 
 function textareaClassName() {
-  return "min-h-[120px] w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-500";
+  return "min-h-[120px] w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-500";
 }
 
 const supabase = createClient(
@@ -657,7 +657,7 @@ export default function CSEPPage() {
   ].filter(Boolean) as string[];
 
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-8">
+    <div className="space-y-6 px-1 py-2 sm:px-2 sm:py-4">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 rounded-3xl bg-white p-6 shadow-lg md:p-8">
           <h1 className="text-3xl font-bold text-slate-900">
@@ -950,7 +950,7 @@ export default function CSEPPage() {
                 type="button"
                 onClick={handleSubmitForReview}
                 disabled={submitLoading || !agreedToSubmissionTerms}
-                className="rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-xl bg-sky-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
               >
                 {submitLoading ? "Submitting..." : "Submit for Review"}
               </button>
@@ -1118,6 +1118,6 @@ export default function CSEPPage() {
           </aside>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

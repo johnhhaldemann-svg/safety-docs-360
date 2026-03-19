@@ -243,7 +243,7 @@ async function handleSubmitForReview() {
 return (
   <div className="space-y-6">
     {/* Header */}
-<div className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
+<div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
     <div>
       <div className="text-xl font-black tracking-tight">
@@ -261,7 +261,7 @@ return (
           localStorage.removeItem(LS_KEY);
           location.reload();
         }}
-        className="inline-flex h-10 items-center justify-center rounded-xl border border-black/15 bg-white px-4 text-sm font-extrabold hover:bg-black/5"
+        className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50"
       >
         Reset
       </button>
@@ -270,7 +270,7 @@ return (
 </div>
 
         {/* Crane & Rigging Program */}
-    <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm space-y-4">
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
       <div className="text-lg font-black tracking-tight">
         Crane, Rigging & Lift Planning Requirements
       </div>
@@ -287,7 +287,7 @@ return (
               lift_plans_required: e.target.value === "yes",
             }))
           }
-          className="w-full rounded-xl border border-black/20 bg-white p-2 text-sm"
+          className="w-full rounded-xl border border-slate-300 bg-white p-2 text-sm focus:border-sky-500"
         >
           <option value="yes">Yes</option>
           <option value="no">No</option>
@@ -306,7 +306,7 @@ return (
               critical_lift_review_required: e.target.value === "yes",
             }))
           }
-          className="w-full rounded-xl border border-black/20 bg-white p-2 text-sm"
+          className="w-full rounded-xl border border-slate-300 bg-white p-2 text-sm focus:border-sky-500"
         >
           <option value="yes">Yes</option>
           <option value="no">No</option>
@@ -315,7 +315,7 @@ return (
     </div>
       
       {/* Stepper */}
-      <div className="rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
+      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap gap-2">
           {steps.map((s, idx) => (
             <button
@@ -325,8 +325,8 @@ return (
               className={[
                 "inline-flex h-9 items-center justify-center rounded-xl border px-4 text-sm font-extrabold whitespace-nowrap",
                 idx === step
-                  ? "border-black bg-black text-white"
-                  : "border-black/15 bg-white text-black hover:bg-black/5",
+                  ? "border-sky-600 bg-sky-600 text-white"
+                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
               ].join(" ")}
             >
               {idx + 1}. {s.title}
@@ -336,7 +336,7 @@ return (
       </div>
 
       {/* Step Content */}
-      <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         {step === 0 && (
           <div className="space-y-5">
             <div className="text-sm font-black">Project Setup</div>
@@ -451,8 +451,8 @@ return (
             className={[
               "flex items-center justify-between rounded-2xl border px-4 py-3 text-left",
               checked
-                ? "border-black bg-black text-white"
-                : "border-black/15 bg-white hover:bg-black/5",
+                ? "border-sky-600 bg-sky-600 text-white"
+                : "border-slate-300 bg-white hover:bg-slate-50",
             ].join(" ")}
           >
             <div className="text-sm font-extrabold">{opt}</div>
@@ -494,8 +494,8 @@ return (
             className={[
               "flex items-center justify-between rounded-2xl border px-4 py-3 text-left",
               checked
-                ? "border-black bg-black text-white"
-                : "border-black/15 bg-white hover:bg-black/5",
+                ? "border-sky-600 bg-sky-600 text-white"
+                : "border-slate-300 bg-white hover:bg-slate-50",
             ].join(" ")}
           >
             <div className="text-sm font-extrabold">{opt}</div>
@@ -557,7 +557,7 @@ return (
         type="file"
         accept="image/*,.pdf"
         onChange={handleSiteMapUpload}
-        className="w-full rounded-2xl border border-black/15 bg-white px-4 py-3 text-sm"
+        className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
       />
     </div>
 
@@ -570,7 +570,7 @@ return (
           width={1200}
           height={900}
           unoptimized
-          className="max-h-96 w-auto rounded-2xl border border-black/15"
+          className="max-h-96 w-auto rounded-2xl border border-slate-300"
         />
       </div>
     )}
@@ -581,7 +581,7 @@ return (
   <div className="space-y-5">
     <div className="text-sm font-black">Submit for Review</div>
 
-    <div className="rounded-2xl border border-black/10 bg-white p-4">
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
       <div className="text-sm font-extrabold">Ready to submit</div>
       <div className="mt-1 text-sm font-semibold text-black/60">
         Submit your PESHEP to the admin review queue. The final document will only be available after admin review is complete.
@@ -599,7 +599,7 @@ return (
   type="button"
   onClick={handleSubmitForReview}
   disabled={submitLoading || !agreedToSubmissionTerms}
-  className="inline-flex h-10 items-center justify-center rounded-xl border border-green-700 bg-green-600 px-4 text-sm font-extrabold text-white hover:bg-green-700 disabled:opacity-50"
+  className="inline-flex h-10 items-center justify-center rounded-xl border border-sky-600 bg-sky-600 px-4 text-sm font-extrabold text-white transition hover:bg-sky-500 disabled:opacity-50"
 >
   {submitLoading ? "Submitting..." : "Submit for Review"}
 </button>
@@ -607,7 +607,7 @@ return (
         <button
           type="button"
           onClick={() => setStep(0)}
-          className="inline-flex h-10 items-center justify-center rounded-xl border border-black/15 bg-white px-4 text-sm font-extrabold hover:bg-black/5"
+          className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50"
         >
           Back to Project Setup
         </button>
@@ -623,7 +623,7 @@ return (
         <button
           type="button"
           onClick={() => setStep((s) => Math.max(0, s - 1))}
-          className="inline-flex h-10 items-center justify-center rounded-xl border border-black/15 bg-white px-4 text-sm font-extrabold hover:bg-black/5"
+          className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50"
         >
           Back
         </button>
@@ -631,7 +631,7 @@ return (
         <button
           type="button"
           onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}
-          className="inline-flex h-10 items-center justify-center rounded-xl border border-black bg-black px-4 text-sm font-extrabold text-white hover:bg-black/90"
+          className="inline-flex h-10 items-center justify-center rounded-xl border border-sky-600 bg-sky-600 px-4 text-sm font-extrabold text-white transition hover:bg-sky-500"
         >
           Next
         </button>
@@ -655,7 +655,7 @@ function Field({
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-11 w-full rounded-2xl border border-black/15 bg-white px-4 text-sm font-bold text-black outline-none focus:border-black"
+        className="h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm font-bold text-black outline-none focus:border-sky-500"
         placeholder=""
       />
     </label>
@@ -678,7 +678,7 @@ function TextArea({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={5}
-        className="w-full rounded-2xl border border-black/15 bg-white px-4 py-3 text-sm font-bold text-black outline-none focus:border-black"
+        className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-black outline-none focus:border-sky-500"
       />
     </label>
   );
@@ -694,14 +694,14 @@ function Toggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-black/10 bg-white px-4 py-3">
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
       <div className="text-sm font-extrabold">{label}</div>
       <button
         type="button"
         onClick={() => onChange(!value)}
         className={[
           "inline-flex h-9 items-center justify-center rounded-xl border px-4 text-sm font-extrabold whitespace-nowrap",
-          value ? "border-black bg-black text-white" : "border-black/15 bg-white hover:bg-black/5",
+          value ? "border-sky-600 bg-sky-600 text-white" : "border-slate-300 bg-white hover:bg-slate-50",
         ].join(" ")}
       >
         {yesNoToggle(value)}
@@ -727,7 +727,7 @@ function Select({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-11 w-full rounded-2xl border border-black/15 bg-white px-4 text-sm font-extrabold outline-none focus:border-black"
+        className="h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm font-extrabold outline-none focus:border-sky-500"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>

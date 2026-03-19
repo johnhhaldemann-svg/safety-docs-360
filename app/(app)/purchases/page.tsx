@@ -6,6 +6,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import type { CreditTransaction } from "@/lib/credits";
 import { getDocumentCreditCost } from "@/lib/marketplace";
+import {
+  EmptyState,
+  InlineMessage,
+  PageHero,
+  SectionCard,
+  StartChecklist,
+} from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -315,21 +322,12 @@ export default function PurchasesPage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
-              Completed Documents
-            </p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-900">
-              My Purchases
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              Open the finished documents you own or unlocked with credits, and keep an eye on your balance.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+      <PageHero
+        eyebrow="Completed Documents"
+        title="My Purchases"
+        description="Open approved files you own or unlocked with credits, and keep a clean audit trail of balance, purchases, and access."
+        actions={
+          <>
             <Link
               href="/library"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
@@ -342,9 +340,9 @@ export default function PurchasesPage() {
             >
               Search Records
             </Link>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -369,20 +367,16 @@ export default function PurchasesPage() {
         />
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Buy Test Credits</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Use these in-app test packs to simulate credit purchases without real payment processing.
-            </p>
-          </div>
+      <SectionCard
+        title="Buy Test Credits"
+        description="Use these in-app packs to simulate credit purchases without real payment processing."
+        aside={
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
             Current balance: {creditState.creditBalance}
           </div>
-        </div>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
+        }
+      >
+        <div className="grid gap-4 md:grid-cols-3">
           {TEST_CREDIT_PACKS.map((pack) => (
             <div
               key={pack.id}
@@ -411,37 +405,34 @@ export default function PurchasesPage() {
             </div>
           ))}
         </div>
-      </section>
+      </SectionCard>
 
-      {message && (
-        <section className="rounded-2xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-700 shadow-sm">
+      {message ? (
+        <InlineMessage tone={message.toLowerCase().includes("failed") ? "error" : "success"}>
           {message}
-        </section>
-      )}
+        </InlineMessage>
+      ) : null}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Unlocked Completed Documents</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Final deliverables you can open right now.
-            </p>
-          </div>
+      <SectionCard
+        title="Unlocked Completed Documents"
+        description="Final deliverables you can open right now."
+        aside={
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
             Subscription: {creditState.subscriptionStatus}
           </div>
-        </div>
-
+        }
+      >
         {loading ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            Loading your purchases...
-          </div>
+          <InlineMessage>Loading your purchases...</InlineMessage>
         ) : availablePurchasedDocuments.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            No completed documents are unlocked yet. Visit the marketplace in the library to purchase one.
-          </div>
+          <EmptyState
+            title="No completed documents unlocked yet"
+            description="Visit the library marketplace or wait for one of your submissions to be approved."
+            actionHref="/library"
+            actionLabel="Open Marketplace"
+          />
         ) : (
-          <div className="mt-6 space-y-4">
+          <div className="space-y-4">
             {availablePurchasedDocuments.map((doc) => {
               const ownedByUser = doc.user_id === currentUserId;
 
@@ -488,21 +479,20 @@ export default function PurchasesPage() {
             })}
           </div>
         )}
-      </section>
+      </SectionCard>
 
       <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">Purchase History</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Your recent marketplace unlocks and the credits each one used.
-          </p>
-
+        <SectionCard
+          title="Purchase History"
+          description="Your recent marketplace unlocks and the credits each one used."
+        >
           {purchaseTransactions.length === 0 ? (
-            <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-              No marketplace purchases yet.
-            </div>
+            <EmptyState
+              title="No marketplace purchases yet"
+              description="Unlock a completed document from the library to start your purchase history."
+            />
           ) : (
-            <div className="mt-6 space-y-4">
+            <div className="space-y-4">
               {purchaseTransactions.slice(0, 8).map((tx) => (
                 <div
                   key={tx.id}
@@ -523,53 +513,38 @@ export default function PurchasesPage() {
               ))}
             </div>
           )}
-        </div>
+        </SectionCard>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">Credit Tips</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Quick context for how completed document purchases work.
-          </p>
-
-          <div className="mt-6 space-y-4">
-            <TipCard
-              title="Owned approvals stay here"
-              body="When your own submitted document gets approved, it appears in this page automatically."
-            />
-            <TipCard
-              title="Marketplace purchases unlock forever"
-              body="Once you spend credits on a completed document, it stays in your unlocked list."
-            />
-            <TipCard
-              title="Pricing comes from the document"
-              body="Each marketplace document can have its own credit cost set by the admin team."
-            />
-          </div>
-        </div>
+        <StartChecklist
+          title="Purchase Checklist"
+          items={[
+            { label: "Have credits available", done: creditState.creditBalance > 0 },
+            { label: "Unlock or own at least one completed file", done: availablePurchasedDocuments.length > 0 },
+            { label: "Review transaction history", done: creditState.transactions.length > 0 },
+            { label: "Open a completed document", done: availablePurchasedDocuments.length > 0 },
+          ]}
+        />
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Recent Credit Activity</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Grants and purchases affecting your current balance.
-            </p>
-          </div>
+      <SectionCard
+        title="Recent Credit Activity"
+        description="Grants and purchases affecting your current balance."
+        aside={
           <Link
             href="/library"
             className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Open Library
           </Link>
-        </div>
-
+        }
+      >
         {creditState.transactions.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            No credit activity yet.
-          </div>
+          <EmptyState
+            title="No credit activity yet"
+            description="Grants and purchases will appear here once credits are added or used."
+          />
         ) : (
-          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             {creditState.transactions.slice(0, 6).map((tx) => {
               const doc = documents.find((item) => item.id === tx.document_id);
               const purchaseCost = doc ? getDocumentCreditCost(doc.notes) : Math.abs(tx.amount);
@@ -610,7 +585,7 @@ export default function PurchasesPage() {
             })}
           </div>
         )}
-      </section>
+      </SectionCard>
 
       <DownloadConfirmModal
         open={Boolean(pendingDocumentId)}
@@ -644,21 +619,6 @@ function StatCard({
       <p className="text-sm font-medium text-slate-500">{title}</p>
       <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">{value}</p>
       <p className="mt-2 text-sm text-slate-500">{note}</p>
-    </div>
-  );
-}
-
-function TipCard({
-  title,
-  body,
-}: {
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 p-4">
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
     </div>
   );
 }

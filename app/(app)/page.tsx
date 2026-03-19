@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
+import { EmptyState, SectionCard, StartChecklist } from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -99,18 +100,39 @@ function normalizeType(documentType?: string | null) {
 export default function DashboardPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
 
   useEffect(() => {
     void (async () => {
-      const { data, error } = await supabase
-        .from("documents")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const [documentsResult, sessionResult] = await Promise.all([
+        supabase.from("documents").select("*").order("created_at", { ascending: false }),
+        supabase.auth.getSession(),
+      ]);
 
-      if (error) {
-        console.error("Dashboard load error:", error.message);
+      if (documentsResult.error) {
+        console.error("Dashboard load error:", documentsResult.error.message);
       } else {
-        setDocuments((data ?? []) as DocumentRow[]);
+        setDocuments((documentsResult.data ?? []) as DocumentRow[]);
+      }
+
+      const accessToken = sessionResult.data.session?.access_token;
+      if (accessToken) {
+        try {
+          const response = await fetch("/api/library/credits", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+          const data = (await response.json().catch(() => null)) as
+            | { creditBalance?: number }
+            | null;
+
+          if (response.ok) {
+            setCreditBalance(Number(data?.creditBalance ?? 0));
+          }
+        } catch (error) {
+          console.error("Dashboard credit load error:", error);
+        }
       }
 
       setLoading(false);
@@ -196,6 +218,13 @@ export default function DashboardPage() {
       note: "Completed documents ready for library access",
       trend: approvedCount > 0 ? "Ready to open" : "No completed docs yet",
       icon: "approved",
+    },
+    {
+      title: "Credits Remaining",
+      value: creditBalance === null ? "-" : String(creditBalance),
+      note: "Available for marketplace document unlocks",
+      trend: creditBalance && creditBalance > 0 ? "Ready for unlocks" : "No credits loaded",
+      icon: "records",
     },
     {
       title: "Total Records",
@@ -356,6 +385,17 @@ export default function DashboardPage() {
     },
   ];
 
+  const latestUploaded = useMemo(() => activeDocuments.slice(0, 4), [activeDocuments]);
+
+  const onboardingItems = [
+    { label: "Upload your first source document", done: activeDocuments.length > 0 },
+    { label: "Submit a request for review", done: pendingReviewCount > 0 || approvedCount > 0 },
+    { label: "Get an approved file into the library", done: approvedCount > 0 },
+    { label: "Open a completed document", done: approvedCount > 0 },
+  ];
+
+  const showWelcomeState = !loading && activeDocuments.length === 0;
+
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px] xl:gap-5">
       <div className="space-y-4 xl:space-y-5">
@@ -390,7 +430,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             {countCards.map((card) => (
               <div
                 key={card.title}
@@ -437,6 +477,38 @@ export default function DashboardPage() {
             ))}
           </div>
         </section>
+
+        {showWelcomeState ? (
+          <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+            <SectionCard
+              title="Welcome to your workspace"
+              description="Start with the core flow below so your first document moves cleanly from intake to approval."
+            >
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { title: "Upload", note: "Add source files and templates.", href: "/upload" },
+                  { title: "Submit", note: "Send work into the review queue.", href: "/submit" },
+                  { title: "Review", note: "Admins approve and finalize records.", href: "/admin/review-documents" },
+                  { title: "Library", note: "Open completed documents from one place.", href: "/library" },
+                ].map((step, index) => (
+                  <Link
+                    key={step.title}
+                    href={step.href}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-sky-200 hover:bg-sky-50"
+                  >
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Step {index + 1}
+                    </div>
+                    <div className="mt-2 text-lg font-bold text-slate-900">{step.title}</div>
+                    <div className="mt-2 text-sm leading-6 text-slate-500">{step.note}</div>
+                  </Link>
+                ))}
+              </div>
+            </SectionCard>
+
+            <StartChecklist title="Start Here Checklist" items={onboardingItems} />
+          </section>
+        ) : null}
 
         <section className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr] xl:gap-5">
           <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
@@ -578,6 +650,57 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
+
+        <SectionCard
+          title="Latest Uploaded Files"
+          description="The most recent records added to the workspace."
+          aside={
+            <Link
+              href="/upload"
+              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Open Uploads
+            </Link>
+          }
+        >
+          {latestUploaded.length === 0 ? (
+            <EmptyState
+              title="No uploaded files yet"
+              description="Add a document first, then submit it for review so it can move into the library."
+              actionHref="/upload"
+              actionLabel="Upload First File"
+            />
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {latestUploaded.map((document) => (
+                <div
+                  key={document.id}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-slate-900">
+                        {getDocumentLabel(document)}
+                      </div>
+                      <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
+                        {document.document_type || "Document"}
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                      {getStatusLabel(document)}
+                    </span>
+                  </div>
+                  <div className="mt-3 text-sm text-slate-500">
+                    {document.project_name || document.category || "General workspace file"}
+                  </div>
+                  <div className="mt-2 text-xs text-slate-400">
+                    Uploaded {formatRelative(document.created_at)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </SectionCard>
       </div>
 
       <aside className="order-first rounded-[1.8rem] border border-slate-800 bg-[linear-gradient(180deg,_#20365f_0%,_#203455_100%)] p-5 text-white shadow-[0_16px_35px_rgba(15,23,42,0.22)] xl:order-none">

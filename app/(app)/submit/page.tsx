@@ -4,6 +4,13 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
+import {
+  EmptyState,
+  InlineMessage,
+  PageHero,
+  SectionCard,
+  StartChecklist,
+} from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,6 +26,9 @@ export default function SubmitPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">(
+    "neutral"
+  );
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
 
@@ -32,6 +42,7 @@ export default function SubmitPage() {
 
     if (userError || !user) {
       setMessage("You must be logged in.");
+      setMessageTone("error");
       setCheckingSubscription(false);
       return;
     }
@@ -44,6 +55,7 @@ export default function SubmitPage() {
 
     if (error) {
       setMessage(`Subscription check failed: ${error.message}`);
+      setMessageTone("error");
       setCheckingSubscription(false);
       return;
     }
@@ -62,9 +74,11 @@ export default function SubmitPage() {
 
   async function handleSubmit() {
     setMessage("");
+    setMessageTone("neutral");
 
     if (!title.trim()) {
       setMessage("Please enter a request title.");
+      setMessageTone("warning");
       return;
     }
 
@@ -75,11 +89,13 @@ export default function SubmitPage() {
 
     if (userError || !user) {
       setMessage("You must be logged in.");
+      setMessageTone("error");
       return;
     }
 
     if (subscriptionStatus !== "active") {
       setMessage("An active subscription is required before submitting documents.");
+      setMessageTone("warning");
       return;
     }
 
@@ -87,6 +103,7 @@ export default function SubmitPage() {
       setMessage(
         "You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before submitting a document."
       );
+      setMessageTone("warning");
       return;
     }
 
@@ -106,6 +123,7 @@ export default function SubmitPage() {
 
     if (submissionError || !submission) {
       setMessage(`Submission creation failed: ${submissionError?.message ?? "Unknown error"}`);
+      setMessageTone("error");
       setSubmitting(false);
       return;
     }
@@ -121,6 +139,7 @@ export default function SubmitPage() {
 
         if (storageError) {
           setMessage(`File upload failed: ${storageError.message}`);
+          setMessageTone("error");
           setSubmitting(false);
           return;
         }
@@ -142,6 +161,7 @@ export default function SubmitPage() {
 
         if (docError) {
           setMessage(`Document record save failed: ${docError.message}`);
+          setMessageTone("error");
           setSubmitting(false);
           return;
         }
@@ -153,26 +173,26 @@ export default function SubmitPage() {
     setCustomerNotes("");
     setSelectedFiles(null);
     setMessage("Submission created successfully.");
+    setMessageTone("success");
     setSubmitting(false);
   }
 
+  const hasFiles = Boolean(selectedFiles && selectedFiles.length > 0);
+  const checklistItems = [
+    { label: "Enter a clear request title", done: title.trim().length > 0 },
+    { label: "Choose the service type you need", done: Boolean(serviceType) },
+    { label: "Upload the source files", done: hasFiles },
+    { label: "Accept terms and submit for review", done: agreedToSubmissionTerms },
+  ];
+
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
-              Client Portal
-            </p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-900">
-              Submit Review Request
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              Send your source documents to our team for review and completion.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+      <PageHero
+        eyebrow="Client Portal"
+        title="Submit Review Request"
+        description="Send source files, notes, and service details into the review workflow so your documents can move from intake to approval."
+        actions={
+          <>
             <Link
               href="/my-submissions"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
@@ -185,18 +205,17 @@ export default function SubmitPage() {
             >
               Library
             </Link>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">New Submission</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Create a new request and upload the files our team needs to review.
-          </p>
-
-          <div className="mt-6 grid gap-5">
+        <SectionCard
+          title="New Submission"
+          description="Create a request, add source files, and send it into the queue."
+          className="h-full"
+        >
+          <div className="grid gap-5">
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Request Title
@@ -264,7 +283,7 @@ export default function SubmitPage() {
             />
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="sticky bottom-3 mt-6 flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
             <button
               onClick={handleSubmit}
               disabled={submitting || checkingSubscription || !agreedToSubmissionTerms}
@@ -272,44 +291,64 @@ export default function SubmitPage() {
             >
               {submitting ? "Submitting..." : "Submit Request"}
             </button>
+            <Link
+              href="/upload"
+              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Upload Instead
+            </Link>
           </div>
 
-          {message && (
-            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              {message}
-            </div>
-          )}
-        </div>
+          {message ? <div className="mt-4"><InlineMessage tone={messageTone}>{message}</InlineMessage></div> : null}
+        </SectionCard>
 
         <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Subscription Status</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Your submission access is based on an active subscription.
-            </p>
-
-            <div className="mt-6">
+          <SectionCard
+            title="Subscription Status"
+            description="Submission access is based on an active subscription."
+          >
+            <div>
               {checkingSubscription ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  Checking subscription...
-                </div>
+                <InlineMessage>Checking subscription...</InlineMessage>
               ) : (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                <InlineMessage tone={subscriptionStatus === "active" ? "success" : "warning"}>
                   Status: {subscriptionStatus ?? "inactive"}
-                </div>
+                </InlineMessage>
               )}
             </div>
-          </div>
+          </SectionCard>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">How It Works</h2>
-            <div className="mt-4 space-y-3 text-sm text-slate-600">
-              <p>1. Create a request with a title and service type.</p>
-              <p>2. Upload your source documents.</p>
-              <p>3. Our team reviews and completes the work.</p>
-              <p>4. We return the finished documents to your portal.</p>
+          <StartChecklist title="Start Here Checklist" items={checklistItems} />
+
+          <SectionCard
+            title="How It Works"
+            description="The standard workflow for a new request."
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                "Upload or attach source files",
+                "Submit the request into review",
+                "Admin completes approval work",
+                "Final documents land in the library",
+              ].map((item, index) => (
+                <div key={item} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Step {index + 1}
+                  </div>
+                  <div className="mt-2 text-sm font-medium text-slate-700">{item}</div>
+                </div>
+              ))}
             </div>
-          </div>
+          </SectionCard>
+
+          {!hasFiles ? (
+            <EmptyState
+              title="No source files attached yet"
+              description="You can submit directly from here, or go to Upload if you want to manage file metadata first."
+              actionHref="/upload"
+              actionLabel="Open Upload"
+            />
+          ) : null}
         </div>
       </section>
     </div>
