@@ -509,7 +509,7 @@ export default function AppLayout({
 
         <aside
           className={cx(
-            "fixed inset-y-0 left-0 z-50 w-[260px] shrink-0 border-r border-white/10 bg-[linear-gradient(180deg,_#0f172a_0%,_#13233f_55%,_#0f172a_100%)] text-white transition-transform duration-200 lg:static lg:translate-x-0 lg:flex lg:flex-col",
+            "fixed inset-y-0 left-0 z-50 w-[248px] shrink-0 border-r border-white/10 bg-[linear-gradient(180deg,_#0f172a_0%,_#13233f_55%,_#0f172a_100%)] text-white transition-transform duration-200 lg:static lg:translate-x-0 lg:flex lg:flex-col",
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
@@ -521,7 +521,7 @@ export default function AppLayout({
                     S3
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[2rem] leading-none font-black tracking-tight text-white">
+                    <div className="break-words text-[1.6rem] leading-[0.95] font-black tracking-tight text-white">
                       Safety360Docs
                     </div>
                     <div className="mt-2 text-[10px] uppercase tracking-[0.28em] text-sky-300">
@@ -533,7 +533,7 @@ export default function AppLayout({
             </div>
 
             <nav className="flex-1 overflow-y-auto px-3 py-4">
-              <div className="mb-3 px-3 text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">
+              <div className="mb-3 px-3 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
                 Navigation
               </div>
 
@@ -623,8 +623,8 @@ export default function AppLayout({
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/82 backdrop-blur-xl">
             <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-6 xl:px-8">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-start gap-3">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
                   <button
                     type="button"
                     onClick={() => setMobileMenuOpen(true)}
@@ -633,25 +633,25 @@ export default function AppLayout({
                     <MobileMenuIcon />
                   </button>
 
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="text-xs font-bold uppercase tracking-[0.28em] text-sky-700">
                       {workspaceLabel}
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-3">
-                      <h1 className="text-[2.3rem] leading-none font-black tracking-tight text-slate-950">
+                    <div className="mt-1 flex flex-wrap items-center gap-2 sm:gap-3">
+                      <h1 className="text-2xl leading-tight font-black tracking-tight text-slate-950 sm:text-3xl xl:text-[2.3rem] xl:leading-none">
                         {sectionTitle}
                       </h1>
-                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
+                      <span className="hidden rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm xl:inline-flex">
                         {isAdminArea ? "Controls & review" : "Workspace tools"}
                       </span>
                     </div>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
                       {sectionDescription}
                     </p>
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-2 xl:min-w-[420px]">
                   <div className="rounded-2xl border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
                     <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
                       Signed in
