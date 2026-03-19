@@ -42,13 +42,13 @@ const adminTopTabs: NavItem[] = [
 
 const userSideLinks: NavItem[] = [
   { href: "/", label: "Dashboard", short: "HM" },
-  { href: "/peshep", label: "PESHEP Builder", short: "PB" },
-  { href: "/csep", label: "Reports", short: "CS" },
-  { href: "/submit", label: "Requests", short: "SB" },
-  { href: "/library", label: "Library", short: "LB" },
-  { href: "/purchases", label: "Purchases", short: "MP" },
-  { href: "/search", label: "Analytics", short: "SR" },
-  { href: "/upload", label: "Uploads", short: "UP" },
+  { href: "/submit", label: "Admin Panel", short: "AP" },
+  { href: "/library", label: "Reports", short: "RP" },
+  { href: "/peshep", label: "Projects", short: "PJ" },
+  { href: "/search", label: "Compliance", short: "CP" },
+  { href: "/upload", label: "Analytics", short: "AN" },
+  { href: "/purchases", label: "Settings", short: "ST" },
+  { href: "/csep", label: "Utilities", short: "UT" },
 ];
 
 const adminSideLinks: NavItem[] = [
@@ -75,17 +75,6 @@ function isActivePath(pathname: string, href: string) {
 
 function formatRole(role: string) {
   return role.replace(/_/g, " ");
-}
-
-function getSectionDescription(pathname: string, isAdminArea: boolean) {
-  if (isAdminArea) return "Review, approve, archive, and manage document workflows.";
-  if (pathname.startsWith("/library")) return "Browse approved content, unlock records, and manage your document library.";
-  if (pathname.startsWith("/upload")) return "Upload new files and move project records into the workspace.";
-  if (pathname.startsWith("/submit")) return "Create requests and route new work into the safety workflow.";
-  if (pathname.startsWith("/search")) return "Search projects, files, and records across the workspace.";
-  if (pathname.startsWith("/purchases")) return "Review purchased and unlocked completed documents.";
-  if (pathname.startsWith("/peshep")) return "Build project safety and health execution plans from one organized workspace.";
-  return "Track submissions, approvals, and delivery from one modern safety dashboard.";
 }
 
 function MobileMenuIcon() {
@@ -260,16 +249,6 @@ export default function AppLayout({
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
-
-  const sectionTitle = useMemo(() => {
-    const found = topTabs.find((item) => isActivePath(pathname, item.href));
-    return found?.label ?? (isAdminArea ? "Admin Workspace" : "Safety360Docs");
-  }, [isAdminArea, pathname, topTabs]);
-
-  const sectionDescription = useMemo(
-    () => getSectionDescription(pathname, isAdminArea),
-    [pathname, isAdminArea]
-  );
 
   const workspaceLabel = isAdminArea ? "Admin Workspace" : "User Workspace";
 
@@ -560,14 +539,11 @@ export default function AppLayout({
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-3">
                         <h1 className="text-3xl font-black tracking-tight text-slate-950">
-                          {sectionTitle}
+                          Safety360Docs
                         </h1>
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500">
-                          Workspace tools
-                        </span>
                       </div>
-                      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                        {sectionDescription}
+                      <p className="mt-1 max-w-3xl text-sm font-medium uppercase tracking-[0.14em] text-slate-500">
+                        Enterprise Safety Management Platform
                       </p>
                     </div>
                   </div>
@@ -575,7 +551,7 @@ export default function AppLayout({
                   <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px]">
                     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                       <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
-                        Signed in
+                        Safety 360
                       </div>
                       <div className="mt-1 truncate text-sm font-semibold text-slate-900">
                         {userEmail}
@@ -583,7 +559,7 @@ export default function AppLayout({
                     </div>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
                       <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
-                        Workspace
+                        Construction Site
                       </div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">{workspaceLabel}</div>
                     </div>
@@ -624,8 +600,13 @@ export default function AppLayout({
           </header>
 
           <main className="flex-1 px-4 py-5 sm:px-6 xl:px-8">
-            <div className="mx-auto w-full max-w-[1600px] rounded-[2rem] border border-[#dbe9ff] bg-[linear-gradient(180deg,_#f7fbff_0%,_#eef5ff_100%)] p-4 shadow-[0_18px_40px_rgba(148,163,184,0.14)]">
-              {children}
+            <div className="mx-auto w-full max-w-[1600px] space-y-5">
+              <div className="rounded-[2rem] border border-[#dbe9ff] bg-[linear-gradient(180deg,_#f7fbff_0%,_#eef5ff_100%)] p-4 shadow-[0_18px_40px_rgba(148,163,184,0.14)]">
+                {children}
+              </div>
+              <div className="rounded-[1.6rem] bg-[linear-gradient(135deg,_#10213f_0%,_#13284b_100%)] px-6 py-5 text-center text-[1.85rem] font-black tracking-tight text-white shadow-[0_16px_30px_rgba(15,23,42,0.18)]">
+                Systems live. Secure. Document. Stay Safe.
+              </div>
             </div>
           </main>
         </div>

@@ -23,33 +23,6 @@ function isArchivedStatus(status?: string | null) {
   return status?.trim().toLowerCase() === "archived";
 }
 
-const quickActions = [
-  {
-    title: "Quick Actions",
-    description: "Open your most-used workflow tools.",
-    href: "/submit",
-    button: "View All",
-  },
-  {
-    title: "Scan Documents",
-    description: "Verify submissions for safety standards.",
-    href: "/search",
-    button: "Run Check",
-  },
-  {
-    title: "Compliance Check",
-    description: "Verify adherence to safety standards.",
-    href: "/library",
-    button: "Run Check",
-  },
-  {
-    title: "Team Notifications",
-    description: "Send alerts to your team members.",
-    href: "/submit",
-    button: "Send Now",
-  },
-];
-
 function formatRelative(timestamp?: string | null) {
   if (!timestamp) return "Updated recently";
 
@@ -64,10 +37,32 @@ function formatRelative(timestamp?: string | null) {
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
-function changeForIndex(index: number) {
-  const values = ["+15%", "+0%", "+8%", "+12%"];
-  return values[index] ?? "+4%";
-}
+const actionCards = [
+  {
+    title: "Safety Actions",
+    description: "Verify adherence to OSHA standards.",
+    href: "/library",
+    button: "Inspect Now",
+  },
+  {
+    title: "Generate Reports",
+    description: "Generate PDF and daily safety document sets.",
+    href: "/submit",
+    button: "Generate PDF",
+  },
+  {
+    title: "Risk Assessment",
+    description: "Assess job hazards.",
+    href: "/search",
+    button: "Assess Now",
+  },
+  {
+    title: "Alert Crew",
+    description: "Send safety alerts to workers.",
+    href: "/submit",
+    button: "Alert Now",
+  },
+];
 
 export default function DashboardPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
@@ -95,36 +90,50 @@ export default function DashboardPage() {
     [documents]
   );
 
-  const stats = useMemo(() => {
-    const approved = activeDocuments.filter(
-      (doc) =>
-        doc.status?.trim().toLowerCase() === "approved" ||
-        Boolean(doc.final_file_path)
-    );
-    const pendingReview = activeDocuments.filter(
-      (doc) => doc.status?.trim().toLowerCase() === "submitted"
-    );
-    const uniqueProjects = new Set(
-      activeDocuments.map((doc) => doc.project_name).filter(Boolean)
-    );
+  const approvedCount = useMemo(
+    () =>
+      activeDocuments.filter(
+        (doc) =>
+          doc.status?.trim().toLowerCase() === "approved" ||
+          Boolean(doc.final_file_path)
+      ).length,
+    [activeDocuments]
+  );
 
-    return [
-      { title: "Active Projects", value: String(uniqueProjects.size), sublabel: "24%" },
-      { title: "Pending Review", value: String(pendingReview.length), sublabel: "30%" },
-      { title: "Approved Files", value: String(approved.length), sublabel: "33%" },
-      { title: "Library Docs", value: String(activeDocuments.length), sublabel: "23%" },
-    ];
+  const pendingReviewCount = useMemo(
+    () =>
+      activeDocuments.filter((doc) => doc.status?.trim().toLowerCase() === "submitted")
+        .length,
+    [activeDocuments]
+  );
+
+  const activeSites = useMemo(() => {
+    return new Set(activeDocuments.map((doc) => doc.project_name).filter(Boolean)).size;
   }, [activeDocuments]);
 
+  const heroStats = [
+    { title: "Active Sites", value: String(activeSites), share: "26%", change: "+15%", icon: "helmet" },
+    { title: "Pending Inspections", value: String(pendingReviewCount), share: "30%", change: "+0%", icon: "clip" },
+    { title: "Approved Safety Docs", value: String(approvedCount), share: "33%", change: "+6%", icon: "shield" },
+    { title: "Compliance Checklist", value: String(activeDocuments.length), share: "23%", change: "+12%", icon: "sheet" },
+  ];
+
+  const documentBlocks = [
+    { title: "Approved Safety Docs", value: String(approvedCount) },
+    { title: "OSHA Compliance", value: String(Math.max(1, approvedCount)) },
+    { title: "Incident Reports", value: String(Math.max(1, activeDocuments.length + 2)) },
+    { title: "Training Records", value: String(Math.max(1, activeDocuments.length + 2)) },
+  ];
+
   const recentActivity = useMemo(() => {
-    return activeDocuments.slice(0, 5).map((doc) => {
+    const items = activeDocuments.slice(0, 5).map((doc) => {
       const title = doc.project_name ?? doc.document_type ?? "Untitled Document";
       const status = doc.status?.trim().toLowerCase() ?? "saved";
 
       let action = "updated";
       if (status === "approved") action = "approved";
-      else if (status === "submitted") action = "submitted for review";
-      else if (doc.draft_file_path) action = "draft saved";
+      else if (status === "submitted") action = "created";
+      else if (doc.draft_file_path) action = "drafted";
 
       return {
         id: doc.id,
@@ -132,58 +141,39 @@ export default function DashboardPage() {
         time: formatRelative(doc.created_at),
       };
     });
-  }, [activeDocuments]);
 
-  const systemStatus = useMemo(() => {
-    const pendingReview = activeDocuments.some(
-      (doc) => doc.status?.trim().toLowerCase() === "submitted"
-    );
-    const approved = activeDocuments.some(
-      (doc) =>
-        doc.status?.trim().toLowerCase() === "approved" ||
-        Boolean(doc.final_file_path)
-    );
+    if (items.length > 0) return items;
 
     return [
-      {
-        label: "Compliance Module",
-        text: approved ? "Status: Online" : "Needs attention",
-        tone: approved ? "green" : "amber",
-      },
-      {
-        label: "Analytics Engine",
-        text: pendingReview ? "In progress" : "Status: Online",
-        tone: pendingReview ? "amber" : "green",
-      },
+      { id: "fallback-1", label: "Incident Report Drafted", time: "2 hours ago" },
+      { id: "fallback-2", label: "Safety Plan Approved", time: "1 day ago" },
     ];
   }, [activeDocuments]);
 
-  const spotlightCards = useMemo(() => {
-    return [
-      {
-        title: "Approved Files",
-        value: String(
-          activeDocuments.filter(
-            (doc) =>
-              doc.status?.trim().toLowerCase() === "approved" ||
-              Boolean(doc.final_file_path)
-          ).length
-        ),
-      },
-      {
-        title: "Library Docs",
-        value: String(activeDocuments.length),
-      },
-      {
-        title: "Library Docs",
-        value: String(Math.max(0, activeDocuments.length + 2)),
-      },
-      {
-        title: "Library Docs",
-        value: String(Math.max(0, activeDocuments.length + 2)),
-      },
-    ];
-  }, [activeDocuments]);
+  const latestUpdates = [
+    "Review Fall Protection Plan",
+    "Update Confined Space Permit",
+    "Archive the new compliance checklist",
+    "Approve Heat Visibility",
+    "Archive completed projects from last quarter",
+  ];
+
+  const upcomingInspections = [
+    "Q1 Safety Audit - 2 days left",
+    "Q2 Safety Audit - 2 days left",
+    "Fire Exting Renewal - 5 days left",
+  ];
+
+  const systemStatus = [
+    { label: "Compliance Module", badge: "OSHA Module" },
+    { label: "Analytics Engine", badge: "Alerts Tracker" },
+  ];
+
+  const officers = [
+    { name: "Jane Smith", note: "Field Safety Officer - 15 updates" },
+    { name: "Mike Johnson", note: "Shift Lead - 12 uploads" },
+    { name: "Sarah Lee", note: "Lead QC - 6 approvals" },
+  ];
 
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_360px]">
@@ -192,13 +182,13 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">
-                Project Workspace
+                Construction Safety Hub
               </p>
               <h1 className="mt-2 text-4xl font-black tracking-tight text-slate-950">
-                Dashboard
+                Safety360Docs
               </h1>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Track submissions, approvals, and approved deliverables from one place.
+                Safety administration, active sites, and approved documents all in one place.
               </p>
             </div>
 
@@ -219,7 +209,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {stats.map((item, index) => (
+            {heroStats.map((item) => (
               <div
                 key={item.title}
                 className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm"
@@ -227,21 +217,24 @@ export default function DashboardPage() {
                 <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
                   {item.title}
                 </div>
-                <div className="mt-3 text-4xl font-black tracking-tight text-slate-950">
-                  {loading ? "-" : item.value}
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className="text-4xl font-black tracking-tight text-slate-950">
+                    {loading ? "-" : item.value}
+                  </div>
+                  <StatIcon kind={item.icon} />
                 </div>
                 <div className="mt-5 flex items-center justify-between text-sm">
-                  <span className="text-slate-400">{item.sublabel}</span>
-                  <span className="font-semibold text-emerald-600">{changeForIndex(index)}</span>
+                  <span className="text-slate-400">{item.share}</span>
+                  <span className="font-semibold text-emerald-600">{item.change}</span>
                 </div>
               </div>
             ))}
           </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {spotlightCards.map((card, index) => (
+            {documentBlocks.map((card) => (
               <div
-                key={`${card.title}-${index}`}
+                key={card.title}
                 className="rounded-[1.4rem] border border-slate-200 bg-white p-5 shadow-sm"
               >
                 <div className="flex items-center justify-between gap-3">
@@ -266,15 +259,15 @@ export default function DashboardPage() {
         <section className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
           <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
             <div className="grid gap-4 md:grid-cols-2">
-              {quickActions.map((action, index) => (
+              {actionCards.map((action) => (
                 <div
                   key={action.title}
-                  className={index === 0 ? "rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm md:col-span-1" : "rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm"}
+                  className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50 text-[11px] font-black text-sky-700">
-                        {index + 1}
+                        A
                       </span>
                       <span className="text-lg font-bold text-slate-900">{action.title}</span>
                     </div>
@@ -283,9 +276,6 @@ export default function DashboardPage() {
                     </Link>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate-500">{action.description}</p>
-                  <div className="mt-5 text-4xl font-black tracking-tight text-slate-950">
-                    {index === 0 ? "6" : ""}
-                  </div>
                   <Link
                     href={action.href}
                     className="mt-5 inline-flex rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(91,108,255,0.18)]"
@@ -298,34 +288,26 @@ export default function DashboardPage() {
           </div>
 
           <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-black tracking-tight text-slate-950">
-                  Latest Updates
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  System news for busy operations teams.
-                </p>
-              </div>
+            <div>
+              <h2 className="text-2xl font-black tracking-tight text-slate-950">
+                Latest Updates
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Fresh notes for busy teams onsite.
+              </p>
             </div>
 
             <div className="mt-6 space-y-3">
-              {(recentActivity.length ? recentActivity : [
-                { id: "fallback-1", label: "Review the new compliance checklist", time: "today" },
-                { id: "fallback-2", label: "Review the new compliance checklist", time: "today" },
-                { id: "fallback-3", label: "Archive completed projects from last quarter", time: "5 days ago" },
-                { id: "fallback-4", label: "Archive completed projects from last quarter", time: "5 days ago" },
-              ]).map((item, index) => (
+              {latestUpdates.map((item, index) => (
                 <div
-                  key={item.id}
+                  key={item}
                   className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4"
                 >
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-50 text-xs font-black text-sky-700">
                     {index + 1}
                   </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-slate-800">{item.label}</div>
-                    <div className="mt-1 text-xs text-slate-400">{item.time}</div>
+                  <div className="min-w-0 truncate text-sm font-medium text-slate-800">
+                    {item}
                   </div>
                 </div>
               ))}
@@ -336,21 +318,19 @@ export default function DashboardPage() {
         <section className="grid gap-5 xl:grid-cols-[1.3fr_0.9fr]">
           <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
             <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-black tracking-tight text-slate-950">
-                  Recent Activity
-                </h2>
-              </div>
-              <Link href="/search" className="text-sm font-medium text-slate-500">
-                Load More
+              <h2 className="text-2xl font-black tracking-tight text-slate-950">
+                Recent Activity
+              </h2>
+              <Link
+                href="/submit"
+                className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-2.5 text-sm font-semibold text-white"
+              >
+                Send Now
               </Link>
             </div>
 
             <div className="mt-5 space-y-3">
-              {(recentActivity.length ? recentActivity : [
-                { id: "ra-1", label: "Draft Saved", time: "2 hours ago" },
-                { id: "ra-2", label: "File Uploaded", time: "1 day ago" },
-              ]).map((item, index) => (
+              {recentActivity.map((item, index) => (
                 <div
                   key={item.id}
                   className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4"
@@ -365,15 +345,6 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
-
-            <div className="mt-4 flex justify-end">
-              <Link
-                href="/search"
-                className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-2.5 text-sm font-semibold text-white"
-              >
-                Load More
-              </Link>
-            </div>
           </div>
 
           <div className="space-y-5">
@@ -382,7 +353,7 @@ export default function DashboardPage() {
                 System Status
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Real-time operational system health.
+                Real-time overall control system.
               </p>
               <div className="mt-5 space-y-3">
                 {systemStatus.map((item) => (
@@ -391,15 +362,8 @@ export default function DashboardPage() {
                     className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-4"
                   >
                     <span className="text-sm font-medium text-slate-800">{item.label}</span>
-                    <span
-                      className={[
-                        "rounded-full px-3 py-1 text-xs font-semibold",
-                        item.tone === "green"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-amber-50 text-amber-700",
-                      ].join(" ")}
-                    >
-                      {item.text}
+                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                      {item.badge}
                     </span>
                   </div>
                 ))}
@@ -408,17 +372,13 @@ export default function DashboardPage() {
 
             <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
               <h2 className="text-2xl font-black tracking-tight text-slate-950">
-                Team Activity
+                Top Safety Officers
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Snapshot of active contributors.
+                Most active contributors by role.
               </p>
               <div className="mt-5 space-y-3">
-                {[
-                  { name: "Jane Smith", meta: "15 uploads" },
-                  { name: "Mike Johnson", meta: "12 reviews" },
-                  { name: "Sarah Lee", meta: "6 approvals" },
-                ].map((person, index) => (
+                {officers.map((person, index) => (
                   <div
                     key={person.name}
                     className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-4"
@@ -429,7 +389,7 @@ export default function DashboardPage() {
                       </div>
                       <div>
                         <div className="text-sm font-semibold text-slate-900">{person.name}</div>
-                        <div className="mt-1 text-xs text-slate-400">{person.meta}</div>
+                        <div className="mt-1 text-xs text-slate-400">{person.note}</div>
                       </div>
                     </div>
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-500">
@@ -445,22 +405,22 @@ export default function DashboardPage() {
 
       <aside className="rounded-[1.8rem] border border-slate-800 bg-[linear-gradient(180deg,_#20365f_0%,_#203455_100%)] p-5 text-white shadow-[0_16px_35px_rgba(15,23,42,0.22)]">
         <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-300">
-          Workspace Status
+          Site Safety Status
         </div>
-        <div className="mt-3 text-3xl font-black tracking-tight">Today&apos;s overview</div>
+        <div className="mt-3 text-3xl font-black tracking-tight">Today&apos;s Site Status</div>
 
         <div className="mt-5 flex flex-wrap gap-2">
           <Link
             href="/peshep"
             className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-2.5 text-sm font-semibold text-white"
           >
-            Build PESHEP
+            Build Inspection
           </Link>
           <Link
             href="/submit"
             className="rounded-xl border border-white/10 bg-white/8 px-4 py-2.5 text-sm font-semibold text-slate-100"
           >
-            Schedule Review
+            Report Incident
           </Link>
         </div>
 
@@ -473,24 +433,17 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-white/6 p-4">
-            <div className="text-sm font-semibold text-white">Upcoming Deadlines</div>
+            <div className="text-sm font-semibold text-white">Upcoming Inspections</div>
             <div className="mt-4 space-y-3">
-              {(recentActivity.length ? recentActivity.slice(0, 4) : [
-                { id: "ud-1", label: "Safety Audit", time: "2 days left" },
-                { id: "ud-2", label: "Safety Audit", time: "3 days left" },
-                { id: "ud-3", label: "Document Approval", time: "5 days left" },
-              ]).map((item, index) => (
+              {upcomingInspections.map((item, index) => (
                 <div
-                  key={item.id}
+                  key={item}
                   className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/6 px-3 py-3"
                 >
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-400/15 text-xs font-black text-sky-200">
                     {index + 1}
                   </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-white">{item.label}</div>
-                    <div className="mt-1 text-xs text-slate-300">{item.time}</div>
-                  </div>
+                  <div className="min-w-0 truncate text-sm font-medium text-white">{item}</div>
                 </div>
               ))}
             </div>
@@ -498,5 +451,44 @@ export default function DashboardPage() {
         </div>
       </aside>
     </div>
+  );
+}
+
+function StatIcon({ kind }: { kind: string }) {
+  const common = "h-9 w-9";
+
+  if (kind === "helmet") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className={common} fill="none">
+        <path d="M5 13a7 7 0 1 1 14 0v1H5v-1Z" fill="#FCD34D" />
+        <path d="M3 14h18v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2Z" fill="#F59E0B" />
+      </svg>
+    );
+  }
+
+  if (kind === "clip") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className={common} fill="none">
+        <rect x="6" y="4" width="12" height="16" rx="2" fill="#DBEAFE" />
+        <rect x="9" y="2" width="6" height="4" rx="1" fill="#93C5FD" />
+        <path d="M9 10h6M9 14h6" stroke="#2563EB" strokeWidth="1.7" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (kind === "shield") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className={common} fill="none">
+        <path d="M12 3 6 5.5v5.3c0 4.2 2.7 8 6 9.2 3.3-1.2 6-5 6-9.2V5.5L12 3Z" fill="#93C5FD" />
+        <path d="M12 7v8" stroke="#2563EB" strokeWidth="1.7" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className={common} fill="none">
+      <rect x="6" y="4" width="12" height="16" rx="2" fill="#BFDBFE" />
+      <path d="M9 9h6M9 13h6M9 17h4" stroke="#2563EB" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
   );
 }
