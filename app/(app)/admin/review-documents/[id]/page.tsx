@@ -1,8 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import {
+  EmptyState,
+  InlineMessage,
+  PageHero,
+  SectionCard,
+  StartChecklist,
+} from "@/components/WorkspacePrimitives";
 import {
   getDocumentCreditCost,
   isMarketplaceEnabled,
@@ -16,6 +24,7 @@ const supabase = createClient(
 type DocumentItem = {
   id: string;
   project_name: string;
+  document_type?: string | null;
   status: string;
   created_at?: string | null;
   approved_at?: string | null;
@@ -32,6 +41,8 @@ type DocumentItem = {
   reviewer_email: string | null;
   review_notes: string | null;
 };
+
+type FeedbackTone = "neutral" | "success" | "warning" | "error";
 
 function isArchivedStatus(status?: string | null) {
   return status?.trim().toLowerCase() === "archived";
@@ -57,6 +68,46 @@ function formatAbsolute(timestamp?: string | null) {
   return new Date(timestamp).toLocaleString();
 }
 
+function statusClasses(status?: string | null) {
+  const normalized = status?.trim().toLowerCase();
+
+  if (normalized === "approved") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (normalized === "submitted") {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  if (normalized === "archived") {
+    return "border-slate-300 bg-slate-100 text-slate-700";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-700";
+}
+
+function StatCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+        {label}
+      </p>
+      <p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
+        {value}
+      </p>
+      <p className="mt-2 text-sm text-slate-500">{detail}</p>
+    </div>
+  );
+}
+
 export default function ReviewDocumentPage() {
   const params = useParams();
   const router = useRouter();
@@ -72,12 +123,23 @@ export default function ReviewDocumentPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingMarketplace, setSavingMarketplace] = useState(false);
+  const [openingDraft, setOpeningDraft] = useState(false);
   const [lifecycleLoading, setLifecycleLoading] = useState<
     "archive" | "restore" | "delete" | ""
   >("");
   const [loadError, setLoadError] = useState("");
+  const [feedback, setFeedback] = useState("");
+  const [feedbackTone, setFeedbackTone] = useState<FeedbackTone>("neutral");
 
-  async function getAccessToken() {
+  const setFeedbackMessage = useCallback(
+    (message: string, tone: FeedbackTone = "neutral") => {
+      setFeedback(message);
+      setFeedbackTone(tone);
+    },
+    []
+  );
+
+  const getAccessToken = useCallback(async () => {
     const {
       data: { session },
       error,
@@ -88,36 +150,7 @@ export default function ReviewDocumentPage() {
     }
 
     return session.access_token;
-  }
-
-  const openDraftDocument = useCallback(async () => {
-    if (!documentItem?.id) {
-      return;
-    }
-
-    try {
-      const token = await getAccessToken();
-      const res = await fetch(`/api/documents/download/${documentItem.id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error || "Failed to open draft document.");
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener,noreferrer");
-      window.setTimeout(() => {
-        window.URL.revokeObjectURL(url);
-      }, 60_000);
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to open draft document.");
-    }
-  }, [documentItem?.id]);
+  }, []);
 
   const loadDocument = useCallback(async () => {
     if (!id) {
@@ -157,13 +190,53 @@ export default function ReviewDocumentPage() {
     }
   }, [id, loadDocument]);
 
+  const openDraftDocument = useCallback(async () => {
+    if (!documentItem?.id) {
+      return;
+    }
+
+    setOpeningDraft(true);
+
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`/api/documents/download/${documentItem.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(data?.error || "Failed to open draft document.");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 60_000);
+      setFeedbackMessage("Draft DOCX opened in a new tab.", "success");
+    } catch (error) {
+      setFeedbackMessage(
+        error instanceof Error ? error.message : "Failed to open draft document.",
+        "error"
+      );
+    } finally {
+      setOpeningDraft(false);
+    }
+  }, [documentItem?.id, getAccessToken, setFeedbackMessage]);
+
   async function uploadFinalDoc() {
     if (!file || !documentItem) {
-      alert("Please upload the final DOCX.");
+      setFeedbackMessage("Choose the final DOCX before sending approval.", "warning");
       return;
     }
 
     setSaving(true);
+    setFeedback("");
 
     try {
       const token = await getAccessToken();
@@ -187,25 +260,26 @@ export default function ReviewDocumentPage() {
         | null;
 
       if (!res.ok) {
-        alert(data?.error || "Approval failed.");
-        setSaving(false);
+        setFeedbackMessage(data?.error || "Approval failed.", "error");
         return;
       }
 
       await loadDocument();
-      alert("Final document sent to user.");
-    } catch (err) {
-      console.error(err);
-      alert("Upload failed.");
+      setFile(null);
+      setFeedbackMessage("Final document approved and sent to the user.", "success");
+    } catch (error) {
+      console.error(error);
+      setFeedbackMessage("Upload failed.", "error");
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
   }
 
   async function saveMarketplaceSettings() {
     if (!documentItem) return;
 
     setSavingMarketplace(true);
+    setFeedback("");
 
     try {
       const token = await getAccessToken();
@@ -229,8 +303,10 @@ export default function ReviewDocumentPage() {
         | null;
 
       if (!res.ok) {
-        alert(data?.error || "Failed to save marketplace settings.");
-        setSavingMarketplace(false);
+        setFeedbackMessage(
+          data?.error || "Failed to save marketplace settings.",
+          "error"
+        );
         return;
       }
 
@@ -243,13 +319,13 @@ export default function ReviewDocumentPage() {
           : prev
       );
       await loadDocument();
-      alert("Marketplace settings saved.");
+      setFeedbackMessage("Marketplace settings saved.", "success");
     } catch (error) {
       console.error(error);
-      alert("Failed to save marketplace settings.");
+      setFeedbackMessage("Failed to save marketplace settings.", "error");
+    } finally {
+      setSavingMarketplace(false);
     }
-
-    setSavingMarketplace(false);
   }
 
   async function runLifecycleAction(action: "archive" | "restore" | "delete") {
@@ -270,6 +346,7 @@ export default function ReviewDocumentPage() {
     }
 
     setLifecycleLoading(action);
+    setFeedback("");
 
     try {
       const token = await getAccessToken();
@@ -287,13 +364,11 @@ export default function ReviewDocumentPage() {
         | null;
 
       if (!res.ok) {
-        alert(data?.error || "Lifecycle update failed.");
-        setLifecycleLoading("");
+        setFeedbackMessage(data?.error || "Lifecycle update failed.", "error");
         return;
       }
 
       if (action === "delete") {
-        alert("Document deleted.");
         router.push("/admin/review-documents");
         router.refresh();
         return;
@@ -318,13 +393,16 @@ export default function ReviewDocumentPage() {
       );
 
       await loadDocument();
-      alert(action === "archive" ? "Document archived." : "Document restored.");
+      setFeedbackMessage(
+        action === "archive" ? "Document archived." : "Document restored.",
+        "success"
+      );
     } catch (error) {
       console.error(error);
-      alert("Lifecycle update failed.");
+      setFeedbackMessage("Lifecycle update failed.", "error");
+    } finally {
+      setLifecycleLoading("");
     }
-
-    setLifecycleLoading("");
   }
 
   const timelineEvents = useMemo(() => {
@@ -394,213 +472,452 @@ export default function ReviewDocumentPage() {
     );
   }, [documentItem]);
 
-  if (loading) return <div className="p-6">Loading document...</div>;
-  if (!documentItem) {
+  const checklistItems = useMemo(
+    () => [
+      {
+        label: "Draft document available",
+        done: Boolean(documentItem?.draft_file_path),
+      },
+      { label: "Reviewer contact saved", done: Boolean(reviewerEmail.trim()) },
+      { label: "Review notes captured", done: Boolean(reviewNotes.trim()) },
+      {
+        label: "Final file uploaded",
+        done: Boolean(file || documentItem?.final_file_path),
+      },
+    ],
+    [
+      documentItem?.draft_file_path,
+      documentItem?.final_file_path,
+      file,
+      reviewNotes,
+      reviewerEmail,
+    ]
+  );
+
+  if (loading) {
     return (
-      <div className="p-6 space-y-3">
-        <div className="text-lg font-semibold text-slate-900">Document not found.</div>
-        {loadError ? (
-          <div className="text-sm text-slate-600">{loadError}</div>
-        ) : null}
-        <button
-          onClick={() => router.push("/admin/review-documents")}
-          className="rounded-lg border px-4 py-2 font-semibold"
-        >
-          Back
-        </button>
+      <div className="space-y-6">
+        <PageHero
+          eyebrow="Admin Workflow"
+          title="Review Workspace"
+          description="Open the submitted draft, complete your review notes, and approve the final document."
+        />
+        <InlineMessage>Loading review workspace...</InlineMessage>
       </div>
     );
   }
 
+  if (!documentItem) {
+    return (
+      <div className="space-y-6">
+        <PageHero
+          eyebrow="Admin Workflow"
+          title="Review Workspace"
+          description="Open the submitted draft, complete your review notes, and approve the final document."
+          actions={
+            <Link
+              href="/admin/review-documents"
+              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Back to Review Queue
+            </Link>
+          }
+        />
+        <EmptyState
+          title="Document not found"
+          description={loadError || "This review record could not be loaded."}
+          actionHref="/admin/review-documents"
+          actionLabel="Return to queue"
+        />
+      </div>
+    );
+  }
+
+  const titleText =
+    documentItem.project_name || documentItem.document_type || "Untitled document";
+  const normalizedStatus = documentItem.status?.trim().toLowerCase() || "unknown";
+
   return (
-    <div className="p-6">
-      <div className="mx-auto max-w-3xl space-y-6">
+    <div className="space-y-8">
+      <PageHero
+        eyebrow="Construction Safety Hub"
+        title={titleText}
+        description="Review the submitted draft, capture reviewer notes, approve the final document, and manage lifecycle settings from one workspace."
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                void openDraftDocument();
+              }}
+              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              {openingDraft ? "Opening Draft..." : "Open Draft DOCX"}
+            </button>
+            <Link
+              href="/admin/review-documents"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+            >
+              Back to Review Queue
+            </Link>
+          </>
+        }
+      />
 
-        <div>
-          <h1 className="text-2xl font-bold">Review PSHSEP</h1>
-          <p className="text-sm text-slate-600">
-            Download draft, review in Word, then upload final version.
-          </p>
-        </div>
+      {feedback ? <InlineMessage tone={feedbackTone}>{feedback}</InlineMessage> : null}
 
-        <div className="rounded-lg border p-5 shadow-sm">
-          <p><strong>Project:</strong> {documentItem.project_name}</p>
-          <p><strong>Status:</strong> {documentItem.status}</p>
-        </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Status"
+          value={
+            normalizedStatus === "approved"
+              ? "Approved"
+              : normalizedStatus === "submitted"
+                ? "Submitted"
+                : normalizedStatus === "archived"
+                  ? "Archived"
+                  : "In Review"
+          }
+          detail="Current workflow state for this document."
+        />
+        <StatCard
+          label="Document Type"
+          value={documentItem.document_type || "PSHSEP"}
+          detail="Primary document category saved on the record."
+        />
+        <StatCard
+          label="Marketplace"
+          value={marketplaceEnabled ? `${creditCost} credits` : "Hidden"}
+          detail="Completed document listing and credit cost."
+        />
+        <StatCard
+          label="Last Updated"
+          value={formatRelative(
+            documentItem.approved_at ??
+              documentItem.marketplace_updated_at ??
+              documentItem.created_at
+          )}
+          detail="Most recent review or marketplace event."
+        />
+      </div>
 
-        <div className="rounded-lg border p-5 shadow-sm">
-          <h3 className="mb-3 font-semibold">Draft Document</h3>
-
-          <button
-            type="button"
-            onClick={() => {
-              void openDraftDocument();
-            }}
-            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-900 no-underline hover:bg-slate-100"
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_360px]">
+        <div className="space-y-6">
+          <SectionCard
+            title="Review Summary"
+            description="Document details, reviewer ownership, and current approval readiness."
+            aside={
+              <span
+                className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusClasses(documentItem.status)}`}
+              >
+                {documentItem.status || "unknown"}
+              </span>
+            }
           >
-            Open Draft DOCX
-          </button>
-        </div>
-
-        <div className="rounded-lg border p-5 shadow-sm space-y-4">
-          <h3 className="font-semibold">Upload Final Document</h3>
-
-          <input
-            type="file"
-            accept=".docx"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-          />
-
-          <div>
-            <label className="text-sm font-semibold block mb-1">
-              Reviewer Email
-            </label>
-            <input
-              type="email"
-              value={reviewerEmail}
-              onChange={(e) => setReviewerEmail(e.target.value)}
-              className="w-full border rounded-lg p-2"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-semibold block mb-1">
-              Review Notes
-            </label>
-            <textarea
-              rows={4}
-              value={reviewNotes}
-              onChange={(e) => setReviewNotes(e.target.value)}
-              className="w-full border rounded-lg p-2"
-            />
-          </div>
-
-          <button
-            onClick={uploadFinalDoc}
-            disabled={saving}
-            className="rounded-xl bg-green-600 px-4 py-2 font-bold text-white hover:bg-green-700 disabled:opacity-50"
-          >
-            {saving ? "Uploading..." : "Approve & Send Final"}
-          </button>
-        </div>
-
-        <div className="rounded-lg border p-5 shadow-sm space-y-4">
-          <h3 className="font-semibold">Marketplace Settings</h3>
-          <p className="text-sm text-slate-600">
-            Control whether this completed document is listed in the credit marketplace and how many credits it costs.
-          </p>
-
-          <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 px-4 py-3">
-            <span className="text-sm font-semibold text-slate-800">
-              List this completed document in the marketplace
-            </span>
-            <input
-              type="checkbox"
-              checked={marketplaceEnabled}
-              onChange={(e) => setMarketplaceEnabled(e.target.checked)}
-              className="h-5 w-5"
-            />
-          </label>
-
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-700">
-              Credit Cost
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={creditCost}
-              onChange={(e) => setCreditCost(e.target.value)}
-              className="w-full rounded-lg border p-2"
-            />
-          </div>
-
-          <button
-            onClick={saveMarketplaceSettings}
-            disabled={savingMarketplace}
-            className="rounded-xl border border-slate-300 bg-white px-4 py-2 font-bold text-slate-800 hover:bg-slate-100 disabled:opacity-50"
-          >
-            {savingMarketplace ? "Saving..." : "Save Marketplace Settings"}
-          </button>
-        </div>
-
-        <div className="rounded-lg border p-5 shadow-sm space-y-4">
-          <h3 className="font-semibold">Document Timeline</h3>
-          <p className="text-sm text-slate-600">
-            Track the key review, lifecycle, and marketplace events for this document.
-          </p>
-
-          {timelineEvents.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-              No timeline events recorded yet.
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+                  Project
+                </p>
+                <p className="mt-3 text-sm font-semibold text-slate-900">
+                  {documentItem.project_name || "Untitled project"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+                  Submitted
+                </p>
+                <p className="mt-3 text-sm font-semibold text-slate-900">
+                  {formatAbsolute(documentItem.created_at)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+                  Reviewer
+                </p>
+                <p className="mt-3 text-sm font-semibold text-slate-900">
+                  {reviewerEmail || "Not assigned yet"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+                  Final File
+                </p>
+                <p className="mt-3 text-sm font-semibold text-slate-900">
+                  {documentItem.final_file_path ? "Uploaded" : "Waiting for approval"}
+                </p>
+              </div>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {timelineEvents.map((event, index) => (
-                <div
-                  key={event.key}
-                  className="flex gap-4 rounded-xl border border-slate-200 p-4"
-                >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-700">
-                    {index + 1}
-                  </div>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <p className="text-sm font-semibold text-slate-900">Draft source</p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Download the submitted draft to complete edits in Word before uploading the approved version.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void openDraftDocument();
+                    }}
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    {openingDraft ? "Opening..." : "Open Draft DOCX"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <p className="text-sm font-semibold text-slate-900">Current review notes</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {reviewNotes.trim()
+                    ? reviewNotes
+                    : "No reviewer notes have been captured yet. Add any approval comments or required edits below."}
+                </p>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Approval Workspace"
+            description="Upload the final DOCX, confirm reviewer details, and send the approved version back into the workspace."
+          >
+            <div className="space-y-5">
+              <div className="grid gap-5 lg:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-800">
+                    Final DOCX
+                  </label>
+                  <input
+                    type="file"
+                    accept=".docx"
+                    onChange={(event) => setFile(event.target.files?.[0] || null)}
+                    className="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-sky-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-sky-500"
+                  />
+                  <p className="mt-2 text-xs text-slate-500">
+                    {file ? `Selected: ${file.name}` : "Upload the final approved DOCX file."}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-800">
+                    Reviewer Email
+                  </label>
+                  <input
+                    type="email"
+                    value={reviewerEmail}
+                    onChange={(event) => setReviewerEmail(event.target.value)}
+                    placeholder="reviewer@company.com"
+                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-800">
+                  Review Notes
+                </label>
+                <textarea
+                  rows={5}
+                  value={reviewNotes}
+                  onChange={(event) => setReviewNotes(event.target.value)}
+                  placeholder="Summarize corrections, approvals, or handoff notes for the user."
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                />
+              </div>
+
+              <div className="sticky bottom-4 z-10 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">
-                      {event.title}
+                      Ready to send the final document?
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {formatRelative(event.time)} at {formatAbsolute(event.time)}
+                    <p className="mt-1 text-sm text-slate-500">
+                      This will save the final DOCX, mark the document as approved, and notify the workspace record.
                     </p>
-                    <p className="mt-2 text-sm text-slate-600">{event.detail}</p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={uploadFinalDoc}
+                    disabled={saving}
+                    className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {saving ? "Approving..." : "Approve and Send Final"}
+                  </button>
                 </div>
-              ))}
+              </div>
             </div>
-          )}
-        </div>
+          </SectionCard>
 
-        <div className="rounded-lg border p-5 shadow-sm space-y-4">
-          <h3 className="font-semibold">Document Lifecycle</h3>
-          <p className="text-sm text-slate-600">
-            Archive documents to hide them from the active workflow, restore them later, or permanently delete the record and stored files.
-          </p>
+          <SectionCard
+            title="Marketplace Settings"
+            description="Control whether this approved document appears in the credit marketplace and what it costs to unlock."
+          >
+            <div className="space-y-5">
+              <label className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    List in marketplace
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Approved documents can be hidden or listed for credit purchase.
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={marketplaceEnabled}
+                  onChange={(event) => setMarketplaceEnabled(event.target.checked)}
+                  className="h-5 w-5"
+                />
+              </label>
 
-          <div className="flex flex-wrap gap-3">
-            {isArchivedStatus(documentItem.status) ? (
-              <button
-                onClick={() => void runLifecycleAction("restore")}
-                disabled={Boolean(lifecycleLoading)}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 font-bold text-slate-800 hover:bg-slate-100 disabled:opacity-50"
-              >
-                {lifecycleLoading === "restore" ? "Restoring..." : "Restore Document"}
-              </button>
+              <div className="max-w-xs">
+                <label className="mb-2 block text-sm font-semibold text-slate-800">
+                  Credit Cost
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={creditCost}
+                  onChange={(event) => setCreditCost(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={saveMarketplaceSettings}
+                  disabled={savingMarketplace}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingMarketplace ? "Saving..." : "Save Marketplace Settings"}
+                </button>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Timeline"
+            description="Review lifecycle, approval, and marketplace history for this document."
+          >
+            {timelineEvents.length === 0 ? (
+              <EmptyState
+                title="No events yet"
+                description="Timeline events will appear here as the document moves through approval and lifecycle updates."
+              />
             ) : (
-              <button
-                onClick={() => void runLifecycleAction("archive")}
-                disabled={Boolean(lifecycleLoading)}
-                className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
-              >
-                {lifecycleLoading === "archive" ? "Archiving..." : "Archive Document"}
-              </button>
+              <div className="space-y-3">
+                {timelineEvents.map((event, index) => (
+                  <div
+                    key={event.key}
+                    className="flex gap-4 rounded-2xl border border-slate-200 p-4"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sm font-bold text-sky-700">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {event.title}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {formatRelative(event.time)} at {formatAbsolute(event.time)}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-600">{event.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
+          </SectionCard>
 
-            <button
-              onClick={() => void runLifecycleAction("delete")}
-              disabled={Boolean(lifecycleLoading)}
-              className="rounded-xl border border-red-300 bg-red-50 px-4 py-2 font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
-            >
-              {lifecycleLoading === "delete" ? "Deleting..." : "Delete Document"}
-            </button>
-          </div>
+          <SectionCard
+            title="Lifecycle Controls"
+            description="Archive finished work, restore archived records, or permanently delete the document and stored files."
+          >
+            <div className="flex flex-wrap gap-3">
+              {isArchivedStatus(documentItem.status) ? (
+                <button
+                  type="button"
+                  onClick={() => void runLifecycleAction("restore")}
+                  disabled={Boolean(lifecycleLoading)}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {lifecycleLoading === "restore" ? "Restoring..." : "Restore Document"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void runLifecycleAction("archive")}
+                  disabled={Boolean(lifecycleLoading)}
+                  className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {lifecycleLoading === "archive" ? "Archiving..." : "Archive Document"}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => void runLifecycleAction("delete")}
+                disabled={Boolean(lifecycleLoading)}
+                className="rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {lifecycleLoading === "delete" ? "Deleting..." : "Delete Document"}
+              </button>
+            </div>
+          </SectionCard>
         </div>
 
-        <button
-          onClick={() => router.push("/admin/review-documents")}
-          className="rounded-lg border px-4 py-2 font-semibold"
-        >
-          Back
-        </button>
+        <div className="space-y-6">
+          <StartChecklist
+            title="Approval Checklist"
+            items={checklistItems}
+          />
 
+          <SectionCard
+            title="Review Guidance"
+            description="Use the same workflow every time so documents stay consistent for admins and field teams."
+          >
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                1. Open the draft DOCX and complete edits in Word.
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                2. Capture reviewer email and approval notes before sending.
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                3. Upload the final DOCX and approve the document.
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                4. Decide whether the completed file should appear in the marketplace.
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Approval State"
+            description="A quick status summary for the document and final file."
+          >
+            <div className="space-y-3">
+              <InlineMessage
+                tone={
+                  documentItem.final_file_path
+                    ? "success"
+                    : isArchivedStatus(documentItem.status)
+                      ? "warning"
+                      : "neutral"
+                }
+              >
+                {documentItem.final_file_path
+                  ? "A final file is attached to this record and the document can be opened from the user library."
+                  : isArchivedStatus(documentItem.status)
+                    ? "This document is archived and hidden from active workspace views until restored."
+                    : "This record is still waiting for final approval and delivery."}
+              </InlineMessage>
+            </div>
+          </SectionCard>
+        </div>
       </div>
     </div>
   );
