@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import {
   authorizeRequest,
   formatAccountStatus,
@@ -16,6 +17,22 @@ type InvitePayload = {
   team?: string;
   accountStatus?: string;
 };
+
+function createAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
 
 function getDisplayName(user: {
   email?: string | null;
@@ -78,7 +95,16 @@ export async function GET(request: Request) {
     return auth.error;
   }
 
-  const { data, error } = await auth.supabase.auth.admin.listUsers();
+  const adminClient = createAdminClient();
+
+  if (!adminClient) {
+    return NextResponse.json(
+      { error: "Missing Supabase service role configuration." },
+      { status: 500 }
+    );
+  }
+
+  const { data, error } = await adminClient.auth.admin.listUsers();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -87,7 +113,7 @@ export async function GET(request: Request) {
   const users = await Promise.all(
     (data.users ?? []).map(async (user) => {
       const roleContext = await getUserRoleContext({
-        supabase: auth.supabase,
+        supabase: adminClient,
         user,
       });
 
@@ -118,6 +144,15 @@ export async function POST(request: Request) {
     return auth.error;
   }
 
+  const adminClient = createAdminClient();
+
+  if (!adminClient) {
+    return NextResponse.json(
+      { error: "Missing Supabase service role configuration." },
+      { status: 500 }
+    );
+  }
+
   const body = (await request.json()) as InvitePayload;
   const email = body.email?.trim().toLowerCase() ?? "";
   const role = normalizeAppRole(body.role);
@@ -128,7 +163,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email is required." }, { status: 400 });
   }
 
-  const { data, error } = await auth.supabase.auth.admin.inviteUserByEmail(
+  const { data, error } = await adminClient.auth.admin.inviteUserByEmail(
     email,
     {
       data: {
@@ -144,7 +179,7 @@ export async function POST(request: Request) {
   }
 
   if (data.user?.id) {
-    await auth.supabase.from("user_roles").upsert(
+    await adminClient.from("user_roles").upsert(
       {
         user_id: data.user.id,
         role,

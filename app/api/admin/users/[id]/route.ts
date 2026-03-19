@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import {
   authorizeRequest,
   normalizeAccountStatus,
@@ -17,6 +18,22 @@ type ActionPayload = {
   action?: string;
 };
 
+function createAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -27,6 +44,15 @@ export async function PATCH(
     return auth.error;
   }
 
+  const adminClient = createAdminClient();
+
+  if (!adminClient) {
+    return NextResponse.json(
+      { error: "Missing Supabase service role configuration." },
+      { status: 500 }
+    );
+  }
+
   const { id } = await context.params;
   const body = (await request.json()) as UpdatePayload;
   const role = normalizeAppRole(body.role);
@@ -34,7 +60,7 @@ export async function PATCH(
   const accountStatus = normalizeAccountStatus(body.accountStatus);
 
   const { data: currentUser, error: getError } =
-    await auth.supabase.auth.admin.getUserById(id);
+    await adminClient.auth.admin.getUserById(id);
 
   if (getError || !currentUser.user) {
     return NextResponse.json(
@@ -57,7 +83,7 @@ export async function PATCH(
     account_status: accountStatus,
   };
 
-  const { error: updateError } = await auth.supabase.auth.admin.updateUserById(
+  const { error: updateError } = await adminClient.auth.admin.updateUserById(
     id,
     {
       user_metadata: mergedUserMetadata,
@@ -69,7 +95,7 @@ export async function PATCH(
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  const { error: roleError } = await auth.supabase.from("user_roles").upsert(
+  const { error: roleError } = await adminClient.from("user_roles").upsert(
     {
       user_id: id,
       role,
@@ -105,12 +131,21 @@ export async function POST(
     return auth.error;
   }
 
+  const adminClient = createAdminClient();
+
+  if (!adminClient) {
+    return NextResponse.json(
+      { error: "Missing Supabase service role configuration." },
+      { status: 500 }
+    );
+  }
+
   const { id } = await context.params;
   const body = (await request.json()) as ActionPayload;
   const action = (body.action ?? "").trim().toLowerCase();
 
   const { data: currentUser, error: getError } =
-    await auth.supabase.auth.admin.getUserById(id);
+    await adminClient.auth.admin.getUserById(id);
 
   if (getError || !currentUser.user) {
     return NextResponse.json(
@@ -155,7 +190,7 @@ export async function POST(
           ? currentUser.user.user_metadata.account_status
           : "active";
 
-    const { error } = await auth.supabase.auth.admin.inviteUserByEmail(email, {
+    const { error } = await adminClient.auth.admin.inviteUserByEmail(email, {
       data: {
         role,
         team,
@@ -175,7 +210,7 @@ export async function POST(
   }
 
   if (action === "password_reset") {
-    const { data, error } = await auth.supabase.auth.admin.generateLink({
+    const { data, error } = await adminClient.auth.admin.generateLink({
       type: "recovery",
       email,
       options: normalizedRedirectTo
@@ -198,7 +233,7 @@ export async function POST(
   }
 
   if (action === "force_sign_out") {
-    const { error } = await auth.supabase.auth.admin.updateUserById(id, {
+    const { error } = await adminClient.auth.admin.updateUserById(id, {
       ban_duration: "1m",
     });
 
