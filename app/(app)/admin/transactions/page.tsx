@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  EmptyState,
+  InlineMessage,
+  PageHero,
+  SectionCard,
+} from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -222,21 +228,12 @@ export default function AdminTransactionsPage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
-              Credit Audit
-            </p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-900">
-              Transaction Audit
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              Inspect marketplace purchases, credit grants, and user-by-user ledger activity from one admin view.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+      <PageHero
+        eyebrow="Credit Audit"
+        title="Transaction Audit"
+        description="Inspect marketplace purchases, credit grants, and user-by-user ledger activity from one admin view."
+        actions={
+          <>
             <Link
               href="/admin/marketplace"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
@@ -249,9 +246,9 @@ export default function AdminTransactionsPage() {
             >
               Open Users
             </Link>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -276,7 +273,7 @@ export default function AdminTransactionsPage() {
         />
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <SectionCard title="Audit Filters" description="Filter transactions by type, role, or search term.">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid flex-1 gap-4 md:grid-cols-3">
             <div>
@@ -342,21 +339,13 @@ export default function AdminTransactionsPage() {
           </button>
         </div>
 
-        {message && (
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            {message}
-          </div>
-        )}
-      </section>
+        {message ? <div className="mt-4"><InlineMessage>{message}</InlineMessage></div> : null}
+      </SectionCard>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Ledger Activity</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {filteredTransactions.length} transaction{filteredTransactions.length === 1 ? "" : "s"} match the current filters.
-            </p>
-          </div>
+      <SectionCard
+        title="Ledger Activity"
+        description={`${filteredTransactions.length} transaction${filteredTransactions.length === 1 ? "" : "s"} match the current filters.`}
+        aside={
           <button
             type="button"
             onClick={handleExportCsv}
@@ -365,18 +354,17 @@ export default function AdminTransactionsPage() {
           >
             Export CSV
           </button>
-        </div>
-
+        }
+      >
         {loading ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            Loading transaction audit...
-          </div>
+          <InlineMessage>Loading transaction audit...</InlineMessage>
         ) : filteredTransactions.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            No credit transactions match the current filters.
-          </div>
+          <EmptyState
+            title="No credit transactions match the current filters"
+            description="Try clearing filters or searching a different user or document."
+          />
         ) : (
-          <div className="mt-6 space-y-4">
+          <div className="space-y-4">
             {filteredTransactions.map((tx) => (
               <div
                 key={tx.id}
@@ -433,7 +421,7 @@ export default function AdminTransactionsPage() {
             ))}
           </div>
         )}
-      </section>
+      </SectionCard>
     </div>
   );
 }

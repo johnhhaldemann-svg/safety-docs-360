@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  EmptyState,
+  InlineMessage,
+  PageHero,
+  SectionCard,
+} from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -252,21 +258,12 @@ export default function AdminArchivePage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
-              Document Lifecycle
-            </p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-900">
-              Archived Documents
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              Review archived records, restore them back into the active workflow, or permanently delete obsolete drafts and finals.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+      <PageHero
+        eyebrow="Document Lifecycle"
+        title="Archived Documents"
+        description="Review archived records, restore them back into the active workflow, or permanently delete obsolete drafts and finals."
+        actions={
+          <>
             <Link
               href="/admin/review-documents"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
@@ -279,9 +276,9 @@ export default function AdminArchivePage() {
             >
               Back to Admin
             </Link>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <section className="grid gap-5 sm:grid-cols-3">
         <StatCard
@@ -301,15 +298,11 @@ export default function AdminArchivePage() {
         />
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <SectionCard
+        title="Bulk Actions"
+        description={`${selectedIds.length} archived document${selectedIds.length === 1 ? "" : "s"} selected in this archive view.`}
+      >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Bulk Actions</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {selectedIds.length} archived document{selectedIds.length === 1 ? "" : "s"} selected in this archive view.
-            </p>
-          </div>
-
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
@@ -337,9 +330,9 @@ export default function AdminArchivePage() {
             </button>
           </div>
         </div>
-      </section>
+      </SectionCard>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <SectionCard title="Archive Filters" description="Search by document name, type, or file state.">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid flex-1 gap-4 md:grid-cols-[1.5fr_1fr_1fr]">
             <div>
@@ -399,22 +392,14 @@ export default function AdminArchivePage() {
           </button>
         </div>
 
-        {message ? (
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            {message}
-          </div>
-        ) : null}
-      </section>
+        {message ? <div className="mt-4"><InlineMessage>{message}</InlineMessage></div> : null}
+      </SectionCard>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Archive Records</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {filteredDocuments.length} archived document{filteredDocuments.length === 1 ? "" : "s"} in this view.
-            </p>
-          </div>
-          {filteredDocuments.length > 0 ? (
+      <SectionCard
+        title="Archive Records"
+        description={`${filteredDocuments.length} archived document${filteredDocuments.length === 1 ? "" : "s"} in this view.`}
+        aside={
+          filteredDocuments.length > 0 ? (
             <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
               <input
                 type="checkbox"
@@ -433,19 +418,18 @@ export default function AdminArchivePage() {
               />
               Select All In View
             </label>
-          ) : null}
-        </div>
-
+          ) : null
+        }
+      >
         {loading ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            Loading archived documents...
-          </div>
+          <InlineMessage>Loading archived documents...</InlineMessage>
         ) : filteredDocuments.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            No archived documents match the current filters.
-          </div>
+          <EmptyState
+            title="No archived documents match the current filters"
+            description="Try a broader search or switch file-state filters."
+          />
         ) : (
-          <div className="mt-6 space-y-4">
+          <div className="space-y-4">
             {filteredDocuments.map((doc) => {
               const restoreLoading = actionLoadingId === `restore:${doc.id}`;
               const deleteLoading = actionLoadingId === `delete:${doc.id}`;
@@ -568,7 +552,7 @@ export default function AdminArchivePage() {
             })}
           </div>
         )}
-      </section>
+      </SectionCard>
     </div>
   );
 }

@@ -46,18 +46,40 @@ export async function PATCH(
 
   const adminClient = createAdminClient();
 
-  if (!adminClient) {
-    return NextResponse.json(
-      { error: "Missing Supabase service role configuration." },
-      { status: 500 }
-    );
-  }
-
   const { id } = await context.params;
   const body = (await request.json()) as UpdatePayload;
   const role = normalizeAppRole(body.role);
   const team = body.team?.trim() || "General";
   const accountStatus = normalizeAccountStatus(body.accountStatus);
+
+  if (!adminClient) {
+    const { error: roleError } = await auth.supabase.from("user_roles").upsert(
+      {
+        user_id: id,
+        role,
+        team,
+        account_status: accountStatus,
+        created_by: auth.user.id,
+        updated_by: auth.user.id,
+      },
+      {
+        onConflict: "user_id",
+      }
+    );
+
+    if (roleError) {
+      return NextResponse.json({ error: roleError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      role,
+      team,
+      accountStatus,
+      warning:
+        "Role was updated in the workspace RBAC table, but Supabase Auth metadata could not be synced because the service role key is unavailable at runtime.",
+    });
+  }
 
   const { data: currentUser, error: getError } =
     await adminClient.auth.admin.getUserById(id);

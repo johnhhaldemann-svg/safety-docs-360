@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  EmptyState,
+  InlineMessage,
+  PageHero,
+  SectionCard,
+} from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -382,21 +388,12 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
-              Administration
-            </p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-900">
-              User Management
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              Manage user access, roles, permissions, invitations, and workspace visibility from one central location.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+      <PageHero
+        eyebrow="Administration"
+        title="User Management"
+        description="Manage user access, roles, permissions, invitations, and workspace visibility from one central location."
+        actions={
+          <>
             <button
               onClick={handleInviteUser}
               disabled={inviteLoading || !inviteEmail.trim()}
@@ -410,9 +407,9 @@ export default function AdminUsersPage() {
             >
               Back to Admin
             </Link>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {userStats.map((item) => (
@@ -429,15 +426,8 @@ export default function AdminUsersPage() {
         ))}
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <SectionCard title="Invite or Search" description="Invite a new user or filter the current user list.">
         <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Invite or Search</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Invite a new user or filter the current user list.
-            </p>
-          </div>
-
           <div className="grid gap-3 md:grid-cols-2">
             <input
               type="email"
@@ -497,28 +487,21 @@ export default function AdminUsersPage() {
             </button>
           </div>
 
-          {message ? (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700">
-              {message}
-            </div>
-          ) : null}
+          {message ? <InlineMessage>{message}</InlineMessage> : null}
         </div>
-      </section>
+      </SectionCard>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Users</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Review users, roles, and current account status.
-            </p>
-          </div>
-        </div>
-
+      <SectionCard title="Users" description="Review users, roles, and current account status.">
         {loading ? (
-          <p className="mt-6 text-sm text-slate-500">Loading users...</p>
+          <InlineMessage>Loading users...</InlineMessage>
+        ) : filteredUsers.length === 0 ? (
+          <EmptyState
+            title="No users match the current filters"
+            description="Try a different search term or clear the role filter."
+          />
         ) : (
-          <div className="mt-6 overflow-x-auto">
+          <>
+            <div className="hidden overflow-x-auto md:block">
             <table className="min-w-full border-separate border-spacing-y-3">
               <thead>
                 <tr>
@@ -600,17 +583,46 @@ export default function AdminUsersPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+
+            <div className="grid gap-4 md:hidden">
+              {filteredUsers.map((user) => (
+                <div key={user.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-base font-semibold text-slate-900">{user.name}</div>
+                  <div className="mt-1 text-sm text-slate-500">{user.email}</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${roleClasses(user.role)}`}>
+                      {user.role}
+                    </span>
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClasses(user.status)}`}>
+                      {user.status}
+                    </span>
+                  </div>
+                  <div className="mt-3 text-sm text-slate-600">Team: {user.team}</div>
+                  <div className="mt-1 text-xs text-slate-500">Last seen {formatRelative(user.last_sign_in_at)}</div>
+                  <button
+                    onClick={() => {
+                      setEditingUser(user);
+                      setEditRole(user.role);
+                      setEditTeam(user.team);
+                      setEditStatus(user.status === "Suspended" ? "Suspended" : "Active");
+                    }}
+                    className="mt-4 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    Manage
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
         )}
-      </section>
+      </SectionCard>
 
       <section className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">Role Permissions</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Quick view of access levels across the platform.
-          </p>
-
+        <SectionCard
+          title="Role Permissions"
+          description="Quick view of access levels across the platform."
+        >
           <div className="mt-6 space-y-4">
             <PermissionCard
               title="Super Admin"
@@ -629,14 +641,12 @@ export default function AdminUsersPage() {
               body="Create or review documents based on assigned access permissions."
             />
           </div>
-        </div>
+        </SectionCard>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">Pending Tasks</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            User-related items that still need action.
-          </p>
-
+        <SectionCard
+          title="Pending Tasks"
+          description="User-related items that still need action."
+        >
           <div className="mt-6 space-y-4">
             {pendingTasks.map((task, index) => (
               <div
@@ -655,7 +665,7 @@ export default function AdminUsersPage() {
               </div>
             ))}
           </div>
-        </div>
+        </SectionCard>
       </section>
 
       {editingUser ? (

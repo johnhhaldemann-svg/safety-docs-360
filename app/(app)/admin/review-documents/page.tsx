@@ -10,6 +10,12 @@ import {
   useState,
 } from "react";
 import { createClient } from "@supabase/supabase-js";
+import {
+  EmptyState,
+  InlineMessage,
+  PageHero,
+  SectionCard,
+} from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -198,27 +204,47 @@ export default function ReviewDocumentsPage() {
   }
 
   if (loading) {
-    return <div className="p-6">Loading submissions...</div>;
+    return (
+      <div className="space-y-6">
+        <PageHero
+          eyebrow="Admin Workflow"
+          title="Review Documents"
+          description="Manage submitted drafts, complete reviews, and confirm approved files."
+        />
+        <InlineMessage>Loading submissions...</InlineMessage>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Review Documents</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Manage submitted drafts, complete reviews, and confirm approved files.
-        </p>
-      </div>
+    <div className="space-y-8">
+      <PageHero
+        eyebrow="Admin Workflow"
+        title="Review Documents"
+        description="Manage submitted drafts, complete reviews, and confirm approved files."
+        actions={
+          <>
+            <Link
+              href="/admin/archive"
+              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Open Archive
+            </Link>
+            <Link
+              href="/admin"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+            >
+              Admin Dashboard
+            </Link>
+          </>
+        }
+      />
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <SectionCard
+        title="Bulk Actions"
+        description={`${selectedCount} document${selectedCount === 1 ? "" : "s"} selected across the active review workflow.`}
+      >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Bulk Actions</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {selectedCount} document{selectedCount === 1 ? "" : "s"} selected across the active review workflow.
-            </p>
-          </div>
-
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
@@ -247,12 +273,8 @@ export default function ReviewDocumentsPage() {
           </div>
         </div>
 
-        {message ? (
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            {message}
-          </div>
-        ) : null}
-      </section>
+        {message ? <div className="mt-4"><InlineMessage>{message}</InlineMessage></div> : null}
+      </SectionCard>
 
       <section className="grid gap-4 md:grid-cols-3">
         <SummaryCard title="Pending Review" value={String(pendingDocuments.length)} />
@@ -305,35 +327,34 @@ function ReviewSection({
     sectionIds.length > 0 && sectionIds.every((id) => selectedIds.includes(id));
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-xl font-bold text-slate-900">{title}</h2>
-        {documents.length > 0 ? (
-          <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <input
-              type="checkbox"
-              checked={allSelected}
-              onChange={(event) => {
-                setSelectedIds((prev) => {
-                  if (event.target.checked) {
-                    return Array.from(new Set([...prev, ...sectionIds]));
-                  }
+        <SectionCard
+          title={title}
+          description={`${documents.length} item${documents.length === 1 ? "" : "s"} in this queue.`}
+          aside={
+            documents.length > 0 ? (
+              <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={(event) => {
+                    setSelectedIds((prev) => {
+                      if (event.target.checked) {
+                        return Array.from(new Set([...prev, ...sectionIds]));
+                      }
 
-                  return prev.filter((id) => !sectionIds.includes(id));
-                });
-              }}
-              className="h-4 w-4"
-            />
-            Select All
-          </label>
-        ) : null}
-      </div>
-
-      <div className="mt-4 space-y-4">
+                      return prev.filter((id) => !sectionIds.includes(id));
+                    });
+                  }}
+                  className="h-4 w-4"
+                />
+                Select All
+              </label>
+            ) : null
+          }
+        >
+      <div className="space-y-4">
         {documents.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            {emptyMessage}
-          </div>
+          <EmptyState title="Nothing in this queue" description={emptyMessage} />
         ) : (
           documents.map((doc) => {
             const titleText =
@@ -416,7 +437,7 @@ function ReviewSection({
           })
         )}
       </div>
-    </section>
+    </SectionCard>
   );
 }
 

@@ -8,6 +8,11 @@ import {
   type AgreementSectionGroup,
   getDefaultAgreementConfig,
 } from "@/lib/legal";
+import {
+  InlineMessage,
+  PageHero,
+  SectionCard,
+} from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -192,21 +197,12 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
-              Administration
-            </p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-900">
-              Legal Agreement Settings
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm text-slate-600">
-              Manage the live agreement version and legal text used by signup, first-login acceptance, submit controls, and document downloads.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+      <PageHero
+        eyebrow="Administration"
+        title="Legal Agreement Settings"
+        description="Manage the live agreement version and legal text used by signup, first-login acceptance, submit controls, and document downloads."
+        actions={
+          <>
             <button
               type="button"
               onClick={handleSave}
@@ -228,9 +224,9 @@ export default function AdminSettingsPage() {
             >
               Open Agreement Audit
             </Link>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title="Total Users" value={String(summary.totalUsers)} note="Users included in agreement tracking" />
@@ -239,20 +235,14 @@ export default function AdminSettingsPage() {
         <StatCard title="Pending" value={String(summary.pendingCount)} note="No acceptance on file yet" />
       </section>
 
-      {message ? (
-        <section className="rounded-2xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-700 shadow-sm">
-          {message}
-        </section>
-      ) : null}
+      {message ? <InlineMessage>{message}</InlineMessage> : null}
 
       <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
         <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Version Control</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Bump the version whenever the legal text changes and users should be required to re-accept.
-            </p>
-
+          <SectionCard
+            title="Version Control"
+            description="Bump the version whenever the legal text changes and users should be required to re-accept."
+          >
             <div className="mt-6">
               <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Active Agreement Version
@@ -273,14 +263,12 @@ export default function AdminSettingsPage() {
             <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
               Saving a new version immediately makes that version the required agreement. Users with older accepted versions will be marked outdated and prompted to accept again.
             </div>
-          </div>
+          </SectionCard>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Rollout Preview</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Current impact based on today&apos;s acceptance records.
-            </p>
-
+          <SectionCard
+            title="Rollout Preview"
+            description="Current impact based on today&apos;s acceptance records."
+          >
             <div className="mt-6 space-y-4">
               <StatusRow
                 label="Users already current"
@@ -298,7 +286,7 @@ export default function AdminSettingsPage() {
                 tone="red"
               />
             </div>
-          </div>
+          </SectionCard>
         </div>
 
         <div className="space-y-6">

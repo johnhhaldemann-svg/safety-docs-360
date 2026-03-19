@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  EmptyState,
+  InlineMessage,
+  PageHero,
+  SectionCard,
+} from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -205,21 +211,12 @@ export default function AdminAgreementsPage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
-              Legal Audit
-            </p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-900">
-              Agreement Acceptance
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              Review who accepted the platform agreement, when they accepted it, and which version is on record.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+      <PageHero
+        eyebrow="Legal Audit"
+        title="Agreement Acceptance"
+        description="Review who accepted the platform agreement, when they accepted it, and which version is on record."
+        actions={
+          <>
             <Link
               href="/admin/users"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
@@ -232,9 +229,9 @@ export default function AdminAgreementsPage() {
             >
               Open Transactions
             </Link>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -264,7 +261,7 @@ export default function AdminAgreementsPage() {
         />
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <SectionCard title="Audit Filters" description="Filter the agreement audit by acceptance status or role.">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid flex-1 gap-4 md:grid-cols-3">
             <div>
@@ -339,36 +336,27 @@ export default function AdminAgreementsPage() {
           </div>
         </div>
 
-        {message && (
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            {message}
-          </div>
-        )}
-      </section>
+        {message ? <div className="mt-4"><InlineMessage>{message}</InlineMessage></div> : null}
+      </SectionCard>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Acceptance Records</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {filteredAgreements.length} user{filteredAgreements.length === 1 ? "" : "s"} match the current filters.
-            </p>
-          </div>
+      <SectionCard
+        title="Acceptance Records"
+        description={`${filteredAgreements.length} user${filteredAgreements.length === 1 ? "" : "s"} match the current filters.`}
+        aside={
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
             Current version: {audit.termsVersion}
           </div>
-        </div>
-
+        }
+      >
         {loading ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            Loading agreement audit...
-          </div>
+          <InlineMessage>Loading agreement audit...</InlineMessage>
         ) : filteredAgreements.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            No agreement records match the current filters.
-          </div>
+          <EmptyState
+            title="No agreement records match the current filters"
+            description="Try clearing filters or broadening the search terms."
+          />
         ) : (
-          <div className="mt-6 space-y-4">
+          <div className="space-y-4">
             {filteredAgreements.map((row) => (
               <div key={row.id} className="rounded-2xl border border-slate-200 p-5">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -430,7 +418,7 @@ export default function AdminAgreementsPage() {
             ))}
           </div>
         )}
-      </section>
+      </SectionCard>
     </div>
   );
 }

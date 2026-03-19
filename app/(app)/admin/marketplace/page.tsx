@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  EmptyState,
+  InlineMessage,
+  PageHero,
+  SectionCard,
+} from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -191,21 +197,12 @@ export default function AdminMarketplacePage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
-              Marketplace Control
-            </p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-900">
-              Admin Marketplace
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              Manage which approved completed documents are listed, how much they cost, and how often they are being unlocked.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+      <PageHero
+        eyebrow="Marketplace Control"
+        title="Admin Marketplace"
+        description="Manage which approved completed documents are listed, how much they cost, and how often they are being unlocked."
+        actions={
+          <>
             <Link
               href="/admin/review-documents"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
@@ -218,9 +215,9 @@ export default function AdminMarketplacePage() {
             >
               View User Library
             </Link>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -245,7 +242,7 @@ export default function AdminMarketplacePage() {
         />
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <SectionCard title="Marketplace Filters" description="Search and filter the list of completed documents.">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid flex-1 gap-4 md:grid-cols-[1.5fr_0.7fr]">
             <div>
@@ -289,33 +286,22 @@ export default function AdminMarketplacePage() {
           </button>
         </div>
 
-        {message && (
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            {message}
-          </div>
-        )}
-      </section>
+        {message ? <div className="mt-4"><InlineMessage>{message}</InlineMessage></div> : null}
+      </SectionCard>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Marketplace Listings</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {filteredDocuments.length} completed document{filteredDocuments.length === 1 ? "" : "s"} in this view.
-            </p>
-          </div>
-        </div>
-
+      <SectionCard
+        title="Marketplace Listings"
+        description={`${filteredDocuments.length} completed document${filteredDocuments.length === 1 ? "" : "s"} in this view.`}
+      >
         {loading ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            Loading marketplace documents...
-          </div>
+          <InlineMessage>Loading marketplace documents...</InlineMessage>
         ) : filteredDocuments.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            No completed documents match the current filters.
-          </div>
+          <EmptyState
+            title="No completed documents match the current filters"
+            description="Try a broader search or switch between listed and hidden documents."
+          />
         ) : (
-          <div className="mt-6 space-y-4">
+          <div className="space-y-4">
             {filteredDocuments.map((doc) => (
               <MarketplaceCard
                 key={`${doc.id}-${doc.marketplaceEnabled}-${doc.creditCost}`}
@@ -326,7 +312,7 @@ export default function AdminMarketplacePage() {
             ))}
           </div>
         )}
-      </section>
+      </SectionCard>
     </div>
   );
 }
