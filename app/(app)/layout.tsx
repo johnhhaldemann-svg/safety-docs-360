@@ -19,12 +19,13 @@ type NavItem = {
 
 const userTopTabs: NavItem[] = [
   { href: "/", label: "Dashboard", short: "DB" },
-  { href: "/submit", label: "Submit", short: "SB" },
+  { href: "/submit", label: "Submit Request", short: "SB" },
   { href: "/library", label: "Library", short: "LI" },
-  { href: "/purchases", label: "Purchases", short: "PU" },
   { href: "/search", label: "Search", short: "SR" },
   { href: "/upload", label: "Upload", short: "UP" },
-  { href: "/peshep", label: "PESHEP", short: "PE" },
+  { href: "/peshep", label: "PESHEP Builder", short: "PE" },
+  { href: "/csep", label: "CSEP Builder", short: "CS" },
+  { href: "/purchases", label: "My Purchases", short: "PU" },
 ];
 
 const adminTopTabs: NavItem[] = [
@@ -42,26 +43,26 @@ const adminTopTabs: NavItem[] = [
 
 const userSideLinks: NavItem[] = [
   { href: "/", label: "Dashboard", short: "HM" },
-  { href: "/submit", label: "Admin Panel", short: "AP" },
-  { href: "/library", label: "Reports", short: "RP" },
-  { href: "/peshep", label: "Projects", short: "PJ" },
-  { href: "/search", label: "Compliance", short: "CP" },
-  { href: "/upload", label: "Analytics", short: "AN" },
-  { href: "/purchases", label: "Settings", short: "ST" },
-  { href: "/csep", label: "Utilities", short: "UT" },
+  { href: "/submit", label: "Submit Request", short: "SB" },
+  { href: "/library", label: "Library", short: "LB" },
+  { href: "/search", label: "Search", short: "SR" },
+  { href: "/upload", label: "Upload", short: "UP" },
+  { href: "/peshep", label: "PESHEP Builder", short: "PB" },
+  { href: "/csep", label: "CSEP Builder", short: "CS" },
+  { href: "/purchases", label: "My Purchases", short: "MP" },
 ];
 
 const adminSideLinks: NavItem[] = [
   { href: "/admin", label: "Dashboard", short: "AH" },
   { href: "/admin/review-documents", label: "Review Queue", short: "RQ" },
-  { href: "/admin/archive", label: "Archive", short: "AR" },
   { href: "/admin/marketplace", label: "Marketplace", short: "MP" },
+  { href: "/admin/archive", label: "Archive", short: "AR" },
   { href: "/admin/agreements", label: "Agreements", short: "AG" },
   { href: "/admin/transactions", label: "Transactions", short: "TX" },
   { href: "/admin/users", label: "Users", short: "US" },
   { href: "/admin/settings", label: "Settings", short: "ST" },
   { href: "/library", label: "Library", short: "LB" },
-  { href: "/search", label: "Analytics", short: "SR" },
+  { href: "/search", label: "Search", short: "SR" },
 ];
 
 function cx(...classes: Array<string | false | null | undefined>) {
@@ -251,6 +252,9 @@ export default function AppLayout({
   }, [pathname]);
 
   const workspaceLabel = isAdminArea ? "Admin Workspace" : "User Workspace";
+  const workspaceDescriptor = isAdminArea
+    ? "Safety management controls"
+    : "Project document workspace";
 
   async function handleLogout() {
     try {
@@ -473,16 +477,18 @@ export default function AppLayout({
                       key={item.href}
                       href={item.href}
                       className={cx(
-                        "flex items-center gap-3 rounded-2xl px-3 py-3 transition",
+                        "flex items-center gap-3 rounded-2xl border px-3 py-3 transition",
                         active
-                          ? "bg-white text-slate-950 shadow-sm"
-                          : "text-slate-200 hover:bg-white/8 hover:text-white"
+                          ? "border-sky-200 bg-[linear-gradient(135deg,_rgba(255,255,255,0.96)_0%,_rgba(232,243,255,0.96)_100%)] text-slate-950 shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
+                          : "border-transparent text-slate-200 hover:bg-white/8 hover:text-white"
                       )}
                     >
                       <span
                         className={cx(
                           "inline-flex h-8 w-8 items-center justify-center rounded-xl text-[11px] font-black",
-                          active ? "bg-sky-100 text-sky-700" : "bg-white/8 text-sky-200"
+                          active
+                            ? "bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-sky-700"
+                            : "bg-white/8 text-sky-200"
                         )}
                       >
                         {item.short}
@@ -551,7 +557,7 @@ export default function AppLayout({
                   <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px]">
                     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                       <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
-                        Safety 360
+                        Signed In
                       </div>
                       <div className="mt-1 truncate text-sm font-semibold text-slate-900">
                         {userEmail}
@@ -559,9 +565,10 @@ export default function AppLayout({
                     </div>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
                       <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
-                        Construction Site
+                        Workspace
                       </div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">{workspaceLabel}</div>
+                      <div className="mt-1 text-xs text-slate-500">{workspaceDescriptor}</div>
                     </div>
                   </div>
                 </div>
