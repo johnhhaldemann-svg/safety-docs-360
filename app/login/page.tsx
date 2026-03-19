@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
@@ -11,26 +10,24 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const highlights = [
-  "Centralize project safety records, reviews, and final approvals.",
-  "Give teams a clearer workflow from draft intake to completed delivery.",
-  "Present a stronger, more professional experience to clients and field teams.",
+const capabilityTiles = [
+  "Inspections",
+  "Field Teams",
+  "Compliance",
 ];
 
-const trustPoints = [
-  { label: "Document control", value: "Centralized" },
-  { label: "Review workflow", value: "Tracked" },
-  { label: "Field readiness", value: "Client-facing" },
-];
+const securityPills = ["ISO 45001", "SOC 2 Type II", "AES-256", "OSHA Ready"];
 
 export default function LoginPage() {
   const router = useRouter();
 
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [portalRole, setPortalRole] = useState<"user" | "admin">("user");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
+  const [rememberDevice, setRememberDevice] = useState(true);
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
@@ -98,227 +95,344 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(15,23,42,0.12),_transparent_24%),linear-gradient(180deg,_#f7fbff_0%,_#eef4fb_100%)] p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto grid min-h-[calc(100vh-2rem)] w-full max-w-7xl overflow-hidden rounded-[2rem] border border-white/70 bg-white/70 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur sm:min-h-[calc(100vh-3rem)] lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="relative overflow-hidden bg-[linear-gradient(180deg,_#0f172a_0%,_#12304f_52%,_#0f172a_100%)] px-6 py-8 text-white sm:px-8 sm:py-10 lg:px-10 lg:py-12">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(56,189,248,0.22),_transparent_30%),radial-gradient(circle_at_bottom_left,_rgba(59,130,246,0.12),_transparent_26%)]" />
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.08),_transparent_22%),linear-gradient(180deg,_#0a1018_0%,_#0f1726_100%)] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl items-center justify-center">
+        <div className="grid w-full overflow-hidden rounded-[2rem] border border-amber-500/18 bg-[#121826] shadow-[0_34px_90px_rgba(0,0,0,0.45)] lg:grid-cols-[1.08fr_0.92fr]">
+          <section className="relative overflow-hidden border-b border-amber-500/10 bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.10),_transparent_25%),linear-gradient(180deg,_rgba(8,15,26,0.92)_0%,_rgba(12,19,31,0.84)_100%)] px-6 py-7 sm:px-8 sm:py-8 lg:min-h-[760px] lg:border-b-0 lg:border-r lg:border-r-amber-500/12 lg:px-10 lg:py-10">
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,_rgba(255,255,255,0.04)_0%,_transparent_40%),radial-gradient(circle_at_bottom,_rgba(56,189,248,0.12),_transparent_26%)]" />
+            <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:38px_38px]" />
 
-          <div className="relative z-10 flex h-full flex-col">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-400/16 text-lg font-black uppercase tracking-[0.18em] text-sky-200 ring-1 ring-white/10">
-                S3
-              </div>
-              <div>
-                <div className="text-3xl font-black tracking-tight text-white">
-                  Safety360Docs
-                </div>
-                <div className="mt-1 text-[11px] uppercase tracking-[0.34em] text-sky-300">
-                  Safety Management Platform
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-10 max-w-xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-sky-300">
-                Professional Document Delivery
-              </p>
-              <h1 className="mt-4 text-4xl font-black leading-tight tracking-tight sm:text-5xl">
-                Present a safety platform that looks ready for serious work.
-              </h1>
-              <p className="mt-5 max-w-lg text-base leading-7 text-slate-300">
-                Safety360Docs helps teams organize submissions, approvals, and final
-                deliverables in one polished workspace built for operations, clients,
-                and project visibility.
-              </p>
-            </div>
-
-            <div className="mt-8 grid gap-3">
-              {highlights.map((item) => (
-                <div
-                  key={item}
-                  className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/6 px-4 py-4"
-                >
-                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-400/18 text-sm font-black text-sky-200">
-                    +
+            <div className="relative z-10 flex h-full flex-col">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-3 rounded-2xl border border-amber-400/20 bg-black/20 px-4 py-3 backdrop-blur">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400 text-base font-black text-slate-950 shadow-[0_8px_24px_rgba(245,158,11,0.3)]">
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-6 w-6"
+                      fill="currentColor"
+                    >
+                      <path d="M12 2 5 5v6c0 5.2 3.4 10 7 11 3.6-1 7-5.8 7-11V5l-7-3Z" />
+                    </svg>
                   </div>
-                  <p className="text-sm leading-6 text-slate-200">{item}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-8">
-              <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/6 p-4">
-                <Image
-                  src="/login-hero.svg"
-                  alt="Abstract illustration of documents, compliance, and safety workflow"
-                  width={720}
-                  height={520}
-                  className="h-auto w-full rounded-[1.25rem]"
-                  priority
-                />
-              </div>
-            </div>
-
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              {trustPoints.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-2xl border border-white/10 bg-white/6 px-4 py-4"
-                >
-                  <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
-                    {item.label}
-                  </div>
-                  <div className="mt-2 text-base font-bold text-white">{item.value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="flex items-center justify-center px-5 py-8 sm:px-8 lg:px-10">
-          <div className="w-full max-w-xl">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)] sm:p-8">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
-                    Secure Access
-                  </p>
-                  <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950">
-                    {mode === "login" ? "Welcome back" : "Create your account"}
-                  </h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-600">
-                    {mode === "login"
-                      ? "Sign in to manage approvals, uploads, and project-ready safety documents."
-                      : "Start using Safety360Docs with a cleaner, more client-ready document workflow."}
-                  </p>
-                </div>
-                <div className="hidden rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-right sm:block">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-sky-700">
-                    Platform
-                  </div>
-                  <div className="mt-1 text-sm font-semibold text-slate-900">
-                    Ready for teams
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-8 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5">
-                <button
-                  type="button"
-                  onClick={() => setMode("login")}
-                  className={[
-                    "rounded-xl px-4 py-3 text-sm font-semibold transition",
-                    mode === "login"
-                      ? "bg-white text-slate-950 shadow-sm"
-                      : "text-slate-600 hover:text-slate-900",
-                  ].join(" ")}
-                >
-                  Login
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("signup")}
-                  className={[
-                    "rounded-xl px-4 py-3 text-sm font-semibold transition",
-                    mode === "signup"
-                      ? "bg-white text-slate-950 shadow-sm"
-                      : "text-slate-600 hover:text-slate-900",
-                  ].join(" ")}
-                >
-                  Create Account
-                </button>
-              </div>
-
-              <div className="mt-8 space-y-4">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Email address
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="you@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="Enter password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:bg-white"
-                  />
-                </div>
-
-                {mode === "signup" ? (
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Confirm password
-                    </label>
-                    <input
-                      type="password"
-                      placeholder="Re-enter password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:bg-white"
-                    />
+                    <div className="text-2xl font-black tracking-tight text-white">
+                      Safety<span className="text-amber-400">360</span>Docs
+                    </div>
+                    <div className="mt-1 text-[11px] uppercase tracking-[0.28em] text-amber-300">
+                      Enterprise Safety Management Platform
+                    </div>
                   </div>
-                ) : null}
+                </div>
 
-                {mode === "signup" ? (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <LegalAcceptanceBlock checked={agreed} onChange={setAgreed} compact />
-                  </div>
-                ) : null}
+                <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">
+                  Systems live
+                </div>
+              </div>
 
-                <button
-                  onClick={mode === "login" ? handleLogin : handleCreateAccount}
-                  disabled={loading || (mode === "signup" && !agreed)}
-                  className="mt-2 w-full rounded-2xl bg-sky-600 py-3.5 text-sm font-bold text-white shadow-[0_16px_30px_rgba(2,132,199,0.24)] transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {loading
-                    ? mode === "login"
-                      ? "Signing in..."
-                      : "Creating account..."
-                    : mode === "login"
-                      ? "Login"
-                      : "Create Account"}
-                </button>
+              <div className="mt-10 max-w-xl">
+                <h1 className="text-4xl font-black leading-[0.95] tracking-tight text-white sm:text-5xl lg:text-[4.1rem]">
+                  <span className="block">Secure.</span>
+                  <span className="block text-amber-400">Document.</span>
+                  <span className="block">Stay Safe.</span>
+                </h1>
+
+                <p className="mt-6 max-w-lg text-base leading-8 text-slate-300">
+                  The complete safety documentation platform trusted by industrial
+                  leaders. Manage incidents, inspections, and compliance from one
+                  secure command center.
+                </p>
               </div>
 
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                <MiniFeature
-                  title="Client-ready"
-                  text="A cleaner experience for teams and stakeholders."
-                />
-                <MiniFeature
-                  title="Organized"
-                  text="Upload, review, and archive from one workspace."
-                />
-                <MiniFeature
-                  title="Trackable"
-                  text="Keep approvals and deliverables visible."
-                />
+                {capabilityTiles.map((tile, index) => (
+                  <div
+                    key={tile}
+                    className="group relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/35 p-3"
+                  >
+                    <div
+                      className={[
+                        "h-20 rounded-xl",
+                        index === 0
+                          ? "bg-[linear-gradient(135deg,_rgba(251,191,36,0.30),_rgba(15,23,42,0.30)),radial-gradient(circle_at_top_left,_rgba(255,255,255,0.25),_transparent_45%)]"
+                          : index === 1
+                            ? "bg-[linear-gradient(135deg,_rgba(56,189,248,0.26),_rgba(15,23,42,0.24)),radial-gradient(circle_at_bottom_right,_rgba(255,255,255,0.22),_transparent_45%)]"
+                            : "bg-[linear-gradient(135deg,_rgba(148,163,184,0.24),_rgba(245,158,11,0.20)),radial-gradient(circle_at_center,_rgba(255,255,255,0.22),_transparent_50%)]",
+                      ].join(" ")}
+                    />
+                    <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-xl bg-black/45 px-3 py-2 backdrop-blur">
+                      <div className="text-xs font-black uppercase tracking-[0.16em] text-white">
+                        {tile}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 grid max-w-md gap-3 sm:grid-cols-2">
+                <MetricCard value="98.9%" label="Uptime SLA" />
+                <MetricCard value="12K+" label="Active Users" />
+                <MetricCard value="4.2M" label="Docs Secured" />
+              </div>
+
+              <div className="mt-auto pt-8">
+                <div className="flex flex-wrap gap-3">
+                  {securityPills.map((pill) => (
+                    <div
+                      key={pill}
+                      className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-200"
+                    >
+                      {pill}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+
+          <section className="flex items-center justify-center bg-[linear-gradient(180deg,_#151d2c_0%,_#131b29_100%)] px-5 py-7 sm:px-8 lg:px-10">
+            <div className="w-full max-w-md">
+              <div className="rounded-[1.8rem] border border-white/8 bg-white/[0.02] p-6 shadow-[0_22px_60px_rgba(0,0,0,0.32)] backdrop-blur sm:p-8">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-amber-400/25 bg-amber-400/10 text-amber-300">
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-5 w-5"
+                      fill="currentColor"
+                    >
+                      <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm1 14h-2v-2h2Zm0-4h-2V7h2Z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl">
+                      Secure Access
+                      <br />
+                      Portal
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-slate-400">
+                      Sign in to your Safety360Docs workspace.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-8 grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-slate-900/35 p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setPortalRole("user")}
+                    className={[
+                      "rounded-xl px-4 py-3 text-left text-sm font-semibold transition",
+                      portalRole === "user"
+                        ? "bg-amber-400/12 text-amber-300 ring-1 ring-amber-400/30"
+                        : "text-slate-400 hover:text-slate-200",
+                    ].join(" ")}
+                  >
+                    User
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPortalRole("admin")}
+                    className={[
+                      "rounded-xl px-4 py-3 text-left text-sm font-semibold transition",
+                      portalRole === "admin"
+                        ? "bg-amber-400/12 text-amber-300 ring-1 ring-amber-400/30"
+                        : "text-slate-400 hover:text-slate-200",
+                    ].join(" ")}
+                  >
+                    Administrator
+                  </button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-slate-900/30 p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setMode("login")}
+                    className={[
+                      "rounded-xl px-4 py-3 text-sm font-semibold transition",
+                      mode === "login"
+                        ? "bg-white/8 text-white ring-1 ring-white/10"
+                        : "text-slate-400 hover:text-slate-200",
+                    ].join(" ")}
+                  >
+                    Login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode("signup")}
+                    className={[
+                      "rounded-xl px-4 py-3 text-sm font-semibold transition",
+                      mode === "signup"
+                        ? "bg-white/8 text-white ring-1 ring-white/10"
+                        : "text-slate-400 hover:text-slate-200",
+                    ].join(" ")}
+                  >
+                    Create Account
+                  </button>
+                </div>
+
+                <div className="mt-8 space-y-4">
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                      Employee ID / Email
+                    </label>
+                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/35 px-4 py-3.5 text-slate-300 transition focus-within:border-amber-400/35">
+                      <IconMail />
+                      <input
+                        type="email"
+                        placeholder="name@company.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                      Password
+                    </label>
+                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/35 px-4 py-3.5 text-slate-300 transition focus-within:border-amber-400/35">
+                      <IconLock />
+                      <input
+                        type="password"
+                        placeholder="Enter password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                      />
+                      <IconEye />
+                    </div>
+                  </div>
+
+                  {mode === "signup" ? (
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                        Confirm Password
+                      </label>
+                      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/35 px-4 py-3.5 text-slate-300 transition focus-within:border-amber-400/35">
+                        <IconLock />
+                        <input
+                          type="password"
+                          placeholder="Confirm password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="flex items-center justify-between gap-4">
+                    <label className="inline-flex items-center gap-3 text-sm text-slate-400">
+                      <input
+                        type="checkbox"
+                        checked={rememberDevice}
+                        onChange={(e) => setRememberDevice(e.target.checked)}
+                        className="h-4 w-4 rounded border-white/20 bg-slate-900/40"
+                      />
+                      <span>Remember this device</span>
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => alert("Password reset flow is not set up yet.")}
+                      className="text-sm font-semibold text-amber-300 transition hover:text-amber-200"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+
+                  {mode === "signup" ? (
+                    <div className="rounded-2xl border border-white/8 bg-slate-900/30 p-4">
+                      <LegalAcceptanceBlock checked={agreed} onChange={setAgreed} compact />
+                    </div>
+                  ) : null}
+
+                  <button
+                    onClick={mode === "login" ? handleLogin : handleCreateAccount}
+                    disabled={loading || (mode === "signup" && !agreed)}
+                    className="w-full rounded-2xl bg-amber-400 px-4 py-4 text-sm font-black uppercase tracking-[0.16em] text-slate-950 shadow-[0_16px_36px_rgba(245,158,11,0.26)] transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {loading
+                      ? mode === "login"
+                        ? "Accessing workspace..."
+                        : "Creating account..."
+                      : mode === "login"
+                        ? "Access Workspace"
+                        : "Create Account"}
+                  </button>
+                </div>
+
+                <div className="mt-8">
+                  <div className="flex items-center gap-3">
+                    <div className="h-px flex-1 bg-white/8" />
+                    <div className="text-sm text-slate-500">or continue with</div>
+                    <div className="h-px flex-1 bg-white/8" />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => alert("Google workspace sign-in is not configured in this build.")}
+                    className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-white/10 bg-slate-900/35 px-4 py-4 text-sm font-semibold text-white transition hover:bg-slate-900/55"
+                  >
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-slate-900">
+                      G
+                    </span>
+                    Sign in with Google Workspace
+                  </button>
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-emerald-500/22 bg-emerald-500/10 px-4 py-4 text-sm text-emerald-300">
+                  TLS 1.3 encrypted. Zero-knowledge architecture ready. 2FA supported.
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   );
 }
 
-function MiniFeature({ title, text }: { title: string; text: string }) {
+function MetricCard({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-      <div className="text-sm font-bold text-slate-950">{title}</div>
-      <div className="mt-2 text-sm leading-6 text-slate-600">{text}</div>
+    <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-4 backdrop-blur">
+      <div className="text-3xl font-black tracking-tight text-amber-300">{value}</div>
+      <div className="mt-2 text-sm text-slate-400">{label}</div>
     </div>
+  );
+}
+
+function IconMail() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+      <path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm0 2v.2l8 5.2 8-5.2V8H4Z" />
+    </svg>
+  );
+}
+
+function IconLock() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+      <path d="M17 9h-1V7a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Z" />
+    </svg>
+  );
+}
+
+function IconEye() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-5 w-5 text-slate-500"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </svg>
   );
 }
