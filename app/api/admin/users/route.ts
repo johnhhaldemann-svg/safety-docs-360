@@ -18,6 +18,14 @@ type InvitePayload = {
   accountStatus?: string;
 };
 
+type FallbackUserRoleRow = {
+  user_id: string;
+  role: string;
+  team: string | null;
+  account_status: string | null;
+  created_at?: string | null;
+};
+
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -98,10 +106,43 @@ export async function GET(request: Request) {
   const adminClient = createAdminClient();
 
   if (!adminClient) {
-    return NextResponse.json(
-      { error: "Missing Supabase service role configuration." },
-      { status: 500 }
-    );
+    const { data, error } = await auth.supabase
+      .from("user_roles")
+      .select("user_id, role, team, account_status, created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return NextResponse.json(
+        { error: "Missing Supabase service role configuration." },
+        { status: 500 }
+      );
+    }
+
+    const users = ((data as FallbackUserRoleRow[] | null) ?? []).map((row) => {
+      const isCurrentUser = row.user_id === auth.user.id;
+      const email = isCurrentUser ? auth.user.email ?? "" : "";
+      const name = isCurrentUser
+        ? getDisplayName(auth.user)
+        : `User ${row.user_id.slice(0, 8)}`;
+
+      return {
+        id: row.user_id,
+        email,
+        name,
+        role: formatAppRole(row.role),
+        team: row.team?.trim() || "General",
+        status: formatAccountStatus(row.account_status),
+        created_at: row.created_at ?? null,
+        last_sign_in_at: null,
+        email_confirmed_at: null,
+      };
+    });
+
+    return NextResponse.json({
+      users,
+      warning:
+        "Showing RBAC directory fallback because the Supabase service role key is unavailable at runtime.",
+    });
   }
 
   const { data, error } = await adminClient.auth.admin.listUsers();
