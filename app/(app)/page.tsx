@@ -357,15 +357,15 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_360px]">
-      <div className="space-y-5">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px] xl:gap-5">
+      <div className="space-y-4 xl:space-y-5">
         <section className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-6 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">
                 Construction Safety Hub
               </p>
-              <h1 className="mt-2 text-4xl font-black tracking-tight text-slate-950">
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
                 Safety360Docs
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
@@ -390,7 +390,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {countCards.map((card) => (
               <div
                 key={card.title}
@@ -413,7 +413,7 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
             {workspaceCards.map((card) => (
               <Link
                 key={card.title}
@@ -438,9 +438,9 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
+        <section className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr] xl:gap-5">
           <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               {actionCards.map((action) => (
                 <div
                   key={action.title}
@@ -493,15 +493,15 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-[1.3fr_0.9fr]">
+        <section className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr] xl:gap-5">
           <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-2xl font-black tracking-tight text-slate-950">
+              <h2 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
                 Recent Activity
               </h2>
               <Link
                 href="/library"
-                className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-2.5 text-sm font-semibold text-white"
+                className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-2.5 text-xs font-semibold text-white sm:text-sm"
               >
                 Open Library
               </Link>
@@ -533,7 +533,7 @@ export default function DashboardPage() {
 
           <div className="space-y-5">
             <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
-              <h2 className="text-2xl font-black tracking-tight text-slate-950">
+              <h2 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
                 Workspace Status
               </h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -556,7 +556,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
-              <h2 className="text-2xl font-black tracking-tight text-slate-950">
+              <h2 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
                 Workspace Tools
               </h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -580,11 +580,11 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      <aside className="rounded-[1.8rem] border border-slate-800 bg-[linear-gradient(180deg,_#20365f_0%,_#203455_100%)] p-5 text-white shadow-[0_16px_35px_rgba(15,23,42,0.22)]">
+      <aside className="order-first rounded-[1.8rem] border border-slate-800 bg-[linear-gradient(180deg,_#20365f_0%,_#203455_100%)] p-5 text-white shadow-[0_16px_35px_rgba(15,23,42,0.22)] xl:order-none">
         <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-300">
           Site Safety Status
         </div>
-        <div className="mt-3 text-3xl font-black tracking-tight">Today&apos;s Workspace</div>
+        <div className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">Today&apos;s Workspace</div>
 
         <div className="mt-3 text-sm leading-6 text-slate-300">
           Keep submissions moving, review new activity, and open the tools your team
@@ -594,13 +594,13 @@ export default function DashboardPage() {
         <div className="mt-5 flex flex-wrap gap-2">
           <Link
             href="/peshep"
-            className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-2.5 text-sm font-semibold text-white"
+            className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-2.5 text-xs font-semibold text-white sm:text-sm"
           >
             Build PESHEP
           </Link>
           <Link
             href="/submit"
-            className="rounded-xl border border-white/10 bg-white/8 px-4 py-2.5 text-sm font-semibold text-slate-100"
+            className="rounded-xl border border-white/10 bg-white/8 px-4 py-2.5 text-xs font-semibold text-slate-100 sm:text-sm"
           >
             Submit Request
           </Link>

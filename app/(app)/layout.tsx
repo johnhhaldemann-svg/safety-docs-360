@@ -440,7 +440,7 @@ export default function AppLayout({
 
         <aside
           className={cx(
-            "fixed inset-y-0 left-0 z-50 w-[248px] border-r border-slate-800 bg-[linear-gradient(180deg,_#0d1830_0%,_#13284b_60%,_#0c1730_100%)] text-white transition-transform duration-200 lg:static lg:translate-x-0",
+            "fixed inset-y-0 left-0 z-50 w-[280px] max-w-[84vw] border-r border-slate-800 bg-[linear-gradient(180deg,_#0d1830_0%,_#13284b_60%,_#0c1730_100%)] text-white transition-transform duration-200 lg:static lg:w-[248px] lg:max-w-none lg:translate-x-0",
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
@@ -494,7 +494,14 @@ export default function AppLayout({
                         {item.short}
                       </span>
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold">{item.label}</div>
+                        <div
+                          className={cx(
+                            "truncate text-sm font-semibold",
+                            active ? "text-slate-950" : "text-white"
+                          )}
+                        >
+                          {item.label}
+                        </div>
                       </div>
                     </Link>
                   );
@@ -539,22 +546,22 @@ export default function AppLayout({
                     >
                       <MobileMenuIcon />
                     </button>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">
                         {workspaceLabel}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-3">
-                        <h1 className="text-3xl font-black tracking-tight text-slate-950">
+                        <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
                           Safety360Docs
                         </h1>
                       </div>
-                      <p className="mt-1 max-w-3xl text-sm font-medium uppercase tracking-[0.14em] text-slate-500">
+                      <p className="mt-1 max-w-3xl text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500 sm:text-sm">
                         Enterprise Safety Management Platform
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px]">
+                  <div className="hidden gap-3 sm:grid sm:grid-cols-2 xl:min-w-[420px]">
                     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                       <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
                         Signed In
@@ -574,7 +581,7 @@ export default function AppLayout({
                 </div>
 
                 <div className="overflow-x-auto">
-                  <div className="inline-flex min-w-full gap-2 rounded-[1.35rem] border border-slate-200 bg-white p-2 shadow-sm">
+                  <div className="inline-flex min-w-max gap-2 rounded-[1.35rem] border border-slate-200 bg-white p-2 shadow-sm">
                     {topTabs.map((item) => {
                       const active = isActivePath(pathname, item.href);
                       return (
@@ -608,10 +615,10 @@ export default function AppLayout({
 
           <main className="flex-1 px-4 py-5 sm:px-6 xl:px-8">
             <div className="mx-auto w-full max-w-[1600px] space-y-5">
-              <div className="rounded-[2rem] border border-[#dbe9ff] bg-[linear-gradient(180deg,_#f7fbff_0%,_#eef5ff_100%)] p-4 shadow-[0_18px_40px_rgba(148,163,184,0.14)]">
+              <div className="rounded-[1.6rem] border border-[#dbe9ff] bg-[linear-gradient(180deg,_#f7fbff_0%,_#eef5ff_100%)] p-3 shadow-[0_18px_40px_rgba(148,163,184,0.14)] sm:rounded-[2rem] sm:p-4">
                 {children}
               </div>
-              <div className="rounded-[1.6rem] bg-[linear-gradient(135deg,_#10213f_0%,_#13284b_100%)] px-6 py-5 text-center text-[1.85rem] font-black tracking-tight text-white shadow-[0_16px_30px_rgba(15,23,42,0.18)]">
+              <div className="rounded-[1.3rem] bg-[linear-gradient(135deg,_#10213f_0%,_#13284b_100%)] px-4 py-4 text-center text-xl font-black tracking-tight text-white shadow-[0_16px_30px_rgba(15,23,42,0.18)] sm:rounded-[1.6rem] sm:px-6 sm:py-5 sm:text-[1.85rem]">
                 Systems live. Secure. Document. Stay Safe.
               </div>
             </div>

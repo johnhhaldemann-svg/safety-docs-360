@@ -799,7 +799,7 @@ function DocumentSection({
       </div>
 
       {loading ? (
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-6 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
           {Array.from({ length: 3 }).map((_, index) => (
             <div
               key={index}
@@ -813,7 +813,7 @@ function DocumentSection({
           <p className="mt-2 text-sm leading-6 text-slate-500">{emptyMessage}</p>
         </div>
       ) : (
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-6 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
           {documents.map((doc) => (
             <DocumentCard
               key={doc.id}
@@ -916,7 +916,7 @@ function MarketplaceSection({
       </div>
 
       {loading ? (
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-6 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
           {Array.from({ length: 3 }).map((_, index) => (
             <div
               key={index}
@@ -934,7 +934,7 @@ function MarketplaceSection({
           </p>
         </div>
       ) : (
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-6 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
           {documents.map((doc) => {
             const cost = getDocumentCreditCost(doc.notes);
             const canAfford = creditBalance >= cost;
