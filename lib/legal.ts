@@ -173,16 +173,40 @@ export async function acceptUserAgreement(params: {
   termsVersion?: string;
 }) {
   const payload = buildAgreementAcceptance(params);
-  const tableResult = await (
-    params.supabase.from("user_agreements") as unknown as {
-      upsert: (
-        values: Record<string, unknown>,
-        options?: Record<string, unknown>
+
+  const agreementTable = params.supabase.from("user_agreements") as unknown as {
+    insert: (
+      values: Record<string, unknown>
+    ) => PromiseLike<{ data?: unknown; error: { message?: string | null } | null }>;
+    update: (values: Record<string, unknown>) => {
+      eq: (
+        column: string,
+        value: string
       ) => PromiseLike<{ data?: unknown; error: { message?: string | null } | null }>;
-    }
-  ).upsert(payload, {
-    onConflict: "user_id",
-  });
+    };
+  };
+
+  const insertResult = await agreementTable.insert(payload);
+
+  if (!insertResult.error) {
+    return insertResult;
+  }
+
+  const duplicateKey =
+    (insertResult.error.message ?? "").toLowerCase().includes("duplicate key") ||
+    (insertResult.error.message ?? "").toLowerCase().includes("already exists");
+
+  const tableResult = duplicateKey
+    ? await agreementTable
+        .update({
+          accepted_terms: true,
+          accepted_at: payload.accepted_at,
+          ip_address: payload.ip_address,
+          terms_version: payload.terms_version,
+          updated_at: payload.updated_at,
+        })
+        .eq("user_id", params.userId)
+    : insertResult;
 
   if (!isMissingAgreementTableError(tableResult.error)) {
     return tableResult;
