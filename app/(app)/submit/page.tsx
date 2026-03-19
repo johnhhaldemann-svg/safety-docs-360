@@ -5,10 +5,12 @@ import { createClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
+  ActivityFeed,
   EmptyState,
   InlineMessage,
   PageHero,
   SectionCard,
+  StatusBadge,
   StartChecklist,
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
@@ -18,6 +20,17 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+function formatRelative(timestamp?: string | null) {
+  if (!timestamp) return "Recently";
+  const diffMs = Date.now() - new Date(timestamp).getTime();
+  const diffMinutes = Math.max(1, Math.round(diffMs / 60000));
+  if (diffMinutes < 60) return `${diffMinutes} min ago`;
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hr ago`;
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+}
 
 export default function SubmitPage() {
   const [recentSubmissions, setRecentSubmissions] = useState<
@@ -197,6 +210,7 @@ export default function SubmitPage() {
     setServiceType("document_review");
     setCustomerNotes("");
     setSelectedFiles(null);
+    setRecentSubmissions((prev) => [submission, ...prev].slice(0, 4));
     setMessage("Submission created successfully.");
     setMessageTone("success");
     setSubmitting(false);
@@ -235,6 +249,18 @@ export default function SubmitPage() {
       complete: false,
     },
   ];
+  const recentSubmissionItems = recentSubmissions.map((item) => ({
+    id: item.id,
+    title: item.title || "Untitled request",
+    detail: `Current status: ${getDocumentStatusLabel(item.status)}.`,
+    meta: formatRelative(item.created_at),
+    tone:
+      item.status?.toLowerCase() === "approved"
+        ? "success"
+        : item.status?.toLowerCase() === "submitted"
+          ? "warning"
+          : "neutral",
+  }));
 
   return (
     <div className="space-y-8">
@@ -363,7 +389,13 @@ export default function SubmitPage() {
                 <InlineMessage>Checking subscription...</InlineMessage>
               ) : (
                 <InlineMessage tone={subscriptionStatus === "active" ? "success" : "warning"}>
-                  Status: {subscriptionStatus ?? "inactive"}
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Submission access is currently {subscriptionStatus ?? "inactive"}.</span>
+                    <StatusBadge
+                      label={subscriptionStatus ?? "inactive"}
+                      tone={subscriptionStatus === "active" ? "success" : "warning"}
+                    />
+                  </div>
                 </InlineMessage>
               )}
             </div>
@@ -377,40 +409,18 @@ export default function SubmitPage() {
             steps={workflowSteps}
           />
 
-          <SectionCard
-            title="Recent Requests"
-            description="Latest submissions you already sent into the workflow."
-          >
-            {recentSubmissions.length === 0 ? (
-              <EmptyState
-                title="No requests submitted yet"
-                description="Your recent request history will appear here after the first submission."
-              />
-            ) : (
-              <div className="space-y-3">
-                {recentSubmissions.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4"
-                  >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <div className="text-sm font-semibold text-slate-900">
-                          {item.title || "Untitled request"}
-                        </div>
-                        <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
-                          {new Date(item.created_at).toLocaleString()}
-                        </div>
-                      </div>
-                      <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
-                        {getDocumentStatusLabel(item.status)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </SectionCard>
+          {recentSubmissions.length === 0 ? (
+            <EmptyState
+              title="No requests submitted yet"
+              description="Your recent request history will appear here after the first submission."
+            />
+          ) : (
+            <ActivityFeed
+              title="Recent Requests"
+              description="Latest submissions you already sent into the workflow."
+              items={recentSubmissionItems}
+            />
+          )}
 
           {!hasFiles ? (
             <EmptyState

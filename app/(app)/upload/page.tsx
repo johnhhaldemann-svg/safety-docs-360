@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
+  ActivityFeed,
   EmptyState,
   InlineMessage,
   PageHero,
@@ -19,6 +20,17 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+function formatRelative(timestamp?: string | null) {
+  if (!timestamp) return "Recently";
+  const diffMs = Date.now() - new Date(timestamp).getTime();
+  const diffMinutes = Math.max(1, Math.round(diffMs / 60000));
+  if (diffMinutes < 60) return `${diffMinutes} min ago`;
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hr ago`;
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+}
 
 type DocumentRow = {
   id: string;
@@ -276,6 +288,13 @@ async function confirmOpenFile() {
       complete: false,
     },
   ];
+  const uploadActivityItems = documents.slice(0, 4).map((doc) => ({
+    id: doc.id,
+    title: doc.document_title || doc.file_name,
+    detail: `${doc.document_type || "Document"} in ${doc.category || "General"} was saved to the workspace.`,
+    meta: formatRelative(doc.created_at),
+    tone: "info" as const,
+  }));
 
   return (
     <div className="space-y-8">
@@ -450,6 +469,19 @@ async function confirmOpenFile() {
             description="Uploads are the intake step. From here, documents either stay as workspace records or move into submission and approval."
             steps={workflowSteps}
           />
+
+          {uploadActivityItems.length === 0 ? (
+            <EmptyState
+              title="No upload history yet"
+              description="Recent upload activity will appear here after the first file is saved."
+            />
+          ) : (
+            <ActivityFeed
+              title="Recent Upload Activity"
+              description="Latest files saved into the workspace before they move deeper into review."
+              items={uploadActivityItems}
+            />
+          )}
 
           <SectionCard
             title="Recent Submission Handoffs"

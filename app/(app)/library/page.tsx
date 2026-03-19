@@ -4,7 +4,11 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
-import { WorkflowPath } from "@/components/WorkspacePrimitives";
+import {
+  ActivityFeed,
+  InlineMessage,
+  WorkflowPath,
+} from "@/components/WorkspacePrimitives";
 import { getDocumentCreditCost, isMarketplaceEnabled } from "@/lib/marketplace";
 import type { CreditTransaction } from "@/lib/credits";
 import {
@@ -441,6 +445,15 @@ export default function LibraryPage() {
   ];
 
   const transactionPreview = creditState.transactions.slice(0, 4);
+  const recentDocumentItems = filteredDocuments.slice(0, 4).map((doc) => ({
+    id: doc.id,
+    title: getDocumentTitle(doc),
+    detail: `${getDocumentStatus(doc)} file in ${doc.category || "General"} for ${doc.project_name || "your workspace"}.`,
+    meta: formatCompactDate(doc.created_at),
+    tone: isApprovedDocumentStatus(doc.status, Boolean(doc.final_file_path))
+      ? ("success" as const)
+      : ("info" as const),
+  }));
   const workflowSteps = [
     {
       label: "Upload and submit",
@@ -700,8 +713,8 @@ export default function LibraryPage() {
         )}
 
         {message ? (
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            {message}
+          <div className="mt-4">
+            <InlineMessage tone="warning">{message}</InlineMessage>
           </div>
         ) : null}
       </section>
@@ -734,6 +747,14 @@ export default function LibraryPage() {
         description="The library is the end of the document journey. Files appear here after upload, submission, admin review, and final approval."
         steps={workflowSteps}
       />
+
+      {recentDocumentItems.length > 0 ? (
+        <ActivityFeed
+          title="Recent Document History"
+          description="Latest document changes and approvals now visible from the library."
+          items={recentDocumentItems}
+        />
+      ) : null}
 
       <DocumentSection
         title="Ready to open"

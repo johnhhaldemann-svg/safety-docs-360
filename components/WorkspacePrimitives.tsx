@@ -43,7 +43,9 @@ export function SectionCard({
   className?: string;
 }) {
   return (
-    <section className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm ${className}`.trim()}>
+    <section
+      className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm ${className}`.trim()}
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-900">{title}</h2>
@@ -71,9 +73,24 @@ export function InlineMessage({
         : tone === "error"
           ? "border-red-200 bg-red-50 text-red-800"
           : "border-slate-200 bg-slate-50 text-slate-700";
+  const label =
+    tone === "success"
+      ? "Success"
+      : tone === "warning"
+        ? "Attention"
+        : tone === "error"
+          ? "Error"
+          : "Update";
 
   return (
-    <div className={`rounded-xl border px-4 py-3 text-sm ${toneClass}`}>{children}</div>
+    <div className={`rounded-xl border px-4 py-3 text-sm ${toneClass}`}>
+      <div className="flex items-start gap-3">
+        <span className="rounded-full border border-current/15 bg-white/50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em]">
+          {label}
+        </span>
+        <div className="flex-1 pt-0.5">{children}</div>
+      </div>
+    </div>
   );
 }
 
@@ -127,9 +144,75 @@ export function StartChecklist({
                   : "bg-slate-100 text-slate-500"
               }`}
             >
-              {item.done ? "✓" : "•"}
+              {item.done ? "OK" : "-"}
             </span>
             <span className="text-sm font-medium text-slate-700">{item.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function StatusBadge({
+  label,
+  tone = "neutral",
+}: {
+  label: string;
+  tone?: "neutral" | "success" | "warning" | "error" | "info";
+}) {
+  const toneClass =
+    tone === "success"
+      ? "bg-emerald-100 text-emerald-700"
+      : tone === "warning"
+        ? "bg-amber-100 text-amber-700"
+        : tone === "error"
+          ? "bg-red-100 text-red-700"
+          : tone === "info"
+            ? "bg-sky-100 text-sky-700"
+            : "bg-slate-200 text-slate-700";
+
+  return (
+    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${toneClass}`}>
+      {label}
+    </span>
+  );
+}
+
+export function ActivityFeed({
+  title,
+  description,
+  items,
+}: {
+  title: string;
+  description?: string;
+  items: Array<{
+    id: string;
+    title: string;
+    detail: string;
+    meta: string;
+    tone?: "neutral" | "success" | "warning" | "error" | "info";
+  }>;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+      {description ? (
+        <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
+      ) : null}
+      <div className="mt-4 space-y-3">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">{item.detail}</p>
+              </div>
+              <StatusBadge label={item.meta} tone={item.tone ?? "neutral"} />
+            </div>
           </div>
         ))}
       </div>
@@ -183,9 +266,7 @@ export function WorkflowPath({
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{step.label}</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    {step.detail}
-                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">{step.detail}</p>
                 </div>
               </div>
             </div>
