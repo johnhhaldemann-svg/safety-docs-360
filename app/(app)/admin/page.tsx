@@ -253,7 +253,14 @@ export default function AdminPage() {
       documents
         .flatMap((doc) => {
           const title = getDocumentTitle(doc);
-          const items = [
+          const items: Array<{
+            id: string;
+            title: string;
+            detail: string;
+            meta: string;
+            tone: "info" | "warning" | "success";
+            sortAt: number;
+          }> = [
             {
               id: `${doc.id}-created`,
               title: `${title} updated`,
