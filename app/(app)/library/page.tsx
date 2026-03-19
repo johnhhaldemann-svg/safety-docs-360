@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
+import { WorkflowPath } from "@/components/WorkspacePrimitives";
 import { getDocumentCreditCost, isMarketplaceEnabled } from "@/lib/marketplace";
 import type { CreditTransaction } from "@/lib/credits";
 import {
@@ -440,6 +441,31 @@ export default function LibraryPage() {
   ];
 
   const transactionPreview = creditState.transactions.slice(0, 4);
+  const workflowSteps = [
+    {
+      label: "Upload and submit",
+      detail: "Source files are uploaded first and then sent into the review workflow.",
+      complete: stats.total > 0,
+    },
+    {
+      label: "Admin review",
+      detail: "Submitted documents stay in review until the final version is approved.",
+      active: otherDocuments.length > 0,
+      complete: accessibleApprovedDocuments.length > 0 || marketplaceDocuments.length > 0,
+    },
+    {
+      label: "Approved files",
+      detail: "Completed records become ready to open or available for marketplace unlock.",
+      active: accessibleApprovedDocuments.length > 0,
+      complete: accessibleApprovedDocuments.length > 0,
+    },
+    {
+      label: "Library access",
+      detail: "Open completed documents directly from your ready list after approval or purchase.",
+      active: accessibleApprovedDocuments.length > 0,
+      complete: false,
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -702,6 +728,12 @@ export default function LibraryPage() {
           note="Default credits can be tied to account status"
         />
       </section>
+
+      <WorkflowPath
+        title="Upload to Library Workflow"
+        description="The library is the end of the document journey. Files appear here after upload, submission, admin review, and final approval."
+        steps={workflowSteps}
+      />
 
       <DocumentSection
         title="Ready to open"

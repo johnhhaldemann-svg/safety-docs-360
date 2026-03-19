@@ -11,7 +11,9 @@ import {
   PageHero,
   SectionCard,
   StartChecklist,
+  WorkflowPath,
 } from "@/components/WorkspacePrimitives";
+import { getDocumentStatusLabel } from "@/lib/documentStatus";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,6 +36,14 @@ type DocumentRow = {
 };
 
 export default function UploadPage() {
+  const [recentSubmissions, setRecentSubmissions] = useState<
+    Array<{
+      id: string;
+      title: string | null;
+      status: string | null;
+      created_at: string;
+    }>
+  >([]);
   const [projectName, setProjectName] = useState("");
   const [documentTitle, setDocumentTitle] = useState("");
   const [documentType, setDocumentType] = useState("Template");
@@ -75,6 +85,21 @@ export default function UploadPage() {
   useEffect(() => {
     async function loadInitialDocuments() {
       await loadDocuments();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("submissions")
+        .select("id, title, status, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(3);
+
+      setRecentSubmissions(data ?? []);
     }
 
     void loadInitialDocuments();
@@ -223,6 +248,33 @@ async function confirmOpenFile() {
     { label: "Enter a document title", done: documentTitle.trim().length > 0 },
     { label: "Choose a file to upload", done: Boolean(selectedFile) },
     { label: "Accept terms and upload", done: agreedToUploadTerms },
+  ];
+
+  const workflowSteps = [
+    {
+      label: "Upload document",
+      detail: "Save the source file and metadata into the workspace.",
+      active: Boolean(selectedFile),
+      complete: documents.length > 0,
+    },
+    {
+      label: "Submit for review",
+      detail: "Send uploaded files into the formal review queue when admin action is needed.",
+      active: documents.length > 0 && recentSubmissions.length === 0,
+      complete: recentSubmissions.length > 0,
+    },
+    {
+      label: "Admin approval",
+      detail: "Safety360Docs reviews the submission and prepares the final file.",
+      active: recentSubmissions.some((item) => item.status?.toLowerCase() === "submitted"),
+      complete: recentSubmissions.some((item) => item.status?.toLowerCase() === "approved"),
+    },
+    {
+      label: "Open in library",
+      detail: "Once approved, the final file becomes available from the library.",
+      active: recentSubmissions.some((item) => item.status?.toLowerCase() === "approved"),
+      complete: false,
+    },
   ];
 
   return (
@@ -393,17 +445,47 @@ async function confirmOpenFile() {
         <div className="space-y-6">
           <StartChecklist title="Upload Checklist" items={checklistItems} />
 
+          <WorkflowPath
+            title="Workflow Handoff"
+            description="Uploads are the intake step. From here, documents either stay as workspace records or move into submission and approval."
+            steps={workflowSteps}
+          />
+
           <SectionCard
-            title="What Happens Next"
-            description="Standard flow after a document is uploaded."
+            title="Recent Submission Handoffs"
+            description="Latest requests that moved out of upload and into review."
           >
-            <div className="space-y-3 text-sm text-slate-600">
-              <p>1. Upload the source file and save its details.</p>
-              <p>2. Confirm it appears in the recent records list below.</p>
-              <p>3. Open it to verify the file loads correctly.</p>
-              <p>4. Submit it for review when it needs admin action.</p>
-              <p>5. Open the final version from the library after approval.</p>
-            </div>
+            {recentSubmissions.length === 0 ? (
+              <EmptyState
+                title="Nothing submitted yet"
+                description="After you upload a file, use Submit to move it into the formal review queue."
+                actionHref="/submit"
+                actionLabel="Open Submit"
+              />
+            ) : (
+              <div className="space-y-3">
+                {recentSubmissions.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {item.title || "Untitled request"}
+                        </div>
+                        <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
+                          {new Date(item.created_at).toLocaleString()}
+                        </div>
+                      </div>
+                      <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
+                        {getDocumentStatusLabel(item.status)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </SectionCard>
         </div>
       </section>

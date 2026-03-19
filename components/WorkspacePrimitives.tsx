@@ -136,3 +136,62 @@ export function StartChecklist({
     </div>
   );
 }
+
+export function WorkflowPath({
+  title,
+  description,
+  steps,
+}: {
+  title: string;
+  description?: string;
+  steps: Array<{
+    label: string;
+    detail: string;
+    active?: boolean;
+    complete?: boolean;
+  }>;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+      {description ? (
+        <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
+      ) : null}
+      <div className="mt-4 grid gap-3">
+        {steps.map((step, index) => {
+          const toneClass = step.complete
+            ? "border-emerald-200 bg-emerald-50"
+            : step.active
+              ? "border-sky-200 bg-sky-50"
+              : "border-slate-200 bg-white";
+          const badgeClass = step.complete
+            ? "bg-emerald-100 text-emerald-700"
+            : step.active
+              ? "bg-sky-100 text-sky-700"
+              : "bg-slate-100 text-slate-500";
+
+          return (
+            <div
+              key={step.label}
+              className={`rounded-xl border px-4 py-4 ${toneClass}`}
+            >
+              <div className="flex items-start gap-3">
+                <span
+                  className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${badgeClass}`}
+                >
+                  {step.complete ? "OK" : index + 1}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{step.label}</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    {step.detail}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

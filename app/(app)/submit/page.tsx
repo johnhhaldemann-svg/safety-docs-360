@@ -10,7 +10,9 @@ import {
   PageHero,
   SectionCard,
   StartChecklist,
+  WorkflowPath,
 } from "@/components/WorkspacePrimitives";
+import { getDocumentStatusLabel } from "@/lib/documentStatus";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,6 +20,14 @@ const supabase = createClient(
 );
 
 export default function SubmitPage() {
+  const [recentSubmissions, setRecentSubmissions] = useState<
+    Array<{
+      id: string;
+      title: string | null;
+      status: string | null;
+      created_at: string;
+    }>
+  >([]);
   const [title, setTitle] = useState("");
   const [serviceType, setServiceType] = useState("document_review");
   const [customerNotes, setCustomerNotes] = useState("");
@@ -65,11 +75,26 @@ export default function SubmitPage() {
   }
 
   useEffect(() => {
-    async function loadSubscription() {
+    async function loadWorkspaceState() {
       await checkSubscription();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("submissions")
+        .select("id, title, status, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(4);
+
+      setRecentSubmissions(data ?? []);
     }
 
-    void loadSubscription();
+    void loadWorkspaceState();
   }, []);
 
   async function handleSubmit() {
@@ -183,6 +208,32 @@ export default function SubmitPage() {
     { label: "Choose the service type you need", done: Boolean(serviceType) },
     { label: "Upload the source files", done: hasFiles },
     { label: "Accept terms and submit for review", done: agreedToSubmissionTerms },
+  ];
+
+  const workflowSteps = [
+    {
+      label: "Upload source files",
+      detail: "Attach the files and notes your team needs for review.",
+      complete: hasFiles,
+    },
+    {
+      label: "Submit request",
+      detail: "Send the package into the admin review queue.",
+      active: hasFiles && !agreedToSubmissionTerms,
+      complete: recentSubmissions.length > 0,
+    },
+    {
+      label: "Admin review",
+      detail: "Safety360Docs reviews, edits, and approves the document set.",
+      active: recentSubmissions.some((item) => item.status?.toLowerCase() === "submitted"),
+      complete: recentSubmissions.some((item) => item.status?.toLowerCase() === "approved"),
+    },
+    {
+      label: "Open from library",
+      detail: "Completed files move into your ready-to-open library.",
+      active: recentSubmissions.some((item) => item.status?.toLowerCase() === "approved"),
+      complete: false,
+    },
   ];
 
   return (
@@ -320,25 +371,45 @@ export default function SubmitPage() {
 
           <StartChecklist title="Start Here Checklist" items={checklistItems} />
 
+          <WorkflowPath
+            title="Upload to Library Workflow"
+            description="Every request should follow the same handoff path so files do not get lost between intake and approval."
+            steps={workflowSteps}
+          />
+
           <SectionCard
-            title="How It Works"
-            description="The standard workflow for a new request."
+            title="Recent Requests"
+            description="Latest submissions you already sent into the workflow."
           >
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[
-                "Upload or attach source files",
-                "Submit the request into review",
-                "Admin completes approval work",
-                "Final documents land in the library",
-              ].map((item, index) => (
-                <div key={item} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Step {index + 1}
+            {recentSubmissions.length === 0 ? (
+              <EmptyState
+                title="No requests submitted yet"
+                description="Your recent request history will appear here after the first submission."
+              />
+            ) : (
+              <div className="space-y-3">
+                {recentSubmissions.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {item.title || "Untitled request"}
+                        </div>
+                        <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
+                          {new Date(item.created_at).toLocaleString()}
+                        </div>
+                      </div>
+                      <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
+                        {getDocumentStatusLabel(item.status)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="mt-2 text-sm font-medium text-slate-700">{item}</div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </SectionCard>
 
           {!hasFiles ? (
