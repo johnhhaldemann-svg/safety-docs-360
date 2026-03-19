@@ -315,7 +315,7 @@ export default function AdminArchivePage() {
               type="button"
               onClick={() => void runBulkAction("restore")}
               disabled={selectedIds.length === 0 || Boolean(bulkLoading)}
-              className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold !text-sky-900 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {bulkLoading === "restore" ? "Restoring..." : "Restore Selected"}
             </button>
@@ -548,7 +548,7 @@ export default function AdminArchivePage() {
                         type="button"
                         onClick={() => void runLifecycleAction(doc.id, "restore")}
                         disabled={Boolean(actionLoadingId)}
-                        className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold !text-sky-900 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {restoreLoading ? "Restoring..." : "Restore"}
                       </button>

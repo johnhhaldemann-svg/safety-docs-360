@@ -405,7 +405,7 @@ function ReviewSection({
 
                     <Link
                       href={`/admin/review-documents/${doc.id}`}
-                      className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-extrabold text-white hover:bg-slate-700"
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-extrabold !text-sky-900 hover:border-sky-300 hover:bg-sky-100"
                     >
                       {actionLabel}
                     </Link>

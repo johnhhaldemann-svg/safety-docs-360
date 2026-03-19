@@ -408,7 +408,7 @@ function MarketplaceCard({
                 void onSave(document.id, enabled, Math.max(1, Number(creditCost) || 1))
               }
               disabled={saving}
-              className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold !text-sky-900 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? "Saving..." : "Save"}
             </button>
