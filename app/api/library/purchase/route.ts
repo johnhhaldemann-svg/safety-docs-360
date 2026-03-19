@@ -153,35 +153,43 @@ export async function POST(request: Request) {
         );
       }
 
-      const { error: insertError } = await supabase
-        .from("credit_transactions")
-        .insert({
-          user_id: user.id,
-          amount: -cost,
-          transaction_type: "purchase",
-          document_id: documentId,
-          description: `Unlocked ${document.project_name || "completed document"}`,
-          metadata: {
-            document_id: documentId,
-            project_name: document.project_name,
-            credit_cost: cost,
-          },
-        });
-
-      if (!insertError) {
-        const nextLedger = await listCreditTransactions(supabase, user.id);
-
-        if (!nextLedger.error) {
-          return NextResponse.json({
-            success: true,
-            purchasedDocumentIds: purchasedDocumentIdsFromTransactions(
-              nextLedger.data
-            ),
-            creditBalance: sumCreditBalance(nextLedger.data),
-            cost,
-            ledgerEnabled: true,
-          });
+      const { error: insertError } = await (
+        supabase as {
+          rpc: (
+            fn: string,
+            args: Record<string, unknown>
+          ) => PromiseLike<{ error: { message?: string | null } | null }>;
         }
+      ).rpc("record_marketplace_purchase", {
+        p_document_id: documentId,
+        p_amount: -cost,
+        p_description: `Unlocked ${document.project_name || "completed document"}`,
+        p_metadata: {
+          document_id: documentId,
+          project_name: document.project_name,
+          credit_cost: cost,
+        },
+      });
+
+      if (insertError) {
+        return NextResponse.json(
+          { error: insertError.message || "Failed to record purchase." },
+          { status: 500 }
+        );
+      }
+
+      const nextLedger = await listCreditTransactions(supabase, user.id);
+
+      if (!nextLedger.error) {
+        return NextResponse.json({
+          success: true,
+          purchasedDocumentIds: purchasedDocumentIdsFromTransactions(
+            nextLedger.data
+          ),
+          creditBalance: sumCreditBalance(nextLedger.data),
+          cost,
+          ledgerEnabled: true,
+        });
       }
     }
   }
