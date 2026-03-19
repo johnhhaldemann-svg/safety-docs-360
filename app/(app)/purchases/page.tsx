@@ -33,6 +33,34 @@ type CreditState = {
   ledgerEnabled: boolean;
 };
 
+type TestCreditPack = {
+  id: "starter" | "pro" | "max";
+  label: string;
+  credits: number;
+  note: string;
+};
+
+const TEST_CREDIT_PACKS: TestCreditPack[] = [
+  {
+    id: "starter",
+    label: "Starter Pack",
+    credits: 10,
+    note: "Quick top-up for marketplace testing.",
+  },
+  {
+    id: "pro",
+    label: "Pro Pack",
+    credits: 25,
+    note: "Enough credits to unlock several completed docs.",
+  },
+  {
+    id: "max",
+    label: "Max Pack",
+    credits: 50,
+    note: "Best option for heavier test purchases.",
+  },
+];
+
 function isArchivedStatus(status?: string | null) {
   return status?.trim().toLowerCase() === "archived";
 }
@@ -61,6 +89,7 @@ export default function PurchasesPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [actionLoadingId, setActionLoadingId] = useState("");
+  const [creditPackLoadingId, setCreditPackLoadingId] = useState("");
   const [pendingDocumentId, setPendingDocumentId] = useState<string>("");
   const [currentUserId, setCurrentUserId] = useState("");
   const [creditState, setCreditState] = useState<CreditState>({
@@ -228,6 +257,62 @@ export default function PurchasesPage() {
     [getAccessToken]
   );
 
+  const handleBuyTestCredits = useCallback(
+    async (packId: TestCreditPack["id"]) => {
+      setCreditPackLoadingId(packId);
+      setMessage("");
+
+      try {
+        const token = await getAccessToken();
+        const res = await fetch("/api/library/buy-credits", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ packId }),
+        });
+
+        const data = (await res.json().catch(() => null)) as
+          | (Partial<CreditState> & { error?: string; grantedCredits?: number })
+          | null;
+
+        if (!res.ok) {
+          throw new Error(data?.error || "Failed to add test credits.");
+        }
+
+        setCreditState((prev) => ({
+          ...prev,
+          creditBalance: Number(data?.creditBalance ?? prev.creditBalance),
+          purchasedDocumentIds: Array.isArray(data?.purchasedDocumentIds)
+            ? data.purchasedDocumentIds.filter(
+                (value): value is string => typeof value === "string"
+              )
+            : prev.purchasedDocumentIds,
+          transactions: Array.isArray(data?.transactions)
+            ? data.transactions.filter(
+                (value): value is CreditTransaction =>
+                  Boolean(value) &&
+                  typeof value === "object" &&
+                  typeof (value as CreditTransaction).id === "string"
+              )
+            : prev.transactions,
+          ledgerEnabled: Boolean(data?.ledgerEnabled ?? prev.ledgerEnabled),
+        }));
+        setMessage(
+          `Added ${Number(data?.grantedCredits ?? 0)} test credits to your account.`
+        );
+      } catch (error) {
+        setMessage(
+          error instanceof Error ? error.message : "Failed to add test credits."
+        );
+      } finally {
+        setCreditPackLoadingId("");
+      }
+    },
+    [getAccessToken]
+  );
+
   return (
     <div className="space-y-8">
       <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -282,6 +367,50 @@ export default function PurchasesPage() {
           value={String(totalCreditsSpent)}
           note={`${purchaseTransactions.length} marketplace purchase${purchaseTransactions.length === 1 ? "" : "s"}`}
         />
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">Buy Test Credits</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Use these in-app test packs to simulate credit purchases without real payment processing.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+            Current balance: {creditState.creditBalance}
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          {TEST_CREDIT_PACKS.map((pack) => (
+            <div
+              key={pack.id}
+              className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    {pack.label}
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-600">{pack.note}</p>
+                </div>
+                <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
+                  {pack.credits} credits
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void handleBuyTestCredits(pack.id)}
+                disabled={creditPackLoadingId === pack.id}
+                className="mt-5 inline-flex rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {creditPackLoadingId === pack.id ? "Adding..." : "Add Test Credits"}
+              </button>
+            </div>
+          ))}
+        </div>
       </section>
 
       {message && (
