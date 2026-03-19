@@ -67,24 +67,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: insertedDoc, error: insertError } = await supabase
-      .from("documents")
-      .insert({
-        user_id: user.id,
-        project_name,
-        document_type,
-        status: "submitted",
-      })
-      .select("id")
-      .single();
-
-    if (insertError || !insertedDoc) {
-      return NextResponse.json(
-        { error: insertError?.message || "Failed to create document row." },
-        { status: 500 }
-      );
-    }
-
     const normalizedType = document_type.trim().toUpperCase();
     let fileData: BodyInit | null = null;
 
@@ -103,8 +85,6 @@ export async function POST(request: Request) {
     }
 
     if (!fileData) {
-      await supabase.from("documents").delete().eq("id", insertedDoc.id);
-
       return NextResponse.json(
         { error: "Failed to generate the review draft." },
         { status: 500 }
@@ -112,8 +92,29 @@ export async function POST(request: Request) {
     }
 
     const safeProjectName = project_name.replace(/[^a-zA-Z0-9-_]/g, "_");
+    const documentId = crypto.randomUUID();
     const draftFileName = `${safeProjectName}_${normalizedType}_Draft.docx`;
-    const filePath = `drafts/${user.id}/${insertedDoc.id}/${draftFileName}`;
+    const filePath = `drafts/${user.id}/${documentId}/${draftFileName}`;
+
+    const { data: insertedDoc, error: insertError } = await supabase
+      .from("documents")
+      .insert({
+        id: documentId,
+        user_id: user.id,
+        project_name,
+        document_type,
+        status: "submitted",
+        draft_file_path: filePath,
+      })
+      .select("id")
+      .single();
+
+    if (insertError || !insertedDoc) {
+      return NextResponse.json(
+        { error: insertError?.message || "Failed to create document row." },
+        { status: 500 }
+      );
+    }
 
     const { error: uploadError } = await supabase.storage
       .from("documents")
@@ -128,20 +129,6 @@ export async function POST(request: Request) {
 
       return NextResponse.json(
         { error: uploadError.message },
-        { status: 500 }
-      );
-    }
-
-    const { error: updateError } = await supabase
-      .from("documents")
-      .update({
-        draft_file_path: filePath,
-      })
-      .eq("id", insertedDoc.id);
-
-    if (updateError) {
-      return NextResponse.json(
-        { error: updateError.message },
         { status: 500 }
       );
     }
