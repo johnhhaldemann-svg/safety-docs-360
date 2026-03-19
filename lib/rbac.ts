@@ -278,28 +278,32 @@ export async function authorizeRequest(
   }
 
   if (!supabaseServiceRoleKey) {
-    if (options.requireAdmin) {
+    const roleContext = await getUserRoleContext({
+      supabase: authClient as unknown as SupabaseLikeClient,
+      user,
+    });
+
+    if (!options.allowSuspended && roleContext.accountStatus === "suspended") {
       return {
         error: NextResponse.json(
-          {
-            error: "Missing Supabase environment variables.",
-            missing: {
-              NEXT_PUBLIC_SUPABASE_URL: !supabaseUrl,
-              NEXT_PUBLIC_SUPABASE_ANON_KEY: !supabaseAnonKey,
-              SUPABASE_SERVICE_ROLE_KEY: true,
-            },
-          },
-          { status: 500 }
+          { error: "Your account has been suspended." },
+          { status: 403 }
         ),
+      };
+    }
+
+    if (options.requireAdmin && !isAdminRole(roleContext.role)) {
+      return {
+        error: NextResponse.json({ error: "Admin access required." }, { status: 403 }),
       };
     }
 
     return {
       supabase: authClient,
       user,
-      role: getLegacyRole(user),
-      team: getLegacyTeam(user),
-      accountStatus: "active" as const,
+      role: roleContext.role,
+      team: roleContext.team,
+      accountStatus: roleContext.accountStatus,
     };
   }
 
