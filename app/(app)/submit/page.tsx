@@ -256,10 +256,10 @@ export default function SubmitPage() {
     meta: formatRelative(item.created_at),
     tone:
       item.status?.toLowerCase() === "approved"
-        ? "success"
+        ? ("success" as const)
         : item.status?.toLowerCase() === "submitted"
-          ? "warning"
-          : "neutral",
+          ? ("warning" as const)
+          : ("neutral" as const),
   }));
 
   return (
