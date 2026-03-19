@@ -521,8 +521,9 @@ export default function AppLayout({
                     S3
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="break-words text-[1.6rem] leading-[0.95] font-black tracking-tight text-white">
-                      Safety360Docs
+                    <div className="text-[1.05rem] leading-[0.9] font-black tracking-tight text-white sm:text-[1.15rem]">
+                      <span className="block">Safety360</span>
+                      <span className="block">Docs</span>
                     </div>
                     <div className="mt-2 text-[10px] uppercase tracking-[0.28em] text-sky-300">
                       {isAdminArea ? "Admin Control Center" : "Safety Management Platform"}
