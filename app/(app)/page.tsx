@@ -4,6 +4,12 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState, SectionCard, StartChecklist } from "@/components/WorkspacePrimitives";
+import {
+  getDocumentStatusLabel,
+  isApprovedDocumentStatus,
+  isArchivedDocumentStatus,
+  isSubmittedDocumentStatus,
+} from "@/lib/documentStatus";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,19 +51,8 @@ type ActionCard = {
   button: string;
 };
 
-function isArchivedStatus(status?: string | null) {
-  return status?.trim().toLowerCase() === "archived";
-}
-
-function isSubmittedStatus(status?: string | null) {
-  return status?.trim().toLowerCase() === "submitted";
-}
-
 function isApprovedDocument(document: DocumentRow) {
-  return (
-    document.status?.trim().toLowerCase() === "approved" ||
-    Boolean(document.final_file_path)
-  );
+  return isApprovedDocumentStatus(document.status, Boolean(document.final_file_path));
 }
 
 function formatRelative(timestamp?: string | null) {
@@ -85,12 +80,7 @@ function getDocumentLabel(document: DocumentRow) {
 }
 
 function getStatusLabel(document: DocumentRow) {
-  if (isApprovedDocument(document)) return "Approved";
-  if (isSubmittedStatus(document.status)) return "In review";
-  if (!document.status) return "Draft";
-
-  const normalized = document.status.trim().toLowerCase();
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  return getDocumentStatusLabel(document.status, Boolean(document.final_file_path));
 }
 
 function normalizeType(documentType?: string | null) {
@@ -140,7 +130,7 @@ export default function DashboardPage() {
   }, []);
 
   const activeDocuments = useMemo(
-    () => documents.filter((document) => !isArchivedStatus(document.status)),
+    () => documents.filter((document) => !isArchivedDocumentStatus(document.status)),
     [documents]
   );
 
@@ -153,7 +143,10 @@ export default function DashboardPage() {
   }, [activeDocuments]);
 
   const pendingReviewCount = useMemo(
-    () => activeDocuments.filter((document) => isSubmittedStatus(document.status)).length,
+    () =>
+      activeDocuments.filter((document) =>
+        isSubmittedDocumentStatus(document.status, Boolean(document.final_file_path))
+      ).length,
     [activeDocuments]
   );
 
@@ -299,14 +292,16 @@ export default function DashboardPage() {
 
     if (items.length > 0) return items;
 
-    return [
-      { id: "empty-1", title: "No recent document activity yet", status: "Waiting", time: "Start by uploading or submitting a document" },
-    ];
+      return [
+        { id: "empty-1", title: "No recent document activity yet", status: "Draft", time: "Start by uploading or submitting a document" },
+      ];
   }, [activeDocuments]);
 
   const reviewQueueItems = useMemo(() => {
     const queued = activeDocuments
-      .filter((document) => isSubmittedStatus(document.status))
+      .filter((document) =>
+        isSubmittedDocumentStatus(document.status, Boolean(document.final_file_path))
+      )
       .slice(0, 4)
       .map((document) => ({
         id: document.id,

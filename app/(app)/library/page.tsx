@@ -6,6 +6,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import { getDocumentCreditCost, isMarketplaceEnabled } from "@/lib/marketplace";
 import type { CreditTransaction } from "@/lib/credits";
+import {
+  getDocumentStatusLabel,
+  getDocumentStatusTone,
+  isApprovedDocumentStatus,
+  isArchivedDocumentStatus,
+} from "@/lib/documentStatus";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,10 +48,6 @@ type PendingDownload =
   | { mode: "direct"; path: string }
   | { mode: "completed"; documentId: string };
 
-function isArchivedStatus(status?: string | null) {
-  return status?.trim().toLowerCase() === "archived";
-}
-
 function getDocumentTitle(doc: DocumentRow) {
   return doc.document_title ?? doc.project_name ?? doc.file_name ?? "Untitled Document";
 }
@@ -55,16 +57,7 @@ function getDocumentSubtitle(doc: DocumentRow) {
 }
 
 function getDocumentStatus(doc: DocumentRow) {
-  if (doc.final_file_path || doc.status?.trim().toLowerCase() === "approved") {
-    return "Completed";
-  }
-
-  if (!doc.status) {
-    return "In progress";
-  }
-
-  const cleaned = doc.status.trim().toLowerCase();
-  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  return getDocumentStatusLabel(doc.status, Boolean(doc.final_file_path));
 }
 
 function formatTimestamp(value: string) {
@@ -96,17 +89,7 @@ function formatFileSize(bytes: number | null) {
 }
 
 function getStatusTone(status: string) {
-  const normalized = status.toLowerCase();
-
-  if (normalized === "completed" || normalized === "approved") {
-    return "bg-emerald-100 text-emerald-700";
-  }
-
-  if (normalized === "pending" || normalized === "review") {
-    return "bg-amber-100 text-amber-700";
-  }
-
-  return "bg-slate-200 text-slate-700";
+  return getDocumentStatusTone(status);
 }
 
 function getSubscriptionTone(status: string) {
@@ -358,7 +341,7 @@ export default function LibraryPage() {
 
   const filteredDocuments = useMemo(() => {
     return documents.filter((doc) => {
-      if (isArchivedStatus(doc.status)) {
+      if (isArchivedDocumentStatus(doc.status)) {
         return false;
       }
 
@@ -387,13 +370,13 @@ export default function LibraryPage() {
   const approvedDocuments = useMemo(() => {
     return filteredDocuments.filter(
       (doc) =>
-        doc.status?.trim().toLowerCase() === "approved" || Boolean(doc.final_file_path)
+        isApprovedDocumentStatus(doc.status, Boolean(doc.final_file_path))
     );
   }, [filteredDocuments]);
 
   const otherDocuments = useMemo(() => {
     return filteredDocuments.filter(
-      (doc) => doc.status?.trim().toLowerCase() !== "approved" && !doc.final_file_path
+      (doc) => !isApprovedDocumentStatus(doc.status, Boolean(doc.final_file_path))
     );
   }, [filteredDocuments]);
 
@@ -415,7 +398,7 @@ export default function LibraryPage() {
   }, [approvedDocuments, creditState.purchasedDocumentIds, currentUserId]);
 
   const stats = useMemo(() => {
-    const activeDocuments = documents.filter((doc) => !isArchivedStatus(doc.status));
+    const activeDocuments = documents.filter((doc) => !isArchivedDocumentStatus(doc.status));
 
     return {
       total: activeDocuments.length,

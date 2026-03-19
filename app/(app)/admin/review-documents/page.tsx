@@ -16,6 +16,13 @@ import {
   PageHero,
   SectionCard,
 } from "@/components/WorkspacePrimitives";
+import {
+  getDocumentStatusLabel,
+  getDocumentStatusTone,
+  isApprovedDocumentStatus,
+  isArchivedDocumentStatus,
+  isSubmittedDocumentStatus,
+} from "@/lib/documentStatus";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,22 +40,8 @@ type DocumentItem = {
   final_file_path?: string | null;
 };
 
-function isArchivedStatus(status?: string | null) {
-  return status?.trim().toLowerCase() === "archived";
-}
-
 function statusClasses(status?: string | null) {
-  const normalized = status?.trim().toLowerCase();
-
-  if (normalized === "approved") {
-    return "bg-emerald-100 text-emerald-700";
-  }
-
-  if (normalized === "submitted") {
-    return "bg-amber-100 text-amber-700";
-  }
-
-  return "bg-slate-100 text-slate-700";
+  return getDocumentStatusTone(status);
 }
 
 export default function ReviewDocumentsPage() {
@@ -124,22 +117,21 @@ export default function ReviewDocumentsPage() {
   const pendingDocuments = useMemo(() => {
     return documents.filter(
       (doc) =>
-        !isArchivedStatus(doc.status) &&
-        doc.status?.trim().toLowerCase() === "submitted" && !doc.final_file_path
+        !isArchivedDocumentStatus(doc.status) &&
+        isSubmittedDocumentStatus(doc.status, Boolean(doc.final_file_path))
     );
   }, [documents]);
 
   const approvedDocuments = useMemo(() => {
     return documents.filter(
       (doc) =>
-        !isArchivedStatus(doc.status) &&
-        (doc.status?.trim().toLowerCase() === "approved" ||
-          Boolean(doc.final_file_path))
+        !isArchivedDocumentStatus(doc.status) &&
+        isApprovedDocumentStatus(doc.status, Boolean(doc.final_file_path))
     );
   }, [documents]);
 
   const activeDocumentCount = useMemo(() => {
-    return documents.filter((doc) => !isArchivedStatus(doc.status)).length;
+    return documents.filter((doc) => !isArchivedDocumentStatus(doc.status)).length;
   }, [documents]);
 
   const selectedCount = selectedIds.length;
@@ -394,7 +386,7 @@ function ReviewSection({
                           statusClasses(doc.status),
                         ].join(" ")}
                       >
-                        {doc.status ?? "unknown"}
+                        {getDocumentStatusLabel(doc.status, Boolean(doc.final_file_path))}
                       </span>
                     </div>
                     <p className="mt-2 text-sm text-slate-700">

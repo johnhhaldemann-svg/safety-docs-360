@@ -9,6 +9,12 @@ import {
   PageHero,
   SectionCard,
 } from "@/components/WorkspacePrimitives";
+import {
+  getDocumentStatusLabel,
+  getDocumentStatusTone,
+  isApprovedDocumentStatus,
+  isSubmittedDocumentStatus,
+} from "@/lib/documentStatus";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,13 +39,6 @@ function formatRelative(timestamp?: string | null) {
   if (diffHours < 24) return `${diffHours} hr ago`;
   const diffDays = Math.round(diffHours / 24);
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
-}
-
-function statusTone(status?: string | null) {
-  const normalized = status?.trim().toLowerCase();
-  if (normalized === "approved") return "bg-emerald-100 text-emerald-700";
-  if (normalized === "submitted") return "bg-amber-100 text-amber-700";
-  return "bg-slate-100 text-slate-700";
 }
 
 export default function MySubmissionsPage() {
@@ -83,8 +82,8 @@ export default function MySubmissionsPage() {
   const stats = useMemo(
     () => ({
       total: submissions.length,
-      submitted: submissions.filter((item) => item.status?.toLowerCase() === "submitted").length,
-      approved: submissions.filter((item) => item.status?.toLowerCase() === "approved").length,
+      submitted: submissions.filter((item) => isSubmittedDocumentStatus(item.status)).length,
+      approved: submissions.filter((item) => isApprovedDocumentStatus(item.status)).length,
     }),
     [submissions]
   );
@@ -150,8 +149,10 @@ export default function MySubmissionsPage() {
                       <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
                         {item.service_type || "General"}
                       </span>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone(item.status)}`}>
-                        {item.status || "saved"}
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getDocumentStatusTone(item.status)}`}
+                      >
+                        {getDocumentStatusLabel(item.status)}
                       </span>
                     </div>
                   </div>
