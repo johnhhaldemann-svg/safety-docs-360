@@ -239,7 +239,7 @@ export default function CompanyUsersPage() {
         }),
       });
       const data = (await response.json().catch(() => null)) as
-        | { error?: string; details?: EnvDetails }
+        | { error?: string; details?: EnvDetails; message?: string; warning?: string }
         | null;
       const details = data?.details;
 
@@ -254,8 +254,8 @@ export default function CompanyUsersPage() {
 
       setInviteEmail("");
       setInviteRole("Company User");
-      setMessageTone("success");
-      setMessage("Company user invited successfully.");
+      setMessageTone(data?.warning ? "warning" : "success");
+      setMessage(data?.warning || data?.message || "Company user invited successfully.");
       await loadUsers();
     } catch (error) {
       setMessageTone("error");

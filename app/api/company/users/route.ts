@@ -23,6 +23,102 @@ type InvitePayload = {
   accountStatus?: string;
 };
 
+type CompanyInviteRow = {
+  id: string;
+  email: string;
+  role: string;
+  team: string;
+  company_id: string;
+  account_status: string;
+};
+
+async function saveCompanyInvite(params: {
+  supabase: {
+    from: (table: string) => {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          eq: (column: string, value: string) => {
+            is: (column: string, value: null) => {
+              maybeSingle: () => Promise<{ data: unknown; error: { message?: string | null } | null }>;
+            };
+          };
+        };
+      };
+      update: (values: Record<string, unknown>) => {
+        eq: (column: string, value: string) => Promise<{ data: unknown; error: { message?: string | null } | null }>;
+      };
+      insert: (values: Record<string, unknown>) => {
+        select: (columns: string) => {
+          single: () => Promise<{ data: unknown; error: { message?: string | null } | null }>;
+        };
+      };
+    };
+  };
+  email: string;
+  role: string;
+  team: string;
+  companyId: string;
+  accountStatus: string;
+  actorUserId: string;
+}) {
+  const { supabase, email, role, team, companyId, accountStatus, actorUserId } = params;
+
+  const existingInviteResult = await supabase
+    .from("company_invites")
+    .select("id, email, role, team, company_id, account_status")
+    .eq("email", email)
+    .eq("company_id", companyId)
+    .is("consumed_at", null)
+    .maybeSingle();
+
+  if (existingInviteResult.data && typeof existingInviteResult.data === "object") {
+    const updateResult = await supabase
+      .from("company_invites")
+      .update({
+        role,
+        team,
+        account_status: accountStatus,
+        updated_by: actorUserId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", (existingInviteResult.data as { id: string }).id);
+
+    if (updateResult.error) {
+      return { data: null, error: updateResult.error };
+    }
+
+    return {
+      data: {
+        ...(existingInviteResult.data as CompanyInviteRow),
+        role,
+        team,
+        company_id: companyId,
+        account_status: accountStatus,
+      } satisfies CompanyInviteRow,
+      error: null,
+    };
+  }
+
+  const insertResult = await supabase
+    .from("company_invites")
+    .insert({
+      email,
+      role,
+      team,
+      company_id: companyId,
+      account_status: accountStatus,
+      created_by: actorUserId,
+      updated_by: actorUserId,
+    })
+    .select("id, email, role, team, company_id, account_status")
+    .single();
+
+  return {
+    data: (insertResult.data as CompanyInviteRow | null) ?? null,
+    error: insertResult.error,
+  };
+}
+
 type CompanyUserRow = {
   id: string;
   email: string;
@@ -222,16 +318,6 @@ export async function POST(request: Request) {
   const adminClient = createSupabaseAdminClient();
   const envStatus = getSupabaseServerEnvStatus();
 
-  if (!adminClient) {
-    return NextResponse.json(
-      {
-        error: "Missing Supabase service role configuration.",
-        details: envStatus,
-      },
-      { status: 500 }
-    );
-  }
-
   const body = (await request.json()) as InvitePayload;
   const email = body.email?.trim().toLowerCase() ?? "";
 
@@ -243,8 +329,9 @@ export async function POST(request: Request) {
     ? getCompanySafeRole(body.role)
     : normalizeAppRole(body.role);
   const team = isCompanyAdminRole(auth.role) ? auth.team : auth.team || "General";
+  const companyScopeClient = adminClient ?? auth.supabase;
   const companyScope = await ensureCompanyScope({
-    supabase: adminClient,
+    supabase: companyScopeClient,
     userId: auth.user.id,
     fallbackTeam: team,
     role: auth.role,
@@ -253,6 +340,52 @@ export async function POST(request: Request) {
   const accountStatus = isCompanyAdminRole(auth.role)
     ? "active"
     : normalizeAccountStatus(body.accountStatus);
+
+  if (!companyScope.companyId) {
+    return NextResponse.json(
+      { error: "This company account is not linked to a valid company scope yet." },
+      { status: 400 }
+    );
+  }
+
+  if (!adminClient) {
+    const { data: inviteData, error: inviteError } = await saveCompanyInvite({
+      supabase: auth.supabase as never,
+      email,
+      role,
+      team,
+      companyId: companyScope.companyId,
+      accountStatus: accountStatus,
+      actorUserId: auth.user.id,
+    });
+
+    if (inviteError) {
+      return NextResponse.json(
+        { error: inviteError.message || "Failed to save company invite." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      invite: inviteData as CompanyInviteRow,
+      message:
+        "Company invite saved. This person can create an account with the invited email and will automatically join your company workspace.",
+      user: {
+        id: (inviteData as CompanyInviteRow).id,
+        email,
+        role: formatAppRole(role),
+        team,
+        companyId: companyScope.companyId,
+        status: formatAccountStatus(accountStatus),
+      },
+      scopeTeam: team,
+      scopeCompanyId: companyScope.companyId,
+      warning:
+        "The email invite was stored in the workspace database because the Supabase admin invite API is unavailable at runtime.",
+      details: envStatus,
+    });
+  }
 
   const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
     data: {
@@ -264,10 +397,41 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    return NextResponse.json(
-      { error: formatRoleConstraintError(error.message) },
-      { status: 500 }
-    );
+    const { data: inviteData, error: inviteError } = await saveCompanyInvite({
+      supabase: adminClient as never,
+      email,
+      role,
+      team,
+      companyId: companyScope.companyId,
+      accountStatus: accountStatus,
+      actorUserId: auth.user.id,
+    });
+
+    if (inviteError) {
+      return NextResponse.json(
+        { error: formatRoleConstraintError(error.message) },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      invite: inviteData,
+      message:
+        "Company invite saved in the workspace database. This person can create an account with the invited email and will automatically join your company workspace.",
+      user: {
+        id: (inviteData as CompanyInviteRow | null)?.id ?? "",
+        email,
+        role: formatAppRole(role),
+        team,
+        companyId: companyScope.companyId,
+        status: formatAccountStatus(accountStatus),
+      },
+      scopeTeam: team,
+      scopeCompanyId: companyScope.companyId,
+      warning:
+        "The Supabase email invite could not be sent, so the company invite was saved for self-service signup instead.",
+    });
   }
 
   if (data.user?.id) {
@@ -320,6 +484,7 @@ export async function POST(request: Request) {
       companyId: companyScope.companyId,
       status: formatAccountStatus(accountStatus),
     },
+    message: "Company user invited successfully.",
     scopeTeam: team,
     scopeCompanyId: companyScope.companyId,
   });
