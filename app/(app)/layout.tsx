@@ -125,6 +125,19 @@ function isActivePath(pathname: string, href: string) {
 }
 
 function formatRole(role: string) {
+  const normalized = role.trim().toLowerCase().replace(/\s+/g, "_");
+  if (normalized === "manager" || normalized === "operations_manager") {
+    return "Operations Manager";
+  }
+  if (normalized === "company_admin") {
+    return "Company Admin";
+  }
+  if (normalized === "company_user") {
+    return "Company User";
+  }
+  if (normalized === "super_admin") {
+    return "Super Admin";
+  }
   return role.replace(/_/g, " ");
 }
 

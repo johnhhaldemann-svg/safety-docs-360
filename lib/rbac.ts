@@ -61,6 +61,7 @@ export function normalizeAppRole(role?: string | null): AppRole {
     .replace(/\s+/g, "_");
 
   if (normalized === "superadmin") return "super_admin";
+  if (normalized === "operations_manager") return "manager";
   if ((APP_ROLES as readonly string[]).includes(normalized)) {
     return normalized as AppRole;
   }
@@ -73,7 +74,7 @@ export function formatAppRole(role?: string | null) {
 
   if (normalized === "super_admin") return "Super Admin";
   if (normalized === "admin") return "Admin";
-  if (normalized === "manager") return "Manager";
+  if (normalized === "manager") return "Operations Manager";
   if (normalized === "company_admin") return "Company Admin";
   if (normalized === "company_user") return "Company User";
   if (normalized === "editor") return "Editor";
