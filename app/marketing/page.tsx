@@ -69,13 +69,13 @@ export default function MarketingPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/marketing#platform"
+              href="/#platform"
               className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
             >
               Platform
             </Link>
             <Link
-              href="/marketing#workflow"
+              href="/#workflow"
               className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
             >
               Workflow

@@ -299,7 +299,7 @@ export default function SearchPage() {
               </Link>
 
               <Link
-                href="/"
+                href="/dashboard"
                 className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 <span>Return to dashboard</span>

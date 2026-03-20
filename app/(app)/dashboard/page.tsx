@@ -342,7 +342,11 @@ export default function DashboardPage() {
     if (queued.length > 0) return queued;
 
     return [
-      { id: "queue-1", title: "Review queue is clear", detail: "New submissions will appear here for quick follow-up." },
+      {
+        id: "queue-1",
+        title: "Review queue is clear",
+        detail: "New submissions will appear here for quick follow-up.",
+      },
     ];
   }, [activeDocuments]);
 
@@ -712,7 +716,9 @@ export default function DashboardPage() {
         <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-300">
           Site Safety Status
         </div>
-        <div className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">Today&apos;s Workspace</div>
+        <div className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">
+          Today&apos;s Workspace
+        </div>
 
         <div className="mt-3 text-sm leading-6 text-slate-300">
           Keep submissions moving, review new activity, and open the tools your team
@@ -797,8 +803,17 @@ function DashboardIcon({ kind }: { kind: CountCard["icon"] }) {
   if (kind === "approved") {
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24" className={common} fill="none">
-        <path d="M12 3 6 5.5v5.3c0 4.2 2.7 8 6 9.2 3.3-1.2 6-5 6-9.2V5.5L12 3Z" fill="#93C5FD" />
-        <path d="m9.5 12 1.8 1.8L15 10.1" stroke="#1D4ED8" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d="M12 3 6 5.5v5.3c0 4.2 2.7 8 6 9.2 3.3-1.2 6-5 6-9.2V5.5L12 3Z"
+          fill="#93C5FD"
+        />
+        <path
+          d="m9.5 12 1.8 1.8L15 10.1"
+          stroke="#1D4ED8"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     );
   }

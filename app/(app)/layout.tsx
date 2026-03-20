@@ -18,7 +18,7 @@ type NavItem = {
 };
 
 const userTopTabs: NavItem[] = [
-  { href: "/", label: "Dashboard", short: "DB" },
+  { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/submit", label: "Submit Request", short: "SB" },
   { href: "/library", label: "Library", short: "LI" },
   { href: "/search", label: "Search", short: "SR" },
@@ -42,7 +42,7 @@ const adminTopTabs: NavItem[] = [
 ];
 
 const userSideLinks: NavItem[] = [
-  { href: "/", label: "Dashboard", short: "HM" },
+  { href: "/dashboard", label: "Dashboard", short: "HM" },
   { href: "/submit", label: "Submit Request", short: "SB" },
   { href: "/library", label: "Library", short: "LB" },
   { href: "/search", label: "Search", short: "SR" },
@@ -70,7 +70,6 @@ function cx(...classes: Array<string | false | null | undefined>) {
 }
 
 function isActivePath(pathname: string, href: string) {
-  if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -204,7 +203,7 @@ export default function AppLayout({
         }
 
         if (isAdminArea && !admin) {
-          router.replace("/");
+          router.replace("/dashboard");
           return;
         }
       } catch (error) {
@@ -216,7 +215,7 @@ export default function AppLayout({
         setAcceptedTerms(false);
 
         if (isAdminArea) {
-          router.replace("/");
+          router.replace("/dashboard");
           return;
         }
       }
