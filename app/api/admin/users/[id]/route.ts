@@ -46,7 +46,9 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const auth = await authorizeRequest(request, { requireAdmin: true });
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_assign_roles",
+  });
 
   if ("error" in auth) {
     return auth.error;
@@ -164,7 +166,9 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const auth = await authorizeRequest(request, { requireAdmin: true });
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_assign_roles",
+  });
 
   if ("error" in auth) {
     return auth.error;

@@ -11,6 +11,7 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
+import type { PermissionMap } from "@/lib/rbac";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -61,6 +62,7 @@ function getDocumentTitle(doc: DocumentRow) {
 }
 
 export default function AdminPage() {
+  const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,6 +101,24 @@ export default function AdminPage() {
 
   useEffect(() => {
     void (async () => {
+      const sessionResult = await supabase.auth.getSession();
+      const accessToken = sessionResult.data.session?.access_token;
+
+      if (accessToken) {
+        const meResponse = await fetch("/api/auth/me", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        const meData = (await meResponse.json().catch(() => null)) as
+          | { user?: { permissionMap?: PermissionMap } }
+          | null;
+
+        if (meResponse.ok) {
+          setPermissionMap(meData?.user?.permissionMap ?? null);
+        }
+      }
+
       const { data, error } = await supabase
         .from("documents")
         .select("*")
@@ -319,6 +339,7 @@ export default function AdminPage() {
         .slice(0, 3),
     [archivedDocuments]
   );
+  const canAssignRoles = Boolean(permissionMap?.can_assign_roles);
 
   return (
     <div className="space-y-8">
@@ -334,12 +355,14 @@ export default function AdminPage() {
             >
               Open Review Queue
             </Link>
-            <Link
-              href="/admin/users"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Manage Users
-            </Link>
+            {canAssignRoles ? (
+              <Link
+                href="/admin/users"
+                className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Manage Users
+              </Link>
+            ) : null}
           </>
         }
       />
@@ -375,23 +398,34 @@ export default function AdminPage() {
           }
         />
 
-        <ActivityFeed
-          title="User Approval Queue"
-          description="Accounts that cannot access the workspace until an admin activates them."
-          items={
-            userQueue.length > 0
-              ? userQueue
-              : [
-                  {
-                    id: "empty-user-queue",
-                    title: "No users are waiting for approval",
-                    detail: "New signups and invited users will appear here until approved.",
-                    meta: "Clear",
-                    tone: "success",
-                  },
-                ]
-          }
-        />
+        {canAssignRoles ? (
+          <ActivityFeed
+            title="User Approval Queue"
+            description="Accounts that cannot access the workspace until an admin activates them."
+            items={
+              userQueue.length > 0
+                ? userQueue
+                : [
+                    {
+                      id: "empty-user-queue",
+                      title: "No users are waiting for approval",
+                      detail: "New signups and invited users will appear here until approved.",
+                      meta: "Clear",
+                      tone: "success",
+                    },
+                  ]
+            }
+          />
+        ) : (
+          <SectionCard
+            title="User Approval Queue"
+            description="Role assignment and account approval are limited to higher-permission admin roles."
+          >
+            <InlineMessage tone="warning">
+              Your current admin role can review documents, but it cannot approve user access or assign roles.
+            </InlineMessage>
+          </SectionCard>
+        )}
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
@@ -437,17 +471,19 @@ export default function AdminPage() {
           title="Admin Focus"
           description="The biggest operational items to watch first."
         >
-          {userError ? <InlineMessage tone="warning">{userError}</InlineMessage> : null}
+          {canAssignRoles && userError ? <InlineMessage tone="warning">{userError}</InlineMessage> : null}
           <div className="space-y-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-slate-900">Pending user approvals</span>
-                <StatusBadge
-                  label={pendingUsers.length ? `${pendingUsers.length} waiting` : "Clear"}
-                  tone={pendingUsers.length ? "warning" : "success"}
-                />
+            {canAssignRoles ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-slate-900">Pending user approvals</span>
+                  <StatusBadge
+                    label={pendingUsers.length ? `${pendingUsers.length} waiting` : "Clear"}
+                    tone={pendingUsers.length ? "warning" : "success"}
+                  />
+                </div>
               </div>
-            </div>
+            ) : null}
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-semibold text-slate-900">Documents waiting review</span>

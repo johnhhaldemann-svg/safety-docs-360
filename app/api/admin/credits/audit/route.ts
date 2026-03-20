@@ -43,7 +43,9 @@ function getDisplayName(user: {
 }
 
 export async function GET(request: Request) {
-  const auth = await authorizeRequest(request, { requireAdmin: true });
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_view_analytics",
+  });
 
   if ("error" in auth) {
     return auth.error;

@@ -16,6 +16,7 @@ import {
   PageHero,
   SectionCard,
 } from "@/components/WorkspacePrimitives";
+import type { PermissionMap } from "@/lib/rbac";
 import {
   getDocumentStatusLabel,
   getDocumentStatusTone,
@@ -45,6 +46,7 @@ function statusClasses(status?: string | null) {
 }
 
 export default function ReviewDocumentsPage() {
+  const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -111,7 +113,29 @@ export default function ReviewDocumentsPage() {
   );
 
   useEffect(() => {
-    void loadDocuments();
+    void (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+
+      if (accessToken) {
+        const meResponse = await fetch("/api/auth/me", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        const meData = (await meResponse.json().catch(() => null)) as
+          | { user?: { permissionMap?: PermissionMap } }
+          | null;
+
+        if (meResponse.ok) {
+          setPermissionMap(meData?.user?.permissionMap ?? null);
+        }
+      }
+
+      await loadDocuments();
+    })();
   }, [loadDocuments]);
 
   const pendingDocuments = useMemo(() => {
@@ -135,6 +159,8 @@ export default function ReviewDocumentsPage() {
   }, [documents]);
 
   const selectedCount = selectedIds.length;
+  const canReviewDocuments = Boolean(permissionMap?.can_review_documents);
+  const canApproveDocuments = Boolean(permissionMap?.can_approve_documents);
 
   async function runBulkAction(action: "archive" | "delete") {
     if (selectedIds.length === 0) {
@@ -236,12 +262,19 @@ export default function ReviewDocumentsPage() {
         title="Bulk Actions"
         description={`${selectedCount} document${selectedCount === 1 ? "" : "s"} selected across the active review workflow.`}
       >
+        {!canReviewDocuments ? (
+          <div className="mb-4">
+            <InlineMessage tone="warning">
+              Your current role does not have review access for this queue.
+            </InlineMessage>
+          </div>
+        ) : null}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
               onClick={() => void runBulkAction("archive")}
-              disabled={selectedCount === 0 || Boolean(bulkLoading)}
+              disabled={selectedCount === 0 || Boolean(bulkLoading) || !canReviewDocuments}
               className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {bulkLoading === "archive" ? "Archiving..." : "Archive Selected"}
@@ -249,7 +282,7 @@ export default function ReviewDocumentsPage() {
             <button
               type="button"
               onClick={() => void runBulkAction("delete")}
-              disabled={selectedCount === 0 || Boolean(bulkLoading)}
+              disabled={selectedCount === 0 || Boolean(bulkLoading) || !canReviewDocuments}
               className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {bulkLoading === "delete" ? "Deleting..." : "Delete Selected"}
@@ -257,7 +290,7 @@ export default function ReviewDocumentsPage() {
             <button
               type="button"
               onClick={() => setSelectedIds([])}
-              disabled={selectedCount === 0 || Boolean(bulkLoading)}
+              disabled={selectedCount === 0 || Boolean(bulkLoading) || !canReviewDocuments}
               className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Clear Selection
@@ -280,6 +313,8 @@ export default function ReviewDocumentsPage() {
         documents={pendingDocuments}
         actionLabel="Review"
         onOpenDraft={openDraftDocument}
+        canReviewDocuments={canReviewDocuments}
+        canApproveDocuments={canApproveDocuments}
         selectedIds={selectedIds}
         setSelectedIds={setSelectedIds}
       />
@@ -290,6 +325,8 @@ export default function ReviewDocumentsPage() {
         documents={approvedDocuments}
         actionLabel="Open Review"
         onOpenDraft={openDraftDocument}
+        canReviewDocuments={canReviewDocuments}
+        canApproveDocuments={canApproveDocuments}
         selectedIds={selectedIds}
         setSelectedIds={setSelectedIds}
       />
@@ -303,6 +340,8 @@ function ReviewSection({
   documents,
   actionLabel,
   onOpenDraft,
+  canReviewDocuments,
+  canApproveDocuments,
   selectedIds,
   setSelectedIds,
 }: {
@@ -311,6 +350,8 @@ function ReviewSection({
   documents: DocumentItem[];
   actionLabel: string;
   onOpenDraft: (documentId: string) => Promise<void>;
+  canReviewDocuments: boolean;
+  canApproveDocuments: boolean;
   selectedIds: string[];
   setSelectedIds: Dispatch<SetStateAction<string[]>>;
 }) {
@@ -328,6 +369,7 @@ function ReviewSection({
                 <input
                   type="checkbox"
                   checked={allSelected}
+                  disabled={!canReviewDocuments}
                   onChange={(event) => {
                     setSelectedIds((prev) => {
                       if (event.target.checked) {
@@ -362,6 +404,7 @@ function ReviewSection({
                     <input
                       type="checkbox"
                       checked={selectedIds.includes(doc.id)}
+                      disabled={!canReviewDocuments}
                       onChange={(event) => {
                         setSelectedIds((prev) =>
                           event.target.checked
@@ -411,6 +454,7 @@ function ReviewSection({
                       onClick={() => {
                         void onOpenDraft(doc.id);
                       }}
+                      disabled={!canReviewDocuments}
                       className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-extrabold text-slate-900 hover:bg-slate-100"
                     >
                       Open Draft DOCX
@@ -418,9 +462,13 @@ function ReviewSection({
 
                     <Link
                       href={`/admin/review-documents/${doc.id}`}
-                      className="inline-flex h-10 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-extrabold !text-sky-900 hover:border-sky-300 hover:bg-sky-100"
+                      className={`inline-flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-extrabold ${
+                        canApproveDocuments
+                          ? "border-sky-200 bg-sky-50 !text-sky-900 hover:border-sky-300 hover:bg-sky-100"
+                          : "border-slate-200 bg-slate-100 !text-slate-500"
+                      }`}
                     >
-                      {actionLabel}
+                      {canApproveDocuments ? actionLabel : "View"}
                     </Link>
                   </div>
                 </div>

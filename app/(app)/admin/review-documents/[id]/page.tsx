@@ -11,6 +11,7 @@ import {
   SectionCard,
   StartChecklist,
 } from "@/components/WorkspacePrimitives";
+import type { PermissionMap } from "@/lib/rbac";
 import {
   getDocumentCreditCost,
   isMarketplaceEnabled,
@@ -115,6 +116,7 @@ export default function ReviewDocumentPage() {
   const id = Array.isArray(rawId) ? rawId[0] : rawId;
 
   const [documentItem, setDocumentItem] = useState<DocumentItem | null>(null);
+  const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [reviewerEmail, setReviewerEmail] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
   const [marketplaceEnabled, setMarketplaceEnabled] = useState(true);
@@ -189,6 +191,30 @@ export default function ReviewDocumentPage() {
       });
     }
   }, [id, loadDocument]);
+
+  useEffect(() => {
+    void (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+
+      if (!accessToken) return;
+
+      const meResponse = await fetch("/api/auth/me", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      const meData = (await meResponse.json().catch(() => null)) as
+        | { user?: { permissionMap?: PermissionMap } }
+        | null;
+
+      if (meResponse.ok) {
+        setPermissionMap(meData?.user?.permissionMap ?? null);
+      }
+    })();
+  }, []);
 
   const openDraftDocument = useCallback(async () => {
     if (!documentItem?.id) {
@@ -536,6 +562,8 @@ export default function ReviewDocumentPage() {
   const titleText =
     documentItem.project_name || documentItem.document_type || "Untitled document";
   const normalizedStatus = documentItem.status?.trim().toLowerCase() || "unknown";
+  const canReviewDocuments = Boolean(permissionMap?.can_review_documents);
+  const canApproveDocuments = Boolean(permissionMap?.can_approve_documents);
 
   return (
     <div className="space-y-8">
@@ -565,6 +593,11 @@ export default function ReviewDocumentPage() {
       />
 
       {feedback ? <InlineMessage tone={feedbackTone}>{feedback}</InlineMessage> : null}
+      {!canReviewDocuments ? (
+        <InlineMessage tone="warning">
+          Your current role does not have access to review this document.
+        </InlineMessage>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -740,10 +773,10 @@ export default function ReviewDocumentPage() {
                   <button
                     type="button"
                     onClick={uploadFinalDoc}
-                    disabled={saving}
+                    disabled={saving || !canApproveDocuments}
                     className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {saving ? "Approving..." : "Approve and Send Final"}
+                    {saving ? "Approving..." : canApproveDocuments ? "Approve and Send Final" : "Approval Restricted"}
                   </button>
                 </div>
               </div>
@@ -789,7 +822,7 @@ export default function ReviewDocumentPage() {
                 <button
                   type="button"
                   onClick={saveMarketplaceSettings}
-                  disabled={savingMarketplace}
+                  disabled={savingMarketplace || !canApproveDocuments}
                   className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {savingMarketplace ? "Saving..." : "Save Marketplace Settings"}
@@ -841,7 +874,7 @@ export default function ReviewDocumentPage() {
                 <button
                   type="button"
                   onClick={() => void runLifecycleAction("restore")}
-                  disabled={Boolean(lifecycleLoading)}
+                  disabled={Boolean(lifecycleLoading) || !canApproveDocuments}
                   className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {lifecycleLoading === "restore" ? "Restoring..." : "Restore Document"}
@@ -850,7 +883,7 @@ export default function ReviewDocumentPage() {
                 <button
                   type="button"
                   onClick={() => void runLifecycleAction("archive")}
-                  disabled={Boolean(lifecycleLoading)}
+                  disabled={Boolean(lifecycleLoading) || !canApproveDocuments}
                   className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {lifecycleLoading === "archive" ? "Archiving..." : "Archive Document"}
@@ -860,7 +893,7 @@ export default function ReviewDocumentPage() {
               <button
                 type="button"
                 onClick={() => void runLifecycleAction("delete")}
-                disabled={Boolean(lifecycleLoading)}
+                disabled={Boolean(lifecycleLoading) || !canApproveDocuments}
                 className="rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {lifecycleLoading === "delete" ? "Deleting..." : "Delete Document"}
