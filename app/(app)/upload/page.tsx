@@ -50,6 +50,7 @@ type DocumentRow = {
 
 export default function UploadPage() {
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [recentSubmissions, setRecentSubmissions] = useState<
     Array<{
@@ -109,11 +110,12 @@ export default function UploadPage() {
           },
         });
         const meData = (await meResponse.json().catch(() => null)) as
-          | { user?: { permissionMap?: PermissionMap } }
+          | { user?: { permissionMap?: PermissionMap; companyId?: string | null } }
           | null;
 
         if (meResponse.ok) {
           setPermissionMap(meData?.user?.permissionMap ?? null);
+          setCompanyId(meData?.user?.companyId ?? null);
         }
       }
 
@@ -206,6 +208,7 @@ export default function UploadPage() {
       document_type: documentType,
       category,
       notes: notes || null,
+      company_id: companyId,
       file_name: selectedFile.name,
       file_path: uploadData?.path ?? filePath,
       file_size: selectedFile.size,

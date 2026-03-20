@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getCompanyScope } from "@/lib/companyScope";
 import {
   authorizeRequest,
   getUserRoleContext,
@@ -71,6 +72,11 @@ export async function PATCH(
     ? getCompanySafeRole(body.role)
     : normalizeAppRole(body.role);
   const team = auth.team || "General";
+  const companyScope = await getCompanyScope({
+    supabase: auth.supabase,
+    userId: auth.user.id,
+    fallbackTeam: team,
+  });
   const accountStatus = normalizeAccountStatus(body.accountStatus);
 
   if (!adminClient) {
@@ -111,6 +117,7 @@ export async function PATCH(
         user_id: id,
         role,
         team,
+        company_id: companyScope.companyId,
         account_status: accountStatus,
         created_by: auth.user.id,
         updated_by: auth.user.id,
@@ -172,6 +179,7 @@ export async function PATCH(
     ...(currentUser.user.user_metadata ?? {}),
     role,
     team,
+    company_id: companyScope.companyId,
     account_status: accountStatus,
   };
 
@@ -179,6 +187,7 @@ export async function PATCH(
     ...(currentUser.user.app_metadata ?? {}),
     role,
     team,
+    company_id: companyScope.companyId,
     account_status: accountStatus,
   };
 
@@ -199,6 +208,7 @@ export async function PATCH(
       user_id: id,
       role,
       team,
+      company_id: companyScope.companyId,
       account_status: accountStatus,
       created_by: auth.user.id,
       updated_by: auth.user.id,
@@ -215,10 +225,27 @@ export async function PATCH(
     );
   }
 
+  if (companyScope.companyId) {
+    await adminClient.from("company_memberships").upsert(
+      {
+        user_id: id,
+        company_id: companyScope.companyId,
+        role,
+        status: accountStatus === "pending" ? "pending" : "active",
+        created_by: auth.user.id,
+        updated_by: auth.user.id,
+      },
+      {
+        onConflict: "user_id,company_id",
+      }
+    );
+  }
+
   return NextResponse.json({
     success: true,
     role,
     team,
+    companyId: companyScope.companyId,
     accountStatus,
   });
 }

@@ -61,6 +61,7 @@ export default function CompanyUsersPage() {
     "neutral" | "success" | "warning" | "error"
   >("neutral");
   const [scopeTeam, setScopeTeam] = useState("General");
+  const [scopeCompanyName, setScopeCompanyName] = useState("General");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("Company User");
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -97,6 +98,7 @@ export default function CompanyUsersPage() {
             error?: string;
             users?: CompanyUser[];
             scopeTeam?: string;
+            scopeCompanyName?: string;
           }
         | null;
 
@@ -110,6 +112,7 @@ export default function CompanyUsersPage() {
 
       setUsers(data?.users ?? []);
       setScopeTeam(data?.scopeTeam ?? "General");
+      setScopeCompanyName(data?.scopeCompanyName ?? data?.scopeTeam ?? "General");
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to load company users.");
@@ -275,7 +278,7 @@ export default function CompanyUsersPage() {
       <PageHero
         eyebrow="Company Access"
         title="Company Users"
-        description={`Invite and manage only the users assigned to ${scopeTeam}. Company access stays scoped to your own company.`}
+        description={`Invite and manage only the users assigned to ${scopeCompanyName}. Company access stays scoped to your own company.`}
         actions={
           <button
             onClick={handleInvite}
@@ -324,7 +327,7 @@ export default function CompanyUsersPage() {
           </div>
 
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            Company scope: <span className="font-semibold text-slate-900">{scopeTeam}</span>
+            Company scope: <span className="font-semibold text-slate-900">{scopeCompanyName}</span>
           </div>
 
           {message ? (
@@ -430,7 +433,7 @@ export default function CompanyUsersPage() {
 
             <div className="mt-6 grid gap-4">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                Company scope: <span className="font-semibold text-slate-900">{scopeTeam}</span>
+                Company scope: <span className="font-semibold text-slate-900">{scopeCompanyName}</span>
               </div>
               <select
                 value={editRole}

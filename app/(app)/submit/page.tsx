@@ -35,6 +35,7 @@ function formatRelative(timestamp?: string | null) {
 
 export default function SubmitPage() {
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [recentSubmissions, setRecentSubmissions] = useState<
     Array<{
@@ -102,11 +103,12 @@ export default function SubmitPage() {
           },
         });
         const meData = (await meResponse.json().catch(() => null)) as
-          | { user?: { permissionMap?: PermissionMap } }
+          | { user?: { permissionMap?: PermissionMap; companyId?: string | null } }
           | null;
 
         if (meResponse.ok) {
           setPermissionMap(meData?.user?.permissionMap ?? null);
+          setCompanyId(meData?.user?.companyId ?? null);
         }
       }
 
@@ -176,6 +178,7 @@ export default function SubmitPage() {
         title,
         service_type: serviceType,
         status: "submitted",
+        company_id: companyId,
         customer_notes: customerNotes || null,
       })
       .select()
@@ -212,6 +215,7 @@ export default function SubmitPage() {
           document_type: "Customer Upload",
           category: serviceType,
           notes: customerNotes || null,
+          company_id: companyId,
           file_name: file.name,
           file_path: uploadData?.path ?? filePath,
           file_size: file.size,

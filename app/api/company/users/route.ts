@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { ensureCompanyScope, getCompanyScope } from "@/lib/companyScope";
 import {
   authorizeRequest,
   formatAccountStatus,
@@ -122,7 +123,12 @@ export async function GET(request: Request) {
   }
 
   const adminClient = createAdminClient();
-  const scopeTeam = auth.team || "General";
+  const companyScope = await getCompanyScope({
+    supabase: auth.supabase,
+    userId: auth.user.id,
+    fallbackTeam: auth.team,
+  });
+  const scopeTeam = auth.team || companyScope.companyName || "General";
 
   if (!adminClient) {
     const query = auth.supabase
@@ -130,7 +136,12 @@ export async function GET(request: Request) {
       .select("user_id, role, team, account_status, created_at")
       .order("created_at", { ascending: false });
 
-    const scopedQuery = isCompanyAdminRole(auth.role) ? query.eq("team", scopeTeam) : query;
+    const scopedQuery =
+      isCompanyAdminRole(auth.role) && companyScope.companyId
+        ? query.eq("company_id", companyScope.companyId)
+        : isCompanyAdminRole(auth.role)
+          ? query.eq("team", scopeTeam)
+          : query;
     const { data, error } = await scopedQuery;
 
     if (error) {
@@ -157,6 +168,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       users,
       scopeTeam,
+      scopeCompanyId: companyScope.companyId,
+      scopeCompanyName: companyScope.companyName,
       viewerRole: auth.role,
       warning:
         "Showing RBAC directory fallback because the Supabase service role key is unavailable at runtime.",
@@ -200,6 +213,8 @@ export async function GET(request: Request) {
   return NextResponse.json({
     users,
     scopeTeam,
+    scopeCompanyId: companyScope.companyId,
+    scopeCompanyName: companyScope.companyName,
     viewerRole: auth.role,
   });
 }
@@ -233,6 +248,13 @@ export async function POST(request: Request) {
     ? getCompanySafeRole(body.role)
     : normalizeAppRole(body.role);
   const team = isCompanyAdminRole(auth.role) ? auth.team : auth.team || "General";
+  const companyScope = await ensureCompanyScope({
+    supabase: adminClient,
+    userId: auth.user.id,
+    fallbackTeam: team,
+    role: auth.role,
+    actorUserId: auth.user.id,
+  });
   const accountStatus = isCompanyAdminRole(auth.role)
     ? "active"
     : normalizeAccountStatus(body.accountStatus);
@@ -241,6 +263,7 @@ export async function POST(request: Request) {
     data: {
       role,
       team,
+      company_id: companyScope.companyId,
       account_status: accountStatus,
     },
   });
@@ -258,6 +281,7 @@ export async function POST(request: Request) {
         user_id: data.user.id,
         role,
         team,
+        company_id: companyScope.companyId,
         account_status: accountStatus,
         created_by: auth.user.id,
         updated_by: auth.user.id,
@@ -273,6 +297,22 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    if (companyScope.companyId) {
+      await adminClient.from("company_memberships").upsert(
+        {
+          user_id: data.user.id,
+          company_id: companyScope.companyId,
+          role,
+          status: accountStatus === "pending" ? "pending" : "active",
+          created_by: auth.user.id,
+          updated_by: auth.user.id,
+        },
+        {
+          onConflict: "user_id,company_id",
+        }
+      );
+    }
   }
 
   return NextResponse.json({
@@ -282,8 +322,10 @@ export async function POST(request: Request) {
       email,
       role: formatAppRole(role),
       team,
+      companyId: companyScope.companyId,
       status: formatAccountStatus(accountStatus),
     },
     scopeTeam: team,
+    scopeCompanyId: companyScope.companyId,
   });
 }

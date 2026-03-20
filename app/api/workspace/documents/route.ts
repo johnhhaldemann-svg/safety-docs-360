@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCompanyScope } from "@/lib/companyScope";
 import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
 import {
   isApprovedDocumentStatus,
@@ -31,6 +32,11 @@ export async function GET(request: Request) {
   let documents = (data ?? []) as Array<Record<string, unknown>>;
 
   if (isCompanyRole(auth.role)) {
+    const companyScope = await getCompanyScope({
+      supabase: auth.supabase,
+      userId: auth.user.id,
+      fallbackTeam: auth.team,
+    });
     const transactionResult = await listCreditTransactions(auth.supabase, auth.user.id);
     const purchasedDocumentIds = !transactionResult.error
       ? purchasedDocumentIdsFromTransactions(transactionResult.data)
@@ -41,6 +47,8 @@ export async function GET(request: Request) {
       const finalFilePath =
         typeof document.final_file_path === "string" ? document.final_file_path : null;
       const userId = typeof document.user_id === "string" ? document.user_id : null;
+      const companyId =
+        typeof document.company_id === "string" ? document.company_id : null;
       const id = typeof document.id === "string" ? document.id : "";
 
       if (isArchivedDocumentStatus(status)) {
@@ -49,7 +57,11 @@ export async function GET(request: Request) {
 
       return (
         isApprovedDocumentStatus(status, Boolean(finalFilePath)) &&
-        (userId === auth.user.id || purchasedDocumentIds.includes(id))
+        (
+          (companyScope.companyId ? companyId === companyScope.companyId : false) ||
+          userId === auth.user.id ||
+          purchasedDocumentIds.includes(id)
+        )
       );
     });
   }

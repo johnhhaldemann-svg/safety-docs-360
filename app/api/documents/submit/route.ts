@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generatePshsepDocx, type PSHSEPInput } from "@/app/api/pshsep/export/route";
 import { generateCsepDocx } from "@/app/api/csep/export/route";
+import { getCompanyScope } from "@/lib/companyScope";
 import { getDefaultAgreementConfig, getUserAgreementRecord } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 import { authorizeRequest } from "@/lib/rbac";
@@ -70,6 +71,11 @@ export async function POST(request: Request) {
     }
 
     const normalizedType = document_type.trim().toUpperCase();
+    const companyScope = await getCompanyScope({
+      supabase,
+      userId: user.id,
+      fallbackTeam: auth.team,
+    });
     let fileData: BodyInit | null = null;
 
     if (normalizedType === "CSEP") {
@@ -106,6 +112,7 @@ export async function POST(request: Request) {
         project_name,
         document_type,
         status: "submitted",
+        company_id: companyScope.companyId,
         draft_file_path: filePath,
       })
       .select("id")

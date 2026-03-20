@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCompanyScope } from "@/lib/companyScope";
 import {
   authorizeRequest,
   formatAppRole,
@@ -34,6 +35,11 @@ export async function GET(request: Request) {
     ),
     agreementConfigPromise,
   ]);
+  const companyScope = await getCompanyScope({
+    supabase: auth.supabase,
+    userId: auth.user.id,
+    fallbackTeam: auth.team,
+  });
   const acceptedTerms = Boolean(
     agreementResult.data?.accepted_terms &&
       (agreementResult.data?.terms_version ?? "") === agreementConfig.version
@@ -46,6 +52,8 @@ export async function GET(request: Request) {
       role: auth.role,
       roleLabel: formatAppRole(auth.role),
       team: auth.team,
+      companyId: companyScope.companyId,
+      companyName: companyScope.companyName,
       isAdmin: isAdminRole(auth.role),
       permissions: auth.permissions,
       permissionMap: auth.permissionMap,
