@@ -420,53 +420,32 @@ export async function DELETE(
     return auth.error;
   }
 
+  if (auth.role !== "super_admin") {
+    return NextResponse.json(
+      { error: "Only a Super Admin can permanently delete user accounts." },
+      { status: 403 }
+    );
+  }
+
   const adminClient = createSupabaseAdminClient();
 
   const { id } = await context.params;
 
   if (id === auth.user.id) {
     return NextResponse.json(
-      { error: "You cannot remove your own account from the workspace." },
+      { error: "You cannot permanently delete your own account." },
       { status: 400 }
     );
   }
 
-  const fallbackRole = "viewer";
-  const fallbackTeam = "General";
-  const fallbackStatus = "suspended";
-
   if (!adminClient) {
-    await auth.supabase.from("company_memberships").delete().eq("user_id", id);
-
-    const { error: roleError } = await auth.supabase.from("user_roles").upsert(
+    return NextResponse.json(
       {
-        user_id: id,
-        role: fallbackRole,
-        team: fallbackTeam,
-        company_id: null,
-        account_status: fallbackStatus,
-        created_by: auth.user.id,
-        updated_by: auth.user.id,
+        error:
+          "Permanent user deletion requires the Supabase service role to be available in this deployment.",
       },
-      {
-        onConflict: "user_id",
-      }
+      { status: 500 }
     );
-
-    if (roleError) {
-      return NextResponse.json(
-        { error: formatRoleConstraintError(roleError.message) },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      removedUserId: id,
-      warning:
-        "Workspace access was removed in the RBAC tables, but Supabase Auth metadata could not be synced because the service role key is unavailable at runtime.",
-      message: "User removed from the workspace and access has been suspended.",
-    });
   }
 
   const { data: currentUser, error: getError } =
@@ -479,61 +458,31 @@ export async function DELETE(
     );
   }
 
-  const mergedUserMetadata = {
-    ...(currentUser.user.user_metadata ?? {}),
-    role: fallbackRole,
-    team: fallbackTeam,
-    company_id: null,
-    account_status: fallbackStatus,
-  };
+  const { error: membershipsError } = await adminClient
+    .from("company_memberships")
+    .delete()
+    .eq("user_id", id);
 
-  const mergedAppMetadata = {
-    ...(currentUser.user.app_metadata ?? {}),
-    role: fallbackRole,
-    team: fallbackTeam,
-    company_id: null,
-    account_status: fallbackStatus,
-  };
-
-  const { error: updateError } = await adminClient.auth.admin.updateUserById(id, {
-    user_metadata: mergedUserMetadata,
-    app_metadata: mergedAppMetadata,
-  });
-
-  if (updateError) {
+  if (membershipsError) {
     return NextResponse.json(
-      { error: formatRoleConstraintError(updateError.message) },
+      { error: membershipsError.message || "Failed to delete company memberships." },
       { status: 500 }
     );
   }
 
-  const { error: roleError } = await adminClient.from("user_roles").upsert(
-    {
-      user_id: id,
-      role: fallbackRole,
-      team: fallbackTeam,
-      company_id: null,
-      account_status: fallbackStatus,
-      created_by: auth.user.id,
-      updated_by: auth.user.id,
-    },
-    {
-      onConflict: "user_id",
-    }
-  );
+  const { error: deleteError } = await adminClient.auth.admin.deleteUser(id);
 
-  if (roleError) {
+  if (deleteError) {
     return NextResponse.json(
-      { error: formatRoleConstraintError(roleError.message) },
+      { error: deleteError.message || "Failed to permanently delete user." },
       { status: 500 }
     );
   }
-
-  await adminClient.from("company_memberships").delete().eq("user_id", id);
 
   return NextResponse.json({
     success: true,
-    removedUserId: id,
-    message: "User removed from the workspace and access has been suspended.",
+    deletedUserId: id,
+    deletedEmail: currentUser.user.email ?? null,
+    message: "User account deleted permanently.",
   });
 }

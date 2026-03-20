@@ -355,7 +355,7 @@ export default function AdminUsersPage() {
     if (!editingUser) return;
 
     const confirmed = window.confirm(
-      `Remove ${editingUser.name} from the workspace? This will revoke company access, reset their workspace assignment, and suspend the account.`
+      `Permanently delete ${editingUser.name}? This will remove their account completely and cannot be undone.`
     );
 
     if (!confirmed) return;
@@ -389,7 +389,7 @@ export default function AdminUsersPage() {
       }
 
       const successMessage =
-        data?.message || "User removed from the workspace successfully.";
+        data?.message || "User deleted permanently.";
       setMessageTone("success");
       setMessage(successMessage);
       setModalMessageTone("success");
@@ -754,7 +754,7 @@ export default function AdminUsersPage() {
                 disabled={removeLoading}
                 className="rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
               >
-                {removeLoading ? "Removing..." : "Remove User"}
+                {removeLoading ? "Deleting..." : "Delete User"}
               </button>
               {editingUser.status === "Pending" ? (
                 <button
