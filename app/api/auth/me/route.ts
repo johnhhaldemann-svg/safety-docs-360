@@ -40,6 +40,16 @@ export async function GET(request: Request) {
     userId: auth.user.id,
     fallbackTeam: auth.team,
   });
+  const companyProfile =
+    companyScope.companyId
+      ? await auth.supabase
+          .from("companies")
+          .select(
+            "id, name, team_key, industry, phone, website, address_line_1, city, state_region, postal_code, country, primary_contact_name, primary_contact_email, status"
+          )
+          .eq("id", companyScope.companyId)
+          .maybeSingle()
+      : null;
   const acceptedTerms = Boolean(
     agreementResult.data?.accepted_terms &&
       (agreementResult.data?.terms_version ?? "") === agreementConfig.version
@@ -54,6 +64,8 @@ export async function GET(request: Request) {
       team: auth.team,
       companyId: companyScope.companyId,
       companyName: companyScope.companyName,
+      companyProfile:
+        companyProfile && !companyProfile.error ? companyProfile.data ?? null : null,
       isAdmin: isAdminRole(auth.role),
       permissions: auth.permissions,
       permissionMap: auth.permissionMap,

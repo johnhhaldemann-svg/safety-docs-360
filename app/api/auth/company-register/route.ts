@@ -16,6 +16,14 @@ export const runtime = "nodejs";
 
 type RegisterPayload = {
   companyName?: string;
+  industry?: string;
+  phone?: string;
+  website?: string;
+  addressLine1?: string;
+  city?: string;
+  stateRegion?: string;
+  postalCode?: string;
+  country?: string;
   fullName?: string;
   email?: string;
   password?: string;
@@ -51,14 +59,37 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => null)) as RegisterPayload | null;
   const companyName = body?.companyName?.trim() ?? "";
+  const industry = body?.industry?.trim() ?? "";
+  const phone = body?.phone?.trim() ?? "";
+  const website = body?.website?.trim() ?? "";
+  const addressLine1 = body?.addressLine1?.trim() ?? "";
+  const city = body?.city?.trim() ?? "";
+  const stateRegion = body?.stateRegion?.trim() ?? "";
+  const postalCode = body?.postalCode?.trim() ?? "";
+  const country = body?.country?.trim() ?? "";
   const fullName = body?.fullName?.trim() ?? "";
   const email = body?.email?.trim().toLowerCase() ?? "";
   const password = body?.password?.trim() ?? "";
   const agreed = body?.agreed === true;
 
-  if (!companyName || !fullName || !email || !password) {
+  if (
+    !companyName ||
+    !industry ||
+    !phone ||
+    !addressLine1 ||
+    !city ||
+    !stateRegion ||
+    !postalCode ||
+    !country ||
+    !fullName ||
+    !email ||
+    !password
+  ) {
     return NextResponse.json(
-      { error: "Company name, full name, email, and password are required." },
+      {
+        error:
+          "Company details, primary contact details, and address fields are required.",
+      },
       { status: 400 }
     );
   }
@@ -76,6 +107,16 @@ export async function POST(request: Request) {
       {
         name: companyName,
         team_key: companyName,
+        industry,
+        phone,
+        website: website || null,
+        address_line_1: addressLine1,
+        city,
+        state_region: stateRegion,
+        postal_code: postalCode,
+        country,
+        primary_contact_name: fullName,
+        primary_contact_email: email,
       },
       {
         onConflict: "team_key",
@@ -99,6 +140,14 @@ export async function POST(request: Request) {
     account_status: "pending",
     full_name: fullName,
     company_name: companyName,
+    company_industry: industry,
+    company_phone: phone,
+    company_website: website || null,
+    company_address_line_1: addressLine1,
+    company_city: city,
+    company_state_region: stateRegion,
+    company_postal_code: postalCode,
+    company_country: country,
   };
 
   const { data, error } = await publicClient.auth.signUp({

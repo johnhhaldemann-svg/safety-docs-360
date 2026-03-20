@@ -20,6 +20,16 @@ type CompanySummary = {
   id: string;
   name: string;
   teamKey: string;
+  industry: string;
+  phone: string;
+  website: string;
+  addressLine1: string;
+  city: string;
+  stateRegion: string;
+  postalCode: string;
+  country: string;
+  primaryContactName: string;
+  primaryContactEmail: string;
   status: string;
   createdAt?: string | null;
   totalUsers: number;
@@ -206,7 +216,32 @@ export default function AdminCompaniesPage() {
                     </div>
                     <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-500">
                       <span>Workspace key: {company.teamKey}</span>
+                      {company.industry ? <span>Industry: {company.industry}</span> : null}
                       <span>Created {formatRelative(company.createdAt)}</span>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm text-slate-500 sm:grid-cols-2">
+                      <span>
+                        Contact: {company.primaryContactName || "Not provided"}
+                      </span>
+                      <span>
+                        Email: {company.primaryContactEmail || "Not provided"}
+                      </span>
+                      <span>Phone: {company.phone || "Not provided"}</span>
+                      <span>
+                        Website: {company.website || "Not provided"}
+                      </span>
+                      <span className="sm:col-span-2">
+                        Address:{" "}
+                        {[
+                          company.addressLine1,
+                          company.city,
+                          company.stateRegion,
+                          company.postalCode,
+                          company.country,
+                        ]
+                          .filter(Boolean)
+                          .join(", ") || "Not provided"}
+                      </span>
                     </div>
                   </div>
 

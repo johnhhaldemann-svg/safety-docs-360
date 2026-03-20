@@ -64,6 +64,23 @@ type CompanyUser = {
   status: string;
 };
 
+type CompanyProfile = {
+  id: string;
+  name: string | null;
+  team_key: string | null;
+  industry: string | null;
+  phone: string | null;
+  website: string | null;
+  address_line_1: string | null;
+  city: string | null;
+  state_region: string | null;
+  postal_code: string | null;
+  country: string | null;
+  primary_contact_name: string | null;
+  primary_contact_email: string | null;
+  status: string | null;
+};
+
 function isApprovedDocument(document: DocumentRow) {
   return isApprovedDocumentStatus(document.status, Boolean(document.final_file_path));
 }
@@ -120,6 +137,7 @@ export default function DashboardPage() {
   const [userTeam, setUserTeam] = useState("General");
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -138,13 +156,21 @@ export default function DashboardPage() {
           },
         });
         const meData = (await meResponse.json().catch(() => null)) as
-          | { user?: { role?: string; team?: string; permissionMap?: PermissionMap } }
+          | {
+              user?: {
+                role?: string;
+                team?: string;
+                permissionMap?: PermissionMap;
+                companyProfile?: CompanyProfile | null;
+              };
+            }
           | null;
 
         if (meResponse.ok) {
           setUserRole(meData?.user?.role ?? "viewer");
           setUserTeam(meData?.user?.team ?? "General");
           setPermissionMap(meData?.user?.permissionMap ?? null);
+          setCompanyProfile(meData?.user?.companyProfile ?? null);
         }
 
         const documentsResponse = await fetch("/api/workspace/documents", {
@@ -865,6 +891,47 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
+
+            {isManagerView && companyProfile ? (
+              <div className="mt-5 rounded-[1.4rem] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">
+                  Company Profile
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      {companyProfile.name || userTeam}
+                    </div>
+                    <div className="mt-1 text-sm text-slate-500">
+                      {companyProfile.industry || "Industry not set"}
+                    </div>
+                  </div>
+                  <div className="text-sm text-slate-500">
+                    {companyProfile.primary_contact_name || "No contact set"}
+                    {companyProfile.primary_contact_email
+                      ? ` - ${companyProfile.primary_contact_email}`
+                      : ""}
+                  </div>
+                  <div className="text-sm text-slate-500">
+                    {companyProfile.phone || "No phone on file"}
+                  </div>
+                  <div className="text-sm text-slate-500">
+                    {companyProfile.website || "No website on file"}
+                  </div>
+                  <div className="text-sm text-slate-500 sm:col-span-2">
+                    {[
+                      companyProfile.address_line_1,
+                      companyProfile.city,
+                      companyProfile.state_region,
+                      companyProfile.postal_code,
+                      companyProfile.country,
+                    ]
+                      .filter(Boolean)
+                      .join(", ") || "No address on file"}
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <ActivityFeed

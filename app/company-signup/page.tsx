@@ -6,6 +6,14 @@ import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 
 export default function CompanySignupPage() {
   const [companyName, setCompanyName] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [phone, setPhone] = useState("");
+  const [website, setWebsite] = useState("");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [city, setCity] = useState("");
+  const [stateRegion, setStateRegion] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [country, setCountry] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,9 +26,23 @@ export default function CompanySignupPage() {
   async function handleCreateCompanyAccount() {
     setMessage("");
 
-    if (!companyName.trim() || !fullName.trim() || !email.trim() || !password.trim()) {
+    if (
+      !companyName.trim() ||
+      !industry.trim() ||
+      !phone.trim() ||
+      !fullName.trim() ||
+      !email.trim() ||
+      !password.trim() ||
+      !addressLine1.trim() ||
+      !city.trim() ||
+      !stateRegion.trim() ||
+      !postalCode.trim() ||
+      !country.trim()
+    ) {
       setMessageTone("error");
-      setMessage("Company name, full name, email, and password are required.");
+      setMessage(
+        "Company details, primary contact details, and address fields are required."
+      );
       return;
     }
 
@@ -45,6 +67,14 @@ export default function CompanySignupPage() {
       },
       body: JSON.stringify({
         companyName,
+        industry,
+        phone,
+        website,
+        addressLine1,
+        city,
+        stateRegion,
+        postalCode,
+        country,
         fullName,
         email,
         password,
@@ -70,6 +100,14 @@ export default function CompanySignupPage() {
         "Company account created. An internal administrator must approve your workspace before sign-in."
     );
     setCompanyName("");
+    setIndustry("");
+    setPhone("");
+    setWebsite("");
+    setAddressLine1("");
+    setCity("");
+    setStateRegion("");
+    setPostalCode("");
+    setCountry("");
     setFullName("");
     setEmail("");
     setPassword("");
@@ -147,6 +185,66 @@ export default function CompanySignupPage() {
               onChange={(event) => setCompanyName(event.target.value)}
               className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
             />
+            <input
+              type="text"
+              placeholder="Industry"
+              value={industry}
+              onChange={(event) => setIndustry(event.target.value)}
+              className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
+            />
+            <input
+              type="tel"
+              placeholder="Company phone"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
+            />
+            <input
+              type="url"
+              placeholder="Website (optional)"
+              value={website}
+              onChange={(event) => setWebsite(event.target.value)}
+              className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
+            />
+            <input
+              type="text"
+              placeholder="Address line 1"
+              value={addressLine1}
+              onChange={(event) => setAddressLine1(event.target.value)}
+              className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <input
+                type="text"
+                placeholder="City"
+                value={city}
+                onChange={(event) => setCity(event.target.value)}
+                className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
+              />
+              <input
+                type="text"
+                placeholder="State / Region"
+                value={stateRegion}
+                onChange={(event) => setStateRegion(event.target.value)}
+                className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <input
+                type="text"
+                placeholder="Postal code"
+                value={postalCode}
+                onChange={(event) => setPostalCode(event.target.value)}
+                className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
+              />
+              <input
+                type="text"
+                placeholder="Country"
+                value={country}
+                onChange={(event) => setCountry(event.target.value)}
+                className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
+              />
+            </div>
             <input
               type="text"
               placeholder="Company admin full name"
