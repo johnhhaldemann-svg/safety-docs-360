@@ -138,6 +138,12 @@ export default function SubmitPage() {
     setMessage("");
     setMessageTone("neutral");
 
+    if (!permissionMap?.can_submit_documents) {
+      setMessage("Your current role cannot submit documents into review.");
+      setMessageTone("warning");
+      return;
+    }
+
     if (!title.trim()) {
       setMessage("Please enter a request title.");
       setMessageTone("warning");
@@ -470,8 +476,3 @@ export default function SubmitPage() {
     </div>
   );
 }
-    if (!permissionMap?.can_submit_documents) {
-      setMessage("Your current role cannot submit documents into review.");
-      setMessageTone("warning");
-      return;
-    }

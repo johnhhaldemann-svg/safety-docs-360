@@ -145,6 +145,12 @@ export default function UploadPage() {
     setMessage("");
     setMessageTone("neutral");
 
+    if (!permissionMap?.can_create_documents || !permissionMap?.can_edit_documents) {
+      setMessage("Your current role cannot create or edit upload records.");
+      setMessageTone("warning");
+      return;
+    }
+
     if (!selectedFile) {
       setMessage("Please choose a file first.");
       setMessageTone("warning");
@@ -693,8 +699,3 @@ function StatCard({
     </div>
   );
 }
-    if (!permissionMap?.can_create_documents || !permissionMap?.can_edit_documents) {
-      setMessage("Your current role cannot create or edit upload records.");
-      setMessageTone("warning");
-      return;
-    }
