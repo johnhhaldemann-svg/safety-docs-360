@@ -402,9 +402,9 @@ function LoginPageContent() {
                 <div className="mt-5 rounded-2xl border border-sky-500/18 bg-sky-500/10 px-4 py-4 text-sm text-sky-100">
                   Need a dedicated client workspace?{" "}
                   <Link href="/company-signup" className="font-semibold text-sky-300 underline-offset-2 hover:underline">
-                    Create a company account
+                    Register a company
                   </Link>
-                  {" "}to launch a scoped company admin portal.
+                  {" "}to create the company workspace first and assign the first company admin.
                 </div>
               </div>
             </div>

@@ -226,7 +226,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     success: true,
     message:
-      "Company account created. An internal administrator must approve your company workspace before you can enter the platform.",
+      "Company account created. The company workspace and first company admin are now on file. An internal administrator must approve the workspace before that company admin can sign in and start adding users.",
     warning:
       metadataResult.error || roleResult.error || membershipResult.error || agreementAcceptResult.error
         ? "The company account was created, but some profile details may finish syncing during admin approval."

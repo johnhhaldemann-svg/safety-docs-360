@@ -123,20 +123,20 @@ export default function CompanySignupPage() {
             Company Workspace
           </p>
           <h1 className="mt-4 text-4xl font-black leading-tight tracking-tight sm:text-5xl">
-            Launch a dedicated company portal inside Safety360Docs.
+            Register your company and launch a dedicated Safety360Docs portal.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-slate-300">
-            Company accounts get their own document library, company user management,
-            completed deliverables, and a company-scoped workspace for tracking who
-            belongs under each client.
+            Company accounts get their own company dashboard, company user management,
+            completed deliverables, and a scoped workspace where every invited user
+            stays tied to that company record.
           </p>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             {[
               "Dedicated company workspace",
-              "Company Admin user management",
+              "First company admin setup",
               "Completed document access",
-              "Internal approval before activation",
+              "Add users after company approval",
             ].map((item) => (
               <div
                 key={item}
@@ -148,8 +148,9 @@ export default function CompanySignupPage() {
           </div>
 
           <div className="mt-10 rounded-2xl border border-emerald-500/18 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-200">
-            Once approved, your company admin can invite additional company users and
-            keep all access scoped under the same company record.
+            This form creates the company record and the first company admin. Once
+            approved, that company admin can invite additional users under the same
+            company workspace.
           </div>
         </section>
 
@@ -158,10 +159,11 @@ export default function CompanySignupPage() {
             New Company Account
           </p>
           <h2 className="mt-3 text-3xl font-black tracking-tight text-white">
-            Create a company workspace
+            Create company account
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-400">
-            This creates the first company admin account for the client workspace.
+            Register the company first, then assign the primary company admin who will
+            manage users after approval.
           </p>
 
           {message ? (
@@ -178,6 +180,15 @@ export default function CompanySignupPage() {
           ) : null}
 
           <div className="mt-6 grid gap-4">
+            <div className="pb-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">
+                Company Details
+              </p>
+              <p className="mt-2 text-sm text-slate-400">
+                These details define the company workspace and the information shown in
+                the company dashboard.
+              </p>
+            </div>
             <input
               type="text"
               placeholder="Company name"
@@ -245,16 +256,25 @@ export default function CompanySignupPage() {
                 className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
               />
             </div>
+            <div className="pt-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">
+                Primary Company Admin
+              </p>
+              <p className="mt-2 text-sm text-slate-400">
+                This becomes the first user under the company account and can add more
+                company users once the workspace is approved.
+              </p>
+            </div>
             <input
               type="text"
-              placeholder="Company admin full name"
+              placeholder="Primary company admin full name"
               value={fullName}
               onChange={(event) => setFullName(event.target.value)}
               className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
             />
             <input
               type="email"
-              placeholder="Company admin email"
+              placeholder="Primary company admin email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
@@ -283,7 +303,7 @@ export default function CompanySignupPage() {
               disabled={loading || !agreed}
               className="rounded-2xl bg-sky-500 px-4 py-4 text-sm font-black uppercase tracking-[0.16em] text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? "Creating company workspace..." : "Create Company Account"}
+              {loading ? "Creating company workspace..." : "Register Company"}
             </button>
           </div>
 
