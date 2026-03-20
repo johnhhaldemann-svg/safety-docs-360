@@ -9,7 +9,9 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await authorizeRequest(request, { requireAdmin: true });
+    const auth = await authorizeRequest(request, {
+      requirePermission: "can_approve_documents",
+    });
 
     if ("error" in auth) {
       return auth.error;

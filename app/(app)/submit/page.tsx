@@ -15,6 +15,7 @@ import {
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
 import { getDocumentStatusLabel } from "@/lib/documentStatus";
+import type { PermissionMap } from "@/lib/rbac";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,6 +34,8 @@ function formatRelative(timestamp?: string | null) {
 }
 
 export default function SubmitPage() {
+  const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [recentSubmissions, setRecentSubmissions] = useState<
     Array<{
       id: string;
@@ -89,6 +92,25 @@ export default function SubmitPage() {
 
   useEffect(() => {
     async function loadWorkspaceState() {
+      const sessionResult = await supabase.auth.getSession();
+      const accessToken = sessionResult.data.session?.access_token;
+
+      if (accessToken) {
+        const meResponse = await fetch("/api/auth/me", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        const meData = (await meResponse.json().catch(() => null)) as
+          | { user?: { permissionMap?: PermissionMap } }
+          | null;
+
+        if (meResponse.ok) {
+          setPermissionMap(meData?.user?.permissionMap ?? null);
+        }
+      }
+
+      setPermissionsLoading(false);
       await checkSubscription();
 
       const {
@@ -217,6 +239,8 @@ export default function SubmitPage() {
   }
 
   const hasFiles = Boolean(selectedFiles && selectedFiles.length > 0);
+  const canSubmitDocuments = Boolean(permissionMap?.can_submit_documents);
+  const submitDisabled = submitting || checkingSubscription || !agreedToSubmissionTerms || permissionsLoading || !canSubmitDocuments;
   const checklistItems = [
     { label: "Enter a clear request title", done: title.trim().length > 0 },
     { label: "Choose the service type you need", done: Boolean(serviceType) },
@@ -292,7 +316,14 @@ export default function SubmitPage() {
           description="Create a request, add source files, and send it into the queue."
           className="h-full"
         >
-          <div className="grid gap-5">
+          {!permissionsLoading && !canSubmitDocuments ? (
+            <div className="mb-4">
+              <InlineMessage tone="warning">
+                Your current role can view workflow progress, but it cannot submit documents into the review queue.
+              </InlineMessage>
+            </div>
+          ) : null}
+          <fieldset disabled={permissionsLoading || !canSubmitDocuments} className="grid gap-5 disabled:opacity-60">
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Request Title
@@ -358,12 +389,12 @@ export default function SubmitPage() {
               checked={agreedToSubmissionTerms}
               onChange={setAgreedToSubmissionTerms}
             />
-          </div>
+          </fieldset>
 
           <div className="sticky bottom-3 mt-6 flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
             <button
               onClick={handleSubmit}
-              disabled={submitting || checkingSubscription || !agreedToSubmissionTerms}
+              disabled={submitDisabled}
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
             >
               {submitting ? "Submitting..." : "Submit Request"}
@@ -435,3 +466,8 @@ export default function SubmitPage() {
     </div>
   );
 }
+    if (!permissionMap?.can_submit_documents) {
+      setMessage("Your current role cannot submit documents into review.");
+      setMessageTone("warning");
+      return;
+    }

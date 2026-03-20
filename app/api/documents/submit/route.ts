@@ -20,7 +20,9 @@ function normalizeRequiredString(value: unknown) {
 
 export async function POST(request: Request) {
   try {
-    const auth = await authorizeRequest(request);
+    const auth = await authorizeRequest(request, {
+      requirePermission: "can_submit_documents",
+    });
 
     if ("error" in auth) {
       return auth.error;

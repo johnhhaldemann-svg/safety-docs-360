@@ -15,6 +15,7 @@ import {
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
 import { getDocumentStatusLabel } from "@/lib/documentStatus";
+import type { PermissionMap } from "@/lib/rbac";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,6 +49,8 @@ type DocumentRow = {
 };
 
 export default function UploadPage() {
+  const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [recentSubmissions, setRecentSubmissions] = useState<
     Array<{
       id: string;
@@ -96,6 +99,25 @@ export default function UploadPage() {
 
   useEffect(() => {
     async function loadInitialDocuments() {
+      const sessionResult = await supabase.auth.getSession();
+      const accessToken = sessionResult.data.session?.access_token;
+
+      if (accessToken) {
+        const meResponse = await fetch("/api/auth/me", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        const meData = (await meResponse.json().catch(() => null)) as
+          | { user?: { permissionMap?: PermissionMap } }
+          | null;
+
+        if (meResponse.ok) {
+          setPermissionMap(meData?.user?.permissionMap ?? null);
+        }
+      }
+
+      setPermissionsLoading(false);
       await loadDocuments();
 
       const {
@@ -254,6 +276,10 @@ async function confirmOpenFile() {
       reports: documents.filter((d) => d.document_type === "Report").length,
     };
   }, [documents]);
+  const canManageUploads = Boolean(
+    permissionMap?.can_create_documents && permissionMap?.can_edit_documents
+  );
+  const uploadDisabled = uploading || !agreedToUploadTerms || permissionsLoading || !canManageUploads;
 
   const checklistItems = [
     { label: "Add a project name or leave it general", done: projectName.trim().length > 0 || !selectedFile },
@@ -349,7 +375,17 @@ async function confirmOpenFile() {
           description="Upload a real file, set its metadata, and save it into the workspace."
           className="h-full"
         >
-          <div className="grid gap-5 md:grid-cols-2">
+          {!permissionsLoading && !canManageUploads ? (
+            <div className="mb-4">
+              <InlineMessage tone="warning">
+                Your current role can view uploaded records, but it cannot create or edit new upload entries.
+              </InlineMessage>
+            </div>
+          ) : null}
+          <fieldset
+            disabled={permissionsLoading || !canManageUploads}
+            className="grid gap-5 md:grid-cols-2 disabled:opacity-60"
+          >
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Project Name
@@ -446,12 +482,12 @@ async function confirmOpenFile() {
                 onChange={setAgreedToUploadTerms}
               />
             </div>
-          </div>
+          </fieldset>
 
           <div className="sticky bottom-3 mt-6 flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
             <button
               onClick={handleUpload}
-              disabled={uploading || !agreedToUploadTerms}
+              disabled={uploadDisabled}
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
             >
               {uploading ? "Uploading..." : "Start Upload"}
@@ -654,3 +690,8 @@ function StatCard({
     </div>
   );
 }
+    if (!permissionMap?.can_create_documents || !permissionMap?.can_edit_documents) {
+      setMessage("Your current role cannot create or edit upload records.");
+      setMessageTone("warning");
+      return;
+    }

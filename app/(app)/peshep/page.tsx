@@ -11,6 +11,7 @@ import {
   StatusBadge,
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
+import type { PermissionMap } from "@/lib/rbac";
 
 type Answers = {
   company_name: string;
@@ -118,6 +119,7 @@ export default function PESHEPUniversalPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [userId, setUserId] = useState("");
+  const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "warning" | "error">("success");
 
@@ -132,6 +134,23 @@ export default function PESHEPUniversalPage() {
           console.error("Error loading user:", error.message);
         } else if (user) {
           setUserId(user.id);
+          const sessionResult = await supabase.auth.getSession();
+          const accessToken = sessionResult.data.session?.access_token;
+
+          if (accessToken) {
+            const meResponse = await fetch("/api/auth/me", {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+            });
+            const meData = (await meResponse.json().catch(() => null)) as
+              | { user?: { permissionMap?: PermissionMap } }
+              | null;
+
+            if (meResponse.ok) {
+              setPermissionMap(meData?.user?.permissionMap ?? null);
+            }
+          }
         }
       } catch (error) {
         console.error("Unexpected auth error:", error);
@@ -180,6 +199,10 @@ export default function PESHEPUniversalPage() {
     { label: "Emergency info entered", done: Boolean(aedLocation && assemblyPoint) },
     { label: "Submission agreement accepted", done: agreedToSubmissionTerms },
   ];
+  const canUseBuilder = Boolean(
+    permissionMap?.can_create_documents && permissionMap?.can_edit_documents
+  );
+  const canSubmitDocuments = Boolean(permissionMap?.can_submit_documents);
 
   function resetDraft() {
     localStorage.removeItem(LS_KEY);
@@ -210,6 +233,11 @@ export default function PESHEPUniversalPage() {
   async function handleSubmitForReview() {
     try {
       setMessage("");
+      if (!permissionMap?.can_submit_documents) {
+        setMessageTone("warning");
+        setMessage("Your current role cannot submit PESHEP records into review.");
+        return;
+      }
       if (authLoading) {
         setMessageTone("warning");
         setMessage("Your account is still loading. Try again in a moment.");
@@ -303,6 +331,13 @@ export default function PESHEPUniversalPage() {
             description={steps[step].detail}
             aside={<StatusBadge label={`${readyCount}/9 ready`} tone={readyCount >= 7 ? "success" : "info"} />}
           >
+            {!authLoading && !canUseBuilder ? (
+              <div className="mb-4">
+                <InlineMessage tone="warning">
+                  Your current role can view builder progress, but it cannot create or edit PESHEP drafts.
+                </InlineMessage>
+              </div>
+            ) : null}
             <div className="flex gap-2 overflow-x-auto pb-2">
               {steps.map((item, index) => (
                 <button
@@ -329,7 +364,10 @@ export default function PESHEPUniversalPage() {
               </div>
             ) : null}
 
-            <div className="mt-6 space-y-5">
+            <fieldset
+              disabled={authLoading || !canUseBuilder}
+              className="mt-6 space-y-5 disabled:opacity-60"
+            >
               {step === 0 ? (
                 <>
                   <div className="grid gap-4 md:grid-cols-2">
@@ -435,7 +473,7 @@ export default function PESHEPUniversalPage() {
                   </div>
                 </div>
               ) : null}
-            </div>
+            </fieldset>
           </SectionCard>
 
           <div className="sticky bottom-4 z-10">
@@ -460,6 +498,7 @@ export default function PESHEPUniversalPage() {
                     <button
                       type="button"
                       onClick={() => setStep((current) => Math.min(6, current + 1))}
+                      disabled={authLoading || !canUseBuilder}
                       className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)]"
                     >
                       Next Step
@@ -468,7 +507,7 @@ export default function PESHEPUniversalPage() {
                     <button
                       type="button"
                       onClick={handleSubmitForReview}
-                      disabled={submitLoading || !agreedToSubmissionTerms}
+                      disabled={submitLoading || !agreedToSubmissionTerms || authLoading || !canSubmitDocuments}
                       className="rounded-xl bg-[linear-gradient(135deg,_#0ea5e9_0%,_#2563eb_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(37,99,235,0.24)] disabled:opacity-50"
                     >
                       {submitLoading ? "Submitting..." : "Submit for Review"}

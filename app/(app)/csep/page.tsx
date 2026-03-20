@@ -10,6 +10,7 @@ import {
   StatusBadge,
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
+import type { PermissionMap } from "@/lib/rbac";
 
 type RiskLevel = "Low" | "Medium" | "High";
 
@@ -447,6 +448,7 @@ export default function CSEPPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [userId, setUserId] = useState("");
   const [authLoading, setAuthLoading] = useState(true);
+  const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [agreedToSubmissionTerms, setAgreedToSubmissionTerms] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "warning" | "error">("success");
@@ -466,6 +468,23 @@ export default function CSEPPage() {
 
         if (user) {
           setUserId(user.id);
+          const sessionResult = await supabase.auth.getSession();
+          const accessToken = sessionResult.data.session?.access_token;
+
+          if (accessToken) {
+            const meResponse = await fetch("/api/auth/me", {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+            });
+            const meData = (await meResponse.json().catch(() => null)) as
+              | { user?: { permissionMap?: PermissionMap } }
+              | null;
+
+            if (meResponse.ok) {
+              setPermissionMap(meData?.user?.permissionMap ?? null);
+            }
+          }
         }
       } catch (error) {
         console.error("Unexpected auth error:", error);
@@ -543,6 +562,11 @@ export default function CSEPPage() {
   async function handleSubmitForReview() {
     try {
       setMessage("");
+      if (!permissionMap?.can_submit_documents) {
+        setMessageTone("warning");
+        setMessage("Your current role cannot submit CSEP records into review.");
+        return;
+      }
       if (authLoading) {
         setMessageTone("warning");
         setMessage("Your account is still loading. Please wait a moment and try again.");
@@ -694,6 +718,10 @@ export default function CSEPPage() {
       complete: messageTone === "success" && message.length > 0,
     },
   ];
+  const canUseBuilder = Boolean(
+    permissionMap?.can_create_documents && permissionMap?.can_edit_documents
+  );
+  const canSubmitDocuments = Boolean(permissionMap?.can_submit_documents);
 
   return (
     <div className="space-y-6 px-1 py-2 sm:px-2 sm:py-4">
@@ -714,7 +742,7 @@ export default function CSEPPage() {
               <button
                 type="button"
                 onClick={applyTradeDefaults}
-                disabled={!selectedTrade}
+                disabled={!selectedTrade || authLoading || !canUseBuilder}
                 className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)] disabled:opacity-50"
               >
                 Apply Trade Defaults
@@ -725,7 +753,13 @@ export default function CSEPPage() {
 
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
+            {!authLoading && !canUseBuilder ? (
+              <InlineMessage tone="warning">
+                Your current role can review CSEP workflow information, but it cannot create or edit CSEP drafts.
+              </InlineMessage>
+            ) : null}
             {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
+            <fieldset disabled={authLoading || !canUseBuilder} className="space-y-6 disabled:opacity-60">
             <section className="rounded-3xl bg-white p-6 shadow-lg">
               <h2 className="mb-4 text-xl font-semibold text-slate-900">
                 Project Information
@@ -1003,7 +1037,7 @@ export default function CSEPPage() {
               <button
                 type="button"
                 onClick={handleSubmitForReview}
-                disabled={submitLoading || !agreedToSubmissionTerms}
+                disabled={submitLoading || !agreedToSubmissionTerms || authLoading || !canSubmitDocuments}
                 className="rounded-xl bg-sky-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
               >
                 {submitLoading ? "Submitting..." : "Submit for Review"}
@@ -1018,6 +1052,7 @@ export default function CSEPPage() {
               </button>
             </div>
             </div>
+            </fieldset>
           </div>
 
           <aside className="space-y-6">
@@ -1237,7 +1272,7 @@ export default function CSEPPage() {
                 <button
                   type="button"
                   onClick={handleSubmitForReview}
-                  disabled={submitLoading || !agreedToSubmissionTerms}
+                  disabled={submitLoading || !agreedToSubmissionTerms || authLoading || !canSubmitDocuments}
                   className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)] disabled:opacity-50"
                 >
                   {submitLoading ? "Submitting..." : "Submit for Review"}
