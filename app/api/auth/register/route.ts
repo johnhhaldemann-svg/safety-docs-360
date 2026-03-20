@@ -29,6 +29,123 @@ type CompanyInviteLookupRow = {
   account_status: string;
 };
 
+async function lookupCompanyInvite(params: {
+  publicClient: NonNullable<ReturnType<typeof createPublicClient>>;
+  adminClient: ReturnType<typeof createSupabaseAdminClient>;
+  email: string;
+}) {
+  const { publicClient, adminClient, email } = params;
+
+  const rpcResult = await publicClient.rpc("lookup_company_invite", {
+    invite_email: email,
+  });
+
+  const rpcInvite = ((rpcResult.data as CompanyInviteLookupRow[] | null) ?? [])[0] ?? null;
+  if (rpcInvite) {
+    return rpcInvite;
+  }
+
+  if (!adminClient) {
+    return null;
+  }
+
+  const { data } = await adminClient
+    .from("company_invites")
+    .select("id, email, role, team, company_id, account_status")
+    .eq("email", email)
+    .is("consumed_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return (data as CompanyInviteLookupRow | null) ?? null;
+}
+
+async function ensureCompanyInviteApplied(params: {
+  publicClient: NonNullable<ReturnType<typeof createPublicClient>>;
+  adminClient: ReturnType<typeof createSupabaseAdminClient>;
+  userId: string;
+  email: string;
+  invite: CompanyInviteLookupRow | null;
+}) {
+  const { publicClient, adminClient, userId, email, invite } = params;
+
+  if (!invite) {
+    return { error: null };
+  }
+
+  const consumeInviteResult = await publicClient.rpc("consume_company_invite", {
+    invite_email: email,
+    invited_user_id: userId,
+  });
+
+  if (!consumeInviteResult.error) {
+    return { error: null };
+  }
+
+  if (!adminClient) {
+    return consumeInviteResult;
+  }
+
+  const membershipStatus =
+    invite.account_status === "pending" || invite.account_status === "suspended"
+      ? invite.account_status
+      : "active";
+
+  const [roleResult, membershipResult, inviteResult] = await Promise.all([
+    adminClient.from("user_roles").upsert(
+      {
+        user_id: userId,
+        role: invite.role,
+        team: invite.team,
+        company_id: invite.company_id,
+        account_status: invite.account_status,
+        created_by: userId,
+        updated_by: userId,
+      },
+      {
+        onConflict: "user_id",
+      }
+    ),
+    adminClient.from("company_memberships").upsert(
+      {
+        user_id: userId,
+        company_id: invite.company_id,
+        role: invite.role,
+        status: membershipStatus,
+        created_by: userId,
+        updated_by: userId,
+      },
+      {
+        onConflict: "user_id,company_id",
+      }
+    ),
+    adminClient
+      .from("company_invites")
+      .update({
+        consumed_at: new Date().toISOString(),
+        consumed_by: userId,
+        updated_at: new Date().toISOString(),
+        updated_by: userId,
+      })
+      .eq("id", invite.id),
+  ]);
+
+  if (roleResult.error || membershipResult.error || inviteResult.error) {
+    return {
+      error: {
+        message:
+          roleResult.error?.message ||
+          membershipResult.error?.message ||
+          inviteResult.error?.message ||
+          "The company invite could not be applied automatically.",
+      },
+    };
+  }
+
+  return { error: null };
+}
+
 function createPublicClient() {
   const supabaseUrl = getSupabaseServerUrl();
   const anonKey = getSupabaseAnonKey();
@@ -75,11 +192,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: inviteLookupData } = await publicClient.rpc("lookup_company_invite", {
-    invite_email: email,
+  const companyInvite = await lookupCompanyInvite({
+    publicClient,
+    adminClient,
+    email,
   });
-  const companyInvite =
-    ((inviteLookupData as CompanyInviteLookupRow[] | null) ?? [])[0] ?? null;
 
   const pendingMetadata = {
     role: companyInvite?.role ?? "viewer",
@@ -116,12 +233,13 @@ export async function POST(request: Request) {
     ...pendingMetadata,
   };
 
-  const consumeInviteResult = companyInvite
-    ? await publicClient.rpc("consume_company_invite", {
-        invite_email: email,
-        invited_user_id: data.user.id,
-      })
-    : { error: null };
+  const consumeInviteResult = await ensureCompanyInviteApplied({
+    publicClient,
+    adminClient,
+    userId: data.user.id,
+    email,
+    invite: companyInvite,
+  });
 
   const defaultRolePayload = {
     user_id: data.user.id,
@@ -133,7 +251,23 @@ export async function POST(request: Request) {
     updated_by: data.user.id,
   };
 
-  const [metadataResult, roleResult] = adminClient
+  const membershipPayload =
+    companyInvite?.company_id
+      ? {
+          user_id: data.user.id,
+          company_id: companyInvite.company_id,
+          role: pendingMetadata.role,
+          status:
+            pendingMetadata.account_status === "pending" ||
+            pendingMetadata.account_status === "suspended"
+              ? pendingMetadata.account_status
+              : "active",
+          created_by: data.user.id,
+          updated_by: data.user.id,
+        }
+      : null;
+
+  const [metadataResult, roleResult, membershipResult] = adminClient
     ? await Promise.all([
         adminClient.auth.admin.updateUserById(data.user.id, {
           user_metadata: mergedUserMetadata,
@@ -142,6 +276,11 @@ export async function POST(request: Request) {
         adminClient.from("user_roles").upsert(defaultRolePayload, {
           onConflict: "user_id",
         }),
+        membershipPayload
+          ? adminClient.from("company_memberships").upsert(membershipPayload, {
+              onConflict: "user_id,company_id",
+            })
+          : Promise.resolve({ error: null }),
       ])
     : [
         { error: null },
@@ -150,6 +289,7 @@ export async function POST(request: Request) {
           : await publicClient.from("user_roles").upsert(defaultRolePayload, {
               onConflict: "user_id",
             }),
+        { error: null },
       ];
 
   const agreementConfig = await getAgreementConfig(adminClient ?? undefined).catch(() =>
@@ -177,6 +317,9 @@ export async function POST(request: Request) {
         : consumeInviteResult.error
           ? consumeInviteResult.error.message ??
             "Your account was created, but the company invite could not be attached automatically."
+        : membershipResult.error
+          ? membershipResult.error.message ??
+            "Your account was created, but the company membership could not be attached automatically."
         : agreementAcceptResult.error
           ? agreementAcceptResult.error.message ?? "Your agreement acceptance could not be recorded automatically."
         : null,
