@@ -28,6 +28,11 @@ type AdminUser = {
   last_sign_in_at?: string | null;
 };
 
+type AdminUserCapabilities = {
+  canPermanentlyDeleteUsers: boolean;
+  canRunAdminAuthActions: boolean;
+};
+
 const roleOptions = [
   "All Roles",
   "Super Admin",
@@ -69,6 +74,10 @@ function formatRelative(timestamp?: string | null) {
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [capabilities, setCapabilities] = useState<AdminUserCapabilities>({
+    canPermanentlyDeleteUsers: false,
+    canRunAdminAuthActions: false,
+  });
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<
@@ -115,20 +124,36 @@ export default function AdminUsersPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = (await res.json().catch(() => null)) as
-        | { error?: string; users?: AdminUser[] }
+        | {
+            error?: string;
+            users?: AdminUser[];
+            capabilities?: Partial<AdminUserCapabilities>;
+          }
         | null;
       if (!res.ok) {
         setMessageTone("error");
         setMessage(data?.error || "Failed to load users.");
         setUsers([]);
+        setCapabilities({
+          canPermanentlyDeleteUsers: false,
+          canRunAdminAuthActions: false,
+        });
         setLoading(false);
         return;
       }
       setUsers(data?.users ?? []);
+      setCapabilities({
+        canPermanentlyDeleteUsers: Boolean(data?.capabilities?.canPermanentlyDeleteUsers),
+        canRunAdminAuthActions: Boolean(data?.capabilities?.canRunAdminAuthActions),
+      });
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to load users.");
       setUsers([]);
+      setCapabilities({
+        canPermanentlyDeleteUsers: false,
+        canRunAdminAuthActions: false,
+      });
     }
     setLoading(false);
   }, []);
@@ -351,7 +376,69 @@ export default function AdminUsersPage() {
     setActionLoading("");
   }
 
-  async function handleRemoveUser() {
+  async function handleDeactivateUser() {
+    if (!editingUser) return;
+
+    const confirmed = window.confirm(
+      `Deactivate ${editingUser.name}? They will lose workspace access until you reactivate them.`
+    );
+
+    if (!confirmed) return;
+
+    setRemoveLoading(true);
+    setMessage("");
+    setMessageTone("neutral");
+    setModalMessage("");
+    setModalMessageTone("neutral");
+
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          role: editingUser.role,
+          team: editingUser.team,
+          accountStatus: "Suspended",
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; message?: string }
+        | null;
+
+      if (!res.ok) {
+        const nextMessage = data?.error || "Failed to deactivate user.";
+        setMessageTone("error");
+        setMessage(nextMessage);
+        setModalMessageTone("error");
+        setModalMessage(nextMessage);
+        setRemoveLoading(false);
+        return;
+      }
+
+      const successMessage =
+        data?.message || "User deactivated successfully.";
+      setMessageTone("success");
+      setMessage(successMessage);
+      setModalMessageTone("success");
+      setModalMessage(successMessage);
+      await loadUsers({ preserveMessage: true });
+      setEditingUser(null);
+    } catch (error) {
+      const nextMessage = error instanceof Error ? error.message : "Failed to deactivate user.";
+      setMessageTone("error");
+      setMessage(nextMessage);
+      setModalMessageTone("error");
+      setModalMessage(nextMessage);
+    }
+
+    setRemoveLoading(false);
+  }
+
+  async function handleDeleteUser() {
     if (!editingUser) return;
 
     const confirmed = window.confirm(
@@ -379,7 +466,7 @@ export default function AdminUsersPage() {
         | null;
 
       if (!res.ok) {
-        const nextMessage = data?.error || "Failed to remove user.";
+        const nextMessage = data?.error || "Failed to delete user.";
         setMessageTone("error");
         setMessage(nextMessage);
         setModalMessageTone("error");
@@ -388,8 +475,7 @@ export default function AdminUsersPage() {
         return;
       }
 
-      const successMessage =
-        data?.message || "User deleted permanently.";
+      const successMessage = data?.message || "User deleted permanently.";
       setMessageTone("success");
       setMessage(successMessage);
       setModalMessageTone("success");
@@ -397,7 +483,7 @@ export default function AdminUsersPage() {
       await loadUsers({ preserveMessage: true });
       setEditingUser(null);
     } catch (error) {
-      const nextMessage = error instanceof Error ? error.message : "Failed to remove user.";
+      const nextMessage = error instanceof Error ? error.message : "Failed to delete user.";
       setMessageTone("error");
       setMessage(nextMessage);
       setModalMessageTone("error");
@@ -750,13 +836,22 @@ export default function AdminUsersPage() {
 
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button
-                onClick={() => void handleRemoveUser()}
+                onClick={() => void handleDeactivateUser()}
                 disabled={removeLoading}
                 className="rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
               >
-                {removeLoading ? "Deleting..." : "Delete User"}
+                {removeLoading ? "Deactivating..." : "Deactivate User"}
               </button>
-              {editingUser.status === "Pending" ? (
+              {capabilities.canPermanentlyDeleteUsers ? (
+                <button
+                  onClick={() => void handleDeleteUser()}
+                  disabled={removeLoading}
+                  className="rounded-xl border border-red-500 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                >
+                  {removeLoading ? "Deleting..." : "Delete User"}
+                </button>
+              ) : null}
+              {editingUser.status === "Pending" && capabilities.canRunAdminAuthActions ? (
                 <button
                   onClick={() => void handleUserAction("resend_invite")}
                   disabled={actionLoading === "resend_invite"}
@@ -765,7 +860,7 @@ export default function AdminUsersPage() {
                   {actionLoading === "resend_invite" ? "Sending..." : "Resend Invite"}
                 </button>
               ) : null}
-              {editingUser.status !== "Pending" ? (
+              {editingUser.status !== "Pending" && capabilities.canRunAdminAuthActions ? (
                 <button
                   onClick={() => void handleUserAction("password_reset")}
                   disabled={actionLoading === "password_reset"}
@@ -774,7 +869,9 @@ export default function AdminUsersPage() {
                   {actionLoading === "password_reset" ? "Sending..." : "Send Password Reset"}
                 </button>
               ) : null}
-              {editingUser.status !== "Pending" && editingUser.status !== "Suspended" ? (
+              {editingUser.status !== "Pending" &&
+              editingUser.status !== "Suspended" &&
+              capabilities.canRunAdminAuthActions ? (
                 <button
                   onClick={() => void handleUserAction("force_sign_out")}
                   disabled={actionLoading === "force_sign_out"}

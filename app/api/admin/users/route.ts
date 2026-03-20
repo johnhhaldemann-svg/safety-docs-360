@@ -138,6 +138,10 @@ export async function GET(request: Request) {
 
       return NextResponse.json({
         users,
+        capabilities: {
+          canPermanentlyDeleteUsers: false,
+          canRunAdminAuthActions: false,
+        },
         warning:
           "Showing database-backed admin directory fallback because the Supabase service role key is unavailable at runtime.",
       });
@@ -177,6 +181,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       users,
+      capabilities: {
+        canPermanentlyDeleteUsers: false,
+        canRunAdminAuthActions: false,
+      },
       warning:
         "Showing RBAC directory fallback because the Supabase service role key is unavailable at runtime.",
     });
@@ -216,7 +224,13 @@ export async function GET(request: Request) {
     })
   );
 
-  return NextResponse.json({ users });
+  return NextResponse.json({
+    users,
+    capabilities: {
+      canPermanentlyDeleteUsers: auth.role === "super_admin",
+      canRunAdminAuthActions: true,
+    },
+  });
 }
 
 export async function POST(request: Request) {
