@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import { getDefaultAgreementConfig, type AgreementConfig } from "@/lib/legal";
+import type { PermissionMap } from "@/lib/rbac";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -168,12 +169,12 @@ export default function AppLayout({
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState("");
-  const [isAdminUser, setIsAdminUser] = useState(false);
   const [userRole, setUserRole] = useState("viewer");
   const [accountStatus, setAccountStatus] = useState("active");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptingTerms, setAcceptingTerms] = useState(false);
   const [termsError, setTermsError] = useState("");
+  const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [agreementConfig, setAgreementConfig] = useState<AgreementConfig>(
     getDefaultAgreementConfig()
   );
@@ -182,6 +183,7 @@ export default function AppLayout({
   const isCompanyAdminUser = userRole === "company_admin";
   const isCompanyUser = userRole === "company_user";
   const isCompanyScopedUser = isCompanyAdminUser || isCompanyUser;
+  const canAccessInternalAdmin = Boolean(permissionMap?.can_access_internal_admin);
 
   const sideSections = useMemo(() => {
     if (!isAdminArea && isCompanyAdminUser) {
@@ -191,7 +193,7 @@ export default function AppLayout({
       return companyUserSideSections;
     }
     const base = isAdminArea ? adminSideSections : userSideSections;
-    if (!isAdminArea && isAdminUser) {
+    if (!isAdminArea && canAccessInternalAdmin) {
       return [
         ...base,
         {
@@ -201,7 +203,7 @@ export default function AppLayout({
       ];
     }
     return base;
-  }, [isAdminArea, isAdminUser, isCompanyAdminUser, isCompanyUser]);
+  }, [canAccessInternalAdmin, isAdminArea, isCompanyAdminUser, isCompanyUser]);
 
   const currentNavItem = useMemo(() => {
     for (const section of sideSections) {
@@ -227,11 +229,11 @@ export default function AppLayout({
       return companyQuickLinks.filter((item) => item.href !== "/company-users");
     }
     const base = isAdminArea ? adminQuickLinks : userQuickLinks;
-    if (!isAdminArea && isAdminUser) {
+    if (!isAdminArea && canAccessInternalAdmin) {
       return [...base, { href: "/admin", label: "Admin Panel", short: "AD" }];
     }
     return base;
-  }, [isAdminArea, isAdminUser, isCompanyAdminUser, isCompanyUser]);
+  }, [canAccessInternalAdmin, isAdminArea, isCompanyAdminUser, isCompanyUser]);
 
   useEffect(() => {
     let cancelled = false;
@@ -280,6 +282,7 @@ export default function AppLayout({
                 email?: string;
                 role?: string;
                 isAdmin?: boolean;
+                permissionMap?: PermissionMap;
                 accountStatus?: string;
                 acceptedTerms?: boolean;
               };
@@ -289,11 +292,9 @@ export default function AppLayout({
         if (!mounted) return;
 
         const email = data?.user?.email ?? session.user.email ?? "";
-        const admin = Boolean(data?.user?.isAdmin);
-
         setUserEmail(email);
-        setIsAdminUser(admin);
         setUserRole(data?.user?.role ?? "viewer");
+        setPermissionMap(data?.user?.permissionMap ?? null);
         setAccountStatus(data?.user?.accountStatus ?? "active");
         setAcceptedTerms(Boolean(data?.user?.acceptedTerms));
         setTermsError("");
@@ -320,15 +321,15 @@ export default function AppLayout({
           }
         }
 
-        if (isAdminArea && !admin) {
+        if (isAdminArea && !Boolean(data?.user?.permissionMap?.can_access_internal_admin)) {
           router.replace("/dashboard");
           return;
         }
       } catch (error) {
         console.error("Failed to load role context:", error);
         setUserEmail(session.user.email ?? "");
-        setIsAdminUser(false);
         setUserRole("viewer");
+        setPermissionMap(null);
         setAccountStatus("active");
         setAcceptedTerms(false);
 
@@ -383,8 +384,8 @@ export default function AppLayout({
     try {
       setLoading(true);
       setUserEmail("");
-      setIsAdminUser(false);
       setUserRole("viewer");
+      setPermissionMap(null);
       setAccountStatus("active");
       setAcceptedTerms(false);
       setTermsError("");

@@ -34,6 +34,14 @@ function createAdminClient() {
   });
 }
 
+function formatRoleConstraintError(message?: string | null) {
+  if ((message ?? "").includes("user_roles_role_check")) {
+    return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow Company Admin and Company User roles.";
+  }
+
+  return message || "Role update failed.";
+}
+
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -68,7 +76,10 @@ export async function PATCH(
     );
 
     if (roleError) {
-      return NextResponse.json({ error: roleError.message }, { status: 500 });
+      return NextResponse.json(
+        { error: formatRoleConstraintError(roleError.message) },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
@@ -114,7 +125,10 @@ export async function PATCH(
   );
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    return NextResponse.json(
+      { error: formatRoleConstraintError(updateError.message) },
+      { status: 500 }
+    );
   }
 
   const { error: roleError } = await adminClient.from("user_roles").upsert(
@@ -132,7 +146,10 @@ export async function PATCH(
   );
 
   if (roleError) {
-    return NextResponse.json({ error: roleError.message }, { status: 500 });
+    return NextResponse.json(
+      { error: formatRoleConstraintError(roleError.message) },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({

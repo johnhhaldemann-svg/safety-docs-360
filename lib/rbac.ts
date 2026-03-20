@@ -13,6 +13,25 @@ export const APP_ROLES = [
 
 export type AppRole = (typeof APP_ROLES)[number];
 export type AccountStatus = "pending" | "active" | "suspended";
+export const APP_PERMISSIONS = [
+  "can_create_documents",
+  "can_edit_documents",
+  "can_submit_documents",
+  "can_review_documents",
+  "can_approve_documents",
+  "can_manage_users",
+  "can_manage_company_users",
+  "can_manage_billing",
+  "can_view_analytics",
+  "can_assign_roles",
+  "can_access_internal_admin",
+  "can_view_all_company_data",
+  "can_manage_global_templates",
+  "can_override_system_controls",
+] as const;
+
+export type AppPermission = (typeof APP_PERMISSIONS)[number];
+export type PermissionMap = Record<AppPermission, boolean>;
 
 type AuthLikeUser = {
   id: string;
@@ -37,9 +56,56 @@ type AuthorizeOptions = {
   requireAdmin?: boolean;
   allowSuspended?: boolean;
   allowPending?: boolean;
+  requirePermission?: AppPermission;
+  requireAnyPermission?: AppPermission[];
 };
 
 const DEFAULT_BOOTSTRAP_ADMIN_EMAILS = ["john.h.haldemann@gmail.com"];
+const ROLE_PERMISSIONS: Record<AppRole, readonly AppPermission[]> = {
+  super_admin: APP_PERMISSIONS,
+  admin: [
+    "can_create_documents",
+    "can_edit_documents",
+    "can_submit_documents",
+    "can_review_documents",
+    "can_approve_documents",
+    "can_manage_users",
+    "can_assign_roles",
+    "can_view_analytics",
+    "can_access_internal_admin",
+    "can_view_all_company_data",
+    "can_manage_global_templates",
+  ],
+  manager: [
+    "can_create_documents",
+    "can_edit_documents",
+    "can_submit_documents",
+    "can_review_documents",
+    "can_approve_documents",
+    "can_access_internal_admin",
+    "can_view_all_company_data",
+  ],
+  company_admin: [
+    "can_create_documents",
+    "can_edit_documents",
+    "can_submit_documents",
+    "can_manage_company_users",
+    "can_manage_billing",
+    "can_view_analytics",
+    "can_assign_roles",
+  ],
+  company_user: [
+    "can_create_documents",
+    "can_edit_documents",
+    "can_submit_documents",
+  ],
+  editor: [
+    "can_create_documents",
+    "can_edit_documents",
+    "can_submit_documents",
+  ],
+  viewer: [],
+};
 
 function normalizeEmail(email?: string | null) {
   return (email ?? "").trim().toLowerCase();
@@ -102,6 +168,29 @@ export function isCompanyAdminRole(role?: string | null) {
 export function canManageCompanyUsers(role?: string | null) {
   const normalized = normalizeAppRole(role);
   return normalized === "company_admin" || isAdminRole(normalized);
+}
+
+export function getRolePermissions(role?: string | null): AppPermission[] {
+  return [...ROLE_PERMISSIONS[normalizeAppRole(role)]];
+}
+
+export function hasPermission(role: string | null | undefined, permission: AppPermission) {
+  return ROLE_PERMISSIONS[normalizeAppRole(role)].includes(permission);
+}
+
+export function hasAnyPermission(
+  role: string | null | undefined,
+  permissions: readonly AppPermission[]
+) {
+  return permissions.some((permission) => hasPermission(role, permission));
+}
+
+export function getPermissionMap(role?: string | null): PermissionMap {
+  const permissions = new Set(getRolePermissions(role));
+  return APP_PERMISSIONS.reduce((acc, permission) => {
+    acc[permission] = permissions.has(permission);
+    return acc;
+  }, {} as PermissionMap);
 }
 
 export function normalizeAccountStatus(status?: string | null): AccountStatus {
@@ -354,12 +443,38 @@ export async function authorizeRequest(
       };
     }
 
+    if (
+      options.requirePermission &&
+      !hasPermission(roleContext.role, options.requirePermission)
+    ) {
+      return {
+        error: NextResponse.json(
+          { error: "You do not have permission for this action." },
+          { status: 403 }
+        ),
+      };
+    }
+
+    if (
+      options.requireAnyPermission &&
+      !hasAnyPermission(roleContext.role, options.requireAnyPermission)
+    ) {
+      return {
+        error: NextResponse.json(
+          { error: "You do not have permission for this action." },
+          { status: 403 }
+        ),
+      };
+    }
+
     return {
       supabase: authClient,
       user,
       role: roleContext.role,
       team: roleContext.team,
       accountStatus: roleContext.accountStatus,
+      permissions: getRolePermissions(roleContext.role),
+      permissionMap: getPermissionMap(roleContext.role),
     };
   }
 
@@ -393,11 +508,37 @@ export async function authorizeRequest(
     };
   }
 
+  if (
+    options.requirePermission &&
+    !hasPermission(roleContext.role, options.requirePermission)
+  ) {
+    return {
+      error: NextResponse.json(
+        { error: "You do not have permission for this action." },
+        { status: 403 }
+      ),
+    };
+  }
+
+  if (
+    options.requireAnyPermission &&
+    !hasAnyPermission(roleContext.role, options.requireAnyPermission)
+  ) {
+    return {
+      error: NextResponse.json(
+        { error: "You do not have permission for this action." },
+        { status: 403 }
+      ),
+    };
+  }
+
   return {
     supabase,
     user,
     role: roleContext.role,
     team: roleContext.team,
     accountStatus: roleContext.accountStatus,
+    permissions: getRolePermissions(roleContext.role),
+    permissionMap: getPermissionMap(roleContext.role),
   };
 }

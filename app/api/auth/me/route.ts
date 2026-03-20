@@ -47,6 +47,8 @@ export async function GET(request: Request) {
       roleLabel: formatAppRole(auth.role),
       team: auth.team,
       isAdmin: isAdminRole(auth.role),
+      permissions: auth.permissions,
+      permissionMap: auth.permissionMap,
       accountStatus: auth.accountStatus,
       acceptedTerms,
       acceptedTermsAt: agreementResult.data?.accepted_at ?? null,

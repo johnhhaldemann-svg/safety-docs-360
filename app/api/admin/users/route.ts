@@ -108,6 +108,14 @@ function getStatus(user: {
   return daysSinceSeen > 30 ? "Inactive" : "Active";
 }
 
+function formatRoleConstraintError(message?: string | null) {
+  if ((message ?? "").includes("user_roles_role_check")) {
+    return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow Company Admin and Company User roles.";
+  }
+
+  return message || "User invite failed.";
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, { requireAdmin: true });
 
@@ -188,7 +196,10 @@ export async function GET(request: Request) {
   const { data, error } = await adminClient.auth.admin.listUsers();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: formatRoleConstraintError(error.message) },
+      { status: 500 }
+    );
   }
 
   const users = await Promise.all(
@@ -261,7 +272,7 @@ export async function POST(request: Request) {
   }
 
   if (data.user?.id) {
-    await adminClient.from("user_roles").upsert(
+    const { error: roleError } = await adminClient.from("user_roles").upsert(
       {
         user_id: data.user.id,
         role,
@@ -274,6 +285,13 @@ export async function POST(request: Request) {
         onConflict: "user_id",
       }
     );
+
+    if (roleError) {
+      return NextResponse.json(
+        { error: formatRoleConstraintError(roleError.message) },
+        { status: 500 }
+      );
+    }
   }
 
   return NextResponse.json({

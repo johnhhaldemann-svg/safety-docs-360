@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
   authorizeRequest,
-  canManageCompanyUsers,
   getUserRoleContext,
   isAdminRole,
   isCompanyAdminRole,
@@ -44,18 +43,24 @@ function getCompanySafeRole(role?: string | null) {
   return normalized;
 }
 
+function formatRoleConstraintError(message?: string | null) {
+  if ((message ?? "").includes("user_roles_role_check")) {
+    return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow Company Admin and Company User roles.";
+  }
+
+  return message || "Company user update failed.";
+}
+
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const auth = await authorizeRequest(request);
+  const auth = await authorizeRequest(request, {
+    requireAnyPermission: ["can_manage_company_users", "can_manage_users"],
+  });
 
   if ("error" in auth) {
     return auth.error;
-  }
-
-  if (!canManageCompanyUsers(auth.role)) {
-    return NextResponse.json({ error: "Company management access required." }, { status: 403 });
   }
 
   const { id } = await context.params;
@@ -116,7 +121,10 @@ export async function PATCH(
     );
 
     if (roleError) {
-      return NextResponse.json({ error: roleError.message }, { status: 500 });
+      return NextResponse.json(
+        { error: formatRoleConstraintError(roleError.message) },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
@@ -180,7 +188,10 @@ export async function PATCH(
   });
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    return NextResponse.json(
+      { error: formatRoleConstraintError(updateError.message) },
+      { status: 500 }
+    );
   }
 
   const { error: roleError } = await adminClient.from("user_roles").upsert(
@@ -198,7 +209,10 @@ export async function PATCH(
   );
 
   if (roleError) {
-    return NextResponse.json({ error: roleError.message }, { status: 500 });
+    return NextResponse.json(
+      { error: formatRoleConstraintError(roleError.message) },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({

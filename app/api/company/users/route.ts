@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
   authorizeRequest,
-  canManageCompanyUsers,
   formatAccountStatus,
   formatAppRole,
   getUserRoleContext,
@@ -105,15 +104,21 @@ function getCompanySafeRole(role?: string | null) {
   return normalized;
 }
 
+function formatRoleConstraintError(message?: string | null) {
+  if ((message ?? "").includes("user_roles_role_check")) {
+    return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow Company Admin and Company User roles.";
+  }
+
+  return message || "Company user update failed.";
+}
+
 export async function GET(request: Request) {
-  const auth = await authorizeRequest(request);
+  const auth = await authorizeRequest(request, {
+    requireAnyPermission: ["can_manage_company_users", "can_manage_users"],
+  });
 
   if ("error" in auth) {
     return auth.error;
-  }
-
-  if (!canManageCompanyUsers(auth.role)) {
-    return NextResponse.json({ error: "Company management access required." }, { status: 403 });
   }
 
   const adminClient = createAdminClient();
@@ -200,14 +205,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await authorizeRequest(request);
+  const auth = await authorizeRequest(request, {
+    requireAnyPermission: ["can_manage_company_users", "can_manage_users"],
+  });
 
   if ("error" in auth) {
     return auth.error;
-  }
-
-  if (!canManageCompanyUsers(auth.role)) {
-    return NextResponse.json({ error: "Company management access required." }, { status: 403 });
   }
 
   const adminClient = createAdminClient();
@@ -243,11 +246,14 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: formatRoleConstraintError(error.message) },
+      { status: 500 }
+    );
   }
 
   if (data.user?.id) {
-    await adminClient.from("user_roles").upsert(
+    const { error: roleError } = await adminClient.from("user_roles").upsert(
       {
         user_id: data.user.id,
         role,
@@ -260,6 +266,13 @@ export async function POST(request: Request) {
         onConflict: "user_id",
       }
     );
+
+    if (roleError) {
+      return NextResponse.json(
+        { error: formatRoleConstraintError(roleError.message) },
+        { status: 500 }
+      );
+    }
   }
 
   return NextResponse.json({

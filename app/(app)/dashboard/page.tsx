@@ -11,6 +11,7 @@ import {
   StatusBadge,
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
+import type { PermissionMap } from "@/lib/rbac";
 import {
   getDocumentStatusLabel,
   isApprovedDocumentStatus,
@@ -117,6 +118,7 @@ export default function DashboardPage() {
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [userRole, setUserRole] = useState("viewer");
   const [userTeam, setUserTeam] = useState("General");
+  const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
 
   useEffect(() => {
@@ -136,12 +138,13 @@ export default function DashboardPage() {
           },
         });
         const meData = (await meResponse.json().catch(() => null)) as
-          | { user?: { role?: string; team?: string } }
+          | { user?: { role?: string; team?: string; permissionMap?: PermissionMap } }
           | null;
 
         if (meResponse.ok) {
           setUserRole(meData?.user?.role ?? "viewer");
           setUserTeam(meData?.user?.team ?? "General");
+          setPermissionMap(meData?.user?.permissionMap ?? null);
         }
 
         const documentsResponse = await fetch("/api/workspace/documents", {
@@ -170,7 +173,7 @@ export default function DashboardPage() {
           setCreditBalance(Number(creditData?.creditBalance ?? 0));
         }
 
-        if ((meData?.user?.role ?? "viewer") === "company_admin") {
+        if (meData?.user?.permissionMap?.can_manage_company_users) {
           const companyResponse = await fetch("/api/company/users", {
             headers: {
               Authorization: `Bearer ${accessToken}`,
@@ -193,7 +196,7 @@ export default function DashboardPage() {
   }, []);
 
   const isManagerView = userRole === "company_admin" || userRole === "company_user";
-  const canManageCompanyUsers = userRole === "company_admin";
+  const canManageCompanyUsers = Boolean(permissionMap?.can_manage_company_users);
 
   const activeDocuments = useMemo(
     () => documents.filter((document) => !isArchivedDocumentStatus(document.status)),
