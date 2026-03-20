@@ -284,16 +284,22 @@ export async function POST(
 
   const adminClient = createSupabaseAdminClient();
 
-  if (!adminClient) {
-    return NextResponse.json(
-      { error: "Missing Supabase service role configuration." },
-      { status: 500 }
-    );
-  }
-
   const { id } = await context.params;
   const body = (await request.json()) as ActionPayload;
   const action = (body.action ?? "").trim().toLowerCase();
+
+  if (!adminClient) {
+    const actionMessage =
+      action === "password_reset"
+        ? "Password reset emails require the Supabase service role to be available in this deployment."
+        : action === "force_sign_out"
+          ? "Force sign-out requires the Supabase service role to be available in this deployment."
+          : action === "resend_invite"
+            ? "Resending invites requires the Supabase service role to be available in this deployment."
+            : "This admin action requires the Supabase service role to be available in this deployment.";
+
+    return NextResponse.json({ error: actionMessage }, { status: 500 });
+  }
 
   const { data: currentUser, error: getError } =
     await adminClient.auth.admin.getUserById(id);
@@ -416,13 +422,6 @@ export async function DELETE(
 
   const adminClient = createSupabaseAdminClient();
 
-  if (!adminClient) {
-    return NextResponse.json(
-      { error: "Missing Supabase service role configuration." },
-      { status: 500 }
-    );
-  }
-
   const { id } = await context.params;
 
   if (id === auth.user.id) {
@@ -430,6 +429,44 @@ export async function DELETE(
       { error: "You cannot remove your own account from the workspace." },
       { status: 400 }
     );
+  }
+
+  const fallbackRole = "viewer";
+  const fallbackTeam = "General";
+  const fallbackStatus = "suspended";
+
+  if (!adminClient) {
+    await auth.supabase.from("company_memberships").delete().eq("user_id", id);
+
+    const { error: roleError } = await auth.supabase.from("user_roles").upsert(
+      {
+        user_id: id,
+        role: fallbackRole,
+        team: fallbackTeam,
+        company_id: null,
+        account_status: fallbackStatus,
+        created_by: auth.user.id,
+        updated_by: auth.user.id,
+      },
+      {
+        onConflict: "user_id",
+      }
+    );
+
+    if (roleError) {
+      return NextResponse.json(
+        { error: formatRoleConstraintError(roleError.message) },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      removedUserId: id,
+      warning:
+        "Workspace access was removed in the RBAC tables, but Supabase Auth metadata could not be synced because the service role key is unavailable at runtime.",
+      message: "User removed from the workspace and access has been suspended.",
+    });
   }
 
   const { data: currentUser, error: getError } =
@@ -441,10 +478,6 @@ export async function DELETE(
       { status: 404 }
     );
   }
-
-  const fallbackRole = "viewer";
-  const fallbackTeam = "General";
-  const fallbackStatus = "suspended";
 
   const mergedUserMetadata = {
     ...(currentUser.user.user_metadata ?? {}),
