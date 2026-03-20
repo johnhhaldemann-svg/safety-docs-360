@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureCompanyScope, getCompanyScope } from "@/lib/companyScope";
+import { sendCompanyInviteEmail } from "@/lib/inviteEmail";
 import {
   createSupabaseAdminClient,
   getSupabaseServerEnvStatus,
@@ -160,6 +161,13 @@ function getDisplayName(user: {
   }
 
   return "Unnamed User";
+}
+
+function getActorName(user: {
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+}) {
+  return getDisplayName(user);
 }
 
 function getStatus(user: {
@@ -366,11 +374,20 @@ export async function POST(request: Request) {
       );
     }
 
+    const emailResult = await sendCompanyInviteEmail({
+      toEmail: email,
+      companyName: companyScope.companyName,
+      roleLabel: formatAppRole(role),
+      invitedByName: getActorName(auth.user),
+    });
+
     return NextResponse.json({
       success: true,
       invite: inviteData as CompanyInviteRow,
       message:
-        "Company invite saved. This person can create an account with the invited email and will automatically join your company workspace.",
+        emailResult.sent
+          ? "Company invite saved and email sent."
+          : "Company invite saved. This person can create an account with the invited email and will automatically join your company workspace.",
       user: {
         id: (inviteData as CompanyInviteRow).id,
         email,
@@ -381,8 +398,10 @@ export async function POST(request: Request) {
       },
       scopeTeam: team,
       scopeCompanyId: companyScope.companyId,
-      warning:
-        "The email invite was stored in the workspace database because the Supabase admin invite API is unavailable at runtime.",
+      warning: emailResult.sent
+        ? "The company invite was sent using the database-backed signup flow."
+        : emailResult.warning ||
+          "The email invite was stored in the workspace database because the Supabase admin invite API is unavailable at runtime.",
       details: envStatus,
     });
   }
@@ -414,11 +433,20 @@ export async function POST(request: Request) {
       );
     }
 
+    const emailResult = await sendCompanyInviteEmail({
+      toEmail: email,
+      companyName: companyScope.companyName,
+      roleLabel: formatAppRole(role),
+      invitedByName: getActorName(auth.user),
+    });
+
     return NextResponse.json({
       success: true,
       invite: inviteData,
       message:
-        "Company invite saved in the workspace database. This person can create an account with the invited email and will automatically join your company workspace.",
+        emailResult.sent
+          ? "Company invite saved and email sent."
+          : "Company invite saved in the workspace database. This person can create an account with the invited email and will automatically join your company workspace.",
       user: {
         id: (inviteData as CompanyInviteRow | null)?.id ?? "",
         email,
@@ -429,8 +457,10 @@ export async function POST(request: Request) {
       },
       scopeTeam: team,
       scopeCompanyId: companyScope.companyId,
-      warning:
-        "The Supabase email invite could not be sent, so the company invite was saved for self-service signup instead.",
+      warning: emailResult.sent
+        ? "The Supabase invite path was unavailable, so a database-backed invite email was sent instead."
+        : emailResult.warning ||
+          "The Supabase email invite could not be sent, so the company invite was saved for self-service signup instead.",
     });
   }
 

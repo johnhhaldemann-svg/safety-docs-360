@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 
 const supabase = createClient(
@@ -20,15 +20,23 @@ const securityPills = ["ISO 45001", "SOC 2 Type II", "AES-256", "OSHA Ready"];
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const invitedEmail = searchParams.get("email") ?? "";
+  const inviteMode = searchParams.get("mode") === "signup";
+  const inviteType = searchParams.get("invite");
+  const inviteNotice =
+    inviteType === "company" && invitedEmail
+      ? "Your company invite is ready. Create your account with this invited email address to join the workspace automatically."
+      : "";
 
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("");
+  const [mode, setMode] = useState<"login" | "signup">(inviteMode ? "signup" : "login");
+  const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [formMessage, setFormMessage] = useState("");
+  const [formMessage, setFormMessage] = useState(inviteNotice);
   const [formTone, setFormTone] = useState<"error" | "success">("success");
 
   async function handleLogin() {
