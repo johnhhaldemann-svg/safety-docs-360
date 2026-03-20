@@ -106,9 +106,11 @@ export default function CompanyUsersPage() {
     return session.access_token;
   }
 
-  const loadUsers = useCallback(async () => {
+  const loadUsers = useCallback(async (options?: { preserveMessage?: boolean }) => {
     setLoading(true);
-    setMessage("");
+    if (!options?.preserveMessage) {
+      setMessage("");
+    }
 
     try {
       const token = await getAccessToken();
@@ -256,7 +258,7 @@ export default function CompanyUsersPage() {
       setInviteRole("Company User");
       setMessageTone(data?.warning ? "warning" : "success");
       setMessage(data?.warning || data?.message || "Company user invited successfully.");
-      await loadUsers();
+      await loadUsers({ preserveMessage: true });
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to invite company user.");
@@ -296,7 +298,7 @@ export default function CompanyUsersPage() {
       setEditingUser(null);
       setMessageTone("success");
       setMessage("Company user updated.");
-      await loadUsers();
+      await loadUsers({ preserveMessage: true });
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to update company user.");
