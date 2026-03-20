@@ -86,6 +86,10 @@ export default function AdminUsersPage() {
   const [editStatus, setEditStatus] = useState("Active");
   const [saveLoading, setSaveLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState("");
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalMessageTone, setModalMessageTone] = useState<
+    "neutral" | "success" | "warning" | "error"
+  >("neutral");
 
   async function getAccessToken() {
     const {
@@ -252,6 +256,8 @@ export default function AdminUsersPage() {
     setSaveLoading(true);
     setMessage("");
     setMessageTone("neutral");
+    setModalMessage("");
+    setModalMessageTone("neutral");
     try {
       const token = await getAccessToken();
       const res = await fetch(`/api/admin/users/${editingUser.id}`, {
@@ -270,16 +276,24 @@ export default function AdminUsersPage() {
       if (!res.ok) {
         setMessageTone("error");
         setMessage(data?.error || "Failed to update user.");
+        setModalMessageTone("error");
+        setModalMessage(data?.error || "Failed to update user.");
         setSaveLoading(false);
         return;
       }
-      setEditingUser(null);
       setMessageTone("success");
       setMessage("User settings updated.");
+      setModalMessageTone("success");
+      setModalMessage("User settings updated.");
       await loadUsers();
+      setEditingUser(null);
     } catch (error) {
       setMessageTone("error");
-      setMessage(error instanceof Error ? error.message : "Failed to update user.");
+      const nextMessage =
+        error instanceof Error ? error.message : "Failed to update user.";
+      setMessage(nextMessage);
+      setModalMessageTone("error");
+      setModalMessage(nextMessage);
     }
     setSaveLoading(false);
   }
@@ -291,6 +305,8 @@ export default function AdminUsersPage() {
     setActionLoading(action);
     setMessage("");
     setMessageTone("neutral");
+    setModalMessage("");
+    setModalMessageTone("neutral");
     try {
       const token = await getAccessToken();
       const res = await fetch(`/api/admin/users/${editingUser.id}`, {
@@ -305,21 +321,29 @@ export default function AdminUsersPage() {
       if (!res.ok) {
         setMessageTone("error");
         setMessage(data?.error || "Failed to run the requested action.");
+        setModalMessageTone("error");
+        setModalMessage(data?.error || "Failed to run the requested action.");
         setActionLoading("");
         return;
       }
-      setMessageTone("success");
-      setMessage(
+      const successMessage =
         action === "resend_invite"
           ? "Invite email sent again."
           : action === "password_reset"
             ? "Password reset email sent."
-            : "Force sign-out sent."
-      );
+            : "Force sign-out sent.";
+      setMessageTone("success");
+      setMessage(successMessage);
+      setModalMessageTone("success");
+      setModalMessage(successMessage);
       await loadUsers();
     } catch (error) {
       setMessageTone("error");
-      setMessage(error instanceof Error ? error.message : "Failed to run the requested action.");
+      const nextMessage =
+        error instanceof Error ? error.message : "Failed to run the requested action.";
+      setMessage(nextMessage);
+      setModalMessageTone("error");
+      setModalMessage(nextMessage);
     }
     setActionLoading("");
   }
@@ -593,6 +617,8 @@ export default function AdminUsersPage() {
                             ? "Suspended"
                             : "Active"
                       );
+                      setModalMessage("");
+                      setModalMessageTone("neutral");
                     }}
                     className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
                   >
@@ -650,6 +676,12 @@ export default function AdminUsersPage() {
                 <option>Suspended</option>
               </select>
             </div>
+
+            {modalMessage ? (
+              <div className="mt-4">
+                <InlineMessage tone={modalMessageTone}>{modalMessage}</InlineMessage>
+              </div>
+            ) : null}
 
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               {editingUser.status === "Pending" ? (
