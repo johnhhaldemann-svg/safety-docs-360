@@ -585,6 +585,8 @@ export default function AdminUsersPage() {
                           setEditRole(user.role);
                           setEditTeam(user.team);
                           setEditStatus("Pending");
+                          setModalMessage("");
+                          setModalMessageTone("neutral");
                         }}
                         className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
                       >
@@ -702,7 +704,11 @@ export default function AdminUsersPage() {
                 <p className="mt-1 text-sm text-slate-500">{editingUser.email}</p>
               </div>
               <button
-                onClick={() => setEditingUser(null)}
+                onClick={() => {
+                  setEditingUser(null);
+                  setModalMessage("");
+                  setModalMessageTone("neutral");
+                }}
                 className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Close
