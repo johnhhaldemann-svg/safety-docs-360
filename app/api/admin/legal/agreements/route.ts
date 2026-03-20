@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, formatAppRole, getUserRoleContext } from "@/lib/rbac";
-import { getUserAgreementRecord } from "@/lib/legal";
+import { getDefaultAgreementConfig, getUserAgreementRecord } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 
 export const runtime = "nodejs";
@@ -54,7 +54,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: usersResult.error.message }, { status: 500 });
   }
 
-  const agreementConfig = await getAgreementConfig(auth.supabase);
+  const agreementConfig = await getAgreementConfig(auth.supabase).catch(() =>
+    getDefaultAgreementConfig()
+  );
 
   const rows = await Promise.all(
     (usersResult.data.users ?? []).map(async (user) => {
