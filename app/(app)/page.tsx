@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
-import { EmptyState, SectionCard, StartChecklist } from "@/components/WorkspacePrimitives";
+import {
+  ActivityFeed,
+  EmptyState,
+  SectionCard,
+  StartChecklist,
+  StatusBadge,
+  WorkflowPath,
+} from "@/components/WorkspacePrimitives";
 import {
   getDocumentStatusLabel,
   isApprovedDocumentStatus,
@@ -85,6 +92,18 @@ function getStatusLabel(document: DocumentRow) {
 
 function normalizeType(documentType?: string | null) {
   return (documentType ?? "").trim().toLowerCase();
+}
+
+function getStatusTone(label: string): "neutral" | "success" | "warning" | "info" {
+  if (label === "Ready" || label === "Active" || label === "Searchable" || label === "Clear") {
+    return "success";
+  }
+
+  if (label === "Waiting" || label === "Needs attention" || label === "No records") {
+    return "warning";
+  }
+
+  return "info";
 }
 
 export default function DashboardPage() {
@@ -286,15 +305,26 @@ export default function DashboardPage() {
     const items = activeDocuments.slice(0, 6).map((document) => ({
       id: document.id,
       title: getDocumentLabel(document),
-      status: getStatusLabel(document),
-      time: formatRelative(document.created_at),
+      detail: document.project_name || document.document_type || "Workspace document",
+      meta: `${getStatusLabel(document)} - ${formatRelative(document.created_at)}`,
+      tone: isApprovedDocument(document)
+        ? ("success" as const)
+        : isSubmittedDocumentStatus(document.status, Boolean(document.final_file_path))
+          ? ("warning" as const)
+          : ("info" as const),
     }));
 
     if (items.length > 0) return items;
 
-      return [
-        { id: "empty-1", title: "No recent document activity yet", status: "Draft", time: "Start by uploading or submitting a document" },
-      ];
+    return [
+      {
+        id: "empty-1",
+        title: "No recent document activity yet",
+        detail: "Start by uploading or submitting a document.",
+        meta: "Waiting",
+        tone: "neutral" as const,
+      },
+    ];
   }, [activeDocuments]);
 
   const reviewQueueItems = useMemo(() => {
@@ -317,30 +347,36 @@ export default function DashboardPage() {
   }, [activeDocuments]);
 
   const latestUpdates = useMemo(() => {
-    const items = [
+    return [
       {
         id: "update-library",
         title: approvedCount > 0 ? `${approvedCount} approved file${approvedCount === 1 ? "" : "s"} ready in library` : "No approved files in library yet",
-        detail: "Library",
+        detail: "Library status",
+        meta: approvedCount > 0 ? "Ready" : "Waiting",
+        tone: approvedCount > 0 ? ("success" as const) : ("warning" as const),
       },
       {
         id: "update-submit",
         title: pendingReviewCount > 0 ? `${pendingReviewCount} file${pendingReviewCount === 1 ? "" : "s"} currently waiting for review` : "Submission queue is currently clear",
-        detail: "Review",
+        detail: "Review queue",
+        meta: pendingReviewCount > 0 ? "Action needed" : "Clear",
+        tone: pendingReviewCount > 0 ? ("warning" as const) : ("success" as const),
       },
       {
         id: "update-upload",
         title: `${templateCount} template${templateCount === 1 ? "" : "s"}, ${formCount} form${formCount === 1 ? "" : "s"}, ${reportCount} report${reportCount === 1 ? "" : "s"}`,
         detail: "Document mix",
+        meta: "Tracked",
+        tone: "info" as const,
       },
       {
         id: "update-projects",
         title: uniqueProjects > 0 ? `${uniqueProjects} active project${uniqueProjects === 1 ? "" : "s"} in the workspace` : "No active projects have been named yet",
         detail: "Projects",
+        meta: uniqueProjects > 0 ? "Live" : "Waiting",
+        tone: uniqueProjects > 0 ? ("success" as const) : ("warning" as const),
       },
     ];
-
-    return items;
   }, [approvedCount, pendingReviewCount, templateCount, formCount, reportCount, uniqueProjects]);
 
   const systemStatus = [
@@ -360,7 +396,7 @@ export default function DashboardPage() {
       label: "Search Index",
       badge: activeDocuments.length > 0 ? "Searchable" : "No records",
     },
-  ];
+  ] as const;
 
   const workspaceTools = [
     {
@@ -531,72 +567,19 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
-            <h2 className="text-2xl font-black tracking-tight text-slate-950">
-              Latest Updates
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Live signals based on your current workspace records.
-            </p>
-
-            <div className="mt-6 space-y-3">
-              {latestUpdates.map((item, index) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4"
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-50 text-xs font-black text-sky-700">
-                    {index + 1}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-slate-800">{item.title}</div>
-                    <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
-                      {item.detail}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ActivityFeed
+            title="Latest Updates"
+            description="Live signals based on your current workspace records."
+            items={latestUpdates}
+          />
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr] xl:gap-5">
-          <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
-                Recent Activity
-              </h2>
-              <Link
-                href="/library"
-                className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-2.5 text-xs font-semibold text-white sm:text-sm"
-              >
-                Open Library
-              </Link>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {recentActivity.map((item, index) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4"
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-50 text-xs font-black text-sky-700">
-                    {index + 1}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-slate-800">
-                      {item.title}
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                      <span>{item.status}</span>
-                      <span>•</span>
-                      <span>{item.time}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ActivityFeed
+            title="Recent Activity"
+            description="The latest document movement inside your workspace."
+            items={recentActivity}
+          />
 
           <div className="space-y-5">
             <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
@@ -614,9 +597,7 @@ export default function DashboardPage() {
                     className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-4"
                   >
                     <span className="text-sm font-medium text-slate-800">{item.label}</span>
-                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                      {item.badge}
-                    </span>
+                    <StatusBadge label={item.badge} tone={getStatusTone(item.badge)} />
                   </div>
                 ))}
               </div>
@@ -643,6 +624,35 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
+
+            <WorkflowPath
+              title="Workflow Path"
+              description="The standard route for a document moving through the platform."
+              steps={[
+                {
+                  label: "Upload",
+                  detail: "Add source files, templates, or supporting documents.",
+                  complete: activeDocuments.length > 0,
+                },
+                {
+                  label: "Submit",
+                  detail: "Send records into the review workflow for approval.",
+                  active: pendingReviewCount > 0,
+                  complete: pendingReviewCount > 0 || approvedCount > 0,
+                },
+                {
+                  label: "Review",
+                  detail: "Admins review content, finalize records, and clear the queue.",
+                  active: pendingReviewCount > 0,
+                  complete: approvedCount > 0,
+                },
+                {
+                  label: "Library",
+                  detail: "Approved files become ready to open from one central place.",
+                  complete: approvedCount > 0,
+                },
+              ]}
+            />
           </div>
         </section>
 
