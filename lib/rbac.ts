@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  getSupabaseAnonKey,
+  getSupabaseServerUrl,
+  getSupabaseServiceRoleKey,
+} from "@/lib/supabaseAdmin";
 
 export const APP_ROLES = [
   "super_admin",
@@ -360,9 +365,9 @@ export async function authorizeRequest(
   request: Request,
   options: AuthorizeOptions = {}
 ) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = getSupabaseServerUrl();
+  const supabaseAnonKey = getSupabaseAnonKey();
+  const supabaseServiceRoleKey = getSupabaseServiceRoleKey();
 
   if (!supabaseUrl || !supabaseAnonKey) {
     return {

@@ -4,6 +4,7 @@ import {
   type AgreementSection,
   getDefaultAgreementConfig,
 } from "@/lib/legal";
+import { getSupabaseServerUrl, getSupabaseServiceRoleKey } from "@/lib/supabaseAdmin";
 
 const LEGAL_SETTINGS_KEY = "legal_agreement_config";
 
@@ -97,8 +98,8 @@ export function normalizeAgreementConfig(input: unknown): AgreementConfig {
 }
 
 export async function getServiceRoleClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = getSupabaseServerUrl();
+  const serviceRoleKey = getSupabaseServiceRoleKey();
 
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error("Missing Supabase service role configuration.");

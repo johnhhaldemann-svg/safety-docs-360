@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { ensureCompanyScope, getCompanyScope } from "@/lib/companyScope";
+import {
+  createSupabaseAdminClient,
+  getSupabaseServerEnvStatus,
+} from "@/lib/supabaseAdmin";
 import {
   authorizeRequest,
   formatAccountStatus,
@@ -40,22 +43,6 @@ type FallbackUserRoleRow = {
 };
 
 const COMPANY_ASSIGNABLE_ROLES: AppRole[] = ["company_admin", "company_user"];
-
-function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return null;
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
-}
 
 function getDisplayName(user: {
   email?: string | null;
@@ -122,7 +109,8 @@ export async function GET(request: Request) {
     return auth.error;
   }
 
-  const adminClient = createAdminClient();
+  const adminClient = createSupabaseAdminClient();
+  const envStatus = getSupabaseServerEnvStatus();
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
     userId: auth.user.id,
@@ -146,7 +134,10 @@ export async function GET(request: Request) {
 
     if (error) {
       return NextResponse.json(
-        { error: "Missing Supabase service role configuration." },
+        {
+          error: "Missing Supabase service role configuration.",
+          details: envStatus,
+        },
         { status: 500 }
       );
     }
@@ -228,11 +219,15 @@ export async function POST(request: Request) {
     return auth.error;
   }
 
-  const adminClient = createAdminClient();
+  const adminClient = createSupabaseAdminClient();
+  const envStatus = getSupabaseServerEnvStatus();
 
   if (!adminClient) {
     return NextResponse.json(
-      { error: "Missing Supabase service role configuration." },
+      {
+        error: "Missing Supabase service role configuration.",
+        details: envStatus,
+      },
       { status: 500 }
     );
   }

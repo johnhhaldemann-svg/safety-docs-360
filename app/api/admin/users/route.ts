@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import {
+  createSupabaseAdminClient,
+  getSupabaseServerEnvStatus,
+} from "@/lib/supabaseAdmin";
 import {
   authorizeRequest,
   formatAccountStatus,
@@ -37,22 +40,6 @@ type RpcAdminUserRow = {
   last_sign_in_at: string | null;
   email_confirmed_at: string | null;
 };
-
-function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return null;
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
-}
 
 function getDisplayName(user: {
   email?: string | null;
@@ -125,7 +112,7 @@ export async function GET(request: Request) {
     return auth.error;
   }
 
-  const adminClient = createAdminClient();
+  const adminClient = createSupabaseAdminClient();
 
   if (!adminClient) {
     const { data: rpcData, error: rpcError } = await (
@@ -241,11 +228,15 @@ export async function POST(request: Request) {
     return auth.error;
   }
 
-  const adminClient = createAdminClient();
+  const adminClient = createSupabaseAdminClient();
+  const envStatus = getSupabaseServerEnvStatus();
 
   if (!adminClient) {
     return NextResponse.json(
-      { error: "Missing Supabase service role configuration." },
+      {
+        error: "Missing Supabase service role configuration.",
+        details: envStatus,
+      },
       { status: 500 }
     );
   }

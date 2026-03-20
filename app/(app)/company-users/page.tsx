@@ -27,6 +27,17 @@ type CompanyUser = {
   last_sign_in_at?: string | null;
 };
 
+type EnvDetails = {
+  url?: boolean;
+  anonKey?: boolean;
+  serviceRoleKey?: boolean;
+  sources?: {
+    url?: string | null;
+    anonKey?: string | null;
+    serviceRoleKey?: string | null;
+  };
+};
+
 const roleOptions = ["Company Admin", "Company User"];
 
 function statusTone(status: string): "success" | "warning" | "error" | "neutral" {
@@ -51,6 +62,19 @@ function formatRelative(timestamp?: string | null) {
   if (diffHours < 24) return `${diffHours} hr ago`;
   const diffDays = Math.round(diffHours / 24);
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+}
+
+function formatEnvDetails(details?: EnvDetails | null) {
+  if (!details) return "";
+
+  const urlText = details.url
+    ? `URL from ${details.sources?.url ?? "unknown source"}`
+    : "URL missing";
+  const serviceRoleText = details.serviceRoleKey
+    ? `service role from ${details.sources?.serviceRoleKey ?? "unknown source"}`
+    : "service role missing";
+
+  return ` Server check: ${urlText}; ${serviceRoleText}.`;
 }
 
 export default function CompanyUsersPage() {
@@ -99,12 +123,15 @@ export default function CompanyUsersPage() {
             users?: CompanyUser[];
             scopeTeam?: string;
             scopeCompanyName?: string;
+            details?: EnvDetails;
           }
         | null;
 
       if (!response.ok) {
         setMessageTone("error");
-        setMessage(data?.error || "Failed to load company users.");
+        setMessage(
+          `${data?.error || "Failed to load company users."}${formatEnvDetails(data?.details)}`
+        );
         setUsers([]);
         setLoading(false);
         return;
@@ -211,11 +238,16 @@ export default function CompanyUsersPage() {
           role: inviteRole,
         }),
       });
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string; details?: EnvDetails }
+        | null;
+      const details = data?.details;
 
       if (!response.ok) {
         setMessageTone("error");
-        setMessage(data?.error || "Failed to invite company user.");
+        setMessage(
+          `${data?.error || "Failed to invite company user."}${formatEnvDetails(details)}`
+        );
         setInviteLoading(false);
         return;
       }

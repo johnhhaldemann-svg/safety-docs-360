@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { getCompanyScope } from "@/lib/companyScope";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import {
   authorizeRequest,
   getUserRoleContext,
@@ -19,22 +19,6 @@ type UpdatePayload = {
 };
 
 const COMPANY_ASSIGNABLE_ROLES: AppRole[] = ["company_admin", "company_user"];
-
-function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return null;
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
-}
 
 function getCompanySafeRole(role?: string | null) {
   const normalized = normalizeAppRole(role);
@@ -66,7 +50,7 @@ export async function PATCH(
 
   const { id } = await context.params;
   const body = (await request.json()) as UpdatePayload;
-  const adminClient = createAdminClient();
+  const adminClient = createSupabaseAdminClient();
 
   const role = isCompanyAdminRole(auth.role)
     ? getCompanySafeRole(body.role)
