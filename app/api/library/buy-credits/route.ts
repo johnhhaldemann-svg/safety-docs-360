@@ -19,7 +19,9 @@ const TEST_CREDIT_PACKS = {
 } as const;
 
 export async function POST(request: Request) {
-  const auth = await authorizeRequest(request);
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_manage_billing",
+  });
 
   if ("error" in auth) {
     return auth.error;

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import type { CreditTransaction } from "@/lib/credits";
 import { getDocumentCreditCost } from "@/lib/marketplace";
+import type { PermissionMap } from "@/lib/rbac";
 import {
   EmptyState,
   InlineMessage,
@@ -92,6 +93,7 @@ function formatRelative(timestamp?: string | null) {
 }
 
 export default function PurchasesPage() {
+  const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -130,10 +132,16 @@ export default function PurchasesPage() {
         {
           data: { user },
         },
+        meResponse,
         documentsResult,
         creditsResponse,
       ] = await Promise.all([
         supabase.auth.getUser(),
+        fetch("/api/auth/me", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
         supabase.from("documents").select("*").order("created_at", { ascending: false }),
         fetch("/api/library/credits", {
           headers: {
@@ -143,6 +151,13 @@ export default function PurchasesPage() {
       ]);
 
       setCurrentUserId(user?.id ?? "");
+      const meData = (await meResponse.json().catch(() => null)) as
+        | { user?: { permissionMap?: PermissionMap } }
+        | null;
+
+      if (meResponse.ok) {
+        setPermissionMap(meData?.user?.permissionMap ?? null);
+      }
 
       if (documentsResult.error) {
         throw new Error(documentsResult.error.message);
@@ -231,6 +246,7 @@ export default function PurchasesPage() {
   const totalCreditsSpent = useMemo(() => {
     return purchaseTransactions.reduce((total, tx) => total + Math.abs(tx.amount), 0);
   }, [purchaseTransactions]);
+  const canManageBilling = Boolean(permissionMap?.can_manage_billing);
 
   const handleOpenDocument = useCallback(
     async (documentId: string, confirmed = false) => {
@@ -376,35 +392,41 @@ export default function PurchasesPage() {
           </div>
         }
       >
-        <div className="grid gap-4 md:grid-cols-3">
-          {TEST_CREDIT_PACKS.map((pack) => (
-            <div
-              key={pack.id}
-              className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-base font-semibold text-slate-900">
-                    {pack.label}
-                  </h3>
-                  <p className="mt-2 text-sm text-slate-600">{pack.note}</p>
-                </div>
-                <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
-                  {pack.credits} credits
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => void handleBuyTestCredits(pack.id)}
-                disabled={creditPackLoadingId === pack.id}
-                className="mt-5 inline-flex rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+        {!canManageBilling ? (
+          <InlineMessage tone="warning">
+            Your current role can view completed documents and credit history, but only billing-enabled roles can add credits or unlock marketplace files.
+          </InlineMessage>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-3">
+            {TEST_CREDIT_PACKS.map((pack) => (
+              <div
+                key={pack.id}
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
               >
-                {creditPackLoadingId === pack.id ? "Adding..." : "Add Test Credits"}
-              </button>
-            </div>
-          ))}
-        </div>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900">
+                      {pack.label}
+                    </h3>
+                    <p className="mt-2 text-sm text-slate-600">{pack.note}</p>
+                  </div>
+                  <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
+                    {pack.credits} credits
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void handleBuyTestCredits(pack.id)}
+                  disabled={creditPackLoadingId === pack.id}
+                  className="mt-5 inline-flex rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {creditPackLoadingId === pack.id ? "Adding..." : "Add Test Credits"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </SectionCard>
 
       {message ? (
