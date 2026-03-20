@@ -102,10 +102,12 @@ export default function AdminUsersPage() {
     return session.access_token;
   }
 
-  const loadUsers = useCallback(async () => {
+  const loadUsers = useCallback(async (options?: { preserveMessage?: boolean }) => {
     setLoading(true);
-    setMessage("");
-    setMessageTone("neutral");
+    if (!options?.preserveMessage) {
+      setMessage("");
+      setMessageTone("neutral");
+    }
     try {
       const token = await getAccessToken();
       const res = await fetch("/api/admin/users", {
@@ -243,7 +245,7 @@ export default function AdminUsersPage() {
       setInviteTeam("General");
       setMessageTone("success");
       setMessage("Invitation sent successfully.");
-      await loadUsers();
+      await loadUsers({ preserveMessage: true });
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to invite user.");
@@ -285,7 +287,7 @@ export default function AdminUsersPage() {
       setMessage("User settings updated.");
       setModalMessageTone("success");
       setModalMessage("User settings updated.");
-      await loadUsers();
+      await loadUsers({ preserveMessage: true });
       setEditingUser(null);
     } catch (error) {
       setMessageTone("error");
@@ -336,7 +338,7 @@ export default function AdminUsersPage() {
       setMessage(successMessage);
       setModalMessageTone("success");
       setModalMessage(successMessage);
-      await loadUsers();
+      await loadUsers({ preserveMessage: true });
     } catch (error) {
       setMessageTone("error");
       const nextMessage =
@@ -379,7 +381,7 @@ export default function AdminUsersPage() {
           ? `${user.name} has been approved and can now access the workspace.`
           : `${user.name} has been suspended from the workspace.`
       );
-      await loadUsers();
+      await loadUsers({ preserveMessage: true });
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to update account status.");
