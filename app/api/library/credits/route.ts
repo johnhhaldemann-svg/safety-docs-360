@@ -1,4 +1,12 @@
 import { NextResponse } from "next/server";
+import { getCompanyScope } from "@/lib/companyScope";
+import {
+  ensureInitialCompanyCredits,
+  getCompanySubscriptionStatus,
+  listCompanyCreditTransactions,
+  purchasedCompanyDocumentIdsFromTransactions,
+  sumCompanyCreditBalance,
+} from "@/lib/companyBilling";
 import { authorizeRequest } from "@/lib/rbac";
 import { DEFAULT_DOCUMENT_CREDITS, normalizePurchasedIds } from "@/lib/marketplace";
 import {
@@ -31,6 +39,51 @@ export async function GET(request: Request) {
   }
 
   const { user, supabase } = auth;
+  const companyScope = await getCompanyScope({
+    supabase,
+    userId: user.id,
+    fallbackTeam: auth.team,
+  });
+
+  if (companyScope.companyId) {
+    const companySubscription = await getCompanySubscriptionStatus(
+      supabase,
+      companyScope.companyId
+    );
+    const companyTransactionResult = await listCompanyCreditTransactions(
+      supabase,
+      companyScope.companyId
+    );
+
+    if (!companyTransactionResult.error) {
+      const initialGrant = await ensureInitialCompanyCredits({
+        supabase,
+        companyId: companyScope.companyId,
+        subscriptionStatus: companySubscription.data?.status ?? null,
+        existingTransactions: companyTransactionResult.data,
+      });
+
+      const ledgerResult =
+        initialGrant.granted && !initialGrant.error
+          ? await listCompanyCreditTransactions(supabase, companyScope.companyId)
+          : companyTransactionResult;
+
+      if (!ledgerResult.error) {
+        return NextResponse.json({
+          creditBalance: sumCompanyCreditBalance(ledgerResult.data),
+          purchasedDocumentIds: purchasedCompanyDocumentIdsFromTransactions(
+            ledgerResult.data
+          ),
+          subscriptionStatus: companySubscription.data?.status ?? "inactive",
+          transactions: ledgerResult.data.slice(0, 10),
+          ledgerEnabled: true,
+          billingScope: "company",
+          companyId: companyScope.companyId,
+          companyName: companyScope.companyName,
+        });
+      }
+    }
+  }
 
   const { data: subscription } = await supabase
     .from("subscriptions")
@@ -75,5 +128,8 @@ export async function GET(request: Request) {
     subscriptionStatus: subscription?.status ?? "inactive",
     transactions: [],
     ledgerEnabled: false,
+    billingScope: "user",
+    companyId: companyScope.companyId,
+    companyName: companyScope.companyName,
   });
 }

@@ -1,4 +1,12 @@
 import { NextResponse } from "next/server";
+import { getCompanyScope } from "@/lib/companyScope";
+import {
+  ensureInitialCompanyCredits,
+  getCompanySubscriptionStatus,
+  listCompanyCreditTransactions,
+  purchasedCompanyDocumentIdsFromTransactions,
+  sumCompanyCreditBalance,
+} from "@/lib/companyBilling";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import {
   DEFAULT_DOCUMENT_CREDITS,
@@ -41,6 +49,11 @@ export async function POST(request: Request) {
   }
 
   const { supabase, user, role } = auth;
+  const companyScope = await getCompanyScope({
+    supabase,
+    userId: user.id,
+    fallbackTeam: auth.team,
+  });
   const body = (await request.json()) as PurchasePayload;
   const documentId = body.documentId?.trim();
 
@@ -104,6 +117,108 @@ export async function POST(request: Request) {
       creditBalance: deriveCreditBalance(user),
       purchasedDocumentIds,
     });
+  }
+
+  if (companyScope.companyId) {
+    const companySubscription = await getCompanySubscriptionStatus(
+      supabase,
+      companyScope.companyId
+    );
+    const transactionResult = await listCompanyCreditTransactions(
+      supabase,
+      companyScope.companyId
+    );
+    const cost = getDocumentCreditCost(document.notes);
+
+    if (!transactionResult.error) {
+      await ensureInitialCompanyCredits({
+        supabase,
+        companyId: companyScope.companyId,
+        subscriptionStatus: companySubscription.data?.status ?? null,
+        existingTransactions: transactionResult.data,
+      });
+
+      const ledgerResult = await listCompanyCreditTransactions(
+        supabase,
+        companyScope.companyId
+      );
+
+      if (!ledgerResult.error) {
+        const ledgerPurchasedIds =
+          purchasedCompanyDocumentIdsFromTransactions(ledgerResult.data);
+        const ledgerBalance = sumCompanyCreditBalance(ledgerResult.data);
+
+        if (
+          ledgerPurchasedIds.includes(documentId) ||
+          document.user_id === user.id ||
+          isAdminRole(role)
+        ) {
+          return NextResponse.json({
+            success: true,
+            alreadyOwned: true,
+            creditBalance: ledgerBalance,
+            purchasedDocumentIds: ledgerPurchasedIds,
+            ledgerEnabled: true,
+            billingScope: "company",
+            companyId: companyScope.companyId,
+            companyName: companyScope.companyName,
+          });
+        }
+
+        if (ledgerBalance < cost) {
+          return NextResponse.json(
+            {
+              error: "Not enough credits.",
+              requiredCredits: cost,
+              creditBalance: ledgerBalance,
+            },
+            { status: 400 }
+          );
+        }
+
+        const { error: insertError } = await supabase
+          .from("company_credit_transactions")
+          .insert({
+            company_id: companyScope.companyId,
+            amount: -cost,
+            transaction_type: "purchase",
+            document_id: documentId,
+            description: `Unlocked ${document.project_name || "completed document"}`,
+            metadata: {
+              document_id: documentId,
+              project_name: document.project_name,
+              credit_cost: cost,
+            },
+          });
+
+        if (insertError) {
+          return NextResponse.json(
+            { error: insertError.message || "Failed to record company purchase." },
+            { status: 500 }
+          );
+        }
+
+        const nextLedger = await listCompanyCreditTransactions(
+          supabase,
+          companyScope.companyId
+        );
+
+        if (!nextLedger.error) {
+          return NextResponse.json({
+            success: true,
+            purchasedDocumentIds: purchasedCompanyDocumentIdsFromTransactions(
+              nextLedger.data
+            ),
+            creditBalance: sumCompanyCreditBalance(nextLedger.data),
+            cost,
+            ledgerEnabled: true,
+            billingScope: "company",
+            companyId: companyScope.companyId,
+            companyName: companyScope.companyName,
+          });
+        }
+      }
+    }
   }
 
   const { data: subscription } = await supabase
@@ -233,5 +348,8 @@ export async function POST(request: Request) {
     creditBalance: nextCreditBalance,
     cost,
     ledgerEnabled: false,
+    billingScope: "user",
+    companyId: companyScope.companyId,
+    companyName: companyScope.companyName,
   });
 }

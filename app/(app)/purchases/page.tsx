@@ -39,6 +39,9 @@ type CreditState = {
   subscriptionStatus: string;
   transactions: CreditTransaction[];
   ledgerEnabled: boolean;
+  billingScope?: "user" | "company";
+  companyId?: string | null;
+  companyName?: string | null;
 };
 
 type TestCreditPack = {
@@ -107,6 +110,9 @@ export default function PurchasesPage() {
     subscriptionStatus: "inactive",
     transactions: [],
     ledgerEnabled: false,
+    billingScope: "user",
+    companyId: null,
+    companyName: null,
   });
 
   const getAccessToken = useCallback(async () => {
@@ -189,6 +195,12 @@ export default function PurchasesPage() {
             )
           : [],
         ledgerEnabled: Boolean(creditData?.ledgerEnabled),
+        billingScope:
+          creditData?.billingScope === "company" ? "company" : "user",
+        companyId:
+          typeof creditData?.companyId === "string" ? creditData.companyId : null,
+        companyName:
+          typeof creditData?.companyName === "string" ? creditData.companyName : null,
       });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to load purchases.");
@@ -247,6 +259,10 @@ export default function PurchasesPage() {
     return purchaseTransactions.reduce((total, tx) => total + Math.abs(tx.amount), 0);
   }, [purchaseTransactions]);
   const canManageBilling = Boolean(permissionMap?.can_manage_billing);
+  const billingLabel =
+    creditState.billingScope === "company"
+      ? `${creditState.companyName || "Company"} billing`
+      : "Personal billing";
 
   const handleOpenDocument = useCallback(
     async (documentId: string, confirmed = false) => {
@@ -321,6 +337,16 @@ export default function PurchasesPage() {
               )
             : prev.transactions,
           ledgerEnabled: Boolean(data?.ledgerEnabled ?? prev.ledgerEnabled),
+          billingScope:
+            data?.billingScope === "company"
+              ? "company"
+              : (prev.billingScope ?? "user"),
+          companyId:
+            typeof data?.companyId === "string" ? data.companyId : prev.companyId,
+          companyName:
+            typeof data?.companyName === "string"
+              ? data.companyName
+              : prev.companyName,
         }));
         setMessage(
           `Added ${Number(data?.grantedCredits ?? 0)} test credits to your account.`
@@ -364,7 +390,11 @@ export default function PurchasesPage() {
         <StatCard
           title="Available Credits"
           value={String(creditState.creditBalance)}
-          note={creditState.ledgerEnabled ? "Tracked by credit ledger" : "Using fallback storage"}
+          note={
+            creditState.ledgerEnabled
+              ? `${billingLabel} tracked by credit ledger`
+              : `${billingLabel} using fallback storage`
+          }
         />
         <StatCard
           title="Unlocked Documents"
@@ -388,7 +418,7 @@ export default function PurchasesPage() {
         description="Use these in-app packs to simulate credit purchases without real payment processing."
         aside={
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-            Current balance: {creditState.creditBalance}
+            {billingLabel}: {creditState.creditBalance}
           </div>
         }
       >
@@ -440,7 +470,7 @@ export default function PurchasesPage() {
         description="Final deliverables you can open right now."
         aside={
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-            Subscription: {creditState.subscriptionStatus}
+            Subscription: {creditState.subscriptionStatus} ({billingLabel})
           </div>
         }
       >
