@@ -22,22 +22,16 @@ type NavSection = {
   items: NavItem[];
 };
 
-const userTopTabs: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", short: "DB" },
+const userQuickLinks: NavItem[] = [
   { href: "/submit", label: "Submit Request", short: "SB" },
-  { href: "/library", label: "Library", short: "LI" },
   { href: "/upload", label: "Upload", short: "UP" },
-  { href: "/search", label: "Search", short: "SR" },
-  { href: "/peshep", label: "PESHEP Builder", short: "PE" },
+  { href: "/library", label: "Library", short: "LI" },
 ];
 
-const adminTopTabs: NavItem[] = [
-  { href: "/admin", label: "Admin Dashboard", short: "AD" },
+const adminQuickLinks: NavItem[] = [
   { href: "/admin/review-documents", label: "Review Queue", short: "RQ" },
   { href: "/admin/users", label: "Users", short: "US" },
   { href: "/admin/agreements", label: "Agreements", short: "AG" },
-  { href: "/admin/marketplace", label: "Marketplace", short: "MP" },
-  { href: "/library", label: "Library", short: "LI" },
 ];
 
 const userSideSections: NavSection[] = [
@@ -143,14 +137,6 @@ export default function AppLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isAdminArea = pathname.startsWith("/admin");
 
-  const topTabs = useMemo(() => {
-    const base = isAdminArea ? adminTopTabs : userTopTabs;
-    if (!isAdminArea && isAdminUser) {
-      return [...base, { href: "/admin", label: "Admin", short: "AD" }];
-    }
-    return base;
-  }, [isAdminArea, isAdminUser]);
-
   const sideSections = useMemo(() => {
     const base = isAdminArea ? adminSideSections : userSideSections;
     if (!isAdminArea && isAdminUser) {
@@ -161,6 +147,30 @@ export default function AppLayout({
           items: [{ href: "/admin", label: "Admin Panel", short: "AD" }],
         },
       ];
+    }
+    return base;
+  }, [isAdminArea, isAdminUser]);
+
+  const currentNavItem = useMemo(() => {
+    for (const section of sideSections) {
+      for (const item of section.items) {
+        if (isActivePath(pathname, item.href)) {
+          return item;
+        }
+      }
+    }
+
+    return {
+      href: pathname,
+      label: isAdminArea ? "Admin Workspace" : "Workspace",
+      short: isAdminArea ? "AD" : "WS",
+    };
+  }, [isAdminArea, pathname, sideSections]);
+
+  const quickLinks = useMemo(() => {
+    const base = isAdminArea ? adminQuickLinks : userQuickLinks;
+    if (!isAdminArea && isAdminUser) {
+      return [...base, { href: "/admin", label: "Admin Panel", short: "AD" }];
     }
     return base;
   }, [isAdminArea, isAdminUser]);
@@ -621,12 +631,19 @@ export default function AppLayout({
                         {workspaceLabel}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-3">
-                        <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
-                          Safety360Docs
-                        </h1>
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          {isAdminArea ? "Admin controls" : "Workspace tools"}
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-[11px] font-black text-slate-600">
+                          {currentNavItem.short}
                         </span>
+                        <div>
+                          <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                            {currentNavItem.label}
+                          </h1>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {isAdminArea
+                              ? "Administrative tools and audit controls"
+                              : "Safety document workspace and active project tools"}
+                          </p>
+                        </div>
                       </div>
                       <p className="mt-1 max-w-3xl text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500 sm:text-sm">
                         Enterprise Safety Management Platform
@@ -653,37 +670,46 @@ export default function AppLayout({
                   </div>
                 </div>
 
-                <div>
-                  <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
-                    Quick Access
-                  </div>
-                  <div className="overflow-x-auto">
-                    <div className="inline-flex min-w-max gap-2 rounded-[1.35rem] border border-slate-200 bg-white p-2 shadow-sm">
-                    {topTabs.map((item) => {
-                      const active = isActivePath(pathname, item.href);
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className={cx(
-                            "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition",
-                            active
-                              ? "bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)]"
-                              : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                          )}
-                        >
-                          <span
-                            className={cx(
-                              "inline-flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-black",
-                              active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
-                            )}
-                          >
-                            {item.short}
-                          </span>
-                          {item.label}
-                        </Link>
-                      );
-                    })}
+                <div className="rounded-[1.35rem] border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
+                        Current Section
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {currentNavItem.label}
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <div className="inline-flex min-w-max gap-2">
+                        {quickLinks.map((item) => {
+                          const active = isActivePath(pathname, item.href);
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              className={cx(
+                                "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition",
+                                active
+                                  ? "bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)]"
+                                  : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                              )}
+                            >
+                              <span
+                                className={cx(
+                                  "inline-flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-black",
+                                  active
+                                    ? "bg-white/20 text-white"
+                                    : "bg-white text-slate-500"
+                                )}
+                              >
+                                {item.short}
+                              </span>
+                              {item.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
