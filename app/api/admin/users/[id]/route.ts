@@ -417,3 +417,106 @@ export async function POST(
 
   return NextResponse.json({ error: "Unsupported action." }, { status: 400 });
 }
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_assign_roles",
+  });
+
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const adminClient = createAdminClient();
+
+  if (!adminClient) {
+    return NextResponse.json(
+      { error: "Missing Supabase service role configuration." },
+      { status: 500 }
+    );
+  }
+
+  const { id } = await context.params;
+
+  if (id === auth.user.id) {
+    return NextResponse.json(
+      { error: "You cannot remove your own account from the workspace." },
+      { status: 400 }
+    );
+  }
+
+  const { data: currentUser, error: getError } =
+    await adminClient.auth.admin.getUserById(id);
+
+  if (getError || !currentUser.user) {
+    return NextResponse.json(
+      { error: getError?.message || "User not found." },
+      { status: 404 }
+    );
+  }
+
+  const fallbackRole = "viewer";
+  const fallbackTeam = "General";
+  const fallbackStatus = "suspended";
+
+  const mergedUserMetadata = {
+    ...(currentUser.user.user_metadata ?? {}),
+    role: fallbackRole,
+    team: fallbackTeam,
+    company_id: null,
+    account_status: fallbackStatus,
+  };
+
+  const mergedAppMetadata = {
+    ...(currentUser.user.app_metadata ?? {}),
+    role: fallbackRole,
+    team: fallbackTeam,
+    company_id: null,
+    account_status: fallbackStatus,
+  };
+
+  const { error: updateError } = await adminClient.auth.admin.updateUserById(id, {
+    user_metadata: mergedUserMetadata,
+    app_metadata: mergedAppMetadata,
+  });
+
+  if (updateError) {
+    return NextResponse.json(
+      { error: formatRoleConstraintError(updateError.message) },
+      { status: 500 }
+    );
+  }
+
+  const { error: roleError } = await adminClient.from("user_roles").upsert(
+    {
+      user_id: id,
+      role: fallbackRole,
+      team: fallbackTeam,
+      company_id: null,
+      account_status: fallbackStatus,
+      created_by: auth.user.id,
+      updated_by: auth.user.id,
+    },
+    {
+      onConflict: "user_id",
+    }
+  );
+
+  if (roleError) {
+    return NextResponse.json(
+      { error: formatRoleConstraintError(roleError.message) },
+      { status: 500 }
+    );
+  }
+
+  await adminClient.from("company_memberships").delete().eq("user_id", id);
+
+  return NextResponse.json({
+    success: true,
+    removedUserId: id,
+    message: "User removed from the workspace and access has been suspended.",
+  });
+}

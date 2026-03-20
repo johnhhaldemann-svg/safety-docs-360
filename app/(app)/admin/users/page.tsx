@@ -85,6 +85,7 @@ export default function AdminUsersPage() {
   const [editTeam, setEditTeam] = useState("General");
   const [editStatus, setEditStatus] = useState("Active");
   const [saveLoading, setSaveLoading] = useState(false);
+  const [removeLoading, setRemoveLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState("");
   const [modalMessage, setModalMessage] = useState("");
   const [modalMessageTone, setModalMessageTone] = useState<
@@ -348,6 +349,62 @@ export default function AdminUsersPage() {
       setModalMessage(nextMessage);
     }
     setActionLoading("");
+  }
+
+  async function handleRemoveUser() {
+    if (!editingUser) return;
+
+    const confirmed = window.confirm(
+      `Remove ${editingUser.name} from the workspace? This will revoke company access, reset their workspace assignment, and suspend the account.`
+    );
+
+    if (!confirmed) return;
+
+    setRemoveLoading(true);
+    setMessage("");
+    setMessageTone("neutral");
+    setModalMessage("");
+    setModalMessageTone("neutral");
+
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; message?: string }
+        | null;
+
+      if (!res.ok) {
+        const nextMessage = data?.error || "Failed to remove user.";
+        setMessageTone("error");
+        setMessage(nextMessage);
+        setModalMessageTone("error");
+        setModalMessage(nextMessage);
+        setRemoveLoading(false);
+        return;
+      }
+
+      const successMessage =
+        data?.message || "User removed from the workspace successfully.";
+      setMessageTone("success");
+      setMessage(successMessage);
+      setModalMessageTone("success");
+      setModalMessage(successMessage);
+      await loadUsers({ preserveMessage: true });
+      setEditingUser(null);
+    } catch (error) {
+      const nextMessage = error instanceof Error ? error.message : "Failed to remove user.";
+      setMessageTone("error");
+      setMessage(nextMessage);
+      setModalMessageTone("error");
+      setModalMessage(nextMessage);
+    }
+
+    setRemoveLoading(false);
   }
 
   async function handleQuickStatus(user: AdminUser, nextStatus: "Active" | "Suspended") {
@@ -686,6 +743,13 @@ export default function AdminUsersPage() {
             ) : null}
 
             <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                onClick={() => void handleRemoveUser()}
+                disabled={removeLoading}
+                className="rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+              >
+                {removeLoading ? "Removing..." : "Remove User"}
+              </button>
               {editingUser.status === "Pending" ? (
                 <button
                   onClick={() => void handleUserAction("resend_invite")}
