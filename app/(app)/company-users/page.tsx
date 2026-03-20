@@ -94,6 +94,7 @@ export default function CompanyUsersPage() {
   const [editRole, setEditRole] = useState("Company User");
   const [editStatus, setEditStatus] = useState("Active");
   const [saveLoading, setSaveLoading] = useState(false);
+  const [removeLoading, setRemoveLoading] = useState(false);
 
   async function getAccessToken() {
     const {
@@ -307,6 +308,52 @@ export default function CompanyUsersPage() {
     setSaveLoading(false);
   }
 
+  async function handleRemoveUser() {
+    if (!editingUser) return;
+
+    const confirmed = window.confirm(
+      `Remove ${editingUser.name} from ${scopeCompanyName}? This will revoke company access and suspend the account until an internal admin reassigns it.`
+    );
+
+    if (!confirmed) return;
+
+    setRemoveLoading(true);
+    setMessage("");
+    setMessageTone("neutral");
+
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`/api/company/users/${editingUser.id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string; message?: string }
+        | null;
+
+      if (!response.ok) {
+        setMessageTone("error");
+        setMessage(data?.error || "Failed to remove company user.");
+        setRemoveLoading(false);
+        return;
+      }
+
+      setEditingUser(null);
+      setMessageTone("success");
+      setMessage(
+        data?.message || "User removed from the company workspace successfully."
+      );
+      await loadUsers({ preserveMessage: true });
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to remove company user.");
+    }
+
+    setRemoveLoading(false);
+  }
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -489,7 +536,14 @@ export default function CompanyUsersPage() {
               </select>
             </div>
 
-            <div className="mt-6 flex justify-end">
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                onClick={() => void handleRemoveUser()}
+                disabled={removeLoading}
+                className="rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+              >
+                {removeLoading ? "Removing..." : "Remove User"}
+              </button>
               <button
                 onClick={() => void handleSaveUser()}
                 disabled={saveLoading}

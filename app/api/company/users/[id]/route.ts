@@ -233,3 +233,141 @@ export async function PATCH(
     accountStatus,
   });
 }
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  const auth = await authorizeRequest(request, {
+    requireAnyPermission: ["can_manage_company_users", "can_manage_users"],
+  });
+
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const adminClient = createSupabaseAdminClient();
+
+  if (!adminClient) {
+    return NextResponse.json(
+      { error: "Missing Supabase service role configuration." },
+      { status: 500 }
+    );
+  }
+
+  const { id } = await context.params;
+  const team = auth.team || "General";
+  const companyScope = await getCompanyScope({
+    supabase: auth.supabase,
+    userId: auth.user.id,
+    fallbackTeam: team,
+  });
+
+  if (!companyScope.companyId) {
+    return NextResponse.json(
+      { error: "This company account is not linked to a valid company scope yet." },
+      { status: 400 }
+    );
+  }
+
+  if (id === auth.user.id) {
+    return NextResponse.json(
+      { error: "You cannot remove your own company admin access from this page." },
+      { status: 400 }
+    );
+  }
+
+  const { data: currentUser, error: getError } = await adminClient.auth.admin.getUserById(id);
+
+  if (getError || !currentUser.user) {
+    return NextResponse.json(
+      { error: getError?.message || "User not found." },
+      { status: 404 }
+    );
+  }
+
+  const currentRoleContext = await getUserRoleContext({
+    supabase: adminClient,
+    user: currentUser.user,
+  });
+
+  if (isCompanyAdminRole(auth.role) && currentRoleContext.team !== team) {
+    return NextResponse.json(
+      { error: "Managers can only remove users from their own company." },
+      { status: 403 }
+    );
+  }
+
+  if (isCompanyAdminRole(auth.role) && isAdminRole(currentRoleContext.role)) {
+    return NextResponse.json(
+      { error: "Managers cannot remove administrator accounts." },
+      { status: 403 }
+    );
+  }
+
+  await adminClient
+    .from("company_memberships")
+    .delete()
+    .eq("user_id", id)
+    .eq("company_id", companyScope.companyId);
+
+  const fallbackRole = "viewer";
+  const fallbackTeam = "General";
+  const fallbackStatus = "suspended";
+
+  const mergedUserMetadata = {
+    ...(currentUser.user.user_metadata ?? {}),
+    role: fallbackRole,
+    team: fallbackTeam,
+    company_id: null,
+    account_status: fallbackStatus,
+  };
+
+  const mergedAppMetadata = {
+    ...(currentUser.user.app_metadata ?? {}),
+    role: fallbackRole,
+    team: fallbackTeam,
+    company_id: null,
+    account_status: fallbackStatus,
+  };
+
+  const { error: updateError } = await adminClient.auth.admin.updateUserById(id, {
+    user_metadata: mergedUserMetadata,
+    app_metadata: mergedAppMetadata,
+  });
+
+  if (updateError) {
+    return NextResponse.json(
+      { error: formatRoleConstraintError(updateError.message) },
+      { status: 500 }
+    );
+  }
+
+  const { error: roleError } = await adminClient.from("user_roles").upsert(
+    {
+      user_id: id,
+      role: fallbackRole,
+      team: fallbackTeam,
+      company_id: null,
+      account_status: fallbackStatus,
+      created_by: auth.user.id,
+      updated_by: auth.user.id,
+    },
+    {
+      onConflict: "user_id",
+    }
+  );
+
+  if (roleError) {
+    return NextResponse.json(
+      { error: formatRoleConstraintError(roleError.message) },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    removedUserId: id,
+    message: "User removed from the company workspace and access has been suspended.",
+  });
+}
