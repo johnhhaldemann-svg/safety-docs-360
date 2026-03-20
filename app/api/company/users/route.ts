@@ -196,14 +196,6 @@ function getCompanySafeRole(role?: string | null) {
   return normalized;
 }
 
-function formatRoleConstraintError(message?: string | null) {
-  if ((message ?? "").includes("user_roles_role_check")) {
-    return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow Company Admin and Company User roles.";
-  }
-
-  return message || "Company user update failed.";
-}
-
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: ["can_manage_company_users", "can_manage_users"],
@@ -324,8 +316,6 @@ export async function POST(request: Request) {
   }
 
   const adminClient = createSupabaseAdminClient();
-  const envStatus = getSupabaseServerEnvStatus();
-
   const body = (await request.json()) as InvitePayload;
   const email = body.email?.trim().toLowerCase() ?? "";
 
@@ -356,166 +346,50 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!adminClient) {
-    const { data: inviteData, error: inviteError } = await saveCompanyInvite({
-      supabase: auth.supabase as never,
-      email,
-      role,
-      team,
-      companyId: companyScope.companyId,
-      accountStatus: accountStatus,
-      actorUserId: auth.user.id,
-    });
-
-    if (inviteError) {
-      return NextResponse.json(
-        { error: inviteError.message || "Failed to save company invite." },
-        { status: 500 }
-      );
-    }
-
-    const emailResult = await sendCompanyInviteEmail({
-      toEmail: email,
-      companyName: companyScope.companyName,
-      roleLabel: formatAppRole(role),
-      invitedByName: getActorName(auth.user),
-    });
-
-    return NextResponse.json({
-      success: true,
-      invite: inviteData as CompanyInviteRow,
-      message:
-        emailResult.sent
-          ? "Company invite saved and email sent."
-          : "Company invite saved. This person can create an account with the invited email and will automatically join your company workspace.",
-      user: {
-        id: (inviteData as CompanyInviteRow).id,
-        email,
-        role: formatAppRole(role),
-        team,
-        companyId: companyScope.companyId,
-        status: formatAccountStatus(accountStatus),
-      },
-      scopeTeam: team,
-      scopeCompanyId: companyScope.companyId,
-      warning: emailResult.sent
-        ? "The company invite was sent using the database-backed signup flow."
-        : emailResult.warning ||
-          "The email invite was stored in the workspace database because the Supabase admin invite API is unavailable at runtime.",
-      details: envStatus,
-    });
-  }
-
-  const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
-    data: {
-      role,
-      team,
-      company_id: companyScope.companyId,
-      account_status: accountStatus,
-    },
+  const inviteClient = (adminClient ?? auth.supabase) as never;
+  const { data: inviteData, error: inviteError } = await saveCompanyInvite({
+    supabase: inviteClient,
+    email,
+    role,
+    team,
+    companyId: companyScope.companyId,
+    accountStatus: accountStatus,
+    actorUserId: auth.user.id,
   });
 
-  if (error) {
-    const { data: inviteData, error: inviteError } = await saveCompanyInvite({
-      supabase: adminClient as never,
-      email,
-      role,
-      team,
-      companyId: companyScope.companyId,
-      accountStatus: accountStatus,
-      actorUserId: auth.user.id,
-    });
-
-    if (inviteError) {
-      return NextResponse.json(
-        { error: formatRoleConstraintError(error.message) },
-        { status: 500 }
-      );
-    }
-
-    const emailResult = await sendCompanyInviteEmail({
-      toEmail: email,
-      companyName: companyScope.companyName,
-      roleLabel: formatAppRole(role),
-      invitedByName: getActorName(auth.user),
-    });
-
-    return NextResponse.json({
-      success: true,
-      invite: inviteData,
-      message:
-        emailResult.sent
-          ? "Company invite saved and email sent."
-          : "Company invite saved in the workspace database. This person can create an account with the invited email and will automatically join your company workspace.",
-      user: {
-        id: (inviteData as CompanyInviteRow | null)?.id ?? "",
-        email,
-        role: formatAppRole(role),
-        team,
-        companyId: companyScope.companyId,
-        status: formatAccountStatus(accountStatus),
-      },
-      scopeTeam: team,
-      scopeCompanyId: companyScope.companyId,
-      warning: emailResult.sent
-        ? "The Supabase invite path was unavailable, so a database-backed invite email was sent instead."
-        : emailResult.warning ||
-          "The Supabase email invite could not be sent, so the company invite was saved for self-service signup instead.",
-    });
-  }
-
-  if (data.user?.id) {
-    const { error: roleError } = await adminClient.from("user_roles").upsert(
-      {
-        user_id: data.user.id,
-        role,
-        team,
-        company_id: companyScope.companyId,
-        account_status: accountStatus,
-        created_by: auth.user.id,
-        updated_by: auth.user.id,
-      },
-      {
-        onConflict: "user_id",
-      }
+  if (inviteError) {
+    return NextResponse.json(
+      { error: inviteError.message || "Failed to save company invite." },
+      { status: 500 }
     );
-
-    if (roleError) {
-      return NextResponse.json(
-        { error: formatRoleConstraintError(roleError.message) },
-        { status: 500 }
-      );
-    }
-
-    if (companyScope.companyId) {
-      await adminClient.from("company_memberships").upsert(
-        {
-          user_id: data.user.id,
-          company_id: companyScope.companyId,
-          role,
-          status: accountStatus === "pending" ? "pending" : "active",
-          created_by: auth.user.id,
-          updated_by: auth.user.id,
-        },
-        {
-          onConflict: "user_id,company_id",
-        }
-      );
-    }
   }
+
+  const emailResult = await sendCompanyInviteEmail({
+    toEmail: email,
+    companyName: companyScope.companyName,
+    roleLabel: formatAppRole(role),
+    invitedByName: getActorName(auth.user),
+  });
 
   return NextResponse.json({
     success: true,
     user: {
-      id: data.user?.id ?? "",
+      id: (inviteData as CompanyInviteRow | null)?.id ?? "",
       email,
       role: formatAppRole(role),
       team,
       companyId: companyScope.companyId,
       status: formatAccountStatus(accountStatus),
     },
-    message: "Company user invited successfully.",
+    invite: inviteData,
+    message: emailResult.sent
+      ? "Company invite saved and email sent."
+      : "Company invite saved. This person can create an account with the invited email and will automatically join your company workspace.",
     scopeTeam: team,
     scopeCompanyId: companyScope.companyId,
+    warning: emailResult.sent
+      ? undefined
+      : emailResult.warning ||
+        "The company invite was saved, but the email could not be delivered automatically.",
   });
 }
