@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import {
   authorizeRequest,
   isCompanyRole,
   normalizeAccountStatus,
   normalizeAppRole,
 } from "@/lib/rbac";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -19,22 +19,6 @@ type ActionPayload = {
   action?: string;
 };
 
-function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return null;
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
-}
-
 function formatRoleConstraintError(message?: string | null) {
   if ((message ?? "").includes("user_roles_role_check")) {
     return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow Company Admin and Company User roles.";
@@ -44,7 +28,7 @@ function formatRoleConstraintError(message?: string | null) {
 }
 
 async function resolveCompanyAssignment(params: {
-  adminClient: ReturnType<typeof createAdminClient>;
+  adminClient: ReturnType<typeof createSupabaseAdminClient>;
   currentUser: {
     app_metadata?: Record<string, unknown>;
     user_metadata?: Record<string, unknown>;
@@ -149,7 +133,7 @@ export async function PATCH(
     return auth.error;
   }
 
-  const adminClient = createAdminClient();
+  const adminClient = createSupabaseAdminClient();
 
   const { id } = await context.params;
   const body = (await request.json()) as UpdatePayload;
@@ -298,7 +282,7 @@ export async function POST(
     return auth.error;
   }
 
-  const adminClient = createAdminClient();
+  const adminClient = createSupabaseAdminClient();
 
   if (!adminClient) {
     return NextResponse.json(
@@ -430,7 +414,7 @@ export async function DELETE(
     return auth.error;
   }
 
-  const adminClient = createAdminClient();
+  const adminClient = createSupabaseAdminClient();
 
   if (!adminClient) {
     return NextResponse.json(
