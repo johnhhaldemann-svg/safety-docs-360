@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
+import { getDefaultAgreementConfig } from "@/lib/legal";
 import { normalizeAgreementConfig, getAgreementConfig, saveAgreementConfig } from "@/lib/legalSettings";
 
 export const runtime = "nodejs";
@@ -12,7 +13,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    const config = await getAgreementConfig(auth.supabase);
+    const config = await getAgreementConfig(auth.supabase).catch(() =>
+      getDefaultAgreementConfig()
+    );
     return NextResponse.json(config);
   } catch (error) {
     return NextResponse.json(

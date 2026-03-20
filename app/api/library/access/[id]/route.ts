@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { normalizePurchasedIds } from "@/lib/marketplace";
-import { getClientIpAddress, getUserAgreementRecord } from "@/lib/legal";
+import {
+  getClientIpAddress,
+  getDefaultAgreementConfig,
+  getUserAgreementRecord,
+} from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 import {
   listCreditTransactions,
@@ -27,8 +31,8 @@ export async function GET(
     request.headers.get("x-download-confirmed")?.trim().toLowerCase() === "true";
 
   const [agreementResult, agreementConfig] = await Promise.all([
-    getUserAgreementRecord(supabase, user.id),
-    getAgreementConfig(supabase),
+    getUserAgreementRecord(supabase, user.id, user.user_metadata ?? undefined),
+    getAgreementConfig(supabase).catch(() => getDefaultAgreementConfig()),
   ]);
 
   if (

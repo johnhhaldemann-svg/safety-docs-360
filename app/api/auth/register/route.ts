@@ -136,7 +136,7 @@ export async function POST(request: Request) {
   );
   const ipAddress = getClientIpAddress(request);
 
-  await acceptUserAgreement({
+  const agreementAcceptResult = await acceptUserAgreement({
     supabase: adminClient,
     userId: data.user.id,
     ipAddress,
@@ -150,6 +150,8 @@ export async function POST(request: Request) {
     warning:
       metadataResult.error && roleResult.error
         ? "Your account was created, but some admin-only profile details will finish syncing after approval."
+        : agreementAcceptResult.error
+          ? agreementAcceptResult.error.message ?? "Your agreement acceptance could not be recorded automatically."
         : null,
   });
 }

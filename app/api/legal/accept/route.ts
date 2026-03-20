@@ -24,7 +24,11 @@ export async function GET(request: Request) {
     getDefaultAgreementConfig()
   );
   const [agreementResult, agreementConfig] = await Promise.all([
-    getUserAgreementRecord(auth.supabase, auth.user.id),
+    getUserAgreementRecord(
+      auth.supabase,
+      auth.user.id,
+      auth.user.user_metadata ?? undefined
+    ),
     agreementConfigPromise,
   ]);
 

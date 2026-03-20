@@ -65,7 +65,11 @@ export async function GET(request: Request) {
           supabase: auth.supabase,
           user,
         }),
-        getUserAgreementRecord(auth.supabase, user.id),
+        getUserAgreementRecord(
+          auth.supabase,
+          user.id,
+          user.user_metadata ?? undefined
+        ),
       ]);
 
       const row: AgreementAuditRow = {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { generatePshsepDocx, type PSHSEPInput } from "@/app/api/pshsep/export/route";
 import { generateCsepDocx } from "@/app/api/csep/export/route";
-import { getUserAgreementRecord } from "@/lib/legal";
+import { getDefaultAgreementConfig, getUserAgreementRecord } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 import { authorizeRequest } from "@/lib/rbac";
 
@@ -49,8 +49,8 @@ export async function POST(request: Request) {
     }
 
     const [agreementResult, agreementConfig] = await Promise.all([
-      getUserAgreementRecord(supabase, user.id),
-      getAgreementConfig(supabase),
+      getUserAgreementRecord(supabase, user.id, user.user_metadata ?? undefined),
+      getAgreementConfig(supabase).catch(() => getDefaultAgreementConfig()),
     ]);
 
     if (

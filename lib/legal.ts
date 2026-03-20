@@ -118,7 +118,8 @@ export function buildAgreementAcceptance(params: {
 
 export async function getUserAgreementRecord(
   supabase: SupabaseLikeClient,
-  userId: string
+  userId: string,
+  fallbackMetadata?: Record<string, unknown> | undefined
 ) {
   const { data, error } = await (
     supabase.from("user_agreements") as {
@@ -148,8 +149,9 @@ export async function getUserAgreementRecord(
   }
 
   if (!supabase.auth?.admin) {
+    const fallbackData = parseAgreementFromMetadata(userId, fallbackMetadata);
     return {
-      data: null,
+      data: fallbackData,
       error: null,
     };
   }
