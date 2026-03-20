@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
@@ -19,6 +19,14 @@ const capabilityTiles = [
 const securityPills = ["ISO 45001", "SOC 2 Type II", "AES-256", "OSHA Ready"];
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginPageFallback />}>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const invitedEmail = searchParams.get("email") ?? "";
@@ -392,6 +400,18 @@ export default function LoginPage() {
               </div>
             </div>
           </section>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function LoginPageFallback() {
+  return (
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.08),_transparent_22%),linear-gradient(180deg,_#0a1018_0%,_#0f1726_100%)] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl items-center justify-center">
+        <div className="w-full max-w-md rounded-[1.8rem] border border-white/8 bg-[#121826] p-8 text-center text-slate-300 shadow-[0_22px_60px_rgba(0,0,0,0.32)]">
+          Loading secure access portal...
         </div>
       </div>
     </main>
