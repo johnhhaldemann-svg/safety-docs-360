@@ -298,16 +298,16 @@ export default function DashboardPage() {
           : [
               {
                 title: "Templates",
-                value: String(stats.templates),
+                value: String(templateCount),
                 note: "Completed template records currently visible",
-                trend: stats.templates > 0 ? "Ready to open" : "No templates visible",
+                trend: templateCount > 0 ? "Ready to open" : "No templates visible",
                 icon: "records" as const,
               },
               {
                 title: "Reports",
-                value: String(stats.reports),
+                value: String(reportCount),
                 note: "Completed report documents available in the library",
-                trend: stats.reports > 0 ? "Ready to open" : "No reports visible",
+                trend: reportCount > 0 ? "Ready to open" : "No reports visible",
                 icon: "records" as const,
               },
             ]),
