@@ -17,52 +17,79 @@ type NavItem = {
   short: string;
 };
 
+type NavSection = {
+  title: string;
+  items: NavItem[];
+};
+
 const userTopTabs: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/submit", label: "Submit Request", short: "SB" },
   { href: "/library", label: "Library", short: "LI" },
-  { href: "/search", label: "Search", short: "SR" },
   { href: "/upload", label: "Upload", short: "UP" },
+  { href: "/search", label: "Search", short: "SR" },
   { href: "/peshep", label: "PESHEP Builder", short: "PE" },
-  { href: "/csep", label: "CSEP Builder", short: "CS" },
-  { href: "/purchases", label: "My Purchases", short: "PU" },
 ];
 
 const adminTopTabs: NavItem[] = [
   { href: "/admin", label: "Admin Dashboard", short: "AD" },
   { href: "/admin/review-documents", label: "Review Queue", short: "RQ" },
-  { href: "/admin/archive", label: "Archive", short: "AR" },
-  { href: "/admin/marketplace", label: "Marketplace", short: "MP" },
-  { href: "/admin/agreements", label: "Agreements", short: "AG" },
-  { href: "/admin/transactions", label: "Transactions", short: "TX" },
   { href: "/admin/users", label: "Users", short: "US" },
-  { href: "/admin/settings", label: "Settings", short: "ST" },
+  { href: "/admin/agreements", label: "Agreements", short: "AG" },
+  { href: "/admin/marketplace", label: "Marketplace", short: "MP" },
   { href: "/library", label: "Library", short: "LI" },
-  { href: "/search", label: "Search", short: "SR" },
 ];
 
-const userSideLinks: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", short: "HM" },
-  { href: "/submit", label: "Submit Request", short: "SB" },
-  { href: "/library", label: "Library", short: "LB" },
-  { href: "/search", label: "Search", short: "SR" },
-  { href: "/upload", label: "Upload", short: "UP" },
-  { href: "/peshep", label: "PESHEP Builder", short: "PB" },
-  { href: "/csep", label: "CSEP Builder", short: "CS" },
-  { href: "/purchases", label: "My Purchases", short: "MP" },
+const userSideSections: NavSection[] = [
+  {
+    title: "Workspace",
+    items: [
+      { href: "/dashboard", label: "Dashboard", short: "HM" },
+      { href: "/submit", label: "Submit Request", short: "SB" },
+      { href: "/library", label: "Library", short: "LB" },
+      { href: "/upload", label: "Upload", short: "UP" },
+      { href: "/search", label: "Search", short: "SR" },
+    ],
+  },
+  {
+    title: "Builders",
+    items: [
+      { href: "/peshep", label: "PESHEP Builder", short: "PB" },
+      { href: "/csep", label: "CSEP Builder", short: "CS" },
+    ],
+  },
+  {
+    title: "Account",
+    items: [{ href: "/purchases", label: "My Purchases", short: "MP" }],
+  },
 ];
 
-const adminSideLinks: NavItem[] = [
-  { href: "/admin", label: "Dashboard", short: "AH" },
-  { href: "/admin/review-documents", label: "Review Queue", short: "RQ" },
-  { href: "/admin/marketplace", label: "Marketplace", short: "MP" },
-  { href: "/admin/archive", label: "Archive", short: "AR" },
-  { href: "/admin/agreements", label: "Agreements", short: "AG" },
-  { href: "/admin/transactions", label: "Transactions", short: "TX" },
-  { href: "/admin/users", label: "Users", short: "US" },
-  { href: "/admin/settings", label: "Settings", short: "ST" },
-  { href: "/library", label: "Library", short: "LB" },
-  { href: "/search", label: "Search", short: "SR" },
+const adminSideSections: NavSection[] = [
+  {
+    title: "Admin",
+    items: [
+      { href: "/admin", label: "Dashboard", short: "AH" },
+      { href: "/admin/review-documents", label: "Review Queue", short: "RQ" },
+      { href: "/admin/users", label: "Users", short: "US" },
+      { href: "/admin/agreements", label: "Agreements", short: "AG" },
+      { href: "/admin/marketplace", label: "Marketplace", short: "MP" },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { href: "/admin/archive", label: "Archive", short: "AR" },
+      { href: "/admin/transactions", label: "Transactions", short: "TX" },
+      { href: "/admin/settings", label: "Settings", short: "ST" },
+    ],
+  },
+  {
+    title: "Shared Tools",
+    items: [
+      { href: "/library", label: "Library", short: "LB" },
+      { href: "/search", label: "Search", short: "SR" },
+    ],
+  },
 ];
 
 function cx(...classes: Array<string | false | null | undefined>) {
@@ -124,10 +151,16 @@ export default function AppLayout({
     return base;
   }, [isAdminArea, isAdminUser]);
 
-  const sideLinks = useMemo(() => {
-    const base = isAdminArea ? adminSideLinks : userSideLinks;
+  const sideSections = useMemo(() => {
+    const base = isAdminArea ? adminSideSections : userSideSections;
     if (!isAdminArea && isAdminUser) {
-      return [...base, { href: "/admin", label: "Admin Panel", short: "AD" }];
+      return [
+        ...base,
+        {
+          title: "Admin",
+          items: [{ href: "/admin", label: "Admin Panel", short: "AD" }],
+        },
+      ];
     }
     return base;
   }, [isAdminArea, isAdminUser]);
@@ -493,47 +526,56 @@ export default function AppLayout({
               </div>
             </div>
 
-            <nav className="flex-1 px-3 py-3">
+            <nav className="flex-1 overflow-y-auto px-3 py-3">
               <div className="px-3 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
                 Navigation
               </div>
-              <div className="mt-3 space-y-1.5">
-                {sideLinks.map((item) => {
-                  const active = isActivePath(pathname, item.href);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cx(
-                        "flex items-center gap-3 rounded-2xl border px-3 py-3 transition",
-                        active
-                          ? "border-sky-200 bg-[linear-gradient(135deg,_rgba(255,255,255,0.96)_0%,_rgba(232,243,255,0.96)_100%)] text-slate-950 shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
-                          : "border-transparent text-slate-200 hover:bg-white/8 hover:text-white"
-                      )}
-                    >
-                      <span
-                        className={cx(
-                          "inline-flex h-8 w-8 items-center justify-center rounded-xl text-[11px] font-black",
-                          active
-                            ? "bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-sky-700"
-                            : "bg-white/8 text-sky-200"
-                        )}
-                      >
-                        {item.short}
-                      </span>
-                      <div className="min-w-0">
-                        <div
-                          className={cx(
-                            "truncate text-sm font-semibold",
-                            active ? "text-slate-950" : "text-white"
-                          )}
-                        >
-                          {item.label}
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
+              <div className="mt-4 space-y-5">
+                {sideSections.map((section) => (
+                  <div key={section.title}>
+                    <div className="px-3 text-[10px] font-bold uppercase tracking-[0.26em] text-slate-500">
+                      {section.title}
+                    </div>
+                    <div className="mt-2 space-y-1.5">
+                      {section.items.map((item) => {
+                        const active = isActivePath(pathname, item.href);
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className={cx(
+                              "flex items-center gap-3 rounded-2xl border px-3 py-3 transition",
+                              active
+                                ? "border-sky-200 bg-[linear-gradient(135deg,_rgba(255,255,255,0.96)_0%,_rgba(232,243,255,0.96)_100%)] text-slate-950 shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
+                                : "border-transparent text-slate-200 hover:bg-white/8 hover:text-white"
+                            )}
+                          >
+                            <span
+                              className={cx(
+                                "inline-flex h-8 w-8 items-center justify-center rounded-xl text-[11px] font-black",
+                                active
+                                  ? "bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-sky-700"
+                                  : "bg-white/8 text-sky-200"
+                              )}
+                            >
+                              {item.short}
+                            </span>
+                            <div className="min-w-0">
+                              <div
+                                className={cx(
+                                  "truncate text-sm font-semibold",
+                                  active ? "text-slate-950" : "text-white"
+                                )}
+                              >
+                                {item.label}
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </nav>
 
@@ -582,6 +624,9 @@ export default function AppLayout({
                         <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
                           Safety360Docs
                         </h1>
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                          {isAdminArea ? "Admin controls" : "Workspace tools"}
+                        </span>
                       </div>
                       <p className="mt-1 max-w-3xl text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500 sm:text-sm">
                         Enterprise Safety Management Platform
@@ -608,8 +653,12 @@ export default function AppLayout({
                   </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <div className="inline-flex min-w-max gap-2 rounded-[1.35rem] border border-slate-200 bg-white p-2 shadow-sm">
+                <div>
+                  <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
+                    Quick Access
+                  </div>
+                  <div className="overflow-x-auto">
+                    <div className="inline-flex min-w-max gap-2 rounded-[1.35rem] border border-slate-200 bg-white p-2 shadow-sm">
                     {topTabs.map((item) => {
                       const active = isActivePath(pathname, item.href);
                       return (
@@ -635,6 +684,7 @@ export default function AppLayout({
                         </Link>
                       );
                     })}
+                    </div>
                   </div>
                 </div>
               </div>
