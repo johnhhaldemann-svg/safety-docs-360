@@ -363,6 +363,12 @@ export default function AdminPage() {
                 Manage Users
               </Link>
             ) : null}
+            <Link
+              href="/admin/companies"
+              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Track Companies
+            </Link>
           </>
         }
       />

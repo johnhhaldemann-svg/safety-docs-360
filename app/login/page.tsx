@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -396,6 +397,14 @@ function LoginPageContent() {
 
                 <div className="mt-6 rounded-2xl border border-emerald-500/22 bg-emerald-500/10 px-4 py-4 text-sm text-emerald-300">
                   TLS 1.3 encrypted. Zero-knowledge architecture ready. 2FA supported.
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-sky-500/18 bg-sky-500/10 px-4 py-4 text-sm text-sky-100">
+                  Need a dedicated client workspace?{" "}
+                  <Link href="/company-signup" className="font-semibold text-sky-300 underline-offset-2 hover:underline">
+                    Create a company account
+                  </Link>
+                  {" "}to launch a scoped company admin portal.
                 </div>
               </div>
             </div>

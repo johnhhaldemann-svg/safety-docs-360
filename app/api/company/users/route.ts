@@ -131,6 +131,12 @@ type CompanyUserRow = {
   last_sign_in_at?: string | null;
 };
 
+type CompanyMembershipRow = {
+  user_id: string;
+  role: string | null;
+  status: string | null;
+};
+
 type FallbackUserRoleRow = {
   user_id: string;
   role: string;
@@ -269,23 +275,38 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const membershipMap = new Map<string, CompanyMembershipRow>();
+
+  if (companyScope.companyId) {
+    const { data: membershipData } = await adminClient
+      .from("company_memberships")
+      .select("user_id, role, status")
+      .eq("company_id", companyScope.companyId);
+
+    for (const row of (membershipData as CompanyMembershipRow[] | null) ?? []) {
+      membershipMap.set(row.user_id, row);
+    }
+  }
+
   const rawUsers = await Promise.all(
     (data.users ?? []).map(async (user) => {
       const roleContext = await getUserRoleContext({
         supabase: adminClient,
         user,
       });
+      const membership = membershipMap.get(user.id);
+      const resolvedRole = membership?.role ?? roleContext.role;
+      const resolvedStatus = membership?.status ?? roleContext.accountStatus;
 
       return {
         id: user.id,
         email: user.email ?? "",
         name: getDisplayName(user),
-        role: formatAppRole(roleContext.role),
+        role: formatAppRole(resolvedRole),
         team: roleContext.team,
         status:
-          roleContext.accountStatus === "pending" ||
-          roleContext.accountStatus === "suspended"
-            ? formatAccountStatus(roleContext.accountStatus)
+          resolvedStatus === "pending" || resolvedStatus === "suspended"
+            ? formatAccountStatus(resolvedStatus)
             : getStatus(user),
         created_at: user.created_at,
         last_sign_in_at: user.last_sign_in_at,
@@ -294,7 +315,9 @@ export async function GET(request: Request) {
   );
 
   const users = isCompanyAdminRole(auth.role)
-    ? rawUsers.filter((user) => user.team === scopeTeam)
+    ? companyScope.companyId
+      ? rawUsers.filter((user) => membershipMap.has(user.id))
+      : rawUsers.filter((user) => user.team === scopeTeam)
     : rawUsers;
 
   return NextResponse.json({

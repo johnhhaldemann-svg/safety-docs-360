@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
   authorizeRequest,
+  isCompanyRole,
   normalizeAccountStatus,
   normalizeAppRole,
 } from "@/lib/rbac";
@@ -40,6 +41,100 @@ function formatRoleConstraintError(message?: string | null) {
   }
 
   return message || "Role update failed.";
+}
+
+async function resolveCompanyAssignment(params: {
+  adminClient: ReturnType<typeof createAdminClient>;
+  currentUser: {
+    app_metadata?: Record<string, unknown>;
+    user_metadata?: Record<string, unknown>;
+  };
+  userId: string;
+  team: string;
+  role: string;
+  actorUserId: string;
+}) {
+  const { adminClient, currentUser, userId, team, role, actorUserId } = params;
+
+  if (!adminClient) {
+    return null;
+  }
+
+  const metadataCompanyId =
+    typeof currentUser.app_metadata?.company_id === "string"
+      ? currentUser.app_metadata.company_id
+      : typeof currentUser.user_metadata?.company_id === "string"
+        ? currentUser.user_metadata.company_id
+        : null;
+
+  if (metadataCompanyId) {
+    return metadataCompanyId;
+  }
+
+  const { data: existingMembership } = await adminClient
+    .from("company_memberships")
+    .select("company_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const existingCompanyId =
+    existingMembership &&
+    typeof existingMembership === "object" &&
+    "company_id" in existingMembership &&
+    typeof existingMembership.company_id === "string"
+      ? existingMembership.company_id
+      : null;
+
+  if (existingCompanyId) {
+    return existingCompanyId;
+  }
+
+  if (!isCompanyRole(role)) {
+    return null;
+  }
+
+  const { data: existingCompany } = await adminClient
+    .from("companies")
+    .select("id")
+    .eq("team_key", team)
+    .maybeSingle();
+
+  if (
+    existingCompany &&
+    typeof existingCompany === "object" &&
+    "id" in existingCompany &&
+    typeof existingCompany.id === "string"
+  ) {
+    return existingCompany.id;
+  }
+
+  const { data: createdCompany } = await adminClient
+    .from("companies")
+    .upsert(
+      {
+        name: team,
+        team_key: team,
+        created_by: actorUserId,
+        updated_by: actorUserId,
+      },
+      {
+        onConflict: "team_key",
+        ignoreDuplicates: false,
+      }
+    )
+    .select("id")
+    .single();
+
+  if (
+    createdCompany &&
+    typeof createdCompany === "object" &&
+    "id" in createdCompany &&
+    typeof createdCompany.id === "string"
+  ) {
+    return createdCompany.id;
+  }
+
+  return null;
 }
 
 export async function PATCH(
@@ -104,10 +199,20 @@ export async function PATCH(
     );
   }
 
+  const companyId = await resolveCompanyAssignment({
+    adminClient,
+    currentUser: currentUser.user,
+    userId: id,
+    team,
+    role,
+    actorUserId: auth.user.id,
+  });
+
   const mergedUserMetadata = {
     ...(currentUser.user.user_metadata ?? {}),
     role,
     team,
+    company_id: companyId,
     account_status: accountStatus,
   };
 
@@ -115,6 +220,7 @@ export async function PATCH(
     ...(currentUser.user.app_metadata ?? {}),
     role,
     team,
+    company_id: companyId,
     account_status: accountStatus,
   };
 
@@ -138,6 +244,7 @@ export async function PATCH(
       user_id: id,
       role,
       team,
+      company_id: companyId,
       account_status: accountStatus,
       created_by: auth.user.id,
       updated_by: auth.user.id,
@@ -154,10 +261,27 @@ export async function PATCH(
     );
   }
 
+  if (companyId) {
+    await adminClient.from("company_memberships").upsert(
+      {
+        user_id: id,
+        company_id: companyId,
+        role: isCompanyRole(role) ? role : "company_user",
+        status: accountStatus,
+        created_by: auth.user.id,
+        updated_by: auth.user.id,
+      },
+      {
+        onConflict: "user_id,company_id",
+      }
+    );
+  }
+
   return NextResponse.json({
     success: true,
     role,
     team,
+    companyId,
     accountStatus,
   });
 }

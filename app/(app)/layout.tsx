@@ -32,6 +32,7 @@ const userQuickLinks: NavItem[] = [
 const adminQuickLinks: NavItem[] = [
   { href: "/admin/review-documents", label: "Review Queue", short: "RQ" },
   { href: "/admin/users", label: "Users", short: "US" },
+  { href: "/admin/companies", label: "Companies", short: "CO" },
   { href: "/admin/agreements", label: "Agreements", short: "AG" },
 ];
 
@@ -72,6 +73,7 @@ const adminSideSections: NavSection[] = [
       { href: "/admin", label: "Dashboard", short: "AH" },
       { href: "/admin/review-documents", label: "Review Queue", short: "RQ" },
       { href: "/admin/users", label: "Users", short: "US" },
+      { href: "/admin/companies", label: "Companies", short: "CO" },
       { href: "/admin/agreements", label: "Agreements", short: "AG" },
       { href: "/admin/marketplace", label: "Marketplace", short: "MP" },
     ],
