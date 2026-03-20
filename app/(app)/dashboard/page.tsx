@@ -382,7 +382,7 @@ export default function DashboardPage() {
               },
               {
                 title: "Completed Reports",
-                value: String(stats.reports),
+                value: String(reportCount),
                 description: "Report documents available to open in the company library.",
                 href: "/library",
               },
