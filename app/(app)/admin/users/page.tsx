@@ -28,7 +28,16 @@ type AdminUser = {
   last_sign_in_at?: string | null;
 };
 
-const roleOptions = ["All Roles", "Super Admin", "Admin", "Manager", "Editor", "Viewer"];
+const roleOptions = [
+  "All Roles",
+  "Super Admin",
+  "Admin",
+  "Manager",
+  "Company Admin",
+  "Company User",
+  "Editor",
+  "Viewer",
+];
 
 function statusClasses(status: string) {
   if (status === "Active") return "bg-emerald-100 text-emerald-700";
@@ -41,6 +50,8 @@ function roleClasses(role: string) {
   if (role === "Super Admin") return "bg-red-100 text-red-700";
   if (role === "Admin") return "bg-sky-100 text-sky-700";
   if (role === "Manager") return "bg-violet-100 text-violet-700";
+  if (role === "Company Admin") return "bg-indigo-100 text-indigo-700";
+  if (role === "Company User") return "bg-amber-100 text-amber-700";
   if (role === "Editor") return "bg-amber-100 text-amber-700";
   return "bg-slate-100 text-slate-700";
 }

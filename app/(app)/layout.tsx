@@ -34,6 +34,12 @@ const adminQuickLinks: NavItem[] = [
   { href: "/admin/agreements", label: "Agreements", short: "AG" },
 ];
 
+const companyQuickLinks: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", short: "DB" },
+  { href: "/library", label: "Completed Docs", short: "LB" },
+  { href: "/company-users", label: "Company Users", short: "CU" },
+];
+
 const userSideSections: NavSection[] = [
   {
     title: "Workspace",
@@ -82,6 +88,30 @@ const adminSideSections: NavSection[] = [
     items: [
       { href: "/library", label: "Library", short: "LB" },
       { href: "/search", label: "Search", short: "SR" },
+    ],
+  },
+];
+
+const companyAdminSideSections: NavSection[] = [
+  {
+    title: "Company Workspace",
+    items: [
+      { href: "/dashboard", label: "Dashboard", short: "HM" },
+      { href: "/library", label: "Completed Docs", short: "LB" },
+    ],
+  },
+  {
+    title: "Company Access",
+    items: [{ href: "/company-users", label: "Company Users", short: "CU" }],
+  },
+];
+
+const companyUserSideSections: NavSection[] = [
+  {
+    title: "Company Workspace",
+    items: [
+      { href: "/dashboard", label: "Dashboard", short: "HM" },
+      { href: "/library", label: "Completed Docs", short: "LB" },
     ],
   },
 ];
@@ -136,8 +166,17 @@ export default function AppLayout({
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isAdminArea = pathname.startsWith("/admin");
+  const isCompanyAdminUser = userRole === "company_admin";
+  const isCompanyUser = userRole === "company_user";
+  const isCompanyScopedUser = isCompanyAdminUser || isCompanyUser;
 
   const sideSections = useMemo(() => {
+    if (!isAdminArea && isCompanyAdminUser) {
+      return companyAdminSideSections;
+    }
+    if (!isAdminArea && isCompanyUser) {
+      return companyUserSideSections;
+    }
     const base = isAdminArea ? adminSideSections : userSideSections;
     if (!isAdminArea && isAdminUser) {
       return [
@@ -149,7 +188,7 @@ export default function AppLayout({
       ];
     }
     return base;
-  }, [isAdminArea, isAdminUser]);
+  }, [isAdminArea, isAdminUser, isCompanyAdminUser, isCompanyUser]);
 
   const currentNavItem = useMemo(() => {
     for (const section of sideSections) {
@@ -168,12 +207,18 @@ export default function AppLayout({
   }, [isAdminArea, pathname, sideSections]);
 
   const quickLinks = useMemo(() => {
+    if (!isAdminArea && isCompanyAdminUser) {
+      return companyQuickLinks;
+    }
+    if (!isAdminArea && isCompanyUser) {
+      return companyQuickLinks.filter((item) => item.href !== "/company-users");
+    }
     const base = isAdminArea ? adminQuickLinks : userQuickLinks;
     if (!isAdminArea && isAdminUser) {
       return [...base, { href: "/admin", label: "Admin Panel", short: "AD" }];
     }
     return base;
-  }, [isAdminArea, isAdminUser]);
+  }, [isAdminArea, isAdminUser, isCompanyAdminUser, isCompanyUser]);
 
   useEffect(() => {
     let cancelled = false;
@@ -245,6 +290,23 @@ export default function AppLayout({
           return;
         }
 
+        const nextRole = data?.user?.role ?? "viewer";
+
+        if (nextRole === "company_admin" || nextRole === "company_user") {
+          const companyAllowedRoutes =
+            nextRole === "company_admin"
+              ? ["/dashboard", "/library", "/company-users"]
+              : ["/dashboard", "/library"];
+          const inAllowedRoute = companyAllowedRoutes.some(
+            (route) => pathname === route || pathname.startsWith(`${route}/`)
+          );
+
+          if (!inAllowedRoute) {
+            router.replace("/dashboard");
+            return;
+          }
+        }
+
         if (isAdminArea && !admin) {
           router.replace("/dashboard");
           return;
@@ -287,16 +349,22 @@ export default function AppLayout({
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [isAdminArea, router]);
+  }, [isAdminArea, pathname, router]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
 
-  const workspaceLabel = isAdminArea ? "Admin Workspace" : "User Workspace";
+  const workspaceLabel = isAdminArea
+    ? "Admin Workspace"
+    : isCompanyScopedUser
+      ? "Company Workspace"
+      : "User Workspace";
   const workspaceDescriptor = isAdminArea
     ? "Safety management controls"
-    : "Project document workspace";
+    : isCompanyScopedUser
+      ? "Completed documents and company access"
+      : "Project document workspace";
 
   async function handleLogout() {
     try {
@@ -571,7 +639,7 @@ export default function AppLayout({
                               {item.short}
                             </span>
                             <div className="min-w-0">
-                              <div
+                            <div
                                 className={cx(
                                   "truncate text-sm font-semibold",
                                   active ? "text-slate-950" : "text-white"
@@ -641,7 +709,11 @@ export default function AppLayout({
                           <p className="mt-1 text-sm text-slate-500">
                             {isAdminArea
                               ? "Administrative tools and audit controls"
-                              : "Safety document workspace and active project tools"}
+                              : isCompanyScopedUser
+                                ? isCompanyAdminUser
+                                  ? "Completed document access and company user management"
+                                  : "Completed document access for your company workspace"
+                                : "Safety document workspace and active project tools"}
                           </p>
                         </div>
                       </div>

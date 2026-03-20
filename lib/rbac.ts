@@ -5,6 +5,8 @@ export const APP_ROLES = [
   "super_admin",
   "admin",
   "manager",
+  "company_admin",
+  "company_user",
   "editor",
   "viewer",
 ] as const;
@@ -72,6 +74,8 @@ export function formatAppRole(role?: string | null) {
   if (normalized === "super_admin") return "Super Admin";
   if (normalized === "admin") return "Admin";
   if (normalized === "manager") return "Manager";
+  if (normalized === "company_admin") return "Company Admin";
+  if (normalized === "company_user") return "Company User";
   if (normalized === "editor") return "Editor";
   return "Viewer";
 }
@@ -79,6 +83,24 @@ export function formatAppRole(role?: string | null) {
 export function isAdminRole(role?: string | null) {
   const normalized = normalizeAppRole(role);
   return normalized === "super_admin" || normalized === "admin";
+}
+
+export function isManagerRole(role?: string | null) {
+  return normalizeAppRole(role) === "manager";
+}
+
+export function isCompanyRole(role?: string | null) {
+  const normalized = normalizeAppRole(role);
+  return normalized === "company_admin" || normalized === "company_user";
+}
+
+export function isCompanyAdminRole(role?: string | null) {
+  return normalizeAppRole(role) === "company_admin";
+}
+
+export function canManageCompanyUsers(role?: string | null) {
+  const normalized = normalizeAppRole(role);
+  return normalized === "company_admin" || isAdminRole(normalized);
 }
 
 export function normalizeAccountStatus(status?: string | null): AccountStatus {

@@ -58,6 +58,11 @@ type ActionCard = {
   button: string;
 };
 
+type CompanyUser = {
+  id: string;
+  status: string;
+};
+
 function isApprovedDocument(document: DocumentRow) {
   return isApprovedDocumentStatus(document.status, Boolean(document.final_file_path));
 }
@@ -110,43 +115,85 @@ export default function DashboardPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [userRole, setUserRole] = useState("viewer");
+  const [userTeam, setUserTeam] = useState("General");
+  const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
 
   useEffect(() => {
     void (async () => {
-      const [documentsResult, sessionResult] = await Promise.all([
-        supabase.from("documents").select("*").order("created_at", { ascending: false }),
-        supabase.auth.getSession(),
-      ]);
+      const sessionResult = await supabase.auth.getSession();
+      const accessToken = sessionResult.data.session?.access_token;
 
-      if (documentsResult.error) {
-        console.error("Dashboard load error:", documentsResult.error.message);
-      } else {
-        setDocuments((documentsResult.data ?? []) as DocumentRow[]);
+      if (!accessToken) {
+        setLoading(false);
+        return;
       }
 
-      const accessToken = sessionResult.data.session?.access_token;
-      if (accessToken) {
-        try {
-          const response = await fetch("/api/library/credits", {
+      try {
+        const meResponse = await fetch("/api/auth/me", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        const meData = (await meResponse.json().catch(() => null)) as
+          | { user?: { role?: string; team?: string } }
+          | null;
+
+        if (meResponse.ok) {
+          setUserRole(meData?.user?.role ?? "viewer");
+          setUserTeam(meData?.user?.team ?? "General");
+        }
+
+        const documentsResponse = await fetch("/api/workspace/documents", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        const documentsData = (await documentsResponse.json().catch(() => null)) as
+          | { documents?: DocumentRow[] }
+          | null;
+
+        if (documentsResponse.ok) {
+          setDocuments(documentsData?.documents ?? []);
+        }
+
+        const creditResponse = await fetch("/api/library/credits", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        const creditData = (await creditResponse.json().catch(() => null)) as
+          | { creditBalance?: number }
+          | null;
+
+        if (creditResponse.ok) {
+          setCreditBalance(Number(creditData?.creditBalance ?? 0));
+        }
+
+        if ((meData?.user?.role ?? "viewer") === "company_admin") {
+          const companyResponse = await fetch("/api/company/users", {
             headers: {
               Authorization: `Bearer ${accessToken}`,
             },
           });
-          const data = (await response.json().catch(() => null)) as
-            | { creditBalance?: number }
+          const companyData = (await companyResponse.json().catch(() => null)) as
+            | { users?: CompanyUser[] }
             | null;
 
-          if (response.ok) {
-            setCreditBalance(Number(data?.creditBalance ?? 0));
+          if (companyResponse.ok) {
+            setCompanyUsers(companyData?.users ?? []);
           }
-        } catch (error) {
-          console.error("Dashboard credit load error:", error);
         }
+      } catch (error) {
+        console.error("Dashboard load error:", error);
       }
 
       setLoading(false);
     })();
   }, []);
+
+  const isManagerView = userRole === "company_admin" || userRole === "company_user";
+  const canManageCompanyUsers = userRole === "company_admin";
 
   const activeDocuments = useMemo(
     () => documents.filter((document) => !isArchivedDocumentStatus(document.status)),
@@ -172,6 +219,12 @@ export default function DashboardPage() {
   const approvedCount = useMemo(
     () => activeDocuments.filter((document) => isApprovedDocument(document)).length,
     [activeDocuments]
+  );
+
+  const companyUserCount = companyUsers.length;
+  const pendingCompanyApprovals = useMemo(
+    () => companyUsers.filter((user) => user.status === "Pending").length,
+    [companyUsers]
   );
 
   const templateCount = useMemo(
@@ -209,97 +262,210 @@ export default function DashboardPage() {
     [activeDocuments]
   );
 
-  const countCards: CountCard[] = [
-    {
-      title: "Active Projects",
-      value: String(uniqueProjects),
-      note: "Unique project names with active records",
-      trend: pendingReviewCount > 0 ? `${pendingReviewCount} waiting review` : "No review backlog",
-      icon: "projects",
-    },
-    {
-      title: "Pending Review",
-      value: String(pendingReviewCount),
-      note: "Submitted records waiting for approval",
-      trend: pendingReviewCount > 0 ? "Action needed" : "Queue is clear",
-      icon: "review",
-    },
-    {
-      title: "Approved Files",
-      value: String(approvedCount),
-      note: "Completed documents ready for library access",
-      trend: approvedCount > 0 ? "Ready to open" : "No completed docs yet",
-      icon: "approved",
-    },
-    {
-      title: "Credits Remaining",
-      value: creditBalance === null ? "-" : String(creditBalance),
-      note: "Available for marketplace document unlocks",
-      trend: creditBalance && creditBalance > 0 ? "Ready for unlocks" : "No credits loaded",
-      icon: "records",
-    },
-    {
-      title: "Total Records",
-      value: String(activeDocuments.length),
-      note: "All active uploads, drafts, and completed files",
-      trend: `${templateCount + formCount + reportCount} standard docs tracked`,
-      icon: "records",
-    },
-  ];
+  const countCards: CountCard[] = isManagerView
+    ? [
+        {
+          title: "Completed Docs",
+          value: String(approvedCount),
+          note: "Completed files currently available to this company account",
+          trend: approvedCount > 0 ? "Ready to open" : "No completed docs yet",
+          icon: "approved",
+        },
+        {
+          title: "Credits Remaining",
+          value: creditBalance === null ? "-" : String(creditBalance),
+          note: "Available for unlocking completed marketplace records",
+          trend: creditBalance && creditBalance > 0 ? "Ready for unlocks" : "No credits loaded",
+          icon: "records",
+        },
+        ...(canManageCompanyUsers
+          ? [
+              {
+                title: "Company Users",
+                value: String(companyUserCount),
+                note: `Members currently assigned to ${userTeam}`,
+                trend: companyUserCount > 0 ? "Company access is live" : "No company users yet",
+                icon: "projects" as const,
+              },
+              {
+                title: "Pending Company Access",
+                value: String(pendingCompanyApprovals),
+                note: "Users waiting for approval or activation in this company",
+                trend: pendingCompanyApprovals > 0 ? "Action needed" : "No pending approvals",
+                icon: "review" as const,
+              },
+            ]
+          : [
+              {
+                title: "Templates",
+                value: String(stats.templates),
+                note: "Completed template records currently visible",
+                trend: stats.templates > 0 ? "Ready to open" : "No templates visible",
+                icon: "records" as const,
+              },
+              {
+                title: "Reports",
+                value: String(stats.reports),
+                note: "Completed report documents available in the library",
+                trend: stats.reports > 0 ? "Ready to open" : "No reports visible",
+                icon: "records" as const,
+              },
+            ]),
+      ]
+    : [
+        {
+          title: "Active Projects",
+          value: String(uniqueProjects),
+          note: "Unique project names with active records",
+          trend: pendingReviewCount > 0 ? `${pendingReviewCount} waiting review` : "No review backlog",
+          icon: "projects",
+        },
+        {
+          title: "Pending Review",
+          value: String(pendingReviewCount),
+          note: "Submitted records waiting for approval",
+          trend: pendingReviewCount > 0 ? "Action needed" : "Queue is clear",
+          icon: "review",
+        },
+        {
+          title: "Approved Files",
+          value: String(approvedCount),
+          note: "Completed documents ready for library access",
+          trend: approvedCount > 0 ? "Ready to open" : "No completed docs yet",
+          icon: "approved",
+        },
+        {
+          title: "Credits Remaining",
+          value: creditBalance === null ? "-" : String(creditBalance),
+          note: "Available for marketplace document unlocks",
+          trend: creditBalance && creditBalance > 0 ? "Ready for unlocks" : "No credits loaded",
+          icon: "records",
+        },
+        {
+          title: "Total Records",
+          value: String(activeDocuments.length),
+          note: "All active uploads, drafts, and completed files",
+          trend: `${templateCount + formCount + reportCount} standard docs tracked`,
+          icon: "records",
+        },
+      ];
 
-  const workspaceCards: WorkspaceCard[] = [
-    {
-      title: "Ready Library Docs",
-      value: String(approvedCount),
-      description: "Approved and completed files available in the library.",
-      href: "/library",
-    },
-    {
-      title: "Submit Queue",
-      value: String(pendingReviewCount),
-      description: "Requests and documents currently moving through review.",
-      href: "/submit",
-    },
-    {
-      title: "PESHEP Files",
-      value: String(peshepCount),
-      description: "Project safety and health execution plans in the system.",
-      href: "/peshep",
-    },
-    {
-      title: "CSEP Files",
-      value: String(csepCount),
-      description: "Contractor site-specific safety plans tracked here.",
-      href: "/csep",
-    },
-  ];
+  const workspaceCards: WorkspaceCard[] = isManagerView
+    ? [
+        {
+          title: "Completed Library Docs",
+          value: String(approvedCount),
+          description: "Completed documents your company account can open.",
+          href: "/library",
+        },
+        ...(canManageCompanyUsers
+          ? [
+              {
+                title: "Company Users",
+                value: String(companyUserCount),
+                description: "People currently assigned to your company workspace.",
+                href: "/company-users",
+              },
+              {
+                title: "Pending Company Access",
+                value: String(pendingCompanyApprovals),
+                description: "Users who still need approval or activation.",
+                href: "/company-users",
+              },
+            ]
+          : [
+              {
+                title: "Library Access",
+                value: String(approvedCount),
+                description: "Approved documents visible to this company role.",
+                href: "/library",
+              },
+              {
+                title: "Completed Reports",
+                value: String(stats.reports),
+                description: "Report documents available to open in the company library.",
+                href: "/library",
+              },
+            ]),
+        {
+          title: "Credits",
+          value: creditBalance === null ? "-" : String(creditBalance),
+          description: "Available for completed document unlocks.",
+          href: "/library",
+        },
+      ]
+    : [
+        {
+          title: "Ready Library Docs",
+          value: String(approvedCount),
+          description: "Approved and completed files available in the library.",
+          href: "/library",
+        },
+        {
+          title: "Submit Queue",
+          value: String(pendingReviewCount),
+          description: "Requests and documents currently moving through review.",
+          href: "/submit",
+        },
+        {
+          title: "PESHEP Files",
+          value: String(peshepCount),
+          description: "Project safety and health execution plans in the system.",
+          href: "/peshep",
+        },
+        {
+          title: "CSEP Files",
+          value: String(csepCount),
+          description: "Contractor site-specific safety plans tracked here.",
+          href: "/csep",
+        },
+      ];
 
-  const actionCards: ActionCard[] = [
-    {
-      title: "Start Submission",
-      description: "Create a new request and send documents into the review workflow.",
-      href: "/submit",
-      button: "Open Submit",
-    },
-    {
-      title: "Build PESHEP",
-      description: "Launch the PESHEP builder for project safety planning.",
-      href: "/peshep",
-      button: "Build Plan",
-    },
-    {
-      title: "Build CSEP",
-      description: "Create contractor-specific safety documentation and controls.",
-      href: "/csep",
-      button: "Open CSEP",
-    },
-    {
-      title: "Upload Files",
-      description: "Add templates, forms, reports, and supporting documents.",
-      href: "/upload",
-      button: "Upload Now",
-    },
-  ];
+  const actionCards: ActionCard[] = isManagerView
+    ? [
+        {
+          title: "Open Completed Library",
+          description: "Browse approved and completed documents available to your company account.",
+          href: "/library",
+          button: "Open Library",
+        },
+        ...(canManageCompanyUsers
+          ? [
+              {
+                title: "Manage Company Users",
+                description: "Invite teammates and keep access limited to your company.",
+                href: "/company-users",
+                button: "Manage Users",
+              },
+            ]
+          : []),
+      ]
+    : [
+        {
+          title: "Start Submission",
+          description: "Create a new request and send documents into the review workflow.",
+          href: "/submit",
+          button: "Open Submit",
+        },
+        {
+          title: "Build PESHEP",
+          description: "Launch the PESHEP builder for project safety planning.",
+          href: "/peshep",
+          button: "Build Plan",
+        },
+        {
+          title: "Build CSEP",
+          description: "Create contractor-specific safety documentation and controls.",
+          href: "/csep",
+          button: "Open CSEP",
+        },
+        {
+          title: "Upload Files",
+          description: "Add templates, forms, reports, and supporting documents.",
+          href: "/upload",
+          button: "Upload Now",
+        },
+      ];
 
   const recentActivity = useMemo(() => {
     const items = activeDocuments.slice(0, 6).map((document) => ({
@@ -328,6 +494,27 @@ export default function DashboardPage() {
   }, [activeDocuments]);
 
   const reviewQueueItems = useMemo(() => {
+    if (isManagerView) {
+      const managerItems = companyUsers
+        .filter((user) => user.status === "Pending")
+        .slice(0, 4)
+        .map((user) => ({
+          id: user.id,
+          title: "Company user awaiting approval",
+          detail: `${user.status} access for ${userTeam}.`,
+        }));
+
+      if (managerItems.length > 0) return managerItems;
+
+      return [
+        {
+          id: "manager-queue-1",
+          title: "Company access queue is clear",
+          detail: "New company users will appear here when they need action.",
+        },
+      ];
+    }
+
     const queued = activeDocuments
       .filter((document) =>
         isSubmittedDocumentStatus(document.status, Boolean(document.final_file_path))
@@ -348,9 +535,54 @@ export default function DashboardPage() {
         detail: "New submissions will appear here for quick follow-up.",
       },
     ];
-  }, [activeDocuments]);
+  }, [activeDocuments, companyUsers, isManagerView, userTeam]);
 
   const latestUpdates = useMemo(() => {
+    if (isManagerView) {
+      return [
+        {
+          id: "update-company-library",
+          title:
+            approvedCount > 0
+              ? `${approvedCount} completed file${approvedCount === 1 ? "" : "s"} ready in your manager library`
+              : "No completed files are ready yet",
+          detail: "Completed documents",
+          meta: approvedCount > 0 ? "Ready" : "Waiting",
+          tone: approvedCount > 0 ? ("success" as const) : ("warning" as const),
+        },
+        {
+          id: "update-company-users",
+          title:
+            companyUserCount > 0
+              ? `${companyUserCount} user${companyUserCount === 1 ? "" : "s"} assigned to ${userTeam}`
+              : "No company users have been added yet",
+          detail: "Company access",
+          meta: companyUserCount > 0 ? "Live" : "Start here",
+          tone: companyUserCount > 0 ? ("info" as const) : ("warning" as const),
+        },
+        {
+          id: "update-company-pending",
+          title:
+            pendingCompanyApprovals > 0
+              ? `${pendingCompanyApprovals} company user${pendingCompanyApprovals === 1 ? "" : "s"} waiting for approval`
+              : "No pending company approvals",
+          detail: "User approval queue",
+          meta: pendingCompanyApprovals > 0 ? "Action needed" : "Clear",
+          tone: pendingCompanyApprovals > 0 ? ("warning" as const) : ("success" as const),
+        },
+        {
+          id: "update-company-credits",
+          title:
+            creditBalance && creditBalance > 0
+              ? `${creditBalance} credits available for completed document unlocks`
+              : "No credits available for unlocks",
+          detail: "Credit balance",
+          meta: creditBalance && creditBalance > 0 ? "Ready" : "Low",
+          tone: creditBalance && creditBalance > 0 ? ("success" as const) : ("warning" as const),
+        },
+      ];
+    }
+
     return [
       {
         id: "update-library",
@@ -381,55 +613,109 @@ export default function DashboardPage() {
         tone: uniqueProjects > 0 ? ("success" as const) : ("warning" as const),
       },
     ];
-  }, [approvedCount, pendingReviewCount, templateCount, formCount, reportCount, uniqueProjects]);
+  }, [
+    approvedCount,
+    companyUserCount,
+    creditBalance,
+    formCount,
+    isManagerView,
+    pendingCompanyApprovals,
+    pendingReviewCount,
+    reportCount,
+    templateCount,
+    uniqueProjects,
+    userTeam,
+  ]);
 
-  const systemStatus = [
-    {
-      label: "Library Access",
-      badge: approvedCount > 0 ? "Ready" : "Waiting",
-    },
-    {
-      label: "Review Queue",
-      badge: pendingReviewCount > 0 ? "Needs attention" : "Clear",
-    },
-    {
-      label: "Upload Center",
-      badge: activeDocuments.length > 0 ? "Active" : "Ready",
-    },
-    {
-      label: "Search Index",
-      badge: activeDocuments.length > 0 ? "Searchable" : "No records",
-    },
-  ] as const;
+  const systemStatus = isManagerView
+    ? [
+        {
+          label: "Completed Library",
+          badge: approvedCount > 0 ? "Ready" : "Waiting",
+        },
+        {
+          label: "Company Users",
+          badge: companyUserCount > 0 ? "Active" : "Waiting",
+        },
+        {
+          label: "Company Approval Queue",
+          badge: pendingCompanyApprovals > 0 ? "Needs attention" : "Clear",
+        },
+        {
+          label: "Document Access",
+          badge: approvedCount > 0 ? "Searchable" : "No records",
+        },
+      ]
+    : [
+        {
+          label: "Library Access",
+          badge: approvedCount > 0 ? "Ready" : "Waiting",
+        },
+        {
+          label: "Review Queue",
+          badge: pendingReviewCount > 0 ? "Needs attention" : "Clear",
+        },
+        {
+          label: "Upload Center",
+          badge: activeDocuments.length > 0 ? "Active" : "Ready",
+        },
+        {
+          label: "Search Index",
+          badge: activeDocuments.length > 0 ? "Searchable" : "No records",
+        },
+      ];
 
-  const workspaceTools = [
-    {
-      title: "Open Library",
-      note: "Browse approved and active project files.",
-      href: "/library",
-    },
-    {
-      title: "Search Records",
-      note: "Find files by title, type, or category.",
-      href: "/search",
-    },
-    {
-      title: "My Purchases",
-      note: "Access unlocked completed documents.",
-      href: "/purchases",
-    },
-  ];
+  const workspaceTools = isManagerView
+    ? [
+        {
+          title: "Open Completed Library",
+          note: "Browse the completed documents available to your company account.",
+          href: "/library",
+        },
+        ...(canManageCompanyUsers
+          ? [
+              {
+                title: "Company Users",
+                note: "Invite and manage users for your company only.",
+                href: "/company-users",
+              },
+            ]
+          : []),
+      ]
+    : [
+        {
+          title: "Open Library",
+          note: "Browse approved and active project files.",
+          href: "/library",
+        },
+        {
+          title: "Search Records",
+          note: "Find files by title, type, or category.",
+          href: "/search",
+        },
+        {
+          title: "My Purchases",
+          note: "Access unlocked completed documents.",
+          href: "/purchases",
+        },
+      ];
 
   const latestUploaded = useMemo(() => activeDocuments.slice(0, 4), [activeDocuments]);
 
-  const onboardingItems = [
-    { label: "Upload your first source document", done: activeDocuments.length > 0 },
-    { label: "Submit a request for review", done: pendingReviewCount > 0 || approvedCount > 0 },
-    { label: "Get an approved file into the library", done: approvedCount > 0 },
-    { label: "Open a completed document", done: approvedCount > 0 },
-  ];
+  const onboardingItems = isManagerView
+    ? [
+        { label: "Invite your first company user", done: companyUserCount > 0 },
+        { label: "Approve company access", done: pendingCompanyApprovals === 0 && companyUserCount > 0 },
+        { label: "Open a completed document from the library", done: approvedCount > 0 },
+      ]
+    : [
+        { label: "Upload your first source document", done: activeDocuments.length > 0 },
+        { label: "Submit a request for review", done: pendingReviewCount > 0 || approvedCount > 0 },
+        { label: "Get an approved file into the library", done: approvedCount > 0 },
+        { label: "Open a completed document", done: approvedCount > 0 },
+      ];
 
-  const showWelcomeState = !loading && activeDocuments.length === 0;
+  const showWelcomeState = !loading && (isManagerView ? companyUserCount === 0 && approvedCount === 0 : activeDocuments.length === 0);
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px] xl:gap-5">
@@ -438,29 +724,30 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">
-                Construction Safety Hub
+                {isManagerView ? "Company Workspace" : "Construction Safety Hub"}
               </p>
               <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-                Safety360Docs
+                {isManagerView ? `${userTeam} Manager Portal` : "Safety360Docs"}
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                Manage submissions, approvals, uploads, and project safety documentation
-                from one clean workspace.
+                {isManagerView
+                  ? "Open completed documents and keep company access organized from one clean workspace."
+                  : "Manage submissions, approvals, uploads, and project safety documentation from one clean workspace."}
               </p>
             </div>
 
             <div className="flex flex-wrap gap-3">
               <Link
-                href="/submit"
+                href={isManagerView ? "/library" : "/submit"}
                 className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)]"
               >
-                New Submission
+                {isManagerView ? "Open Completed Docs" : "New Submission"}
               </Link>
               <Link
-                href="/upload"
+                href={isManagerView ? "/company-users" : "/upload"}
                 className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
               >
-                Upload Documents
+                {isManagerView ? (canManageCompanyUsers ? "Manage Company Users" : "Completed Library") : "Upload Documents"}
               </Link>
             </div>
           </div>
@@ -520,12 +807,18 @@ export default function DashboardPage() {
               description="Start with the core flow below so your first document moves cleanly from intake to approval."
             >
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  { title: "Upload", note: "Add source files and templates.", href: "/upload" },
-                  { title: "Submit", note: "Send work into the review queue.", href: "/submit" },
-                  { title: "Review", note: "Admins approve and finalize records.", href: "/admin/review-documents" },
-                  { title: "Library", note: "Open completed documents from one place.", href: "/library" },
-                ].map((step, index) => (
+                {(isManagerView
+                  ? [
+                      { title: canManageCompanyUsers ? "Invite" : "Library", note: canManageCompanyUsers ? "Add a user to your company workspace." : "Open completed documents for your company.", href: canManageCompanyUsers ? "/company-users" : "/library" },
+                      { title: canManageCompanyUsers ? "Approve" : "Access", note: canManageCompanyUsers ? "Activate or suspend company access as needed." : "Your role stays limited to completed company documents.", href: canManageCompanyUsers ? "/company-users" : "/dashboard" },
+                      { title: "Library", note: "Open completed documents from one place.", href: "/library" },
+                    ]
+                  : [
+                      { title: "Upload", note: "Add source files and templates.", href: "/upload" },
+                      { title: "Submit", note: "Send work into the review queue.", href: "/submit" },
+                      { title: "Review", note: "Admins approve and finalize records.", href: "/admin/review-documents" },
+                      { title: "Library", note: "Open completed documents from one place.", href: "/library" },
+                    ]).map((step, index) => (
                   <Link
                     key={step.title}
                     href={step.href}
@@ -631,53 +924,86 @@ export default function DashboardPage() {
 
             <WorkflowPath
               title="Workflow Path"
-              description="The standard route for a document moving through the platform."
-              steps={[
-                {
-                  label: "Upload",
-                  detail: "Add source files, templates, or supporting documents.",
-                  complete: activeDocuments.length > 0,
-                },
-                {
-                  label: "Submit",
-                  detail: "Send records into the review workflow for approval.",
-                  active: pendingReviewCount > 0,
-                  complete: pendingReviewCount > 0 || approvedCount > 0,
-                },
-                {
-                  label: "Review",
-                  detail: "Admins review content, finalize records, and clear the queue.",
-                  active: pendingReviewCount > 0,
-                  complete: approvedCount > 0,
-                },
-                {
-                  label: "Library",
-                  detail: "Approved files become ready to open from one central place.",
-                  complete: approvedCount > 0,
-                },
-              ]}
+              description={
+                isManagerView
+                  ? "Company roles stay focused on completed documents and company access."
+                  : "The standard route for a document moving through the platform."
+              }
+              steps={
+                isManagerView
+                  ? [
+                      {
+                        label: "Invite users",
+                          detail: canManageCompanyUsers ? "Add team members to your company workspace." : "Open completed files in the company library.",
+                          complete: companyUserCount > 0,
+                        },
+                        {
+                          label: canManageCompanyUsers ? "Approve access" : "Completed docs",
+                          detail: canManageCompanyUsers ? "Activate or suspend company users as needed." : "Approved files stay available in one company-scoped library.",
+                          active: canManageCompanyUsers ? pendingCompanyApprovals > 0 : approvedCount > 0,
+                          complete: canManageCompanyUsers ? companyUserCount > 0 : approvedCount > 0,
+                        },
+                        {
+                          label: canManageCompanyUsers ? "Completed docs" : "Company workspace",
+                          detail: canManageCompanyUsers ? "Open the finished documents already available to your company account." : "Your company access stays scoped to completed documents only.",
+                          complete: approvedCount > 0,
+                        },
+                    ]
+                  : [
+                      {
+                        label: "Upload",
+                        detail: "Add source files, templates, or supporting documents.",
+                        complete: activeDocuments.length > 0,
+                      },
+                      {
+                        label: "Submit",
+                        detail: "Send records into the review workflow for approval.",
+                        active: pendingReviewCount > 0,
+                        complete: pendingReviewCount > 0 || approvedCount > 0,
+                      },
+                      {
+                        label: "Review",
+                        detail: "Admins review content, finalize records, and clear the queue.",
+                        active: pendingReviewCount > 0,
+                        complete: approvedCount > 0,
+                      },
+                      {
+                        label: "Library",
+                        detail: "Approved files become ready to open from one central place.",
+                        complete: approvedCount > 0,
+                      },
+                    ]
+              }
             />
           </div>
         </section>
 
         <SectionCard
-          title="Latest Uploaded Files"
-          description="The most recent records added to the workspace."
+          title={isManagerView ? "Latest Completed Documents" : "Latest Uploaded Files"}
+          description={
+            isManagerView
+              ? "The most recent completed files available to this company account."
+              : "The most recent records added to the workspace."
+          }
           aside={
             <Link
-              href="/upload"
+              href={isManagerView ? "/library" : "/upload"}
               className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              Open Uploads
+              {isManagerView ? "Open Library" : "Open Uploads"}
             </Link>
           }
         >
           {latestUploaded.length === 0 ? (
             <EmptyState
-              title="No uploaded files yet"
-              description="Add a document first, then submit it for review so it can move into the library."
-              actionHref="/upload"
-              actionLabel="Upload First File"
+              title={isManagerView ? "No completed documents yet" : "No uploaded files yet"}
+              description={
+                isManagerView
+                  ? "Completed documents available to your company account will appear here."
+                  : "Add a document first, then submit it for review so it can move into the library."
+              }
+              actionHref={isManagerView ? (canManageCompanyUsers ? "/company-users" : "/library") : "/upload"}
+              actionLabel={isManagerView ? (canManageCompanyUsers ? "Manage Company Users" : "Open Library") : "Upload First File"}
             />
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
@@ -714,42 +1040,50 @@ export default function DashboardPage() {
 
       <aside className="order-first rounded-[1.8rem] border border-slate-800 bg-[linear-gradient(180deg,_#20365f_0%,_#203455_100%)] p-5 text-white shadow-[0_16px_35px_rgba(15,23,42,0.22)] xl:order-none">
         <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-300">
-          Site Safety Status
+          {isManagerView ? "Company Access Status" : "Site Safety Status"}
         </div>
         <div className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">
-          Today&apos;s Workspace
+          {isManagerView ? "Today&apos;s Company Workspace" : "Today&apos;s Workspace"}
         </div>
 
         <div className="mt-3 text-sm leading-6 text-slate-300">
-          Keep submissions moving, review new activity, and open the tools your team
-          uses most.
+          {isManagerView
+            ? "Keep company access organized and open completed documents without exposing draft workflows."
+            : "Keep submissions moving, review new activity, and open the tools your team uses most."}
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
           <Link
-            href="/peshep"
+            href={isManagerView ? "/library" : "/peshep"}
             className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-2.5 text-xs font-semibold text-white sm:text-sm"
           >
-            Build PESHEP
+            {isManagerView ? "Open Library" : "Build PESHEP"}
           </Link>
           <Link
-            href="/submit"
+            href={isManagerView ? "/company-users" : "/submit"}
             className="rounded-xl border border-white/10 bg-white/8 px-4 py-2.5 text-xs font-semibold text-slate-100 sm:text-sm"
           >
-            Submit Request
+            {isManagerView ? (canManageCompanyUsers ? "Manage Users" : "Open Library") : "Submit Request"}
           </Link>
         </div>
 
         <div className="mt-8">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-semibold text-slate-200">Current Activity</div>
-            <Link href="/submit" className="text-xs font-medium text-slate-300">
-              View Queue
+            <div className="text-sm font-semibold text-slate-200">
+              {isManagerView ? "Company Activity" : "Current Activity"}
+            </div>
+            <Link
+              href={isManagerView ? "/company-users" : "/submit"}
+              className="text-xs font-medium text-slate-300"
+            >
+              {isManagerView ? (canManageCompanyUsers ? "Manage Users" : "Open Library") : "View Queue"}
             </Link>
           </div>
 
           <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-white/6 p-4">
-            <div className="text-sm font-semibold text-white">Items Waiting Review</div>
+            <div className="text-sm font-semibold text-white">
+              {isManagerView ? "Company Access Items" : "Items Waiting Review"}
+            </div>
             <div className="mt-4 space-y-3">
               {reviewQueueItems.map((item, index) => (
                 <div

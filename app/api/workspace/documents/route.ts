@@ -1,0 +1,62 @@
+import { NextResponse } from "next/server";
+import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
+import {
+  isApprovedDocumentStatus,
+  isArchivedDocumentStatus,
+} from "@/lib/documentStatus";
+import {
+  listCreditTransactions,
+  purchasedDocumentIdsFromTransactions,
+} from "@/lib/credits";
+import { normalizePurchasedIds } from "@/lib/marketplace";
+
+export const runtime = "nodejs";
+
+export async function GET(request: Request) {
+  const auth = await authorizeRequest(request);
+
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const { data, error } = await auth.supabase
+    .from("documents")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  let documents = (data ?? []) as Array<Record<string, unknown>>;
+
+  if (isCompanyRole(auth.role)) {
+    const transactionResult = await listCreditTransactions(auth.supabase, auth.user.id);
+    const purchasedDocumentIds = !transactionResult.error
+      ? purchasedDocumentIdsFromTransactions(transactionResult.data)
+      : normalizePurchasedIds(auth.user.user_metadata?.purchased_document_ids);
+
+    documents = documents.filter((document) => {
+      const status = typeof document.status === "string" ? document.status : null;
+      const finalFilePath =
+        typeof document.final_file_path === "string" ? document.final_file_path : null;
+      const userId = typeof document.user_id === "string" ? document.user_id : null;
+      const id = typeof document.id === "string" ? document.id : "";
+
+      if (isArchivedDocumentStatus(status)) {
+        return false;
+      }
+
+      return (
+        isApprovedDocumentStatus(status, Boolean(finalFilePath)) &&
+        (userId === auth.user.id || purchasedDocumentIds.includes(id))
+      );
+    });
+  }
+
+  return NextResponse.json({
+    documents,
+    viewerRole: auth.role,
+    viewerTeam: auth.team,
+  });
+}

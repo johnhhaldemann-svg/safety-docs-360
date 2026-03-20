@@ -107,6 +107,7 @@ export default function LibraryPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [viewerRole, setViewerRole] = useState("viewer");
   const [creditState, setCreditState] = useState<CreditState>({
     creditBalance: 0,
     purchasedDocumentIds: [],
@@ -139,20 +140,35 @@ export default function LibraryPage() {
     setLoading(true);
     setMessage("");
 
-    const { data, error } = await supabase
-      .from("documents")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      const token = await getAccessToken();
+      const response = await fetch("/api/workspace/documents", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            documents?: DocumentRow[];
+            viewerRole?: string;
+          }
+        | null;
 
-    if (error) {
-      setMessage(`Error loading documents: ${error.message}`);
-      setLoading(false);
-      return;
+      if (!response.ok) {
+        setMessage(data?.error || "Error loading documents.");
+        setLoading(false);
+        return;
+      }
+
+      setDocuments(data?.documents ?? []);
+      setViewerRole(data?.viewerRole ?? "viewer");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Error loading documents.");
     }
 
-    setDocuments(data ?? []);
     setLoading(false);
-  }, []);
+  }, [getAccessToken]);
 
   const loadCredits = useCallback(async () => {
     try {
@@ -344,9 +360,12 @@ export default function LibraryPage() {
     return ["All Types", ...values.sort()];
   }, [documents]);
 
+  const isManagerView =
+    viewerRole === "company_admin" || viewerRole === "company_user";
+
   const filteredDocuments = useMemo(() => {
     return documents.filter((doc) => {
-      if (isArchivedDocumentStatus(doc.status)) {
+      if (!isManagerView && isArchivedDocumentStatus(doc.status)) {
         return false;
       }
 
@@ -370,7 +389,7 @@ export default function LibraryPage() {
 
       return matchesSearch && matchesCategory && matchesType;
     });
-  }, [documents, searchTerm, categoryFilter, typeFilter]);
+  }, [documents, searchTerm, categoryFilter, typeFilter, isManagerView]);
 
   const approvedDocuments = useMemo(() => {
     return filteredDocuments.filter(
@@ -386,21 +405,29 @@ export default function LibraryPage() {
   }, [filteredDocuments]);
 
   const accessibleApprovedDocuments = useMemo(() => {
+    if (isManagerView) {
+      return approvedDocuments;
+    }
+
     return approvedDocuments.filter(
       (doc) =>
         doc.user_id === currentUserId ||
         creditState.purchasedDocumentIds.includes(doc.id)
     );
-  }, [approvedDocuments, creditState.purchasedDocumentIds, currentUserId]);
+  }, [approvedDocuments, creditState.purchasedDocumentIds, currentUserId, isManagerView]);
 
   const marketplaceDocuments = useMemo(() => {
+    if (isManagerView) {
+      return [];
+    }
+
     return approvedDocuments.filter(
       (doc) =>
         isMarketplaceEnabled(doc.notes) &&
         doc.user_id !== currentUserId &&
         !creditState.purchasedDocumentIds.includes(doc.id)
     );
-  }, [approvedDocuments, creditState.purchasedDocumentIds, currentUserId]);
+  }, [approvedDocuments, creditState.purchasedDocumentIds, currentUserId, isManagerView]);
 
   const stats = useMemo(() => {
     const activeDocuments = documents.filter((doc) => !isArchivedDocumentStatus(doc.status));
@@ -421,28 +448,51 @@ export default function LibraryPage() {
     return count;
   }, [searchTerm, categoryFilter, typeFilter]);
 
-  const summaryCards = [
-    {
-      title: "Ready to open",
-      value: String(accessibleApprovedDocuments.length),
-      note: "Completed documents you already own or unlocked",
-    },
-    {
-      title: "Marketplace options",
-      value: String(marketplaceDocuments.length),
-      note: "Completed documents you can unlock with credits",
-    },
-    {
-      title: "Active documents",
-      value: String(stats.total),
-      note: "Archived records are hidden from this view",
-    },
-    {
-      title: "Credits available",
-      value: String(creditState.creditBalance),
-      note: "Available for marketplace unlocks",
-    },
-  ];
+  const summaryCards = isManagerView
+    ? [
+        {
+          title: "Completed documents",
+          value: String(accessibleApprovedDocuments.length),
+      note: "Completed files available to this company account",
+        },
+        {
+          title: "Company credits",
+          value: String(creditState.creditBalance),
+          note: "Available for completed document unlocks",
+        },
+        {
+          title: "Templates",
+          value: String(stats.templates),
+          note: "Completed template records in this library view",
+        },
+        {
+          title: "Reports",
+          value: String(stats.reports),
+          note: "Completed report documents ready to open",
+        },
+      ]
+    : [
+        {
+          title: "Ready to open",
+          value: String(accessibleApprovedDocuments.length),
+          note: "Completed documents you already own or unlocked",
+        },
+        {
+          title: "Marketplace options",
+          value: String(marketplaceDocuments.length),
+          note: "Completed documents you can unlock with credits",
+        },
+        {
+          title: "Active documents",
+          value: String(stats.total),
+          note: "Archived records are hidden from this view",
+        },
+        {
+          title: "Credits available",
+          value: String(creditState.creditBalance),
+          note: "Available for marketplace unlocks",
+        },
+      ];
 
   const transactionPreview = creditState.transactions.slice(0, 4);
   const recentDocumentItems = filteredDocuments.slice(0, 4).map((doc) => ({
@@ -454,31 +504,50 @@ export default function LibraryPage() {
       ? ("success" as const)
       : ("info" as const),
   }));
-  const workflowSteps = [
-    {
-      label: "Upload and submit",
-      detail: "Source files are uploaded first and then sent into the review workflow.",
-      complete: stats.total > 0,
-    },
-    {
-      label: "Admin review",
-      detail: "Submitted documents stay in review until the final version is approved.",
-      active: otherDocuments.length > 0,
-      complete: accessibleApprovedDocuments.length > 0 || marketplaceDocuments.length > 0,
-    },
-    {
-      label: "Approved files",
-      detail: "Completed records become ready to open or available for marketplace unlock.",
-      active: accessibleApprovedDocuments.length > 0,
-      complete: accessibleApprovedDocuments.length > 0,
-    },
-    {
-      label: "Library access",
-      detail: "Open completed documents directly from your ready list after approval or purchase.",
-      active: accessibleApprovedDocuments.length > 0,
-      complete: false,
-    },
-  ];
+  const workflowSteps = isManagerView
+    ? [
+        {
+          label: "Completed docs only",
+      detail: "Company accounts are limited to the completed-document side of the workflow.",
+          complete: true,
+        },
+        {
+          label: "Library access",
+          detail: "Open approved files directly from the completed library.",
+          active: accessibleApprovedDocuments.length > 0,
+          complete: accessibleApprovedDocuments.length > 0,
+        },
+        {
+          label: "Company users",
+          detail: "Invite and manage only users assigned to your company.",
+          complete: true,
+        },
+      ]
+    : [
+        {
+          label: "Upload and submit",
+          detail: "Source files are uploaded first and then sent into the review workflow.",
+          complete: stats.total > 0,
+        },
+        {
+          label: "Admin review",
+          detail: "Submitted documents stay in review until the final version is approved.",
+          active: otherDocuments.length > 0,
+          complete: accessibleApprovedDocuments.length > 0 || marketplaceDocuments.length > 0,
+        },
+        {
+          label: "Approved files",
+          detail: "Completed records become ready to open or available for marketplace unlock.",
+          active: accessibleApprovedDocuments.length > 0,
+          complete: accessibleApprovedDocuments.length > 0,
+        },
+        {
+          label: "Library access",
+          detail: "Open completed documents directly from your ready list after approval or purchase.",
+          active: accessibleApprovedDocuments.length > 0,
+          complete: false,
+        },
+      ];
 
   return (
     <div className="space-y-6">
@@ -486,28 +555,29 @@ export default function LibraryPage() {
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1.3fr)_360px]">
           <div className="bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_45%),linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] p-8 sm:p-10">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
-              Document Center
+              {isManagerView ? "Completed Document Center" : "Document Center"}
             </p>
             <h1 className="mt-3 text-4xl font-black tracking-tight text-slate-950">
-              Find what you need faster
+              {isManagerView ? "Open completed company documents" : "Find what you need faster"}
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">
-              Open completed documents, browse in-progress files, and use credits
-              without digging through separate tools.
+              {isManagerView
+                ? "Company accounts stay focused on completed files only, with no draft or in-review records mixed into the workspace."
+                : "Open completed documents, browse in-progress files, and use credits without digging through separate tools."}
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                href="/upload"
+                href={isManagerView ? "/company-users" : "/upload"}
                 className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
               >
-                Upload a document
+                {isManagerView ? "Manage Company Users" : "Upload a document"}
               </Link>
               <Link
-                href="/search"
+                href={isManagerView ? "/dashboard" : "/search"}
                 className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
-                Search all records
+                {isManagerView ? "Back to dashboard" : "Search all records"}
               </Link>
             </div>
 
@@ -556,8 +626,9 @@ export default function LibraryPage() {
                 </span>
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-300">
-                Use credits to unlock completed marketplace documents and move them
-                straight into your ready-to-open list.
+                {isManagerView
+                  ? "Completed files that are already available to this company account will appear in the ready list below."
+                  : "Use credits to unlock completed marketplace documents and move them straight into your ready-to-open list."}
               </p>
             </div>
 
@@ -743,8 +814,12 @@ export default function LibraryPage() {
       </section>
 
       <WorkflowPath
-        title="Upload to Library Workflow"
-        description="The library is the end of the document journey. Files appear here after upload, submission, admin review, and final approval."
+        title={isManagerView ? "Company Access Workflow" : "Upload to Library Workflow"}
+        description={
+          isManagerView
+            ? "This role stays on the completed-document side of the platform and does not handle draft or review-stage files."
+            : "The library is the end of the document journey. Files appear here after upload, submission, admin review, and final approval."
+        }
         steps={workflowSteps}
       />
 
@@ -767,26 +842,30 @@ export default function LibraryPage() {
         actionLabel="Open document"
       />
 
-      <MarketplaceSection
-        documents={marketplaceDocuments}
-        loading={loading}
-        creditBalance={creditState.creditBalance}
-        actionLoadingId={actionLoadingId}
-        onPurchase={handlePurchaseDocument}
-      />
+      {!isManagerView ? (
+        <MarketplaceSection
+          documents={marketplaceDocuments}
+          loading={loading}
+          creditBalance={creditState.creditBalance}
+          actionLoadingId={actionLoadingId}
+          onPurchase={handlePurchaseDocument}
+        />
+      ) : null}
 
-      <DocumentSection
-        title="All active documents"
-        description="Uploaded records that are still in progress or waiting on completion."
-        loading={loading}
-        documents={otherDocuments}
-        emptyTitle="No documents found"
-        emptyMessage="Try adjusting your filters or upload a new file."
-        onOpen={(doc) =>
-          handleOpenFile(doc.file_path ?? doc.draft_file_path ?? doc.final_file_path)
-        }
-        actionLabel="Preview file"
-      />
+      {!isManagerView ? (
+        <DocumentSection
+          title="All active documents"
+          description="Uploaded records that are still in progress or waiting on completion."
+          loading={loading}
+          documents={otherDocuments}
+          emptyTitle="No documents found"
+          emptyMessage="Try adjusting your filters or upload a new file."
+          onOpen={(doc) =>
+            handleOpenFile(doc.file_path ?? doc.draft_file_path ?? doc.final_file_path)
+          }
+          actionLabel="Preview file"
+        />
+      ) : null}
 
       <DownloadConfirmModal
         open={Boolean(pendingDownload)}
