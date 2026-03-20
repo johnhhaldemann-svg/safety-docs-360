@@ -3,6 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
+import {
+  InlineMessage,
+  PageHero,
+  SectionCard,
+  StatusBadge,
+  WorkflowPath,
+} from "@/components/WorkspacePrimitives";
 
 type RiskLevel = "Low" | "Medium" | "High";
 
@@ -441,6 +448,8 @@ export default function CSEPPage() {
   const [userId, setUserId] = useState("");
   const [authLoading, setAuthLoading] = useState(true);
   const [agreedToSubmissionTerms, setAgreedToSubmissionTerms] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"success" | "warning" | "error">("success");
 
   useEffect(() => {
     async function loadUser() {
@@ -533,18 +542,22 @@ export default function CSEPPage() {
 
   async function handleSubmitForReview() {
     try {
+      setMessage("");
       if (authLoading) {
-        alert("Still loading your account. Please wait one second and try again.");
+        setMessageTone("warning");
+        setMessage("Your account is still loading. Please wait a moment and try again.");
         return;
       }
 
       if (!userId) {
-        alert("No logged-in user found. Please log in again.");
+        setMessageTone("error");
+        setMessage("No logged-in user found. Please log in again.");
         return;
       }
 
       if (!agreedToSubmissionTerms) {
-        alert(
+        setMessageTone("warning");
+        setMessage(
           "You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before submitting your CSEP."
         );
         return;
@@ -609,14 +622,17 @@ export default function CSEPPage() {
         throw new Error(data?.error || "Failed to submit CSEP.");
       }
 
-      alert("CSEP submitted successfully for admin review.");
+      setMessageTone("success");
+      setMessage("CSEP submitted successfully for admin review.");
     } catch (error) {
       console.error(error);
 
       if (error instanceof Error) {
-        alert(error.message);
+        setMessageTone("error");
+        setMessage(error.message);
       } else {
-        alert("Failed to submit CSEP.");
+        setMessageTone("error");
+        setMessage("Failed to submit CSEP.");
       }
     } finally {
       setSubmitLoading(false);
@@ -656,22 +672,60 @@ export default function CSEPPage() {
       : null,
   ].filter(Boolean) as string[];
 
+  const workflowSteps = [
+    {
+      label: "Project Info",
+      detail: "Define the job, owner, and contractor context.",
+      complete: Boolean(form.project_name && form.contractor_company),
+    },
+    {
+      label: "Trade Setup",
+      detail: "Load trade defaults and site-specific content.",
+      complete: Boolean(form.trade && form.scope_of_work),
+    },
+    {
+      label: "Hazards & Controls",
+      detail: "Choose hazards, PPE, and permit coverage.",
+      complete: form.selected_hazards.length > 0,
+    },
+    {
+      label: "Review & Submit",
+      detail: "Send the CSEP into the admin review workflow.",
+      complete: messageTone === "success" && message.length > 0,
+    },
+  ];
+
   return (
     <div className="space-y-6 px-1 py-2 sm:px-2 sm:py-4">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-6 rounded-3xl bg-white p-6 shadow-lg md:p-8">
-          <h1 className="text-3xl font-bold text-slate-900">
-            Contractor Site Specific Safety Plan (CSEP)
-          </h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Build a trade-specific CSEP with project data, contractor data,
-            selected PPE, selected permits, selected hazards, and only the
-            sections you want included in the final generated document.
-          </p>
-        </div>
+        <PageHero
+          eyebrow="Builder Workspace"
+          title="CSEP Builder"
+          description="Build a contractor site-specific safety plan with clearer workflow guidance, stronger review readiness, and a more usable long-form workspace."
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => setForm(initialForm)}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Reset Form
+              </button>
+              <button
+                type="button"
+                onClick={applyTradeDefaults}
+                disabled={!selectedTrade}
+                className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)] disabled:opacity-50"
+              >
+                Apply Trade Defaults
+              </button>
+            </>
+          }
+        />
 
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
+            {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
             <section className="rounded-3xl bg-white p-6 shadow-lg">
               <h2 className="mb-4 text-xl font-semibold text-slate-900">
                 Project Information
@@ -967,6 +1021,46 @@ export default function CSEPPage() {
           </div>
 
           <aside className="space-y-6">
+            <WorkflowPath
+              title="Builder Workflow"
+              description="Move from project setup into a clean admin review handoff."
+              steps={workflowSteps}
+            />
+
+            <SectionCard
+              title="Builder Snapshot"
+              description="Quick visibility into what is ready inside this CSEP."
+            >
+              <div className="grid gap-3">
+                <SnapshotRow label="Project" value={form.project_name || "Not set yet"} />
+                <SnapshotRow label="Trade" value={form.trade || "No trade selected"} />
+                <SnapshotRow
+                  label="Hazards"
+                  value={
+                    form.selected_hazards.length
+                      ? `${form.selected_hazards.length} selected`
+                      : "None selected"
+                  }
+                />
+                <SnapshotRow
+                  label="PPE"
+                  value={
+                    form.required_ppe.length
+                      ? `${form.required_ppe.length} selected`
+                      : "None selected"
+                  }
+                />
+                <SnapshotRow
+                  label="Permits"
+                  value={
+                    form.additional_permits.length
+                      ? `${form.additional_permits.length} selected`
+                      : "None selected"
+                  }
+                />
+              </div>
+            </SectionCard>
+
             <section className="rounded-3xl bg-white p-6 shadow-lg">
               <h2 className="text-xl font-semibold text-slate-900">
                 Included CSEP Sections
@@ -1117,7 +1211,51 @@ export default function CSEPPage() {
             </section>
           </aside>
         </div>
+
+        <div className="sticky bottom-4 z-10 mt-6">
+          <div className="rounded-[1.5rem] border border-slate-200 bg-white/95 p-4 shadow-[0_18px_36px_rgba(148,163,184,0.18)] backdrop-blur">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">
+                  Submission Handoff
+                </div>
+                <div className="mt-1 text-sm text-slate-500">
+                  Review the snapshot on the right, then send the CSEP into admin review.
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <StatusBadge
+                  label={form.trade ? "Trade ready" : "Trade needed"}
+                  tone={form.trade ? "success" : "warning"}
+                />
+                <StatusBadge
+                  label={
+                    form.selected_hazards.length ? "Hazards selected" : "Hazards needed"
+                  }
+                  tone={form.selected_hazards.length ? "success" : "warning"}
+                />
+                <button
+                  type="button"
+                  onClick={handleSubmitForReview}
+                  disabled={submitLoading || !agreedToSubmissionTerms}
+                  className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)] disabled:opacity-50"
+                >
+                  {submitLoading ? "Submitting..." : "Submit for Review"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+    </div>
+  );
+}
+
+function SnapshotRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+      <span className="text-sm text-slate-500">{label}</span>
+      <span className="text-sm font-semibold text-slate-900">{value}</span>
     </div>
   );
 }
