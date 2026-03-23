@@ -246,7 +246,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: "Company signup request rejected.",
+      message: "Workspace request rejected.",
     });
   }
 
@@ -365,8 +365,8 @@ export async function PATCH(request: Request) {
   return NextResponse.json({
     success: true,
     message: emailResult.sent
-      ? "Company workspace approved. The company owner email was sent setup instructions."
-      : "Company workspace approved. The company owner can now create their account from the login page using the approved email.",
+      ? "Workspace approved. The company owner email was sent instructions to create the first account."
+      : "Workspace approved. The company owner can now go to login, choose Create Account, and use the approved email.",
     warning: emailResult.sent ? null : emailResult.warning,
   });
 }

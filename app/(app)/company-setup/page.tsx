@@ -188,27 +188,27 @@ export default function CompanySetupPage() {
   return (
     <div className="space-y-8">
       <PageHero
-        eyebrow="Company Setup"
-        title="Create your company workspace"
-        description="Set up the company once, choose the plan, and unlock the company admin tools that let you invite employees and control company access."
+        eyebrow="Company Workspace"
+        title="Set up your company"
+        description="Use your signed-in account as the company owner, choose the plan, and launch the workspace that will hold your employees, approvals, and documents."
       />
 
       <section className="grid gap-4 lg:grid-cols-3">
         {[
           {
             step: "01",
-            title: "Your account is ready",
-            body: "You already have a Safety360Docs account. This step creates the shared company workspace around it.",
+            title: "Create the workspace",
+            body: "Your personal account is already in place. This step creates the shared company workspace around it.",
           },
           {
             step: "02",
-            title: "Set the company profile",
-            body: "These details power the company dashboard, workspace identity, and admin oversight.",
+            title: "Confirm company details",
+            body: "These details power the company dashboard, workspace identity, and internal support view.",
           },
           {
             step: "03",
-            title: "Invite employees",
-            body: "Once this workspace is live, invite employees from the company access page and approve them there.",
+            title: "Invite and approve employees",
+            body: "Once the workspace is live, invite employees from Team Access and approve them there as they join.",
           },
         ].map((item) => (
           <div
@@ -229,17 +229,27 @@ export default function CompanySetupPage() {
       </section>
 
       <SectionCard
-        title="Company profile"
-        description="Use the same setup style that other SaaS products use: account first, then workspace creation, then employee invites."
+        title="Set Up Company Workspace"
+        description="Fill in the company details once, choose the plan, and launch the workspace your team will use."
       >
         <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Primary Contact
+                Company Owner
               </div>
               <div className="mt-2 text-sm font-semibold text-slate-900">{contactName || "Account owner"}</div>
               <div className="mt-1 text-sm text-slate-500">{contactEmail || "Signed-in account"}</div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Step 1
+              </div>
+              <div className="mt-2 text-base font-bold text-slate-900">Company details</div>
+              <p className="mt-1 text-sm text-slate-500">
+                These details will appear across the company workspace, internal admin views, and employee invites.
+              </p>
             </div>
 
             <input
@@ -314,8 +324,9 @@ export default function CompanySetupPage() {
           <div className="space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Choose Plan
+                Step 2
               </div>
+              <div className="mt-2 text-base font-bold text-slate-900">Choose plan</div>
               <div className="mt-3 space-y-3">
                 {planOptions.map((option) => {
                   const active = planName === option.value;
@@ -340,11 +351,14 @@ export default function CompanySetupPage() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-sm font-semibold text-slate-900">What happens next</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Step 3
+              </div>
+              <div className="mt-2 text-base font-bold text-slate-900">Launch workspace</div>
               <div className="mt-3 space-y-3 text-sm leading-6 text-slate-500">
                 <p>1. Your company workspace is created under the signed-in account.</p>
                 <p>2. Your account becomes the company admin for that workspace.</p>
-                <p>3. You land in Company Access to invite employees and approve who can join.</p>
+                <p>3. You land in Team Access to invite employees and approve who can join.</p>
               </div>
             </div>
 
@@ -356,7 +370,7 @@ export default function CompanySetupPage() {
               disabled={loading}
               className="w-full rounded-2xl bg-sky-600 px-5 py-4 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
             >
-              {loading ? "Creating company workspace..." : "Create Company Workspace"}
+              {loading ? "Launching company workspace..." : "Launch Company Workspace"}
             </button>
           </div>
         </div>

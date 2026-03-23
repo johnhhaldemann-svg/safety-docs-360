@@ -210,14 +210,14 @@ export default function AdminCompaniesPage() {
   const stats = useMemo(
     () => [
       {
-        title: "Companies",
+        title: "Active Workspaces",
         value: String(companies.length),
-        note: "Tracked company workspaces",
+        note: "Customer workspaces already live",
       },
       {
-        title: "Company Users",
+        title: "Company Seats",
         value: String(companies.reduce((sum, company) => sum + company.totalUsers, 0)),
-        note: "All users assigned under companies",
+        note: "All people assigned under company workspaces",
       },
       {
         title: "Pending Invites",
@@ -230,7 +230,7 @@ export default function AdminCompaniesPage() {
         note: "Approved company deliverables",
       },
       {
-        title: "Pending Signups",
+        title: "Workspace Requests",
         value: String(signupRequests.length),
         note: "Company workspaces waiting for internal activation",
       },
@@ -242,14 +242,14 @@ export default function AdminCompaniesPage() {
     <div className="space-y-8">
       <PageHero
         eyebrow="Company Oversight"
-        title="Companies"
-        description="Track each company workspace, monitor how many users sit under it, and keep an eye on invites and completed document delivery."
+        title="Company Workspaces"
+        description="Approve new workspace requests and monitor live customer companies from one place."
         actions={
           <Link
             href="/admin/users"
             className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            Back to Users
+            Back to Platform Staff
           </Link>
         }
       />
@@ -266,9 +266,44 @@ export default function AdminCompaniesPage() {
         ))}
       </section>
 
+      <section className="grid gap-4 lg:grid-cols-3">
+        {[
+          {
+            step: "01",
+            title: "Customer requests workspace",
+            body: "A customer starts the company onboarding flow and submits the company profile for review.",
+          },
+          {
+            step: "02",
+            title: "Internal admin approves",
+            body: "Your team approves the request here and activates the customer company workspace.",
+          },
+          {
+            step: "03",
+            title: "Company owner finishes setup",
+            body: "The company owner creates the first account from login, then invites and approves employees inside their workspace.",
+          },
+        ].map((item) => (
+          <div
+            key={item.step}
+            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+          >
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sm font-black text-sky-700">
+                {item.step}
+              </div>
+              <div>
+                <div className="text-base font-bold text-slate-950">{item.title}</div>
+                <p className="mt-1 text-sm leading-6 text-slate-500">{item.body}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </section>
+
       <SectionCard
-        title="Company Workspace Requests"
-        description="Review company requests, activate the workspace, and hand off the first account setup to the company owner."
+        title="1. Workspace Requests"
+        description="Review new company requests, activate the workspace, and hand off the first account setup to the company owner."
       >
         {message ? (
           <div className="mb-4">
@@ -279,7 +314,7 @@ export default function AdminCompaniesPage() {
           <InlineMessage>Loading company signup requests...</InlineMessage>
         ) : signupRequests.length === 0 ? (
           <EmptyState
-            title="No company workspace requests"
+            title="No workspace requests are waiting"
             description="New company requests will appear here when a customer starts the company onboarding process."
           />
         ) : (
@@ -302,12 +337,12 @@ export default function AdminCompaniesPage() {
                       <span>Phone: {request.phone || "Not provided"}</span>
                     </div>
                   </div>
-                    <div className="flex flex-col gap-3 lg:min-w-[360px]">
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      Approve this request to activate the company workspace. After approval, the company owner creates their account from the login page using the approved email.
-                      </div>
-                      <div className="flex flex-wrap gap-3">
-                        <button
+                  <div className="flex flex-col gap-3 lg:min-w-[360px]">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      Approve this request to activate the workspace. After approval, the company owner uses the approved email on the login page to create the first account.
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <button
                         type="button"
                         onClick={() => void handleSignupRequestAction(request.id, "approve")}
                         disabled={processingRequestId === request.id}
@@ -324,22 +359,22 @@ export default function AdminCompaniesPage() {
                         {processingRequestId === request.id ? "Working..." : "Reject"}
                       </button>
                     </div>
+                    </div>
                   </div>
                 </div>
-              </div>
             ))}
           </div>
         )}
       </SectionCard>
 
       <SectionCard
-        title="Company Directory"
-        description="Every company workspace and the users, invites, and approved documents linked to it."
+        title="2. Active Company Workspaces"
+        description="Approved customer workspaces and the users, invites, and documents linked to each one."
       >
         <div className="mb-4">
           <input
             type="text"
-            placeholder="Search companies..."
+            placeholder="Search active company workspaces..."
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
@@ -356,8 +391,8 @@ export default function AdminCompaniesPage() {
           <InlineMessage>Loading companies...</InlineMessage>
         ) : filteredCompanies.length === 0 ? (
           <EmptyState
-            title="No companies found"
-            description="Company workspaces will appear here after a company account signs up or a team is linked to a company."
+            title="No active company workspaces found"
+            description="Approved company workspaces will appear here after your internal team activates them."
           />
         ) : (
           <div className="grid gap-4">
