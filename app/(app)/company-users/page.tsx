@@ -191,6 +191,11 @@ export default function CompanyUsersPage() {
     [users]
   );
 
+  const pendingUsers = useMemo(
+    () => users.filter((user) => user.status === "Pending"),
+    [users]
+  );
+
   const activityItems = useMemo(() => {
     const items = users
       .map((user) => ({
@@ -308,6 +313,48 @@ export default function CompanyUsersPage() {
     setSaveLoading(false);
   }
 
+  async function handleQuickStatus(user: CompanyUser, nextStatus: "Active" | "Suspended") {
+    setSaveLoading(true);
+    setMessage("");
+    setMessageTone("neutral");
+
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`/api/company/users/${user.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          role: user.role,
+          accountStatus: nextStatus,
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      if (!response.ok) {
+        setMessageTone("error");
+        setMessage(data?.error || "Failed to update company user.");
+        setSaveLoading(false);
+        return;
+      }
+
+      setMessageTone(nextStatus === "Active" ? "success" : "warning");
+      setMessage(
+        nextStatus === "Active"
+          ? `${user.name} has been approved for the company workspace.`
+          : `${user.name} has been suspended from the company workspace.`
+      );
+      await loadUsers({ preserveMessage: true });
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to update company user.");
+    }
+
+    setSaveLoading(false);
+  }
+
   async function handleRemoveUser() {
     if (!editingUser) return;
 
@@ -386,7 +433,7 @@ export default function CompanyUsersPage() {
       <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <SectionCard
           title="Invite Company User"
-          description="New users added here are scoped to your company workspace."
+          description="New users added here are scoped to your company workspace. After they create an account, you approve their access here."
         >
           <div className="grid gap-4 md:grid-cols-2">
             <input
@@ -424,6 +471,67 @@ export default function CompanyUsersPage() {
           items={activityItems}
         />
       </section>
+
+      <SectionCard
+        title="Company Approval Queue"
+        description="Users who created an account from your company invite stay here until your company approves access."
+      >
+        {loading ? (
+          <InlineMessage>Loading company approval queue...</InlineMessage>
+        ) : pendingUsers.length === 0 ? (
+          <EmptyState
+            title="No company users are waiting for approval"
+            description="Invited users will appear here after they sign up with the invited email."
+          />
+        ) : (
+          <div className="grid gap-4">
+            {pendingUsers.map((user) => (
+              <div key={user.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900">{user.name}</p>
+                      <StatusBadge label={user.status} tone="warning" />
+                    </div>
+                    <p className="mt-1 text-sm text-slate-500">{user.email}</p>
+                    <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
+                      <span>Role: {user.role}</span>
+                      <span>Company: {scopeCompanyName}</span>
+                      <span>Created {formatRelative(user.created_at)}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => void handleQuickStatus(user, "Active")}
+                      disabled={saveLoading}
+                      className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-60"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingUser(user);
+                        setEditRole(user.role);
+                        setEditStatus("Pending");
+                      }}
+                      className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                    >
+                      Review
+                    </button>
+                    <button
+                      onClick={() => void handleQuickStatus(user, "Suspended")}
+                      disabled={saveLoading}
+                      className="rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                    >
+                      Suspend
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
 
       <SectionCard
         title="Company Directory"

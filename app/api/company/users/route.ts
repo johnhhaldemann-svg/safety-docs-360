@@ -218,7 +218,7 @@ export async function GET(request: Request) {
     userId: auth.user.id,
     fallbackTeam: auth.team,
   });
-  const scopeTeam = auth.team || companyScope.companyName || "General";
+  const scopeTeam = companyScope.companyName?.trim() || auth.team || "General";
 
   if (!adminClient) {
     const query = auth.supabase
@@ -349,17 +349,18 @@ export async function POST(request: Request) {
   const role = isCompanyAdminRole(auth.role)
     ? getCompanySafeRole(body.role)
     : normalizeAppRole(body.role);
-  const team = isCompanyAdminRole(auth.role) ? auth.team : auth.team || "General";
+  const fallbackTeam = auth.team || "General";
   const companyScopeClient = adminClient ?? auth.supabase;
   const companyScope = await ensureCompanyScope({
     supabase: companyScopeClient,
     userId: auth.user.id,
-    fallbackTeam: team,
+    fallbackTeam,
     role: auth.role,
     actorUserId: auth.user.id,
   });
+  const team = companyScope.companyName?.trim() || fallbackTeam;
   const accountStatus = isCompanyAdminRole(auth.role)
-    ? "active"
+    ? "pending"
     : normalizeAccountStatus(body.accountStatus);
 
   if (!companyScope.companyId) {
@@ -406,8 +407,8 @@ export async function POST(request: Request) {
     },
     invite: inviteData,
     message: emailResult.sent
-      ? "Company invite saved and email sent."
-      : "Company invite saved. This person can create an account with the invited email and will automatically join your company workspace.",
+      ? "Company invite saved and email sent. After signup, this user will stay pending until your company approves access."
+      : "Company invite saved. This person can create an account with the invited email, will automatically join your company workspace, and will stay pending until you approve access.",
     scopeTeam: team,
     scopeCompanyId: companyScope.companyId,
     warning: emailResult.sent

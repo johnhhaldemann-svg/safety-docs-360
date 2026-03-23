@@ -39,6 +39,7 @@ function LoginPageContent() {
       : "";
 
   const [mode, setMode] = useState<"login" | "signup">(inviteMode ? "signup" : "login");
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -78,9 +79,9 @@ function LoginPageContent() {
       return;
     }
 
-    if (!email.trim() || !password.trim()) {
+    if (!fullName.trim() || !email.trim() || !password.trim()) {
       setFormTone("error");
-      setFormMessage("Email and password are required.");
+      setFormMessage("Full name, email, and password are required.");
       return;
     }
 
@@ -98,6 +99,7 @@ function LoginPageContent() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        fullName,
         email,
         password,
         agreed,
@@ -117,6 +119,7 @@ function LoginPageContent() {
     }
 
     setMode("login");
+    setFullName("");
     setPassword("");
     setConfirmPassword("");
     setAgreed(false);
@@ -285,6 +288,24 @@ function LoginPageContent() {
                   ) : null}
 
                   <div>
+                    {mode === "signup" ? (
+                      <>
+                        <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                          Full Name
+                        </label>
+                        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-slate-300 shadow-inner transition focus-within:border-amber-400/35 focus-within:bg-[#0d1521]">
+                          <IconUser />
+                          <input
+                            type="text"
+                            placeholder="Your full name"
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                            className="auth-input w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                          />
+                        </div>
+                      </>
+                    ) : null}
+
                     <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
                       Employee ID / Email
                     </label>
@@ -345,14 +366,11 @@ function LoginPageContent() {
                       />
                       <span>Remember this device</span>
                     </label>
+                  </div>
 
-                    <button
-                      type="button"
-                      onClick={() => alert("Password reset flow is not set up yet.")}
-                      className="text-sm font-semibold text-amber-300 transition hover:text-amber-200"
-                    >
-                      Forgot password?
-                    </button>
+                  <div className="rounded-2xl border border-white/8 bg-slate-900/30 px-4 py-3 text-sm text-slate-400">
+                    Need help accessing your workspace? Contact your internal administrator
+                    or company admin to reset your password and confirm your account status.
                   </div>
 
                   {mode === "signup" ? (
@@ -373,25 +391,6 @@ function LoginPageContent() {
                       : mode === "login"
                         ? "Access Workspace"
                         : "Create Account"}
-                  </button>
-                </div>
-
-                <div className="mt-8">
-                  <div className="flex items-center gap-3">
-                    <div className="h-px flex-1 bg-white/8" />
-                    <div className="text-sm text-slate-500">or continue with</div>
-                    <div className="h-px flex-1 bg-white/8" />
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => alert("Google workspace sign-in is not configured in this build.")}
-                    className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-white/10 bg-slate-900/35 px-4 py-4 text-sm font-semibold text-white transition hover:bg-slate-900/55"
-                  >
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-slate-900">
-                      G
-                    </span>
-                    Sign in with Google Workspace
                   </button>
                 </div>
 
@@ -424,6 +423,14 @@ function LoginPageFallback() {
         </div>
       </div>
     </main>
+  );
+}
+
+function IconUser() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+      <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z" />
+    </svg>
   );
 }
 

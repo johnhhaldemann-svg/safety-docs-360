@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 import {
   acceptUserAgreement,
   getClientIpAddress,
@@ -29,6 +30,21 @@ type RegisterPayload = {
   password?: string;
   agreed?: boolean;
 };
+
+function buildCompanyKeyBase(companyName: string) {
+  const normalized = companyName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 42);
+
+  return normalized || "company";
+}
+
+function buildUniqueCompanyKey(companyName: string) {
+  return `${buildCompanyKeyBase(companyName)}-${randomUUID().slice(0, 8)}`;
+}
 
 function createPublicClient() {
   const supabaseUrl = getSupabaseServerUrl();
@@ -101,12 +117,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: companyData, error: companyError } = await adminClient
-    .from("companies")
-    .upsert(
-      {
+  let companyData: { id: string; name: string } | null = null;
+  let companyError: { message?: string | null } | null = null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const result = await adminClient
+      .from("companies")
+      .insert({
         name: companyName,
-        team_key: companyName,
+        team_key: buildUniqueCompanyKey(companyName),
         industry,
         phone,
         website: website || null,
@@ -117,14 +136,17 @@ export async function POST(request: Request) {
         country,
         primary_contact_name: fullName,
         primary_contact_email: email,
-      },
-      {
-        onConflict: "team_key",
-        ignoreDuplicates: false,
-      }
-    )
-    .select("id, name")
-    .single();
+      })
+      .select("id, name")
+      .single();
+
+    companyData = result.data;
+    companyError = result.error;
+
+    if (!companyError) {
+      break;
+    }
+  }
 
   if (companyError || !companyData?.id) {
     return NextResponse.json(

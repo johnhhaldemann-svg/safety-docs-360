@@ -15,6 +15,7 @@ import {
 export const runtime = "nodejs";
 
 type RegisterPayload = {
+  fullName?: string;
   email?: string;
   password?: string;
   agreed?: boolean;
@@ -174,13 +175,14 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => null)) as RegisterPayload | null;
+  const fullName = body?.fullName?.trim() ?? "";
   const email = body?.email?.trim().toLowerCase() ?? "";
   const password = body?.password?.trim() ?? "";
   const agreed = body?.agreed === true;
 
-  if (!email || !password) {
+  if (!fullName || !email || !password) {
     return NextResponse.json(
-      { error: "Email and password are required." },
+      { error: "Full name, email, and password are required." },
       { status: 400 }
     );
   }
@@ -203,6 +205,7 @@ export async function POST(request: Request) {
     team: companyInvite?.team ?? "General",
     company_id: companyInvite?.company_id ?? null,
     account_status: companyInvite?.account_status ?? "pending",
+    full_name: fullName,
   };
 
   const { data, error } = await publicClient.auth.signUp({
@@ -309,7 +312,9 @@ export async function POST(request: Request) {
     success: true,
     message:
       companyInvite
-        ? "Account created. Your company invite was applied and your workspace access has been configured."
+        ? pendingMetadata.account_status === "pending"
+          ? "Account created. Your company invite was applied. Your company admin still needs to approve your access before you can enter the workspace."
+          : "Account created. Your company invite was applied and your workspace access has been configured."
         : "Account created. An administrator must approve your access before you can enter the workspace.",
     warning:
       metadataResult.error && roleResult.error
