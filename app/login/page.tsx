@@ -1,6 +1,4 @@
 "use client";
-
-import Link from "next/link";
 import { Suspense, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -36,7 +34,7 @@ function LoginPageContent() {
   const inviteSignupEnabled = inviteMode && !!invitedEmail;
   const inviteNotice =
     inviteType === "company" && invitedEmail
-      ? "Your company access is ready. Set your password with this approved email to activate your workspace account."
+      ? "Your company access is ready. Create your account with this approved email to join the company workspace."
       : "";
 
   const [mode, setMode] = useState<"login" | "signup">(inviteSignupEnabled ? "signup" : "login");
@@ -269,7 +267,7 @@ function LoginPageContent() {
                         setFormMessage(
                           inviteSignupEnabled
                             ? inviteNotice
-                            : "Use your approved company email to set up a workspace account."
+                            : "Create your account first. After sign-in, you can create your company workspace or join an invited company."
                         );
                       }
                     }}
@@ -280,16 +278,16 @@ function LoginPageContent() {
                         : "text-slate-400 hover:text-slate-200",
                     ].join(" ")}
                   >
-                    Set Up Account
+                    Create Account
                   </button>
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-white/8 bg-slate-900/28 px-4 py-3 text-sm text-slate-300">
                   <div className="font-semibold text-white">
-                    Login for existing users. Set Up Account for approved company admins and invited employees.
+                    Create your own account first, then build your company workspace or join one from an employee invite.
                   </div>
                   <div className="mt-1 text-slate-400">
-                    New user access is controlled by your company or internal platform team.
+                    Internal employees, company admins, and invited employees all start from the same account-first entry point.
                   </div>
                 </div>
 
@@ -389,7 +387,7 @@ function LoginPageContent() {
                   </div>
 
                   <div className="rounded-2xl border border-white/8 bg-slate-900/30 px-4 py-3 text-sm text-slate-400">
-                    Need help accessing your workspace? Company admins should use <strong className="text-slate-200">Accept Invite</strong> after approval. Employees should use the exact email their company invited. Contact your internal administrator or company admin if access still fails.
+                    Need help accessing your workspace? Create your account first, then sign in to create your company workspace. If you were invited by an existing company, use the exact invited email when creating your account.
                   </div>
 
                   {mode === "signup" ? (
@@ -409,7 +407,7 @@ function LoginPageContent() {
                         : "Creating account..."
                       : mode === "login"
                         ? "Access Workspace"
-                        : "Set Up Account"}
+                        : "Create Account"}
                   </button>
                 </div>
 
@@ -420,22 +418,29 @@ function LoginPageContent() {
                 <div className="mt-5 rounded-2xl border border-sky-500/18 bg-sky-500/10 px-4 py-4 text-sm text-sky-100">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="font-semibold text-sky-200">Need a new company workspace?</p>
+                      <p className="font-semibold text-sky-200">New here?</p>
                       <p className="mt-1 text-sky-100/90">
-                        Register your company, choose the plan, and create the first company admin.
+                        Create your account first. After you sign in, the app will walk you into company setup and employee invites.
                       </p>
                     </div>
-                    <Link
-                      href="/company-signup"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("signup");
+                        setFormTone("success");
+                        setFormMessage(
+                          "Create your account first. After sign-in, you can set up your company workspace and start inviting employees."
+                        );
+                      }}
                       className="inline-flex items-center justify-center rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
                     >
-                      Register Company
-                    </Link>
+                      Create Account
+                    </button>
                   </div>
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-amber-500/18 bg-amber-500/10 px-4 py-4 text-sm text-amber-100">
-                  If you are joining an existing company, use <strong>Set Up Account</strong> with the exact approved email. Company admins also finish initial workspace setup here after internal approval.
+                  If you are joining an existing company, create your account with the exact invited email. Company setup happens after sign-in, and employee access stays scoped to that company workspace.
                 </div>
               </div>
             </div>

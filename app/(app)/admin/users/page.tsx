@@ -38,11 +38,17 @@ const roleOptions = [
   "Super Admin",
   "Admin",
   "Operations Manager",
-  "Company Admin",
-  "Company User",
   "Editor",
   "Viewer",
 ];
+
+const internalRoles = new Set([
+  "Super Admin",
+  "Admin",
+  "Operations Manager",
+  "Editor",
+  "Viewer",
+]);
 
 function statusClasses(status: string) {
   if (status === "Active") return "bg-emerald-100 text-emerald-700";
@@ -165,8 +171,9 @@ export default function AdminUsersPage() {
   }, [loadUsers]);
 
   const filteredUsers = useMemo(() => {
+    const internalUsers = users.filter((user) => internalRoles.has(user.role));
     const query = searchTerm.trim().toLowerCase();
-    return users.filter((user) => {
+    return internalUsers.filter((user) => {
       const matchesSearch =
         user.name.toLowerCase().includes(query) ||
         user.email.toLowerCase().includes(query) ||
@@ -179,6 +186,7 @@ export default function AdminUsersPage() {
   const pendingApprovals = useMemo(
     () =>
       users
+        .filter((user) => internalRoles.has(user.role))
         .filter((user) => user.status === "Pending")
         .sort(
           (a, b) =>
@@ -189,6 +197,7 @@ export default function AdminUsersPage() {
 
   const userStats = useMemo(() => {
     const activeToday = users.filter((user) => {
+      if (!internalRoles.has(user.role)) return false;
       if (!user.last_sign_in_at) return false;
       const lastSeen = new Date(user.last_sign_in_at);
       const today = new Date();
@@ -199,7 +208,11 @@ export default function AdminUsersPage() {
       );
     }).length;
     return [
-      { title: "Total Users", value: String(users.length), note: "Across the current workspace" },
+      {
+        title: "Platform Users",
+        value: String(users.filter((user) => internalRoles.has(user.role)).length),
+        note: "Internal employees managing the platform",
+      },
       { title: "Active Today", value: String(activeToday), note: "Signed in during the last day" },
       {
         title: "Pending Approval",
@@ -208,8 +221,11 @@ export default function AdminUsersPage() {
       },
       {
         title: "Suspended",
-        value: String(users.filter((user) => user.status === "Suspended").length),
-        note: "Accounts blocked from the app",
+        value: String(
+          users.filter((user) => internalRoles.has(user.role) && user.status === "Suspended")
+            .length
+        ),
+        note: "Internal accounts blocked from the app",
       },
     ];
   }, [pendingApprovals.length, users]);
@@ -217,6 +233,7 @@ export default function AdminUsersPage() {
   const accessActivity = useMemo(
     () =>
       users
+        .filter((user) => internalRoles.has(user.role))
         .map((user) => ({
           id: user.id,
           sortAt: new Date(user.last_sign_in_at ?? user.created_at ?? 0).getTime(),
@@ -270,7 +287,7 @@ export default function AdminUsersPage() {
       setInviteRole("Viewer");
       setInviteTeam("General");
       setMessageTone("success");
-      setMessage("Invitation sent successfully.");
+      setMessage("Internal employee invite sent successfully.");
       await loadUsers({ preserveMessage: true });
     } catch (error) {
       setMessageTone("error");
@@ -536,8 +553,8 @@ export default function AdminUsersPage() {
     <div className="space-y-8">
       <PageHero
         eyebrow="Administration"
-        title="User Management"
-        description="Manage user access, roles, permissions, invitations, and workspace visibility from one central location."
+        title="Platform User Management"
+        description="Manage only internal platform employees here. Company admins and company employees are managed inside each company workspace."
         actions={
           <>
             <button
@@ -569,7 +586,10 @@ export default function AdminUsersPage() {
         ))}
       </section>
 
-      <SectionCard title="Invite or Search" description="Invite a new user or filter the current user list.">
+      <SectionCard
+        title="Invite or Search"
+        description="Invite internal employees or filter the current internal platform user list."
+      >
         <div className="grid gap-3 md:grid-cols-2">
           <input
             type="email"
@@ -580,7 +600,7 @@ export default function AdminUsersPage() {
           />
           <input
             type="text"
-            placeholder="Team"
+            placeholder="Internal team"
             value={inviteTeam}
             onChange={(e) => setInviteTeam(e.target.value)}
             className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
@@ -631,14 +651,14 @@ export default function AdminUsersPage() {
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <SectionCard
           title="Approval Queue"
-          description="Accounts waiting for an admin decision before they can open the workspace."
+          description="Internal employee accounts waiting for an admin decision before they can open the platform."
         >
           {loading ? (
             <InlineMessage>Loading approval queue...</InlineMessage>
           ) : pendingApprovals.length === 0 ? (
             <EmptyState
               title="No accounts are waiting for approval"
-              description="New signups and invited users will appear here until an admin activates them."
+            description="New internal employee accounts will appear here until an admin activates them."
             />
           ) : (
             <div className="space-y-4">
@@ -712,7 +732,10 @@ export default function AdminUsersPage() {
         />
       </section>
 
-      <SectionCard title="Users" description="Review users, roles, and current account status.">
+      <SectionCard
+        title="Platform Users"
+        description="Review internal employees, admin-app roles, and platform access."
+      >
         {loading ? (
           <InlineMessage>Loading users...</InlineMessage>
         ) : filteredUsers.length === 0 ? (

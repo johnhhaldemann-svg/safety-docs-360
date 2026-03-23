@@ -425,7 +425,7 @@ export default function CompanyUsersPage() {
             disabled={inviteLoading || !inviteEmail.trim()}
             className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
           >
-            {inviteLoading ? "Inviting..." : "Invite Company User"}
+            {inviteLoading ? "Inviting..." : "Invite Employee"}
           </button>
         }
       />
@@ -452,7 +452,7 @@ export default function CompanyUsersPage() {
           {
             step: "02",
             title: "Employee sets up account",
-            body: "They use Set Up Account on the login page with the invited email to create their access.",
+            body: "They use Create Account on the login page with the invited email to create their access.",
           },
           {
             step: "03",

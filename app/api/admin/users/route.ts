@@ -103,6 +103,11 @@ function formatRoleConstraintError(message?: string | null) {
   return message || "User invite failed.";
 }
 
+function isInternalAppRole(role?: string | null) {
+  const normalized = normalizeAppRole(role);
+  return normalized !== "company_admin" && normalized !== "company_user";
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requirePermission: "can_assign_roles",
@@ -124,17 +129,19 @@ export async function GET(request: Request) {
     ).rpc("admin_list_workspace_users");
 
     if (!rpcError) {
-      const users = ((rpcData as RpcAdminUserRow[] | null) ?? []).map((row) => ({
-        id: row.id,
-        email: row.email ?? "",
-        name: row.name?.trim() || (row.email ? row.email.split("@")[0] : "Unnamed User"),
-        role: formatAppRole(row.role),
-        team: row.team?.trim() || "General",
-        status: row.status?.trim() || "Active",
-        created_at: row.created_at,
-        last_sign_in_at: row.last_sign_in_at,
-        email_confirmed_at: row.email_confirmed_at,
-      }));
+      const users = ((rpcData as RpcAdminUserRow[] | null) ?? [])
+        .filter((row) => isInternalAppRole(row.role))
+        .map((row) => ({
+          id: row.id,
+          email: row.email ?? "",
+          name: row.name?.trim() || (row.email ? row.email.split("@")[0] : "Unnamed User"),
+          role: formatAppRole(row.role),
+          team: row.team?.trim() || "General",
+          status: row.status?.trim() || "Active",
+          created_at: row.created_at,
+          last_sign_in_at: row.last_sign_in_at,
+          email_confirmed_at: row.email_confirmed_at,
+        }));
 
       return NextResponse.json({
         users,
@@ -159,25 +166,27 @@ export async function GET(request: Request) {
       );
     }
 
-    const users = ((data as FallbackUserRoleRow[] | null) ?? []).map((row) => {
-      const isCurrentUser = row.user_id === auth.user.id;
-      const email = isCurrentUser ? auth.user.email ?? "" : "";
-      const name = isCurrentUser
-        ? getDisplayName(auth.user)
-        : `User ${row.user_id.slice(0, 8)}`;
+    const users = ((data as FallbackUserRoleRow[] | null) ?? [])
+      .filter((row) => isInternalAppRole(row.role))
+      .map((row) => {
+        const isCurrentUser = row.user_id === auth.user.id;
+        const email = isCurrentUser ? auth.user.email ?? "" : "";
+        const name = isCurrentUser
+          ? getDisplayName(auth.user)
+          : `User ${row.user_id.slice(0, 8)}`;
 
-      return {
-        id: row.user_id,
-        email,
-        name,
-        role: formatAppRole(row.role),
-        team: row.team?.trim() || "General",
-        status: formatAccountStatus(row.account_status),
-        created_at: row.created_at ?? null,
-        last_sign_in_at: null,
-        email_confirmed_at: null,
-      };
-    });
+        return {
+          id: row.user_id,
+          email,
+          name,
+          role: formatAppRole(row.role),
+          team: row.team?.trim() || "General",
+          status: formatAccountStatus(row.account_status),
+          created_at: row.created_at ?? null,
+          last_sign_in_at: null,
+          email_confirmed_at: null,
+        };
+      });
 
     return NextResponse.json({
       users,
@@ -199,7 +208,8 @@ export async function GET(request: Request) {
     );
   }
 
-  const users = await Promise.all(
+  const users = (
+    await Promise.all(
     (data.users ?? []).map(async (user) => {
       const roleContext = await getUserRoleContext({
         supabase: adminClient,
@@ -222,7 +232,8 @@ export async function GET(request: Request) {
         email_confirmed_at: user.email_confirmed_at,
       };
     })
-  );
+    )
+  ).filter((user) => isInternalAppRole(user.role));
 
   return NextResponse.json({
     users,
@@ -263,6 +274,16 @@ export async function POST(request: Request) {
 
   if (!email) {
     return NextResponse.json({ error: "Email is required." }, { status: 400 });
+  }
+
+  if (!isInternalAppRole(role)) {
+    return NextResponse.json(
+      {
+        error:
+          "Company roles are not invited from Platform User Management. Create the company workspace first, then invite employees from Company Access.",
+      },
+      { status: 400 }
+    );
   }
 
   const { data, error } = await adminClient.auth.admin.inviteUserByEmail(

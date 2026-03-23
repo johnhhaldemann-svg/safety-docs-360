@@ -119,6 +119,17 @@ const companyUserSideSections: NavSection[] = [
   },
 ];
 
+const accountSetupSideSections: NavSection[] = [
+  {
+    title: "Getting Started",
+    items: [{ href: "/company-setup", label: "Create Company Workspace", short: "CO" }],
+  },
+];
+
+const accountSetupQuickLinks: NavItem[] = [
+  { href: "/company-setup", label: "Create Company Workspace", short: "CO" },
+];
+
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -177,6 +188,8 @@ export default function AppLayout({
   const [acceptingTerms, setAcceptingTerms] = useState(false);
   const [termsError, setTermsError] = useState("");
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState("");
   const [agreementConfig, setAgreementConfig] = useState<AgreementConfig>(
     getDefaultAgreementConfig()
   );
@@ -186,8 +199,13 @@ export default function AppLayout({
   const isCompanyUser = userRole === "company_user";
   const isCompanyScopedUser = isCompanyAdminUser || isCompanyUser;
   const canAccessInternalAdmin = Boolean(permissionMap?.can_access_internal_admin);
+  const needsCompanySetup =
+    !canAccessInternalAdmin && !isCompanyScopedUser && !companyId;
 
   const sideSections = useMemo(() => {
+    if (needsCompanySetup) {
+      return accountSetupSideSections;
+    }
     if (!isAdminArea && isCompanyAdminUser) {
       return companyAdminSideSections;
     }
@@ -205,7 +223,13 @@ export default function AppLayout({
       ];
     }
     return base;
-  }, [canAccessInternalAdmin, isAdminArea, isCompanyAdminUser, isCompanyUser]);
+  }, [
+    canAccessInternalAdmin,
+    isAdminArea,
+    isCompanyAdminUser,
+    isCompanyUser,
+    needsCompanySetup,
+  ]);
 
   const currentNavItem = useMemo(() => {
     for (const section of sideSections) {
@@ -224,6 +248,9 @@ export default function AppLayout({
   }, [isAdminArea, pathname, sideSections]);
 
   const quickLinks = useMemo(() => {
+    if (needsCompanySetup) {
+      return accountSetupQuickLinks;
+    }
     if (!isAdminArea && isCompanyAdminUser) {
       return companyQuickLinks;
     }
@@ -235,7 +262,13 @@ export default function AppLayout({
       return [...base, { href: "/admin", label: "Admin Panel", short: "AD" }];
     }
     return base;
-  }, [canAccessInternalAdmin, isAdminArea, isCompanyAdminUser, isCompanyUser]);
+  }, [
+    canAccessInternalAdmin,
+    isAdminArea,
+    isCompanyAdminUser,
+    isCompanyUser,
+    needsCompanySetup,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -287,6 +320,8 @@ export default function AppLayout({
                 permissionMap?: PermissionMap;
                 accountStatus?: string;
                 acceptedTerms?: boolean;
+                companyId?: string | null;
+                companyName?: string | null;
               };
             }
           | null;
@@ -297,6 +332,8 @@ export default function AppLayout({
         setUserEmail(email);
         setUserRole(data?.user?.role ?? "viewer");
         setPermissionMap(data?.user?.permissionMap ?? null);
+        setCompanyId(data?.user?.companyId ?? null);
+        setCompanyName(data?.user?.companyName ?? "");
         setAccountStatus(data?.user?.accountStatus ?? "active");
         setAcceptedTerms(Boolean(data?.user?.acceptedTerms));
         setTermsError("");
@@ -307,6 +344,22 @@ export default function AppLayout({
         }
 
         const nextRole = data?.user?.role ?? "viewer";
+        const nextCompanyId = data?.user?.companyId ?? null;
+        const shouldCompleteCompanySetup =
+          !Boolean(data?.user?.permissionMap?.can_access_internal_admin) &&
+          nextRole !== "company_admin" &&
+          nextRole !== "company_user" &&
+          !nextCompanyId;
+
+        if (shouldCompleteCompanySetup) {
+          if (pathname !== "/company-setup") {
+            router.replace("/company-setup");
+            return;
+          }
+        } else if (pathname === "/company-setup") {
+          router.replace("/dashboard");
+          return;
+        }
 
         if (nextRole === "company_admin" || nextRole === "company_user") {
           const companyAllowedRoutes =
@@ -332,6 +385,8 @@ export default function AppLayout({
         setUserEmail(session.user.email ?? "");
         setUserRole("viewer");
         setPermissionMap(null);
+        setCompanyId(null);
+        setCompanyName("");
         setAccountStatus("active");
         setAcceptedTerms(false);
 
@@ -373,11 +428,15 @@ export default function AppLayout({
 
   const workspaceLabel = isAdminArea
     ? "Admin Workspace"
+    : needsCompanySetup
+      ? "Workspace Setup"
     : isCompanyScopedUser
       ? "Company Workspace"
       : "User Workspace";
   const workspaceDescriptor = isAdminArea
     ? "Safety management controls"
+    : needsCompanySetup
+      ? "Finish company setup before inviting users"
     : isCompanyScopedUser
       ? "Completed documents and company access"
       : "Project document workspace";
@@ -725,6 +784,8 @@ export default function AppLayout({
                           <p className="mt-1 text-sm text-slate-500">
                             {isAdminArea
                               ? "Administrative tools and audit controls"
+                              : needsCompanySetup
+                                ? "Create your company workspace before inviting employees or opening company tools"
                               : isCompanyScopedUser
                                 ? isCompanyAdminUser
                                   ? "Completed document access and company user management"
@@ -753,7 +814,11 @@ export default function AppLayout({
                         Workspace
                       </div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">{workspaceLabel}</div>
-                      <div className="mt-1 text-xs text-slate-500">{workspaceDescriptor}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {needsCompanySetup
+                          ? companyName || workspaceDescriptor
+                          : workspaceDescriptor}
+                      </div>
                     </div>
                   </div>
                 </div>
