@@ -23,6 +23,31 @@ export default function CompanySignupPage() {
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"error" | "success">("success");
 
+  function formatEnvDetails(details?: {
+    url?: boolean;
+    anonKey?: boolean;
+    serviceRoleKey?: boolean;
+    sources?: {
+      url?: string | null;
+      anonKey?: string | null;
+      serviceRoleKey?: string | null;
+    };
+  } | null) {
+    if (!details) return "";
+
+    const urlText = details.url
+      ? `URL from ${details.sources?.url ?? "unknown source"}`
+      : "URL missing";
+    const anonText = details.anonKey
+      ? `anon key from ${details.sources?.anonKey ?? "unknown source"}`
+      : "anon key missing";
+    const serviceRoleText = details.serviceRoleKey
+      ? `service role from ${details.sources?.serviceRoleKey ?? "unknown source"}`
+      : "service role missing";
+
+    return ` Server check: ${urlText}; ${anonText}; ${serviceRoleText}.`;
+  }
+
   async function handleCreateCompanyAccount() {
     setMessage("");
 
@@ -83,14 +108,31 @@ export default function CompanySignupPage() {
     });
 
     const data = (await res.json().catch(() => null)) as
-      | { error?: string; message?: string }
+      | {
+          error?: string;
+          message?: string;
+          details?: {
+            url?: boolean;
+            anonKey?: boolean;
+            serviceRoleKey?: boolean;
+            sources?: {
+              url?: string | null;
+              anonKey?: string | null;
+              serviceRoleKey?: string | null;
+            };
+          };
+        }
       | null;
 
     setLoading(false);
 
     if (!res.ok) {
       setMessageTone("error");
-      setMessage(data?.error || "Failed to create the company account.");
+      setMessage(
+        `${data?.error || "Failed to create the company account."}${formatEnvDetails(
+          data?.details
+        )}`
+      );
       return;
     }
 

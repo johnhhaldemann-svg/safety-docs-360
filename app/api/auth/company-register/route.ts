@@ -10,6 +10,7 @@ import { getAgreementConfig } from "@/lib/legalSettings";
 import {
   createSupabaseAdminClient,
   getSupabaseAnonKey,
+  getSupabaseServerEnvStatus,
   getSupabaseServerUrl,
 } from "@/lib/supabaseAdmin";
 
@@ -65,10 +66,14 @@ function createPublicClient() {
 export async function POST(request: Request) {
   const publicClient = createPublicClient();
   const adminClient = createSupabaseAdminClient();
+  const envStatus = getSupabaseServerEnvStatus();
 
   if (!publicClient || !adminClient) {
     return NextResponse.json(
-      { error: "Company registration is not configured correctly." },
+      {
+        error: "Company registration is not configured correctly.",
+        details: envStatus,
+      },
       { status: 500 }
     );
   }
