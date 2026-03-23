@@ -170,9 +170,23 @@ export default function CompanyUsersPage() {
     });
   }, [loadUsers]);
 
-  const filteredUsers = useMemo(() => {
+  const pendingUsers = useMemo(
+    () => users.filter((user) => user.status === "Pending"),
+    [users]
+  );
+
+  const activeUsers = useMemo(
+    () => users.filter((user) => user.status === "Active"),
+    [users]
+  );
+
+  const filteredTeamMembers = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    return users.filter((user) => {
+    const visibleUsers = users.filter(
+      (user) => user.status === "Active" || user.status === "Suspended"
+    );
+
+    return visibleUsers.filter((user) => {
       if (!query) return true;
       return (
         user.name.toLowerCase().includes(query) ||
@@ -182,35 +196,39 @@ export default function CompanyUsersPage() {
     });
   }, [searchTerm, users]);
 
+  const filteredActiveUsers = useMemo(
+    () => filteredTeamMembers.filter((user) => user.status === "Active"),
+    [filteredTeamMembers]
+  );
+
+  const filteredSuspendedUsers = useMemo(
+    () => filteredTeamMembers.filter((user) => user.status === "Suspended"),
+    [filteredTeamMembers]
+  );
+
   const stats = useMemo(
     () => [
       {
-        title: "Company Users",
-        value: String(users.length),
-        note: "Users currently assigned to this company workspace",
-      },
-      {
-        title: "Pending Approval",
-        value: String(users.filter((user) => user.status === "Pending").length),
-        note: "Accounts waiting to be activated",
-      },
-      {
-        title: "Pending Invites",
+        title: "Invited Employees",
         value: String(invites.length),
-        note: "Invites sent but not yet used to create an account",
+        note: "Invites waiting for employees to finish account setup",
+      },
+      {
+        title: "Awaiting Approval",
+        value: String(pendingUsers.length),
+        note: "Employees who set up an account and need your approval",
+      },
+      {
+        title: "Active Employees",
+        value: String(activeUsers.length),
+        note: "People with live access to this company workspace",
       },
     ],
-    [invites.length, users]
-  );
-
-  const pendingUsers = useMemo(
-    () => users.filter((user) => user.status === "Pending"),
-    [users]
+    [activeUsers.length, invites.length, pendingUsers.length]
   );
 
   const activityItems = useMemo(() => {
-    const items = users
-      .map((user) => ({
+    const userItems = users.map((user) => ({
         id: user.id,
         sortAt: new Date(user.last_sign_in_at ?? user.created_at ?? 0).getTime(),
         title:
@@ -223,7 +241,18 @@ export default function CompanyUsersPage() {
             : `${user.role} access for ${scopeTeam}.`,
         meta: formatRelative(user.last_sign_in_at ?? user.created_at),
         tone: user.status === "Pending" ? ("warning" as const) : ("info" as const),
-      }))
+      }));
+
+    const inviteItems = invites.map((invite) => ({
+      id: `invite-${invite.id}`,
+      sortAt: new Date(invite.created_at ?? 0).getTime(),
+      title: `${invite.email} has been invited`,
+      detail: `Waiting for the employee to create their account for ${scopeCompanyName}.`,
+      meta: formatRelative(invite.created_at),
+      tone: "warning" as const,
+    }));
+
+    const items = [...userItems, ...inviteItems]
       .sort((a, b) => b.sortAt - a.sortAt)
       .slice(0, 5);
 
@@ -238,7 +267,7 @@ export default function CompanyUsersPage() {
             tone: "neutral" as const,
           },
         ];
-  }, [scopeTeam, users]);
+  }, [invites, scopeCompanyName, scopeTeam, users]);
 
   async function handleInvite() {
     setInviteLoading(true);
@@ -416,16 +445,16 @@ export default function CompanyUsersPage() {
   return (
     <div className="space-y-8">
       <PageHero
-        eyebrow="Company Access"
-        title="Company Users"
-        description={`Manage only the people assigned to ${scopeCompanyName}. Invite employees, review pending access, and assign company roles from one place.`}
+        eyebrow="Company Workspace"
+        title="Team Access"
+        description={`Manage only the people assigned to ${scopeCompanyName}. Invite employees, approve new joiners, and manage active team access from one place.`}
         actions={
           <button
             onClick={handleInvite}
             disabled={inviteLoading || !inviteEmail.trim()}
             className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
           >
-            {inviteLoading ? "Inviting..." : "Invite Employee"}
+            {inviteLoading ? "Sending Invite..." : "Invite Employee"}
           </button>
         }
       />
@@ -447,17 +476,17 @@ export default function CompanyUsersPage() {
           {
             step: "01",
             title: "Invite employee",
-            body: "Send access under your company workspace using the employee's company-approved email.",
+            body: "Send access under your company workspace using the employee email they will use to sign in.",
           },
           {
             step: "02",
-            title: "Employee sets up account",
-            body: "They use Create Account on the login page with the invited email to create their access.",
+            title: "Employee creates account",
+            body: "They use Create Account on the login page with the invited email to finish account setup.",
           },
           {
             step: "03",
-            title: "Approve workspace access",
-            body: "Review the pending user here, approve them, and assign the correct company role.",
+            title: "Approve access",
+            body: "Review the pending employee here, approve them, and assign the correct company role.",
           },
         ].map((item) => (
           <div
@@ -480,12 +509,12 @@ export default function CompanyUsersPage() {
       <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <SectionCard
           title="Invite Employee"
-          description="Add employees under your company workspace. They will stay pending until they set up their account and you approve access."
+          description="Start the process here. Employees use this invite to create their account before you approve access."
         >
           <div className="grid gap-4 md:grid-cols-2">
             <input
               type="email"
-              placeholder="Invite by email..."
+              placeholder="Employee email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
@@ -520,8 +549,8 @@ export default function CompanyUsersPage() {
       </section>
 
       <SectionCard
-        title="Pending Employee Invites"
-        description="These people have been invited but have not completed account setup yet."
+        title="1. Invited Employees"
+        description="These employees have been invited but have not finished creating their account yet."
       >
         {loading ? (
           <InlineMessage>Loading pending invites...</InlineMessage>
@@ -543,7 +572,7 @@ export default function CompanyUsersPage() {
                       <span>Sent {formatRelative(invite.created_at)}</span>
                     </div>
                   </div>
-                  <StatusBadge label="Waiting for signup" tone="warning" />
+                  <StatusBadge label="Waiting for account setup" tone="warning" />
                 </div>
               </div>
             ))}
@@ -552,15 +581,15 @@ export default function CompanyUsersPage() {
       </SectionCard>
 
       <SectionCard
-        title="Pending Employee Approval"
-        description="Employees who completed account setup from your invite stay here until you approve workspace access."
+        title="2. Awaiting Approval"
+        description="Employees who finished account setup stay here until you approve access to the company workspace."
       >
         {loading ? (
           <InlineMessage>Loading company approval queue...</InlineMessage>
         ) : pendingUsers.length === 0 ? (
           <EmptyState
             title="No employees are waiting for approval"
-            description="Invited employees will appear here after they create their account with the invited email."
+            description="Employees move here after they create their account with the invited email."
           />
         ) : (
           <div className="grid gap-4">
@@ -613,13 +642,13 @@ export default function CompanyUsersPage() {
       </SectionCard>
 
       <SectionCard
-        title="Company Directory"
-        description="Only approved and company-linked users from your workspace appear here."
+        title="3. Active Team Members"
+        description="Approved employees with active access to your workspace appear here."
       >
         <div className="mb-4">
           <input
             type="text"
-            placeholder="Search company users..."
+            placeholder="Search active employees..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
@@ -627,15 +656,15 @@ export default function CompanyUsersPage() {
         </div>
 
         {loading ? (
-          <InlineMessage>Loading company directory...</InlineMessage>
-        ) : filteredUsers.length === 0 ? (
+          <InlineMessage>Loading active team members...</InlineMessage>
+        ) : filteredActiveUsers.length === 0 ? (
           <EmptyState
-            title="No company users found"
-            description="Invite your first company user or clear the current search."
+            title="No active employees found"
+            description="Invite your first employee, approve a pending joiner, or clear the current search."
           />
         ) : (
           <div className="grid gap-4">
-            {filteredUsers.map((user) => (
+            {filteredActiveUsers.map((user) => (
               <div key={user.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
@@ -680,13 +709,62 @@ export default function CompanyUsersPage() {
         )}
       </SectionCard>
 
+      {loading || filteredSuspendedUsers.length > 0 ? (
+        <SectionCard
+          title="Suspended Access"
+          description="Employees who are currently blocked from the workspace stay here until you reactivate or remove them."
+        >
+          {loading ? (
+            <InlineMessage>Loading suspended employees...</InlineMessage>
+          ) : (
+            <div className="grid gap-4">
+              {filteredSuspendedUsers.map((user) => (
+                <div key={user.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-900">{user.name}</p>
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${roleClasses(
+                            user.role
+                          )}`}
+                        >
+                          {user.role}
+                        </span>
+                        <StatusBadge label={user.status} tone={statusTone(user.status)} />
+                      </div>
+                      <p className="mt-1 text-sm text-slate-500">{user.email}</p>
+                      <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
+                        <span>Company: {scopeCompanyName}</span>
+                        <span>Last seen {formatRelative(user.last_sign_in_at)}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setEditingUser(user);
+                        setEditRole(user.role);
+                        setEditStatus("Suspended");
+                      }}
+                      className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                    >
+                      Manage
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      ) : null}
+
       {editingUser ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
-                  Manage Company User
+                  Manage Team Member
                 </p>
                 <h3 className="mt-2 text-2xl font-bold text-slate-900">{editingUser.name}</h3>
                 <p className="mt-1 text-sm text-slate-500">{editingUser.email}</p>
