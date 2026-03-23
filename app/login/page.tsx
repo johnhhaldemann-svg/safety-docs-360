@@ -407,11 +407,20 @@ function LoginPageContent() {
                 </div>
 
                 <div className="mt-5 rounded-2xl border border-sky-500/18 bg-sky-500/10 px-4 py-4 text-sm text-sky-100">
-                  Need a dedicated client workspace?{" "}
-                  <Link href="/company-signup" className="font-semibold text-sky-300 underline-offset-2 hover:underline">
-                    Register a company
-                  </Link>
-                  {" "}to create the company workspace first and assign the first company admin.
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="font-semibold text-sky-200">Need a new company workspace?</p>
+                      <p className="mt-1 text-sky-100/90">
+                        Register the company first, then assign the first company admin.
+                      </p>
+                    </div>
+                    <Link
+                      href="/company-signup"
+                      className="inline-flex items-center justify-center rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+                    >
+                      Register Company
+                    </Link>
+                  </div>
                 </div>
 
                 {!inviteSignupEnabled ? (
