@@ -418,7 +418,7 @@ export default function CompanyUsersPage() {
       <PageHero
         eyebrow="Company Access"
         title="Company Users"
-        description={`Invite and manage only the users assigned to ${scopeCompanyName}. Company access stays scoped to your own company.`}
+        description={`Manage only the people assigned to ${scopeCompanyName}. Invite employees, review pending access, and assign company roles from one place.`}
         actions={
           <button
             onClick={handleInvite}
@@ -442,11 +442,46 @@ export default function CompanyUsersPage() {
         ))}
       </section>
 
+      <section className="grid gap-4 lg:grid-cols-3">
+        {[
+          {
+            step: "01",
+            title: "Invite employee",
+            body: "Send access under your company workspace using the employee's company-approved email.",
+          },
+          {
+            step: "02",
+            title: "Employee sets up account",
+            body: "They use Set Up Account on the login page with the invited email to create their access.",
+          },
+          {
+            step: "03",
+            title: "Approve workspace access",
+            body: "Review the pending user here, approve them, and assign the correct company role.",
+          },
+        ].map((item) => (
+          <div
+            key={item.step}
+            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+          >
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sm font-black text-sky-700">
+                {item.step}
+              </div>
+              <div>
+                <div className="text-base font-bold text-slate-950">{item.title}</div>
+                <p className="mt-1 text-sm leading-6 text-slate-500">{item.body}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </section>
+
       <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-      <SectionCard
-        title="Invite Company User"
-        description="New users added here are scoped to your company workspace. After they create an account, you approve their access here."
-      >
+        <SectionCard
+          title="Invite Employee"
+          description="Add employees under your company workspace. They will stay pending until they set up their account and you approve access."
+        >
           <div className="grid gap-4 md:grid-cols-2">
             <input
               type="email"
@@ -467,7 +502,7 @@ export default function CompanyUsersPage() {
           </div>
 
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            Company scope: <span className="font-semibold text-slate-900">{scopeCompanyName}</span>
+            Company workspace: <span className="font-semibold text-slate-900">{scopeCompanyName}</span>
           </div>
 
           {message ? (
@@ -485,15 +520,15 @@ export default function CompanyUsersPage() {
       </section>
 
       <SectionCard
-        title="Pending Company Invites"
-        description="These people have been invited but have not created their company account yet."
+        title="Pending Employee Invites"
+        description="These people have been invited but have not completed account setup yet."
       >
         {loading ? (
           <InlineMessage>Loading pending invites...</InlineMessage>
         ) : invites.length === 0 ? (
           <EmptyState
             title="No invites are waiting"
-            description="Once you invite someone, they will appear here until they accept and create their account."
+            description="After you invite someone, they stay here until they use that email to create their company account."
           />
         ) : (
           <div className="grid gap-4">
@@ -517,15 +552,15 @@ export default function CompanyUsersPage() {
       </SectionCard>
 
       <SectionCard
-        title="Company Approval Queue"
-        description="Users who created an account from your company invite stay here until your company approves access."
+        title="Pending Employee Approval"
+        description="Employees who completed account setup from your invite stay here until you approve workspace access."
       >
         {loading ? (
           <InlineMessage>Loading company approval queue...</InlineMessage>
         ) : pendingUsers.length === 0 ? (
           <EmptyState
-            title="No company users are waiting for approval"
-            description="Invited users will appear here after they sign up with the invited email."
+            title="No employees are waiting for approval"
+            description="Invited employees will appear here after they create their account with the invited email."
           />
         ) : (
           <div className="grid gap-4">
@@ -579,7 +614,7 @@ export default function CompanyUsersPage() {
 
       <SectionCard
         title="Company Directory"
-        description="Everyone shown here belongs to your company scope only."
+        description="Only approved and company-linked users from your workspace appear here."
       >
         <div className="mb-4">
           <input

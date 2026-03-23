@@ -168,31 +168,47 @@ export default function CompanySignupPage() {
             Register your company and launch a dedicated Safety360Docs portal.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-slate-300">
-            Company accounts get their own company dashboard, company user management,
-            completed deliverables, and a scoped workspace where every invited user
-            stays tied to that company record.
+            Set up the company once, assign the first company admin, and launch a
+            clean workspace where every employee is invited, approved, and managed
+            under the same company account.
           </p>
 
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <div className="mt-8 grid gap-4">
             {[
-              "Dedicated company workspace",
-              "First company admin setup",
-              "Completed document access",
-              "Add users after company approval",
+              {
+                step: "01",
+                title: "Choose your plan",
+                body: "Start with the paid workspace setup that fits your company operations.",
+              },
+              {
+                step: "02",
+                title: "Create the company workspace",
+                body: "Enter the core company details that will appear across your company dashboard and admin records.",
+              },
+              {
+                step: "03",
+                title: "Assign the first company admin",
+                body: "This person becomes the owner of employee invites, company approvals, and workspace access.",
+              },
             ].map((item) => (
               <div
-                key={item}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm font-semibold text-slate-100"
+                key={item.step}
+                className="flex gap-4 rounded-3xl border border-white/10 bg-white/5 px-5 py-5"
               >
-                {item}
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-500/16 text-sm font-black text-sky-200">
+                  {item.step}
+                </div>
+                <div>
+                  <div className="text-base font-bold text-white">{item.title}</div>
+                  <p className="mt-1 text-sm leading-6 text-slate-300">{item.body}</p>
+                </div>
               </div>
             ))}
           </div>
 
           <div className="mt-10 rounded-2xl border border-emerald-500/18 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-200">
-            This form creates the company record and the first company admin. Once
-            approved, that company admin can invite additional users under the same
-            company workspace.
+            After approval, the first company admin signs in, opens the company
+            workspace, and invites employees under the same company profile.
           </div>
         </section>
 
@@ -222,14 +238,21 @@ export default function CompanySignupPage() {
           ) : null}
 
           <div className="mt-6 grid gap-4">
-            <div className="pb-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">
-                Company Details
-              </p>
-              <p className="mt-2 text-sm text-slate-400">
-                These details define the company workspace and the information shown in
-                the company dashboard.
-              </p>
+            <div className="rounded-3xl border border-white/8 bg-slate-900/28 p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-500/16 text-xs font-black text-sky-200">
+                  1
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">
+                    Company Details
+                  </p>
+                  <p className="mt-1 text-sm text-slate-400">
+                    These details define the company workspace and the information shown in
+                    the company dashboard.
+                  </p>
+                </div>
+              </div>
             </div>
             <input
               type="text"
@@ -298,14 +321,21 @@ export default function CompanySignupPage() {
                 className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
               />
             </div>
-            <div className="pt-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">
-                Primary Company Admin
-              </p>
-              <p className="mt-2 text-sm text-slate-400">
-                This becomes the first user under the company account and can add more
-                company users once the workspace is approved.
-              </p>
+            <div className="rounded-3xl border border-white/8 bg-slate-900/28 p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-500/16 text-xs font-black text-sky-200">
+                  2
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">
+                    Primary Company Admin
+                  </p>
+                  <p className="mt-1 text-sm text-slate-400">
+                    This becomes the first company user and can invite employees once the
+                    workspace is approved.
+                  </p>
+                </div>
+              </div>
             </div>
             <input
               type="text"
@@ -336,7 +366,20 @@ export default function CompanySignupPage() {
               className="rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/35"
             />
 
-            <div className="rounded-2xl border border-white/8 bg-slate-900/30 p-4">
+            <div className="rounded-3xl border border-white/8 bg-slate-900/28 p-5">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-500/16 text-xs font-black text-sky-200">
+                  3
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">
+                    Agreements & Launch
+                  </p>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Confirm the platform terms, then send the company workspace for approval.
+                  </p>
+                </div>
+              </div>
               <LegalAcceptanceBlock checked={agreed} onChange={setAgreed} compact />
             </div>
 

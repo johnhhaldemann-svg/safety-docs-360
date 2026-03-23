@@ -36,7 +36,7 @@ function LoginPageContent() {
   const inviteSignupEnabled = inviteMode && !!invitedEmail;
   const inviteNotice =
     inviteType === "company" && invitedEmail
-      ? "Your company invite is ready. Create your account with this invited email address to join the workspace automatically."
+      ? "Your company access is ready. Set your password with this approved email to activate your workspace account."
       : "";
 
   const [mode, setMode] = useState<"login" | "signup">(inviteSignupEnabled ? "signup" : "login");
@@ -269,7 +269,7 @@ function LoginPageContent() {
                         setFormMessage(
                           inviteSignupEnabled
                             ? inviteNotice
-                            : "Use the company-approved email to create the first company admin account or accept an employee invite."
+                            : "Use your approved company email to set up a workspace account."
                         );
                       }
                     }}
@@ -280,8 +280,17 @@ function LoginPageContent() {
                         : "text-slate-400 hover:text-slate-200",
                     ].join(" ")}
                   >
-                    Accept Invite
+                    Set Up Account
                   </button>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-white/8 bg-slate-900/28 px-4 py-3 text-sm text-slate-300">
+                  <div className="font-semibold text-white">
+                    Login for existing users. Set Up Account for approved company admins and invited employees.
+                  </div>
+                  <div className="mt-1 text-slate-400">
+                    New user access is controlled by your company or internal platform team.
+                  </div>
                 </div>
 
                 <div className="mt-8 space-y-4">
@@ -400,7 +409,7 @@ function LoginPageContent() {
                         : "Creating account..."
                       : mode === "login"
                         ? "Access Workspace"
-                        : "Accept Invite"}
+                        : "Set Up Account"}
                   </button>
                 </div>
 
@@ -413,7 +422,7 @@ function LoginPageContent() {
                     <div>
                       <p className="font-semibold text-sky-200">Need a new company workspace?</p>
                       <p className="mt-1 text-sky-100/90">
-                        Register the company first, then assign the first company admin.
+                        Register your company, choose the plan, and create the first company admin.
                       </p>
                     </div>
                     <Link
@@ -426,7 +435,7 @@ function LoginPageContent() {
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-amber-500/18 bg-amber-500/10 px-4 py-4 text-sm text-amber-100">
-                  If you are joining an existing company, use <strong>Accept Invite</strong> with the exact company-approved email. Company admins can also finish setup here after internal approval.
+                  If you are joining an existing company, use <strong>Set Up Account</strong> with the exact approved email. Company admins also finish initial workspace setup here after internal approval.
                 </div>
               </div>
             </div>
