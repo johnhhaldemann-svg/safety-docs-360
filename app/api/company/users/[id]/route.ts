@@ -371,13 +371,13 @@ export async function DELETE(
     .eq("company_id", companyScope.companyId);
 
   const fallbackRole = "viewer";
-  const fallbackTeam = "General";
+  const fallbackWorkspaceTeam = "General";
   const fallbackStatus = "suspended";
 
   const mergedUserMetadata = {
     ...(currentUser.user.user_metadata ?? {}),
     role: fallbackRole,
-    team: fallbackTeam,
+    team: fallbackWorkspaceTeam,
     company_id: null,
     account_status: fallbackStatus,
   };
@@ -385,7 +385,7 @@ export async function DELETE(
   const mergedAppMetadata = {
     ...(currentUser.user.app_metadata ?? {}),
     role: fallbackRole,
-    team: fallbackTeam,
+    team: fallbackWorkspaceTeam,
     company_id: null,
     account_status: fallbackStatus,
   };
@@ -406,7 +406,7 @@ export async function DELETE(
     {
       user_id: id,
       role: fallbackRole,
-      team: fallbackTeam,
+      team: fallbackWorkspaceTeam,
       company_id: null,
       account_status: fallbackStatus,
       created_by: auth.user.id,
