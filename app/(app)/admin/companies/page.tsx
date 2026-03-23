@@ -74,11 +74,14 @@ export default function AdminCompaniesPage() {
   const [signupRequests, setSignupRequests] = useState<CompanySignupRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"success" | "warning" | "error" | "neutral">(
+    "neutral"
+  );
   const [searchTerm, setSearchTerm] = useState("");
+  const [processingRequestId, setProcessingRequestId] = useState("");
 
   const loadCompanies = useCallback(async () => {
     setLoading(true);
-    setMessage("");
 
     try {
       const {
@@ -87,6 +90,7 @@ export default function AdminCompaniesPage() {
       } = await supabase.auth.getSession();
 
       if (error || !session?.access_token) {
+        setMessageTone("error");
         setMessage("You must be logged in as an internal admin.");
         setCompanies([]);
         setLoading(false);
@@ -107,6 +111,7 @@ export default function AdminCompaniesPage() {
         | null;
 
       if (!res.ok) {
+        setMessageTone("error");
         setMessage(data?.error || "Failed to load companies.");
         setCompanies([]);
         setSignupRequests([]);
@@ -117,6 +122,7 @@ export default function AdminCompaniesPage() {
       setCompanies(data?.companies ?? []);
       setSignupRequests(data?.signupRequests ?? []);
     } catch (error) {
+      setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to load companies.");
       setCompanies([]);
       setSignupRequests([]);
@@ -124,6 +130,65 @@ export default function AdminCompaniesPage() {
 
     setLoading(false);
   }, []);
+
+  const handleSignupRequestAction = useCallback(
+    async (requestId: string, action: "approve" | "reject") => {
+      setProcessingRequestId(requestId);
+      setMessage("");
+
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (error || !session?.access_token) {
+          setMessageTone("error");
+          setMessage("You must be logged in as an internal admin.");
+          setProcessingRequestId("");
+          return;
+        }
+
+        const res = await fetch("/api/admin/companies", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ requestId, action }),
+        });
+
+        const data = (await res.json().catch(() => null)) as
+          | {
+              error?: string;
+              message?: string;
+              warning?: string | null;
+            }
+          | null;
+
+        if (!res.ok) {
+          setMessageTone("error");
+          setMessage(data?.error || "Failed to update the company signup request.");
+          setProcessingRequestId("");
+          return;
+        }
+
+        setMessageTone(data?.warning ? "warning" : "success");
+        setMessage(data?.warning || data?.message || "Company signup request updated.");
+        await loadCompanies();
+      } catch (error) {
+        setMessageTone("error");
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Failed to update the company signup request."
+        );
+      }
+
+      setProcessingRequestId("");
+    },
+    [loadCompanies]
+  );
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -205,6 +270,11 @@ export default function AdminCompaniesPage() {
         title="Pending Company Signups"
         description="Company registrations captured before the workspace is activated by your internal team."
       >
+        {message ? (
+          <div className="mb-4">
+            <InlineMessage tone={messageTone}>{message}</InlineMessage>
+          </div>
+        ) : null}
         {loading ? (
           <InlineMessage>Loading company signup requests...</InlineMessage>
         ) : signupRequests.length === 0 ? (
@@ -232,8 +302,28 @@ export default function AdminCompaniesPage() {
                       <span>Phone: {request.phone || "Not provided"}</span>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    Review this signup and activate the company workspace from your internal admin process.
+                  <div className="flex flex-col gap-3 lg:min-w-[360px]">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      Approve this signup to create the company workspace and send the first company admin invite.
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void handleSignupRequestAction(request.id, "approve")}
+                        disabled={processingRequestId === request.id}
+                        className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {processingRequestId === request.id ? "Approving..." : "Approve Signup"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleSignupRequestAction(request.id, "reject")}
+                        disabled={processingRequestId === request.id}
+                        className="rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {processingRequestId === request.id ? "Working..." : "Reject"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -256,7 +346,7 @@ export default function AdminCompaniesPage() {
           />
         </div>
 
-        {message ? (
+        {message && messageTone === "error" ? (
           <div className="mb-4">
             <InlineMessage tone="error">{message}</InlineMessage>
           </div>
