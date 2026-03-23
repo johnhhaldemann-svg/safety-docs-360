@@ -247,39 +247,42 @@ function LoginPageContent() {
                   </div>
                 </div>
 
-                {inviteSignupEnabled ? (
-                  <div className="mt-8 grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-slate-900/30 p-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setMode("login")}
-                      className={[
-                        "rounded-xl px-4 py-3 text-sm font-semibold transition",
-                        mode === "login"
-                          ? "bg-white/8 text-white ring-1 ring-white/10"
-                          : "text-slate-400 hover:text-slate-200",
-                      ].join(" ")}
-                    >
-                      Login
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMode("signup")}
-                      className={[
-                        "rounded-xl px-4 py-3 text-sm font-semibold transition",
-                        mode === "signup"
-                          ? "bg-white/8 text-white ring-1 ring-white/10"
-                          : "text-slate-400 hover:text-slate-200",
-                      ].join(" ")}
-                    >
-                      Accept Invite
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mt-8 rounded-2xl border border-white/8 bg-slate-900/30 px-4 py-4 text-sm text-slate-300">
-                    Employee access is invite-only. Your company admin must invite you
-                    before you can create an account.
-                  </div>
-                )}
+                <div className="mt-8 grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-slate-900/30 p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setMode("login")}
+                    className={[
+                      "rounded-xl px-4 py-3 text-sm font-semibold transition",
+                      mode === "login"
+                        ? "bg-white/8 text-white ring-1 ring-white/10"
+                        : "text-slate-400 hover:text-slate-200",
+                    ].join(" ")}
+                  >
+                    Login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("signup");
+                      if (!formMessage) {
+                        setFormTone("success");
+                        setFormMessage(
+                          inviteSignupEnabled
+                            ? inviteNotice
+                            : "Use the company-approved email to create the first company admin account or accept an employee invite."
+                        );
+                      }
+                    }}
+                    className={[
+                      "rounded-xl px-4 py-3 text-sm font-semibold transition",
+                      mode === "signup"
+                        ? "bg-white/8 text-white ring-1 ring-white/10"
+                        : "text-slate-400 hover:text-slate-200",
+                    ].join(" ")}
+                  >
+                    Accept Invite
+                  </button>
+                </div>
 
                 <div className="mt-8 space-y-4">
                   {formMessage ? (
@@ -377,8 +380,7 @@ function LoginPageContent() {
                   </div>
 
                   <div className="rounded-2xl border border-white/8 bg-slate-900/30 px-4 py-3 text-sm text-slate-400">
-                    Need help accessing your workspace? Contact your internal administrator
-                    or company admin to reset your password and confirm your account status.
+                    Need help accessing your workspace? Company admins should use <strong className="text-slate-200">Accept Invite</strong> after approval. Employees should use the exact email their company invited. Contact your internal administrator or company admin if access still fails.
                   </div>
 
                   {mode === "signup" ? (
@@ -423,12 +425,9 @@ function LoginPageContent() {
                   </div>
                 </div>
 
-                {!inviteSignupEnabled ? (
-                  <div className="mt-4 rounded-2xl border border-amber-500/18 bg-amber-500/10 px-4 py-4 text-sm text-amber-100">
-                    If you are an employee joining an existing company, ask your company
-                    admin to send you an invite first.
-                  </div>
-                ) : null}
+                <div className="mt-4 rounded-2xl border border-amber-500/18 bg-amber-500/10 px-4 py-4 text-sm text-amber-100">
+                  If you are joining an existing company, use <strong>Accept Invite</strong> with the exact company-approved email. Company admins can also finish setup here after internal approval.
+                </div>
               </div>
             </div>
           </section>
