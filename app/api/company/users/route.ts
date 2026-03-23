@@ -9,7 +9,6 @@ import {
   authorizeRequest,
   formatAccountStatus,
   formatAppRole,
-  getUserRoleContext,
   isCompanyAdminRole,
   normalizeAccountStatus,
   normalizeAppRole,
@@ -164,6 +163,7 @@ type CompanyMembershipRow = {
   user_id: string;
   role: string | null;
   status: string | null;
+  created_at?: string | null;
 };
 
 type FallbackUserRoleRow = {
@@ -331,43 +331,59 @@ export async function GET(request: Request) {
     roleRowMap.set(row.user_id, row);
   }
 
-  const rawUsers = await Promise.all(
-    (data.users ?? []).map(async (user) => {
-      const roleContext = await getUserRoleContext({
-        supabase: adminClient,
-        user,
-      });
-      const membership = membershipMap.get(user.id);
-      const scopedRoleRow = roleRowMap.get(user.id);
-      const resolvedRole = membership?.role ?? scopedRoleRow?.role ?? roleContext.role;
+  const authUserMap = new Map(
+    (data.users ?? []).map((user) => [user.id, user] as const)
+  );
+
+  const scopedUserIds = new Set<string>([
+    ...membershipMap.keys(),
+    ...roleRowMap.keys(),
+  ]);
+
+  if (auth.user.id && (companyScope.companyId ? true : auth.team === scopeTeam)) {
+    scopedUserIds.add(auth.user.id);
+  }
+
+  const users = Array.from(scopedUserIds)
+    .map((userId) => {
+      const authUser = authUserMap.get(userId);
+      const membership = membershipMap.get(userId);
+      const scopedRoleRow = roleRowMap.get(userId);
+
+      const resolvedRole = membership?.role ?? scopedRoleRow?.role ?? "company_user";
       const resolvedStatus =
-        membership?.status ??
-        scopedRoleRow?.account_status ??
-        roleContext.accountStatus;
-      const resolvedTeam =
-        scopedRoleRow?.team?.trim() || roleContext.team || scopeTeam;
+        membership?.status ?? scopedRoleRow?.account_status ?? "pending";
+      const resolvedTeam = scopedRoleRow?.team?.trim() || scopeTeam;
 
       return {
-        id: user.id,
-        email: user.email ?? "",
-        name: getDisplayName(user),
+        id: userId,
+        email: authUser?.email ?? (userId === auth.user.id ? auth.user.email ?? "" : ""),
+        name: authUser
+          ? getDisplayName(authUser)
+          : userId === auth.user.id
+            ? getDisplayName(auth.user)
+            : `User ${userId.slice(0, 8)}`,
         role: formatAppRole(resolvedRole),
         team: resolvedTeam,
         status:
           resolvedStatus === "pending" || resolvedStatus === "suspended"
             ? formatAccountStatus(resolvedStatus)
-            : getStatus(user),
-        created_at: user.created_at,
-        last_sign_in_at: user.last_sign_in_at,
+            : authUser
+              ? getStatus(authUser)
+              : "Active",
+        created_at:
+          authUser?.created_at ??
+          membership?.created_at ??
+          scopedRoleRow?.created_at ??
+          null,
+        last_sign_in_at: authUser?.last_sign_in_at ?? null,
       } satisfies CompanyUserRow;
     })
-  );
-
-  const users = isCompanyAdminRole(auth.role)
-    ? companyScope.companyId
-      ? rawUsers.filter((user) => membershipMap.has(user.id) || roleRowMap.has(user.id))
-      : rawUsers.filter((user) => user.team === scopeTeam)
-    : rawUsers;
+    .filter((user) =>
+      companyScope.companyId
+        ? membershipMap.has(user.id) || roleRowMap.has(user.id)
+        : user.team === scopeTeam
+    );
 
   return NextResponse.json({
     users,
