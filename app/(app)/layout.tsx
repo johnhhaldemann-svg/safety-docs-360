@@ -49,7 +49,7 @@ const companyQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/library", label: "Completed Docs", short: "LB" },
   { href: "/company-users", label: "Company Users", short: "CU" },
-  { href: "/profile", label: "Talent Profile", short: "TP" },
+  { href: "/profile", label: "Construction Profile", short: "CP" },
 ];
 
 const userSideSections: NavSection[] = [
@@ -73,7 +73,7 @@ const userSideSections: NavSection[] = [
   {
     title: "Account",
     items: [
-      { href: "/profile", label: "Talent Profile", short: "TP" },
+      { href: "/profile", label: "Construction Profile", short: "CP" },
       { href: "/purchases", label: "My Purchases", short: "MP" },
     ],
   },
@@ -104,7 +104,7 @@ const adminSideSections: NavSection[] = [
     items: [
       { href: "/library", label: "Library", short: "LB" },
       { href: "/search", label: "Search", short: "SR" },
-      { href: "/profile", label: "Talent Profile", short: "TP" },
+      { href: "/profile", label: "Construction Profile", short: "CP" },
     ],
   },
 ];
@@ -121,7 +121,7 @@ const companyAdminSideSections: NavSection[] = [
     title: "Company Access",
     items: [
       { href: "/company-users", label: "Company Users", short: "CU" },
-      { href: "/profile", label: "Talent Profile", short: "TP" },
+      { href: "/profile", label: "Construction Profile", short: "CP" },
     ],
   },
 ];
@@ -132,7 +132,7 @@ const companyUserSideSections: NavSection[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/library", label: "Completed Docs", short: "LB" },
-      { href: "/profile", label: "Talent Profile", short: "TP" },
+      { href: "/profile", label: "Construction Profile", short: "CP" },
     ],
   },
 ];
@@ -141,14 +141,14 @@ const accountSetupSideSections: NavSection[] = [
   {
     title: "Getting Started",
     items: [
-      { href: "/profile", label: "Build Talent Profile", short: "TP" },
+      { href: "/profile", label: "Build Construction Profile", short: "CP" },
       { href: "/company-setup", label: "Create Company Workspace", short: "CO" },
     ],
   },
 ];
 
 const accountSetupQuickLinks: NavItem[] = [
-  { href: "/profile", label: "Build Talent Profile", short: "TP" },
+  { href: "/profile", label: "Build Construction Profile", short: "CP" },
   { href: "/company-setup", label: "Create Company Workspace", short: "CO" },
 ];
 
@@ -535,7 +535,7 @@ export default function AppLayout({
   const workspaceDescriptor = isAdminArea
     ? "Safety management controls"
     : needsProfileSetup
-      ? "Build your construction talent profile first"
+      ? "Build your construction profile first"
     : needsCompanySetup
       ? "Finish company setup before inviting users"
       : isCompanyScopedUser
@@ -898,7 +898,7 @@ export default function AppLayout({
                             {isAdminArea
                               ? "Administrative tools and audit controls"
                               : needsProfileSetup
-                                ? "Complete your construction talent profile before opening company setup or workspace tools"
+                                ? "Complete your construction profile before opening company setup or workspace tools"
                               : needsCompanySetup
                                 ? "Create your company workspace before inviting employees or opening company tools"
                                 : isCompanyScopedUser
@@ -944,7 +944,7 @@ export default function AppLayout({
                       <div className="mt-1 text-sm font-semibold text-slate-900">{workspaceLabel}</div>
                       <div className="mt-1 text-xs text-slate-500">
                         {needsProfileSetup
-                          ? "Construction talent profile required"
+                          ? "Construction profile required"
                           : needsCompanySetup
                           ? companyName || workspaceDescriptor
                           : workspaceDescriptor}

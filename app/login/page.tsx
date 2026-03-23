@@ -125,7 +125,7 @@ function LoginPageContent() {
     setFormTone("success");
     setFormMessage(
       data?.message ||
-        "Account created. Sign in to build your field talent profile, then create your company workspace or join an invited company."
+        "Account created. Sign in to build your construction profile, then create your company workspace or join an invited company."
     );
   }
 
@@ -267,7 +267,7 @@ function LoginPageContent() {
                         setFormMessage(
                           inviteSignupEnabled
                             ? inviteNotice
-                            : "Create your account first. After sign-in, you will build your field talent profile before company setup or employee access."
+                            : "Create your account first. After sign-in, you will build your construction profile before company setup or employee access."
                         );
                       }
                     }}
@@ -284,7 +284,7 @@ function LoginPageContent() {
 
                 <div className="mt-4 rounded-2xl border border-white/8 bg-slate-900/28 px-4 py-3 text-sm text-slate-300">
                   <div className="font-semibold text-white">
-                    Create your own account first, then build your field talent profile before company setup or employee access.
+                    Create your own account first, then build your construction profile before company setup or employee access.
                   </div>
                   <div className="mt-1 text-slate-400">
                     Internal employees, company owners, and invited employees all start from the same account-first entry point.
@@ -387,7 +387,7 @@ function LoginPageContent() {
                   </div>
 
                   <div className="rounded-2xl border border-white/8 bg-slate-900/30 px-4 py-3 text-sm text-slate-400">
-                    Need help accessing your workspace? Create your account first, complete your field talent profile, and then the app will guide you into company setup or the company access flow tied to your invited email.
+                    Need help accessing your workspace? Create your account first, complete your construction profile, and then the app will guide you into company setup or the company access flow tied to your invited email.
                   </div>
 
                   {mode === "signup" ? (
@@ -420,7 +420,7 @@ function LoginPageContent() {
                     <div>
                       <p className="font-semibold text-sky-200">New here?</p>
                       <p className="mt-1 text-sky-100/90">
-                        Create your account first. After you sign in, the app will walk you through your field talent profile, company setup, and employee invites.
+                        Create your account first. After you sign in, the app will walk you through your construction profile, company setup, and employee invites.
                       </p>
                     </div>
                     <button
@@ -429,7 +429,7 @@ function LoginPageContent() {
                         setMode("signup");
                         setFormTone("success");
                         setFormMessage(
-                          "Create your account first. After sign-in, you will build your field talent profile, launch your company workspace, and then invite employees."
+                          "Create your account first. After sign-in, you will build your construction profile, launch your company workspace, and then invite employees."
                         );
                       }}
                       className="inline-flex items-center justify-center rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
@@ -440,7 +440,7 @@ function LoginPageContent() {
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-amber-500/18 bg-amber-500/10 px-4 py-4 text-sm text-amber-100">
-                  If you are joining an existing company, create your account with the exact invited email. Your field talent profile comes first, then the company access flow stays scoped to that company workspace.
+                  If you are joining an existing company, create your account with the exact invited email. Your construction profile comes first, then the company access flow stays scoped to that company workspace.
                 </div>
               </div>
             </div>

@@ -57,12 +57,12 @@ function normalizeReadiness(value: unknown) {
   return "ready";
 }
 
-function normalizeList(value: unknown) {
+function normalizeList(value: unknown, limit = 20) {
   if (Array.isArray(value)) {
     return value
       .map((item) => trimText(item))
       .filter(Boolean)
-      .slice(0, 12);
+      .slice(0, limit);
   }
 
   if (typeof value === "string") {
@@ -70,7 +70,7 @@ function normalizeList(value: unknown) {
       .split(/[\n,]/)
       .map((item) => item.trim())
       .filter(Boolean)
-      .slice(0, 12);
+      .slice(0, limit);
   }
 
   return [];
@@ -200,9 +200,9 @@ export async function PATCH(request: Request) {
   const bio = trimText(body?.bio);
   const readinessStatus = normalizeReadiness(body?.readinessStatus);
   const yearsExperience = normalizeYearsExperience(body?.yearsExperience);
-  const certifications = normalizeList(body?.certifications);
-  const specialties = normalizeList(body?.specialties);
-  const equipment = normalizeList(body?.equipment);
+  const certifications = normalizeList(body?.certifications, 60);
+  const specialties = normalizeList(body?.specialties, 20);
+  const equipment = normalizeList(body?.equipment, 20);
   const photoUrl = typeof body?.photoUrl === "string" ? body.photoUrl.trim() : "";
   const photoPath = typeof body?.photoPath === "string" ? body.photoPath.trim() : "";
 
@@ -279,7 +279,7 @@ export async function PATCH(request: Request) {
       getFallbackFullName(auth.user)
     ),
     message: profileComplete
-      ? "Field talent profile saved. Your account is ready for the next setup step."
-      : "Profile saved. Add the remaining field details to finish onboarding.",
+      ? "Construction profile saved. Your account is ready for the next setup step."
+      : "Profile saved. Add the remaining construction details to finish onboarding.",
   });
 }

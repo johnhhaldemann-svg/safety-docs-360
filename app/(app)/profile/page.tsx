@@ -63,16 +63,160 @@ const readinessOptions = [
   },
 ];
 
-function splitList(value: string) {
+const certificationGroups = [
+  {
+    title: "Core Safety Certifications",
+    items: [
+      "CSP - Certified Safety Professional",
+      "ASP - Associate Safety Professional",
+      "GSP - Graduate Safety Practitioner",
+      "SMS - Safety Management Specialist",
+      "STS - Safety Trained Supervisor",
+      "STSC - Safety Trained Supervisor Construction",
+      "CHST - Construction Health & Safety Technician",
+      "OHST - Occupational Health & Safety Technician",
+    ],
+  },
+  {
+    title: "OSHA & General Safety Training",
+    items: [
+      "OSHA 10-Hour (Construction / General Industry)",
+      "OSHA 30-Hour (Construction / General Industry)",
+      "OSHA 500 - Construction Trainer",
+      "OSHA 501 - General Industry Trainer",
+      "OSHA 510 - Construction Standards",
+      "OSHA 511 - General Industry Standards",
+    ],
+  },
+  {
+    title: "Environmental / Health / Industrial Hygiene",
+    items: [
+      "CIH - Certified Industrial Hygienist",
+      "CHMM - Certified Hazardous Materials Manager",
+      "REM - Registered Environmental Manager",
+      "HAZWOPER 40-Hour",
+      "HAZWOPER 24-Hour",
+      "HAZWOPER Refresher",
+    ],
+  },
+  {
+    title: "Fire / Emergency Response",
+    items: [
+      "CFPS - Certified Fire Protection Specialist",
+      "Fire Inspector I / II",
+      "Fire Instructor I / II",
+      "Emergency Medical Responder (EMR)",
+      "EMT / Paramedic",
+      "CPR / AED / First Aid",
+    ],
+  },
+  {
+    title: "Construction-Specific / Field Safety",
+    items: [
+      "NCCER Safety Certification",
+      "Competent Person (Trenching & Excavation)",
+      "Competent Person (Fall Protection)",
+      "Competent Person (Scaffolding)",
+      "Competent Person (Confined Space)",
+      "Site Safety Health Officer (SSHO - USACE)",
+      "Site Safety Manager (NYC DOB)",
+      "Crane Signal Person",
+      "Rigger Level I / II",
+    ],
+  },
+  {
+    title: "Equipment & Operator Certifications",
+    items: [
+      "Forklift Certification",
+      "Aerial Lift / MEWP Certification",
+      "Crane Operator Certification (NCCCO)",
+      "Heavy Equipment Operator Certifications",
+      "Telehandler Certification",
+    ],
+  },
+  {
+    title: "Specialized Safety Programs",
+    items: [
+      "LOTO Authorized Employee",
+      "Confined Space Entry Supervisor",
+      "Confined Space Entrant / Attendant",
+      "Fall Protection Competent Person",
+      "Electrical Qualified Person (NFPA 70E)",
+      "Arc Flash Training",
+      "Hot Work / Fire Watch Training",
+    ],
+  },
+  {
+    title: "Transportation / DOT",
+    items: [
+      "CDL (Class A / B)",
+      "DOT Trainer Certification",
+      "Smith System Driver Trainer",
+      "Defensive Driving Instructor",
+      "FMCSA Compliance Certification",
+    ],
+  },
+  {
+    title: "Management / Systems / Auditing",
+    items: [
+      "ISO 45001 Lead Auditor",
+      "ISO 14001 Lead Auditor",
+      "ISO 9001 Lead Auditor",
+      "Six Sigma (Yellow / Green / Black Belt)",
+      "Lean Certification",
+      "Risk Management Professional (PMI-RMP)",
+    ],
+  },
+  {
+    title: "Additional Training",
+    items: [
+      "First Aid Instructor",
+      "OSHA Outreach Instructor",
+      "Safety Committee Certification",
+      "Human Performance / HOP Training",
+      "Behavior-Based Safety (BBS) Training",
+    ],
+  },
+];
+
+const knownCertificationSet = new Set(certificationGroups.flatMap((group) => group.items));
+
+function splitList(value: string, limit = 20) {
   return value
     .split(/[\n,]/)
     .map((item) => item.trim())
     .filter(Boolean)
-    .slice(0, 12);
+    .slice(0, limit);
 }
 
 function joinList(items: string[] | undefined) {
   return (items ?? []).join(", ");
+}
+
+function dedupeList(items: string[], limit: number) {
+  return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean))).slice(0, limit);
+}
+
+function splitKnownCertifications(items: string[] | undefined) {
+  const selected: string[] = [];
+  const custom: string[] = [];
+
+  for (const item of items ?? []) {
+    if (knownCertificationSet.has(item)) {
+      selected.push(item);
+    } else {
+      custom.push(item);
+    }
+  }
+
+  return {
+    selected: dedupeList(selected, 60),
+    custom: dedupeList(custom, 20),
+  };
+}
+
+function mergeCertifications(selected: string[], customText: string) {
+  return dedupeList([...selected, ...splitList(customText, 20)], 60);
 }
 
 function getReadinessLabel(value: string) {
@@ -123,7 +267,8 @@ export default function ProfilePage() {
   const [city, setCity] = useState("");
   const [stateRegion, setStateRegion] = useState("");
   const [readinessStatus, setReadinessStatus] = useState("ready");
-  const [certificationsText, setCertificationsText] = useState("");
+  const [selectedCertifications, setSelectedCertifications] = useState<string[]>([]);
+  const [customCertificationsText, setCustomCertificationsText] = useState("");
   const [specialtiesText, setSpecialtiesText] = useState("");
   const [equipmentText, setEquipmentText] = useState("");
   const [bio, setBio] = useState("");
@@ -182,7 +327,9 @@ export default function ProfilePage() {
           setCity(profile.city ?? "");
           setStateRegion(profile.stateRegion ?? "");
           setReadinessStatus(profile.readinessStatus ?? "ready");
-          setCertificationsText(joinList(profile.certifications));
+          const { selected, custom } = splitKnownCertifications(profile.certifications);
+          setSelectedCertifications(selected);
+          setCustomCertificationsText(joinList(custom));
           setSpecialtiesText(joinList(profile.specialties));
           setEquipmentText(joinList(profile.equipment));
           setBio(profile.bio ?? "");
@@ -194,7 +341,7 @@ export default function ProfilePage() {
       } catch (error) {
         console.error("Failed to load profile:", error);
         setMessageTone("error");
-        setMessage("Failed to load your field talent profile.");
+        setMessage("Failed to load your construction profile.");
       }
 
       setLoading(false);
@@ -267,9 +414,9 @@ export default function ProfilePage() {
           city,
           stateRegion,
           readinessStatus,
-          certifications: splitList(certificationsText),
-          specialties: splitList(specialtiesText),
-          equipment: splitList(equipmentText),
+          certifications: allCertifications,
+          specialties: splitList(specialtiesText, 20),
+          equipment: splitList(equipmentText, 20),
           bio,
           photoUrl: nextPhotoUrl,
           photoPath: nextPhotoPath,
@@ -285,7 +432,7 @@ export default function ProfilePage() {
         | null;
 
       if (!res.ok) {
-        throw new Error(data?.error || "Failed to save your field talent profile.");
+        throw new Error(data?.error || "Failed to save your construction profile.");
       }
 
       if (data?.profile?.photoUrl) {
@@ -303,7 +450,7 @@ export default function ProfilePage() {
       setMessage(
         data?.message ||
           (profileComplete
-            ? "Field talent profile saved."
+            ? "Construction profile saved."
             : "Profile saved. Add the remaining required details to continue.")
       );
 
@@ -319,7 +466,7 @@ export default function ProfilePage() {
     } catch (error) {
       setMessageTone("error");
       setMessage(
-        error instanceof Error ? error.message : "Failed to save your field talent profile."
+        error instanceof Error ? error.message : "Failed to save your construction profile."
       );
     } finally {
       setSaving(false);
@@ -341,21 +488,30 @@ export default function ProfilePage() {
     reader.readAsDataURL(file);
   }
 
+  function toggleCertification(certification: string) {
+    setSelectedCertifications((current) =>
+      current.includes(certification)
+        ? current.filter((item) => item !== certification)
+        : dedupeList([...current, certification], 60)
+    );
+  }
+
   const displayName = getDisplayName(fullName, preferredName);
-  const previewTags = splitList(specialtiesText).slice(0, 4);
-  const previewCertifications = splitList(certificationsText).slice(0, 4);
-  const previewEquipment = splitList(equipmentText).slice(0, 4);
+  const allCertifications = mergeCertifications(selectedCertifications, customCertificationsText);
+  const previewTags = splitList(specialtiesText, 20).slice(0, 4);
+  const previewCertifications = allCertifications.slice(0, 6);
+  const previewEquipment = splitList(equipmentText, 20).slice(0, 4);
   const profileChecklist = [
     { label: "Identity and profile photo", done: Boolean(fullName.trim() && (photoPreview || photoUrl)) },
     { label: "Trade role and job title", done: Boolean(jobTitle.trim() && tradeSpecialty.trim()) },
     { label: "Field location and experience", done: Boolean(city.trim() && stateRegion.trim() && yearsExperience.trim()) },
-    { label: "Capability summary", done: Boolean(bio.trim()) },
+    { label: "Construction experience summary", done: Boolean(bio.trim()) },
   ];
 
   if (loading) {
     return (
       <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 shadow-sm">
-        Loading field talent profile...
+        Loading construction profile...
       </div>
     );
   }
@@ -363,20 +519,20 @@ export default function ProfilePage() {
   return (
     <div className="space-y-8">
       <PageHero
-        eyebrow="Talent Profile"
-        title="Build your field talent profile"
-        description="Create the construction profile that follows you across company setup, team access, site readiness, and document ownership. Think of it as your field capability card, not just an account form."
+        eyebrow="Construction Profile"
+        title="Build your construction profile"
+        description="Capture the construction details that matter on a real jobsite: crew role, trade specialty, certifications, equipment experience, work region, and site readiness."
       />
 
       <section className="grid gap-4 lg:grid-cols-4">
         {[
           {
             label: "Identity",
-            detail: "Photo, full name, and the role people recognize you by on a jobsite.",
+            detail: "Photo, full name, and the crew role people recognize you by on a jobsite.",
           },
           {
             label: "Trade",
-            detail: "Your core specialty, years in the field, and where you are ready to deploy.",
+            detail: "Your primary trade, years in the field, and where you are ready to deploy.",
           },
           {
             label: "Credentials",
@@ -384,7 +540,7 @@ export default function ProfilePage() {
           },
           {
             label: "Readiness",
-            detail: "A clean capability summary that company admins and internal teams can trust.",
+            detail: "A clean construction summary that company admins can trust before granting access.",
           },
         ].map((item, index) => (
           <div
@@ -407,8 +563,8 @@ export default function ProfilePage() {
       <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
         <div className="space-y-5">
           <SectionCard
-            title="Identity and headshot"
-            description="Set the name, title, and photo that should represent you across company access and project records."
+            title="Field identity card"
+            description="Set the name, crew role, and photo that should represent you across company access and project records."
           >
             <div className="grid gap-5 lg:grid-cols-[0.78fr_1.22fr]">
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
@@ -439,7 +595,7 @@ export default function ProfilePage() {
                     />
                   </label>
                   <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Use a clear headshot or field-ready portrait. This becomes the visible identity card for your profile.
+                    Use a clear headshot or field-ready portrait. This becomes the visible identity card for your construction profile.
                   </p>
                 </div>
               </div>
@@ -455,31 +611,21 @@ export default function ProfilePage() {
                   />
                   <input
                     type="text"
-                    placeholder="Preferred name (optional)"
-                    value={preferredName}
-                    onChange={(event) => setPreferredName(event.target.value)}
-                    className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
-                  />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <input
-                    type="text"
-                    placeholder="Job title"
+                    placeholder="Crew role / position"
                     value={jobTitle}
                     onChange={(event) => setJobTitle(event.target.value)}
                     className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
                   />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
                   <input
                     type="text"
-                    placeholder="Primary trade specialty"
+                    placeholder="Primary trade"
                     value={tradeSpecialty}
                     onChange={(event) => setTradeSpecialty(event.target.value)}
                     className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
                   />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
                   <input
                     type="number"
                     min="0"
@@ -488,37 +634,38 @@ export default function ProfilePage() {
                     onChange={(event) => setYearsExperience(event.target.value)}
                     className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
                   />
-                  <input
-                    type="tel"
-                    placeholder="Mobile phone"
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                    className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
-                  />
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <input
-                    type="text"
-                    placeholder="City"
-                    value={city}
-                    onChange={(event) => setCity(event.target.value)}
+                    type="tel"
+                    placeholder="Work mobile"
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
                     className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
                   />
                   <input
                     type="text"
-                    placeholder="State / Region"
-                    value={stateRegion}
-                    onChange={(event) => setStateRegion(event.target.value)}
+                    placeholder="Primary work city"
+                    value={city}
+                    onChange={(event) => setCity(event.target.value)}
                     className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
                   />
                 </div>
+
+                <input
+                  type="text"
+                  placeholder="State / region"
+                  value={stateRegion}
+                  onChange={(event) => setStateRegion(event.target.value)}
+                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                />
               </div>
             </div>
           </SectionCard>
 
           <SectionCard
-            title="Field readiness"
+            title="Site readiness"
             description="Frame how this person should be understood operationally across projects, travel, and workforce planning."
           >
             <div className="grid gap-3">
@@ -557,27 +704,115 @@ export default function ProfilePage() {
           </SectionCard>
 
           <SectionCard
-            title="Certifications and field strengths"
-            description="List the credentials, specialties, and equipment experience that define this person’s construction capability."
+            title="Certifications and jobsite strengths"
+            description="Select the certifications that apply, then add jobsite strengths and equipment experience that define this person's construction capability."
           >
             <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      Certification library
+                    </div>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">
+                      Choose every certification, license, and safety training item that applies to this construction profile.
+                    </p>
+                  </div>
+                  <StatusBadge
+                    label={`${allCertifications.length} selected`}
+                    tone={allCertifications.length > 0 ? "success" : "warning"}
+                  />
+                </div>
+
+                {allCertifications.length > 0 ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {allCertifications.slice(0, 12).map((item) => (
+                      <span
+                        key={item}
+                        className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                      >
+                        {item}
+                      </span>
+                    ))}
+                    {allCertifications.length > 12 ? (
+                      <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700">
+                        +{allCertifications.length - 12} more
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-2">
+                {certificationGroups.map((group) => {
+                  const groupSelectedCount = group.items.filter((item) =>
+                    selectedCertifications.includes(item)
+                  ).length;
+
+                  return (
+                    <div
+                      key={group.title}
+                      className="rounded-2xl border border-slate-200 bg-white p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900">{group.title}</div>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            Select all certifications that apply.
+                          </p>
+                        </div>
+                        <StatusBadge
+                          label={`${groupSelectedCount} selected`}
+                          tone={groupSelectedCount > 0 ? "success" : "neutral"}
+                        />
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        {group.items.map((item) => {
+                          const checked = selectedCertifications.includes(item);
+                          return (
+                            <label
+                              key={item}
+                              className={[
+                                "flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-sm transition",
+                                checked
+                                  ? "border-sky-200 bg-sky-50"
+                                  : "border-slate-200 bg-slate-50 hover:border-sky-200 hover:bg-sky-50/70",
+                              ].join(" ")}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleCertification(item)}
+                                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                              />
+                              <span className="leading-6 text-slate-700">{item}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               <textarea
                 rows={3}
-                placeholder="Certifications and licenses (comma separated) — OSHA 30, First Aid/CPR, NCCER, Fall Protection..."
-                value={certificationsText}
-                onChange={(event) => setCertificationsText(event.target.value)}
+                placeholder="Other certifications not listed above (comma separated)"
+                value={customCertificationsText}
+                onChange={(event) => setCustomCertificationsText(event.target.value)}
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
               <textarea
                 rows={3}
-                placeholder="Site specialties (comma separated) — excavation, confined space, crane planning, scaffold oversight..."
+                placeholder="Site specialties (comma separated) - excavation, confined space, crane planning, scaffold oversight..."
                 value={specialtiesText}
                 onChange={(event) => setSpecialtiesText(event.target.value)}
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
               <textarea
                 rows={3}
-                placeholder="Equipment and systems (comma separated) — skid steer, telehandler, trench box systems, aerial lift..."
+                placeholder="Equipment and systems (comma separated) - skid steer, telehandler, trench box systems, aerial lift..."
                 value={equipmentText}
                 onChange={(event) => setEquipmentText(event.target.value)}
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
@@ -586,12 +821,12 @@ export default function ProfilePage() {
           </SectionCard>
 
           <SectionCard
-            title="Capability summary"
-            description="Write the short professional summary that should frame this person’s construction profile."
+            title="Construction experience summary"
+            description="Write the short summary that should frame this person's field background, project exposure, and safety responsibility."
           >
             <textarea
               rows={6}
-              placeholder="Summarize field background, leadership level, safety mindset, project types, and what this person is trusted to handle on a site."
+              placeholder="Summarize project types, safety leadership, crew responsibility, and the site work this person is trusted to handle."
               value={bio}
               onChange={(event) => setBio(event.target.value)}
               className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
@@ -610,7 +845,7 @@ export default function ProfilePage() {
               {saving
                 ? "Saving profile..."
                 : initialProfileComplete
-                  ? "Save Talent Profile"
+                  ? "Save Construction Profile"
                   : "Save Profile & Continue"}
             </button>
           </div>
@@ -619,7 +854,7 @@ export default function ProfilePage() {
         <div className="space-y-5">
           <section className="rounded-[1.9rem] border border-slate-800 bg-[linear-gradient(180deg,_#0f1f39_0%,_#13284b_100%)] p-6 text-white shadow-[0_16px_35px_rgba(15,23,42,0.24)]">
             <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-sky-200">
-              Construction Talent Profile
+              Construction Profile
             </div>
 
             <div className="mt-5 flex items-start gap-4">
@@ -661,7 +896,7 @@ export default function ProfilePage() {
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3">
                 <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-300">
-                  Home Base
+                  Work Region
                 </div>
                 <div className="mt-2 text-sm font-semibold text-white">
                   {[city, stateRegion].filter(Boolean).join(", ") || "Set location"}
@@ -669,7 +904,7 @@ export default function ProfilePage() {
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3">
                 <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-300">
-                  Contact
+                  Work Mobile
                 </div>
                 <div className="mt-2 text-sm font-semibold text-white">
                   {phone || "Add phone"}
@@ -679,18 +914,18 @@ export default function ProfilePage() {
 
             <div className="mt-6 rounded-2xl border border-white/10 bg-white/6 p-4">
               <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-300">
-                Capability Summary
+                Experience Summary
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-200">
                 {bio ||
-                  "Add a concise field summary covering site leadership, safety habits, project exposure, and what this person is trusted to lead or support."}
+                  "Add a concise construction summary covering project types, field leadership, safety habits, and what this person is trusted to lead or support."}
               </p>
             </div>
           </section>
 
           <SectionCard
-            title="Profile readiness"
-            description="These are the onboarding items the platform uses to decide whether your profile is complete."
+            title="Jobsite profile readiness"
+            description="These are the construction onboarding items the platform uses to decide whether your profile is complete."
           >
             <div className="space-y-3">
               {profileChecklist.map((item) => (
@@ -706,8 +941,8 @@ export default function ProfilePage() {
           </SectionCard>
 
           <SectionCard
-            title="Credential snapshot"
-            description="Preview the credentials and jobsite strengths that will be visible once your profile is live."
+            title="Site qualification snapshot"
+            description="Preview the construction credentials and jobsite strengths that will be visible once your profile is live."
           >
             <div className="space-y-4">
               <div>

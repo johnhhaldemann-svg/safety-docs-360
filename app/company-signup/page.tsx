@@ -15,7 +15,7 @@ export default function CompanySignupPage() {
           </h1>
           <p className="mt-6 max-w-3xl text-base leading-8 text-slate-300">
             Safety360Docs now follows a simpler SaaS flow: create your personal
-            account, sign in, build your field talent profile, create the company
+            account, sign in, build your construction profile, create the company
             workspace from inside the app, and then invite employees from the
             company access page.
           </p>
@@ -30,7 +30,7 @@ export default function CompanySignupPage() {
               {
                 step: "02",
                 title: "Build profile and company workspace",
-                body: "After sign-in, the app first captures your construction talent profile, then walks you into company setup so the workspace is attached to your account.",
+                body: "After sign-in, the app first captures your construction profile, then walks you into company setup so the workspace is attached to your account.",
               },
               {
                 step: "03",
