@@ -368,6 +368,7 @@ export async function POST(request: Request) {
   }
 
   const adminClient = createSupabaseAdminClient();
+  const envStatus = getSupabaseServerEnvStatus();
   const body = (await request.json()) as InvitePayload;
   const email = body.email?.trim().toLowerCase() ?? "";
 
