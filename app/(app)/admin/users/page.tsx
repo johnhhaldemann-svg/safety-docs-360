@@ -553,16 +553,22 @@ export default function AdminUsersPage() {
     <div className="space-y-8">
       <PageHero
         eyebrow="Administration"
-        title="Platform User Management"
-        description="Manage only internal platform employees here. Company admins and company employees are managed inside each company workspace."
+        title="Platform Staff"
+        description="Manage only your internal Safety360Docs employees here. Company workspaces and company employees are handled separately."
         actions={
           <>
+            <Link
+              href="/admin/companies"
+              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Manage Companies
+            </Link>
             <button
               onClick={handleInviteUser}
               disabled={inviteLoading || !inviteEmail.trim()}
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
             >
-              {inviteLoading ? "Inviting..." : "Invite User"}
+              {inviteLoading ? "Inviting..." : "Invite Platform Staff"}
             </button>
             <Link
               href="/admin"
@@ -587,13 +593,48 @@ export default function AdminUsersPage() {
       </section>
 
       <SectionCard
-        title="Invite or Search"
-        description="Invite internal employees or filter the current internal platform user list."
+        title="Who Belongs Here"
+        description="Use this page only for your own internal team."
+      >
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">Platform Staff</p>
+            <p className="mt-2 text-sm text-slate-600">
+              Super Admin, Admin, Operations Manager, Editor, and Viewer accounts for your
+              internal employees are managed here.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">Companies</p>
+            <p className="mt-2 text-sm text-slate-600">
+              New customer company workspaces are reviewed and approved from the company oversight
+              screen.
+            </p>
+            <Link
+              href="/admin/companies"
+              className="mt-3 inline-flex text-sm font-semibold text-sky-700 transition hover:text-sky-600"
+            >
+              Open Company Oversight
+            </Link>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">Company Employees</p>
+            <p className="mt-2 text-sm text-slate-600">
+              Company admins invite, approve, and manage their own employees from inside their
+              company workspace.
+            </p>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Invite Staff or Search"
+        description="Invite internal employees or filter the current platform staff list."
       >
         <div className="grid gap-3 md:grid-cols-2">
           <input
             type="email"
-            placeholder="Invite by email..."
+            placeholder="Invite staff by email..."
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
             className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
@@ -607,7 +648,7 @@ export default function AdminUsersPage() {
           />
           <input
             type="text"
-            placeholder="Search users..."
+            placeholder="Search platform staff..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
@@ -650,15 +691,15 @@ export default function AdminUsersPage() {
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <SectionCard
-          title="Approval Queue"
+          title="Staff Approval Queue"
           description="Internal employee accounts waiting for an admin decision before they can open the platform."
         >
           {loading ? (
             <InlineMessage>Loading approval queue...</InlineMessage>
           ) : pendingApprovals.length === 0 ? (
             <EmptyState
-              title="No accounts are waiting for approval"
-            description="New internal employee accounts will appear here until an admin activates them."
+              title="No staff accounts are waiting for approval"
+              description="New internal employee accounts will appear here until an admin activates them."
             />
           ) : (
             <div className="space-y-4">
@@ -734,13 +775,13 @@ export default function AdminUsersPage() {
 
       <SectionCard
         title="Platform Users"
-        description="Review internal employees, admin-app roles, and platform access."
+        description="Review internal employees, platform roles, and platform access."
       >
         {loading ? (
-          <InlineMessage>Loading users...</InlineMessage>
+          <InlineMessage>Loading platform staff...</InlineMessage>
         ) : filteredUsers.length === 0 ? (
           <EmptyState
-            title="No users match the current filters"
+            title="No platform staff match the current filters"
             description="Try a different search term or clear the role filter."
           />
         ) : (

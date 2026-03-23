@@ -267,8 +267,8 @@ export default function AdminCompaniesPage() {
       </section>
 
       <SectionCard
-        title="Pending Company Signups"
-        description="Company registrations captured before the workspace is activated by your internal team."
+        title="Company Workspace Requests"
+        description="Review company requests, activate the workspace, and hand off the first account setup to the company owner."
       >
         {message ? (
           <div className="mb-4">
@@ -279,8 +279,8 @@ export default function AdminCompaniesPage() {
           <InlineMessage>Loading company signup requests...</InlineMessage>
         ) : signupRequests.length === 0 ? (
           <EmptyState
-            title="No pending company signups"
-            description="New company registration requests will appear here if they are captured before full workspace activation."
+            title="No company workspace requests"
+            description="New company requests will appear here when a customer starts the company onboarding process."
           />
         ) : (
           <div className="grid gap-4">
@@ -302,18 +302,18 @@ export default function AdminCompaniesPage() {
                       <span>Phone: {request.phone || "Not provided"}</span>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-3 lg:min-w-[360px]">
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      Approve this signup to create the company workspace and send the first company admin invite.
-                    </div>
-                    <div className="flex flex-wrap gap-3">
-                      <button
+                    <div className="flex flex-col gap-3 lg:min-w-[360px]">
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      Approve this request to activate the company workspace. After approval, the company owner creates their account from the login page using the approved email.
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <button
                         type="button"
                         onClick={() => void handleSignupRequestAction(request.id, "approve")}
                         disabled={processingRequestId === request.id}
                         className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {processingRequestId === request.id ? "Approving..." : "Approve Signup"}
+                        {processingRequestId === request.id ? "Approving..." : "Approve Workspace"}
                       </button>
                       <button
                         type="button"

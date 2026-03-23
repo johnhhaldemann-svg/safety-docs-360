@@ -161,7 +161,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message:
-        "Company signup request received. Our internal team will review and activate the company workspace before the first company admin can sign in.",
+        "Company workspace request received. Our internal team will review it, activate the workspace, and then the company owner can create their account from the login page.",
       agreementVersion: agreementConfig.version,
       warning:
         "This deployment is currently using pending company signup requests because the Supabase service role is unavailable at runtime.",
@@ -299,7 +299,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     success: true,
     message:
-      "Company account created. The company workspace and first company admin are now on file. An internal administrator must approve the workspace before that company admin can sign in and start adding users.",
+      "Company workspace created. An internal administrator must approve it before the company owner can sign in, finish setup, and start inviting employees.",
     warning:
       metadataResult.error || roleResult.error || membershipResult.error || agreementAcceptResult.error
         ? "The company account was created, but some profile details may finish syncing during admin approval."

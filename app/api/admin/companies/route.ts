@@ -252,7 +252,7 @@ export async function PATCH(request: Request) {
 
   const companyName = signupRequest.company_name?.trim() || "New Company";
   const primaryContactEmail = signupRequest.primary_contact_email?.trim().toLowerCase() || "";
-  const primaryContactName = signupRequest.primary_contact_name?.trim() || "Company Admin";
+  const primaryContactName = signupRequest.primary_contact_name?.trim() || "Company Owner";
   const requestedRole =
     signupRequest.requested_role?.trim().toLowerCase() === "company_owner"
       ? "company_admin"
@@ -327,7 +327,7 @@ export async function PATCH(request: Request) {
       {
         error:
           inviteResult.error.message ||
-          "The company workspace was created, but the first company admin invite could not be created.",
+          "The company workspace was created, but the company owner access record could not be created.",
       },
       { status: 500 }
     );
@@ -358,15 +358,15 @@ export async function PATCH(request: Request) {
   const emailResult = await sendCompanyInviteEmail({
     toEmail: primaryContactEmail,
     companyName,
-    roleLabel: "Company Admin",
+    roleLabel: "Company Owner",
     invitedByName: auth.user.email?.trim() || "Internal Admin",
   });
 
   return NextResponse.json({
     success: true,
     message: emailResult.sent
-      ? "Company workspace approved and the first company admin invite was emailed."
-      : "Company workspace approved and the first company admin invite was created.",
+      ? "Company workspace approved. The company owner email was sent setup instructions."
+      : "Company workspace approved. The company owner can now create their account from the login page using the approved email.",
     warning: emailResult.sent ? null : emailResult.warning,
   });
 }
