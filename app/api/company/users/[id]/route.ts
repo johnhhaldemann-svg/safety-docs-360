@@ -36,6 +36,37 @@ function formatRoleConstraintError(message?: string | null) {
   return message || "Company user update failed.";
 }
 
+async function getTargetRoleRow(params: {
+  supabase: {
+    from: (table: string) => {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          maybeSingle: () => Promise<{ data: unknown; error: { message?: string | null } | null }>;
+        };
+      };
+    };
+  };
+  userId: string;
+}) {
+  const result = await params.supabase
+    .from("user_roles")
+    .select("user_id, role, team, company_id, account_status")
+    .eq("user_id", params.userId)
+    .maybeSingle();
+
+  return {
+    data:
+      (result.data as {
+        user_id: string;
+        role: string;
+        team: string | null;
+        company_id: string | null;
+        account_status: string | null;
+      } | null) ?? null,
+    error: result.error,
+  };
+}
+
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -55,20 +86,27 @@ export async function PATCH(
   const role = isCompanyAdminRole(auth.role)
     ? getCompanySafeRole(body.role)
     : normalizeAppRole(body.role);
-  const team = auth.team || "General";
+  const fallbackTeam = auth.team || "General";
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
     userId: auth.user.id,
-    fallbackTeam: team,
+    fallbackTeam,
   });
+  const team = companyScope.companyName?.trim() || fallbackTeam;
   const accountStatus = normalizeAccountStatus(body.accountStatus);
 
+  if (isCompanyAdminRole(auth.role) && !companyScope.companyId) {
+    return NextResponse.json(
+      { error: "This company admin account is not linked to a company workspace yet." },
+      { status: 400 }
+    );
+  }
+
   if (!adminClient) {
-    const { data: existingRow, error: existingError } = await auth.supabase
-      .from("user_roles")
-      .select("user_id, role, team")
-      .eq("user_id", id)
-      .maybeSingle();
+    const { data: existingRow, error: existingError } = await getTargetRoleRow({
+      supabase: auth.supabase as never,
+      userId: id,
+    });
 
     if (existingError) {
       return NextResponse.json({ error: existingError.message }, { status: 500 });
@@ -77,10 +115,10 @@ export async function PATCH(
     if (
       isCompanyAdminRole(auth.role) &&
       existingRow &&
-      (existingRow.team?.trim() || "General") !== team
+      existingRow.company_id !== companyScope.companyId
     ) {
       return NextResponse.json(
-        { error: "Managers can only update users in their own company." },
+        { error: "Company admins can only update users in their own company." },
         { status: 403 }
       );
     }
@@ -141,13 +179,22 @@ export async function PATCH(
     supabase: adminClient,
     user: currentUser.user,
   });
+  const { data: targetRoleRow, error: targetRoleError } = await getTargetRoleRow({
+    supabase: adminClient as never,
+    userId: id,
+  });
+
+  if (targetRoleError) {
+    return NextResponse.json({ error: targetRoleError.message }, { status: 500 });
+  }
 
   if (
     isCompanyAdminRole(auth.role) &&
-    currentRoleContext.team !== team
+    targetRoleRow &&
+    targetRoleRow.company_id !== companyScope.companyId
   ) {
     return NextResponse.json(
-      { error: "Managers can only update users in their own company." },
+      { error: "Company admins can only update users in their own company." },
       { status: 403 }
     );
   }
@@ -256,11 +303,11 @@ export async function DELETE(
   }
 
   const { id } = await context.params;
-  const team = auth.team || "General";
+  const fallbackTeam = auth.team || "General";
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
     userId: auth.user.id,
-    fallbackTeam: team,
+    fallbackTeam,
   });
 
   if (!companyScope.companyId) {
@@ -290,10 +337,22 @@ export async function DELETE(
     supabase: adminClient,
     user: currentUser.user,
   });
+  const { data: targetRoleRow, error: targetRoleError } = await getTargetRoleRow({
+    supabase: adminClient as never,
+    userId: id,
+  });
 
-  if (isCompanyAdminRole(auth.role) && currentRoleContext.team !== team) {
+  if (targetRoleError) {
+    return NextResponse.json({ error: targetRoleError.message }, { status: 500 });
+  }
+
+  if (
+    isCompanyAdminRole(auth.role) &&
+    targetRoleRow &&
+    targetRoleRow.company_id !== companyScope.companyId
+  ) {
     return NextResponse.json(
-      { error: "Managers can only remove users from their own company." },
+      { error: "Company admins can only remove users from their own company." },
       { status: 403 }
     );
   }

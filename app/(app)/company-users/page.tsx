@@ -27,6 +27,14 @@ type CompanyUser = {
   last_sign_in_at?: string | null;
 };
 
+type CompanyInvite = {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  created_at?: string | null;
+};
+
 type EnvDetails = {
   url?: boolean;
   anonKey?: boolean;
@@ -79,6 +87,7 @@ function formatEnvDetails(details?: EnvDetails | null) {
 
 export default function CompanyUsersPage() {
   const [users, setUsers] = useState<CompanyUser[]>([]);
+  const [invites, setInvites] = useState<CompanyInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<
@@ -123,10 +132,11 @@ export default function CompanyUsersPage() {
       const data = (await response.json().catch(() => null)) as
         | {
             error?: string;
-            users?: CompanyUser[];
-            scopeTeam?: string;
-            scopeCompanyName?: string;
-            details?: EnvDetails;
+          users?: CompanyUser[];
+          invites?: CompanyInvite[];
+          scopeTeam?: string;
+          scopeCompanyName?: string;
+          details?: EnvDetails;
           }
         | null;
 
@@ -141,12 +151,14 @@ export default function CompanyUsersPage() {
       }
 
       setUsers(data?.users ?? []);
+      setInvites(data?.invites ?? []);
       setScopeTeam(data?.scopeTeam ?? "General");
       setScopeCompanyName(data?.scopeCompanyName ?? data?.scopeTeam ?? "General");
     } catch (error) {
       setMessageTone("error");
-      setMessage(error instanceof Error ? error.message : "Failed to load company users.");
-      setUsers([]);
+        setMessage(error instanceof Error ? error.message : "Failed to load company users.");
+        setUsers([]);
+        setInvites([]);
     }
 
     setLoading(false);
@@ -183,12 +195,12 @@ export default function CompanyUsersPage() {
         note: "Accounts waiting to be activated",
       },
       {
-        title: "Active Users",
-        value: String(users.filter((user) => user.status === "Active").length),
-        note: "People with current workspace access",
+        title: "Pending Invites",
+        value: String(invites.length),
+        note: "Invites sent but not yet used to create an account",
       },
     ],
-    [users]
+    [invites.length, users]
   );
 
   const pendingUsers = useMemo(
@@ -431,10 +443,10 @@ export default function CompanyUsersPage() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <SectionCard
-          title="Invite Company User"
-          description="New users added here are scoped to your company workspace. After they create an account, you approve their access here."
-        >
+      <SectionCard
+        title="Invite Company User"
+        description="New users added here are scoped to your company workspace. After they create an account, you approve their access here."
+      >
           <div className="grid gap-4 md:grid-cols-2">
             <input
               type="email"
@@ -471,6 +483,38 @@ export default function CompanyUsersPage() {
           items={activityItems}
         />
       </section>
+
+      <SectionCard
+        title="Pending Company Invites"
+        description="These people have been invited but have not created their company account yet."
+      >
+        {loading ? (
+          <InlineMessage>Loading pending invites...</InlineMessage>
+        ) : invites.length === 0 ? (
+          <EmptyState
+            title="No invites are waiting"
+            description="Once you invite someone, they will appear here until they accept and create their account."
+          />
+        ) : (
+          <div className="grid gap-4">
+            {invites.map((invite) => (
+              <div key={invite.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{invite.email}</p>
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                      <span>Role: {invite.role}</span>
+                      <span>Status: {invite.status}</span>
+                      <span>Sent {formatRelative(invite.created_at)}</span>
+                    </div>
+                  </div>
+                  <StatusBadge label="Waiting for signup" tone="warning" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
 
       <SectionCard
         title="Company Approval Queue"
