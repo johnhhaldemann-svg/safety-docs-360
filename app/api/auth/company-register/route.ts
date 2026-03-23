@@ -32,10 +32,6 @@ type RegisterPayload = {
   agreed?: boolean;
 };
 
-type CompanySignupRequestRow = {
-  id: string;
-};
-
 function buildCompanyKeyBase(companyName: string) {
   const normalized = companyName
     .trim()
@@ -144,11 +140,9 @@ export async function POST(request: Request) {
         requested_role: "company_admin",
         account_status: "pending",
         status: "pending",
-      })
-      .select("id")
-      .single();
+      });
 
-    if (signupRequestResult.error || !(signupRequestResult.data as CompanySignupRequestRow | null)?.id) {
+    if (signupRequestResult.error) {
       return NextResponse.json(
         {
           error:
@@ -168,7 +162,6 @@ export async function POST(request: Request) {
       success: true,
       message:
         "Company signup request received. Our internal team will review and activate the company workspace before the first company admin can sign in.",
-      requestId: (signupRequestResult.data as CompanySignupRequestRow).id,
       agreementVersion: agreementConfig.version,
       warning:
         "This deployment is currently using pending company signup requests because the Supabase service role is unavailable at runtime.",
