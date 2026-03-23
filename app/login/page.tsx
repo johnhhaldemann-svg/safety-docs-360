@@ -33,12 +33,13 @@ function LoginPageContent() {
   const invitedEmail = searchParams.get("email") ?? "";
   const inviteMode = searchParams.get("mode") === "signup";
   const inviteType = searchParams.get("invite");
+  const inviteSignupEnabled = inviteMode && !!invitedEmail;
   const inviteNotice =
     inviteType === "company" && invitedEmail
       ? "Your company invite is ready. Create your account with this invited email address to join the workspace automatically."
       : "";
 
-  const [mode, setMode] = useState<"login" | "signup">(inviteMode ? "signup" : "login");
+  const [mode, setMode] = useState<"login" | "signup">(inviteSignupEnabled ? "signup" : "login");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState("");
@@ -246,32 +247,39 @@ function LoginPageContent() {
                   </div>
                 </div>
 
-                <div className="mt-8 grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-slate-900/30 p-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setMode("login")}
-                    className={[
-                      "rounded-xl px-4 py-3 text-sm font-semibold transition",
-                      mode === "login"
-                        ? "bg-white/8 text-white ring-1 ring-white/10"
-                        : "text-slate-400 hover:text-slate-200",
-                    ].join(" ")}
-                  >
-                    Login
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("signup")}
-                    className={[
-                      "rounded-xl px-4 py-3 text-sm font-semibold transition",
-                      mode === "signup"
-                        ? "bg-white/8 text-white ring-1 ring-white/10"
-                        : "text-slate-400 hover:text-slate-200",
-                    ].join(" ")}
-                  >
-                    Create Account
-                  </button>
-                </div>
+                {inviteSignupEnabled ? (
+                  <div className="mt-8 grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-slate-900/30 p-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setMode("login")}
+                      className={[
+                        "rounded-xl px-4 py-3 text-sm font-semibold transition",
+                        mode === "login"
+                          ? "bg-white/8 text-white ring-1 ring-white/10"
+                          : "text-slate-400 hover:text-slate-200",
+                      ].join(" ")}
+                    >
+                      Login
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMode("signup")}
+                      className={[
+                        "rounded-xl px-4 py-3 text-sm font-semibold transition",
+                        mode === "signup"
+                          ? "bg-white/8 text-white ring-1 ring-white/10"
+                          : "text-slate-400 hover:text-slate-200",
+                      ].join(" ")}
+                    >
+                      Accept Invite
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-8 rounded-2xl border border-white/8 bg-slate-900/30 px-4 py-4 text-sm text-slate-300">
+                    Employee access is invite-only. Your company admin must invite you
+                    before you can create an account.
+                  </div>
+                )}
 
                 <div className="mt-8 space-y-4">
                   {formMessage ? (
@@ -390,7 +398,7 @@ function LoginPageContent() {
                         : "Creating account..."
                       : mode === "login"
                         ? "Access Workspace"
-                        : "Create Account"}
+                        : "Accept Invite"}
                   </button>
                 </div>
 
@@ -405,6 +413,13 @@ function LoginPageContent() {
                   </Link>
                   {" "}to create the company workspace first and assign the first company admin.
                 </div>
+
+                {!inviteSignupEnabled ? (
+                  <div className="mt-4 rounded-2xl border border-amber-500/18 bg-amber-500/10 px-4 py-4 text-sm text-amber-100">
+                    If you are an employee joining an existing company, ask your company
+                    admin to send you an invite first.
+                  </div>
+                ) : null}
               </div>
             </div>
           </section>

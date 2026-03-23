@@ -200,11 +200,21 @@ export async function POST(request: Request) {
     email,
   });
 
+  if (!companyInvite) {
+    return NextResponse.json(
+      {
+        error:
+          "Individual signup is not available. Your company admin must invite you before you can create an account.",
+      },
+      { status: 403 }
+    );
+  }
+
   const pendingMetadata = {
-    role: companyInvite?.role ?? "viewer",
-    team: companyInvite?.team ?? "General",
-    company_id: companyInvite?.company_id ?? null,
-    account_status: companyInvite?.account_status ?? "pending",
+    role: companyInvite.role,
+    team: companyInvite.team,
+    company_id: companyInvite.company_id,
+    account_status: companyInvite.account_status,
     full_name: fullName,
   };
 
@@ -254,21 +264,18 @@ export async function POST(request: Request) {
     updated_by: data.user.id,
   };
 
-  const membershipPayload =
-    companyInvite?.company_id
-      ? {
-          user_id: data.user.id,
-          company_id: companyInvite.company_id,
-          role: pendingMetadata.role,
-          status:
-            pendingMetadata.account_status === "pending" ||
-            pendingMetadata.account_status === "suspended"
-              ? pendingMetadata.account_status
-              : "active",
-          created_by: data.user.id,
-          updated_by: data.user.id,
-        }
-      : null;
+  const membershipPayload = {
+    user_id: data.user.id,
+    company_id: companyInvite.company_id,
+    role: pendingMetadata.role,
+    status:
+      pendingMetadata.account_status === "pending" ||
+      pendingMetadata.account_status === "suspended"
+        ? pendingMetadata.account_status
+        : "active",
+    created_by: data.user.id,
+    updated_by: data.user.id,
+  };
 
   const [metadataResult, roleResult, membershipResult] = adminClient
     ? await Promise.all([
@@ -279,19 +286,13 @@ export async function POST(request: Request) {
         adminClient.from("user_roles").upsert(defaultRolePayload, {
           onConflict: "user_id",
         }),
-        membershipPayload
-          ? adminClient.from("company_memberships").upsert(membershipPayload, {
-              onConflict: "user_id,company_id",
-            })
-          : Promise.resolve({ error: null }),
+        adminClient.from("company_memberships").upsert(membershipPayload, {
+          onConflict: "user_id,company_id",
+        }),
       ])
     : [
         { error: null },
-        companyInvite
-          ? consumeInviteResult
-          : await publicClient.from("user_roles").upsert(defaultRolePayload, {
-              onConflict: "user_id",
-            }),
+        consumeInviteResult,
         { error: null },
       ];
 
@@ -311,11 +312,9 @@ export async function POST(request: Request) {
   return NextResponse.json({
     success: true,
     message:
-      companyInvite
-        ? pendingMetadata.account_status === "pending"
-          ? "Account created. Your company invite was applied. Your company admin still needs to approve your access before you can enter the workspace."
-          : "Account created. Your company invite was applied and your workspace access has been configured."
-        : "Account created. An administrator must approve your access before you can enter the workspace.",
+      pendingMetadata.account_status === "pending"
+        ? "Account created. Your company invite was applied. Your company admin still needs to approve your access before you can enter the workspace."
+        : "Account created. Your company invite was applied and your workspace access has been configured.",
     warning:
       metadataResult.error && roleResult.error
         ? "Your account was created, but some admin-only profile details will finish syncing after approval."
