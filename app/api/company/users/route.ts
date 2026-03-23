@@ -170,6 +170,7 @@ type FallbackUserRoleRow = {
   user_id: string;
   role: string;
   team: string | null;
+  company_id?: string | null;
   account_status: string | null;
   created_at?: string | null;
 };
@@ -305,6 +306,7 @@ export async function GET(request: Request) {
   }
 
   const membershipMap = new Map<string, CompanyMembershipRow>();
+  const roleRowMap = new Map<string, FallbackUserRoleRow>();
 
   if (companyScope.companyId) {
     const { data: membershipData } = await adminClient
@@ -317,6 +319,18 @@ export async function GET(request: Request) {
     }
   }
 
+  const scopedRoleQuery = adminClient
+    .from("user_roles")
+    .select("user_id, role, team, company_id, account_status, created_at");
+
+  const scopedRoleResult = companyScope.companyId
+    ? await scopedRoleQuery.eq("company_id", companyScope.companyId)
+    : await scopedRoleQuery.eq("team", scopeTeam);
+
+  for (const row of (scopedRoleResult.data as FallbackUserRoleRow[] | null) ?? []) {
+    roleRowMap.set(row.user_id, row);
+  }
+
   const rawUsers = await Promise.all(
     (data.users ?? []).map(async (user) => {
       const roleContext = await getUserRoleContext({
@@ -324,15 +338,21 @@ export async function GET(request: Request) {
         user,
       });
       const membership = membershipMap.get(user.id);
-      const resolvedRole = membership?.role ?? roleContext.role;
-      const resolvedStatus = membership?.status ?? roleContext.accountStatus;
+      const scopedRoleRow = roleRowMap.get(user.id);
+      const resolvedRole = membership?.role ?? scopedRoleRow?.role ?? roleContext.role;
+      const resolvedStatus =
+        membership?.status ??
+        scopedRoleRow?.account_status ??
+        roleContext.accountStatus;
+      const resolvedTeam =
+        scopedRoleRow?.team?.trim() || roleContext.team || scopeTeam;
 
       return {
         id: user.id,
         email: user.email ?? "",
         name: getDisplayName(user),
         role: formatAppRole(resolvedRole),
-        team: roleContext.team,
+        team: resolvedTeam,
         status:
           resolvedStatus === "pending" || resolvedStatus === "suspended"
             ? formatAccountStatus(resolvedStatus)
@@ -345,7 +365,7 @@ export async function GET(request: Request) {
 
   const users = isCompanyAdminRole(auth.role)
     ? companyScope.companyId
-      ? rawUsers.filter((user) => membershipMap.has(user.id))
+      ? rawUsers.filter((user) => membershipMap.has(user.id) || roleRowMap.has(user.id))
       : rawUsers.filter((user) => user.team === scopeTeam)
     : rawUsers;
 
