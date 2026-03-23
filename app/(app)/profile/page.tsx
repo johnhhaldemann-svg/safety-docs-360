@@ -574,7 +574,7 @@ export default function ProfilePage() {
       />
 
       {managedProfile ? (
-        <InlineMessage tone="info">
+        <InlineMessage tone="neutral">
           You are editing the construction profile for <strong>{managedProfileLabel}</strong>.
           Company admins can only manage employee profiles inside their own company workspace.
         </InlineMessage>
