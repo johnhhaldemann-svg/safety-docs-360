@@ -41,6 +41,17 @@ type CompanySummary = {
   submittedDocuments: number;
 };
 
+type CompanySignupRequest = {
+  id: string;
+  company_name: string;
+  industry: string;
+  primary_contact_name: string;
+  primary_contact_email: string;
+  phone: string;
+  status: string;
+  created_at?: string | null;
+};
+
 function formatRelative(timestamp?: string | null) {
   if (!timestamp) return "Recently";
   const diffMs = Date.now() - new Date(timestamp).getTime();
@@ -60,6 +71,7 @@ function statusTone(status: string): "success" | "warning" | "error" | "neutral"
 
 export default function AdminCompaniesPage() {
   const [companies, setCompanies] = useState<CompanySummary[]>([]);
+  const [signupRequests, setSignupRequests] = useState<CompanySignupRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -87,20 +99,27 @@ export default function AdminCompaniesPage() {
         },
       });
       const data = (await res.json().catch(() => null)) as
-        | { error?: string; companies?: CompanySummary[] }
+        | {
+            error?: string;
+            companies?: CompanySummary[];
+            signupRequests?: CompanySignupRequest[];
+          }
         | null;
 
       if (!res.ok) {
         setMessage(data?.error || "Failed to load companies.");
         setCompanies([]);
+        setSignupRequests([]);
         setLoading(false);
         return;
       }
 
       setCompanies(data?.companies ?? []);
+      setSignupRequests(data?.signupRequests ?? []);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to load companies.");
       setCompanies([]);
+      setSignupRequests([]);
     }
 
     setLoading(false);
@@ -145,8 +164,13 @@ export default function AdminCompaniesPage() {
         value: String(companies.reduce((sum, company) => sum + company.completedDocuments, 0)),
         note: "Approved company deliverables",
       },
+      {
+        title: "Pending Signups",
+        value: String(signupRequests.length),
+        note: "Company workspaces waiting for internal activation",
+      },
     ],
-    [companies]
+    [companies, signupRequests]
   );
 
   return (
@@ -165,7 +189,7 @@ export default function AdminCompaniesPage() {
         }
       />
 
-      <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
         {stats.map((item) => (
           <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-sm font-medium text-slate-500">{item.title}</p>
@@ -176,6 +200,47 @@ export default function AdminCompaniesPage() {
           </div>
         ))}
       </section>
+
+      <SectionCard
+        title="Pending Company Signups"
+        description="Company registrations captured before the workspace is activated by your internal team."
+      >
+        {loading ? (
+          <InlineMessage>Loading company signup requests...</InlineMessage>
+        ) : signupRequests.length === 0 ? (
+          <EmptyState
+            title="No pending company signups"
+            description="New company registration requests will appear here if they are captured before full workspace activation."
+          />
+        ) : (
+          <div className="grid gap-4">
+            {signupRequests.map((request) => (
+              <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h3 className="text-lg font-bold text-slate-900">{request.company_name}</h3>
+                      <StatusBadge label={request.status} tone={statusTone(request.status)} />
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-500">
+                      {request.industry ? <span>Industry: {request.industry}</span> : null}
+                      <span>Requested {formatRelative(request.created_at)}</span>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm text-slate-500 sm:grid-cols-2">
+                      <span>Primary contact: {request.primary_contact_name || "Not provided"}</span>
+                      <span>Email: {request.primary_contact_email || "Not provided"}</span>
+                      <span>Phone: {request.phone || "Not provided"}</span>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    Review this signup and activate the company workspace from your internal admin process.
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
 
       <SectionCard
         title="Company Directory"

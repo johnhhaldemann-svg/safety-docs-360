@@ -39,6 +39,17 @@ type CompanyDocumentRow = {
   final_file_path: string | null;
 };
 
+type CompanySignupRequestRow = {
+  id: string;
+  company_name: string | null;
+  industry: string | null;
+  primary_contact_name: string | null;
+  primary_contact_email: string | null;
+  phone: string | null;
+  status: string | null;
+  created_at: string | null;
+};
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requirePermission: "can_view_all_company_data",
@@ -50,7 +61,8 @@ export async function GET(request: Request) {
 
   const adminClient = createSupabaseAdminClient() ?? auth.supabase;
 
-  const [companiesResult, membershipsResult, invitesResult, documentsResult] = await Promise.all([
+  const [companiesResult, membershipsResult, invitesResult, documentsResult, signupRequestsResult] =
+    await Promise.all([
     adminClient
       .from("companies")
       .select(
@@ -60,7 +72,14 @@ export async function GET(request: Request) {
     adminClient.from("company_memberships").select("company_id, role, status"),
     adminClient.from("company_invites").select("company_id, consumed_at"),
     adminClient.from("documents").select("company_id, status, final_file_path"),
-  ]);
+    adminClient
+      .from("company_signup_requests")
+      .select(
+        "id, company_name, industry, primary_contact_name, primary_contact_email, phone, status, created_at"
+      )
+      .eq("status", "pending")
+      .order("created_at", { ascending: false }),
+    ]);
 
   if (companiesResult.error) {
     return NextResponse.json(
@@ -72,6 +91,8 @@ export async function GET(request: Request) {
   const memberships = (membershipsResult.data as MembershipRow[] | null) ?? [];
   const invites = (invitesResult.data as InviteRow[] | null) ?? [];
   const documents = (documentsResult.data as CompanyDocumentRow[] | null) ?? [];
+  const signupRequests =
+    (signupRequestsResult.data as CompanySignupRequestRow[] | null) ?? [];
 
   const companies = ((companiesResult.data as CompanyRow[] | null) ?? []).map((company) => {
     const companyMemberships = memberships.filter((row) => row.company_id === company.id);
@@ -111,5 +132,5 @@ export async function GET(request: Request) {
     };
   });
 
-  return NextResponse.json({ companies });
+  return NextResponse.json({ companies, signupRequests });
 }

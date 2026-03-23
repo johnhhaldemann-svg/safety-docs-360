@@ -32,6 +32,10 @@ type RegisterPayload = {
   agreed?: boolean;
 };
 
+type CompanySignupRequestRow = {
+  id: string;
+};
+
 function buildCompanyKeyBase(companyName: string) {
   const normalized = companyName
     .trim()
@@ -68,7 +72,7 @@ export async function POST(request: Request) {
   const adminClient = createSupabaseAdminClient();
   const envStatus = getSupabaseServerEnvStatus();
 
-  if (!publicClient || !adminClient) {
+  if (!publicClient) {
     return NextResponse.json(
       {
         error: "Company registration is not configured correctly.",
@@ -120,6 +124,55 @@ export async function POST(request: Request) {
       { error: "You must accept the agreement before creating a company account." },
       { status: 400 }
     );
+  }
+
+  if (!adminClient) {
+    const signupRequestResult = await publicClient
+      .from("company_signup_requests")
+      .insert({
+        company_name: companyName,
+        industry,
+        phone,
+        website: website || null,
+        address_line_1: addressLine1,
+        city,
+        state_region: stateRegion,
+        postal_code: postalCode,
+        country,
+        primary_contact_name: fullName,
+        primary_contact_email: email,
+        requested_role: "company_admin",
+        account_status: "pending",
+        status: "pending",
+      })
+      .select("id")
+      .single();
+
+    if (signupRequestResult.error || !(signupRequestResult.data as CompanySignupRequestRow | null)?.id) {
+      return NextResponse.json(
+        {
+          error:
+            signupRequestResult.error?.message ||
+            "Failed to capture the company signup request.",
+          details: envStatus,
+        },
+        { status: 500 }
+      );
+    }
+
+    const agreementConfig = await getAgreementConfig(undefined).catch(() =>
+      getDefaultAgreementConfig()
+    );
+
+    return NextResponse.json({
+      success: true,
+      message:
+        "Company signup request received. Our internal team will review and activate the company workspace before the first company admin can sign in.",
+      requestId: (signupRequestResult.data as CompanySignupRequestRow).id,
+      agreementVersion: agreementConfig.version,
+      warning:
+        "This deployment is currently using pending company signup requests because the Supabase service role is unavailable at runtime.",
+    });
   }
 
   let companyData: { id: string; name: string } | null = null;
