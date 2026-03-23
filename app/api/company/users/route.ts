@@ -33,6 +33,35 @@ type CompanyInviteRow = {
   account_status: string;
 };
 
+async function saveCompanyInviteViaRpc(params: {
+  supabase: {
+    rpc: (
+      fn: string,
+      args: Record<string, unknown>
+    ) => Promise<{ data: unknown; error: { message?: string | null } | null }>;
+  };
+  email: string;
+  role: string;
+  team: string;
+  companyId: string;
+  accountStatus: string;
+}) {
+  const rpcResult = await params.supabase.rpc("upsert_company_invite", {
+    invite_email: params.email,
+    invite_role: params.role,
+    invite_team: params.team,
+    invite_company_id: params.companyId,
+    invite_account_status: params.accountStatus,
+  });
+
+  const rpcInvite = ((rpcResult.data as CompanyInviteRow[] | null) ?? [])[0] ?? null;
+
+  return {
+    data: rpcInvite,
+    error: rpcResult.error,
+  };
+}
+
 async function saveCompanyInvite(params: {
   supabase: {
     from: (table: string) => {
@@ -370,20 +399,34 @@ export async function POST(request: Request) {
     );
   }
 
-  const inviteClient = (adminClient ?? auth.supabase) as never;
-  const { data: inviteData, error: inviteError } = await saveCompanyInvite({
-    supabase: inviteClient,
-    email,
-    role,
-    team,
-    companyId: companyScope.companyId,
-    accountStatus: accountStatus,
-    actorUserId: auth.user.id,
-  });
+  const inviteResult = adminClient
+    ? await saveCompanyInvite({
+        supabase: adminClient as never,
+        email,
+        role,
+        team,
+        companyId: companyScope.companyId,
+        accountStatus: accountStatus,
+        actorUserId: auth.user.id,
+      })
+    : await saveCompanyInviteViaRpc({
+        supabase: auth.supabase as never,
+        email,
+        role,
+        team,
+        companyId: companyScope.companyId,
+        accountStatus: accountStatus,
+      });
+
+  const inviteData = inviteResult.data;
+  const inviteError = inviteResult.error;
 
   if (inviteError) {
     return NextResponse.json(
-      { error: inviteError.message || "Failed to save company invite." },
+      {
+        error: inviteError.message || "Failed to save company invite.",
+        details: !adminClient ? envStatus : undefined,
+      },
       { status: 500 }
     );
   }
