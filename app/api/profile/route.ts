@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { getCompanyScope } from "@/lib/companyScope";
 import { authorizeRequest } from "@/lib/rbac";
+import { isAdminRole, isCompanyAdminRole } from "@/lib/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -25,6 +27,7 @@ type ProfileRow = {
 };
 
 type ProfilePayload = {
+  userId?: string;
   fullName?: string;
   preferredName?: string;
   jobTitle?: string;
@@ -42,8 +45,17 @@ type ProfilePayload = {
   photoPath?: string | null;
 };
 
+type AuthorizedProfileTarget = {
+  targetUserId: string;
+  managed: boolean;
+};
+
 function trimText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function getTargetUserIdFromRequest(request: Request) {
+  return trimText(new URL(request.url).searchParams.get("userId"));
 }
 
 function normalizeReadiness(value: unknown) {
@@ -145,6 +157,76 @@ function serializeProfile(profile: ProfileRow | null, fallbackFullName: string) 
   };
 }
 
+async function resolveProfileTarget(params: {
+  request: Request;
+  auth: Awaited<ReturnType<typeof authorizeRequest>> extends { error: unknown }
+    ? never
+    : never;
+  requestedUserId?: string;
+}) {
+  const requestedUserId =
+    trimText(params.requestedUserId) || getTargetUserIdFromRequest(params.request);
+  const auth = params.auth as unknown as {
+    user: { id: string };
+    role: string;
+    team: string;
+    supabase: unknown;
+  };
+  const targetUserId = requestedUserId || auth.user.id;
+
+  if (targetUserId === auth.user.id) {
+    return {
+      targetUserId,
+      managed: false,
+    } satisfies AuthorizedProfileTarget;
+  }
+
+  if (isAdminRole(auth.role)) {
+    return {
+      targetUserId,
+      managed: true,
+    } satisfies AuthorizedProfileTarget;
+  }
+
+  if (!isCompanyAdminRole(auth.role)) {
+    return NextResponse.json(
+      { error: "You can only view or edit your own profile." },
+      { status: 403 }
+    );
+  }
+
+  const actorScope = await getCompanyScope({
+    supabase: auth.supabase as never,
+    userId: auth.user.id,
+    fallbackTeam: auth.team,
+  });
+
+  if (!actorScope.companyId) {
+    return NextResponse.json(
+      { error: "This company admin account is not linked to a valid company workspace yet." },
+      { status: 400 }
+    );
+  }
+
+  const targetScope = await getCompanyScope({
+    supabase: auth.supabase as never,
+    userId: targetUserId,
+    fallbackTeam: null,
+  });
+
+  if (!targetScope.companyId || targetScope.companyId !== actorScope.companyId) {
+    return NextResponse.json(
+      { error: "Company admins can only view or edit employee profiles in their own company." },
+      { status: 403 }
+    );
+  }
+
+  return {
+    targetUserId,
+    managed: true,
+  } satisfies AuthorizedProfileTarget;
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     allowPending: true,
@@ -155,12 +237,34 @@ export async function GET(request: Request) {
     return auth.error;
   }
 
+  const targetAccess = await resolveProfileTarget({
+    request,
+    auth: auth as never,
+  });
+
+  if (targetAccess instanceof NextResponse) {
+    return targetAccess;
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const targetAuthUser =
+    targetAccess.managed && adminClient
+      ? (
+          await adminClient.auth.admin
+            .getUserById(targetAccess.targetUserId)
+            .then((result) => result.data.user ?? null)
+            .catch(() => null)
+        )
+      : targetAccess.targetUserId === auth.user.id
+        ? auth.user
+        : null;
+
   const { data, error } = await auth.supabase
     .from("user_profiles")
     .select(
       "user_id, full_name, preferred_name, job_title, trade_specialty, years_experience, phone, city, state_region, readiness_status, certifications, specialties, equipment, bio, photo_url, photo_path, profile_complete"
     )
-    .eq("user_id", auth.user.id)
+    .eq("user_id", targetAccess.targetUserId)
     .maybeSingle();
 
   if (error) {
@@ -173,8 +277,14 @@ export async function GET(request: Request) {
   return NextResponse.json({
     profile: serializeProfile(
       (data as ProfileRow | null) ?? null,
-      getFallbackFullName(auth.user)
+      targetAuthUser ? getFallbackFullName(targetAuthUser) : ""
     ),
+    targetUser: {
+      id: targetAccess.targetUserId,
+      managed: targetAccess.managed,
+      fullName: targetAuthUser ? getFallbackFullName(targetAuthUser) : "",
+      email: targetAuthUser?.email ?? "",
+    },
   });
 }
 
@@ -189,8 +299,31 @@ export async function PATCH(request: Request) {
   }
 
   const body = (await request.json().catch(() => null)) as ProfilePayload | null;
+  const targetAccess = await resolveProfileTarget({
+    request,
+    auth: auth as never,
+    requestedUserId: body?.userId,
+  });
 
-  const fullName = trimText(body?.fullName) || getFallbackFullName(auth.user);
+  if (targetAccess instanceof NextResponse) {
+    return targetAccess;
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const targetAuthUser =
+    targetAccess.targetUserId === auth.user.id
+      ? auth.user
+      : adminClient
+        ? (
+            await adminClient.auth.admin
+              .getUserById(targetAccess.targetUserId)
+              .then((result) => result.data.user ?? null)
+              .catch(() => null)
+          )
+        : null;
+
+  const fullName =
+    trimText(body?.fullName) || getFallbackFullName(targetAuthUser ?? auth.user);
   const preferredName = trimText(body?.preferredName);
   const jobTitle = trimText(body?.jobTitle);
   const tradeSpecialty = trimText(body?.tradeSpecialty);
@@ -216,7 +349,7 @@ export async function PATCH(request: Request) {
   });
 
   const payload = {
-    user_id: auth.user.id,
+    user_id: targetAccess.targetUserId,
     full_name: fullName || null,
     preferred_name: preferredName || null,
     job_title: jobTitle || null,
@@ -252,21 +385,20 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const adminClient = createSupabaseAdminClient();
-  if (adminClient) {
+  if (adminClient && targetAuthUser) {
     const mergedUserMetadata = {
-      ...(auth.user.user_metadata ?? {}),
+      ...(targetAuthUser.user_metadata ?? {}),
       full_name: fullName,
       name: preferredName || fullName,
       avatar_url: photoUrl || null,
     };
     const mergedAppMetadata = {
-      ...(auth.user.app_metadata ?? {}),
+      ...(targetAuthUser.app_metadata ?? {}),
       full_name: fullName,
       avatar_url: photoUrl || null,
     };
 
-    await adminClient.auth.admin.updateUserById(auth.user.id, {
+    await adminClient.auth.admin.updateUserById(targetAccess.targetUserId, {
       user_metadata: mergedUserMetadata,
       app_metadata: mergedAppMetadata,
     });
@@ -276,10 +408,14 @@ export async function PATCH(request: Request) {
     success: true,
     profile: serializeProfile(
       (data as ProfileRow | null) ?? null,
-      getFallbackFullName(auth.user)
+      targetAuthUser ? getFallbackFullName(targetAuthUser) : ""
     ),
     message: profileComplete
-      ? "Construction profile saved. Your account is ready for the next setup step."
-      : "Profile saved. Add the remaining construction details to finish onboarding.",
+      ? targetAccess.managed
+        ? "Employee construction profile saved."
+        : "Construction profile saved. Your account is ready for the next setup step."
+      : targetAccess.managed
+        ? "Employee profile saved. Add the remaining construction details to finish the profile."
+        : "Profile saved. Add the remaining construction details to finish onboarding.",
   });
 }

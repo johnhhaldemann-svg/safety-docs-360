@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { type ChangeEvent, useEffect, useState } from "react";
 import {
@@ -42,6 +43,12 @@ type ProfileResponse = {
     photoUrl?: string;
     photoPath?: string;
     profileComplete?: boolean;
+  };
+  targetUser?: {
+    id?: string;
+    managed?: boolean;
+    fullName?: string;
+    email?: string;
   };
 };
 
@@ -258,6 +265,11 @@ export default function ProfilePage() {
   const [initialProfileComplete, setInitialProfileComplete] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [canAccessInternalAdmin, setCanAccessInternalAdmin] = useState(false);
+  const [managedUserId, setManagedUserId] = useState("");
+  const [returnTo, setReturnTo] = useState("/company-users");
+  const [managedProfile, setManagedProfile] = useState(false);
+  const [targetDisplayName, setTargetDisplayName] = useState("");
+  const [targetEmail, setTargetEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [preferredName, setPreferredName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
@@ -279,6 +291,15 @@ export default function ProfilePage() {
 
   useEffect(() => {
     void (async () => {
+      const params =
+        typeof window === "undefined"
+          ? new URLSearchParams()
+          : new URLSearchParams(window.location.search);
+      const requestedUserId = params.get("userId")?.trim() ?? "";
+      const nextReturnTo = params.get("returnTo")?.trim() || "/company-users";
+      setManagedUserId(requestedUserId);
+      setReturnTo(nextReturnTo);
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -295,11 +316,16 @@ export default function ProfilePage() {
               Authorization: `Bearer ${session.access_token}`,
             },
           }),
-          fetch("/api/profile", {
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          }),
+          fetch(
+            requestedUserId
+              ? `/api/profile?userId=${encodeURIComponent(requestedUserId)}`
+              : "/api/profile",
+            {
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            }
+          ),
         ]);
 
         const meData = (await meResponse.json().catch(() => null)) as AuthMeResponse | null;
@@ -314,6 +340,9 @@ export default function ProfilePage() {
 
         if (profileResponse.ok && profileData?.profile) {
           const profile = profileData.profile;
+          setManagedProfile(Boolean(profileData?.targetUser?.managed));
+          setTargetDisplayName(profileData?.targetUser?.fullName ?? "");
+          setTargetEmail(profileData?.targetUser?.email ?? "");
           setFullName(profile.fullName ?? "");
           setPreferredName(profile.preferredName ?? "");
           setJobTitle(profile.jobTitle ?? "");
@@ -405,6 +434,7 @@ export default function ProfilePage() {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
+          userId: managedUserId || undefined,
           fullName,
           preferredName,
           jobTitle,
@@ -454,7 +484,7 @@ export default function ProfilePage() {
             : "Profile saved. Add the remaining required details to continue.")
       );
 
-      if (profileComplete && !initialProfileComplete) {
+      if (profileComplete && !initialProfileComplete && !managedProfile) {
         const nextHref = canAccessInternalAdmin
           ? "/dashboard"
           : companyId
@@ -497,6 +527,7 @@ export default function ProfilePage() {
   }
 
   const displayName = getDisplayName(fullName, preferredName);
+  const managedProfileLabel = targetDisplayName || targetEmail || "Employee";
   const allCertifications = mergeCertifications(selectedCertifications, customCertificationsText);
   const previewTags = splitList(specialtiesText, 20).slice(0, 4);
   const previewCertifications = allCertifications.slice(0, 6);
@@ -519,10 +550,35 @@ export default function ProfilePage() {
   return (
     <div className="space-y-8">
       <PageHero
-        eyebrow="Construction Profile"
-        title="Build your construction profile"
-        description="Capture the construction details that matter on a real jobsite: crew role, trade specialty, certifications, equipment experience, work region, and site readiness."
+        eyebrow={managedProfile ? "Employee Profile" : "Construction Profile"}
+        title={
+          managedProfile
+            ? `Manage ${managedProfileLabel}'s construction profile`
+            : "Build your construction profile"
+        }
+        description={
+          managedProfile
+            ? "Review and update the construction details that matter on a real jobsite: crew role, trade specialty, certifications, equipment experience, work region, and site readiness."
+            : "Capture the construction details that matter on a real jobsite: crew role, trade specialty, certifications, equipment experience, work region, and site readiness."
+        }
+        actions={
+          managedProfile ? (
+            <Link
+              href={returnTo}
+              className="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Back to Team Access
+            </Link>
+          ) : undefined
+        }
       />
+
+      {managedProfile ? (
+        <InlineMessage tone="info">
+          You are editing the construction profile for <strong>{managedProfileLabel}</strong>.
+          Company admins can only manage employee profiles inside their own company workspace.
+        </InlineMessage>
+      ) : null}
 
       <section className="grid gap-4 lg:grid-cols-4">
         {[

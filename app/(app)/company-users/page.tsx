@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -83,6 +84,10 @@ function formatEnvDetails(details?: EnvDetails | null) {
     : "service role missing";
 
   return ` Server check: ${urlText}; ${serviceRoleText}.`;
+}
+
+function getProfileHref(userId: string) {
+  return `/profile?userId=${encodeURIComponent(userId)}&returnTo=${encodeURIComponent("/company-users")}`;
 }
 
 export default function CompanyUsersPage() {
@@ -609,6 +614,12 @@ export default function CompanyUsersPage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={getProfileHref(user.id)}
+                      className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                    >
+                      View Profile
+                    </Link>
                     <button
                       onClick={() => void handleQuickStatus(user, "Active")}
                       disabled={saveLoading}
@@ -702,6 +713,12 @@ export default function CompanyUsersPage() {
                   >
                     Manage
                   </button>
+                  <Link
+                    href={getProfileHref(user.id)}
+                    className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                  >
+                    View Profile
+                  </Link>
                 </div>
               </div>
             ))}
@@ -750,6 +767,12 @@ export default function CompanyUsersPage() {
                     >
                       Manage
                     </button>
+                    <Link
+                      href={getProfileHref(user.id)}
+                      className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                    >
+                      View Profile
+                    </Link>
                   </div>
                 </div>
               ))}
@@ -802,6 +825,12 @@ export default function CompanyUsersPage() {
             </div>
 
             <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <Link
+                href={getProfileHref(editingUser.id)}
+                className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Edit Profile
+              </Link>
               <button
                 onClick={() => void handleRemoveUser()}
                 disabled={removeLoading}
