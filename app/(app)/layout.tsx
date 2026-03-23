@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
@@ -23,6 +24,14 @@ type NavSection = {
   items: NavItem[];
 };
 
+type ProfileSummary = {
+  fullName?: string;
+  preferredName?: string;
+  jobTitle?: string;
+  tradeSpecialty?: string;
+  photoUrl?: string;
+};
+
 const userQuickLinks: NavItem[] = [
   { href: "/submit", label: "Submit Request", short: "SB" },
   { href: "/upload", label: "Upload", short: "UP" },
@@ -40,6 +49,7 @@ const companyQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/library", label: "Completed Docs", short: "LB" },
   { href: "/company-users", label: "Company Users", short: "CU" },
+  { href: "/profile", label: "Talent Profile", short: "TP" },
 ];
 
 const userSideSections: NavSection[] = [
@@ -62,7 +72,10 @@ const userSideSections: NavSection[] = [
   },
   {
     title: "Account",
-    items: [{ href: "/purchases", label: "My Purchases", short: "MP" }],
+    items: [
+      { href: "/profile", label: "Talent Profile", short: "TP" },
+      { href: "/purchases", label: "My Purchases", short: "MP" },
+    ],
   },
 ];
 
@@ -91,6 +104,7 @@ const adminSideSections: NavSection[] = [
     items: [
       { href: "/library", label: "Library", short: "LB" },
       { href: "/search", label: "Search", short: "SR" },
+      { href: "/profile", label: "Talent Profile", short: "TP" },
     ],
   },
 ];
@@ -105,7 +119,10 @@ const companyAdminSideSections: NavSection[] = [
   },
   {
     title: "Company Access",
-    items: [{ href: "/company-users", label: "Company Users", short: "CU" }],
+    items: [
+      { href: "/company-users", label: "Company Users", short: "CU" },
+      { href: "/profile", label: "Talent Profile", short: "TP" },
+    ],
   },
 ];
 
@@ -115,6 +132,7 @@ const companyUserSideSections: NavSection[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/library", label: "Completed Docs", short: "LB" },
+      { href: "/profile", label: "Talent Profile", short: "TP" },
     ],
   },
 ];
@@ -122,11 +140,15 @@ const companyUserSideSections: NavSection[] = [
 const accountSetupSideSections: NavSection[] = [
   {
     title: "Getting Started",
-    items: [{ href: "/company-setup", label: "Create Company Workspace", short: "CO" }],
+    items: [
+      { href: "/profile", label: "Build Talent Profile", short: "TP" },
+      { href: "/company-setup", label: "Create Company Workspace", short: "CO" },
+    ],
   },
 ];
 
 const accountSetupQuickLinks: NavItem[] = [
+  { href: "/profile", label: "Build Talent Profile", short: "TP" },
   { href: "/company-setup", label: "Create Company Workspace", short: "CO" },
 ];
 
@@ -153,6 +175,54 @@ function formatRole(role: string) {
     return "Super Admin";
   }
   return role.replace(/_/g, " ");
+}
+
+function getDisplayName(profile: ProfileSummary | null, email: string) {
+  const candidate = profile?.preferredName || profile?.fullName || email.split("@")[0] || "User";
+  return candidate.trim() || "User";
+}
+
+function getAvatarInitials(label: string) {
+  const parts = label
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return (parts[0]?.[0] ?? "U") + (parts[1]?.[0] ?? "");
+}
+
+function ProfileAvatar({
+  profile,
+  email,
+  sizeClass = "h-12 w-12",
+  textClass = "text-sm",
+}: {
+  profile: ProfileSummary | null;
+  email: string;
+  sizeClass?: string;
+  textClass?: string;
+}) {
+  const displayName = getDisplayName(profile, email);
+
+  if (profile?.photoUrl) {
+    return (
+      <Image
+        src={profile.photoUrl}
+        alt={displayName}
+        width={48}
+        height={48}
+        className={`${sizeClass} rounded-2xl object-cover`}
+      />
+    );
+  }
+
+  return (
+    <span
+      className={`${sizeClass} inline-flex items-center justify-center rounded-2xl bg-sky-400/18 font-black text-sky-100 ${textClass}`}
+    >
+      {getAvatarInitials(displayName)}
+    </span>
+  );
 }
 
 function MobileMenuIcon() {
@@ -190,6 +260,8 @@ export default function AppLayout({
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState("");
+  const [profileComplete, setProfileComplete] = useState(false);
+  const [profileSummary, setProfileSummary] = useState<ProfileSummary | null>(null);
   const [agreementConfig, setAgreementConfig] = useState<AgreementConfig>(
     getDefaultAgreementConfig()
   );
@@ -199,8 +271,9 @@ export default function AppLayout({
   const isCompanyUser = userRole === "company_user";
   const isCompanyScopedUser = isCompanyAdminUser || isCompanyUser;
   const canAccessInternalAdmin = Boolean(permissionMap?.can_access_internal_admin);
+  const needsProfileSetup = !canAccessInternalAdmin && !profileComplete;
   const needsCompanySetup =
-    !canAccessInternalAdmin && !isCompanyScopedUser && !companyId;
+    !needsProfileSetup && !canAccessInternalAdmin && !isCompanyScopedUser && !companyId;
 
   const sideSections = useMemo(() => {
     if (needsCompanySetup) {
@@ -315,16 +388,18 @@ export default function AppLayout({
           | {
               user?: {
                 email?: string;
-                role?: string;
-                isAdmin?: boolean;
-                permissionMap?: PermissionMap;
-                accountStatus?: string;
-                acceptedTerms?: boolean;
-                companyId?: string | null;
-                companyName?: string | null;
-              };
-            }
-          | null;
+              role?: string;
+              isAdmin?: boolean;
+              permissionMap?: PermissionMap;
+              accountStatus?: string;
+              acceptedTerms?: boolean;
+              companyId?: string | null;
+              companyName?: string | null;
+              profileComplete?: boolean;
+              profile?: ProfileSummary | null;
+            };
+          }
+        | null;
 
         if (!mounted) return;
 
@@ -334,6 +409,8 @@ export default function AppLayout({
         setPermissionMap(data?.user?.permissionMap ?? null);
         setCompanyId(data?.user?.companyId ?? null);
         setCompanyName(data?.user?.companyName ?? "");
+        setProfileComplete(Boolean(data?.user?.profileComplete));
+        setProfileSummary(data?.user?.profile ?? null);
         setAccountStatus(data?.user?.accountStatus ?? "active");
         setAcceptedTerms(Boolean(data?.user?.acceptedTerms));
         setTermsError("");
@@ -345,11 +422,29 @@ export default function AppLayout({
 
         const nextRole = data?.user?.role ?? "viewer";
         const nextCompanyId = data?.user?.companyId ?? null;
+        const nextProfileComplete = Boolean(data?.user?.profileComplete);
+        const needsProfile = !Boolean(data?.user?.permissionMap?.can_access_internal_admin) && !nextProfileComplete;
         const shouldCompleteCompanySetup =
+          !needsProfile &&
           !Boolean(data?.user?.permissionMap?.can_access_internal_admin) &&
           nextRole !== "company_admin" &&
           nextRole !== "company_user" &&
           !nextCompanyId;
+
+        if (!Boolean(data?.user?.acceptedTerms)) {
+          setLoading(false);
+          return;
+        }
+
+        if (needsProfile) {
+          if (pathname !== "/profile") {
+            router.replace("/profile");
+            return;
+          }
+
+          setLoading(false);
+          return;
+        }
 
         if (shouldCompleteCompanySetup) {
           if (pathname !== "/company-setup") {
@@ -364,8 +459,8 @@ export default function AppLayout({
         if (nextRole === "company_admin" || nextRole === "company_user") {
           const companyAllowedRoutes =
             nextRole === "company_admin"
-              ? ["/dashboard", "/library", "/company-users"]
-              : ["/dashboard", "/library"];
+              ? ["/dashboard", "/library", "/company-users", "/profile"]
+              : ["/dashboard", "/library", "/profile"];
           const inAllowedRoute = companyAllowedRoutes.some(
             (route) => pathname === route || pathname.startsWith(`${route}/`)
           );
@@ -387,6 +482,8 @@ export default function AppLayout({
         setPermissionMap(null);
         setCompanyId(null);
         setCompanyName("");
+        setProfileComplete(false);
+        setProfileSummary(null);
         setAccountStatus("active");
         setAcceptedTerms(false);
 
@@ -428,18 +525,22 @@ export default function AppLayout({
 
   const workspaceLabel = isAdminArea
     ? "Admin Workspace"
+    : needsProfileSetup
+      ? "Profile Setup"
     : needsCompanySetup
       ? "Workspace Setup"
-    : isCompanyScopedUser
-      ? "Company Workspace"
-      : "User Workspace";
+      : isCompanyScopedUser
+        ? "Company Workspace"
+        : "User Workspace";
   const workspaceDescriptor = isAdminArea
     ? "Safety management controls"
+    : needsProfileSetup
+      ? "Build your construction talent profile first"
     : needsCompanySetup
       ? "Finish company setup before inviting users"
-    : isCompanyScopedUser
-      ? "Completed documents and company access"
-      : "Project document workspace";
+      : isCompanyScopedUser
+        ? "Completed documents and company access"
+        : "Project document workspace";
 
   async function handleLogout() {
     try {
@@ -449,6 +550,8 @@ export default function AppLayout({
       setPermissionMap(null);
       setAccountStatus("active");
       setAcceptedTerms(false);
+      setProfileComplete(false);
+      setProfileSummary(null);
       setTermsError("");
 
       const { error } = await supabase.auth.signOut({ scope: "global" });
@@ -737,9 +840,19 @@ export default function AppLayout({
                 <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
                   Signed In
                 </div>
-                <div className="mt-2 truncate text-sm font-semibold text-white">{userEmail}</div>
-                <div className="mt-1 text-xs uppercase tracking-[0.16em] text-sky-200">
-                  {formatRole(userRole)}
+                <div className="mt-3 flex items-center gap-3">
+                  <ProfileAvatar profile={profileSummary} email={userEmail} />
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-white">
+                      {getDisplayName(profileSummary, userEmail)}
+                    </div>
+                    <div className="mt-1 truncate text-xs text-slate-300">
+                      {profileSummary?.jobTitle || formatRole(userRole)}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 text-xs uppercase tracking-[0.16em] text-sky-200">
+                  {profileSummary?.tradeSpecialty || formatRole(userRole)}
                 </div>
                 <div className="mt-4 flex items-center justify-between rounded-2xl bg-white/6 px-3 py-2 text-xs text-slate-200">
                   <span>{workspaceLabel}</span>
@@ -784,13 +897,15 @@ export default function AppLayout({
                           <p className="mt-1 text-sm text-slate-500">
                             {isAdminArea
                               ? "Administrative tools and audit controls"
+                              : needsProfileSetup
+                                ? "Complete your construction talent profile before opening company setup or workspace tools"
                               : needsCompanySetup
                                 ? "Create your company workspace before inviting employees or opening company tools"
-                              : isCompanyScopedUser
-                                ? isCompanyAdminUser
-                                  ? "Completed document access and company user management"
-                                  : "Completed document access for your company workspace"
-                                : "Safety document workspace and active project tools"}
+                                : isCompanyScopedUser
+                                  ? isCompanyAdminUser
+                                    ? "Completed document access and company user management"
+                                    : "Completed document access for your company workspace"
+                                  : "Safety document workspace and active project tools"}
                           </p>
                         </div>
                       </div>
@@ -805,8 +920,21 @@ export default function AppLayout({
                       <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
                         Signed In
                       </div>
-                      <div className="mt-1 truncate text-sm font-semibold text-slate-900">
-                        {userEmail}
+                      <div className="mt-2 flex items-center gap-3">
+                        <ProfileAvatar
+                          profile={profileSummary}
+                          email={userEmail}
+                          sizeClass="h-10 w-10"
+                          textClass="text-xs"
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-slate-900">
+                            {getDisplayName(profileSummary, userEmail)}
+                          </div>
+                          <div className="mt-1 truncate text-xs text-slate-500">
+                            {profileSummary?.jobTitle || userEmail}
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
@@ -815,7 +943,9 @@ export default function AppLayout({
                       </div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">{workspaceLabel}</div>
                       <div className="mt-1 text-xs text-slate-500">
-                        {needsCompanySetup
+                        {needsProfileSetup
+                          ? "Construction talent profile required"
+                          : needsCompanySetup
                           ? companyName || workspaceDescriptor
                           : workspaceDescriptor}
                       </div>

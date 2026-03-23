@@ -66,6 +66,9 @@ export default function CompanySetupPage() {
             user?: {
               email?: string;
               companyName?: string | null;
+              profile?: {
+                fullName?: string | null;
+              } | null;
               companyProfile?: {
                 name?: string | null;
                 industry?: string | null;
@@ -90,6 +93,7 @@ export default function CompanySetupPage() {
       setContactEmail(data?.user?.email ?? "");
       setContactName(
         data?.user?.companyProfile?.primary_contact_name ??
+          data?.user?.profile?.fullName ??
           data?.user?.email?.split("@")[0] ??
           ""
       );
@@ -190,7 +194,7 @@ export default function CompanySetupPage() {
       <PageHero
         eyebrow="Company Workspace"
         title="Set up your company"
-        description="Use your signed-in account as the company owner, choose the plan, and launch the workspace that will hold your employees, approvals, and documents."
+        description="Your field talent profile is in place. Use this step to launch the company workspace that will hold your employees, approvals, and documents."
       />
 
       <section className="grid gap-4 lg:grid-cols-3">

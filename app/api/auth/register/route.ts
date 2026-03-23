@@ -317,7 +317,7 @@ export async function POST(request: Request) {
       ? pendingMetadata.account_status === "pending"
         ? "Account created. Your company invite was applied. Your company admin still needs to approve your access before you can enter the workspace."
         : "Account created. Your company invite was applied and your workspace access has been configured."
-      : "Account created. Sign in to finish setting up your company workspace or join one later from an invite.",
+      : "Account created. Sign in to build your field talent profile and continue into company setup or an invited company flow.",
     warning:
       metadataResult.error && roleResult.error
         ? "Your account was created, but some admin-only profile details will finish syncing after approval."
