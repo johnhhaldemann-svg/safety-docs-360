@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { randomUUID } from "node:crypto";
 import {
   acceptUserAgreement,
   getClientIpAddress,
@@ -31,21 +30,6 @@ type RegisterPayload = {
   password?: string;
   agreed?: boolean;
 };
-
-function buildCompanyKeyBase(companyName: string) {
-  const normalized = companyName
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 42);
-
-  return normalized || "company";
-}
-
-function buildUniqueCompanyKey(companyName: string) {
-  return `${buildCompanyKeyBase(companyName)}-${randomUUID().slice(0, 8)}`;
-}
 
 function createPublicClient() {
   const supabaseUrl = getSupabaseServerUrl();
@@ -125,108 +109,10 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!adminClient) {
-    const signupRequestResult = await publicClient
-      .from("company_signup_requests")
-      .insert({
-        company_name: companyName,
-        industry,
-        phone,
-        website: website || null,
-        address_line_1: addressLine1,
-        city,
-        state_region: stateRegion,
-        postal_code: postalCode,
-        country,
-        primary_contact_name: fullName,
-        primary_contact_email: email,
-        requested_role: "company_admin",
-        account_status: "pending",
-        status: "pending",
-      });
-
-    if (signupRequestResult.error) {
-      if (
-        (signupRequestResult.error.message ?? "").includes(
-          "company_signup_requests_pending_email_idx"
-        )
-      ) {
-        return NextResponse.json(
-          {
-            success: true,
-            message:
-              "A company workspace request is already pending for this email. You do not need to sign up again.",
-            agreementVersion: agreementConfig.version,
-            warning:
-              "Use the same email to sign in after approval and the company workspace will be attached to that account.",
-          },
-          { status: 200 }
-        );
-      }
-
-      return NextResponse.json(
-        {
-          error:
-            signupRequestResult.error?.message ||
-            "Failed to capture the company signup request.",
-          details: envStatus,
-        },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      message:
-        "Company workspace request received. Our internal team will review it, activate the workspace, and then the company owner can create their account from the login page.",
-      agreementVersion: agreementConfig.version,
-      warning:
-        "This deployment is currently using pending company signup requests because the Supabase service role is unavailable at runtime.",
-    });
-  }
-
-  let companyData: { id: string; name: string } | null = null;
-  let companyError: { message?: string | null } | null = null;
-
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const result = await adminClient
-      .from("companies")
-      .insert({
-        name: companyName,
-        team_key: buildUniqueCompanyKey(companyName),
-        industry,
-        phone,
-        website: website || null,
-        address_line_1: addressLine1,
-        city,
-        state_region: stateRegion,
-        postal_code: postalCode,
-        country,
-        primary_contact_name: fullName,
-        primary_contact_email: email,
-      })
-      .select("id, name")
-      .single();
-
-    companyData = result.data;
-    companyError = result.error;
-
-    if (!companyError) {
-      break;
-    }
-  }
-
-  if (companyError || !companyData?.id) {
-    return NextResponse.json(
-      { error: companyError?.message || "Failed to create the company workspace." },
-      { status: 500 }
-    );
-  }
-
   const pendingMetadata = {
-    role: "company_admin",
+    role: "viewer",
     team: companyName,
-    company_id: companyData.id,
+    company_id: null,
     account_status: "pending",
     full_name: fullName,
     company_name: companyName,
@@ -283,54 +169,102 @@ export async function POST(request: Request) {
     ...pendingMetadata,
   };
 
-  const [metadataResult, roleResult, membershipResult] = await Promise.all([
-    adminClient.auth.admin.updateUserById(userId, {
-      user_metadata: mergedUserMetadata,
-      app_metadata: mergedAppMetadata,
-    }),
-    adminClient.from("user_roles").upsert(
-      {
-        user_id: userId,
-        role: "company_admin",
-        team: companyName,
-        company_id: companyData.id,
-        account_status: "pending",
-        created_by: userId,
-        updated_by: userId,
-      },
-      {
-        onConflict: "user_id",
-      }
-    ),
-    adminClient.from("company_memberships").upsert(
-      {
-        user_id: userId,
-        company_id: companyData.id,
-        role: "company_admin",
-        status: "pending",
-        created_by: userId,
-        updated_by: userId,
-      },
-      {
-        onConflict: "user_id,company_id",
-      }
-    ),
-  ]);
+  const metadataResult = adminClient
+    ? await adminClient.auth.admin.updateUserById(userId, {
+        user_metadata: mergedUserMetadata,
+        app_metadata: mergedAppMetadata,
+      })
+    : { error: null };
 
-  const agreementAcceptResult = await acceptUserAgreement({
-    supabase: adminClient,
-    userId,
-    ipAddress: getClientIpAddress(request),
-    termsVersion: agreementConfig.version,
-  });
+  const roleResult = adminClient
+    ? await adminClient.from("user_roles").upsert(
+        {
+          user_id: userId,
+          role: "viewer",
+          team: companyName,
+          company_id: null,
+          account_status: "pending",
+          created_by: userId,
+          updated_by: userId,
+        },
+        {
+          onConflict: "user_id",
+        }
+      )
+    : { error: null };
+
+  const signupRequestResult = await (adminClient ?? publicClient)
+    .from("company_signup_requests")
+    .insert({
+      company_name: companyName,
+      industry,
+      phone,
+      website: website || null,
+      address_line_1: addressLine1,
+      city,
+      state_region: stateRegion,
+      postal_code: postalCode,
+      country,
+      primary_contact_name: fullName,
+      primary_contact_email: email,
+      requested_role: "company_admin",
+      account_status: "pending",
+      status: "pending",
+      notes: "Created from the company owner signup flow.",
+    });
+
+  if (roleResult.error) {
+    return NextResponse.json(
+      { error: roleResult.error.message || "Failed to create the pending owner account." },
+      { status: 500 }
+    );
+  }
+
+  if (signupRequestResult.error) {
+    if (
+      (signupRequestResult.error.message ?? "").includes(
+        "company_signup_requests_pending_email_idx"
+      )
+    ) {
+      return NextResponse.json(
+        {
+          success: true,
+          message:
+            "A company workspace request is already pending for this email. You do not need to sign up again.",
+          agreementVersion: agreementConfig.version,
+          warning:
+            "Sign in with this same email after approval and the company workspace will be attached to that account automatically.",
+        },
+        { status: 200 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        error:
+          signupRequestResult.error.message ||
+          "Failed to submit the company workspace request.",
+      },
+      { status: 500 }
+    );
+  }
+
+  if (adminClient) {
+    await acceptUserAgreement({
+      supabase: adminClient,
+      userId,
+      ipAddress: getClientIpAddress(request),
+      termsVersion: agreementConfig.version,
+    });
+  }
 
   return NextResponse.json({
     success: true,
     message:
-      "Company workspace created. An internal administrator must approve it before the company owner can sign in, finish setup, and start inviting employees.",
+      "Company account created and sent for internal approval. After approval, sign in with this same email and the company workspace will attach automatically.",
     warning:
-      metadataResult.error || roleResult.error || membershipResult.error || agreementAcceptResult.error
-        ? "The company account was created, but some profile details may finish syncing during admin approval."
+      metadataResult.error
+        ? "The owner account was created, but some profile details may finish syncing during internal approval."
         : null,
   });
 }
