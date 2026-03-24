@@ -112,6 +112,17 @@ function isInternalAppRole(role?: string | null) {
   );
 }
 
+function canViewRoleInDirectory(params: {
+  viewerRole: string;
+  targetRole?: string | null;
+}) {
+  if (normalizeAppRole(params.viewerRole) === "super_admin") {
+    return true;
+  }
+
+  return isInternalAppRole(params.targetRole);
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requirePermission: "can_assign_roles",
@@ -134,7 +145,12 @@ export async function GET(request: Request) {
 
     if (!rpcError) {
       const users = ((rpcData as RpcAdminUserRow[] | null) ?? [])
-        .filter((row) => isInternalAppRole(row.role))
+        .filter((row) =>
+          canViewRoleInDirectory({
+            viewerRole: auth.role,
+            targetRole: row.role,
+          })
+        )
         .map((row) => ({
           id: row.id,
           email: row.email ?? "",
@@ -152,6 +168,7 @@ export async function GET(request: Request) {
         capabilities: {
           canPermanentlyDeleteUsers: false,
           canRunAdminAuthActions: false,
+          canViewAllUsers: auth.role === "super_admin",
         },
         warning:
           "Showing database-backed admin directory fallback because the Supabase service role key is unavailable at runtime.",
@@ -170,8 +187,13 @@ export async function GET(request: Request) {
       );
     }
 
-    const users = ((data as FallbackUserRoleRow[] | null) ?? [])
-      .filter((row) => isInternalAppRole(row.role))
+      const users = ((data as FallbackUserRoleRow[] | null) ?? [])
+      .filter((row) =>
+        canViewRoleInDirectory({
+          viewerRole: auth.role,
+          targetRole: row.role,
+        })
+      )
       .map((row) => {
         const isCurrentUser = row.user_id === auth.user.id;
         const email = isCurrentUser ? auth.user.email ?? "" : "";
@@ -197,6 +219,7 @@ export async function GET(request: Request) {
       capabilities: {
         canPermanentlyDeleteUsers: false,
         canRunAdminAuthActions: false,
+        canViewAllUsers: auth.role === "super_admin",
       },
       warning:
         "Showing RBAC directory fallback because the Supabase service role key is unavailable at runtime.",
@@ -237,13 +260,19 @@ export async function GET(request: Request) {
       };
     })
     )
-  ).filter((user) => isInternalAppRole(user.role));
+  ).filter((user) =>
+    canViewRoleInDirectory({
+      viewerRole: auth.role,
+      targetRole: user.role,
+    })
+  );
 
   return NextResponse.json({
     users,
     capabilities: {
       canPermanentlyDeleteUsers: auth.role === "super_admin",
       canRunAdminAuthActions: true,
+      canViewAllUsers: auth.role === "super_admin",
     },
   });
 }

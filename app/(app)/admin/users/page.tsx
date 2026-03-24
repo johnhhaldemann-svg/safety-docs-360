@@ -31,15 +31,21 @@ type AdminUser = {
 type AdminUserCapabilities = {
   canPermanentlyDeleteUsers: boolean;
   canRunAdminAuthActions: boolean;
+  canViewAllUsers: boolean;
 };
 
 const roleOptions = [
   "All Roles",
   "Super Admin",
   "Admin",
+  "Company Admin",
+  "Operations Manager",
+  "Company User",
   "Editor",
   "Viewer",
 ];
+
+const inviteRoleOptions = ["Super Admin", "Admin", "Editor", "Viewer"];
 
 const internalRoles = new Set([
   "Super Admin",
@@ -81,6 +87,7 @@ export default function AdminUsersPage() {
   const [capabilities, setCapabilities] = useState<AdminUserCapabilities>({
     canPermanentlyDeleteUsers: false,
     canRunAdminAuthActions: false,
+    canViewAllUsers: false,
   });
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -141,6 +148,7 @@ export default function AdminUsersPage() {
         setCapabilities({
           canPermanentlyDeleteUsers: false,
           canRunAdminAuthActions: false,
+          canViewAllUsers: false,
         });
         setLoading(false);
         return;
@@ -149,6 +157,7 @@ export default function AdminUsersPage() {
       setCapabilities({
         canPermanentlyDeleteUsers: Boolean(data?.capabilities?.canPermanentlyDeleteUsers),
         canRunAdminAuthActions: Boolean(data?.capabilities?.canRunAdminAuthActions),
+        canViewAllUsers: Boolean(data?.capabilities?.canViewAllUsers),
       });
     } catch (error) {
       setMessageTone("error");
@@ -157,6 +166,7 @@ export default function AdminUsersPage() {
       setCapabilities({
         canPermanentlyDeleteUsers: false,
         canRunAdminAuthActions: false,
+        canViewAllUsers: false,
       });
     }
     setLoading(false);
@@ -169,9 +179,11 @@ export default function AdminUsersPage() {
   }, [loadUsers]);
 
   const filteredUsers = useMemo(() => {
-    const internalUsers = users.filter((user) => internalRoles.has(user.role));
+    const visibleUsers = capabilities.canViewAllUsers
+      ? users
+      : users.filter((user) => internalRoles.has(user.role));
     const query = searchTerm.trim().toLowerCase();
-    return internalUsers.filter((user) => {
+    return visibleUsers.filter((user) => {
       const matchesSearch =
         user.name.toLowerCase().includes(query) ||
         user.email.toLowerCase().includes(query) ||
@@ -179,23 +191,24 @@ export default function AdminUsersPage() {
       const matchesRole = roleFilter === "All Roles" ? true : user.role === roleFilter;
       return matchesSearch && matchesRole;
     });
-  }, [roleFilter, searchTerm, users]);
+  }, [capabilities.canViewAllUsers, roleFilter, searchTerm, users]);
 
   const pendingApprovals = useMemo(
     () =>
-      users
-        .filter((user) => internalRoles.has(user.role))
+      (capabilities.canViewAllUsers
+        ? users
+        : users.filter((user) => internalRoles.has(user.role)))
         .filter((user) => user.status === "Pending")
         .sort(
           (a, b) =>
             new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
         ),
-    [users]
+    [capabilities.canViewAllUsers, users]
   );
 
   const userStats = useMemo(() => {
     const activeToday = users.filter((user) => {
-      if (!internalRoles.has(user.role)) return false;
+      if (!capabilities.canViewAllUsers && !internalRoles.has(user.role)) return false;
       if (!user.last_sign_in_at) return false;
       const lastSeen = new Date(user.last_sign_in_at);
       const today = new Date();
@@ -207,9 +220,15 @@ export default function AdminUsersPage() {
     }).length;
     return [
       {
-        title: "Platform Users",
-        value: String(users.filter((user) => internalRoles.has(user.role)).length),
-        note: "Internal employees managing the platform",
+        title: capabilities.canViewAllUsers ? "All Users" : "Platform Users",
+        value: String(
+          capabilities.canViewAllUsers
+            ? users.length
+            : users.filter((user) => internalRoles.has(user.role)).length
+        ),
+        note: capabilities.canViewAllUsers
+          ? "Internal staff and company-scoped accounts"
+          : "Internal employees managing the platform",
       },
       { title: "Active Today", value: String(activeToday), note: "Signed in during the last day" },
       {
@@ -220,18 +239,23 @@ export default function AdminUsersPage() {
       {
         title: "Suspended",
         value: String(
-          users.filter((user) => internalRoles.has(user.role) && user.status === "Suspended")
-            .length
+          users.filter(
+            (user) =>
+              (capabilities.canViewAllUsers || internalRoles.has(user.role)) &&
+              user.status === "Suspended"
+          ).length
         ),
-        note: "Internal accounts blocked from the app",
+        note: capabilities.canViewAllUsers
+          ? "Accounts blocked from platform or company workspaces"
+          : "Internal accounts blocked from the app",
       },
     ];
-  }, [pendingApprovals.length, users]);
+  }, [capabilities.canViewAllUsers, pendingApprovals.length, users]);
 
   const accessActivity = useMemo(
     () =>
       users
-        .filter((user) => internalRoles.has(user.role))
+        .filter((user) => capabilities.canViewAllUsers || internalRoles.has(user.role))
         .map((user) => ({
           id: user.id,
           sortAt: new Date(user.last_sign_in_at ?? user.created_at ?? 0).getTime(),
@@ -257,7 +281,7 @@ export default function AdminUsersPage() {
           meta,
           tone,
         })),
-    [users]
+    [capabilities.canViewAllUsers, users]
   );
 
   async function handleInviteUser() {
@@ -551,8 +575,12 @@ export default function AdminUsersPage() {
     <div className="space-y-8">
       <PageHero
         eyebrow="Administration"
-        title="Platform Staff"
-        description="Manage only your internal Safety360Docs employees here. Company workspaces and company employees are handled separately."
+        title={capabilities.canViewAllUsers ? "All Users" : "Platform Staff"}
+        description={
+          capabilities.canViewAllUsers
+            ? "Super Admin directory across internal staff, company owners, and company employees."
+            : "Manage only your internal Safety360Docs employees here. Company workspaces and company employees are handled separately."
+        }
         actions={
           <>
             <Link
@@ -591,8 +619,12 @@ export default function AdminUsersPage() {
       </section>
 
       <SectionCard
-        title="Who Belongs Here"
-        description="Use this page only for your own internal team."
+        title={capabilities.canViewAllUsers ? "Directory Scope" : "Who Belongs Here"}
+        description={
+          capabilities.canViewAllUsers
+            ? "You are signed in as Super Admin, so this page shows all accounts across the platform."
+            : "Use this page only for your own internal team."
+        }
       >
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -618,8 +650,9 @@ export default function AdminUsersPage() {
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-semibold text-slate-900">Company Employees</p>
             <p className="mt-2 text-sm text-slate-600">
-              Company admins invite, approve, and manage Company Admin, Operations Manager,
-              and Company User roles from inside their own company workspace.
+              {capabilities.canViewAllUsers
+                ? "Super Admin can see company-scoped accounts here too. Company admins still manage their own employees from inside the company workspace."
+                : "Company admins invite, approve, and manage Company Admin, Operations Manager, and Company User roles from inside their own company workspace."}
             </p>
           </div>
         </div>
@@ -651,12 +684,12 @@ export default function AdminUsersPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
           />
-          <select
-            value={inviteRole}
-            onChange={(e) => setInviteRole(e.target.value)}
-            className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-sky-500"
-          >
-            {roleOptions.filter((role) => role !== "All Roles").map((role) => (
+            <select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value)}
+              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-sky-500"
+            >
+            {inviteRoleOptions.map((role) => (
               <option key={role}>{role}</option>
             ))}
           </select>
@@ -772,14 +805,24 @@ export default function AdminUsersPage() {
       </section>
 
       <SectionCard
-        title="Platform Users"
-        description="Review internal employees, platform roles, and platform access."
+        title={capabilities.canViewAllUsers ? "All Users" : "Platform Users"}
+        description={
+          capabilities.canViewAllUsers
+            ? "Review every account across internal staff and company workspaces."
+            : "Review internal employees, platform roles, and platform access."
+        }
       >
         {loading ? (
-          <InlineMessage>Loading platform staff...</InlineMessage>
+          <InlineMessage>
+            {capabilities.canViewAllUsers ? "Loading all users..." : "Loading platform staff..."}
+          </InlineMessage>
         ) : filteredUsers.length === 0 ? (
           <EmptyState
-            title="No platform staff match the current filters"
+            title={
+              capabilities.canViewAllUsers
+                ? "No users match the current filters"
+                : "No platform staff match the current filters"
+            }
             description="Try a different search term or clear the role filter."
           />
         ) : (
@@ -869,7 +912,9 @@ export default function AdminUsersPage() {
                 onChange={(e) => setEditRole(e.target.value)}
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
               >
-                {roleOptions.filter((role) => role !== "All Roles").map((role) => (
+                {(capabilities.canViewAllUsers ? roleOptions : inviteRoleOptions).filter(
+                  (role) => role !== "All Roles"
+                ).map((role) => (
                   <option key={role}>{role}</option>
                 ))}
               </select>
