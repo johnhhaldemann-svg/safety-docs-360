@@ -248,6 +248,16 @@ export async function GET(request: Request, context: RouteContext) {
     }));
   }
 
+  const userDirectory = new Map(
+    users.map((user) => [
+      user.id,
+      {
+        name: user.name,
+        email: user.email,
+      },
+    ])
+  );
+
   const summary = {
     totalUsers: memberships.length,
     activeUsers: memberships.filter((row) => row.status === "active").length,
@@ -262,6 +272,94 @@ export async function GET(request: Request, context: RouteContext) {
       (row) => (row.status ?? "").trim().toLowerCase() === "submitted"
     ).length,
   };
+
+  const activity = [
+    company.created_at
+      ? {
+          id: `${company.id}-created`,
+          title: "Workspace created",
+          detail: `${company.name?.trim() || "Company workspace"} was activated for customer use.`,
+          meta: company.created_at,
+          tone: "success" as const,
+          sortAt: new Date(company.created_at).getTime(),
+        }
+      : null,
+    company.archived_at
+      ? {
+          id: `${company.id}-archived`,
+          title: "Workspace archived",
+          detail: `Archived by ${company.archived_by_email?.trim() || "an internal admin"}.`,
+          meta: company.archived_at,
+          tone: "warning" as const,
+          sortAt: new Date(company.archived_at).getTime(),
+        }
+      : null,
+    company.restored_at
+      ? {
+          id: `${company.id}-restored`,
+          title: "Workspace restored",
+          detail: `Restored by ${company.restored_by_email?.trim() || "an internal admin"}.`,
+          meta: company.restored_at,
+          tone: "success" as const,
+          sortAt: new Date(company.restored_at).getTime(),
+        }
+      : null,
+    ...invites.map((invite) => ({
+      id: `invite-${invite.id}`,
+      title: "Invite sent",
+      detail: `${invite.email} was invited as ${formatAppRole(invite.role)}.`,
+      meta: invite.created_at ?? "",
+      tone: "info" as const,
+      sortAt: new Date(invite.created_at ?? 0).getTime(),
+    })),
+    ...memberships.map((membership) => {
+      const linkedUser = userDirectory.get(membership.user_id);
+      return {
+        id: `membership-${membership.user_id}`,
+        title: "User linked to workspace",
+        detail: `${linkedUser?.name || `User ${membership.user_id.slice(0, 8)}`} joined as ${formatAppRole(
+          membership.role
+        )}.`,
+        meta: membership.created_at ?? "",
+        tone: membership.status === "suspended" ? ("warning" as const) : ("info" as const),
+        sortAt: new Date(membership.created_at ?? 0).getTime(),
+      };
+    }),
+    ...documents.map((document) => {
+      const normalizedStatus = (document.status ?? "").trim().toLowerCase();
+      const title =
+        document.document_title?.trim() || document.project_name?.trim() || "Untitled document";
+
+      return {
+        id: `document-${document.id}`,
+        title:
+          normalizedStatus === "approved" || Boolean(document.final_file_path)
+            ? "Document approved"
+            : normalizedStatus === "submitted"
+              ? "Document submitted"
+              : "Document activity",
+        detail: `${title} (${document.document_type?.trim() || "Document"}) updated in this workspace.`,
+        meta: document.updated_at ?? document.created_at ?? "",
+        tone:
+          normalizedStatus === "approved" || Boolean(document.final_file_path)
+            ? ("success" as const)
+            : normalizedStatus === "submitted"
+              ? ("warning" as const)
+              : ("info" as const),
+        sortAt: new Date(document.updated_at ?? document.created_at ?? 0).getTime(),
+      };
+    }),
+  ]
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .sort((a, b) => b.sortAt - a.sortAt)
+    .slice(0, 16)
+    .map(({ id, title, detail, meta, tone }) => ({
+      id,
+      title,
+      detail,
+      meta,
+      tone,
+    }));
 
   return NextResponse.json({
     company: {
@@ -305,6 +403,7 @@ export async function GET(request: Request, context: RouteContext) {
       hasFinalFile: Boolean(document.final_file_path),
       userId: document.user_id,
     })),
+    activity,
     warning: adminClient
       ? null
       : "Showing partial company directory because the Supabase service role key is unavailable at runtime.",

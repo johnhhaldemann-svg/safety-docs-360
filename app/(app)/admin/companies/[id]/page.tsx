@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityFeed,
   EmptyState,
   InlineMessage,
   PageHero,
@@ -78,6 +79,14 @@ type CompanyDocument = {
   userId?: string | null;
 };
 
+type CompanyActivityItem = {
+  id: string;
+  title: string;
+  detail: string;
+  meta: string;
+  tone: "info" | "warning" | "success" | "neutral";
+};
+
 function formatRelative(timestamp?: string | null) {
   if (!timestamp) return "Recently";
   const diffMs = Date.now() - new Date(timestamp).getTime();
@@ -106,6 +115,7 @@ export default function AdminCompanyDetailPage({
   const [users, setUsers] = useState<CompanyUser[]>([]);
   const [invites, setInvites] = useState<CompanyInvite[]>([]);
   const [documents, setDocuments] = useState<CompanyDocument[]>([]);
+  const [activity, setActivity] = useState<CompanyActivityItem[]>([]);
   const [warning, setWarning] = useState("");
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "warning" | "error" | "neutral">(
@@ -150,6 +160,7 @@ export default function AdminCompanyDetailPage({
             users?: CompanyUser[];
             invites?: CompanyInvite[];
             documents?: CompanyDocument[];
+            activity?: CompanyActivityItem[];
             warning?: string | null;
           }
         | null;
@@ -162,6 +173,7 @@ export default function AdminCompanyDetailPage({
         setUsers([]);
         setInvites([]);
         setDocuments([]);
+        setActivity([]);
         setWarning("");
         setLoading(false);
         return;
@@ -172,6 +184,7 @@ export default function AdminCompanyDetailPage({
       setUsers(data?.users ?? []);
       setInvites(data?.invites ?? []);
       setDocuments(data?.documents ?? []);
+      setActivity(data?.activity ?? []);
       setWarning(data?.warning ?? "");
     } catch (error) {
       setMessageTone("error");
@@ -181,6 +194,7 @@ export default function AdminCompanyDetailPage({
       setUsers([]);
       setInvites([]);
       setDocuments([]);
+      setActivity([]);
       setWarning("");
     }
 
@@ -458,6 +472,34 @@ export default function AdminCompanyDetailPage({
       </SectionCard>
 
       <section className="grid gap-8 xl:grid-cols-2">
+        <ActivityFeed
+          title="Recent Company Activity"
+          description="Latest workspace lifecycle events, invites, users, and document changes."
+          items={
+            loading
+              ? [
+                  {
+                    id: "loading-activity",
+                    title: "Loading company activity",
+                    detail: "Recent workspace events will appear here in a moment.",
+                    meta: "Working",
+                    tone: "neutral",
+                  },
+                ]
+              : activity.length > 0
+                ? activity
+                : [
+                    {
+                      id: "empty-activity",
+                      title: "No recent activity yet",
+                      detail: "Invites, user links, document updates, and lifecycle events will appear here.",
+                      meta: "Waiting",
+                      tone: "neutral",
+                    },
+                  ]
+          }
+        />
+
         <SectionCard
           title="Archive History"
           description="Audit trail for workspace lifecycle changes."
