@@ -328,8 +328,14 @@ export default function AppLayout({
   const isCompanyScopedUser = isCompanyLeadershipUser || isCompanyUser;
   const canAccessInternalAdmin = Boolean(permissionMap?.can_access_internal_admin);
   const needsProfileSetup = !canAccessInternalAdmin && !profileComplete;
+  const inCompanySetupFlow =
+    pathname === "/company-setup" || pathname.startsWith("/company-setup/");
   const needsCompanySetup =
-    !needsProfileSetup && !canAccessInternalAdmin && !isCompanyScopedUser && !companyId;
+    !needsProfileSetup &&
+    !canAccessInternalAdmin &&
+    !isCompanyScopedUser &&
+    !companyId &&
+    inCompanySetupFlow;
 
   const sideSections = useMemo(() => {
     if (needsCompanySetup) {
@@ -452,22 +458,29 @@ export default function AppLayout({
           | {
               user?: {
                 email?: string;
-              role?: string;
-              isAdmin?: boolean;
-              permissionMap?: PermissionMap;
-              accountStatus?: string;
-              acceptedTerms?: boolean;
-              companyId?: string | null;
-              companyName?: string | null;
-              profileComplete?: boolean;
-              profile?: ProfileSummary | null;
-            };
+                role?: string;
+                isAdmin?: boolean;
+                permissionMap?: PermissionMap;
+                accountStatus?: string;
+                acceptedTerms?: boolean;
+                companyId?: string | null;
+                companyName?: string | null;
+                profileComplete?: boolean;
+                profile?: ProfileSummary | null;
+                pendingCompanySignupRequest?: { id?: string; companyName?: string } | null;
+              };
           }
         | null;
 
         if (!mounted) return;
 
         const email = data?.user?.email ?? session.user.email ?? "";
+        const hasPendingCompanySignupRequest = Boolean(
+          data?.user?.pendingCompanySignupRequest
+        );
+        const nextAccountStatus = hasPendingCompanySignupRequest
+          ? "pending"
+          : data?.user?.accountStatus ?? "active";
         setUserEmail(email);
         setUserRole(data?.user?.role ?? "viewer");
         setPermissionMap(data?.user?.permissionMap ?? null);
@@ -475,11 +488,11 @@ export default function AppLayout({
         setCompanyName(data?.user?.companyName ?? "");
         setProfileComplete(Boolean(data?.user?.profileComplete));
         setProfileSummary(data?.user?.profile ?? null);
-        setAccountStatus(data?.user?.accountStatus ?? "active");
+        setAccountStatus(nextAccountStatus);
         setAcceptedTerms(Boolean(data?.user?.acceptedTerms));
         setTermsError("");
 
-        if (data?.user?.accountStatus === "suspended") {
+        if (nextAccountStatus === "suspended") {
           setLoading(false);
           return;
         }
@@ -488,7 +501,7 @@ export default function AppLayout({
         const nextCompanyId = data?.user?.companyId ?? null;
         const nextProfileComplete = Boolean(data?.user?.profileComplete);
         const needsProfile = !Boolean(data?.user?.permissionMap?.can_access_internal_admin) && !nextProfileComplete;
-        const shouldCompleteCompanySetup =
+        const canOpenCompanySetup =
           !needsProfile &&
           !Boolean(data?.user?.permissionMap?.can_access_internal_admin) &&
           nextRole !== "company_admin" &&
@@ -511,12 +524,7 @@ export default function AppLayout({
           return;
         }
 
-        if (shouldCompleteCompanySetup) {
-          if (pathname !== "/company-setup") {
-            router.replace("/company-setup");
-            return;
-          }
-        } else if (pathname === "/company-setup") {
+        if (!canOpenCompanySetup && pathname === "/company-setup") {
           router.replace("/dashboard");
           return;
         }
