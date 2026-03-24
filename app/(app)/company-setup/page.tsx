@@ -183,14 +183,9 @@ export default function CompanySetupPage() {
       setMessageTone(data?.warning ? "warning" : "success");
       setMessage(
         data?.warning
-          ? `${data.message ?? "Company workspace created."} ${data.warning}`
+          ? `${data.message ?? "Company workspace request submitted."} ${data.warning}`
           : data?.message ?? "Company workspace created successfully."
       );
-
-      if (data?.mode !== "request") {
-        window.location.href = "/company-users";
-        return;
-      }
 
       setLoading(false);
       return;
@@ -209,7 +204,7 @@ export default function CompanySetupPage() {
       <PageHero
         eyebrow="Company Workspace"
         title="Set up your company"
-        description="Your field talent profile is in place. Use this step to launch the company workspace that will hold your employees, approvals, and documents."
+        description="Your field talent profile is in place. Use this step to submit the company workspace request that will be reviewed and activated by your internal admin."
       />
 
       <section className="grid gap-4 lg:grid-cols-3">
@@ -217,7 +212,7 @@ export default function CompanySetupPage() {
           {
             step: "01",
             title: "Create the workspace",
-            body: "Your personal account is already in place. This step creates the shared company workspace around it.",
+            body: "Your personal account is already in place. This step submits the company workspace request under that same owner account.",
           },
           {
             step: "02",
@@ -227,7 +222,7 @@ export default function CompanySetupPage() {
           {
             step: "03",
             title: "Invite and approve employees",
-            body: "Once the workspace is live, invite employees from Team Access and approve them there as they join.",
+            body: "After approval, sign back in with this same email and start inviting employees from the company workspace.",
           },
         ].map((item) => (
           <div
@@ -249,7 +244,7 @@ export default function CompanySetupPage() {
 
       <SectionCard
         title="Set Up Company Workspace"
-        description="Fill in the company details once, choose the plan, and launch the workspace your team will use."
+        description="Fill in the company details once, choose the plan, and submit the company workspace request your team will use after approval."
       >
         <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-4">
@@ -375,12 +370,11 @@ export default function CompanySetupPage() {
               </div>
               <div className="mt-2 text-base font-bold text-slate-900">Launch workspace</div>
               <div className="mt-3 space-y-3 text-sm leading-6 text-slate-500">
-                <p>1. Your company workspace is created under the signed-in account.</p>
-                <p>2. Your account becomes the company admin for that workspace.</p>
-                <p>3. You land in Team Access to invite employees and approve who can join.</p>
+                <p>1. Your company workspace request is submitted under the signed-in account.</p>
+                <p>2. Internal admin approves the company and activates the workspace.</p>
+                <p>3. You sign back in with this same email and the company workspace opens on that account.</p>
                 <p>
-                  If live activation is temporarily unavailable, we will safely hold your request
-                  for internal review instead of losing your company details.
+                  Do not create another account after approval. The same owner email is attached automatically.
                 </p>
               </div>
             </div>
@@ -391,9 +385,9 @@ export default function CompanySetupPage() {
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
                 <div className="font-semibold">What happens next</div>
                 <div className="mt-2 space-y-2 leading-6">
-                  <p>1. Your company setup request is now waiting for internal activation.</p>
-                  <p>2. Your personal account stays signed in and your company details stay on file.</p>
-                  <p>3. Once the workspace is activated, you can come back and start inviting employees.</p>
+                  <p>1. Your company setup request is now waiting for internal approval.</p>
+                  <p>2. Your personal account stays on file under this same email.</p>
+                  <p>3. After approval, sign back in with this same email and the company workspace will attach automatically.</p>
                 </div>
               </div>
             ) : null}
@@ -405,10 +399,10 @@ export default function CompanySetupPage() {
               className="w-full rounded-2xl bg-sky-600 px-5 py-4 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
             >
               {loading
-                ? "Launching company workspace..."
+                ? "Submitting company workspace request..."
                 : launchMode === "request"
                   ? "Workspace Request Submitted"
-                  : "Launch Company Workspace"}
+                  : "Submit Company Workspace Request"}
             </button>
           </div>
         </div>

@@ -372,10 +372,24 @@ async function applyApprovedCompanyOwnerLink(params: {
 async function getPendingCompanySignupRequest(params: {
   supabase: {
     from: (table: string) => unknown;
+    rpc?: (
+      fn: string,
+      args?: Record<string, unknown>
+    ) => Promise<{ data?: unknown; error: { message?: string | null } | null }>;
   };
   userId: string;
   email: string;
 }) {
+  if (params.supabase.rpc) {
+    const rpcResult = await params.supabase.rpc("lookup_my_company_signup_request");
+    const rpcRow =
+      ((rpcResult.data as CompanySignupRequestLookupRow[] | null) ?? [])[0] ?? null;
+
+    if (!rpcResult.error && rpcRow) {
+      return rpcRow;
+    }
+  }
+
   const normalizedEmail = params.email.trim().toLowerCase();
 
   const ownerResult = await (
@@ -534,7 +548,7 @@ export async function GET(request: Request) {
   const pendingCompanySignupRequest =
     !companyScope.companyId && !isAdminRole(refreshedRoleContext.role)
       ? await getPendingCompanySignupRequest({
-          supabase: auth.supabase as never,
+          supabase: (requestScopedSupabase ?? auth.supabase) as never,
           userId: auth.user.id,
           email: auth.user.email ?? "",
         })
