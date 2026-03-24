@@ -97,7 +97,7 @@ function getStatus(user: {
 
 function formatRoleConstraintError(message?: string | null) {
   if ((message ?? "").includes("user_roles_role_check")) {
-    return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow Company Admin and Company User roles.";
+    return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow the current company-scoped roles.";
   }
 
   return message || "User invite failed.";
@@ -105,7 +105,11 @@ function formatRoleConstraintError(message?: string | null) {
 
 function isInternalAppRole(role?: string | null) {
   const normalized = normalizeAppRole(role);
-  return normalized !== "company_admin" && normalized !== "company_user";
+  return (
+    normalized !== "company_admin" &&
+    normalized !== "manager" &&
+    normalized !== "company_user"
+  );
 }
 
 export async function GET(request: Request) {

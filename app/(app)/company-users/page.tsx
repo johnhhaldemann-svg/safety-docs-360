@@ -47,7 +47,7 @@ type EnvDetails = {
   };
 };
 
-const roleOptions = ["Company Admin", "Company User"];
+const roleOptions = ["Company Admin", "Operations Manager", "Company User"];
 
 function statusTone(status: string): "success" | "warning" | "error" | "neutral" {
   if (status === "Active") return "success";
@@ -58,6 +58,7 @@ function statusTone(status: string): "success" | "warning" | "error" | "neutral"
 
 function roleClasses(role: string) {
   if (role === "Company Admin") return "bg-violet-100 text-violet-700";
+  if (role === "Operations Manager") return "bg-sky-100 text-sky-700";
   if (role === "Company User") return "bg-amber-100 text-amber-700";
   return "bg-slate-100 text-slate-700";
 }

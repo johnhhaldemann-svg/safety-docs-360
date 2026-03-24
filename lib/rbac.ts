@@ -87,8 +87,7 @@ const ROLE_PERMISSIONS: Record<AppRole, readonly AppPermission[]> = {
     "can_submit_documents",
     "can_review_documents",
     "can_approve_documents",
-    "can_access_internal_admin",
-    "can_view_all_company_data",
+    "can_view_analytics",
   ],
   company_admin: [
     "can_create_documents",
@@ -163,7 +162,11 @@ export function isManagerRole(role?: string | null) {
 
 export function isCompanyRole(role?: string | null) {
   const normalized = normalizeAppRole(role);
-  return normalized === "company_admin" || normalized === "company_user";
+  return (
+    normalized === "company_admin" ||
+    normalized === "manager" ||
+    normalized === "company_user"
+  );
 }
 
 export function isCompanyAdminRole(role?: string | null) {

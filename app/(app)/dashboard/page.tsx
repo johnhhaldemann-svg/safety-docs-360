@@ -12,6 +12,7 @@ import {
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
 import { CompanyAdminDashboard } from "@/app/(app)/dashboard/company-admin-dashboard";
+import type { CompanyJobsite } from "@/components/company-workspace/useCompanyWorkspaceData";
 import type { PermissionMap } from "@/lib/rbac";
 import {
   getDocumentStatusLabel,
@@ -96,6 +97,23 @@ type CompanyProfile = {
   status: string | null;
 };
 
+type CompanyJobsiteRow = {
+  id: string;
+  company_id: string;
+  name: string;
+  project_number: string | null;
+  location: string | null;
+  status: string | null;
+  project_manager: string | null;
+  safety_lead: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  archived_at?: string | null;
+};
+
 function isApprovedDocument(document: DocumentRow) {
   return isApprovedDocumentStatus(document.status, Boolean(document.final_file_path));
 }
@@ -132,6 +150,14 @@ function normalizeType(documentType?: string | null) {
   return (documentType ?? "").trim().toLowerCase();
 }
 
+function normalizeCompanyJobsiteStatus(status?: string | null) {
+  const normalized = (status ?? "").trim().toLowerCase();
+  if (normalized === "planned") return "planned" as const;
+  if (normalized === "completed") return "completed" as const;
+  if (normalized === "archived") return "archived" as const;
+  return "active" as const;
+}
+
 function getStatusTone(label: string): "neutral" | "success" | "warning" | "info" {
   if (label === "Ready" || label === "Active" || label === "Searchable" || label === "Clear") {
     return "success";
@@ -147,6 +173,7 @@ function getStatusTone(label: string): "neutral" | "success" | "warning" | "info
 export default function DashboardPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [referenceTime] = useState(() => Date.now());
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [userRole, setUserRole] = useState("viewer");
   const [userTeam, setUserTeam] = useState("General");
@@ -154,6 +181,7 @@ export default function DashboardPage() {
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
   const [companyInvites, setCompanyInvites] = useState<CompanyInvite[]>([]);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
+  const [companyJobsiteRows, setCompanyJobsiteRows] = useState<CompanyJobsiteRow[]>([]);
 
   useEffect(() => {
     void (async () => {
@@ -176,6 +204,7 @@ export default function DashboardPage() {
               user?: {
                 role?: string;
                 team?: string;
+                companyId?: string | null;
                 permissionMap?: PermissionMap;
                 companyProfile?: CompanyProfile | null;
               };
@@ -215,7 +244,14 @@ export default function DashboardPage() {
           setCreditBalance(Number(creditData?.creditBalance ?? 0));
         }
 
-        if (meData?.user?.permissionMap?.can_manage_company_users) {
+        const canLoadCompanyWorkspace =
+          Boolean(meData?.user?.companyId) &&
+          Boolean(
+            meData?.user?.permissionMap?.can_manage_company_users ||
+              meData?.user?.permissionMap?.can_view_analytics
+          );
+
+        if (canLoadCompanyWorkspace) {
           const companyResponse = await fetch("/api/company/users", {
             headers: {
               Authorization: `Bearer ${accessToken}`,
@@ -229,6 +265,19 @@ export default function DashboardPage() {
             setCompanyUsers(companyData?.users ?? []);
             setCompanyInvites(companyData?.invites ?? []);
           }
+
+          const jobsitesResponse = await fetch("/api/company/jobsites", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+          const jobsitesData = (await jobsitesResponse.json().catch(() => null)) as
+            | { jobsites?: CompanyJobsiteRow[] }
+            | null;
+
+          if (jobsitesResponse.ok) {
+            setCompanyJobsiteRows(jobsitesData?.jobsites ?? []);
+          }
         }
       } catch (error) {
         console.error("Dashboard load error:", error);
@@ -239,13 +288,159 @@ export default function DashboardPage() {
   }, []);
 
   const isCompanyAdminDashboard = userRole === "company_admin";
-  const isManagerView = userRole === "company_admin" || userRole === "company_user";
+  const isManagerView =
+    userRole === "company_admin" ||
+    userRole === "manager" ||
+    userRole === "company_user";
   const canManageCompanyUsers = Boolean(permissionMap?.can_manage_company_users);
+  const companyManagementHref = canManageCompanyUsers ? "/company-users" : "/library";
 
   const activeDocuments = useMemo(
     () => documents.filter((document) => !isArchivedDocumentStatus(document.status)),
     [documents]
   );
+
+  const companyJobsites = useMemo<CompanyJobsite[]>(() => {
+    const grouped = new Map<
+      string,
+      {
+        name: string;
+        location: string;
+        lastActivity: string | null;
+        totalDocuments: number;
+        pendingDocuments: number;
+      }
+    >();
+
+    for (const document of activeDocuments) {
+      const name = document.project_name?.trim() || "General Workspace";
+      const key = name.toLowerCase();
+      const existing = grouped.get(key) ?? {
+        name,
+        location:
+          [companyProfile?.city?.trim(), companyProfile?.state_region?.trim()]
+            .filter(Boolean)
+            .join(", ") || "Location not set",
+        lastActivity: null,
+        totalDocuments: 0,
+        pendingDocuments: 0,
+      };
+
+      existing.totalDocuments += 1;
+      if (isSubmittedDocumentStatus(document.status, Boolean(document.final_file_path))) {
+        existing.pendingDocuments += 1;
+      }
+      if (
+        !existing.lastActivity ||
+        new Date(document.created_at).getTime() > new Date(existing.lastActivity).getTime()
+      ) {
+        existing.lastActivity = document.created_at;
+      }
+
+      grouped.set(key, existing);
+    }
+
+    const merged = new Map<string, CompanyJobsite>();
+
+    for (const row of companyJobsiteRows) {
+      const key = row.name.trim().toLowerCase();
+      const documentGroup = grouped.get(key);
+      const rawStatus = normalizeCompanyJobsiteStatus(row.status);
+      const status =
+        rawStatus === "archived"
+          ? ("Archived" as const)
+          : rawStatus === "completed"
+            ? ("Completed" as const)
+            : documentGroup?.pendingDocuments
+              ? ("Action needed" as const)
+              : rawStatus === "planned"
+                ? ("Planned" as const)
+                : ("Active" as const);
+
+      merged.set(key, {
+        id: row.id,
+        name: row.name,
+        location:
+          row.location?.trim() ||
+          documentGroup?.location ||
+          [companyProfile?.city?.trim(), companyProfile?.state_region?.trim()]
+            .filter(Boolean)
+            .join(", ") ||
+          "Location not set",
+        lastActivity: documentGroup?.lastActivity ?? row.updated_at ?? row.created_at ?? null,
+        totalDocuments: documentGroup?.totalDocuments ?? 0,
+        pendingDocuments: documentGroup?.pendingDocuments ?? 0,
+        projectNumber: row.project_number?.trim() || "",
+        status,
+        rawStatus,
+        projectManager: row.project_manager,
+        safetyLead: row.safety_lead,
+        startDate: row.start_date,
+        endDate: row.end_date,
+        notes: row.notes,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        source: "table",
+      });
+    }
+
+    for (const documentGroup of grouped.values()) {
+      const key = documentGroup.name.toLowerCase();
+      if (merged.has(key)) continue;
+
+      merged.set(key, {
+        id: `fallback-${key.replace(/[^a-z0-9]+/g, "-") || "general"}`,
+        name: documentGroup.name,
+        location: documentGroup.location,
+        lastActivity: documentGroup.lastActivity,
+        totalDocuments: documentGroup.totalDocuments,
+        pendingDocuments: documentGroup.pendingDocuments,
+        projectNumber: "",
+        status:
+          documentGroup.pendingDocuments > 0
+            ? "Action needed"
+            : documentGroup.lastActivity &&
+                referenceTime - new Date(documentGroup.lastActivity).getTime() <=
+                  1000 * 60 * 60 * 24 * 21
+              ? "Active"
+              : "Completed",
+        rawStatus:
+          documentGroup.pendingDocuments > 0
+            ? "active"
+            : documentGroup.lastActivity &&
+                referenceTime - new Date(documentGroup.lastActivity).getTime() <=
+                  1000 * 60 * 60 * 24 * 21
+              ? "active"
+              : "completed",
+        projectManager: null,
+        safetyLead: null,
+        startDate: null,
+        endDate: null,
+        notes: null,
+        createdAt: null,
+        updatedAt: null,
+        source: "document_fallback",
+      });
+    }
+
+    return Array.from(merged.values())
+      .sort((a, b) => {
+        const left = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
+        const right = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
+        return right - left;
+      })
+      .map((jobsite, index) => ({
+        ...jobsite,
+        projectNumber:
+          jobsite.projectNumber || `SITE-${String(index + 1).padStart(2, "0")}`,
+      }));
+  }, [
+    activeDocuments,
+    companyJobsiteRows,
+    companyProfile?.city,
+    companyProfile?.state_region,
+    referenceTime,
+  ]);
 
   const uniqueProjects = useMemo(() => {
     return new Set(
@@ -591,7 +786,7 @@ export default function DashboardPage() {
           id: "update-company-library",
           title:
             approvedCount > 0
-              ? `${approvedCount} completed file${approvedCount === 1 ? "" : "s"} ready in your manager library`
+              ? `${approvedCount} completed file${approvedCount === 1 ? "" : "s"} ready in your company library`
               : "No completed files are ready yet",
           detail: "Completed documents",
           meta: approvedCount > 0 ? "Ready" : "Waiting",
@@ -772,6 +967,7 @@ export default function DashboardPage() {
         companyUsers={companyUsers}
         companyInvites={companyInvites}
         companyProfile={companyProfile}
+        jobsites={companyJobsites}
         creditBalance={creditBalance}
       />
     );
@@ -787,7 +983,7 @@ export default function DashboardPage() {
                 {isManagerView ? "Company Workspace" : "Construction Safety Hub"}
               </p>
               <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-                {isManagerView ? `${userTeam} Manager Portal` : "Safety360Docs"}
+                {isManagerView ? `${userTeam} Company Workspace` : "Safety360Docs"}
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
                 {isManagerView
@@ -804,7 +1000,7 @@ export default function DashboardPage() {
                 {isManagerView ? "Open Completed Docs" : "New Submission"}
               </Link>
               <Link
-                href={isManagerView ? "/company-users" : "/upload"}
+                href={isManagerView ? companyManagementHref : "/upload"}
                 className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
               >
                 {isManagerView ? (canManageCompanyUsers ? "Manage Company Users" : "Completed Library") : "Upload Documents"}
@@ -1161,7 +1357,7 @@ export default function DashboardPage() {
             {isManagerView ? "Open Library" : "Build PESHEP"}
           </Link>
           <Link
-            href={isManagerView ? "/company-users" : "/submit"}
+            href={isManagerView ? companyManagementHref : "/submit"}
             className="rounded-xl border border-white/10 bg-white/8 px-4 py-2.5 text-xs font-semibold text-slate-100 sm:text-sm"
           >
             {isManagerView ? (canManageCompanyUsers ? "Manage Users" : "Open Library") : "Submit Request"}
@@ -1174,7 +1370,7 @@ export default function DashboardPage() {
               {isManagerView ? "Company Activity" : "Current Activity"}
             </div>
             <Link
-              href={isManagerView ? "/company-users" : "/submit"}
+              href={isManagerView ? companyManagementHref : "/submit"}
               className="text-xs font-medium text-slate-300"
             >
               {isManagerView ? (canManageCompanyUsers ? "Manage Users" : "Open Library") : "View Queue"}

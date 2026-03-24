@@ -21,7 +21,7 @@ type ActionPayload = {
 
 function formatRoleConstraintError(message?: string | null) {
   if ((message ?? "").includes("user_roles_role_check")) {
-    return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow Company Admin and Company User roles.";
+    return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow the current company-scoped roles.";
   }
 
   return message || "Role update failed.";

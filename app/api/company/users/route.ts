@@ -10,6 +10,7 @@ import {
   formatAccountStatus,
   formatAppRole,
   isCompanyAdminRole,
+  isCompanyRole,
   normalizeAccountStatus,
   normalizeAppRole,
   type AppRole,
@@ -176,7 +177,7 @@ type FallbackUserRoleRow = {
   created_at?: string | null;
 };
 
-const COMPANY_ASSIGNABLE_ROLES: AppRole[] = ["company_admin", "company_user"];
+const COMPANY_ASSIGNABLE_ROLES: AppRole[] = ["company_admin", "manager", "company_user"];
 
 function getDisplayName(user: {
   email?: string | null;
@@ -233,9 +234,25 @@ function getCompanySafeRole(role?: string | null) {
   return normalized;
 }
 
+function formatRoleConstraintError(message?: string | null) {
+  if ((message ?? "").includes("company_invites_role_check")) {
+    return "The database invite role constraint has not been updated yet. Run the latest Supabase migration to allow Operations Manager in company invites.";
+  }
+
+  if ((message ?? "").includes("user_roles_role_check")) {
+    return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow the current company-scoped roles.";
+  }
+
+  return message || "Company user action failed.";
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
-    requireAnyPermission: ["can_manage_company_users", "can_manage_users"],
+    requireAnyPermission: [
+      "can_manage_company_users",
+      "can_manage_users",
+      "can_view_analytics",
+    ],
   });
 
   if ("error" in auth) {
@@ -251,10 +268,10 @@ export async function GET(request: Request) {
   });
   const scopeTeam = companyScope.companyName?.trim() || auth.team || "General";
 
-  if (isCompanyAdminRole(auth.role) && !companyScope.companyId) {
+  if (isCompanyRole(auth.role) && !companyScope.companyId) {
     return NextResponse.json(
       {
-        error: "This company admin account is not linked to a company workspace yet.",
+        error: "This company account is not linked to a company workspace yet.",
       },
       { status: 400 }
     );
@@ -267,9 +284,9 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false });
 
     const scopedQuery =
-      isCompanyAdminRole(auth.role) && companyScope.companyId
+      isCompanyRole(auth.role) && companyScope.companyId
         ? query.eq("company_id", companyScope.companyId)
-        : isCompanyAdminRole(auth.role)
+        : isCompanyRole(auth.role)
           ? query.eq("team", scopeTeam)
           : query;
     const { data, error } = await scopedQuery;
@@ -448,9 +465,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email is required." }, { status: 400 });
   }
 
-  const role = isCompanyAdminRole(auth.role)
-    ? getCompanySafeRole(body.role)
-    : normalizeAppRole(body.role);
+  const role = getCompanySafeRole(body.role);
   const fallbackTeam = auth.team || "General";
   const companyScope = isCompanyAdminRole(auth.role)
     ? await getCompanyScope({
@@ -505,7 +520,7 @@ export async function POST(request: Request) {
   if (inviteError) {
     return NextResponse.json(
       {
-        error: inviteError.message || "Failed to save company invite.",
+        error: formatRoleConstraintError(inviteError.message),
         details: !adminClient ? envStatus : undefined,
       },
       { status: 500 }

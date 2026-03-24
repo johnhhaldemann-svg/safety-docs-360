@@ -18,7 +18,7 @@ type UpdatePayload = {
   accountStatus?: string;
 };
 
-const COMPANY_ASSIGNABLE_ROLES: AppRole[] = ["company_admin", "company_user"];
+const COMPANY_ASSIGNABLE_ROLES: AppRole[] = ["company_admin", "manager", "company_user"];
 
 function getCompanySafeRole(role?: string | null) {
   const normalized = normalizeAppRole(role);
@@ -30,7 +30,7 @@ function getCompanySafeRole(role?: string | null) {
 
 function formatRoleConstraintError(message?: string | null) {
   if ((message ?? "").includes("user_roles_role_check")) {
-    return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow Company Admin and Company User roles.";
+    return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow the current company-scoped roles.";
   }
 
   return message || "Company user update failed.";
@@ -83,9 +83,7 @@ export async function PATCH(
   const body = (await request.json()) as UpdatePayload;
   const adminClient = createSupabaseAdminClient();
 
-  const role = isCompanyAdminRole(auth.role)
-    ? getCompanySafeRole(body.role)
-    : normalizeAppRole(body.role);
+  const role = getCompanySafeRole(body.role);
   const fallbackTeam = auth.team || "General";
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
@@ -129,7 +127,7 @@ export async function PATCH(
       isAdminRole(existingRow.role)
     ) {
       return NextResponse.json(
-        { error: "Managers cannot update administrator accounts." },
+        { error: "Company workspace users cannot update platform administrator accounts." },
         { status: 403 }
       );
     }
@@ -201,7 +199,7 @@ export async function PATCH(
 
   if (isCompanyAdminRole(auth.role) && isAdminRole(currentRoleContext.role)) {
     return NextResponse.json(
-      { error: "Managers cannot update administrator accounts." },
+      { error: "Company workspace users cannot update platform administrator accounts." },
       { status: 403 }
     );
   }
@@ -359,7 +357,7 @@ export async function DELETE(
 
   if (isCompanyAdminRole(auth.role) && isAdminRole(currentRoleContext.role)) {
     return NextResponse.json(
-      { error: "Managers cannot remove administrator accounts." },
+      { error: "Company workspace users cannot remove platform administrator accounts." },
       { status: 403 }
     );
   }

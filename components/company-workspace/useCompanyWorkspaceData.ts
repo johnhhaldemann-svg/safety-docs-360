@@ -63,14 +63,49 @@ export type CompanyProfile = {
 };
 
 export type CompanyJobsite = {
+  id: string;
   name: string;
   location: string;
   lastActivity: string | null;
   totalDocuments: number;
   pendingDocuments: number;
   projectNumber: string;
-  status: "Action needed" | "Active" | "Completed";
+  status: "Planned" | "Action needed" | "Active" | "Completed" | "Archived";
+  rawStatus: "planned" | "active" | "completed" | "archived";
+  projectManager?: string | null;
+  safetyLead?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  notes?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  source: "table" | "document_fallback";
 };
+
+type CompanyJobsiteRow = {
+  id: string;
+  company_id: string;
+  name: string;
+  project_number: string | null;
+  location: string | null;
+  status: string | null;
+  project_manager: string | null;
+  safety_lead: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  archived_at?: string | null;
+};
+
+function normalizeJobsiteStatus(status?: string | null): CompanyJobsite["rawStatus"] {
+  const normalized = (status ?? "").trim().toLowerCase();
+  if (normalized === "planned") return "planned";
+  if (normalized === "completed") return "completed";
+  if (normalized === "archived") return "archived";
+  return "active";
+}
 
 export function formatRelative(timestamp?: string | null, referenceTime = Date.now()) {
   if (!timestamp) return "Recently";
@@ -111,6 +146,7 @@ export function useCompanyWorkspaceData() {
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
   const [companyInvites, setCompanyInvites] = useState<CompanyInvite[]>([]);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
+  const [jobsiteRows, setJobsiteRows] = useState<CompanyJobsiteRow[]>([]);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [referenceTime] = useState(() => Date.now());
 
@@ -133,7 +169,13 @@ export function useCompanyWorkspaceData() {
         return;
       }
 
-      const [meResponse, documentsResponse, creditsResponse, companyUsersResponse] =
+      const [
+        meResponse,
+        documentsResponse,
+        creditsResponse,
+        companyUsersResponse,
+        jobsitesResponse,
+      ] =
         await Promise.all([
           fetch("/api/auth/me", {
             headers: {
@@ -155,6 +197,11 @@ export function useCompanyWorkspaceData() {
               Authorization: `Bearer ${accessToken}`,
             },
           }),
+          fetch("/api/company/jobsites", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }),
         ]);
 
       const meData = (await meResponse.json().catch(() => null)) as
@@ -169,6 +216,9 @@ export function useCompanyWorkspaceData() {
       const companyUsersData = (await companyUsersResponse.json().catch(() => null)) as
         | { users?: CompanyUser[]; invites?: CompanyInvite[] }
         | null;
+      const jobsitesData = (await jobsitesResponse.json().catch(() => null)) as
+        | { jobsites?: CompanyJobsiteRow[] }
+        | null;
 
       setCompanyProfile(meResponse.ok ? meData?.user?.companyProfile ?? null : null);
       setDocuments(documentsResponse.ok ? documentsData?.documents ?? [] : []);
@@ -177,12 +227,14 @@ export function useCompanyWorkspaceData() {
       );
       setCompanyUsers(companyUsersResponse.ok ? companyUsersData?.users ?? [] : []);
       setCompanyInvites(companyUsersResponse.ok ? companyUsersData?.invites ?? [] : []);
+      setJobsiteRows(jobsitesResponse.ok ? jobsitesData?.jobsites ?? [] : []);
     } catch (error) {
       console.error("Failed to load company workspace data:", error);
       setDocuments([]);
       setCompanyUsers([]);
       setCompanyInvites([]);
       setCompanyProfile(null);
+      setJobsiteRows([]);
       setCreditBalance(null);
     }
 
@@ -290,7 +342,8 @@ export function useCompanyWorkspaceData() {
 
     for (const document of documents) {
       const name = document.project_name?.trim() || "General Workspace";
-      const existing = grouped.get(name) ?? {
+      const key = name.toLowerCase();
+      const existing = grouped.get(key) ?? {
         name,
         location: companyLocation,
         lastActivity: null,
@@ -311,31 +364,108 @@ export function useCompanyWorkspaceData() {
         existing.lastActivity = document.created_at;
       }
 
-      grouped.set(name, existing);
+      grouped.set(key, existing);
     }
 
-    return Array.from(grouped.values())
-      .map((jobsite, index) => ({
-        ...jobsite,
-        projectNumber: `SITE-${String(index + 1).padStart(2, "0")}`,
-        status:
-          jobsite.pendingDocuments > 0
-            ? ("Action needed" as const)
-            : jobsite.lastActivity &&
-                referenceTime - new Date(jobsite.lastActivity).getTime() <=
-                  1000 * 60 * 60 * 24 * 21
-              ? ("Active" as const)
-              : ("Completed" as const),
-      }))
+    const fallbackJobsites = Array.from(grouped.values()).map((jobsite) => ({
+      id: `fallback-${jobsite.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "general"}`,
+      name: jobsite.name,
+      location: jobsite.location,
+      lastActivity: jobsite.lastActivity,
+      totalDocuments: jobsite.totalDocuments,
+      pendingDocuments: jobsite.pendingDocuments,
+      projectNumber: "",
+      status:
+        jobsite.pendingDocuments > 0
+          ? ("Action needed" as const)
+          : jobsite.lastActivity &&
+              referenceTime - new Date(jobsite.lastActivity).getTime() <=
+                1000 * 60 * 60 * 24 * 21
+            ? ("Active" as const)
+            : ("Completed" as const),
+      rawStatus:
+        jobsite.pendingDocuments > 0
+          ? ("active" as const)
+          : jobsite.lastActivity &&
+              referenceTime - new Date(jobsite.lastActivity).getTime() <=
+                1000 * 60 * 60 * 24 * 21
+            ? ("active" as const)
+            : ("completed" as const),
+      source: "document_fallback" as const,
+      projectManager: null,
+      safetyLead: null,
+      startDate: null,
+      endDate: null,
+      notes: null,
+      createdAt: null,
+      updatedAt: null,
+    }));
+
+    const merged = new Map<string, CompanyJobsite>();
+
+    for (const row of jobsiteRows) {
+      const key = row.name.trim().toLowerCase();
+      const groupedJobsite = grouped.get(
+        (row.name.trim() || "General Workspace").toLowerCase()
+      );
+      const rawStatus = normalizeJobsiteStatus(row.status);
+      const displayStatus =
+        rawStatus === "archived"
+          ? ("Archived" as const)
+          : rawStatus === "completed"
+            ? ("Completed" as const)
+            : groupedJobsite?.pendingDocuments
+              ? ("Action needed" as const)
+              : rawStatus === "planned"
+                ? ("Planned" as const)
+                : ("Active" as const);
+
+      merged.set(key, {
+        id: row.id,
+        name: row.name,
+        location: row.location?.trim() || groupedJobsite?.location || companyLocation,
+        lastActivity: groupedJobsite?.lastActivity ?? row.updated_at ?? row.created_at ?? null,
+        totalDocuments: groupedJobsite?.totalDocuments ?? 0,
+        pendingDocuments: groupedJobsite?.pendingDocuments ?? 0,
+        projectNumber: row.project_number?.trim() || "",
+        status: displayStatus,
+        rawStatus,
+        projectManager: row.project_manager,
+        safetyLead: row.safety_lead,
+        startDate: row.start_date,
+        endDate: row.end_date,
+        notes: row.notes,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        source: "table",
+      });
+    }
+
+    for (const fallbackJobsite of fallbackJobsites) {
+      const key = fallbackJobsite.name.trim().toLowerCase();
+      if (!merged.has(key)) {
+        merged.set(key, fallbackJobsite);
+      }
+    }
+
+    return Array.from(merged.values())
       .sort((a, b) => {
         const left = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
         const right = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
         return right - left;
-      });
-  }, [companyLocation, documents, referenceTime]);
+      })
+      .map((jobsite, index) => ({
+        ...jobsite,
+        projectNumber:
+          jobsite.projectNumber || `SITE-${String(index + 1).padStart(2, "0")}`,
+      }));
+  }, [companyLocation, documents, jobsiteRows, referenceTime]);
 
   const activeJobsitesCount = useMemo(
-    () => jobsites.filter((jobsite) => jobsite.status === "Active").length,
+    () =>
+      jobsites.filter((jobsite) =>
+        ["Active", "Action needed", "Planned"].includes(jobsite.status)
+      ).length,
     [jobsites]
   );
   const overdueActionsCount = useMemo(

@@ -361,7 +361,13 @@ export default function LibraryPage() {
   }, [documents]);
 
   const isManagerView =
-    viewerRole === "company_admin" || viewerRole === "company_user";
+    viewerRole === "company_admin" ||
+    viewerRole === "manager" ||
+    viewerRole === "company_user";
+  const companyPrimaryAction =
+    viewerRole === "company_admin"
+      ? { href: "/company-users", label: "Manage Company Users" }
+      : { href: "/submit", label: "Submit document" };
 
   const filteredDocuments = useMemo(() => {
     return documents.filter((doc) => {
@@ -568,10 +574,10 @@ export default function LibraryPage() {
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                href={isManagerView ? "/company-users" : "/upload"}
+                href={isManagerView ? companyPrimaryAction.href : "/upload"}
                 className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
               >
-                {isManagerView ? "Manage Company Users" : "Upload a document"}
+                {isManagerView ? companyPrimaryAction.label : "Upload a document"}
               </Link>
               <Link
                 href={isManagerView ? "/dashboard" : "/search"}

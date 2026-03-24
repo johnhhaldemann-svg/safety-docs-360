@@ -54,6 +54,14 @@ const companyAdminQuickLinks: NavItem[] = [
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
+const companyManagerQuickLinks: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", short: "DB" },
+  { href: "/jobsites", label: "Jobsites", short: "JS" },
+  { href: "/library", label: "Documents", short: "DC" },
+  { href: "/field-id-exchange", label: "Field iD Exchange", short: "FX" },
+  { href: "/reports", label: "Reports", short: "RP" },
+];
+
 const companyUserQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/library", label: "Documents", short: "DC" },
@@ -143,6 +151,30 @@ const companyAdminSideSections: NavSection[] = [
     items: [
       { href: "/profile", label: "Construction Profile", short: "CP" },
     ],
+  },
+];
+
+const companyManagerSideSections: NavSection[] = [
+  {
+    title: "Company Operations",
+    items: [
+      { href: "/dashboard", label: "Dashboard", short: "HM" },
+      { href: "/jobsites", label: "Jobsites", short: "JS" },
+      { href: "/library", label: "Documents", short: "DC" },
+      { href: "/field-id-exchange", label: "Field iD Exchange", short: "FX" },
+      { href: "/reports", label: "Reports", short: "RP" },
+    ],
+  },
+  {
+    title: "Workflow",
+    items: [
+      { href: "/submit", label: "Submit Document", short: "SD" },
+      { href: "/upload", label: "Upload File", short: "UF" },
+    ],
+  },
+  {
+    title: "Account",
+    items: [{ href: "/profile", label: "Construction Profile", short: "CP" }],
   },
 ];
 
@@ -290,8 +322,10 @@ export default function AppLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isAdminArea = pathname.startsWith("/admin");
   const isCompanyAdminUser = userRole === "company_admin";
+  const isCompanyManagerUser = userRole === "manager";
   const isCompanyUser = userRole === "company_user";
-  const isCompanyScopedUser = isCompanyAdminUser || isCompanyUser;
+  const isCompanyLeadershipUser = isCompanyAdminUser || isCompanyManagerUser;
+  const isCompanyScopedUser = isCompanyLeadershipUser || isCompanyUser;
   const canAccessInternalAdmin = Boolean(permissionMap?.can_access_internal_admin);
   const needsProfileSetup = !canAccessInternalAdmin && !profileComplete;
   const needsCompanySetup =
@@ -303,6 +337,9 @@ export default function AppLayout({
     }
     if (!isAdminArea && isCompanyAdminUser) {
       return companyAdminSideSections;
+    }
+    if (!isAdminArea && isCompanyManagerUser) {
+      return companyManagerSideSections;
     }
     if (!isAdminArea && isCompanyUser) {
       return companyUserSideSections;
@@ -322,6 +359,7 @@ export default function AppLayout({
     canAccessInternalAdmin,
     isAdminArea,
     isCompanyAdminUser,
+    isCompanyManagerUser,
     isCompanyUser,
     needsCompanySetup,
   ]);
@@ -349,6 +387,9 @@ export default function AppLayout({
     if (!isAdminArea && isCompanyAdminUser) {
       return companyAdminQuickLinks;
     }
+    if (!isAdminArea && isCompanyManagerUser) {
+      return companyManagerQuickLinks;
+    }
     if (!isAdminArea && isCompanyUser) {
       return companyUserQuickLinks;
     }
@@ -361,6 +402,7 @@ export default function AppLayout({
     canAccessInternalAdmin,
     isAdminArea,
     isCompanyAdminUser,
+    isCompanyManagerUser,
     isCompanyUser,
     needsCompanySetup,
   ]);
@@ -450,6 +492,7 @@ export default function AppLayout({
           !needsProfile &&
           !Boolean(data?.user?.permissionMap?.can_access_internal_admin) &&
           nextRole !== "company_admin" &&
+          nextRole !== "manager" &&
           nextRole !== "company_user" &&
           !nextCompanyId;
 
@@ -478,10 +521,14 @@ export default function AppLayout({
           return;
         }
 
-        if (nextRole === "company_admin" || nextRole === "company_user") {
+        if (
+          nextRole === "company_admin" ||
+          nextRole === "manager" ||
+          nextRole === "company_user"
+        ) {
           const companyAllowedRoutes = ["/dashboard", "/library", "/profile"];
 
-          if (nextRole === "company_admin") {
+          if (nextRole === "company_admin" || nextRole === "manager") {
             companyAllowedRoutes.push("/jobsites", "/field-id-exchange", "/reports");
           }
 
@@ -575,8 +622,8 @@ export default function AppLayout({
     : needsCompanySetup
       ? "Finish company setup before inviting users"
       : isCompanyScopedUser
-        ? isCompanyAdminUser
-          ? "Jobsites, documents, users, and field operations"
+        ? isCompanyLeadershipUser
+          ? "Jobsites, documents, and field operations"
           : "Company documents, uploads, and assigned work"
         : "Project document workspace";
 
@@ -940,8 +987,8 @@ export default function AppLayout({
                               : needsCompanySetup
                                 ? "Create your company workspace before inviting employees or opening company tools"
                                 : isCompanyScopedUser
-                                  ? isCompanyAdminUser
-                                    ? "Run the company board: documents, jobsites, team access, and field operations"
+                                  ? isCompanyLeadershipUser
+                                    ? "Run company operations with documents, jobsites, and field tools scoped to your own company"
                                     : "Open company documents, upload records, and work inside your assigned company workspace"
                                   : "Safety document workspace and active project tools"}
                           </p>

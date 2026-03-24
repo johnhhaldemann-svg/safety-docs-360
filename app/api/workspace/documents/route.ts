@@ -59,7 +59,7 @@ export async function GET(request: Request) {
         return false;
       }
 
-      if (isCompanyAdminRole(auth.role)) {
+      if (isCompanyAdminRole(auth.role) || auth.role === "manager") {
         return companyScope.companyId ? companyId === companyScope.companyId : userId === auth.user.id;
       }
 

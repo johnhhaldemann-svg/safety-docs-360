@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   ActivityFeed,
   EmptyState,
@@ -14,6 +14,7 @@ import {
   isSubmittedDocumentStatus,
   normalizeDocumentStatus,
 } from "@/lib/documentStatus";
+import type { CompanyJobsite } from "@/components/company-workspace/useCompanyWorkspaceData";
 
 type DocumentRow = {
   id: string;
@@ -111,6 +112,7 @@ export function CompanyAdminDashboard({
   companyUsers,
   companyInvites,
   companyProfile,
+  jobsites,
   creditBalance,
 }: {
   loading: boolean;
@@ -118,6 +120,7 @@ export function CompanyAdminDashboard({
   companyUsers: CompanyUser[];
   companyInvites: CompanyInvite[];
   companyProfile: CompanyProfile | null;
+  jobsites: CompanyJobsite[];
   creditBalance: number | null;
 }) {
   const [selectedJobsite, setSelectedJobsite] = useState("all");
@@ -165,64 +168,6 @@ export function CompanyAdminDashboard({
     (document) =>
       referenceTime - new Date(document.created_at).getTime() <= 1000 * 60 * 60 * 24 * 7
   );
-
-  const jobsites = useMemo(() => {
-    const grouped = new Map<
-      string,
-      {
-        name: string;
-        location: string;
-        lastActivity: string | null;
-        totalDocuments: number;
-        pendingDocuments: number;
-      }
-    >();
-
-    for (const document of documents) {
-      const name = document.project_name?.trim() || "General Workspace";
-      const existing = grouped.get(name) ?? {
-        name,
-        location: companyLocation,
-        lastActivity: null,
-        totalDocuments: 0,
-        pendingDocuments: 0,
-      };
-
-      existing.totalDocuments += 1;
-      if (
-        isSubmittedDocumentStatus(document.status, Boolean(document.final_file_path))
-      ) {
-        existing.pendingDocuments += 1;
-      }
-      if (
-        !existing.lastActivity ||
-        new Date(document.created_at).getTime() > new Date(existing.lastActivity).getTime()
-      ) {
-        existing.lastActivity = document.created_at;
-      }
-
-      grouped.set(name, existing);
-    }
-
-    return Array.from(grouped.values())
-      .map((jobsite, index) => ({
-        ...jobsite,
-        projectNumber: `SITE-${String(index + 1).padStart(2, "0")}`,
-        status:
-          jobsite.pendingDocuments > 0
-            ? "Action needed"
-            : jobsite.lastActivity &&
-                referenceTime - new Date(jobsite.lastActivity).getTime() <=
-                  1000 * 60 * 60 * 24 * 21
-              ? "Active"
-              : "Completed",
-      }))
-      .sort((a, b) => {
-        const left = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
-        const right = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
-        return right - left;
-      });
-  }, [companyLocation, documents, referenceTime]);
 
   const jobsiteOptions = ["all", ...jobsites.map((jobsite) => jobsite.name)];
   const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -273,7 +218,9 @@ export function CompanyAdminDashboard({
     ).length;
   const notificationCount =
     pendingUsers.length + pendingDocuments.length + companyInvites.length;
-  const activeJobsitesCount = jobsites.filter((jobsite) => jobsite.status === "Active").length;
+  const activeJobsitesCount = jobsites.filter((jobsite) =>
+    ["Active", "Action needed", "Planned"].includes(jobsite.status)
+  ).length;
 
   const kpiCards = [
     {

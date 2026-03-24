@@ -37,7 +37,6 @@ const roleOptions = [
   "All Roles",
   "Super Admin",
   "Admin",
-  "Operations Manager",
   "Editor",
   "Viewer",
 ];
@@ -45,7 +44,6 @@ const roleOptions = [
 const internalRoles = new Set([
   "Super Admin",
   "Admin",
-  "Operations Manager",
   "Editor",
   "Viewer",
 ]);
@@ -600,8 +598,8 @@ export default function AdminUsersPage() {
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-semibold text-slate-900">Platform Staff</p>
             <p className="mt-2 text-sm text-slate-600">
-              Super Admin, Admin, Operations Manager, Editor, and Viewer accounts for your
-              internal employees are managed here.
+              Super Admin, Admin, Editor, and Viewer accounts for your internal employees
+              are managed here.
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -620,8 +618,8 @@ export default function AdminUsersPage() {
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-semibold text-slate-900">Company Employees</p>
             <p className="mt-2 text-sm text-slate-600">
-              Company admins invite, approve, and manage their own employees from inside their
-              company workspace.
+              Company admins invite, approve, and manage Company Admin, Operations Manager,
+              and Company User roles from inside their own company workspace.
             </p>
           </div>
         </div>
