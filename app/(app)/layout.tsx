@@ -49,6 +49,8 @@ const companyAdminQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/jobsites", label: "Jobsites", short: "JS" },
   { href: "/library", label: "Documents", short: "DC" },
+  { href: "/peshep", label: "PESHEP", short: "PB" },
+  { href: "/csep", label: "CSEP", short: "CS" },
   { href: "/company-users", label: "Users", short: "US" },
   { href: "/field-id-exchange", label: "Field iD Exchange", short: "FX" },
   { href: "/reports", label: "Reports", short: "RP" },
@@ -58,6 +60,8 @@ const companyManagerQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/jobsites", label: "Jobsites", short: "JS" },
   { href: "/library", label: "Documents", short: "DC" },
+  { href: "/peshep", label: "PESHEP", short: "PB" },
+  { href: "/csep", label: "CSEP", short: "CS" },
   { href: "/field-id-exchange", label: "Field iD Exchange", short: "FX" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
@@ -144,6 +148,8 @@ const companyAdminSideSections: NavSection[] = [
     items: [
       { href: "/submit", label: "Submit Document", short: "SD" },
       { href: "/upload", label: "Upload File", short: "UF" },
+      { href: "/peshep", label: "PESHEP Builder", short: "PB" },
+      { href: "/csep", label: "CSEP Builder", short: "CS" },
     ],
   },
   {
@@ -170,6 +176,8 @@ const companyManagerSideSections: NavSection[] = [
     items: [
       { href: "/submit", label: "Submit Document", short: "SD" },
       { href: "/upload", label: "Upload File", short: "UF" },
+      { href: "/peshep", label: "PESHEP Builder", short: "PB" },
+      { href: "/csep", label: "CSEP Builder", short: "CS" },
     ],
   },
   {
@@ -545,7 +553,7 @@ export default function AppLayout({
             data?.user?.permissionMap?.can_edit_documents ||
             data?.user?.permissionMap?.can_submit_documents
           ) {
-            companyAllowedRoutes.push("/submit", "/upload");
+            companyAllowedRoutes.push("/submit", "/upload", "/peshep", "/csep");
           }
 
           if (data?.user?.permissionMap?.can_manage_company_users) {
