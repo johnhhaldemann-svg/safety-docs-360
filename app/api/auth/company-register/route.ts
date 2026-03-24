@@ -67,6 +67,9 @@ export async function POST(request: Request) {
   const publicClient = createPublicClient();
   const adminClient = createSupabaseAdminClient();
   const envStatus = getSupabaseServerEnvStatus();
+  const agreementConfig = await getAgreementConfig(adminClient ?? undefined).catch(() =>
+    getDefaultAgreementConfig()
+  );
 
   if (!publicClient) {
     return NextResponse.json(
@@ -143,6 +146,24 @@ export async function POST(request: Request) {
       });
 
     if (signupRequestResult.error) {
+      if (
+        (signupRequestResult.error.message ?? "").includes(
+          "company_signup_requests_pending_email_idx"
+        )
+      ) {
+        return NextResponse.json(
+          {
+            success: true,
+            message:
+              "A company workspace request is already pending for this email. You do not need to sign up again.",
+            agreementVersion: agreementConfig.version,
+            warning:
+              "Use the same email to sign in after approval and the company workspace will be attached to that account.",
+          },
+          { status: 200 }
+        );
+      }
+
       return NextResponse.json(
         {
           error:
@@ -153,10 +174,6 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
-
-    const agreementConfig = await getAgreementConfig(undefined).catch(() =>
-      getDefaultAgreementConfig()
-    );
 
     return NextResponse.json({
       success: true,
@@ -286,9 +303,6 @@ export async function POST(request: Request) {
     ),
   ]);
 
-  const agreementConfig = await getAgreementConfig(adminClient).catch(() =>
-    getDefaultAgreementConfig()
-  );
   const agreementAcceptResult = await acceptUserAgreement({
     supabase: adminClient,
     userId,

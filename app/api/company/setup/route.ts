@@ -196,6 +196,21 @@ export async function POST(request: Request) {
     });
 
     if (signupRequestResult.error) {
+      if (
+        (signupRequestResult.error.message ?? "").includes(
+          "company_signup_requests_pending_email_idx"
+        )
+      ) {
+        return NextResponse.json({
+          success: true,
+          mode: "request",
+          message:
+            "Your company setup request is already in internal review under this email.",
+          warning:
+            "You do not need to submit another request. Once approved, sign back in with this same account and the company workspace will open automatically.",
+        });
+      }
+
       return NextResponse.json(
         {
           error:

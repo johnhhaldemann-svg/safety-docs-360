@@ -45,15 +45,33 @@ export function buildCompanyInviteSignupUrl(email: string) {
   return url.toString();
 }
 
+export function buildCompanyInviteLoginUrl(email: string) {
+  const baseUrl = getBaseUrl();
+
+  if (!baseUrl) {
+    return null;
+  }
+
+  const url = new URL("/login", baseUrl);
+  url.searchParams.set("email", email);
+  url.searchParams.set("invite", "company");
+  return url.toString();
+}
+
 export async function sendCompanyInviteEmail(params: {
   toEmail: string;
   companyName: string;
   roleLabel: string;
   invitedByName: string;
+  mode?: "signup" | "login";
 }) {
   const resendApiKey = readEnv("RESEND_API_KEY");
   const fromEmail = getInviteFromEmail();
-  const signupUrl = buildCompanyInviteSignupUrl(params.toEmail);
+  const inviteMode = params.mode ?? "signup";
+  const destinationUrl =
+    inviteMode === "login"
+      ? buildCompanyInviteLoginUrl(params.toEmail)
+      : buildCompanyInviteSignupUrl(params.toEmail);
 
   if (!resendApiKey || !fromEmail) {
     return {
@@ -63,11 +81,11 @@ export async function sendCompanyInviteEmail(params: {
     };
   }
 
-  if (!signupUrl) {
+  if (!destinationUrl) {
     return {
       sent: false,
       warning:
-        "Invite saved, but the signup link could not be generated. Add NEXT_PUBLIC_SITE_URL in Vercel to send invite emails automatically.",
+        "Invite saved, but the workspace link could not be generated. Add NEXT_PUBLIC_SITE_URL in Vercel to send invite emails automatically.",
     };
   }
 
@@ -75,7 +93,13 @@ export async function sendCompanyInviteEmail(params: {
   const safeCompanyName = escapeHtml(params.companyName);
   const safeRoleLabel = escapeHtml(params.roleLabel);
   const safeInvitedByName = escapeHtml(params.invitedByName);
-  const safeSignupUrl = escapeHtml(signupUrl);
+  const safeDestinationUrl = escapeHtml(destinationUrl);
+  const actionLabel =
+    inviteMode === "login" ? "Access Your Workspace" : "Create Your Account";
+  const actionCopy =
+    inviteMode === "login"
+      ? "Your company workspace has been approved and your existing account is already linked. Sign in with this email address to open the workspace."
+      : "Create your account with this invited email address and your company access will be attached automatically.";
 
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:640px;margin:0 auto;padding:24px;">
@@ -86,16 +110,16 @@ export async function sendCompanyInviteEmail(params: {
           ${safeInvitedByName} invited you to join the company workspace as <strong>${safeRoleLabel}</strong>.
         </p>
         <p style="margin:0 0 24px;color:#475569;">
-          Create your account with this invited email address and your company access will be attached automatically.
+          ${escapeHtml(actionCopy)}
         </p>
         <p style="margin:0 0 24px;">
-          <a href="${safeSignupUrl}" style="display:inline-block;background:#0284c7;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:14px;font-weight:700;">
-            Create Your Account
+          <a href="${safeDestinationUrl}" style="display:inline-block;background:#0284c7;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:14px;font-weight:700;">
+            ${actionLabel}
           </a>
         </p>
         <p style="margin:0;color:#64748b;font-size:14px;">
           If the button does not open, use this link:<br />
-          <a href="${safeSignupUrl}" style="color:#0284c7;">${safeSignupUrl}</a>
+          <a href="${safeDestinationUrl}" style="color:#0284c7;">${safeDestinationUrl}</a>
         </p>
       </div>
     </div>
@@ -104,8 +128,8 @@ export async function sendCompanyInviteEmail(params: {
   const text = [
     `You're invited to join ${params.companyName} on Safety360Docs.`,
     `${params.invitedByName} invited you as ${params.roleLabel}.`,
-    "Create your account with this invited email address and your company access will be attached automatically.",
-    signupUrl,
+    actionCopy,
+    destinationUrl,
   ].join("\n\n");
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -135,6 +159,6 @@ export async function sendCompanyInviteEmail(params: {
 
   return {
     sent: true,
-    signupUrl,
+    signupUrl: destinationUrl,
   };
 }

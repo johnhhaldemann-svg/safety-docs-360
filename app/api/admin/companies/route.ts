@@ -500,6 +500,7 @@ export async function PATCH(request: Request) {
     companyName,
     roleLabel: ownerLinkMode === "linked_existing_user" ? "Approved Company Owner" : "Company Owner",
     invitedByName: auth.user.email?.trim() || "Internal Admin",
+    mode: ownerLinkMode === "linked_existing_user" ? "login" : "signup",
   });
 
   return NextResponse.json({
