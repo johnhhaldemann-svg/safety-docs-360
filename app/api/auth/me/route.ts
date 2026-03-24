@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { getCompanyScope } from "@/lib/companyScope";
 import {
   authorizeRequest,
@@ -14,7 +15,11 @@ import {
   getUserAgreementRecord,
 } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
-import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import {
+  createSupabaseAdminClient,
+  getSupabaseAnonKey,
+  getSupabaseServerUrl,
+} from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -52,6 +57,41 @@ type ApprovedCompanyOwnerRow = {
   linked_role: string;
   account_status: string;
 };
+
+type CompanySignupRequestLookupRow = {
+  id: string;
+  company_name: string | null;
+  primary_contact_email: string | null;
+  owner_user_id: string | null;
+  status: string | null;
+  account_status: string | null;
+  created_at: string | null;
+};
+
+function createRequestScopedSupabaseClient(request: Request) {
+  const supabaseUrl = getSupabaseServerUrl();
+  const supabaseAnonKey = getSupabaseAnonKey();
+  const authorization = request.headers.get("authorization") || "";
+  const token = authorization.startsWith("Bearer ")
+    ? authorization.slice(7).trim()
+    : "";
+
+  if (!supabaseUrl || !supabaseAnonKey || !token) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
 
 async function applyPendingCompanyInvite(params: {
   supabase: {
@@ -329,6 +369,83 @@ async function applyApprovedCompanyOwnerLink(params: {
   ]);
 }
 
+async function getPendingCompanySignupRequest(params: {
+  supabase: {
+    from: (table: string) => unknown;
+  };
+  userId: string;
+  email: string;
+}) {
+  const normalizedEmail = params.email.trim().toLowerCase();
+
+  const ownerResult = await (
+    params.supabase.from("company_signup_requests") as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          eq: (column: string, value: string) => {
+            order: (
+              column: string,
+              options?: Record<string, unknown>
+            ) => {
+              limit: (count: number) => Promise<{
+                data: unknown;
+                error: { message?: string | null } | null;
+              }>;
+            };
+          };
+        };
+      };
+    }
+  )
+    .select(
+      "id, company_name, primary_contact_email, owner_user_id, status, account_status, created_at"
+    )
+    .eq("owner_user_id", params.userId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const ownerRow =
+    ((ownerResult.data as CompanySignupRequestLookupRow[] | null) ?? [])[0] ?? null;
+
+  if (!ownerResult.error && ownerRow) {
+    return ownerRow;
+  }
+
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const emailResult = await (
+    params.supabase.from("company_signup_requests") as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          eq: (column: string, value: string) => {
+            order: (
+              column: string,
+              options?: Record<string, unknown>
+            ) => {
+              limit: (count: number) => Promise<{
+                data: unknown;
+                error: { message?: string | null } | null;
+              }>;
+            };
+          };
+        };
+      };
+    }
+  )
+    .select(
+      "id, company_name, primary_contact_email, owner_user_id, status, account_status, created_at"
+    )
+    .eq("primary_contact_email", normalizedEmail)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  return ((emailResult.data as CompanySignupRequestLookupRow[] | null) ?? [])[0] ?? null;
+}
+
 function getFallbackFullName(user: {
   email?: string | null;
   user_metadata?: Record<string, unknown>;
@@ -359,6 +476,7 @@ export async function GET(request: Request) {
     fallbackTeam: auth.team,
   });
   const adminClient = createSupabaseAdminClient();
+  const requestScopedSupabase = createRequestScopedSupabaseClient(request);
 
   const shouldAutoResolveCompanyAccess =
     !initialCompanyScope.companyId &&
@@ -367,7 +485,7 @@ export async function GET(request: Request) {
 
   if (shouldAutoResolveCompanyAccess) {
     await applyPendingCompanyInvite({
-      supabase: auth.supabase as never,
+      supabase: (requestScopedSupabase ?? auth.supabase) as never,
       adminClient,
       userId: auth.user.id,
       email: auth.user.email ?? "",
@@ -375,7 +493,7 @@ export async function GET(request: Request) {
       appMetadata: auth.user.app_metadata ?? undefined,
     });
     await applyApprovedCompanyOwnerLink({
-      supabase: auth.supabase as never,
+      supabase: (requestScopedSupabase ?? auth.supabase) as never,
       adminClient,
       userId: auth.user.id,
       email: auth.user.email ?? "",
@@ -413,6 +531,14 @@ export async function GET(request: Request) {
         fallbackTeam: auth.team,
       })
     : initialCompanyScope;
+  const pendingCompanySignupRequest =
+    !companyScope.companyId && !isAdminRole(refreshedRoleContext.role)
+      ? await getPendingCompanySignupRequest({
+          supabase: auth.supabase as never,
+          userId: auth.user.id,
+          email: auth.user.email ?? "",
+        })
+      : null;
   const companyProfile =
     companyScope.companyId
       ? await auth.supabase
@@ -434,6 +560,14 @@ export async function GET(request: Request) {
     ? ((userProfileResult.data as UserProfileRow | null) ?? null)
     : null;
   const fallbackFullName = getFallbackFullName(auth.user);
+  const effectiveAccountStatus =
+    pendingCompanySignupRequest && refreshedRoleContext.accountStatus === "active"
+      ? "pending"
+      : refreshedRoleContext.accountStatus;
+  const effectiveCompanyName =
+    companyScope.companyName ||
+    pendingCompanySignupRequest?.company_name?.trim() ||
+    "";
   const acceptedTerms = Boolean(
     agreementResult.data?.accepted_terms &&
       (agreementResult.data?.terms_version ?? "") === agreementConfig.version
@@ -447,7 +581,7 @@ export async function GET(request: Request) {
       roleLabel: formatAppRole(refreshedRoleContext.role),
       team: refreshedRoleContext.team,
       companyId: companyScope.companyId,
-      companyName: companyScope.companyName,
+      companyName: effectiveCompanyName,
       profile: {
         userId: auth.user.id,
         fullName: userProfile?.full_name?.trim() || fallbackFullName,
@@ -472,7 +606,15 @@ export async function GET(request: Request) {
       isAdmin: isAdminRole(refreshedRoleContext.role),
       permissions: getRolePermissions(refreshedRoleContext.role),
       permissionMap: getPermissionMap(refreshedRoleContext.role),
-      accountStatus: refreshedRoleContext.accountStatus,
+      accountStatus: effectiveAccountStatus,
+      pendingCompanySignupRequest:
+        pendingCompanySignupRequest && !companyScope.companyId
+          ? {
+              id: pendingCompanySignupRequest.id,
+              companyName: pendingCompanySignupRequest.company_name?.trim() || "",
+              status: pendingCompanySignupRequest.status?.trim() || "pending",
+            }
+          : null,
       acceptedTerms,
       acceptedTermsAt: agreementResult.data?.accepted_at ?? null,
       termsVersion: agreementResult.data?.terms_version ?? TERMS_VERSION,
