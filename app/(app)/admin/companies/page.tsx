@@ -591,6 +591,12 @@ export default function AdminCompaniesPage() {
                               </div>
                             </div>
                             <div className="flex flex-wrap justify-end gap-3">
+                              <Link
+                                href={`/admin/companies/${company.id}`}
+                                className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                              >
+                                View Company
+                              </Link>
                               <button
                                 type="button"
                                 onClick={() =>
