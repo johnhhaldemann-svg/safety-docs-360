@@ -66,6 +66,18 @@ type FallbackUserRoleRow = {
   created_at?: string | null;
 };
 
+type RpcCompanyUserRow = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  role: string | null;
+  team: string | null;
+  status: string | null;
+  created_at: string | null;
+  last_sign_in_at: string | null;
+  email_confirmed_at: string | null;
+};
+
 function getDisplayName(user: {
   email?: string | null;
   user_metadata?: Record<string, unknown>;
@@ -217,35 +229,58 @@ export async function GET(request: Request, context: RouteContext) {
       };
     });
   } else {
-    const roleRowsResult = await auth.supabase
-      .from("user_roles")
-      .select("user_id, role, team, company_id, account_status, created_at")
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false });
+    const rpcResult = await (
+      auth.supabase as {
+        rpc: (
+          fn: string,
+          args: Record<string, unknown>
+        ) => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
+      }
+    ).rpc("admin_list_company_users", {
+      target_company_id: companyId,
+    });
 
-    if (roleRowsResult.error) {
-      return NextResponse.json(
-        {
-          error: "Missing Supabase service role configuration.",
-          details: envStatus,
-        },
-        { status: 500 }
-      );
+    if (!rpcResult.error) {
+      users = ((rpcResult.data as RpcCompanyUserRow[] | null) ?? []).map((row) => ({
+        id: row.id,
+        email: row.email ?? "",
+        name: row.name?.trim() || (row.email ? row.email.split("@")[0] : "Unnamed User"),
+        role: formatAppRole(row.role),
+        status: row.status?.trim() || "Active",
+        created_at: row.created_at,
+        last_sign_in_at: row.last_sign_in_at,
+      }));
+    } else {
+      const roleRowsResult = await auth.supabase
+        .from("user_roles")
+        .select("user_id, role, team, company_id, account_status, created_at")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
+
+      if (roleRowsResult.error) {
+        return NextResponse.json(
+          {
+            error: "Missing Supabase service role configuration.",
+            details: envStatus,
+          },
+          { status: 500 }
+        );
+      }
+
+      const roleRows = (roleRowsResult.data as FallbackUserRoleRow[] | null) ?? [];
+      users = roleRows.map((row) => ({
+        id: row.user_id,
+        email: row.user_id === auth.user.id ? auth.user.email ?? "" : "",
+        name:
+          row.user_id === auth.user.id
+            ? getDisplayName(auth.user)
+            : `User ${row.user_id.slice(0, 8)}`,
+        role: formatAppRole(row.role),
+        status: formatAccountStatus(row.account_status),
+        created_at: row.created_at ?? null,
+        last_sign_in_at: null,
+      }));
     }
-
-    const roleRows = (roleRowsResult.data as FallbackUserRoleRow[] | null) ?? [];
-    users = roleRows.map((row) => ({
-      id: row.user_id,
-      email: row.user_id === auth.user.id ? auth.user.email ?? "" : "",
-      name:
-        row.user_id === auth.user.id
-          ? getDisplayName(auth.user)
-          : `User ${row.user_id.slice(0, 8)}`,
-      role: formatAppRole(row.role),
-      status: formatAccountStatus(row.account_status),
-      created_at: row.created_at ?? null,
-      last_sign_in_at: null,
-    }));
   }
 
   const userDirectory = new Map(
@@ -406,6 +441,8 @@ export async function GET(request: Request, context: RouteContext) {
     activity,
     warning: adminClient
       ? null
-      : "Showing partial company directory because the Supabase service role key is unavailable at runtime.",
+      : users.some((user) => user.email && !user.name.startsWith("User "))
+        ? "Showing database-backed company directory fallback because the Supabase service role key is unavailable at runtime."
+        : "Showing partial company directory because the Supabase service role key is unavailable at runtime.",
   });
 }
