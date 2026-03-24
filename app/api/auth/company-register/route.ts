@@ -207,6 +207,7 @@ export async function POST(request: Request) {
       country,
       primary_contact_name: fullName,
       primary_contact_email: email,
+      owner_user_id: userId,
       requested_role: "company_admin",
       account_status: "pending",
       status: "pending",

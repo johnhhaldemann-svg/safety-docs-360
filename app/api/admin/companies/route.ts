@@ -43,6 +43,7 @@ type CompanyDocumentRow = {
 
 type CompanySignupRequestRow = {
   id: string;
+  owner_user_id: string | null;
   company_name: string | null;
   industry: string | null;
   website: string | null;
@@ -138,7 +139,7 @@ export async function GET(request: Request) {
     adminClient
       .from("company_signup_requests")
       .select(
-        "id, company_name, industry, website, address_line_1, city, state_region, postal_code, country, primary_contact_name, primary_contact_email, phone, requested_role, reviewed_at, reviewed_by, notes, account_status, status, created_at"
+        "id, owner_user_id, company_name, industry, website, address_line_1, city, state_region, postal_code, country, primary_contact_name, primary_contact_email, phone, requested_role, reviewed_at, reviewed_by, notes, account_status, status, created_at"
       )
       .eq("status", "pending")
       .order("created_at", { ascending: false }),
@@ -226,7 +227,7 @@ export async function PATCH(request: Request) {
   const signupRequestResult = await supabase
     .from("company_signup_requests")
     .select(
-      "id, company_name, industry, website, address_line_1, city, state_region, postal_code, country, primary_contact_name, primary_contact_email, phone, requested_role, notes, account_status, status, created_at"
+      "id, owner_user_id, company_name, industry, website, address_line_1, city, state_region, postal_code, country, primary_contact_name, primary_contact_email, phone, requested_role, notes, account_status, status, created_at"
     )
     .eq("id", requestId)
     .maybeSingle();
@@ -349,29 +350,45 @@ export async function PATCH(request: Request) {
   }
 
   let ownerLinkMode: "linked_existing_user" | "invite_created" = "invite_created";
+  const ownerUserIdFromRequest = signupRequest.owner_user_id?.trim() ?? "";
+  let linkedOwnerUserId: string | null = ownerUserIdFromRequest || null;
 
   if (adminClient) {
-    const existingUserResult = await findAuthUserByEmail({
-      adminClient,
-      email: primaryContactEmail,
-    });
+    let existingOwnerUser = null;
+    let existingUserError = null;
 
-    if (existingUserResult.error) {
+    if (ownerUserIdFromRequest) {
+      const ownerLookupResult = await adminClient.auth.admin.getUserById(ownerUserIdFromRequest);
+      existingOwnerUser = ownerLookupResult.data.user ?? null;
+      existingUserError = ownerLookupResult.error;
+    }
+
+    if (!existingOwnerUser && !existingUserError) {
+      const existingUserResult = await findAuthUserByEmail({
+        adminClient,
+        email: primaryContactEmail,
+      });
+      existingOwnerUser = existingUserResult.user;
+      existingUserError = existingUserResult.error;
+    }
+
+    if (existingUserError) {
       return NextResponse.json(
         {
           error:
-            existingUserResult.error.message ||
+            existingUserError.message ||
             "The company workspace was created, but the company owner account could not be looked up.",
         },
         { status: 500 }
       );
     }
 
-    if (existingUserResult.user?.id) {
+    if (existingOwnerUser?.id) {
       ownerLinkMode = "linked_existing_user";
-      const ownerUserId = existingUserResult.user.id;
+      const ownerUserId = existingOwnerUser.id;
+      linkedOwnerUserId = ownerUserId;
       const mergedUserMetadata = {
-        ...(existingUserResult.user.user_metadata ?? {}),
+        ...(existingOwnerUser.user_metadata ?? {}),
         role: requestedRole,
         team: companyName,
         company_id: companyData.id,
@@ -379,7 +396,7 @@ export async function PATCH(request: Request) {
         company_name: companyName,
       };
       const mergedAppMetadata = {
-        ...(existingUserResult.user.app_metadata ?? {}),
+        ...(existingOwnerUser.app_metadata ?? {}),
         role: requestedRole,
         team: companyName,
         company_id: companyData.id,
@@ -475,13 +492,14 @@ export async function PATCH(request: Request) {
 
   const approveResult = await supabase
     .from("company_signup_requests")
-    .update({
-      status: "approved",
-      account_status: "active",
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: auth.user.id,
-      notes,
-    })
+      .update({
+        status: "approved",
+        account_status: "active",
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: auth.user.id,
+        notes,
+        owner_user_id: linkedOwnerUserId,
+      })
     .eq("id", requestId);
 
   if (approveResult.error) {
@@ -508,10 +526,10 @@ export async function PATCH(request: Request) {
     message: emailResult.sent
       ? ownerLinkMode === "linked_existing_user"
         ? "Workspace approved. The existing company owner account was linked and the owner was emailed to sign in."
-        : "Workspace approved. The company owner email was sent instructions to create the first account."
+        : "Workspace approved. The company owner email was sent sign-in instructions."
       : ownerLinkMode === "linked_existing_user"
         ? "Workspace approved. The existing company owner account was linked and can now sign in."
-        : "Workspace approved. The company owner can now go to login, choose Create Account, and use the approved email.",
+        : "Workspace approved. The company owner can now sign in with the approved email.",
     warning: emailResult.sent ? null : emailResult.warning,
   });
 }
