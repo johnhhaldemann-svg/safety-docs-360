@@ -32,6 +32,10 @@ type CompanyDetail = {
   primaryContactEmail: string;
   status: string;
   createdAt?: string | null;
+  archivedAt?: string | null;
+  archivedByEmail?: string;
+  restoredAt?: string | null;
+  restoredByEmail?: string;
 };
 
 type CompanySummary = {
@@ -368,6 +372,18 @@ export default function AdminCompanyDetailPage({
                 <div className="mt-2">Industry: {company.industry || "Not provided"}</div>
                 <div className="mt-1">Website: {company.website || "Not provided"}</div>
                 <div className="mt-1">Created {formatRelative(company.createdAt)}</div>
+                {company.archivedAt ? (
+                  <div className="mt-1">
+                    Archived {formatRelative(company.archivedAt)}
+                    {company.archivedByEmail ? ` by ${company.archivedByEmail}` : ""}
+                  </div>
+                ) : null}
+                {company.restoredAt ? (
+                  <div className="mt-1">
+                    Restored {formatRelative(company.restoredAt)}
+                    {company.restoredByEmail ? ` by ${company.restoredByEmail}` : ""}
+                  </div>
+                ) : null}
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -442,6 +458,46 @@ export default function AdminCompanyDetailPage({
       </SectionCard>
 
       <section className="grid gap-8 xl:grid-cols-2">
+        <SectionCard
+          title="Archive History"
+          description="Audit trail for workspace lifecycle changes."
+        >
+          {loading ? (
+            <InlineMessage>Loading archive history...</InlineMessage>
+          ) : !company ? (
+            <EmptyState
+              title="No company history available"
+              description="This company workspace could not be loaded."
+            />
+          ) : !company.archivedAt && !company.restoredAt ? (
+            <EmptyState
+              title="No archive events yet"
+              description="Archive and restore actions will appear here once this workspace lifecycle changes."
+            />
+          ) : (
+            <div className="space-y-3">
+              {company.archivedAt ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <div className="font-semibold text-slate-900">Workspace archived</div>
+                  <div className="mt-1 text-sm text-slate-500">
+                    {formatRelative(company.archivedAt)}
+                    {company.archivedByEmail ? ` by ${company.archivedByEmail}` : ""}
+                  </div>
+                </div>
+              ) : null}
+              {company.restoredAt ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <div className="font-semibold text-slate-900">Workspace restored</div>
+                  <div className="mt-1 text-sm text-slate-500">
+                    {formatRelative(company.restoredAt)}
+                    {company.restoredByEmail ? ` by ${company.restoredByEmail}` : ""}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </SectionCard>
+
         <SectionCard
           title="Pending Invites"
           description="Invites still waiting to be claimed or accepted."

@@ -24,6 +24,10 @@ type CompanyRow = {
   primary_contact_email: string | null;
   status: string | null;
   created_at: string | null;
+  archived_at?: string | null;
+  archived_by_email?: string | null;
+  restored_at?: string | null;
+  restored_by_email?: string | null;
 };
 
 type CompanyMembershipRow = {
@@ -125,9 +129,7 @@ export async function GET(request: Request, context: RouteContext) {
   const [companyResult, membershipsResult, invitesResult, documentsResult] = await Promise.all([
     supabase
       .from("companies")
-      .select(
-        "id, name, team_key, industry, phone, website, address_line_1, city, state_region, postal_code, country, primary_contact_name, primary_contact_email, status, created_at"
-      )
+      .select("*")
       .eq("id", companyId)
       .maybeSingle(),
     supabase
@@ -278,6 +280,10 @@ export async function GET(request: Request, context: RouteContext) {
       primaryContactEmail: company.primary_contact_email?.trim() || "",
       status: company.status?.trim() || "active",
       createdAt: company.created_at,
+      archivedAt: company.archived_at ?? null,
+      archivedByEmail: company.archived_by_email?.trim() || "",
+      restoredAt: company.restored_at ?? null,
+      restoredByEmail: company.restored_by_email?.trim() || "",
     },
     summary,
     users,

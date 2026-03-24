@@ -22,6 +22,10 @@ type CompanyRow = {
   primary_contact_email: string | null;
   status: string | null;
   created_at: string | null;
+  archived_at?: string | null;
+  archived_by_email?: string | null;
+  restored_at?: string | null;
+  restored_by_email?: string | null;
 };
 
 type MembershipRow = {
@@ -268,9 +272,7 @@ export async function GET(request: Request) {
     await Promise.all([
     adminClient
       .from("companies")
-      .select(
-        "id, name, team_key, industry, phone, website, address_line_1, city, state_region, postal_code, country, primary_contact_name, primary_contact_email, status, created_at"
-      )
+      .select("*")
       .order("name"),
     adminClient.from("company_memberships").select("company_id, role, status"),
     adminClient.from("company_invites").select("company_id, consumed_at"),
@@ -320,6 +322,10 @@ export async function GET(request: Request) {
       primaryContactEmail: company.primary_contact_email?.trim() || "",
       status: company.status?.trim() || "active",
       createdAt: company.created_at,
+      archivedAt: company.archived_at ?? null,
+      archivedByEmail: company.archived_by_email?.trim() || "",
+      restoredAt: company.restored_at ?? null,
+      restoredByEmail: company.restored_by_email?.trim() || "",
       totalUsers: companyMemberships.length,
       companyAdmins: companyMemberships.filter((row) => row.role === "company_admin").length,
       activeUsers: companyMemberships.filter((row) => row.status === "active").length,
@@ -397,6 +403,12 @@ export async function PATCH(request: Request) {
             status: nextCompanyStatus,
             updated_at: nowIso,
             updated_by: auth.user.id,
+            archived_at: action === "archive" ? nowIso : null,
+            archived_by: action === "archive" ? auth.user.id : null,
+            archived_by_email: action === "archive" ? auth.user.email ?? null : null,
+            restored_at: action === "restore" ? nowIso : null,
+            restored_by: action === "restore" ? auth.user.id : null,
+            restored_by_email: action === "restore" ? auth.user.email ?? null : null,
           })
           .eq("id", companyId),
         supabase

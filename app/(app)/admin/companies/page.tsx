@@ -32,6 +32,10 @@ type CompanySummary = {
   primaryContactEmail: string;
   status: string;
   createdAt?: string | null;
+  archivedAt?: string | null;
+  archivedByEmail?: string;
+  restoredAt?: string | null;
+  restoredByEmail?: string;
   totalUsers: number;
   companyAdmins: number;
   activeUsers: number;
@@ -529,6 +533,18 @@ export default function AdminCompaniesPage() {
                               <span>Workspace key: {company.teamKey}</span>
                               {company.industry ? <span>Industry: {company.industry}</span> : null}
                               <span>Created {formatRelative(company.createdAt)}</span>
+                              {company.status.trim().toLowerCase() === "archived" && company.archivedAt ? (
+                                <span>
+                                  Archived {formatRelative(company.archivedAt)}
+                                  {company.archivedByEmail ? ` by ${company.archivedByEmail}` : ""}
+                                </span>
+                              ) : null}
+                              {company.status.trim().toLowerCase() === "active" && company.restoredAt ? (
+                                <span>
+                                  Restored {formatRelative(company.restoredAt)}
+                                  {company.restoredByEmail ? ` by ${company.restoredByEmail}` : ""}
+                                </span>
+                              ) : null}
                             </div>
                             <div className="mt-3 grid gap-2 text-sm text-slate-500 sm:grid-cols-2">
                               <span>
