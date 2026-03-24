@@ -78,6 +78,41 @@ function buildUniqueCompanyKey(companyName: string) {
   return `${buildCompanyKeyBase(companyName)}-${randomUUID().slice(0, 8)}`;
 }
 
+async function findAuthUserByEmail(params: {
+  adminClient: NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
+  email: string;
+}) {
+  const targetEmail = params.email.trim().toLowerCase();
+  let page = 1;
+
+  while (page <= 20) {
+    const { data, error } = await params.adminClient.auth.admin.listUsers({
+      page,
+      perPage: 200,
+    });
+
+    if (error) {
+      return { user: null, error };
+    }
+
+    const users = data?.users ?? [];
+    const matchedUser =
+      users.find((user) => (user.email ?? "").trim().toLowerCase() === targetEmail) ?? null;
+
+    if (matchedUser) {
+      return { user: matchedUser, error: null };
+    }
+
+    if (users.length < 200) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return { user: null, error: null };
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requirePermission: "can_view_all_company_data",
@@ -173,6 +208,7 @@ export async function PATCH(request: Request) {
   }
 
   const supabase = createSupabaseAdminClient() ?? auth.supabase;
+  const adminClient = createSupabaseAdminClient();
   const body = (await request.json().catch(() => null)) as
     | { requestId?: string; action?: string; notes?: string }
     | null;
@@ -312,25 +348,129 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const inviteResult = await supabase.from("company_invites").insert({
-    email: primaryContactEmail,
-    role: requestedRole,
-    team: companyName,
-    company_id: companyData.id,
-    account_status: "active",
-    created_by: auth.user.id,
-    updated_by: auth.user.id,
-  });
+  let ownerLinkMode: "linked_existing_user" | "invite_created" = "invite_created";
 
-  if (inviteResult.error) {
-    return NextResponse.json(
-      {
-        error:
-          inviteResult.error.message ||
-          "The company workspace was created, but the company owner access record could not be created.",
-      },
-      { status: 500 }
-    );
+  if (adminClient) {
+    const existingUserResult = await findAuthUserByEmail({
+      adminClient,
+      email: primaryContactEmail,
+    });
+
+    if (existingUserResult.error) {
+      return NextResponse.json(
+        {
+          error:
+            existingUserResult.error.message ||
+            "The company workspace was created, but the company owner account could not be looked up.",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (existingUserResult.user?.id) {
+      ownerLinkMode = "linked_existing_user";
+      const ownerUserId = existingUserResult.user.id;
+      const mergedUserMetadata = {
+        ...(existingUserResult.user.user_metadata ?? {}),
+        role: requestedRole,
+        team: companyName,
+        company_id: companyData.id,
+        account_status: "active",
+        company_name: companyName,
+      };
+      const mergedAppMetadata = {
+        ...(existingUserResult.user.app_metadata ?? {}),
+        role: requestedRole,
+        team: companyName,
+        company_id: companyData.id,
+        account_status: "active",
+      };
+
+      const [metadataResult, roleResult, membershipResult, consumeInviteResult] =
+        await Promise.all([
+          adminClient.auth.admin.updateUserById(ownerUserId, {
+            user_metadata: mergedUserMetadata,
+            app_metadata: mergedAppMetadata,
+          }),
+          adminClient.from("user_roles").upsert(
+            {
+              user_id: ownerUserId,
+              role: requestedRole,
+              team: companyName,
+              company_id: companyData.id,
+              account_status: "active",
+              created_by: auth.user.id,
+              updated_by: auth.user.id,
+            },
+            {
+              onConflict: "user_id",
+            }
+          ),
+          adminClient.from("company_memberships").upsert(
+            {
+              user_id: ownerUserId,
+              company_id: companyData.id,
+              role: requestedRole,
+              status: "active",
+              created_by: auth.user.id,
+              updated_by: auth.user.id,
+            },
+            {
+              onConflict: "user_id,company_id",
+            }
+          ),
+          adminClient
+            .from("company_invites")
+            .update({
+              consumed_at: new Date().toISOString(),
+              consumed_by: ownerUserId,
+              updated_at: new Date().toISOString(),
+              updated_by: auth.user.id,
+            })
+            .eq("email", primaryContactEmail)
+            .is("consumed_at", null),
+        ]);
+
+      if (metadataResult.error || roleResult.error || membershipResult.error) {
+        return NextResponse.json(
+          {
+            error:
+              metadataResult.error?.message ||
+              roleResult.error?.message ||
+              membershipResult.error?.message ||
+              "The company workspace was created, but the approved company owner could not be linked to it.",
+          },
+          { status: 500 }
+        );
+      }
+
+      if (consumeInviteResult.error) {
+        ownerLinkMode = "linked_existing_user";
+      }
+    }
+  }
+
+  if (ownerLinkMode === "invite_created") {
+    const inviteResult = await supabase.from("company_invites").insert({
+      email: primaryContactEmail,
+      role: requestedRole,
+      team: companyName,
+      company_id: companyData.id,
+      account_status: "active",
+      created_by: auth.user.id,
+      updated_by: auth.user.id,
+    });
+
+    if (inviteResult.error) {
+      return NextResponse.json(
+        {
+          error:
+            inviteResult.error.message ||
+            "The company workspace was created, but the company owner access record could not be created.",
+        },
+        { status: 500 }
+      );
+    }
   }
 
   const approveResult = await supabase
@@ -358,15 +498,19 @@ export async function PATCH(request: Request) {
   const emailResult = await sendCompanyInviteEmail({
     toEmail: primaryContactEmail,
     companyName,
-    roleLabel: "Company Owner",
+    roleLabel: ownerLinkMode === "linked_existing_user" ? "Approved Company Owner" : "Company Owner",
     invitedByName: auth.user.email?.trim() || "Internal Admin",
   });
 
   return NextResponse.json({
     success: true,
     message: emailResult.sent
-      ? "Workspace approved. The company owner email was sent instructions to create the first account."
-      : "Workspace approved. The company owner can now go to login, choose Create Account, and use the approved email.",
+      ? ownerLinkMode === "linked_existing_user"
+        ? "Workspace approved. The existing company owner account was linked and the owner was emailed to sign in."
+        : "Workspace approved. The company owner email was sent instructions to create the first account."
+      : ownerLinkMode === "linked_existing_user"
+        ? "Workspace approved. The existing company owner account was linked and can now sign in."
+        : "Workspace approved. The company owner can now go to login, choose Create Account, and use the approved email.",
     warning: emailResult.sent ? null : emailResult.warning,
   });
 }
