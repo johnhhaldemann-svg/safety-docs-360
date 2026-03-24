@@ -42,6 +42,7 @@ export default function CompanySetupPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [launchMode, setLaunchMode] = useState<"live" | "request" | null>(null);
   const [messageTone, setMessageTone] = useState<
     "neutral" | "success" | "warning" | "error"
   >("neutral");
@@ -130,6 +131,7 @@ export default function CompanySetupPage() {
 
     setLoading(true);
     setMessage("");
+    setLaunchMode(null);
     setMessageTone("neutral");
 
     try {
@@ -162,7 +164,12 @@ export default function CompanySetupPage() {
       });
 
       const data = (await res.json().catch(() => null)) as
-        | { error?: string; warning?: string | null; message?: string }
+        | {
+            error?: string;
+            warning?: string | null;
+            message?: string;
+            mode?: "live" | "request";
+          }
         | null;
 
       if (!res.ok) {
@@ -172,13 +179,21 @@ export default function CompanySetupPage() {
         return;
       }
 
+      setLaunchMode(data?.mode ?? null);
       setMessageTone(data?.warning ? "warning" : "success");
       setMessage(
         data?.warning
           ? `${data.message ?? "Company workspace created."} ${data.warning}`
           : data?.message ?? "Company workspace created successfully."
       );
-      window.location.href = "/company-users";
+
+      if (data?.mode !== "request") {
+        window.location.href = "/company-users";
+        return;
+      }
+
+      setLoading(false);
+      return;
     } catch (error) {
       setMessageTone("error");
       setMessage(
@@ -363,18 +378,37 @@ export default function CompanySetupPage() {
                 <p>1. Your company workspace is created under the signed-in account.</p>
                 <p>2. Your account becomes the company admin for that workspace.</p>
                 <p>3. You land in Team Access to invite employees and approve who can join.</p>
+                <p>
+                  If live activation is temporarily unavailable, we will safely hold your request
+                  for internal review instead of losing your company details.
+                </p>
               </div>
             </div>
 
             {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 
+            {launchMode === "request" ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+                <div className="font-semibold">What happens next</div>
+                <div className="mt-2 space-y-2 leading-6">
+                  <p>1. Your company setup request is now waiting for internal activation.</p>
+                  <p>2. Your personal account stays signed in and your company details stay on file.</p>
+                  <p>3. Once the workspace is activated, you can come back and start inviting employees.</p>
+                </div>
+              </div>
+            ) : null}
+
             <button
               type="button"
               onClick={() => void handleCreateWorkspace()}
-              disabled={loading}
+              disabled={loading || launchMode === "request"}
               className="w-full rounded-2xl bg-sky-600 px-5 py-4 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
             >
-              {loading ? "Launching company workspace..." : "Launch Company Workspace"}
+              {loading
+                ? "Launching company workspace..."
+                : launchMode === "request"
+                  ? "Workspace Request Submitted"
+                  : "Launch Company Workspace"}
             </button>
           </div>
         </div>

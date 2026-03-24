@@ -19,6 +19,12 @@ type CompanySetupPayload = {
   planName?: string;
 };
 
+type CompanySetupRpcRow = {
+  company_id: string;
+  company_name: string;
+  team_key: string;
+};
+
 function buildCompanyKeyBase(companyName: string) {
   const normalized = companyName
     .trim()
@@ -32,6 +38,45 @@ function buildCompanyKeyBase(companyName: string) {
 
 function buildUniqueCompanyKey(companyName: string) {
   return `${buildCompanyKeyBase(companyName)}-${randomUUID().slice(0, 8)}`;
+}
+
+async function createCompanyWorkspaceViaRpc(params: {
+  supabase: {
+    rpc: (
+      fn: string,
+      args: Record<string, unknown>
+    ) => Promise<{ data: unknown; error: { message?: string | null; code?: string | null } | null }>;
+  };
+  companyName: string;
+  industry: string;
+  phone: string;
+  website: string;
+  addressLine1: string;
+  city: string;
+  stateRegion: string;
+  postalCode: string;
+  country: string;
+  planName: string;
+}) {
+  const rpcResult = await params.supabase.rpc("create_company_workspace", {
+    p_company_name: params.companyName,
+    p_industry: params.industry,
+    p_phone: params.phone,
+    p_website: params.website || null,
+    p_address_line_1: params.addressLine1,
+    p_city: params.city,
+    p_state_region: params.stateRegion,
+    p_postal_code: params.postalCode,
+    p_country: params.country,
+    p_plan_name: params.planName,
+  });
+
+  const rpcRow = ((rpcResult.data as CompanySetupRpcRow[] | null) ?? [])[0] ?? null;
+
+  return {
+    data: rpcRow,
+    error: rpcResult.error,
+  };
 }
 
 export async function POST(request: Request) {
@@ -66,16 +111,6 @@ export async function POST(request: Request) {
 
   const adminClient = createSupabaseAdminClient();
 
-  if (!adminClient) {
-    return NextResponse.json(
-      {
-        error:
-          "Company setup is temporarily unavailable because the server admin connection is not configured.",
-      },
-      { status: 500 }
-    );
-  }
-
   const body = (await request.json().catch(() => null)) as CompanySetupPayload | null;
   const companyName = body?.companyName?.trim() ?? "";
   const industry = body?.industry?.trim() ?? "";
@@ -105,6 +140,81 @@ export async function POST(request: Request) {
       },
       { status: 400 }
     );
+  }
+
+  if (!adminClient) {
+    const rpcResult = await createCompanyWorkspaceViaRpc({
+      supabase: auth.supabase as never,
+      companyName,
+      industry,
+      phone,
+      website,
+      addressLine1,
+      city,
+      stateRegion,
+      postalCode,
+      country,
+      planName,
+    });
+
+    if (!rpcResult.error && rpcResult.data?.company_id) {
+      return NextResponse.json({
+        success: true,
+        mode: "live",
+        company: {
+          id: rpcResult.data.company_id,
+          name: rpcResult.data.company_name,
+          planName,
+        },
+        message:
+          "Company workspace created. You can now invite employees and manage company access from your workspace.",
+      });
+    }
+
+    const signupRequestResult = await auth.supabase.from("company_signup_requests").insert({
+      company_name: companyName,
+      industry,
+      phone,
+      website: website || null,
+      address_line_1: addressLine1,
+      city,
+      state_region: stateRegion,
+      postal_code: postalCode,
+      country,
+      primary_contact_name:
+        (typeof auth.user.user_metadata?.full_name === "string"
+          ? auth.user.user_metadata.full_name
+          : typeof auth.user.user_metadata?.name === "string"
+            ? auth.user.user_metadata.name
+            : auth.user.email ?? "") || auth.user.email,
+      primary_contact_email: auth.user.email ?? "",
+      requested_role: "company_admin",
+      account_status: "active",
+      status: "pending",
+      notes:
+        "Submitted from the in-app company setup flow because direct workspace activation was unavailable at runtime.",
+    });
+
+    if (signupRequestResult.error) {
+      return NextResponse.json(
+        {
+          error:
+            rpcResult.error?.message ||
+            signupRequestResult.error.message ||
+            "Failed to launch the company workspace.",
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      mode: "request",
+      message:
+        "Company details saved. Your workspace request is now in internal review and will be activated shortly.",
+      warning:
+        "You can leave this page for now. We will finish activating the shared company workspace before you start inviting employees.",
+    });
   }
 
   let companyData: { id: string; name: string } | null = null;
@@ -232,6 +342,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     success: true,
+    mode: "live",
     company: {
       id: companyData.id,
       name: companyData.name,
