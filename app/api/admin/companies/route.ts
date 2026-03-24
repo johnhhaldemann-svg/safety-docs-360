@@ -64,6 +64,13 @@ type CompanySignupRequestRow = {
   created_at: string | null;
 };
 
+type CompanyActionPayload = {
+  requestId?: string;
+  companyId?: string;
+  action?: string;
+  notes?: string;
+};
+
 type SupabaseWriteClient = {
   from: (table: string) => unknown;
 };
@@ -342,12 +349,104 @@ export async function PATCH(request: Request) {
 
   const supabase = createSupabaseAdminClient() ?? auth.supabase;
   const adminClient = createSupabaseAdminClient();
-  const body = (await request.json().catch(() => null)) as
-    | { requestId?: string; action?: string; notes?: string }
-    | null;
+  const body = (await request.json().catch(() => null)) as CompanyActionPayload | null;
   const requestId = body?.requestId?.trim() ?? "";
+  const companyId = body?.companyId?.trim() ?? "";
   const action = body?.action?.trim().toLowerCase() ?? "";
   const notes = body?.notes?.trim() ?? null;
+
+  if (action === "archive" || action === "restore") {
+    if (!companyId) {
+      return NextResponse.json(
+        { error: "A valid company is required for this action." },
+        { status: 400 }
+      );
+    }
+
+    const companyLookup = await supabase
+      .from("companies")
+      .select("id, name, status")
+      .eq("id", companyId)
+      .maybeSingle();
+
+    if (companyLookup.error) {
+      return NextResponse.json(
+        { error: companyLookup.error.message || "Failed to load company workspace." },
+        { status: 500 }
+      );
+    }
+
+    const company = companyLookup.data as { id?: string | null; name?: string | null; status?: string | null } | null;
+
+    if (!company?.id) {
+      return NextResponse.json(
+        { error: "That company workspace could not be found." },
+        { status: 404 }
+      );
+    }
+
+    const nextCompanyStatus = action === "archive" ? "archived" : "active";
+    const nextMembershipStatus = action === "archive" ? "suspended" : "active";
+    const nowIso = new Date().toISOString();
+
+    const [companyUpdateResult, membershipsUpdateResult, roleUpdateResult, invitesUpdateResult] =
+      await Promise.all([
+        supabase
+          .from("companies")
+          .update({
+            status: nextCompanyStatus,
+            updated_at: nowIso,
+            updated_by: auth.user.id,
+          })
+          .eq("id", companyId),
+        supabase
+          .from("company_memberships")
+          .update({
+            status: nextMembershipStatus,
+            updated_at: nowIso,
+            updated_by: auth.user.id,
+          })
+          .eq("company_id", companyId),
+        supabase
+          .from("user_roles")
+          .update({
+            account_status: nextMembershipStatus,
+            updated_at: nowIso,
+            updated_by: auth.user.id,
+          })
+          .eq("company_id", companyId),
+        supabase
+          .from("company_invites")
+          .update({
+            account_status: nextMembershipStatus,
+            updated_at: nowIso,
+            updated_by: auth.user.id,
+          })
+          .eq("company_id", companyId)
+          .is("consumed_at", null),
+      ]);
+
+    const writeError =
+      companyUpdateResult.error ||
+      membershipsUpdateResult.error ||
+      roleUpdateResult.error ||
+      invitesUpdateResult.error;
+
+    if (writeError) {
+      return NextResponse.json(
+        { error: writeError.message || "Failed to update company workspace status." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message:
+        action === "archive"
+          ? `${company.name?.trim() || "The company"} was archived and workspace access was suspended.`
+          : `${company.name?.trim() || "The company"} was restored and workspace access was reactivated.`,
+    });
+  }
 
   if (!requestId || (action !== "approve" && action !== "reject")) {
     return NextResponse.json(

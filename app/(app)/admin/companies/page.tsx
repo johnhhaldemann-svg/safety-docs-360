@@ -64,6 +64,7 @@ function formatRelative(timestamp?: string | null) {
 function statusTone(status: string): "success" | "warning" | "error" | "neutral" {
   const normalized = status.trim().toLowerCase();
   if (normalized === "active") return "success";
+  if (normalized === "archived") return "warning";
   if (normalized === "pending") return "warning";
   if (normalized === "suspended") return "error";
   return "neutral";
@@ -79,6 +80,7 @@ export default function AdminCompaniesPage() {
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [processingRequestId, setProcessingRequestId] = useState("");
+  const [processingCompanyId, setProcessingCompanyId] = useState("");
 
   const loadCompanies = useCallback(async () => {
     setLoading(true);
@@ -190,6 +192,69 @@ export default function AdminCompaniesPage() {
     [loadCompanies]
   );
 
+  const handleCompanyAction = useCallback(
+    async (companyId: string, action: "archive" | "restore") => {
+      setProcessingCompanyId(companyId);
+      setMessage("");
+
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (error || !session?.access_token) {
+          setMessageTone("error");
+          setMessage("You must be logged in as an internal admin.");
+          setProcessingCompanyId("");
+          return;
+        }
+
+        const res = await fetch("/api/admin/companies", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ companyId, action }),
+        });
+
+        const data = (await res.json().catch(() => null)) as
+          | {
+              error?: string;
+              message?: string;
+            }
+          | null;
+
+        if (!res.ok) {
+          setMessageTone("error");
+          setMessage(data?.error || "Failed to update the company workspace.");
+          setProcessingCompanyId("");
+          return;
+        }
+
+        setMessageTone("success");
+        setMessage(
+          data?.message ||
+            (action === "archive"
+              ? "Company archived successfully."
+              : "Company restored successfully.")
+        );
+        await loadCompanies();
+      } catch (error) {
+        setMessageTone("error");
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Failed to update the company workspace."
+        );
+      }
+
+      setProcessingCompanyId("");
+    },
+    [loadCompanies]
+  );
+
   useEffect(() => {
     queueMicrotask(() => {
       void loadCompanies();
@@ -202,17 +267,39 @@ export default function AdminCompaniesPage() {
       if (!query) return true;
       return (
         company.name.toLowerCase().includes(query) ||
-        company.teamKey.toLowerCase().includes(query)
+        company.teamKey.toLowerCase().includes(query) ||
+        company.primaryContactEmail.toLowerCase().includes(query)
       );
     });
   }, [companies, searchTerm]);
+
+  const activeCompanies = useMemo(
+    () =>
+      filteredCompanies.filter((company) => company.status.trim().toLowerCase() !== "archived"),
+    [filteredCompanies]
+  );
+
+  const archivedCompanies = useMemo(
+    () =>
+      filteredCompanies.filter((company) => company.status.trim().toLowerCase() === "archived"),
+    [filteredCompanies]
+  );
 
   const stats = useMemo(
     () => [
       {
         title: "Active Workspaces",
-        value: String(companies.length),
+        value: String(
+          companies.filter((company) => company.status.trim().toLowerCase() !== "archived").length
+        ),
         note: "Customer workspaces already live",
+      },
+      {
+        title: "Archived Workspaces",
+        value: String(
+          companies.filter((company) => company.status.trim().toLowerCase() === "archived").length
+        ),
+        note: "Inactive companies preserved for history",
       },
       {
         title: "Company Seats",
@@ -254,7 +341,7 @@ export default function AdminCompaniesPage() {
         }
       />
 
-      <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {stats.map((item) => (
           <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-sm font-medium text-slate-500">{item.title}</p>
@@ -374,7 +461,7 @@ export default function AdminCompaniesPage() {
         <div className="mb-4">
           <input
             type="text"
-            placeholder="Search active company workspaces..."
+            placeholder="Search company workspaces..."
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
@@ -391,86 +478,149 @@ export default function AdminCompaniesPage() {
           <InlineMessage>Loading companies...</InlineMessage>
         ) : filteredCompanies.length === 0 ? (
           <EmptyState
-            title="No active company workspaces found"
+            title="No company workspaces found"
             description="Approved company workspaces will appear here after your internal team activates them."
           />
         ) : (
-          <div className="grid gap-4">
-            {filteredCompanies.map((company) => (
-              <div key={company.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="text-lg font-bold text-slate-900">{company.name}</h3>
-                      <StatusBadge label={company.status} tone={statusTone(company.status)} />
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-500">
-                      <span>Workspace key: {company.teamKey}</span>
-                      {company.industry ? <span>Industry: {company.industry}</span> : null}
-                      <span>Created {formatRelative(company.createdAt)}</span>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-sm text-slate-500 sm:grid-cols-2">
-                      <span>
-                        Contact: {company.primaryContactName || "Not provided"}
-                      </span>
-                      <span>
-                        Email: {company.primaryContactEmail || "Not provided"}
-                      </span>
-                      <span>Phone: {company.phone || "Not provided"}</span>
-                      <span>
-                        Website: {company.website || "Not provided"}
-                      </span>
-                      <span className="sm:col-span-2">
-                        Address:{" "}
-                        {[
-                          company.addressLine1,
-                          company.city,
-                          company.stateRegion,
-                          company.postalCode,
-                          company.country,
-                        ]
-                          .filter(Boolean)
-                          .join(", ") || "Not provided"}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[360px]">
-                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                        Users
-                      </div>
-                      <div className="mt-2 text-2xl font-bold text-slate-900">
-                        {company.totalUsers}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {company.companyAdmins} admin, {company.activeUsers} active
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                        Invites
-                      </div>
-                      <div className="mt-2 text-2xl font-bold text-slate-900">
-                        {company.pendingInvites}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {company.pendingUsers} pending approvals
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                        Documents
-                      </div>
-                      <div className="mt-2 text-2xl font-bold text-slate-900">
-                        {company.completedDocuments}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {company.submittedDocuments} submitted
-                      </div>
-                    </div>
-                  </div>
+          <div className="space-y-8">
+            {[
+              {
+                key: "active",
+                title: "Active Workspaces",
+                description: "Live customer companies that can still sign in and operate.",
+                companies: activeCompanies,
+              },
+              {
+                key: "archived",
+                title: "Archived Workspaces",
+                description:
+                  "Inactive companies preserved for history. Restore them to reactivate access.",
+                companies: archivedCompanies,
+              },
+            ].map((section) => (
+              <div key={section.key} className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">{section.title}</h3>
+                  <p className="mt-1 text-sm text-slate-500">{section.description}</p>
                 </div>
+                {section.companies.length === 0 ? (
+                  <EmptyState
+                    title={`No ${section.key} company workspaces`}
+                    description={
+                      section.key === "active"
+                        ? "Approved company workspaces will appear here after activation."
+                        : "Archived company workspaces will appear here after you archive inactive customers."
+                    }
+                  />
+                ) : (
+                  <div className="grid gap-4">
+                    {section.companies.map((company) => (
+                      <div
+                        key={company.id}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+                      >
+                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-3">
+                              <h3 className="text-lg font-bold text-slate-900">{company.name}</h3>
+                              <StatusBadge label={company.status} tone={statusTone(company.status)} />
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-500">
+                              <span>Workspace key: {company.teamKey}</span>
+                              {company.industry ? <span>Industry: {company.industry}</span> : null}
+                              <span>Created {formatRelative(company.createdAt)}</span>
+                            </div>
+                            <div className="mt-3 grid gap-2 text-sm text-slate-500 sm:grid-cols-2">
+                              <span>
+                                Contact: {company.primaryContactName || "Not provided"}
+                              </span>
+                              <span>
+                                Email: {company.primaryContactEmail || "Not provided"}
+                              </span>
+                              <span>Phone: {company.phone || "Not provided"}</span>
+                              <span>Website: {company.website || "Not provided"}</span>
+                              <span className="sm:col-span-2">
+                                Address:{" "}
+                                {[
+                                  company.addressLine1,
+                                  company.city,
+                                  company.stateRegion,
+                                  company.postalCode,
+                                  company.country,
+                                ]
+                                  .filter(Boolean)
+                                  .join(", ") || "Not provided"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3 xl:min-w-[420px]">
+                            <div className="grid gap-3 sm:grid-cols-3">
+                              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                                  Users
+                                </div>
+                                <div className="mt-2 text-2xl font-bold text-slate-900">
+                                  {company.totalUsers}
+                                </div>
+                                <div className="mt-1 text-xs text-slate-500">
+                                  {company.companyAdmins} admin, {company.activeUsers} active
+                                </div>
+                              </div>
+                              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                                  Invites
+                                </div>
+                                <div className="mt-2 text-2xl font-bold text-slate-900">
+                                  {company.pendingInvites}
+                                </div>
+                                <div className="mt-1 text-xs text-slate-500">
+                                  {company.pendingUsers} pending approvals
+                                </div>
+                              </div>
+                              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                                  Documents
+                                </div>
+                                <div className="mt-2 text-2xl font-bold text-slate-900">
+                                  {company.completedDocuments}
+                                </div>
+                                <div className="mt-1 text-xs text-slate-500">
+                                  {company.submittedDocuments} submitted
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap justify-end gap-3">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleCompanyAction(
+                                    company.id,
+                                    section.key === "active" ? "archive" : "restore"
+                                  )
+                                }
+                                disabled={processingCompanyId === company.id}
+                                className={
+                                  section.key === "active"
+                                    ? "rounded-xl border border-amber-300 px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                    : "rounded-xl border border-emerald-300 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                }
+                              >
+                                {processingCompanyId === company.id
+                                  ? section.key === "active"
+                                    ? "Archiving..."
+                                    : "Restoring..."
+                                  : section.key === "active"
+                                    ? "Archive Workspace"
+                                    : "Restore Workspace"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
