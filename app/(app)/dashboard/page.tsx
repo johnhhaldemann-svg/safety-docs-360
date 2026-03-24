@@ -11,6 +11,7 @@ import {
   StatusBadge,
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
+import { CompanyAdminDashboard } from "@/app/(app)/dashboard/company-admin-dashboard";
 import type { PermissionMap } from "@/lib/rbac";
 import {
   getDocumentStatusLabel,
@@ -61,7 +62,21 @@ type ActionCard = {
 
 type CompanyUser = {
   id: string;
+  email: string;
+  name: string;
+  role: string;
+  team: string;
   status: string;
+  created_at?: string | null;
+  last_sign_in_at?: string | null;
+};
+
+type CompanyInvite = {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  created_at?: string | null;
 };
 
 type CompanyProfile = {
@@ -137,6 +152,7 @@ export default function DashboardPage() {
   const [userTeam, setUserTeam] = useState("General");
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
+  const [companyInvites, setCompanyInvites] = useState<CompanyInvite[]>([]);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
 
   useEffect(() => {
@@ -206,11 +222,12 @@ export default function DashboardPage() {
             },
           });
           const companyData = (await companyResponse.json().catch(() => null)) as
-            | { users?: CompanyUser[] }
+            | { users?: CompanyUser[]; invites?: CompanyInvite[] }
             | null;
 
           if (companyResponse.ok) {
             setCompanyUsers(companyData?.users ?? []);
+            setCompanyInvites(companyData?.invites ?? []);
           }
         }
       } catch (error) {
@@ -221,6 +238,7 @@ export default function DashboardPage() {
     })();
   }, []);
 
+  const isCompanyAdminDashboard = userRole === "company_admin";
   const isManagerView = userRole === "company_admin" || userRole === "company_user";
   const canManageCompanyUsers = Boolean(permissionMap?.can_manage_company_users);
 
@@ -745,6 +763,19 @@ export default function DashboardPage() {
       ];
 
   const showWelcomeState = !loading && (isManagerView ? companyUserCount === 0 && approvedCount === 0 : activeDocuments.length === 0);
+
+  if (isCompanyAdminDashboard) {
+    return (
+      <CompanyAdminDashboard
+        loading={loading}
+        documents={activeDocuments}
+        companyUsers={companyUsers}
+        companyInvites={companyInvites}
+        companyProfile={companyProfile}
+        creditBalance={creditBalance}
+      />
+    );
+  }
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px] xl:gap-5">

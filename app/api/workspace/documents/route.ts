@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
-import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
+import {
+  authorizeRequest,
+  isCompanyAdminRole,
+  isCompanyRole,
+} from "@/lib/rbac";
 import {
   isApprovedDocumentStatus,
   isArchivedDocumentStatus,
@@ -53,6 +57,10 @@ export async function GET(request: Request) {
 
       if (isArchivedDocumentStatus(status)) {
         return false;
+      }
+
+      if (isCompanyAdminRole(auth.role)) {
+        return companyScope.companyId ? companyId === companyScope.companyId : userId === auth.user.id;
       }
 
       return (

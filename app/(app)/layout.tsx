@@ -47,8 +47,10 @@ const adminQuickLinks: NavItem[] = [
 
 const companyQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
-  { href: "/library", label: "Completed Docs", short: "LB" },
+  { href: "/submit", label: "Submit Document", short: "SD" },
+  { href: "/upload", label: "Upload File", short: "UF" },
   { href: "/company-users", label: "Company Users", short: "CU" },
+  { href: "/library", label: "Document Library", short: "LB" },
   { href: "/profile", label: "Construction Profile", short: "CP" },
 ];
 
@@ -111,14 +113,16 @@ const adminSideSections: NavSection[] = [
 
 const companyAdminSideSections: NavSection[] = [
   {
-    title: "Company Workspace",
+    title: "Company Board",
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
-      { href: "/library", label: "Completed Docs", short: "LB" },
+      { href: "/submit", label: "Submit Document", short: "SD" },
+      { href: "/upload", label: "Upload File", short: "UF" },
+      { href: "/library", label: "Document Library", short: "LB" },
     ],
   },
   {
-    title: "Company Access",
+    title: "Workforce",
     items: [
       { href: "/company-users", label: "Company Users", short: "CU" },
       { href: "/profile", label: "Construction Profile", short: "CP" },
@@ -131,7 +135,9 @@ const companyUserSideSections: NavSection[] = [
     title: "Company Workspace",
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
-      { href: "/library", label: "Completed Docs", short: "LB" },
+      { href: "/submit", label: "Submit Document", short: "SD" },
+      { href: "/upload", label: "Upload File", short: "UF" },
+      { href: "/library", label: "Document Library", short: "LB" },
       { href: "/profile", label: "Construction Profile", short: "CP" },
     ],
   },
@@ -457,10 +463,20 @@ export default function AppLayout({
         }
 
         if (nextRole === "company_admin" || nextRole === "company_user") {
-          const companyAllowedRoutes =
-            nextRole === "company_admin"
-              ? ["/dashboard", "/library", "/company-users", "/profile"]
-              : ["/dashboard", "/library", "/profile"];
+          const companyAllowedRoutes = ["/dashboard", "/library", "/profile"];
+
+          if (
+            data?.user?.permissionMap?.can_create_documents ||
+            data?.user?.permissionMap?.can_edit_documents ||
+            data?.user?.permissionMap?.can_submit_documents
+          ) {
+            companyAllowedRoutes.push("/submit", "/upload");
+          }
+
+          if (data?.user?.permissionMap?.can_manage_company_users) {
+            companyAllowedRoutes.push("/company-users");
+          }
+
           const inAllowedRoute = companyAllowedRoutes.some(
             (route) => pathname === route || pathname.startsWith(`${route}/`)
           );
@@ -539,7 +555,9 @@ export default function AppLayout({
     : needsCompanySetup
       ? "Finish company setup before inviting users"
       : isCompanyScopedUser
-        ? "Completed documents and company access"
+        ? isCompanyAdminUser
+          ? "Jobsites, documents, users, and field operations"
+          : "Company documents, uploads, and assigned work"
         : "Project document workspace";
 
   async function handleLogout() {
@@ -903,8 +921,8 @@ export default function AppLayout({
                                 ? "Create your company workspace before inviting employees or opening company tools"
                                 : isCompanyScopedUser
                                   ? isCompanyAdminUser
-                                    ? "Completed document access and company user management"
-                                    : "Completed document access for your company workspace"
+                                    ? "Run the company board: documents, jobsites, team access, and field operations"
+                                    : "Open company documents, upload records, and work inside your assigned company workspace"
                                   : "Safety document workspace and active project tools"}
                           </p>
                         </div>
