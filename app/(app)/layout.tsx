@@ -45,12 +45,20 @@ const adminQuickLinks: NavItem[] = [
   { href: "/admin/agreements", label: "Agreements", short: "AG" },
 ];
 
-const companyQuickLinks: NavItem[] = [
+const companyAdminQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
+  { href: "/jobsites", label: "Jobsites", short: "JS" },
+  { href: "/library", label: "Documents", short: "DC" },
+  { href: "/company-users", label: "Users", short: "US" },
+  { href: "/field-id-exchange", label: "Field iD Exchange", short: "FX" },
+  { href: "/reports", label: "Reports", short: "RP" },
+];
+
+const companyUserQuickLinks: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", short: "DB" },
+  { href: "/library", label: "Documents", short: "DC" },
   { href: "/submit", label: "Submit Document", short: "SD" },
   { href: "/upload", label: "Upload File", short: "UF" },
-  { href: "/company-users", label: "Company Users", short: "CU" },
-  { href: "/library", label: "Document Library", short: "LB" },
   { href: "/profile", label: "Construction Profile", short: "CP" },
 ];
 
@@ -116,15 +124,23 @@ const companyAdminSideSections: NavSection[] = [
     title: "Company Board",
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
-      { href: "/submit", label: "Submit Document", short: "SD" },
-      { href: "/upload", label: "Upload File", short: "UF" },
-      { href: "/library", label: "Document Library", short: "LB" },
+      { href: "/jobsites", label: "Jobsites", short: "JS" },
+      { href: "/library", label: "Documents", short: "DC" },
+      { href: "/company-users", label: "Users", short: "US" },
+      { href: "/field-id-exchange", label: "Field iD Exchange", short: "FX" },
+      { href: "/reports", label: "Reports", short: "RP" },
     ],
   },
   {
-    title: "Workforce",
+    title: "Workflow",
     items: [
-      { href: "/company-users", label: "Company Users", short: "CU" },
+      { href: "/submit", label: "Submit Document", short: "SD" },
+      { href: "/upload", label: "Upload File", short: "UF" },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
       { href: "/profile", label: "Construction Profile", short: "CP" },
     ],
   },
@@ -135,9 +151,9 @@ const companyUserSideSections: NavSection[] = [
     title: "Company Workspace",
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
+      { href: "/library", label: "Documents", short: "DC" },
       { href: "/submit", label: "Submit Document", short: "SD" },
       { href: "/upload", label: "Upload File", short: "UF" },
-      { href: "/library", label: "Document Library", short: "LB" },
       { href: "/profile", label: "Construction Profile", short: "CP" },
     ],
   },
@@ -331,10 +347,10 @@ export default function AppLayout({
       return accountSetupQuickLinks;
     }
     if (!isAdminArea && isCompanyAdminUser) {
-      return companyQuickLinks;
+      return companyAdminQuickLinks;
     }
     if (!isAdminArea && isCompanyUser) {
-      return companyQuickLinks.filter((item) => item.href !== "/company-users");
+      return companyUserQuickLinks;
     }
     const base = isAdminArea ? adminQuickLinks : userQuickLinks;
     if (!isAdminArea && canAccessInternalAdmin) {
@@ -464,6 +480,10 @@ export default function AppLayout({
 
         if (nextRole === "company_admin" || nextRole === "company_user") {
           const companyAllowedRoutes = ["/dashboard", "/library", "/profile"];
+
+          if (nextRole === "company_admin") {
+            companyAllowedRoutes.push("/jobsites", "/field-id-exchange", "/reports");
+          }
 
           if (
             data?.user?.permissionMap?.can_create_documents ||

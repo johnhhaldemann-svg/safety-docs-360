@@ -294,42 +294,42 @@ export function CompanyAdminDashboard({
       title: "Current Active Jobsites",
       value: String(activeJobsitesCount),
       note: "Grouped from live project and document activity",
-      href: "#jobsites",
+      href: "/jobsites",
       tone: activeJobsitesCount > 0 ? ("success" as const) : ("neutral" as const),
     },
     {
       title: "Pending Documents",
       value: String(pendingDocuments.length),
       note: "Files waiting on internal review or next action",
-      href: "#documents",
+      href: "/library",
       tone: pendingDocuments.length > 0 ? ("warning" as const) : ("success" as const),
     },
     {
       title: "Open Safety Issues",
       value: "0",
       note: "Field iD Exchange goes live as your team starts reporting",
-      href: "#field-id-exchange",
+      href: "/field-id-exchange",
       tone: "neutral" as const,
     },
     {
       title: "Overdue Actions",
       value: String(overdueActionsCount),
       note: "Pending approvals and older review items",
-      href: "#action-board",
+      href: "/reports",
       tone: overdueActionsCount > 0 ? ("warning" as const) : ("success" as const),
     },
     {
       title: "Documents Submitted This Week",
       value: String(documentsSubmittedThisWeek.length),
       note: "New records added to the company workspace in the last 7 days",
-      href: "#documents",
+      href: "/reports",
       tone: documentsSubmittedThisWeek.length > 0 ? ("info" as const) : ("neutral" as const),
     },
     {
       title: "Closed Issues This Month",
       value: "0",
       note: "Corrective action tracking is ready for rollout",
-      href: "#field-id-exchange",
+      href: "/field-id-exchange",
       tone: "neutral" as const,
     },
   ];
@@ -546,10 +546,10 @@ export function CompanyAdminDashboard({
               </summary>
               <div className="absolute right-0 top-[calc(100%+0.75rem)] z-10 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
                 {[
-                  { href: "#jobsites", label: "Add Jobsite", note: "Set up the next active project." },
+                  { href: "/jobsites", label: "Add Jobsite", note: "Set up the next active project." },
                   { href: "/company-users", label: "Add User", note: "Invite and approve employees." },
                   { href: "/submit", label: "Submit New Document", note: "Start a document workflow." },
-                  { href: "#field-id-exchange", label: "Report Safety Issue", note: "Track site concerns and actions." },
+                  { href: "/field-id-exchange", label: "Report Safety Issue", note: "Track site concerns and actions." },
                   { href: "/upload", label: "Upload File", note: "Add field files or supporting records." },
                 ].map((item) => (
                   <Link
@@ -595,13 +595,13 @@ export function CompanyAdminDashboard({
           aside={
             <div className="flex flex-wrap gap-2">
               <a
-                href="#jobsites"
+                href="/jobsites"
                 className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white"
               >
                 Add Jobsite
               </a>
               <a
-                href="#jobsites"
+                href="/jobsites"
                 className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
               >
                 Archive Jobsite
@@ -670,9 +670,9 @@ export function CompanyAdminDashboard({
                   </div>
                   <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
                     <span>{jobsite.totalDocuments} tracked document{jobsite.totalDocuments === 1 ? "" : "s"}</span>
-                    <a href="#documents" className="font-semibold text-sky-700">
+                    <Link href="/jobsites" className="font-semibold text-sky-700">
                       View Site
-                    </a>
+                    </Link>
                   </div>
                 </div>
               ))}
@@ -874,7 +874,7 @@ export function CompanyAdminDashboard({
           aside={
             <div className="flex flex-wrap gap-2">
               <Link
-                href="/submit"
+                href="/field-id-exchange"
                 className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white"
               >
                 Report Safety Issue
@@ -997,7 +997,7 @@ export function CompanyAdminDashboard({
           description="High-level reporting blocks that help the company admin answer what needs action today."
           aside={
             <Link
-              href="/library"
+              href="/reports"
               className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
             >
               Open Reports
