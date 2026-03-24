@@ -195,6 +195,7 @@ export async function GET(request: Request, context: RouteContext) {
     created_at?: string | null;
     last_sign_in_at?: string | null;
   }> = [];
+  let companyUserDirectoryMode: "admin" | "rpc" | "partial" = adminClient ? "admin" : "partial";
 
   if (adminClient) {
     const authUsersResult = await adminClient.auth.admin.listUsers();
@@ -241,6 +242,7 @@ export async function GET(request: Request, context: RouteContext) {
     });
 
     if (!rpcResult.error) {
+      companyUserDirectoryMode = "rpc";
       users = ((rpcResult.data as RpcCompanyUserRow[] | null) ?? []).map((row) => ({
         id: row.id,
         email: row.email ?? "",
@@ -268,6 +270,7 @@ export async function GET(request: Request, context: RouteContext) {
       }
 
       const roleRows = (roleRowsResult.data as FallbackUserRoleRow[] | null) ?? [];
+      companyUserDirectoryMode = "partial";
       users = roleRows.map((row) => ({
         id: row.user_id,
         email: row.user_id === auth.user.id ? auth.user.email ?? "" : "",
@@ -439,10 +442,9 @@ export async function GET(request: Request, context: RouteContext) {
       userId: document.user_id,
     })),
     activity,
-    warning: adminClient
-      ? null
-      : users.some((user) => user.email && !user.name.startsWith("User "))
-        ? "Showing database-backed company directory fallback because the Supabase service role key is unavailable at runtime."
-        : "Showing partial company directory because the Supabase service role key is unavailable at runtime.",
+    warning:
+      companyUserDirectoryMode === "partial"
+        ? "Showing partial company directory because the Supabase service role key is unavailable at runtime."
+        : null,
   });
 }
