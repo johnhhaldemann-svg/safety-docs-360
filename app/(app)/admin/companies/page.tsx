@@ -280,8 +280,8 @@ export default function AdminCompaniesPage() {
           },
           {
             step: "03",
-            title: "Company owner finishes setup",
-            body: "The company owner creates the first account from login, then invites and approves employees inside their workspace.",
+            title: "Company owner signs in",
+            body: "After approval, the same owner email is attached to the company workspace and the owner signs back in to continue.",
           },
         ].map((item) => (
           <div
@@ -339,7 +339,7 @@ export default function AdminCompaniesPage() {
                   </div>
                   <div className="flex flex-col gap-3 lg:min-w-[360px]">
                     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      Approve this request to activate the workspace. After approval, the company owner uses the approved email on the login page to create the first account.
+                      Approve this request to activate the workspace. After approval, the owner signs in again with the same email and the company workspace opens on that account.
                     </div>
                     <div className="flex flex-wrap gap-3">
                       <button

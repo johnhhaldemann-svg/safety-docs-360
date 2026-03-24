@@ -46,6 +46,13 @@ type CompanyInviteLookupRow = {
   account_status: string;
 };
 
+type ApprovedCompanyOwnerRow = {
+  company_id: string;
+  company_name: string;
+  linked_role: string;
+  account_status: string;
+};
+
 async function applyPendingCompanyInvite(params: {
   supabase: {
     from: (table: string) => unknown;
@@ -181,6 +188,147 @@ async function applyPendingCompanyInvite(params: {
   ]);
 }
 
+async function applyApprovedCompanyOwnerLink(params: {
+  supabase: {
+    from: (table: string) => unknown;
+    rpc: (
+      fn: string,
+      args: Record<string, unknown>
+    ) => Promise<{ data?: unknown; error: { message?: string | null } | null }>;
+  };
+  adminClient: ReturnType<typeof createSupabaseAdminClient>;
+  userId: string;
+  email: string;
+  userMetadata?: Record<string, unknown> | null;
+  appMetadata?: Record<string, unknown> | null;
+}) {
+  const normalizedEmail = params.email.trim().toLowerCase();
+  if (!normalizedEmail) return;
+
+  const rpcResult = await params.supabase.rpc("claim_approved_company_owner", {
+    approved_email: normalizedEmail,
+    approved_user_id: params.userId,
+  });
+  const linkedRow =
+    ((rpcResult.data as ApprovedCompanyOwnerRow[] | null) ?? [])[0] ?? null;
+
+  if (!rpcResult.error && linkedRow && params.adminClient) {
+    await params.adminClient.auth.admin.updateUserById(params.userId, {
+      user_metadata: {
+        ...(params.userMetadata ?? {}),
+        role: linkedRow.linked_role,
+        team: linkedRow.company_name,
+        company_id: linkedRow.company_id,
+        account_status: linkedRow.account_status,
+        company_name: linkedRow.company_name,
+      },
+      app_metadata: {
+        ...(params.appMetadata ?? {}),
+        role: linkedRow.linked_role,
+        team: linkedRow.company_name,
+        company_id: linkedRow.company_id,
+        account_status: linkedRow.account_status,
+      },
+    });
+    return;
+  }
+
+  if (!params.adminClient) {
+    return;
+  }
+
+  const companyLookup = await (
+    params.adminClient.from("companies") as unknown as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          eq: (column: string, value: string) => {
+            order: (
+              column: string,
+              options?: Record<string, unknown>
+            ) => {
+              limit: (count: number) => Promise<{
+                data: unknown;
+                error: { message?: string | null } | null;
+              }>;
+            };
+          };
+        };
+      };
+    }
+  )
+    .select("id, name, status")
+    .eq("primary_contact_email", normalizedEmail)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const companyRow =
+    (((companyLookup.data as Array<{ id?: string | null; name?: string | null }> | null) ??
+      [])[0] ??
+      null);
+
+  if (companyLookup.error || !companyRow?.id) {
+    return;
+  }
+
+  await Promise.all([
+    (
+      params.adminClient.from("user_roles") as unknown as {
+        upsert: (
+          values: Record<string, unknown>,
+          options?: Record<string, unknown>
+        ) => Promise<{ error: { message?: string | null } | null }>;
+      }
+    ).upsert(
+      {
+        user_id: params.userId,
+        role: "company_admin",
+        team: companyRow.name?.trim() || "Company Workspace",
+        company_id: companyRow.id,
+        account_status: "active",
+        created_by: params.userId,
+        updated_by: params.userId,
+      },
+      { onConflict: "user_id" }
+    ),
+    (
+      params.adminClient.from("company_memberships") as unknown as {
+        upsert: (
+          values: Record<string, unknown>,
+          options?: Record<string, unknown>
+        ) => Promise<{ error: { message?: string | null } | null }>;
+      }
+    ).upsert(
+      {
+        user_id: params.userId,
+        company_id: companyRow.id,
+        role: "company_admin",
+        status: "active",
+        created_by: params.userId,
+        updated_by: params.userId,
+      },
+      { onConflict: "user_id,company_id" }
+    ),
+    params.adminClient.auth.admin.updateUserById(params.userId, {
+      user_metadata: {
+        ...(params.userMetadata ?? {}),
+        role: "company_admin",
+        team: companyRow.name?.trim() || "Company Workspace",
+        company_id: companyRow.id,
+        account_status: "active",
+        company_name: companyRow.name?.trim() || "Company Workspace",
+      },
+      app_metadata: {
+        ...(params.appMetadata ?? {}),
+        role: "company_admin",
+        team: companyRow.name?.trim() || "Company Workspace",
+        company_id: companyRow.id,
+        account_status: "active",
+      },
+    }),
+  ]);
+}
+
 function getFallbackFullName(user: {
   email?: string | null;
   user_metadata?: Record<string, unknown>;
@@ -212,14 +360,21 @@ export async function GET(request: Request) {
   });
   const adminClient = createSupabaseAdminClient();
 
-  const shouldAutoApplyCompanyInvite =
-    auth.role === "viewer" &&
+  const shouldAutoResolveCompanyAccess =
     !initialCompanyScope.companyId &&
     !isAdminRole(auth.role) &&
     !auth.permissionMap.can_access_internal_admin;
 
-  if (shouldAutoApplyCompanyInvite) {
+  if (shouldAutoResolveCompanyAccess) {
     await applyPendingCompanyInvite({
+      supabase: auth.supabase as never,
+      adminClient,
+      userId: auth.user.id,
+      email: auth.user.email ?? "",
+      userMetadata: auth.user.user_metadata ?? undefined,
+      appMetadata: auth.user.app_metadata ?? undefined,
+    });
+    await applyApprovedCompanyOwnerLink({
       supabase: auth.supabase as never,
       adminClient,
       userId: auth.user.id,
@@ -229,7 +384,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const refreshedRoleContext = shouldAutoApplyCompanyInvite
+  const refreshedRoleContext = shouldAutoResolveCompanyAccess
     ? await getUserRoleContext({
         supabase: auth.supabase,
         user: auth.user,
@@ -251,7 +406,7 @@ export async function GET(request: Request) {
     ),
     agreementConfigPromise,
   ]);
-  const companyScope = shouldAutoApplyCompanyInvite
+  const companyScope = shouldAutoResolveCompanyAccess
     ? await getCompanyScope({
         supabase: auth.supabase,
         userId: auth.user.id,
