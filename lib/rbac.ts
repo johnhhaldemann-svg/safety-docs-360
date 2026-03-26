@@ -115,6 +115,10 @@ function normalizeEmail(email?: string | null) {
   return (email ?? "").trim().toLowerCase();
 }
 
+function isBootstrapAdminUser(user: AuthLikeUser) {
+  return getBootstrapAdminEmails().includes(normalizeEmail(user.email));
+}
+
 export function getBootstrapAdminEmails() {
   const configured = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "")
     .split(",")
@@ -242,7 +246,7 @@ function getLegacyRole(user: AuthLikeUser): AppRole {
     return normalizedRole;
   }
 
-  if (getBootstrapAdminEmails().includes(normalizeEmail(user.email))) {
+  if (isBootstrapAdminUser(user)) {
     return "super_admin";
   }
 
@@ -328,6 +332,29 @@ export async function getUserRoleContext(params: {
   const roleRowResult = await getRoleRow(supabase, user.id);
 
   if (roleRowResult.data) {
+    if (isBootstrapAdminUser(user)) {
+      if (
+        normalizeAppRole(roleRowResult.data.role) !== "super_admin" ||
+        normalizeAccountStatus(roleRowResult.data.account_status) !== "active"
+      ) {
+        await upsertRoleRow({
+          supabase,
+          userId: user.id,
+          role: "super_admin",
+          team: "Internal Admin",
+          accountStatus: "active",
+          actorUserId: user.id,
+        });
+      }
+
+      return {
+        role: "super_admin" as const,
+        team: "Internal Admin",
+        accountStatus: "active" as const,
+        source: "bootstrap_admin_override" as const,
+      };
+    }
+
     return {
       role: normalizeAppRole(roleRowResult.data.role),
       team: roleRowResult.data.team?.trim() || "General",

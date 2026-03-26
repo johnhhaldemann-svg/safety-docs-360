@@ -14,28 +14,81 @@ import {
   formatRelative,
   getDocumentLabel,
   useCompanyWorkspaceData,
+  type CompanyJobsite,
 } from "@/components/company-workspace/useCompanyWorkspaceData";
 import { getDocumentStatusLabel } from "@/lib/documentStatus";
+
+type MessageTone = "neutral" | "success" | "warning" | "error";
+
+type ComposerState = {
+  name: string;
+  projectNumber: string;
+  location: string;
+  status: "planned" | "active" | "completed" | "archived";
+  projectManager: string;
+  safetyLead: string;
+  startDate: string;
+  endDate: string;
+  notes: string;
+};
+
+const EMPTY_COMPOSER: ComposerState = {
+  name: "",
+  projectNumber: "",
+  location: "",
+  status: "planned",
+  projectManager: "",
+  safetyLead: "",
+  startDate: "",
+  endDate: "",
+  notes: "",
+};
+
+function getJobsiteTone(
+  status: CompanyJobsite["status"]
+): "neutral" | "success" | "warning" | "info" {
+  if (status === "Action needed") return "warning";
+  if (status === "Active") return "success";
+  if (status === "Planned") return "info";
+  return "neutral";
+}
+
+function createComposerFromJobsite(jobsite: CompanyJobsite): ComposerState {
+  return {
+    name: jobsite.name,
+    projectNumber: jobsite.projectNumber || "",
+    location: jobsite.location || "",
+    status: jobsite.rawStatus,
+    projectManager: jobsite.projectManager || "",
+    safetyLead: jobsite.safetyLead || "",
+    startDate: jobsite.startDate || "",
+    endDate: jobsite.endDate || "",
+    notes: jobsite.notes || "",
+  };
+}
 
 export default function JobsitesPage() {
   const {
     loading,
     companyName,
+    companyLocation,
     jobsites,
     documents,
-    companyUsers,
-    activeUsers,
     pendingDocuments,
     companyInvites,
     activeJobsitesCount,
-    documentsSubmittedThisWeek,
-    companyLocation,
+    reload,
     referenceTime,
   } = useCompanyWorkspaceData();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedJobsiteName, setSelectedJobsiteName] = useState<string>("all");
+  const [selectedJobsiteId, setSelectedJobsiteId] = useState<string>("all");
+  const [composer, setComposer] = useState<ComposerState>(EMPTY_COMPOSER);
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<MessageTone>("neutral");
+  const [saving, setSaving] = useState(false);
+  const [updatingJobsiteId, setUpdatingJobsiteId] = useState<string | null>(null);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
@@ -46,20 +99,28 @@ export default function JobsitesPage() {
         jobsite.status.toLowerCase() === statusFilter.toLowerCase();
       const matchesSearch =
         !normalizedSearch ||
-        [jobsite.name, jobsite.location, jobsite.projectNumber].some((value) =>
-          value.toLowerCase().includes(normalizedSearch)
-        );
+        [
+          jobsite.name,
+          jobsite.location,
+          jobsite.projectNumber,
+          jobsite.projectManager || "",
+          jobsite.safetyLead || "",
+        ].some((value) => value.toLowerCase().includes(normalizedSearch));
 
       return matchesStatus && matchesSearch;
     });
   }, [jobsites, normalizedSearch, statusFilter]);
 
-  const selectedJobsite =
-    (selectedJobsiteName !== "all"
-      ? filteredJobsites.find((jobsite) => jobsite.name === selectedJobsiteName)
-      : null) ??
-    filteredJobsites[0] ??
-    null;
+  const selectedJobsite = useMemo(() => {
+    if (selectedJobsiteId !== "all") {
+      return jobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ?? null;
+    }
+    return filteredJobsites[0] ?? jobsites[0] ?? null;
+  }, [filteredJobsites, jobsites, selectedJobsiteId]);
+
+  const selectedJobsiteVisibleInFilters = Boolean(
+    selectedJobsite && filteredJobsites.some((jobsite) => jobsite.id === selectedJobsite.id)
+  );
 
   const selectedJobsiteDocuments = useMemo(() => {
     if (!selectedJobsite) return [];
@@ -73,94 +134,214 @@ export default function JobsitesPage() {
     if (!selectedJobsite) {
       return [
         {
-          id: "no-jobsite",
+          id: "no-jobsite-selected",
           title: "No jobsite selected yet",
-          detail: "Pick a jobsite card to see the recent project activity feed.",
+          detail:
+            "Pick a site from the directory to open its live document and activity feed.",
           meta: "Waiting",
           tone: "neutral" as const,
         },
       ];
     }
 
-    const documentItems = selectedJobsiteDocuments.slice(0, 5).map((document) => ({
+    const activityRows = selectedJobsiteDocuments.slice(0, 6).map((document) => ({
       id: document.id,
       title: getDocumentLabel(document),
-      detail:
-        `${document.document_type || "Document"} · ${getDocumentStatusLabel(
-          document.status,
-          Boolean(document.final_file_path)
-        )}`,
+      detail: `${document.document_type || "Document"} | ${getDocumentStatusLabel(
+        document.status,
+        Boolean(document.final_file_path)
+      )}`,
       meta: formatRelative(document.created_at, referenceTime),
       tone: "info" as const,
     }));
 
-    return documentItems.length > 0
-      ? documentItems
+    return activityRows.length > 0
+      ? activityRows
       : [
           {
-            id: "no-activity",
+            id: "no-jobsite-activity",
             title: "No recent site activity yet",
-            detail: "Documents and field updates for this jobsite will appear here.",
+            detail:
+              "Site submissions, uploads, and approvals will appear here as work starts moving.",
             meta: "Waiting",
             tone: "neutral" as const,
           },
         ];
   }, [referenceTime, selectedJobsite, selectedJobsiteDocuments]);
 
-  const actionNeededCount = jobsites.filter((jobsite) => jobsite.status === "Action needed").length;
-  const completedCount = jobsites.filter((jobsite) => jobsite.status === "Completed").length;
+  const plannedCount = jobsites.filter((jobsite) => jobsite.status === "Planned").length;
+  const actionNeededCount = jobsites.filter(
+    (jobsite) => jobsite.status === "Action needed"
+  ).length;
+  const archivedCount = jobsites.filter((jobsite) => jobsite.status === "Archived").length;
+
+  function updateComposer<K extends keyof ComposerState>(key: K, value: ComposerState[K]) {
+    setComposer((current) => ({ ...current, [key]: value }));
+  }
+
+  function resetComposer(jobsite?: CompanyJobsite | null) {
+    setComposer(jobsite ? createComposerFromJobsite(jobsite) : EMPTY_COMPOSER);
+  }
+
+  async function handleCreateOrConvertJobsite() {
+    if (!composer.name.trim()) {
+      setMessage("Jobsite name is required.");
+      setMessageTone("error");
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/company/jobsites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: composer.name,
+          projectNumber: composer.projectNumber,
+          location: composer.location,
+          status: composer.status,
+          projectManager: composer.projectManager,
+          safetyLead: composer.safetyLead,
+          startDate: composer.startDate,
+          endDate: composer.endDate,
+          notes: composer.notes,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; message?: string; jobsite?: { id?: string } }
+        | null;
+
+      if (!response.ok) {
+        setMessage(payload?.error || "Failed to save the jobsite.");
+        setMessageTone("error");
+        return;
+      }
+
+      setMessage(payload?.message || "Jobsite saved.");
+      setMessageTone("success");
+      const nextSelectedId = payload?.jobsite?.id ?? "all";
+      resetComposer();
+      await reload();
+      setSelectedJobsiteId(nextSelectedId);
+    } catch (error) {
+      console.error("Failed to save jobsite:", error);
+      setMessage("The jobsite could not be saved right now.");
+      setMessageTone("error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleJobsiteStatusChange(
+    jobsite: CompanyJobsite,
+    nextStatus: ComposerState["status"]
+  ) {
+    if (jobsite.source !== "table") {
+      setMessage(
+        "Convert this document-based jobsite into a managed jobsite first, then you can control its status here."
+      );
+      setMessageTone("warning");
+      return;
+    }
+
+    setUpdatingJobsiteId(jobsite.id);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/company/jobsites/${jobsite.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: nextStatus,
+          archived: nextStatus === "archived",
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; message?: string }
+        | null;
+
+      if (!response.ok) {
+        setMessage(payload?.error || "Failed to update the jobsite.");
+        setMessageTone("error");
+        return;
+      }
+
+      setMessage(payload?.message || "Jobsite updated.");
+      setMessageTone("success");
+      await reload();
+    } catch (error) {
+      console.error("Failed to update jobsite:", error);
+      setMessage("The jobsite could not be updated right now.");
+      setMessageTone("error");
+    } finally {
+      setUpdatingJobsiteId(null);
+    }
+  }
 
   return (
     <div className="space-y-8">
       <PageHero
         eyebrow="Company Board"
         title="Jobsites"
-        description={`Track active projects for ${companyName}, keep document activity organized by site, and monitor what needs action first.`}
+        description={`Create and manage live jobsites for ${companyName}, organize documents by site, and keep project operations visible in one place.`}
         actions={
           <>
-            <Link
-              href="/submit"
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedJobsiteId("all");
+                resetComposer();
+                setMessage(null);
+              }}
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
             >
-              Add Jobsite Record
-            </Link>
+              Add Jobsite
+            </button>
             <Link
-              href="/upload"
+              href="/submit"
               className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              Upload Site File
+              Submit Document
             </Link>
           </>
         }
       />
 
-      <InlineMessage tone="warning">
-        Dedicated jobsite tables and worker assignments are the next data layer. For now, jobsites
-        are grouped from live company document activity so your team can start operating in one
-        company board immediately.
+      <InlineMessage tone="neutral">
+        Company admins can create managed jobsites here, while older document-only project names can
+        be converted into real jobsites as your workspace matures.
       </InlineMessage>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {[
           {
             title: "Active Jobsites",
             value: String(activeJobsitesCount),
-            note: "Sites with recent activity inside the last 21 days",
+            note: "Sites currently active or needing action",
+          },
+          {
+            title: "Planned",
+            value: String(plannedCount),
+            note: "Jobsites staged before field work begins",
           },
           {
             title: "Action Needed",
             value: String(actionNeededCount),
-            note: "Jobsites that still have pending documents",
+            note: "Sites with pending documents or follow-up",
           },
           {
-            title: "Completed Jobsites",
-            value: String(completedCount),
-            note: "Project groups with no current pending queue",
+            title: "Archived",
+            value: String(archivedCount),
+            note: "Completed or parked sites kept for history",
           },
           {
-            title: "Submitted This Week",
-            value: String(documentsSubmittedThisWeek.length),
-            note: "New site records added across the company this week",
+            title: "Pending Documents",
+            value: String(pendingDocuments.length),
+            note: "Live company documents waiting on next action",
           },
         ].map((card) => (
           <div key={card.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -175,315 +356,347 @@ export default function JobsitesPage() {
         ))}
       </section>
 
-      <SectionCard
-        title="Jobsite Directory"
-        description="Filter the live project groups already flowing through the company workspace."
-        aside={
-          <div className="flex flex-wrap gap-2">
+      <section className="grid gap-6 xl:grid-cols-[0.98fr_1.02fr]">
+        <SectionCard
+          title="Add or Convert a Jobsite"
+          description="Create a managed jobsite, or promote a document-only project name into a real site record."
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                Jobsite Name
+              </label>
+              <input
+                type="text"
+                value={composer.name}
+                onChange={(event) => updateComposer("name", event.target.value)}
+                placeholder="North Tower Expansion"
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                Project Number
+              </label>
+              <input
+                type="text"
+                value={composer.projectNumber}
+                onChange={(event) => updateComposer("projectNumber", event.target.value)}
+                placeholder="PRJ-2026-014"
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                Location
+              </label>
+              <input
+                type="text"
+                value={composer.location}
+                onChange={(event) => updateComposer("location", event.target.value)}
+                placeholder={companyLocation}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                Status
+              </label>
+              <select
+                value={composer.status}
+                onChange={(event) =>
+                  updateComposer("status", event.target.value as ComposerState["status"])
+                }
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+              >
+                <option value="planned">Planned</option>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                Project Manager
+              </label>
+              <input
+                type="text"
+                value={composer.projectManager}
+                onChange={(event) => updateComposer("projectManager", event.target.value)}
+                placeholder="Project lead"
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                Safety Lead
+              </label>
+              <input
+                type="text"
+                value={composer.safetyLead}
+                onChange={(event) => updateComposer("safetyLead", event.target.value)}
+                placeholder="Safety lead"
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={composer.startDate}
+                onChange={(event) => updateComposer("startDate", event.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                End Date
+              </label>
+              <input
+                type="date"
+                value={composer.endDate}
+                onChange={(event) => updateComposer("endDate", event.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                Site Notes
+              </label>
+              <textarea
+                value={composer.notes}
+                onChange={(event) => updateComposer("notes", event.target.value)}
+                rows={4}
+                placeholder="Site-specific access notes, startup requirements, or special concerns."
+                className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              />
+            </div>
+          </div>
+
+          {message ? (
+            <div className="mt-5">
+              <InlineMessage tone={messageTone}>{message}</InlineMessage>
+            </div>
+          ) : null}
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => void handleCreateOrConvertJobsite()}
+              disabled={saving}
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {saving ? "Saving..." : "Save Jobsite"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedJobsite) {
+                  resetComposer(selectedJobsite);
+                  setMessage(
+                    selectedJobsite.source === "document_fallback"
+                      ? "This document-based site is loaded into the form. Save it to create a managed jobsite."
+                      : "Selected jobsite loaded into the form."
+                  );
+                  setMessageTone(
+                    selectedJobsite.source === "document_fallback" ? "warning" : "neutral"
+                  );
+                }
+              }}
+              disabled={!selectedJobsite}
+              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+            >
+              Load Selected Site
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                resetComposer();
+                setMessage(null);
+              }}
+              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Clear Form
+            </button>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Jobsite Directory"
+          description="Track every active, planned, and archived site in your company workspace."
+          aside={
+            <StatusBadge
+              label={`${filteredJobsites.length} visible`}
+              tone={filteredJobsites.length > 0 ? "info" : "neutral"}
+            />
+          }
+        >
+          <div className="grid gap-3 sm:grid-cols-[1.4fr_0.7fr]">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search jobsites, project numbers, or site leads..."
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+            />
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none focus:border-sky-400"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
             >
               <option value="all">All statuses</option>
               <option value="active">Active</option>
-              <option value="action needed">Action needed</option>
+              <option value="planned">Planned</option>
+              <option value="action needed">Action Needed</option>
               <option value="completed">Completed</option>
+              <option value="archived">Archived</option>
             </select>
           </div>
-        }
-      >
-        <div className="mb-4">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search jobsites, project numbers, or locations..."
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
-          />
-        </div>
 
-        {filteredJobsites.length === 0 ? (
-          <EmptyState
-            title="No jobsites match this view"
-            description="Adjust the current search or add a new site record through the document flow."
-          />
-        ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {filteredJobsites.map((jobsite) => {
-              const isSelected = selectedJobsite?.name === jobsite.name;
-              return (
-                <button
-                  key={jobsite.name}
-                  type="button"
-                  onClick={() => setSelectedJobsiteName(jobsite.name)}
-                  className={`rounded-2xl border p-5 text-left transition ${
-                    isSelected
-                      ? "border-sky-300 bg-sky-50 shadow-sm"
-                      : "border-slate-200 bg-white hover:border-sky-200"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-lg font-bold text-slate-950">{jobsite.name}</div>
-                      <div className="mt-1 text-sm text-slate-500">{jobsite.location}</div>
-                    </div>
-                    <StatusBadge
-                      label={jobsite.status}
-                      tone={
-                        jobsite.status === "Action needed"
-                          ? "warning"
-                          : jobsite.status === "Active"
-                            ? "success"
-                            : "neutral"
-                      }
-                    />
-                  </div>
+          <div className="mt-5 space-y-4">
+            {selectedJobsiteId !== "all" && selectedJobsite && !selectedJobsiteVisibleInFilters ? (
+              <InlineMessage tone="warning">
+                You still have {selectedJobsite.name} selected, but it is hidden by the current
+                filters.
+              </InlineMessage>
+            ) : null}
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                        Project number
-                      </div>
-                      <div className="mt-2 text-sm font-semibold text-slate-900">
-                        {jobsite.projectNumber}
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                        Pending docs
-                      </div>
-                      <div className="mt-2 text-sm font-semibold text-slate-900">
-                        {jobsite.pendingDocuments}
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                        Total records
-                      </div>
-                      <div className="mt-2 text-sm font-semibold text-slate-900">
-                        {jobsite.totalDocuments}
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                        Last activity
-                      </div>
-                      <div className="mt-2 text-sm font-semibold text-slate-900">
-                        {formatRelative(jobsite.lastActivity, referenceTime)}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </SectionCard>
+            {filteredJobsites.length === 0 ? (
+              <EmptyState
+                title="No jobsites match this view"
+                description="Create your first managed jobsite or clear the current search and status filters."
+                actionHref="/submit"
+                actionLabel="Submit Document"
+              />
+            ) : (
+              filteredJobsites.map((jobsite) => {
+                const selected = selectedJobsite?.id === jobsite.id;
+                const siteInviteCount = companyInvites.length;
 
-      <section className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-        <SectionCard
-          title={selectedJobsite ? `${selectedJobsite.name} Overview` : "Jobsite Overview"}
-          description={
-            selectedJobsite
-              ? "Current site metrics based on the project activity already moving through the company board."
-              : "Choose a jobsite from the directory to review current site metrics."
-          }
-        >
-          {!selectedJobsite ? (
-            <EmptyState
-              title="No jobsite selected"
-              description="Pick a jobsite above to open its overview, document queue, and site activity."
-            />
-          ) : (
-            <div className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  {
-                    label: "Workers assigned",
-                    value: String(companyUsers.length),
-                    note: "Current company workforce pool until site assignments are added",
-                  },
-                  {
-                    label: "Active workers",
-                    value: String(activeUsers.length),
-                    note: "Employees with live workspace access",
-                  },
-                  {
-                    label: "Open safety issues",
-                    value: "0",
-                    note: "Field iD issue tracking comes next",
-                  },
-                  {
-                    label: "Pending documents",
-                    value: String(selectedJobsite.pendingDocuments),
-                    note: "Site records still waiting on review",
-                  },
-                ].map((card) => (
-                  <div key={card.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                      {card.label}
-                    </div>
-                    <div className="mt-3 text-3xl font-black text-slate-950">{card.value}</div>
-                    <div className="mt-2 text-sm text-slate-500">{card.note}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                      Jobsite header
-                    </div>
-                    <div className="mt-2 text-lg font-bold text-slate-950">{selectedJobsite.name}</div>
-                    <div className="mt-1 text-sm text-slate-500">{companyLocation}</div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <StatusBadge label={selectedJobsite.status} tone={selectedJobsite.status === "Action needed" ? "warning" : selectedJobsite.status === "Active" ? "success" : "neutral"} />
-                    <StatusBadge label={selectedJobsite.projectNumber} tone="info" />
-                  </div>
-                </div>
-
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-4">
-                    <div className="text-sm font-semibold text-slate-900">Documents</div>
-                    <div className="mt-2 text-sm text-slate-500">
-                      {selectedJobsiteDocuments.length} site-specific record
-                      {selectedJobsiteDocuments.length === 1 ? "" : "s"} currently tracked.
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-4">
-                    <div className="text-sm font-semibold text-slate-900">Activity</div>
-                    <div className="mt-2 text-sm text-slate-500">
-                      Last updated {formatRelative(selectedJobsite.lastActivity, referenceTime)}.
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="overflow-hidden rounded-2xl border border-slate-200">
-                <div className="grid grid-cols-[minmax(0,1.8fr)_0.9fr_0.95fr_0.9fr] gap-3 bg-slate-50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                  <div>Document</div>
-                  <div>Type</div>
-                  <div>Status</div>
-                  <div>Submitted</div>
-                </div>
-                <div className="divide-y divide-slate-200 bg-white">
-                  {selectedJobsiteDocuments.slice(0, 8).map((document) => (
-                    <div
-                      key={document.id}
-                      className="grid grid-cols-[minmax(0,1.8fr)_0.9fr_0.95fr_0.9fr] gap-3 px-4 py-4 text-sm text-slate-700"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold text-slate-900">
-                          {getDocumentLabel(document)}
+                return (
+                  <div
+                    key={jobsite.id}
+                    className={`rounded-2xl border p-5 transition ${
+                      selected
+                        ? "border-sky-300 bg-sky-50/60"
+                        : "border-slate-200 bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedJobsiteId(jobsite.id)}
+                            className="text-left text-lg font-bold text-slate-950 transition hover:text-sky-700"
+                          >
+                            {jobsite.name}
+                          </button>
+                          <StatusBadge label={jobsite.status} tone={getJobsiteTone(jobsite.status)} />
+                          <StatusBadge
+                            label={
+                              jobsite.source === "table" ? "Managed Site" : "Document-Based"
+                            }
+                            tone={jobsite.source === "table" ? "success" : "info"}
+                          />
                         </div>
-                        <div className="mt-1 truncate text-xs text-slate-500">
-                          {document.file_name || "Jobsite workspace record"}
+
+                        <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                          <div>Location: {jobsite.location || companyLocation}</div>
+                          <div>Project #: {jobsite.projectNumber || "Not assigned"}</div>
+                          <div>Project Manager: {jobsite.projectManager || "Not set"}</div>
+                          <div>Safety Lead: {jobsite.safetyLead || "Not set"}</div>
+                          <div>Pending Docs: {jobsite.pendingDocuments}</div>
+                          <div>Total Docs: {jobsite.totalDocuments}</div>
+                        </div>
+
+                        <div className="text-sm text-slate-500">
+                          Last activity: {formatRelative(jobsite.lastActivity, referenceTime)}
                         </div>
                       </div>
-                      <div>{document.document_type || "Document"}</div>
-                      <div>
-                        <StatusBadge
-                          label={getDocumentStatusLabel(
-                            document.status,
-                            Boolean(document.final_file_path)
-                          )}
-                          tone="info"
-                        />
-                      </div>
-                      <div className="text-slate-500">
-                        {formatRelative(document.created_at, referenceTime)}
+
+                      <div className="flex w-full flex-col gap-2 lg:w-auto lg:min-w-[230px]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedJobsiteId(jobsite.id);
+                            resetComposer(jobsite);
+                            setMessage(null);
+                          }}
+                          className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                        >
+                          View Site
+                        </button>
+
+                        {jobsite.source === "document_fallback" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedJobsiteId(jobsite.id);
+                              resetComposer(jobsite);
+                              setMessage(
+                                "This site is currently coming from document activity only. Save it in the form to convert it into a managed jobsite."
+                              );
+                              setMessageTone("warning");
+                            }}
+                            className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500"
+                          >
+                            Convert to Managed Site
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => void handleJobsiteStatusChange(jobsite, "active")}
+                              disabled={updatingJobsiteId === jobsite.id}
+                              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                            >
+                              Mark Active
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleJobsiteStatusChange(jobsite, "completed")}
+                              disabled={updatingJobsiteId === jobsite.id}
+                              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                            >
+                              Complete Site
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleJobsiteStatusChange(
+                                  jobsite,
+                                  jobsite.rawStatus === "archived" ? "active" : "archived"
+                                )
+                              }
+                              disabled={updatingJobsiteId === jobsite.id}
+                              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                            >
+                              {jobsite.rawStatus === "archived" ? "Reactivate" : "Archive"}
+                            </button>
+                          </>
+                        )}
+
+                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                          {siteInviteCount} open invite{siteInviteCount === 1 ? "" : "s"}
+                        </div>
                       </div>
                     </div>
-                  ))}
-                  {selectedJobsiteDocuments.length === 0 ? (
-                    <div className="px-4 py-8">
-                      <EmptyState
-                        title="No site records yet"
-                        description="Submit or upload a document with this project name to start the jobsite trail."
-                      />
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          )}
-        </SectionCard>
-
-        <ActivityFeed
-          title="Site Activity"
-          description="Recent document activity tied to the selected jobsite."
-          items={selectedJobsiteActivity}
-        />
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-        <SectionCard
-          title="Jobsite Operations"
-        description="The next pieces that round this into a full site operations board."
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[
-              {
-                title: "Users by jobsite",
-                note: "Assign employees to specific jobsites and track who is active on each project.",
-              },
-              {
-                title: "Issue tracking by site",
-                note: "Tie hazards, corrective actions, and photos directly to each active project.",
-              },
-              {
-                title: "Site reports",
-                note: "Generate project-specific document, training, and compliance summaries.",
-              },
-              {
-                title: "Activity log",
-                note: "Track site-level submissions, approvals, uploads, and follow-up history.",
-              },
-            ].map((item) => (
-              <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="text-sm font-semibold text-slate-900">{item.title}</div>
-                <div className="mt-2 text-sm leading-6 text-slate-500">{item.note}</div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          title="Company Signals"
-          description="Helpful context for jobsites until dedicated site-user tables are added."
-        >
-          <div className="grid gap-3">
-            {[
-              {
-                label: "Company workforce pool",
-                value: `${companyUsers.length} total user${companyUsers.length === 1 ? "" : "s"}`,
-              },
-              {
-                label: "Pending document queue",
-                value: `${pendingDocuments.length} document${pendingDocuments.length === 1 ? "" : "s"} waiting`,
-              },
-              {
-                label: "Open invites",
-                value: `${companyInvites.length} invite${companyInvites.length === 1 ? "" : "s"} not accepted`,
-              },
-              {
-                label: "Company location",
-                value: companyLocation,
-              },
-            ].map((signal) => (
-              <div key={signal.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                  {signal.label}
-                </div>
-                <div className="mt-2 text-sm font-semibold text-slate-900">{signal.value}</div>
-              </div>
-            ))}
+                  </div>
+                );
+              })
+            )}
           </div>
         </SectionCard>
       </section>
+
+      <ActivityFeed
+        title={selectedJobsite ? `${selectedJobsite.name} Activity` : "Jobsite Activity"}
+        description="Recent site-level document submissions, updates, and approvals."
+        items={selectedJobsiteActivity}
+      />
     </div>
   );
 }

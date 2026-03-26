@@ -28,6 +28,10 @@ function isMissingJobsitesTable(message?: string | null) {
   return normalized.includes("company_jobsites");
 }
 
+function isDuplicateNameViolation(code?: string | null, message?: string | null) {
+  return code === "23505" && (message ?? "").toLowerCase().includes("company_jobsites");
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: ["can_manage_company_users", "can_view_all_company_data", "can_view_analytics"],
@@ -121,6 +125,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Jobsite name is required." }, { status: 400 });
   }
 
+  const escapedName = name.replace(/[%_]/g, "\\$&");
+  const duplicateCheck = await auth.supabase
+    .from("company_jobsites")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyScope.companyId)
+    .ilike("name", escapedName);
+
+  if (duplicateCheck.error) {
+    if (isMissingJobsitesTable(duplicateCheck.error.message)) {
+      return NextResponse.json(
+        {
+          error:
+            "The company jobsites table is not available yet. Run the latest Supabase jobsites migration first.",
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: duplicateCheck.error.message || "Failed to validate the jobsite name." },
+      { status: 500 }
+    );
+  }
+
+  if (duplicateCheck.count && duplicateCheck.count > 0) {
+    return NextResponse.json(
+      { error: "A jobsite with this name already exists for your company." },
+      { status: 409 }
+    );
+  }
+
   const insertResult = await auth.supabase
     .from("company_jobsites")
     .insert({
@@ -151,6 +186,13 @@ export async function POST(request: Request) {
             "The company jobsites table is not available yet. Run the latest Supabase jobsites migration first.",
         },
         { status: 500 }
+      );
+    }
+
+    if (isDuplicateNameViolation(insertResult.error.code, insertResult.error.message)) {
+      return NextResponse.json(
+        { error: "A jobsite with this name already exists for your company." },
+        { status: 409 }
       );
     }
 

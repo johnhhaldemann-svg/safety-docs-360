@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { DOWNLOAD_CONFIRMATION_LABEL } from "@/lib/legal";
 
 export function DownloadConfirmModal({
@@ -15,12 +15,6 @@ export function DownloadConfirmModal({
   onConfirm: () => void;
 }) {
   const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      setChecked(false);
-    }
-  }, [open]);
 
   if (!open) {
     return null;
@@ -47,14 +41,20 @@ export function DownloadConfirmModal({
         <div className="mt-6 flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={() => {
+              setChecked(false);
+              onCancel();
+            }}
             className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Cancel
           </button>
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={() => {
+              setChecked(false);
+              onConfirm();
+            }}
             disabled={!checked || Boolean(loading)}
             className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-60"
           >

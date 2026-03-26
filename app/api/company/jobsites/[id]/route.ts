@@ -29,6 +29,10 @@ function isMissingJobsitesTable(message?: string | null) {
   return normalized.includes("company_jobsites");
 }
 
+function isDuplicateNameViolation(code?: string | null, message?: string | null) {
+  return code === "23505" && (message ?? "").toLowerCase().includes("company_jobsites");
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -91,6 +95,45 @@ export async function PATCH(
   }
 
   const body = (await request.json().catch(() => null)) as JobsiteUpdatePayload | null;
+  const trimmedName = typeof body?.name === "string" ? body.name.trim() : undefined;
+  if (typeof body?.name === "string" && !trimmedName) {
+    return NextResponse.json({ error: "Jobsite name cannot be empty." }, { status: 400 });
+  }
+
+  if (trimmedName) {
+    const escapedName = trimmedName.replace(/[%_]/g, "\\$&");
+    const duplicateCheck = await auth.supabase
+      .from("company_jobsites")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyScope.companyId)
+      .ilike("name", escapedName)
+      .neq("id", id);
+
+    if (duplicateCheck.error) {
+      if (isMissingJobsitesTable(duplicateCheck.error.message)) {
+        return NextResponse.json(
+          {
+            error:
+              "The company jobsites table is not available yet. Run the latest Supabase jobsites migration first.",
+          },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json(
+        { error: duplicateCheck.error.message || "Failed to validate the jobsite name." },
+        { status: 500 }
+      );
+    }
+
+    if (duplicateCheck.count && duplicateCheck.count > 0) {
+      return NextResponse.json(
+        { error: "A jobsite with this name already exists for your company." },
+        { status: 409 }
+      );
+    }
+  }
+
   const normalizedStatus = normalizeJobsiteStatus(body?.status);
   const archived =
     typeof body?.archived === "boolean"
@@ -98,7 +141,7 @@ export async function PATCH(
       : normalizedStatus === "archived";
 
   const updateValues = {
-    ...(typeof body?.name === "string" ? { name: body.name.trim() || null } : {}),
+    ...(typeof trimmedName === "string" ? { name: trimmedName } : {}),
     ...(typeof body?.projectNumber === "string"
       ? { project_number: body.projectNumber.trim() || null }
       : {}),
@@ -128,6 +171,13 @@ export async function PATCH(
     .single();
 
   if (updateResult.error) {
+    if (isDuplicateNameViolation(updateResult.error.code, updateResult.error.message)) {
+      return NextResponse.json(
+        { error: "A jobsite with this name already exists for your company." },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json(
       { error: updateResult.error.message || "Failed to update the jobsite." },
       { status: 500 }

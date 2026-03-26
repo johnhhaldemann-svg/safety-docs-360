@@ -27,22 +27,6 @@ type DocChild = Paragraph | Table;
 /* TYPES */
 /* ------------------------------------------------ */
 
-type YesNoLike =
-  | boolean
-  | "Yes"
-  | "No"
-  | "Y"
-  | "N"
-  | "yes"
-  | "no"
-  | "true"
-  | "false"
-  | "1"
-  | "0"
-  | string
-  | null
-  | undefined;
-
 export type PSHSEPInput = Record<string, unknown> & {
   // Admin / cover inputs (expand as you like)
   company_name?: string;
@@ -156,19 +140,6 @@ function safeFilePart(input: string) {
     .slice(0, 60);
 }
 
-function yn(v: YesNoLike): "Yes" | "No" {
-  if (v === true) return "Yes";
-  if (v === false) return "No";
-
-  if (typeof v === "string") {
-    const s = v.trim().toLowerCase();
-    if (["yes", "y", "true", "1"].includes(s)) return "Yes";
-    if (["no", "n", "false", "0"].includes(s)) return "No";
-  }
-
-  return v ? "Yes" : "No";
-}
-
 function include(flag: unknown, fallback = true): boolean {
   return typeof flag === "boolean" ? flag : fallback;
 }
@@ -188,19 +159,6 @@ function titleCenter(text: string) {
         text,
         bold: true,
         size: 40,
-      }),
-    ],
-  });
-}
-
-function subCenter(text: string) {
-  return new Paragraph({
-    alignment: AlignmentType.CENTER,
-    spacing: { after: 320 },
-    children: [
-      new TextRun({
-        text,
-        size: 28,
       }),
     ],
   });
@@ -244,92 +202,6 @@ function parseBase64Image(dataUrl: string) {
     type,
     buffer: Buffer.from(base64, "base64"),
   };
-}
-
-type EmergencyMapData = {
-  aedLocation?: string;
-  firstAidLocation?: string;
-  siteMap?: string;
-};
-
-function buildEmergencyMapSection(data: EmergencyMapData) {
-  const content: Paragraph[] = [];
-
-  content.push(
-    new Paragraph({
-      text: "Appendix A - Emergency Site Map & Response Locations",
-      heading: HeadingLevel.HEADING_1,
-      spacing: { after: 200 },
-    })
-  );
-
-  content.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: `AED Location: ${data.aedLocation || "Not Specified"}`,
-          size: 22,
-        }),
-      ],
-      spacing: { after: 120 },
-    })
-  );
-
-  content.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: `First Aid Station Location: ${data.firstAidLocation || "Not Specified"}`,
-          size: 22,
-        }),
-      ],
-      spacing: { after: 200 },
-    })
-  );
-
-  if (data.siteMap) {
-    const image = parseBase64Image(data.siteMap);
-
-    content.push(
-      new Paragraph({
-        children: [
-          new ImageRun({
-            type: image.type,
-            data: image.buffer,
-            transformation: {
-              width: 500,
-              height: 300,
-            },
-          }),
-        ],
-        spacing: { after: 200 },
-      })
-    );
-  } else {
-    content.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: "Site Map: Not Provided",
-            size: 22,
-          }),
-        ],
-        spacing: { after: 200 },
-      })
-    );
-  }
-
-  return content;
-}
-
-function labelValue(label: string, value: string) {
-  return new Paragraph({
-    children: [
-      new TextRun({ text: `${label}: `, bold: true, size: 22 }),
-      new TextRun({ text: value || "", size: 22 }),
-    ],
-    spacing: { after: 80 },
-  });
 }
 
 function programSection(title: string, paragraphs: string[], bullets: string[] = []) {
@@ -4034,55 +3906,3 @@ const _unusedProgramRegistry = {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _ignoreUnused = _unusedProgramRegistry;
-/* ------------------------------------------------ */
-/* CONTEXT (single source of truth for derived values) */
-/* ------------------------------------------------ */
-
-type PSHSEPCtx = {
-  company_name: string;
-  project_name: string;
-  project_number: string;
-
-  project_address: string;
-  owner_client: string;
-  gc_cm: string;
-  gc_safety_contact: string;
-
-  contractor_company: string;
-  contractor_phone: string;
-  contractor_email: string;
-
-  plan_author: string;
-  approval_name: string;
-  approval_date: string;
-};
-
-function toStr(v: unknown): string {
-  return typeof v === "string" ? v : "";
-}
-
-function ctxFrom(form: PSHSEPInput): PSHSEPCtx {
-  const company_name = toStr(form.company_name).trim() || "Safety360Docs";
-
-  const project_name = toStr(form.project_name).trim() || "Project";
-  const project_number = toStr(form.project_number).trim();
-
-  return {
-    company_name,
-    project_name,
-    project_number,
-
-    project_address: toStr(form.project_address),
-    owner_client: toStr(form.owner_client),
-    gc_cm: toStr(form.gc_cm),
-    gc_safety_contact: toStr(form.gc_safety_contact),
-
-    contractor_company: toStr(form.contractor_company),
-    contractor_phone: toStr(form.contractor_phone),
-    contractor_email: toStr(form.contractor_email),
-
-    plan_author: toStr(form.plan_author),
-    approval_name: toStr(form.approval_name),
-    approval_date: toStr(form.approval_date),
-  };
- }

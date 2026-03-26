@@ -75,7 +75,7 @@ export default function FieldIdExchangePage() {
         status: "Open" as const,
         jobsite: document.project_name?.trim() || "General Workspace",
         owner: "Document workflow",
-        detail: `${document.document_type || "Document"} still needs follow-up from the company board.`,
+        detail: `${document.document_type || "Document"} still needs follow-up inside the company workspace.`,
         meta: `Submitted ${formatRelative(document.created_at, referenceTime)}`,
         href: "/library",
       };
@@ -177,7 +177,7 @@ export default function FieldIdExchangePage() {
       <PageHero
         eyebrow="Company Board"
         title="Field iD Exchange"
-        description={`Track company field signals for ${companyName}: hazards, corrective follow-up, pending approvals, and site-level issues that need action.`}
+        description={`Track hazards, follow-up items, pending approvals, and site issues for ${companyName} from one company workspace.`}
         actions={
           <>
             <Link
@@ -291,12 +291,12 @@ export default function FieldIdExchangePage() {
       <section className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <SectionCard
           title="Live Exchange Feed"
-          description="Everything the company admin needs to route, assign, or close next."
+          description="Everything your company team needs to route, assign, or close next."
         >
           {filteredItems.length === 0 ? (
             <EmptyState
               title="No field items match this view"
-              description="Adjust the current filters or start the next field record from the company board."
+              description="Adjust the filters or start the next field record from this workspace."
             />
           ) : (
             <div className="space-y-3">
@@ -350,7 +350,7 @@ export default function FieldIdExchangePage() {
 
           <ActivityFeed
             title="Recent Exchange Activity"
-            description="The latest field-side movement across the company board."
+            description="The latest field-side movement across your company workspace."
             items={
               activityItems.length > 0
                 ? activityItems
@@ -358,7 +358,7 @@ export default function FieldIdExchangePage() {
                     {
                       id: "no-exchange-activity",
                       title: "No field activity yet",
-                      detail: "Field signals will show up here as the company board starts moving.",
+                      detail: "Field signals will show up here as work starts moving through the workspace.",
                       meta: "Waiting",
                       tone: "neutral" as const,
                     },
