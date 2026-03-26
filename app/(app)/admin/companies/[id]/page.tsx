@@ -116,7 +116,6 @@ export default function AdminCompanyDetailPage({
   const [invites, setInvites] = useState<CompanyInvite[]>([]);
   const [documents, setDocuments] = useState<CompanyDocument[]>([]);
   const [activity, setActivity] = useState<CompanyActivityItem[]>([]);
-  const [warning, setWarning] = useState("");
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "warning" | "error" | "neutral">(
     "neutral"
@@ -161,7 +160,6 @@ export default function AdminCompanyDetailPage({
             invites?: CompanyInvite[];
             documents?: CompanyDocument[];
             activity?: CompanyActivityItem[];
-            warning?: string | null;
           }
         | null;
 
@@ -174,7 +172,6 @@ export default function AdminCompanyDetailPage({
         setInvites([]);
         setDocuments([]);
         setActivity([]);
-        setWarning("");
         setLoading(false);
         return;
       }
@@ -185,7 +182,6 @@ export default function AdminCompanyDetailPage({
       setInvites(data?.invites ?? []);
       setDocuments(data?.documents ?? []);
       setActivity(data?.activity ?? []);
-      setWarning(data?.warning ?? "");
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to load company workspace.");
@@ -195,7 +191,6 @@ export default function AdminCompanyDetailPage({
       setInvites([]);
       setDocuments([]);
       setActivity([]);
-      setWarning("");
     }
 
     setLoading(false);
@@ -343,7 +338,6 @@ export default function AdminCompanyDetailPage({
       />
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
-      {warning ? <InlineMessage tone="warning">{warning}</InlineMessage> : null}
 
       <section className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
         <SectionCard
