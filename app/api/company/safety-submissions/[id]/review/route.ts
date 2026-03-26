@@ -21,9 +21,26 @@ const ISSUE_CATEGORIES = new Set([
 
 type ReviewPayload = {
   decision?: "approved" | "rejected";
-  actionStatus?: "open" | "closed";
+  actionStatus?: "open" | "assigned" | "in_progress" | "corrected" | "verified_closed" | "escalated" | "stop_work" | "closed";
   category?: string;
 };
+
+function normalizeActionStatus(status?: string | null) {
+  const normalized = (status ?? "").trim().toLowerCase();
+  if (normalized === "closed") return "verified_closed";
+  if (
+    normalized === "open" ||
+    normalized === "assigned" ||
+    normalized === "in_progress" ||
+    normalized === "corrected" ||
+    normalized === "verified_closed" ||
+    normalized === "escalated" ||
+    normalized === "stop_work"
+  ) {
+    return normalized;
+  }
+  return "open";
+}
 
 function canReviewSafetySubmissions(role: string) {
   return isAdminRole(role) || role === "company_admin" || role === "manager";
@@ -56,7 +73,7 @@ export async function PATCH(
   const { id } = await params;
   const body = (await request.json().catch(() => null)) as ReviewPayload | null;
   const decision = body?.decision;
-  const actionStatus = body?.actionStatus ?? "open";
+  const actionStatus = normalizeActionStatus(body?.actionStatus);
   const category = normalizeCategory(body?.category);
 
   if (decision !== "approved" && decision !== "rejected") {
@@ -103,14 +120,17 @@ export async function PATCH(
   }
 
   const now = new Date().toISOString();
-  const nextActionStatus = decision === "rejected" ? "closed" : actionStatus;
+  const nextActionStatus = decision === "rejected" ? "verified_closed" : actionStatus;
+  const shouldConvertToIncident =
+    decision === "approved" &&
+    (category === "incident" || category === "near_miss");
 
   const actionUpdateResult = await auth.supabase
     .from("company_corrective_actions")
     .update({
       category,
       status: nextActionStatus,
-      closed_at: nextActionStatus === "closed" ? now : null,
+      closed_at: nextActionStatus === "verified_closed" ? now : null,
       updated_by: auth.user.id,
     })
     .eq("id", submissionResult.data.linked_action_id)
@@ -125,6 +145,48 @@ export async function PATCH(
       { error: actionUpdateResult.error.message || "Failed to update linked corrective action." },
       { status: 500 }
     );
+  }
+
+  let incidentId: string | null = null;
+  if (shouldConvertToIncident) {
+    const incidentInsertResult = await auth.supabase
+      .from("company_incidents")
+      .insert({
+        company_id: companyScope.companyId,
+        jobsite_id: null,
+        title: submissionResult.data.title || "Converted safety submission",
+        description: `Converted from safety submission ${id}.`,
+        status: nextActionStatus === "verified_closed" ? "closed" : "open",
+        severity: "medium",
+        category,
+        owner_user_id: auth.user.id,
+        occurred_at: now,
+        sif_flag: category === "incident",
+        escalation_level: category === "incident" ? "monitor" : "none",
+        stop_work_status: "normal",
+        converted_from_submission_id: id,
+        created_by: auth.user.id,
+        updated_by: auth.user.id,
+      })
+      .select("id")
+      .single();
+    if (!incidentInsertResult.error && incidentInsertResult.data) {
+      incidentId = incidentInsertResult.data.id;
+      await auth.supabase.from("company_risk_events").insert({
+        company_id: companyScope.companyId,
+        module_name: "incidents",
+        record_id: incidentId,
+        event_type: "converted_from_submission",
+        detail: "Incident converted from safety submission review.",
+        event_payload: {
+          submissionId: id,
+          linkedActionId: submissionResult.data.linked_action_id,
+          category,
+          decision,
+        },
+        created_by: auth.user.id,
+      });
+    }
   }
 
   const submissionUpdateResult = await auth.supabase
@@ -159,6 +221,7 @@ export async function PATCH(
       decision,
       category,
       actionStatus: nextActionStatus,
+      incidentId,
     },
     created_by: auth.user.id,
   });
@@ -167,6 +230,7 @@ export async function PATCH(
     success: true,
     submission: submissionUpdateResult.data,
     action: actionUpdateResult.data,
+    incidentId,
     message:
       decision === "approved"
         ? `Submission approved and issue set to ${nextActionStatus}.`

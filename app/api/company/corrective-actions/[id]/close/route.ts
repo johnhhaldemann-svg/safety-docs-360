@@ -1,16 +1,22 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 
 export const runtime = "nodejs";
 
 type ClosePayload = {
   managerOverride?: boolean;
   managerOverrideReason?: string;
+  closureNote?: string;
 };
 
 function canManageCorrectiveActions(role: string) {
-  return isAdminRole(role) || role === "company_admin" || role === "manager";
+  return isAdminRole(role) || role === "company_admin" || role === "manager" || role === "safety_manager";
+}
+
+function canVerifyClosed(role: string) {
+  return isAdminRole(role) || role === "company_admin" || role === "manager" || role === "safety_manager";
 }
 
 function isMissingCorrectiveActionsTable(message?: string | null) {
@@ -35,11 +41,18 @@ export async function POST(
       { status: 403 }
     );
   }
+  if (!canVerifyClosed(auth.role)) {
+    return NextResponse.json(
+      { error: "Only Safety Manager or above can mark Verified Closed." },
+      { status: 403 }
+    );
+  }
 
   const { id } = await params;
   const body = (await request.json().catch(() => null)) as ClosePayload | null;
   const managerOverride = Boolean(body?.managerOverride);
   const managerOverrideReason = body?.managerOverrideReason?.trim() ?? "";
+  const closureNote = body?.closureNote?.trim() ?? "";
 
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
@@ -55,7 +68,7 @@ export async function POST(
 
   const actionResult = await auth.supabase
     .from("company_corrective_actions")
-    .select("id, status")
+    .select("id, status, jobsite_id, sif_potential, created_at")
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
     .maybeSingle();
@@ -80,8 +93,20 @@ export async function POST(
   if (!actionResult.data) {
     return NextResponse.json({ error: "Corrective action not found." }, { status: 404 });
   }
+  const jobsiteScope = await getJobsiteAccessScope({
+    supabase: auth.supabase,
+    userId: auth.user.id,
+    companyId: companyScope.companyId,
+    role: auth.role,
+  });
+  if (!isJobsiteAllowed(actionResult.data.jobsite_id, jobsiteScope)) {
+    return NextResponse.json(
+      { error: "You can only verify closures for assigned jobsites." },
+      { status: 403 }
+    );
+  }
 
-  if (actionResult.data.status === "closed") {
+  if (actionResult.data.status === "verified_closed") {
     return NextResponse.json(
       { success: true, message: "Corrective action is already closed." },
       { status: 200 }
@@ -118,13 +143,36 @@ export async function POST(
       { status: 400 }
     );
   }
+  if (actionResult.data.sif_potential && !closureNote) {
+    return NextResponse.json(
+      { error: "Closure note is required for SIF-potential observations." },
+      { status: 400 }
+    );
+  }
 
   const now = new Date().toISOString();
+  const timeToCloseHours =
+    actionResult.data.created_at
+      ? Math.max(
+          0,
+          Number(
+            (
+              (new Date(now).getTime() - new Date(actionResult.data.created_at).getTime()) /
+              (1000 * 60 * 60)
+            ).toFixed(2)
+          )
+        )
+      : null;
   const closeResult = await auth.supabase
     .from("company_corrective_actions")
     .update({
-      status: "closed",
+      status: "verified_closed",
+      workflow_status: "verified_closed",
       closed_at: now,
+      closure_note: closureNote || null,
+      validation_reviewed_by: auth.user.id,
+      validation_reviewed_at: now,
+      time_to_close_hours: timeToCloseHours,
       manager_override_close: managerOverride,
       manager_override_reason: managerOverride ? managerOverrideReason : null,
       updated_by: auth.user.id,
@@ -154,6 +202,10 @@ export async function POST(
       managerOverride,
       managerOverrideReason: managerOverride ? managerOverrideReason : null,
       evidenceCount,
+      closureNote: closureNote || null,
+      validationReviewedBy: auth.user.id,
+      validationReviewedAt: now,
+      timeToCloseHours,
     },
     created_by: auth.user.id,
   });

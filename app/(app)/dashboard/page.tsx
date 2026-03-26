@@ -12,7 +12,11 @@ import {
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
 import { CompanyAdminDashboard } from "@/app/(app)/dashboard/company-admin-dashboard";
-import type { CompanyJobsite } from "@/components/company-workspace/useCompanyWorkspaceData";
+import type {
+  CompanyJobsite,
+  LiveMatrixRow,
+  ModuleSummaryItem,
+} from "@/components/company-workspace/useCompanyWorkspaceData";
 import type { PermissionMap } from "@/lib/rbac";
 import {
   getDocumentStatusLabel,
@@ -114,6 +118,30 @@ type CompanyJobsiteRow = {
   archived_at?: string | null;
 };
 
+type CorrectiveActionSummaryRow = {
+  category?: string | null;
+  status?: string | null;
+  due_at?: string | null;
+};
+
+type HighRiskAlert = {
+  id: string;
+  title: string;
+  detail: string;
+  tone: "warning" | "info";
+};
+
+type CompanyDashboardMetrics = {
+  totalActiveJobsites: number;
+  totalOpenObservations: number;
+  totalHighRiskObservations: number;
+  sifCount: number;
+  averageClosureTimeHours: number;
+  topHazardCategories: Array<{ category: string; count: number }>;
+  openIncidents: number;
+  dapCompletionToday: { completed: number; total: number; percent: number };
+};
+
 function isApprovedDocument(document: DocumentRow) {
   return isApprovedDocumentStatus(document.status, Boolean(document.final_file_path));
 }
@@ -170,6 +198,20 @@ function getStatusTone(label: string): "neutral" | "success" | "warning" | "info
   return "info";
 }
 
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs = 15000
+) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 export default function DashboardPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,6 +224,10 @@ export default function DashboardPage() {
   const [companyInvites, setCompanyInvites] = useState<CompanyInvite[]>([]);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
   const [companyJobsiteRows, setCompanyJobsiteRows] = useState<CompanyJobsiteRow[]>([]);
+  const [liveMatrixSummary, setLiveMatrixSummary] = useState<LiveMatrixRow[]>([]);
+  const [moduleSummaries, setModuleSummaries] = useState<ModuleSummaryItem[]>([]);
+  const [highRiskAlerts, setHighRiskAlerts] = useState<HighRiskAlert[]>([]);
+  const [companyDashboardMetrics, setCompanyDashboardMetrics] = useState<CompanyDashboardMetrics | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -194,11 +240,12 @@ export default function DashboardPage() {
       }
 
       try {
-        const meResponse = await fetch("/api/auth/me", {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
+        const authHeaders = { Authorization: `Bearer ${accessToken}` };
+        const [meResponse, documentsResponse, creditResponse] = await Promise.all([
+          fetchWithTimeout("/api/auth/me", { headers: authHeaders }, 15000),
+          fetchWithTimeout("/api/workspace/documents", { headers: authHeaders }, 15000),
+          fetchWithTimeout("/api/library/credits", { headers: authHeaders }, 15000),
+        ]);
         const meData = (await meResponse.json().catch(() => null)) as
           | {
               user?: {
@@ -218,11 +265,6 @@ export default function DashboardPage() {
           setCompanyProfile(meData?.user?.companyProfile ?? null);
         }
 
-        const documentsResponse = await fetch("/api/workspace/documents", {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
         const documentsData = (await documentsResponse.json().catch(() => null)) as
           | { documents?: DocumentRow[] }
           | null;
@@ -231,11 +273,6 @@ export default function DashboardPage() {
           setDocuments(documentsData?.documents ?? []);
         }
 
-        const creditResponse = await fetch("/api/library/credits", {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
         const creditData = (await creditResponse.json().catch(() => null)) as
           | { creditBalance?: number }
           | null;
@@ -251,39 +288,146 @@ export default function DashboardPage() {
               meData?.user?.permissionMap?.can_view_analytics
           );
 
+        setLoading(false);
+
         if (canLoadCompanyWorkspace) {
-          const companyResponse = await fetch("/api/company/users", {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          });
-          const companyData = (await companyResponse.json().catch(() => null)) as
-            | { users?: CompanyUser[]; invites?: CompanyInvite[] }
-            | null;
+          const [companyResponse, jobsitesResponse, correctiveResponse, dapsResponse, permitsResponse, incidentsResponse, reportsResponse, analyticsResponse] = await Promise.all([
+            fetchWithTimeout("/api/company/users", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/jobsites", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/observations", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/daps", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/permits", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/incidents", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/reports", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/analytics/summary?days=30", { headers: authHeaders }, 15000),
+          ]);
+
+          const companyData = (await companyResponse.json().catch(() => null)) as { users?: CompanyUser[]; invites?: CompanyInvite[] } | null;
+          const jobsitesData = (await jobsitesResponse.json().catch(() => null)) as { jobsites?: CompanyJobsiteRow[] } | null;
+          const correctiveData = (await correctiveResponse.json().catch(() => null)) as {
+            actions?: CorrectiveActionSummaryRow[];
+            observations?: CorrectiveActionSummaryRow[];
+          } | null;
+          const dapsData = (await dapsResponse.json().catch(() => null)) as { daps?: Array<{ status?: string | null }> } | null;
+          const permitsData = (await permitsResponse.json().catch(() => null)) as {
+            permits?: Array<{
+              id?: string;
+              title?: string | null;
+              status?: string | null;
+              severity?: string | null;
+              sif_flag?: boolean | null;
+              escalation_level?: string | null;
+              stop_work_status?: string | null;
+            }>;
+          } | null;
+          const incidentsData = (await incidentsResponse.json().catch(() => null)) as {
+            incidents?: Array<{
+              id?: string;
+              title?: string | null;
+              status?: string | null;
+              severity?: string | null;
+              sif_flag?: boolean | null;
+              escalation_level?: string | null;
+              stop_work_status?: string | null;
+            }>;
+          };
+          const reportsData = (await reportsResponse.json().catch(() => null)) as { reports?: Array<{ status?: string | null }> } | null;
+          const analyticsData = (await analyticsResponse.json().catch(() => null)) as {
+            summary?: { companyDashboard?: CompanyDashboardMetrics };
+          } | null;
 
           if (companyResponse.ok) {
             setCompanyUsers(companyData?.users ?? []);
             setCompanyInvites(companyData?.invites ?? []);
           }
+          if (jobsitesResponse.ok) setCompanyJobsiteRows(jobsitesData?.jobsites ?? []);
 
-          const jobsitesResponse = await fetch("/api/company/jobsites", {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          });
-          const jobsitesData = (await jobsitesResponse.json().catch(() => null)) as
-            | { jobsites?: CompanyJobsiteRow[] }
-            | null;
+          const correctiveActions = correctiveResponse.ok
+            ? correctiveData?.observations ?? correctiveData?.actions ?? []
+            : [];
+          const rows = new Map<string, LiveMatrixRow>();
+          for (const action of correctiveActions) {
+            const category = (action.category ?? "corrective_action").trim().toLowerCase();
+            const status = (action.status ?? "open").trim().toLowerCase();
+            const row = rows.get(category) ?? { category, open: 0, inProgress: 0, closed: 0, overdue: 0 };
+            if (status === "closed") row.closed += 1;
+            else if (status === "in_progress") row.inProgress += 1;
+            else row.open += 1;
+            if (status !== "closed" && action.due_at) {
+              const due = new Date(action.due_at).getTime();
+              if (!Number.isNaN(due) && due < Date.now()) row.overdue += 1;
+            }
+            rows.set(category, row);
+          }
+          setLiveMatrixSummary(Array.from(rows.values()).sort((a, b) => a.category.localeCompare(b.category)));
 
-          if (jobsitesResponse.ok) {
-            setCompanyJobsiteRows(jobsitesData?.jobsites ?? []);
+          const summarize = (key: ModuleSummaryItem["key"], label: string, items: Array<{ status?: string | null }>): ModuleSummaryItem => {
+            let open = 0;
+            let inProgress = 0;
+            let closed = 0;
+            for (const item of items) {
+              const status = (item.status ?? "").trim().toLowerCase();
+              if (status === "closed" || status === "archived" || status === "published" || status === "expired") closed += 1;
+              else if (status === "in_progress" || status === "active") inProgress += 1;
+              else open += 1;
+            }
+            return { key, label, total: items.length, open, inProgress, closed };
+          };
+          setModuleSummaries([
+            summarize("daps", "DAPs", dapsResponse.ok ? dapsData?.daps ?? [] : []),
+            summarize("permits", "Permits", permitsResponse.ok ? permitsData?.permits ?? [] : []),
+            summarize("incidents", "Incidents", incidentsResponse.ok ? incidentsData?.incidents ?? [] : []),
+            summarize("reports", "Reports", reportsResponse.ok ? reportsData?.reports ?? [] : []),
+          ]);
+
+          const alerts: HighRiskAlert[] = [];
+          for (const permit of permitsData?.permits ?? []) {
+            if (permit.stop_work_status === "stop_work_active") {
+              alerts.push({
+                id: `permit-stop-${permit.id ?? Math.random()}`,
+                title: permit.title || "Permit with active stop-work",
+                detail: "Stop-work is active and requires leadership clearance.",
+                tone: "warning",
+              });
+            } else if (permit.escalation_level === "critical" || permit.sif_flag) {
+              alerts.push({
+                id: `permit-risk-${permit.id ?? Math.random()}`,
+                title: permit.title || "Permit escalated",
+                detail: "Critical/SIF permit requires immediate operations review.",
+                tone: "warning",
+              });
+            }
+          }
+          for (const incident of incidentsData?.incidents ?? []) {
+            if (incident.stop_work_status === "stop_work_active") {
+              alerts.push({
+                id: `incident-stop-${incident.id ?? Math.random()}`,
+                title: incident.title || "Incident with active stop-work",
+                detail: "Incident triggered stop-work and must be resolved before restart.",
+                tone: "warning",
+              });
+            } else if (incident.escalation_level === "critical" || incident.sif_flag) {
+              alerts.push({
+                id: `incident-risk-${incident.id ?? Math.random()}`,
+                title: incident.title || "Incident escalated",
+                detail: "Critical/SIF incident is in high-risk review.",
+                tone: "warning",
+              });
+            }
+          }
+          setHighRiskAlerts(alerts.slice(0, 8));
+          if (analyticsResponse.ok) {
+            setCompanyDashboardMetrics(analyticsData?.summary?.companyDashboard ?? null);
           }
         }
       } catch (error) {
-        console.error("Dashboard load error:", error);
+        if (error instanceof Error && error.name === "AbortError") {
+          console.warn("Dashboard load timed out – showing partial data.");
+        } else {
+          console.error("Dashboard load error:", error);
+        }
+        setLoading(false);
       }
-
-      setLoading(false);
     })();
   }, []);
 
@@ -969,6 +1113,10 @@ export default function DashboardPage() {
         companyProfile={companyProfile}
         jobsites={companyJobsites}
         creditBalance={creditBalance}
+        liveMatrixSummary={liveMatrixSummary}
+        moduleSummaries={moduleSummaries}
+        highRiskAlerts={highRiskAlerts}
+        companyDashboardMetrics={companyDashboardMetrics}
       />
     );
   }

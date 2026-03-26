@@ -53,6 +53,10 @@ const companyAdminQuickLinks: NavItem[] = [
   { href: "/csep", label: "CSEP", short: "CS" },
   { href: "/company-users", label: "Users", short: "US" },
   { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
+  { href: "/daps", label: "DAPs", short: "DP" },
+  { href: "/permits", label: "Permits", short: "PM" },
+  { href: "/incidents", label: "Incidents", short: "IN" },
+  { href: "/analytics", label: "Analytics", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
@@ -63,6 +67,10 @@ const companyManagerQuickLinks: NavItem[] = [
   { href: "/peshep", label: "PESHEP", short: "PB" },
   { href: "/csep", label: "CSEP", short: "CS" },
   { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
+  { href: "/daps", label: "DAPs", short: "DP" },
+  { href: "/permits", label: "Permits", short: "PM" },
+  { href: "/incidents", label: "Incidents", short: "IN" },
+  { href: "/analytics", label: "Analytics", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
@@ -140,6 +148,10 @@ const companyAdminSideSections: NavSection[] = [
       { href: "/library", label: "Documents", short: "DC" },
       { href: "/company-users", label: "Users", short: "US" },
       { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
+      { href: "/daps", label: "DAPs", short: "DP" },
+      { href: "/permits", label: "Permits", short: "PM" },
+      { href: "/incidents", label: "Incidents", short: "IN" },
+      { href: "/analytics", label: "Analytics", short: "AN" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
   },
@@ -168,6 +180,10 @@ const companyManagerSideSections: NavSection[] = [
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
       { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
+      { href: "/daps", label: "DAPs", short: "DP" },
+      { href: "/permits", label: "Permits", short: "PM" },
+      { href: "/incidents", label: "Incidents", short: "IN" },
+      { href: "/analytics", label: "Analytics", short: "AN" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
   },
@@ -232,6 +248,24 @@ function formatRole(role: string) {
   }
   if (normalized === "company_user") {
     return "Company User";
+  }
+  if (normalized === "safety_manager") {
+    return "Safety Manager";
+  }
+  if (normalized === "project_manager") {
+    return "Project Manager";
+  }
+  if (normalized === "foreman") {
+    return "Foreman";
+  }
+  if (normalized === "field_user") {
+    return "Field User";
+  }
+  if (normalized === "read_only") {
+    return "Read Only";
+  }
+  if (normalized === "platform_admin") {
+    return "Platform Admin";
   }
   if (normalized === "super_admin") {
     return "Super Admin";
@@ -330,8 +364,13 @@ export default function AppLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isAdminArea = pathname.startsWith("/admin");
   const isCompanyAdminUser = userRole === "company_admin";
-  const isCompanyManagerUser = userRole === "manager";
-  const isCompanyUser = userRole === "company_user";
+  const isCompanyManagerUser = userRole === "manager" || userRole === "safety_manager";
+  const isCompanyUser =
+    userRole === "company_user" ||
+    userRole === "project_manager" ||
+    userRole === "foreman" ||
+    userRole === "field_user" ||
+    userRole === "read_only";
   const isCompanyLeadershipUser = isCompanyAdminUser || isCompanyManagerUser;
   const isCompanyScopedUser = isCompanyLeadershipUser || isCompanyUser;
   const canAccessInternalAdmin = Boolean(permissionMap?.can_access_internal_admin);
@@ -514,7 +553,12 @@ export default function AppLayout({
           !Boolean(data?.user?.permissionMap?.can_access_internal_admin) &&
           nextRole !== "company_admin" &&
           nextRole !== "manager" &&
+          nextRole !== "safety_manager" &&
           nextRole !== "company_user" &&
+          nextRole !== "project_manager" &&
+          nextRole !== "foreman" &&
+          nextRole !== "field_user" &&
+          nextRole !== "read_only" &&
           !nextCompanyId;
 
         if (!Boolean(data?.user?.acceptedTerms)) {
@@ -540,15 +584,50 @@ export default function AppLayout({
         if (
           nextRole === "company_admin" ||
           nextRole === "manager" ||
-          nextRole === "company_user"
+          nextRole === "safety_manager" ||
+          nextRole === "company_user" ||
+          nextRole === "project_manager" ||
+          nextRole === "foreman" ||
+          nextRole === "field_user" ||
+          nextRole === "read_only"
         ) {
+          if (nextRole === "read_only") {
+            const readOnlyAllowedRoutes = ["/dashboard", "/reports"];
+            const inReadOnlyRoute = readOnlyAllowedRoutes.some(
+              (route) => pathname === route || pathname.startsWith(`${route}/`)
+            );
+            if (!inReadOnlyRoute) {
+              router.replace("/dashboard");
+              return;
+            }
+            setLoading(false);
+            return;
+          }
+
           const companyAllowedRoutes = ["/dashboard", "/library", "/profile"];
 
-          if (nextRole === "company_admin" || nextRole === "manager") {
+          if (
+            nextRole === "project_manager" ||
+            nextRole === "foreman" ||
+            nextRole === "field_user"
+          ) {
+            companyAllowedRoutes.push("/jobsites");
+          }
+
+          if (
+            nextRole === "company_admin" ||
+            nextRole === "manager" ||
+            nextRole === "safety_manager"
+          ) {
             companyAllowedRoutes.push(
+              "/companies",
               "/jobsites",
               "/field-id-exchange",
               "/safety-submit",
+              "/daps",
+              "/permits",
+              "/incidents",
+              "/analytics",
               "/reports"
             );
           }

@@ -36,6 +36,12 @@ type CompanyInvite = {
   created_at?: string | null;
 };
 
+type Jobsite = {
+  id: string;
+  name: string;
+  status: string;
+};
+
 type EnvDetails = {
   url?: boolean;
   anonKey?: boolean;
@@ -47,7 +53,26 @@ type EnvDetails = {
   };
 };
 
-const roleOptions = ["Company Admin", "Operations Manager", "Company User"];
+const roleOptions = [
+  "Company Admin",
+  "Operations Manager",
+  "Safety Manager",
+  "Project Manager",
+  "Foreman",
+  "Field User",
+  "Read Only",
+  "Company User",
+];
+
+function roleNeedsAssignments(role: string) {
+  return (
+    role === "Project Manager" ||
+    role === "Foreman" ||
+    role === "Field User" ||
+    role === "Read Only" ||
+    role === "Company User"
+  );
+}
 
 function statusTone(status: string): "success" | "warning" | "error" | "neutral" {
   if (status === "Active") return "success";
@@ -57,6 +82,11 @@ function statusTone(status: string): "success" | "warning" | "error" | "neutral"
 }
 
 function roleClasses(role: string) {
+  if (role === "Safety Manager") return "bg-emerald-100 text-emerald-700";
+  if (role === "Project Manager") return "bg-indigo-100 text-indigo-700";
+  if (role === "Foreman") return "bg-cyan-100 text-cyan-700";
+  if (role === "Field User") return "bg-lime-100 text-lime-700";
+  if (role === "Read Only") return "bg-slate-200 text-slate-700";
   if (role === "Company Admin") return "bg-violet-100 text-violet-700";
   if (role === "Operations Manager") return "bg-sky-100 text-sky-700";
   if (role === "Company User") return "bg-amber-100 text-amber-700";
@@ -110,6 +140,9 @@ export default function CompanyUsersPage() {
   const [editStatus, setEditStatus] = useState("Active");
   const [saveLoading, setSaveLoading] = useState(false);
   const [removeLoading, setRemoveLoading] = useState(false);
+  const [jobsites, setJobsites] = useState<Jobsite[]>([]);
+  const [assignmentMap, setAssignmentMap] = useState<Record<string, string[]>>({});
+  const [editAssignments, setEditAssignments] = useState<string[]>([]);
 
   async function getAccessToken() {
     const {
@@ -170,11 +203,39 @@ export default function CompanyUsersPage() {
     setLoading(false);
   }, []);
 
+  const loadAssignmentData = useCallback(async () => {
+    try {
+      const token = await getAccessToken();
+      const response = await fetch("/api/company/jobsite-assignments", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await response.json().catch(() => null)) as
+        | {
+            jobsites?: Jobsite[];
+            assignments?: Array<{ user_id?: string; jobsite_id?: string }>;
+          }
+        | null;
+      if (!response.ok) return;
+      const nextMap: Record<string, string[]> = {};
+      for (const row of data?.assignments ?? []) {
+        const userId = row.user_id?.trim() ?? "";
+        const jobsiteId = row.jobsite_id?.trim() ?? "";
+        if (!userId || !jobsiteId) continue;
+        nextMap[userId] = nextMap[userId] ? [...nextMap[userId], jobsiteId] : [jobsiteId];
+      }
+      setJobsites(data?.jobsites ?? []);
+      setAssignmentMap(nextMap);
+    } catch {
+      // Keep existing company user flow even if assignment API is unavailable.
+    }
+  }, []);
+
   useEffect(() => {
     queueMicrotask(() => {
       void loadUsers();
+      void loadAssignmentData();
     });
-  }, [loadUsers]);
+  }, [loadAssignmentData, loadUsers]);
 
   const pendingUsers = useMemo(
     () => users.filter((user) => user.status === "Pending"),
@@ -210,6 +271,14 @@ export default function CompanyUsersPage() {
   const filteredSuspendedUsers = useMemo(
     () => filteredTeamMembers.filter((user) => user.status === "Suspended"),
     [filteredTeamMembers]
+  );
+  const jobsiteNameById = useMemo(
+    () =>
+      jobsites.reduce<Record<string, string>>((acc, jobsite) => {
+        acc[jobsite.id] = jobsite.name;
+        return acc;
+      }, {}),
+    [jobsites]
   );
 
   const stats = useMemo(
@@ -348,10 +417,34 @@ export default function CompanyUsersPage() {
         return;
       }
 
+      if (roleNeedsAssignments(editRole)) {
+        const assignmentResponse = await fetch("/api/company/jobsite-assignments", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            userId: editingUser.id,
+            jobsiteIds: editAssignments,
+          }),
+        });
+        const assignmentData = (await assignmentResponse.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        if (!assignmentResponse.ok) {
+          setMessageTone("error");
+          setMessage(assignmentData?.error || "User updated, but jobsite assignment update failed.");
+          setSaveLoading(false);
+          return;
+        }
+      }
+
       setEditingUser(null);
       setMessageTone("success");
       setMessage("Company user updated.");
       await loadUsers({ preserveMessage: true });
+      await loadAssignmentData();
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to update company user.");
@@ -452,8 +545,8 @@ export default function CompanyUsersPage() {
     <div className="space-y-8">
       <PageHero
         eyebrow="Company Workspace"
-        title="Team Access"
-        description={`Manage only the people assigned to ${scopeCompanyName}. Invite employees, approve new joiners, and manage active team access from one place.`}
+        title="Workforce Operations"
+        description={`Manage role/status, assignment readiness, and module access visibility for ${scopeCompanyName}.`}
         actions={
           <button
             onClick={handleInvite}
@@ -475,6 +568,24 @@ export default function CompanyUsersPage() {
             <p className="mt-2 text-sm text-slate-500">{item.note}</p>
           </div>
         ))}
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <Link href="/jobsites" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-200">
+          <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">Jobsites</div>
+          <div className="mt-2 text-lg font-bold text-slate-900">Assignment Readiness</div>
+          <div className="mt-2 text-sm text-slate-500">Coordinate workforce coverage and field ownership by active jobsite.</div>
+        </Link>
+        <Link href="/field-id-exchange" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-200">
+          <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">Corrective Actions</div>
+          <div className="mt-2 text-lg font-bold text-slate-900">Ownership Queue</div>
+          <div className="mt-2 text-sm text-slate-500">Track who is accountable for open and overdue corrective actions.</div>
+        </Link>
+        <Link href="/field-id-exchange" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-200">
+          <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">Safety Review</div>
+          <div className="mt-2 text-lg font-bold text-slate-900">Submission Review Queue</div>
+          <div className="mt-2 text-sm text-slate-500">Review pending individual safety submissions and keep actions moving.</div>
+        </Link>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
@@ -632,6 +743,7 @@ export default function CompanyUsersPage() {
                       onClick={() => {
                         setEditingUser(user);
                         setEditRole(user.role);
+                        setEditAssignments(assignmentMap[user.id] ?? []);
                         setEditStatus("Pending");
                       }}
                       className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
@@ -702,6 +814,7 @@ export default function CompanyUsersPage() {
                     onClick={() => {
                       setEditingUser(user);
                       setEditRole(user.role);
+                        setEditAssignments(assignmentMap[user.id] ?? []);
                       setEditStatus(
                         user.status === "Pending"
                           ? "Pending"
@@ -723,6 +836,96 @@ export default function CompanyUsersPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="4. Jobsite Assignments"
+        description="At-a-glance view of which users are assigned to each active jobsite."
+      >
+        {loading ? (
+          <InlineMessage>Loading assignment matrix...</InlineMessage>
+        ) : filteredTeamMembers.length === 0 ? (
+          <EmptyState
+            title="No team members available"
+            description="Invite and activate users to start assigning jobsites."
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700">User</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700">Role</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700">Status</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-700">Assigned Jobsites</th>
+                  <th className="px-3 py-2 text-right font-semibold text-slate-700">Manage</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredTeamMembers.map((user) => {
+                  const assignedIds = assignmentMap[user.id] ?? [];
+                  const assignedNames = assignedIds
+                    .map((id) => jobsiteNameById[id] ?? "Unknown jobsite")
+                    .slice(0, 3);
+                  const overflowCount = Math.max(0, assignedIds.length - assignedNames.length);
+                  return (
+                    <tr key={`assignment-${user.id}`} className="bg-white">
+                      <td className="px-3 py-3">
+                        <div className="font-semibold text-slate-900">{user.name}</div>
+                        <div className="text-xs text-slate-500">{user.email}</div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${roleClasses(
+                            user.role
+                          )}`}
+                        >
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
+                        <StatusBadge label={user.status} tone={statusTone(user.status)} />
+                      </td>
+                      <td className="px-3 py-3">
+                        {roleNeedsAssignments(user.role) ? (
+                          assignedIds.length > 0 ? (
+                            <div className="text-xs text-slate-700">
+                              {assignedNames.join(", ")}
+                              {overflowCount > 0 ? ` +${overflowCount} more` : ""}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-amber-700">No jobsites assigned</span>
+                          )
+                        ) : (
+                          <span className="text-xs text-slate-500">Company-wide access</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <button
+                          onClick={() => {
+                            setEditingUser(user);
+                            setEditRole(user.role);
+                            setEditAssignments(assignmentMap[user.id] ?? []);
+                            setEditStatus(
+                              user.status === "Pending"
+                                ? "Pending"
+                                : user.status === "Suspended"
+                                  ? "Suspended"
+                                  : "Active"
+                            );
+                          }}
+                          className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Manage
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </SectionCard>
@@ -762,6 +965,7 @@ export default function CompanyUsersPage() {
                       onClick={() => {
                         setEditingUser(user);
                         setEditRole(user.role);
+                        setEditAssignments(assignmentMap[user.id] ?? []);
                         setEditStatus("Suspended");
                       }}
                       className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
@@ -823,6 +1027,44 @@ export default function CompanyUsersPage() {
                 <option>Active</option>
                 <option>Suspended</option>
               </select>
+              {roleNeedsAssignments(editRole) ? (
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Assigned Jobsites
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    This role only sees assigned jobsites.
+                  </p>
+                  <div className="mt-3 grid max-h-44 gap-2 overflow-y-auto">
+                    {jobsites.length < 1 ? (
+                      <p className="text-xs text-slate-500">No jobsites available yet.</p>
+                    ) : (
+                      jobsites.map((jobsite) => {
+                        const checked = editAssignments.includes(jobsite.id);
+                        return (
+                          <label
+                            key={jobsite.id}
+                            className="flex items-center gap-2 text-sm text-slate-700"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) => {
+                                setEditAssignments((current) =>
+                                  event.target.checked
+                                    ? [...current, jobsite.id]
+                                    : current.filter((value) => value !== jobsite.id)
+                                );
+                              }}
+                            />
+                            <span>{jobsite.name}</span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-6 flex flex-wrap justify-end gap-3">
