@@ -230,20 +230,6 @@ const accountSetupQuickLinks: NavItem[] = [
   { href: "/company-setup", label: "Create Company Workspace", short: "CO" },
 ];
 
-async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init: RequestInit,
-  timeoutMs = 15000
-) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(input, { ...init, signal: controller.signal });
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -479,7 +465,7 @@ export default function AppLayout({
 
     async function loadAgreementConfig() {
       try {
-        const res = await fetchWithTimeout("/api/legal/config", {}, 10000);
+        const res = await fetch("/api/legal/config");
         const data = (await res.json().catch(() => null)) as AgreementConfig | null;
         if (!cancelled && res.ok && data) {
           setAgreementConfig(data);
@@ -509,11 +495,11 @@ export default function AppLayout({
       }
 
       try {
-        const res = await fetchWithTimeout("/api/auth/me", {
+        const res = await fetch("/api/auth/me", {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
-        }, 10000);
+        });
 
         const data = (await res.json().catch(() => null)) as
           | {
