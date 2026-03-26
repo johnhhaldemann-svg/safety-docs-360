@@ -177,7 +177,16 @@ type FallbackUserRoleRow = {
   created_at?: string | null;
 };
 
-const COMPANY_ASSIGNABLE_ROLES: AppRole[] = ["company_admin", "manager", "company_user"];
+const COMPANY_ASSIGNABLE_ROLES: AppRole[] = [
+  "company_admin",
+  "manager",
+  "safety_manager",
+  "project_manager",
+  "foreman",
+  "field_user",
+  "read_only",
+  "company_user",
+];
 
 function getDisplayName(user: {
   email?: string | null;

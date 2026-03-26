@@ -67,6 +67,20 @@ function createComposerFromJobsite(jobsite: CompanyJobsite): ComposerState {
   };
 }
 
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs = 15000
+) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 export default function JobsitesPage() {
   const {
     loading,
@@ -194,7 +208,7 @@ export default function JobsitesPage() {
     setMessage(null);
 
     try {
-      const response = await fetch("/api/company/jobsites", {
+      const response = await fetchWithTimeout("/api/company/jobsites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -208,7 +222,7 @@ export default function JobsitesPage() {
           endDate: composer.endDate,
           notes: composer.notes,
         }),
-      });
+      }, 15000);
 
       const payload = (await response.json().catch(() => null)) as
         | { error?: string; message?: string; jobsite?: { id?: string } }
@@ -228,7 +242,11 @@ export default function JobsitesPage() {
       setSelectedJobsiteId(nextSelectedId);
     } catch (error) {
       console.error("Failed to save jobsite:", error);
-      setMessage("The jobsite could not be saved right now.");
+      setMessage(
+        error instanceof Error && error.name === "AbortError"
+          ? "Save timed out. Please try again."
+          : "The jobsite could not be saved right now."
+      );
       setMessageTone("error");
     } finally {
       setSaving(false);
@@ -251,14 +269,14 @@ export default function JobsitesPage() {
     setMessage(null);
 
     try {
-      const response = await fetch(`/api/company/jobsites/${jobsite.id}`, {
+      const response = await fetchWithTimeout(`/api/company/jobsites/${jobsite.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status: nextStatus,
           archived: nextStatus === "archived",
         }),
-      });
+      }, 15000);
 
       const payload = (await response.json().catch(() => null)) as
         | { error?: string; message?: string }
@@ -275,7 +293,11 @@ export default function JobsitesPage() {
       await reload();
     } catch (error) {
       console.error("Failed to update jobsite:", error);
-      setMessage("The jobsite could not be updated right now.");
+      setMessage(
+        error instanceof Error && error.name === "AbortError"
+          ? "Update timed out. Please try again."
+          : "The jobsite could not be updated right now."
+      );
       setMessageTone("error");
     } finally {
       setUpdatingJobsiteId(null);

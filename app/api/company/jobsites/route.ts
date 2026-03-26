@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { getJobsiteAccessScope } from "@/lib/jobsiteAccess";
 
 export const runtime = "nodejs";
 
@@ -28,6 +29,11 @@ function isMissingJobsitesTable(message?: string | null) {
   return normalized.includes("company_jobsites");
 }
 
+function isMissingCompatJobsitesView(message?: string | null) {
+  const normalized = (message ?? "").toLowerCase();
+  return normalized.includes("compat_company_jobsites");
+}
+
 function isDuplicateNameViolation(code?: string | null, message?: string | null) {
   return code === "23505" && (message ?? "").toLowerCase().includes("company_jobsites");
 }
@@ -51,13 +57,39 @@ export async function GET(request: Request) {
     return NextResponse.json({ jobsites: [] });
   }
 
-  const jobsitesResult = await auth.supabase
-    .from("company_jobsites")
+  const compatJobsitesResult = await auth.supabase
+    .from("compat_company_jobsites")
     .select(
-      "id, company_id, name, project_number, location, status, project_manager, safety_lead, start_date, end_date, notes, created_at, updated_at, archived_at"
+      "id, company_id, name, project_number, location, status, start_date, end_date, notes, created_at, updated_at"
     )
     .eq("company_id", companyScope.companyId)
     .order("updated_at", { ascending: false });
+  const jobsitesResult =
+    compatJobsitesResult.error && !isMissingCompatJobsitesView(compatJobsitesResult.error.message)
+      ? compatJobsitesResult
+      : compatJobsitesResult.error
+        ? await auth.supabase
+            .from("company_jobsites")
+            .select(
+              "id, company_id, name, project_number, location, status, project_manager, safety_lead, start_date, end_date, notes, created_at, updated_at, archived_at"
+            )
+            .eq("company_id", companyScope.companyId)
+            .order("updated_at", { ascending: false })
+        : {
+            data: (compatJobsitesResult.data ?? []).map((row) => ({
+              ...row,
+              project_manager: null,
+              safety_lead: null,
+              archived_at: row.status === "archived" ? row.updated_at : null,
+            })),
+            error: null,
+          };
+  const jobsiteScope = await getJobsiteAccessScope({
+    supabase: auth.supabase,
+    userId: auth.user.id,
+    companyId: companyScope.companyId,
+    role: auth.role,
+  });
 
   if (jobsitesResult.error) {
     if (isMissingJobsitesTable(jobsitesResult.error.message)) {
@@ -74,8 +106,16 @@ export async function GET(request: Request) {
     );
   }
 
+  const allJobsites = jobsitesResult.data ?? [];
+  const jobsites =
+    jobsiteScope.restricted && jobsiteScope.jobsiteIds.length > 0
+      ? allJobsites.filter((jobsite) => jobsiteScope.jobsiteIds.includes(jobsite.id))
+      : jobsiteScope.restricted
+        ? []
+        : allJobsites;
+
   return NextResponse.json({
-    jobsites: jobsitesResult.data ?? [],
+    jobsites,
     scopeCompanyId: companyScope.companyId,
     scopeCompanyName: companyScope.companyName,
   });
@@ -103,7 +143,12 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!isAdminRole(auth.role) && auth.role !== "company_admin" && auth.role !== "manager") {
+  if (
+    !isAdminRole(auth.role) &&
+    auth.role !== "company_admin" &&
+    auth.role !== "manager" &&
+    auth.role !== "safety_manager"
+  ) {
     return NextResponse.json(
       { error: "Only company admins and operations managers can add jobsites." },
       { status: 403 }

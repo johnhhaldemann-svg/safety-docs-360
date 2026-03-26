@@ -7,10 +7,18 @@ import {
 } from "@/lib/supabaseAdmin";
 
 export const APP_ROLES = [
+  "platform_admin",
+  "internal_reviewer",
+  "employee",
   "super_admin",
   "admin",
   "manager",
   "company_admin",
+  "safety_manager",
+  "project_manager",
+  "foreman",
+  "field_user",
+  "read_only",
   "company_user",
   "editor",
   "viewer",
@@ -33,6 +41,12 @@ export const APP_PERMISSIONS = [
   "can_view_all_company_data",
   "can_manage_global_templates",
   "can_override_system_controls",
+  "can_manage_daps",
+  "can_manage_observations",
+  "can_verify_closures",
+  "can_escalate_items",
+  "can_view_dashboards",
+  "can_view_reports",
 ] as const;
 
 export type AppPermission = (typeof APP_PERMISSIONS)[number];
@@ -67,6 +81,14 @@ type AuthorizeOptions = {
 
 const DEFAULT_BOOTSTRAP_ADMIN_EMAILS = ["john.h.haldemann@gmail.com"];
 const ROLE_PERMISSIONS: Record<AppRole, readonly AppPermission[]> = {
+  platform_admin: APP_PERMISSIONS,
+  internal_reviewer: [
+    "can_review_documents",
+    "can_approve_documents",
+    "can_view_dashboards",
+    "can_view_reports",
+  ],
+  employee: ["can_create_documents", "can_edit_documents", "can_submit_documents"],
   super_admin: APP_PERMISSIONS,
   admin: [
     "can_create_documents",
@@ -88,6 +110,12 @@ const ROLE_PERMISSIONS: Record<AppRole, readonly AppPermission[]> = {
     "can_review_documents",
     "can_approve_documents",
     "can_view_analytics",
+    "can_manage_daps",
+    "can_manage_observations",
+    "can_verify_closures",
+    "can_escalate_items",
+    "can_view_dashboards",
+    "can_view_reports",
   ],
   company_admin: [
     "can_create_documents",
@@ -97,7 +125,50 @@ const ROLE_PERMISSIONS: Record<AppRole, readonly AppPermission[]> = {
     "can_manage_billing",
     "can_view_analytics",
     "can_assign_roles",
+    "can_manage_daps",
+    "can_manage_observations",
+    "can_verify_closures",
+    "can_escalate_items",
+    "can_view_dashboards",
+    "can_view_reports",
   ],
+  safety_manager: [
+    "can_create_documents",
+    "can_edit_documents",
+    "can_submit_documents",
+    "can_view_analytics",
+    "can_manage_daps",
+    "can_manage_observations",
+    "can_verify_closures",
+    "can_escalate_items",
+    "can_view_dashboards",
+    "can_view_reports",
+  ],
+  project_manager: [
+    "can_create_documents",
+    "can_edit_documents",
+    "can_submit_documents",
+    "can_manage_daps",
+    "can_manage_observations",
+    "can_view_dashboards",
+    "can_view_reports",
+  ],
+  foreman: [
+    "can_create_documents",
+    "can_edit_documents",
+    "can_submit_documents",
+    "can_manage_daps",
+    "can_manage_observations",
+    "can_view_dashboards",
+    "can_view_reports",
+  ],
+  field_user: [
+    "can_submit_documents",
+    "can_manage_observations",
+    "can_view_dashboards",
+    "can_view_reports",
+  ],
+  read_only: ["can_view_dashboards", "can_view_reports"],
   company_user: [
     "can_create_documents",
     "can_edit_documents",
@@ -135,7 +206,18 @@ export function normalizeAppRole(role?: string | null): AppRole {
     .replace(/\s+/g, "_");
 
   if (normalized === "superadmin") return "super_admin";
+  if (normalized === "platformadmin") return "platform_admin";
+  if (normalized === "internal_reviewer_employee") return "internal_reviewer";
   if (normalized === "operations_manager") return "manager";
+  if (normalized === "safety_director") return "safety_manager";
+  if (normalized === "safety_manager") return "safety_manager";
+  if (normalized === "safety_director_safety_manager") return "safety_manager";
+  if (normalized === "superintendent") return "project_manager";
+  if (normalized === "project_manager") return "project_manager";
+  if (normalized === "superintendent_project_manager") return "project_manager";
+  if (normalized === "field_user_observer") return "field_user";
+  if (normalized === "observer") return "field_user";
+  if (normalized === "read_only_client") return "read_only";
   if ((APP_ROLES as readonly string[]).includes(normalized)) {
     return normalized as AppRole;
   }
@@ -146,10 +228,18 @@ export function normalizeAppRole(role?: string | null): AppRole {
 export function formatAppRole(role?: string | null) {
   const normalized = normalizeAppRole(role);
 
+  if (normalized === "platform_admin") return "Platform Admin";
+  if (normalized === "internal_reviewer") return "Internal Reviewer";
+  if (normalized === "employee") return "Employee";
   if (normalized === "super_admin") return "Super Admin";
   if (normalized === "admin") return "Admin";
   if (normalized === "manager") return "Operations Manager";
   if (normalized === "company_admin") return "Company Admin";
+  if (normalized === "safety_manager") return "Safety Manager";
+  if (normalized === "project_manager") return "Project Manager";
+  if (normalized === "foreman") return "Foreman";
+  if (normalized === "field_user") return "Field User";
+  if (normalized === "read_only") return "Read Only";
   if (normalized === "company_user") return "Company User";
   if (normalized === "editor") return "Editor";
   return "Viewer";
@@ -157,7 +247,11 @@ export function formatAppRole(role?: string | null) {
 
 export function isAdminRole(role?: string | null) {
   const normalized = normalizeAppRole(role);
-  return normalized === "super_admin" || normalized === "admin";
+  return (
+    normalized === "platform_admin" ||
+    normalized === "super_admin" ||
+    normalized === "admin"
+  );
 }
 
 export function isManagerRole(role?: string | null) {
@@ -168,6 +262,11 @@ export function isCompanyRole(role?: string | null) {
   const normalized = normalizeAppRole(role);
   return (
     normalized === "company_admin" ||
+    normalized === "safety_manager" ||
+    normalized === "project_manager" ||
+    normalized === "foreman" ||
+    normalized === "field_user" ||
+    normalized === "read_only" ||
     normalized === "manager" ||
     normalized === "company_user"
   );
