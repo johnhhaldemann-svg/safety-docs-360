@@ -148,6 +148,18 @@ function getCategoryLabel(category: CorrectiveActionRow["category"]) {
   return labels[category];
 }
 
+async function getAuthHeaders() {
+  const sessionResult = await supabase.auth.getSession();
+  const accessToken = sessionResult.data.session?.access_token;
+  if (!accessToken) {
+    throw new Error("Missing auth token.");
+  }
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+  };
+}
+
 export default function FieldIdExchangePage() {
   const {
     companyName,
@@ -189,8 +201,12 @@ export default function FieldIdExchangePage() {
       setLoadingActions(true);
       try {
         const [actionsResponse, submissionsResponse] = await Promise.all([
-          fetch("/api/company/corrective-actions"),
-          fetch("/api/company/safety-submissions?status=pending"),
+          fetch("/api/company/corrective-actions", {
+            headers: await getAuthHeaders(),
+          }),
+          fetch("/api/company/safety-submissions?status=pending", {
+            headers: await getAuthHeaders(),
+          }),
         ]);
         const actionsPayload = (await actionsResponse.json().catch(() => null)) as
           | { actions?: CorrectiveActionRow[]; error?: string }
@@ -324,12 +340,47 @@ export default function FieldIdExchangePage() {
     }));
   }, [filteredItems]);
 
+  const activeMatrix = useMemo(() => {
+    const categories: CorrectiveActionRow["category"][] = [
+      "hazard",
+      "near_miss",
+      "incident",
+      "good_catch",
+      "ppe_violation",
+      "housekeeping",
+      "equipment_issue",
+      "fall_hazard",
+      "electrical_hazard",
+      "excavation_trench_concern",
+      "fire_hot_work_concern",
+      "corrective_action",
+    ];
+
+    return categories.map((category) => ({
+      category,
+      open: filteredItems.filter(
+        (item) => item.category === category && item.status === "open"
+      ).length,
+      inProgress: filteredItems.filter(
+        (item) => item.category === category && item.status === "in_progress"
+      ).length,
+      closed: filteredItems.filter(
+        (item) => item.category === category && item.status === "closed"
+      ).length,
+      total: filteredItems.filter((item) => item.category === category).length,
+    }));
+  }, [filteredItems]);
+
   async function reloadActions() {
     setLoadingActions(true);
     try {
       const [actionsResponse, submissionsResponse] = await Promise.all([
-        fetch("/api/company/corrective-actions"),
-        fetch("/api/company/safety-submissions?status=pending"),
+        fetch("/api/company/corrective-actions", {
+          headers: await getAuthHeaders(),
+        }),
+        fetch("/api/company/safety-submissions?status=pending", {
+          headers: await getAuthHeaders(),
+        }),
       ]);
       const actionsPayload = (await actionsResponse.json().catch(() => null)) as
         | { actions?: CorrectiveActionRow[]; error?: string }
@@ -363,7 +414,7 @@ export default function FieldIdExchangePage() {
     try {
       const response = await fetch(`/api/company/safety-submissions/${submission.id}/review`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           decision,
           actionStatus,
@@ -402,7 +453,7 @@ export default function FieldIdExchangePage() {
     try {
       const response = await fetch("/api/company/corrective-actions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           title: composer.title,
           description: composer.description,
@@ -439,7 +490,7 @@ export default function FieldIdExchangePage() {
     try {
       const response = await fetch(`/api/company/corrective-actions/${action.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({ status: nextStatus }),
       });
       const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
@@ -479,7 +530,7 @@ export default function FieldIdExchangePage() {
     try {
       const response = await fetch(`/api/company/corrective-actions/${actionId}/close`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           managerOverride,
           managerOverrideReason: managerOverride ? managerOverrideReason : undefined,
@@ -527,7 +578,7 @@ export default function FieldIdExchangePage() {
 
       const response = await fetch(`/api/company/corrective-actions/${actionId}/evidence`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           filePath: uploadResult.data?.path ?? filePath,
           fileName: evidenceComposer.file.name,
@@ -621,7 +672,9 @@ export default function FieldIdExchangePage() {
     setLoadingProofHistoryActionId(actionId);
     setMessage(null);
     try {
-      const response = await fetch(`/api/company/corrective-actions/${actionId}/evidence/list`);
+      const response = await fetch(`/api/company/corrective-actions/${actionId}/evidence/list`, {
+        headers: await getAuthHeaders(),
+      });
       const payload = (await response.json().catch(() => null)) as
         | { evidence?: EvidenceRow[]; error?: string }
         | null;
@@ -648,7 +701,7 @@ export default function FieldIdExchangePage() {
     <div className="space-y-8">
       <PageHero
         eyebrow="Company Board"
-        title="Field iD Exchange"
+        title="Corrective Action Hub"
         description={`Track hazards and corrective actions for ${companyName} with assignees, due dates, reminders, and closure controls.`}
         actions={
           <>
@@ -1153,6 +1206,56 @@ export default function FieldIdExchangePage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Active Matrix"
+            description="Live matrix of issue categories by status."
+          >
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-separate border-spacing-y-2">
+                <thead>
+                  <tr>
+                    <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Category
+                    </th>
+                    <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Open
+                    </th>
+                    <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      In Progress
+                    </th>
+                    <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Closed
+                    </th>
+                    <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeMatrix.map((row) => (
+                    <tr key={row.category}>
+                      <td className="rounded-l-xl border-y border-l border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-900">
+                        {getCategoryLabel(row.category)}
+                      </td>
+                      <td className="border-y border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs text-slate-700">
+                        {row.open}
+                      </td>
+                      <td className="border-y border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs text-slate-700">
+                        {row.inProgress}
+                      </td>
+                      <td className="border-y border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs text-slate-700">
+                        {row.closed}
+                      </td>
+                      <td className="rounded-r-xl border-y border-r border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs font-semibold text-slate-900">
+                        {row.total}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </SectionCard>
 

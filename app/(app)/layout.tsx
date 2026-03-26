@@ -52,7 +52,7 @@ const companyAdminQuickLinks: NavItem[] = [
   { href: "/peshep", label: "PESHEP", short: "PB" },
   { href: "/csep", label: "CSEP", short: "CS" },
   { href: "/company-users", label: "Users", short: "US" },
-  { href: "/field-id-exchange", label: "Field iD Exchange", short: "FX" },
+  { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
@@ -62,7 +62,7 @@ const companyManagerQuickLinks: NavItem[] = [
   { href: "/library", label: "Documents", short: "DC" },
   { href: "/peshep", label: "PESHEP", short: "PB" },
   { href: "/csep", label: "CSEP", short: "CS" },
-  { href: "/field-id-exchange", label: "Field iD Exchange", short: "FX" },
+  { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
@@ -139,7 +139,7 @@ const companyAdminSideSections: NavSection[] = [
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
       { href: "/company-users", label: "Users", short: "US" },
-      { href: "/field-id-exchange", label: "Field iD Exchange", short: "FX" },
+      { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
   },
@@ -167,7 +167,7 @@ const companyManagerSideSections: NavSection[] = [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
-      { href: "/field-id-exchange", label: "Field iD Exchange", short: "FX" },
+      { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
   },
@@ -545,7 +545,12 @@ export default function AppLayout({
           const companyAllowedRoutes = ["/dashboard", "/library", "/profile"];
 
           if (nextRole === "company_admin" || nextRole === "manager") {
-            companyAllowedRoutes.push("/jobsites", "/field-id-exchange", "/reports");
+            companyAllowedRoutes.push(
+              "/jobsites",
+              "/field-id-exchange",
+              "/safety-submit",
+              "/reports"
+            );
           }
 
           if (
@@ -553,7 +558,13 @@ export default function AppLayout({
             data?.user?.permissionMap?.can_edit_documents ||
             data?.user?.permissionMap?.can_submit_documents
           ) {
-            companyAllowedRoutes.push("/submit", "/upload", "/peshep", "/csep");
+            companyAllowedRoutes.push(
+              "/submit",
+              "/safety-submit",
+              "/upload",
+              "/peshep",
+              "/csep"
+            );
           }
 
           if (data?.user?.permissionMap?.can_manage_company_users) {

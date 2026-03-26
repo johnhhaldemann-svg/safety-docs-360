@@ -17,6 +17,18 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+async function getAuthHeaders() {
+  const sessionResult = await supabase.auth.getSession();
+  const accessToken = sessionResult.data.session?.access_token;
+  if (!accessToken) {
+    throw new Error("Missing auth token.");
+  }
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+  };
+}
+
 type SubmissionState = {
   title: string;
   description: string;
@@ -115,7 +127,7 @@ export default function SafetySubmitPage() {
 
       const response = await fetch("/api/company/safety-submissions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           title: submission.title,
           description: submission.description,
