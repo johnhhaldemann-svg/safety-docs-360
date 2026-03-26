@@ -211,18 +211,10 @@ export function useCompanyWorkspaceData() {
         Authorization: `Bearer ${accessToken}`,
       };
 
-      const [
-        meResponse,
-        documentsResponse,
-        creditsResponse,
-        companyUsersResponse,
-        jobsitesResponse,
-      ] = await Promise.all([
+      // Batch 1: core identity + documents (2 calls max)
+      const [meResponse, documentsResponse] = await Promise.all([
         fetchWithTimeout("/api/auth/me", { headers: authHeaders }, 15000),
         fetchWithTimeout("/api/workspace/documents", { headers: authHeaders }, 15000),
-        fetchWithTimeout("/api/library/credits", { headers: authHeaders }, 15000),
-        fetchWithTimeout("/api/company/users", { headers: authHeaders }, 15000),
-        fetchWithTimeout("/api/company/jobsites", { headers: authHeaders }, 15000),
       ]);
 
       const meData = (await meResponse.json().catch(() => null)) as
@@ -231,44 +223,38 @@ export function useCompanyWorkspaceData() {
       const documentsData = (await documentsResponse.json().catch(() => null)) as
         | { documents?: DocumentRow[] }
         | null;
+
+      setCompanyProfile(meResponse.ok ? meData?.user?.companyProfile ?? null : null);
+      setDocuments(documentsResponse.ok ? documentsData?.documents ?? [] : []);
+      setLoading(false);
+
+      // Batch 2: company data (staggered – 2 calls then 1 call)
+      const [creditsResponse, companyUsersResponse] = await Promise.all([
+        fetchWithTimeout("/api/library/credits", { headers: authHeaders }, 15000),
+        fetchWithTimeout("/api/company/users", { headers: authHeaders }, 15000),
+      ]);
+
       const creditsData = (await creditsResponse.json().catch(() => null)) as
         | { creditBalance?: number }
         | null;
       const companyUsersData = (await companyUsersResponse.json().catch(() => null)) as
         | { users?: CompanyUser[]; invites?: CompanyInvite[] }
         | null;
-      const jobsitesData = (await jobsitesResponse.json().catch(() => null)) as
-        | { jobsites?: CompanyJobsiteRow[] }
-        | null;
-      setCompanyProfile(meResponse.ok ? meData?.user?.companyProfile ?? null : null);
-      setDocuments(documentsResponse.ok ? documentsData?.documents ?? [] : []);
-      setCreditBalance(
-        creditsResponse.ok ? Number(creditsData?.creditBalance ?? 0) : null
-      );
+
+      setCreditBalance(creditsResponse.ok ? Number(creditsData?.creditBalance ?? 0) : null);
       setCompanyUsers(companyUsersResponse.ok ? companyUsersData?.users ?? [] : []);
       setCompanyInvites(companyUsersResponse.ok ? companyUsersData?.invites ?? [] : []);
-      setJobsiteRows(jobsitesResponse.ok ? jobsitesData?.jobsites ?? [] : []);
-      setLoading(false);
 
-      // Load heavier operational modules after core workspace data is visible.
+      // Batch 3: single aggregated call for jobsites + all operational modules
       void (async () => {
-        const [
-          correctiveActionsResponse,
-          dapsResponse,
-          permitsResponse,
-          incidentsResponse,
-          reportsResponse,
-        ] = await Promise.all([
-          fetchWithTimeout("/api/company/observations", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/company/daps", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/company/permits", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/company/incidents", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/company/reports", { headers: authHeaders }, 15000),
-        ]);
-
-        const correctiveActionsData = (await correctiveActionsResponse.json().catch(() => null)) as
+        const summaryResponse = await fetchWithTimeout(
+          "/api/company/workspace/summary",
+          { headers: authHeaders },
+          15000
+        );
+        const summaryData = (await summaryResponse.json().catch(() => null)) as
           | {
-              actions?: Array<{ category?: string | null; status?: string | null; due_at?: string | null }>;
+              jobsites?: CompanyJobsiteRow[];
               observations?: Array<{ category?: string | null; status?: string | null; due_at?: string | null }>;
               daps?: Array<{ status?: string | null }>;
               permits?: Array<{ status?: string | null }>;
@@ -276,35 +262,17 @@ export function useCompanyWorkspaceData() {
               reports?: Array<{ status?: string | null }>;
             }
           | null;
-        const dapsData = (await dapsResponse.json().catch(() => null)) as
-          | { daps?: Array<{ status?: string | null }> }
-          | null;
-        const permitsData = (await permitsResponse.json().catch(() => null)) as
-          | { permits?: Array<{ status?: string | null }> }
-          | null;
-        const incidentsData = (await incidentsResponse.json().catch(() => null)) as
-          | { incidents?: Array<{ status?: string | null }> }
-          | null;
-        const reportsData = (await reportsResponse.json().catch(() => null)) as
-          | { reports?: Array<{ status?: string | null }> }
-          | null;
 
-        setCorrectiveActions(
-          correctiveActionsResponse.ok
-            ? correctiveActionsData?.observations ?? correctiveActionsData?.actions ?? []
-            : []
-        );
-        setDaps(dapsResponse.ok ? dapsData?.daps ?? [] : []);
-        setPermits(permitsResponse.ok ? permitsData?.permits ?? [] : []);
-        setIncidents(incidentsResponse.ok ? incidentsData?.incidents ?? [] : []);
-        setReports(reportsResponse.ok ? reportsData?.reports ?? [] : []);
+        if (summaryResponse.ok && summaryData) {
+          setJobsiteRows((summaryData.jobsites ?? []) as CompanyJobsiteRow[]);
+          setCorrectiveActions(summaryData.observations ?? []);
+          setDaps(summaryData.daps ?? []);
+          setPermits(summaryData.permits ?? []);
+          setIncidents(summaryData.incidents ?? []);
+          setReports(summaryData.reports ?? []);
+        }
       })().catch((error) => {
         console.error("Failed to load operational workspace modules:", error);
-        setCorrectiveActions([]);
-        setDaps([]);
-        setPermits([]);
-        setIncidents([]);
-        setReports([]);
       });
       return;
     } catch (error) {
