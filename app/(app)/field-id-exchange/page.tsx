@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -42,14 +41,7 @@ type CorrectiveActionRow = {
     | "excavation_trench_concern"
     | "fire_hot_work_concern"
     | "corrective_action";
-  status:
-    | "open"
-    | "assigned"
-    | "in_progress"
-    | "corrected"
-    | "verified_closed"
-    | "escalated"
-    | "stop_work";
+  status: "open" | "in_progress" | "closed";
   assigned_user_id: string | null;
   due_at: string | null;
   started_at: string | null;
@@ -66,31 +58,9 @@ type CreateActionState = {
   title: string;
   description: string;
   severity: "low" | "medium" | "high" | "critical";
-  observationType: "positive" | "negative" | "near_miss";
-  sifPotential: "" | "yes" | "no";
-  sifCategory:
-    | ""
-    | "fall_from_height"
-    | "struck_by"
-    | "caught_between"
-    | "electrical"
-    | "excavation_collapse"
-    | "confined_space"
-    | "hazardous_energy"
-    | "crane_rigging"
-    | "line_of_fire";
   jobsiteId: string;
   assignedUserId: string;
   dueAt: string;
-  dapActivityId: string;
-  workflowStatus:
-    | "open"
-    | "assigned"
-    | "in_progress"
-    | "corrected"
-    | "verified_closed"
-    | "escalated"
-    | "stop_work";
 };
 
 type EvidenceComposerState = {
@@ -129,27 +99,9 @@ const EMPTY_CREATE_ACTION: CreateActionState = {
   title: "",
   description: "",
   severity: "medium",
-  observationType: "negative",
-  sifPotential: "",
-  sifCategory: "",
   jobsiteId: "",
   assignedUserId: "",
   dueAt: "",
-  dapActivityId: "",
-  workflowStatus: "open",
-};
-
-type DapActivityOption = {
-  id: string;
-  dap_id: string;
-  activity_name: string;
-  status: string;
-  trade?: string | null;
-  area?: string | null;
-  hazard_category?: string | null;
-  permit_required?: boolean;
-  permit_type?: string | null;
-  jobsite_id?: string | null;
 };
 
 const EMPTY_EVIDENCE_COMPOSER: EvidenceComposerState = {
@@ -164,20 +116,13 @@ function getSeverityTone(severity: CorrectiveActionRow["severity"]) {
 
 function getStatusTone(status: CorrectiveActionRow["status"]) {
   if (status === "open") return "warning" as const;
-  if (status === "assigned") return "info" as const;
   if (status === "in_progress") return "info" as const;
-  if (status === "corrected") return "warning" as const;
-  if (status === "escalated" || status === "stop_work") return "error" as const;
   return "success" as const;
 }
 
 function getStatusLabel(status: CorrectiveActionRow["status"]) {
-  if (status === "assigned") return "Assigned";
   if (status === "in_progress") return "In Progress";
-  if (status === "corrected") return "Corrected";
-  if (status === "verified_closed") return "Verified Closed";
-  if (status === "escalated") return "Escalated";
-  if (status === "stop_work") return "Stop Work";
+  if (status === "closed") return "Closed";
   return "Open";
 }
 
@@ -215,25 +160,7 @@ async function getAuthHeaders() {
   };
 }
 
-async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init: RequestInit,
-  timeoutMs = 15000
-) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    });
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
 export default function FieldIdExchangePage() {
-  const searchParams = useSearchParams();
   const {
     companyName,
     companyLocation,
@@ -249,7 +176,6 @@ export default function FieldIdExchangePage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [composer, setComposer] = useState<CreateActionState>(EMPTY_CREATE_ACTION);
-  const [showAdvancedComposer, setShowAdvancedComposer] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">(
@@ -267,7 +193,6 @@ export default function FieldIdExchangePage() {
   const [loadingProofHistoryActionId, setLoadingProofHistoryActionId] = useState<string | null>(null);
   const [pendingSubmissions, setPendingSubmissions] = useState<SafetySubmissionRow[]>([]);
   const [reviewingSubmissionId, setReviewingSubmissionId] = useState<string | null>(null);
-  const [dapActivities, setDapActivities] = useState<DapActivityOption[]>([]);
 
   useEffect(() => {
     let ignore = false;
@@ -275,20 +200,19 @@ export default function FieldIdExchangePage() {
     async function loadActions() {
       setLoadingActions(true);
       try {
-        const headers = await getAuthHeaders();
-        const [actionsResponse, submissionsResponse, activitiesResponse] = await Promise.all([
-          fetchWithTimeout("/api/company/observations", { headers }, 15000),
-          fetchWithTimeout("/api/company/safety-submissions?status=pending", { headers }, 15000),
-          fetchWithTimeout("/api/company/dap-activities", { headers }, 15000),
+        const [actionsResponse, submissionsResponse] = await Promise.all([
+          fetch("/api/company/corrective-actions", {
+            headers: await getAuthHeaders(),
+          }),
+          fetch("/api/company/safety-submissions?status=pending", {
+            headers: await getAuthHeaders(),
+          }),
         ]);
         const actionsPayload = (await actionsResponse.json().catch(() => null)) as
           | { actions?: CorrectiveActionRow[]; error?: string }
           | null;
         const submissionsPayload = (await submissionsResponse.json().catch(() => null)) as
           | { submissions?: SafetySubmissionRow[]; error?: string }
-          | null;
-        const activitiesPayload = (await activitiesResponse.json().catch(() => null)) as
-          | { activities?: DapActivityOption[] }
           | null;
         if (!ignore) {
           if (!actionsResponse.ok) {
@@ -300,47 +224,13 @@ export default function FieldIdExchangePage() {
             setPendingSubmissions(
               submissionsResponse.ok ? submissionsPayload?.submissions ?? [] : []
             );
-            setDapActivities(activitiesResponse.ok ? activitiesPayload?.activities ?? [] : []);
-            const preselectedActivity = searchParams.get("dapActivityId")?.trim() ?? "";
-            if (preselectedActivity) {
-              const activity = (activitiesPayload?.activities ?? []).find(
-                (item) => item.id === preselectedActivity
-              );
-              const prefilledTitle = activity
-                ? `${activity.area || "General"} - ${activity.activity_name || "Planned Activity"}`
-                : "";
-              const prefilledDescription = activity
-                ? [
-                    activity.trade ? `Trade: ${activity.trade}` : null,
-                    activity.area ? `Area: ${activity.area}` : null,
-                    activity.activity_name ? `Activity: ${activity.activity_name}` : null,
-                    activity.hazard_category ? `Hazard Category: ${activity.hazard_category}` : null,
-                    `Permit Required: ${activity.permit_required ? "Yes" : "No"}`,
-                    activity.permit_type ? `Permit Type: ${activity.permit_type}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" | ")
-                : "";
-              setComposer((current) => ({
-                ...current,
-                dapActivityId: preselectedActivity,
-                title: current.title || prefilledTitle,
-                description: current.description || prefilledDescription,
-                jobsiteId: current.jobsiteId || activity?.jobsite_id || "",
-              }));
-              setShowAdvancedComposer(true);
-            }
           }
         }
       } catch (error) {
         if (!ignore) {
           console.error("Failed to load corrective actions:", error);
           setActions([]);
-          setMessage(
-            error instanceof Error && error.name === "AbortError"
-              ? "Load timed out. Please refresh the page."
-              : "Unable to load corrective actions right now."
-          );
+          setMessage("Unable to load corrective actions right now.");
           setMessageTone("error");
         }
       } finally {
@@ -354,7 +244,7 @@ export default function FieldIdExchangePage() {
     return () => {
       ignore = true;
     };
-  }, [searchParams]);
+  }, []);
 
   const assigneeLabelById = useMemo(() => {
     const next = new Map<string, string>();
@@ -410,15 +300,10 @@ export default function FieldIdExchangePage() {
     statusFilter,
   ]);
 
-  const openCount = filteredItems.filter(
-    (item) => item.status === "open" || item.status === "assigned"
-  ).length;
+  const openCount = filteredItems.filter((item) => item.status === "open").length;
   const inProgressCount = filteredItems.filter((item) => item.status === "in_progress").length;
   const overdueCount = filteredItems.filter(
-    (item) =>
-      item.status !== "verified_closed" &&
-      item.due_at &&
-      new Date(item.due_at).getTime() < referenceTime
+    (item) => item.status !== "closed" && item.due_at && new Date(item.due_at).getTime() < referenceTime
   ).length;
   const coveredJobsites = new Set(
     filteredItems
@@ -480,7 +365,7 @@ export default function FieldIdExchangePage() {
         (item) => item.category === category && item.status === "in_progress"
       ).length,
       closed: filteredItems.filter(
-        (item) => item.category === category && item.status === "verified_closed"
+        (item) => item.category === category && item.status === "closed"
       ).length,
       total: filteredItems.filter((item) => item.category === category).length,
     }));
@@ -489,13 +374,16 @@ export default function FieldIdExchangePage() {
   async function reloadActions() {
     setLoadingActions(true);
     try {
-      const headers = await getAuthHeaders();
       const [actionsResponse, submissionsResponse] = await Promise.all([
-        fetchWithTimeout("/api/company/observations", { headers }, 15000),
-        fetchWithTimeout("/api/company/safety-submissions?status=pending", { headers }, 15000),
+        fetch("/api/company/corrective-actions", {
+          headers: await getAuthHeaders(),
+        }),
+        fetch("/api/company/safety-submissions?status=pending", {
+          headers: await getAuthHeaders(),
+        }),
       ]);
       const actionsPayload = (await actionsResponse.json().catch(() => null)) as
-        | { actions?: CorrectiveActionRow[]; observations?: CorrectiveActionRow[]; error?: string }
+        | { actions?: CorrectiveActionRow[]; error?: string }
         | null;
       const submissionsPayload = (await submissionsResponse.json().catch(() => null)) as
         | { submissions?: SafetySubmissionRow[] }
@@ -505,15 +393,11 @@ export default function FieldIdExchangePage() {
         setMessageTone("error");
         return;
       }
-      setActions(actionsPayload?.observations ?? actionsPayload?.actions ?? []);
+      setActions(actionsPayload?.actions ?? []);
       setPendingSubmissions(submissionsResponse.ok ? submissionsPayload?.submissions ?? [] : []);
     } catch (error) {
       console.error("Failed to reload corrective actions:", error);
-      setMessage(
-        error instanceof Error && error.name === "AbortError"
-          ? "Refresh timed out. Please try again."
-          : "Unable to refresh corrective actions right now."
-      );
+      setMessage("Unable to refresh corrective actions right now.");
       setMessageTone("error");
     } finally {
       setLoadingActions(false);
@@ -523,7 +407,7 @@ export default function FieldIdExchangePage() {
   async function reviewSubmission(
     submission: SafetySubmissionRow,
     decision: "approved" | "rejected",
-    actionStatus: "open" | "verified_closed"
+    actionStatus: "open" | "closed"
   ) {
     setReviewingSubmissionId(submission.id);
     setMessage(null);
@@ -563,21 +447,11 @@ export default function FieldIdExchangePage() {
       setMessageTone("error");
       return;
     }
-    if (composer.observationType === "negative" && !composer.sifPotential) {
-      setMessage("SIF evaluation is required for negative observations.");
-      setMessageTone("error");
-      return;
-    }
-    if (composer.observationType === "negative" && composer.sifPotential === "yes" && !composer.sifCategory) {
-      setMessage("Select a SIF category.");
-      setMessageTone("error");
-      return;
-    }
 
     setSaving(true);
     setMessage(null);
     try {
-      const response = await fetchWithTimeout("/api/company/observations", {
+      const response = await fetch("/api/company/corrective-actions", {
         method: "POST",
         headers: await getAuthHeaders(),
         body: JSON.stringify({
@@ -587,28 +461,12 @@ export default function FieldIdExchangePage() {
           jobsiteId: composer.jobsiteId,
           assignedUserId: composer.assignedUserId,
           dueAt: composer.dueAt,
-          dapActivityId: composer.dapActivityId,
-          status: composer.workflowStatus,
-          observationType: composer.observationType,
-          sifPotential:
-            composer.observationType === "negative"
-              ? composer.sifPotential === "yes"
-              : undefined,
-          sifCategory:
-            composer.observationType === "negative" && composer.sifPotential === "yes"
-              ? composer.sifCategory
-              : undefined,
         }),
-      }, 15000);
+      });
       const payload = (await response.json().catch(() => null)) as
         | { error?: string; message?: string }
         | null;
       if (!response.ok) {
-        if (response.status === 429) {
-          setMessage("Request limit reached. Wait a few seconds and try Save again.");
-          setMessageTone("warning");
-          return;
-        }
         setMessage(payload?.error || "Failed to create corrective action.");
         setMessageTone("error");
         return;
@@ -619,31 +477,21 @@ export default function FieldIdExchangePage() {
       await reloadActions();
     } catch (error) {
       console.error("Failed to create corrective action:", error);
-      setMessage(
-        error instanceof Error && error.name === "AbortError"
-          ? "Save timed out. Please try again."
-          : "Failed to create corrective action right now."
-      );
+      setMessage("Failed to create corrective action right now.");
       setMessageTone("error");
     } finally {
       setSaving(false);
     }
   }
 
-  async function updateStatus(
-    action: CorrectiveActionRow,
-    nextStatus: "open" | "assigned" | "in_progress" | "corrected" | "escalated" | "stop_work"
-  ) {
+  async function updateStatus(action: CorrectiveActionRow, nextStatus: "open" | "in_progress") {
     setUpdatingActionId(action.id);
     setMessage(null);
     try {
-      const response = await fetch(`/api/company/observations/${action.id}`, {
+      const response = await fetch(`/api/company/corrective-actions/${action.id}`, {
         method: "PATCH",
         headers: await getAuthHeaders(),
-        body: JSON.stringify({
-          status: nextStatus,
-          workflowStatus: nextStatus,
-        }),
+        body: JSON.stringify({ status: nextStatus }),
       });
       const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!response.ok) {
@@ -670,7 +518,6 @@ export default function FieldIdExchangePage() {
     const managerOverrideReason = managerOverride
       ? window.prompt("Enter manager override reason:")?.trim() ?? ""
       : "";
-    const closureNote = window.prompt("Closure note (required for SIF observations):")?.trim() ?? "";
 
     if (managerOverride && !managerOverrideReason) {
       setMessage("Manager override reason is required.");
@@ -681,13 +528,12 @@ export default function FieldIdExchangePage() {
     setUpdatingActionId(actionId);
     setMessage(null);
     try {
-      const response = await fetch(`/api/company/observations/${actionId}/close`, {
+      const response = await fetch(`/api/company/corrective-actions/${actionId}/close`, {
         method: "POST",
         headers: await getAuthHeaders(),
         body: JSON.stringify({
           managerOverride,
           managerOverrideReason: managerOverride ? managerOverrideReason : undefined,
-          closureNote: closureNote || undefined,
         }),
       });
       const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
@@ -708,39 +554,6 @@ export default function FieldIdExchangePage() {
     }
   }
 
-  async function convertToIncident(action: CorrectiveActionRow) {
-    setUpdatingActionId(action.id);
-    setMessage(null);
-    try {
-      const response = await fetch(`/api/company/observations/${action.id}`, {
-        method: "PATCH",
-        headers: await getAuthHeaders(),
-        body: JSON.stringify({
-          convertToIncident: true,
-          incidentType: action.category === "near_miss" ? "near_miss" : "incident",
-          status: "escalated",
-        }),
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string; message?: string }
-        | null;
-      if (!response.ok) {
-        setMessage(payload?.error || "Failed to convert observation into incident.");
-        setMessageTone("error");
-        return;
-      }
-      setMessage("Observation escalated and incident record created.");
-      setMessageTone("success");
-      await reloadActions();
-    } catch (error) {
-      console.error("Failed to convert to incident:", error);
-      setMessage("Failed to convert observation right now.");
-      setMessageTone("error");
-    } finally {
-      setUpdatingActionId(null);
-    }
-  }
-
   async function attachProof(actionId: string) {
     if (!evidenceComposer.file) {
       setMessage("Select a proof photo before saving.");
@@ -751,37 +564,23 @@ export default function FieldIdExchangePage() {
     setUpdatingActionId(actionId);
     setMessage(null);
     try {
-      const uploadUrlResponse = await fetch(`/api/company/observations/${actionId}/upload-url`, {
-        method: "POST",
-        headers: await getAuthHeaders(),
-        body: JSON.stringify({
-          fileName: evidenceComposer.file.name,
-          mimeType: evidenceComposer.file.type || "image/jpeg",
-        }),
-      });
-      const uploadUrlPayload = (await uploadUrlResponse.json().catch(() => null)) as
-        | { error?: string; path?: string; token?: string; bucket?: string }
-        | null;
-      if (!uploadUrlResponse.ok || !uploadUrlPayload?.path || !uploadUrlPayload?.token) {
-        setMessage(uploadUrlPayload?.error || "Failed to initialize secure proof upload.");
-        setMessageTone("error");
-        return;
-      }
-      const bucket = uploadUrlPayload.bucket || "documents";
+      const safeFileName = `${Date.now()}-${evidenceComposer.file.name.replace(/\s+/g, "-")}`;
+      const filePath = `corrective-actions/${actionId}/${safeFileName}`;
       const uploadResult = await supabase.storage
-        .from(bucket)
-        .uploadToSignedUrl(uploadUrlPayload.path, uploadUrlPayload.token, evidenceComposer.file);
+        .from("documents")
+        .upload(filePath, evidenceComposer.file, { upsert: false });
+
       if (uploadResult.error) {
         setMessage(`Proof upload failed: ${uploadResult.error.message}`);
         setMessageTone("error");
         return;
       }
 
-      const response = await fetch(`/api/company/observations/${actionId}/evidence`, {
+      const response = await fetch(`/api/company/corrective-actions/${actionId}/evidence`, {
         method: "POST",
         headers: await getAuthHeaders(),
         body: JSON.stringify({
-          filePath: uploadUrlPayload.path,
+          filePath: uploadResult.data?.path ?? filePath,
           fileName: evidenceComposer.file.name,
           mimeType: evidenceComposer.file.type || "image/jpeg",
         }),
@@ -873,7 +672,7 @@ export default function FieldIdExchangePage() {
     setLoadingProofHistoryActionId(actionId);
     setMessage(null);
     try {
-      const response = await fetch(`/api/company/observations/${actionId}/evidence/list`, {
+      const response = await fetch(`/api/company/corrective-actions/${actionId}/evidence/list`, {
         headers: await getAuthHeaders(),
       });
       const payload = (await response.json().catch(() => null)) as
@@ -965,13 +764,13 @@ export default function FieldIdExchangePage() {
 
       <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <SectionCard
-          title="Create Observation"
-          description="Create an observation, assign owner, set due date, and track closure proof."
+          title="Create Corrective Action"
+          description="Create issue, assign owner, set due date, and track closure proof."
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                Observation title
+                Issue title
               </label>
               <input
                 type="text"
@@ -1014,86 +813,6 @@ export default function FieldIdExchangePage() {
                 <option value="critical">Critical</option>
               </select>
             </div>
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                Observation Type
-              </label>
-              <select
-                value={composer.observationType}
-                onChange={(event) =>
-                  setComposer((current) => ({
-                    ...current,
-                    observationType: event.target.value as CreateActionState["observationType"],
-                  }))
-                }
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
-              >
-                <option value="negative">Negative</option>
-                <option value="near_miss">Near Miss</option>
-                <option value="positive">Positive</option>
-              </select>
-            </div>
-            {composer.observationType === "negative" ? (
-              <>
-                <div>
-                  <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                    SIF Potential (Required)
-                  </label>
-                  <select
-                    value={composer.sifPotential}
-                    onChange={(event) =>
-                      setComposer((current) => ({
-                        ...current,
-                        sifPotential: event.target.value as CreateActionState["sifPotential"],
-                      }))
-                    }
-                    className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
-                  >
-                    <option value="">Select</option>
-                    <option value="yes">Yes</option>
-                    <option value="no">No</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                    SIF Category
-                  </label>
-                  <select
-                    value={composer.sifCategory}
-                    onChange={(event) =>
-                      setComposer((current) => ({
-                        ...current,
-                        sifCategory: event.target.value as CreateActionState["sifCategory"],
-                      }))
-                    }
-                    disabled={composer.sifPotential !== "yes"}
-                    className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500 disabled:bg-slate-100"
-                  >
-                    <option value="">Select category</option>
-                    <option value="fall_from_height">fall from height</option>
-                    <option value="struck_by">struck-by</option>
-                    <option value="caught_between">caught-between</option>
-                    <option value="electrical">electrical</option>
-                    <option value="excavation_collapse">excavation collapse</option>
-                    <option value="confined_space">confined space</option>
-                    <option value="hazardous_energy">hazardous energy</option>
-                    <option value="crane_rigging">crane / rigging</option>
-                    <option value="line_of_fire">line of fire</option>
-                  </select>
-                </div>
-              </>
-            ) : null}
-            <div className="sm:col-span-2">
-              <button
-                type="button"
-                onClick={() => setShowAdvancedComposer((current) => !current)}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-slate-50"
-              >
-                {showAdvancedComposer ? "Hide Advanced Fields" : "Show Advanced Fields"}
-              </button>
-            </div>
-            {showAdvancedComposer ? (
-              <>
             <div>
               <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                 Jobsite
@@ -1141,53 +860,6 @@ export default function FieldIdExchangePage() {
                 className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
               />
             </div>
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                Link to DAP Activity (Optional)
-              </label>
-              <select
-                value={composer.dapActivityId}
-                onChange={(event) =>
-                  setComposer((current) => ({ ...current, dapActivityId: event.target.value }))
-                }
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
-              >
-                <option value="">Ad-hoc observation (not from DAP)</option>
-                {dapActivities.map((activity) => (
-                  <option key={activity.id} value={activity.id}>
-                    {activity.activity_name}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-2 text-xs text-slate-500">
-                Use this only when the observation is tied to planned work from today&apos;s DAP or Live View.
-              </p>
-            </div>
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                Workflow status
-              </label>
-              <select
-                value={composer.workflowStatus}
-                onChange={(event) =>
-                  setComposer((current) => ({
-                    ...current,
-                    workflowStatus: event.target.value as CreateActionState["workflowStatus"],
-                  }))
-                }
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
-              >
-                <option value="open">Open</option>
-                <option value="assigned">Assigned</option>
-                <option value="in_progress">In Progress</option>
-                <option value="corrected">Corrected</option>
-                <option value="verified_closed">Verified Closed</option>
-                <option value="escalated">Escalated</option>
-                <option value="stop_work">Stop Work</option>
-              </select>
-            </div>
-              </>
-            ) : null}
           </div>
           {message ? (
             <div className="mt-5">
@@ -1201,14 +873,11 @@ export default function FieldIdExchangePage() {
               disabled={saving}
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              {saving ? "Saving..." : "Create Observation"}
+              {saving ? "Saving..." : "Create Issue"}
             </button>
             <button
               type="button"
-              onClick={() => {
-                setComposer(EMPTY_CREATE_ACTION);
-                setShowAdvancedComposer(false);
-              }}
+              onClick={() => setComposer(EMPTY_CREATE_ACTION)}
               className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Clear
@@ -1217,7 +886,7 @@ export default function FieldIdExchangePage() {
         </SectionCard>
 
         <SectionCard
-          title="Observation Queue"
+          title="Live Exchange Feed"
           description="Assign, move to in progress, upload proof, then close with accountability."
         >
           <div className="mb-4 grid gap-3 lg:grid-cols-4">
@@ -1247,12 +916,8 @@ export default function FieldIdExchangePage() {
             >
               <option value="all">All statuses</option>
               <option value="Open">Open</option>
-              <option value="Assigned">Assigned</option>
               <option value="In Progress">In Progress</option>
-              <option value="Corrected">Corrected</option>
-              <option value="Escalated">Escalated</option>
-              <option value="Stop Work">Stop Work</option>
-              <option value="Verified Closed">Verified Closed</option>
+              <option value="Closed">Closed</option>
             </select>
             <select
               value={categoryFilter}
@@ -1278,14 +943,7 @@ export default function FieldIdExchangePage() {
           ) : (
             <div className="space-y-3">
               {filteredItems.map((item) => (
-                <div
-                  key={item.id}
-                  className={`rounded-2xl border px-4 py-4 ${
-                    item.status === "stop_work"
-                      ? "border-amber-400 bg-amber-50"
-                      : "border-slate-200 bg-slate-50"
-                  }`}
-                >
+                <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1310,7 +968,7 @@ export default function FieldIdExchangePage() {
                         {item.due_at
                           ? `Due ${formatRelative(item.due_at, referenceTime)}`
                           : "No due date"}
-                        {item.status !== "verified_closed" &&
+                        {item.status !== "closed" &&
                         item.due_at &&
                         new Date(item.due_at).getTime() < referenceTime
                           ? " · Overdue"
@@ -1326,16 +984,6 @@ export default function FieldIdExchangePage() {
                         {item.status === "open" ? (
                           <button
                             type="button"
-                            onClick={() => void updateStatus(item, "assigned")}
-                            disabled={updatingActionId === item.id}
-                            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
-                          >
-                            Assign
-                          </button>
-                        ) : null}
-                        {(item.status === "open" || item.status === "assigned") ? (
-                          <button
-                            type="button"
                             onClick={() => void updateStatus(item, "in_progress")}
                             disabled={updatingActionId === item.id}
                             className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
@@ -1346,40 +994,14 @@ export default function FieldIdExchangePage() {
                         {item.status === "in_progress" ? (
                           <button
                             type="button"
-                            onClick={() => void updateStatus(item, "corrected")}
-                            disabled={updatingActionId === item.id}
-                            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
-                          >
-                            Mark Corrected
-                          </button>
-                        ) : null}
-                        {(item.status === "open" ||
-                          item.status === "assigned" ||
-                          item.status === "in_progress" ||
-                          item.status === "corrected") ? (
-                          <button
-                            type="button"
-                            onClick={() => void updateStatus(item, "stop_work")}
-                            disabled={updatingActionId === item.id}
-                            className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:text-amber-400"
-                          >
-                            Stop Work
-                          </button>
-                        ) : null}
-                        {(item.status === "in_progress" ||
-                          item.status === "corrected" ||
-                          item.status === "escalated" ||
-                          item.status === "stop_work") ? (
-                          <button
-                            type="button"
                             onClick={() => void updateStatus(item, "open")}
                             disabled={updatingActionId === item.id}
                             className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
                           >
-                            Reopen Open
+                            Reopen
                           </button>
                         ) : null}
-                        {item.status !== "verified_closed" ? (
+                        {item.status !== "closed" ? (
                           <button
                             type="button"
                             onClick={() => {
@@ -1418,29 +1040,18 @@ export default function FieldIdExchangePage() {
                                 : "Proof History"}
                           </button>
                         ) : null}
-                        {item.status !== "verified_closed" ? (
+                        {item.status !== "closed" ? (
                           <button
                             type="button"
                             onClick={() => void closeAction(item.id)}
                             disabled={updatingActionId === item.id}
                             className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                           >
-                            Verify Closed
+                            Close Issue
                           </button>
                         ) : (
-                          <StatusBadge label="Verified Closed" tone="success" />
+                          <StatusBadge label="Closed" tone="success" />
                         )}
-                        {(item.category === "near_miss" || item.category === "incident") &&
-                        item.status !== "verified_closed" ? (
-                          <button
-                            type="button"
-                            onClick={() => void convertToIncident(item)}
-                            disabled={updatingActionId === item.id}
-                            className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:text-amber-400"
-                          >
-                            Convert to Incident
-                          </button>
-                        ) : null}
                       </div>
                       {openEvidenceComposerId === item.id ? (
                         <div className="mt-3 space-y-2 rounded-xl border border-slate-200 bg-white p-3 text-left">
@@ -1557,7 +1168,7 @@ export default function FieldIdExchangePage() {
                         <button
                           type="button"
                           onClick={() =>
-                            void reviewSubmission(submission, "approved", "verified_closed")
+                            void reviewSubmission(submission, "approved", "closed")
                           }
                           disabled={reviewingSubmissionId === submission.id}
                           className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
@@ -1567,7 +1178,7 @@ export default function FieldIdExchangePage() {
                         <button
                           type="button"
                           onClick={() =>
-                            void reviewSubmission(submission, "rejected", "verified_closed")
+                            void reviewSubmission(submission, "rejected", "closed")
                           }
                           disabled={reviewingSubmissionId === submission.id}
                           className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"

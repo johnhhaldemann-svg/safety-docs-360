@@ -82,23 +82,6 @@ export type CompanyJobsite = {
   source: "table" | "document_fallback";
 };
 
-export type LiveMatrixRow = {
-  category: string;
-  open: number;
-  inProgress: number;
-  closed: number;
-  overdue: number;
-};
-
-export type ModuleSummaryItem = {
-  key: "daps" | "permits" | "incidents" | "reports";
-  label: string;
-  total: number;
-  open: number;
-  inProgress: number;
-  closed: number;
-};
-
 type CompanyJobsiteRow = {
   id: string;
   company_id: string;
@@ -157,20 +140,6 @@ export function isApprovedDocument(document: DocumentRow) {
   return isApprovedDocumentStatus(document.status, Boolean(document.final_file_path));
 }
 
-async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init: RequestInit,
-  timeoutMs = 15000
-) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(input, { ...init, signal: controller.signal });
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
 export function useCompanyWorkspaceData() {
   const [loading, setLoading] = useState(true);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
@@ -180,13 +149,6 @@ export function useCompanyWorkspaceData() {
   const [jobsiteRows, setJobsiteRows] = useState<CompanyJobsiteRow[]>([]);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [referenceTime] = useState(() => Date.now());
-  const [correctiveActions, setCorrectiveActions] = useState<
-    Array<{ category?: string | null; status?: string | null; due_at?: string | null }>
-  >([]);
-  const [daps, setDaps] = useState<Array<{ status?: string | null }>>([]);
-  const [permits, setPermits] = useState<Array<{ status?: string | null }>>([]);
-  const [incidents, setIncidents] = useState<Array<{ status?: string | null }>>([]);
-  const [reports, setReports] = useState<Array<{ status?: string | null }>>([]);
 
   const loadWorkspace = useCallback(async () => {
     setLoading(true);
@@ -207,23 +169,40 @@ export function useCompanyWorkspaceData() {
         return;
       }
 
-      const authHeaders = {
-        Authorization: `Bearer ${accessToken}`,
-      };
-
       const [
         meResponse,
         documentsResponse,
         creditsResponse,
         companyUsersResponse,
         jobsitesResponse,
-      ] = await Promise.all([
-        fetchWithTimeout("/api/auth/me", { headers: authHeaders }, 15000),
-        fetchWithTimeout("/api/workspace/documents", { headers: authHeaders }, 15000),
-        fetchWithTimeout("/api/library/credits", { headers: authHeaders }, 15000),
-        fetchWithTimeout("/api/company/users", { headers: authHeaders }, 15000),
-        fetchWithTimeout("/api/company/jobsites", { headers: authHeaders }, 15000),
-      ]);
+      ] =
+        await Promise.all([
+          fetch("/api/auth/me", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }),
+          fetch("/api/workspace/documents", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }),
+          fetch("/api/library/credits", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }),
+          fetch("/api/company/users", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }),
+          fetch("/api/company/jobsites", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }),
+        ]);
 
       const meData = (await meResponse.json().catch(() => null)) as
         | { user?: { companyProfile?: CompanyProfile | null } }
@@ -240,6 +219,7 @@ export function useCompanyWorkspaceData() {
       const jobsitesData = (await jobsitesResponse.json().catch(() => null)) as
         | { jobsites?: CompanyJobsiteRow[] }
         | null;
+
       setCompanyProfile(meResponse.ok ? meData?.user?.companyProfile ?? null : null);
       setDocuments(documentsResponse.ok ? documentsData?.documents ?? [] : []);
       setCreditBalance(
@@ -248,65 +228,6 @@ export function useCompanyWorkspaceData() {
       setCompanyUsers(companyUsersResponse.ok ? companyUsersData?.users ?? [] : []);
       setCompanyInvites(companyUsersResponse.ok ? companyUsersData?.invites ?? [] : []);
       setJobsiteRows(jobsitesResponse.ok ? jobsitesData?.jobsites ?? [] : []);
-      setLoading(false);
-
-      // Load heavier operational modules after core workspace data is visible.
-      void (async () => {
-        const [
-          correctiveActionsResponse,
-          dapsResponse,
-          permitsResponse,
-          incidentsResponse,
-          reportsResponse,
-        ] = await Promise.all([
-          fetchWithTimeout("/api/company/observations", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/company/daps", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/company/permits", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/company/incidents", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/company/reports", { headers: authHeaders }, 15000),
-        ]);
-
-        const correctiveActionsData = (await correctiveActionsResponse.json().catch(() => null)) as
-          | {
-              actions?: Array<{ category?: string | null; status?: string | null; due_at?: string | null }>;
-              observations?: Array<{ category?: string | null; status?: string | null; due_at?: string | null }>;
-              daps?: Array<{ status?: string | null }>;
-              permits?: Array<{ status?: string | null }>;
-              incidents?: Array<{ status?: string | null }>;
-              reports?: Array<{ status?: string | null }>;
-            }
-          | null;
-        const dapsData = (await dapsResponse.json().catch(() => null)) as
-          | { daps?: Array<{ status?: string | null }> }
-          | null;
-        const permitsData = (await permitsResponse.json().catch(() => null)) as
-          | { permits?: Array<{ status?: string | null }> }
-          | null;
-        const incidentsData = (await incidentsResponse.json().catch(() => null)) as
-          | { incidents?: Array<{ status?: string | null }> }
-          | null;
-        const reportsData = (await reportsResponse.json().catch(() => null)) as
-          | { reports?: Array<{ status?: string | null }> }
-          | null;
-
-        setCorrectiveActions(
-          correctiveActionsResponse.ok
-            ? correctiveActionsData?.observations ?? correctiveActionsData?.actions ?? []
-            : []
-        );
-        setDaps(dapsResponse.ok ? dapsData?.daps ?? [] : []);
-        setPermits(permitsResponse.ok ? permitsData?.permits ?? [] : []);
-        setIncidents(incidentsResponse.ok ? incidentsData?.incidents ?? [] : []);
-        setReports(reportsResponse.ok ? reportsData?.reports ?? [] : []);
-      })().catch((error) => {
-        console.error("Failed to load operational workspace modules:", error);
-        setCorrectiveActions([]);
-        setDaps([]);
-        setPermits([]);
-        setIncidents([]);
-        setReports([]);
-      });
-      return;
     } catch (error) {
       console.error("Failed to load company workspace data:", error);
       setDocuments([]);
@@ -315,11 +236,6 @@ export function useCompanyWorkspaceData() {
       setCompanyProfile(null);
       setJobsiteRows([]);
       setCreditBalance(null);
-      setCorrectiveActions([]);
-      setDaps([]);
-      setPermits([]);
-      setIncidents([]);
-      setReports([]);
     }
 
     setLoading(false);
@@ -567,56 +483,6 @@ export function useCompanyWorkspaceData() {
     [companyInvites.length, pendingDocuments.length, pendingUsers.length]
   );
 
-  const liveMatrixSummary = useMemo<LiveMatrixRow[]>(() => {
-    const rows = new Map<string, LiveMatrixRow>();
-    for (const action of correctiveActions) {
-      const category = (action.category ?? "corrective_action").trim().toLowerCase();
-      const status = (action.status ?? "open").trim().toLowerCase();
-      const row = rows.get(category) ?? { category, open: 0, inProgress: 0, closed: 0, overdue: 0 };
-      if (status === "closed") row.closed += 1;
-      else if (status === "in_progress") row.inProgress += 1;
-      else row.open += 1;
-      if (status !== "closed" && action.due_at) {
-        const due = new Date(action.due_at).getTime();
-        if (!Number.isNaN(due) && due < referenceTime) {
-          row.overdue += 1;
-        }
-      }
-      rows.set(category, row);
-    }
-    return Array.from(rows.values()).sort((a, b) => a.category.localeCompare(b.category));
-  }, [correctiveActions, referenceTime]);
-
-  const moduleSummaries = useMemo<ModuleSummaryItem[]>(() => {
-    const summarize = (
-      key: ModuleSummaryItem["key"],
-      label: string,
-      items: Array<{ status?: string | null }>
-    ): ModuleSummaryItem => {
-      const statusCounts = { open: 0, inProgress: 0, closed: 0 };
-      for (const item of items) {
-        const status = (item.status ?? "").trim().toLowerCase();
-        if (status === "closed" || status === "archived" || status === "published" || status === "expired") statusCounts.closed += 1;
-        else if (status === "in_progress" || status === "active") statusCounts.inProgress += 1;
-        else statusCounts.open += 1;
-      }
-      return {
-        key,
-        label,
-        total: items.length,
-        open: statusCounts.open,
-        inProgress: statusCounts.inProgress,
-        closed: statusCounts.closed,
-      };
-    };
-    return [
-      summarize("daps", "DAPs", daps),
-      summarize("permits", "Permits", permits),
-      summarize("incidents", "Incidents", incidents),
-      summarize("reports", "Reports", reports),
-    ];
-  }, [daps, incidents, permits, reports]);
-
   return {
     loading,
     referenceTime,
@@ -641,8 +507,6 @@ export function useCompanyWorkspaceData() {
     activeJobsitesCount,
     overdueActionsCount,
     notificationCount,
-    liveMatrixSummary,
-    moduleSummaries,
     reload: loadWorkspace,
   };
 }

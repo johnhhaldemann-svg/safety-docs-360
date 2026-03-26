@@ -6,12 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "smoke:safetyops": "node ./scripts/smoke-safety-ops.mjs"
+    "lint": "eslint"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",
-    "@vercel/speed-insights": "^2.0.0",
     "docx": "^9.6.0",
     "next": "16.1.6",
     "react": "19.2.3",

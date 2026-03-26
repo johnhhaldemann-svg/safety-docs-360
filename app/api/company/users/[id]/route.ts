@@ -18,16 +18,7 @@ type UpdatePayload = {
   accountStatus?: string;
 };
 
-const COMPANY_ASSIGNABLE_ROLES: AppRole[] = [
-  "company_admin",
-  "manager",
-  "safety_manager",
-  "project_manager",
-  "foreman",
-  "field_user",
-  "read_only",
-  "company_user",
-];
+const COMPANY_ASSIGNABLE_ROLES: AppRole[] = ["company_admin", "manager", "company_user"];
 
 function getCompanySafeRole(role?: string | null) {
   const normalized = normalizeAppRole(role);

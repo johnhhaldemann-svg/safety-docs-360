@@ -15,10 +15,6 @@ import {
   normalizeDocumentStatus,
 } from "@/lib/documentStatus";
 import type { CompanyJobsite } from "@/components/company-workspace/useCompanyWorkspaceData";
-import type {
-  LiveMatrixRow,
-  ModuleSummaryItem,
-} from "@/components/company-workspace/useCompanyWorkspaceData";
 
 type DocumentRow = {
   id: string;
@@ -118,10 +114,6 @@ export function CompanyAdminDashboard({
   companyProfile,
   jobsites,
   creditBalance,
-  liveMatrixSummary,
-  moduleSummaries,
-  highRiskAlerts,
-  companyDashboardMetrics,
 }: {
   loading: boolean;
   documents: DocumentRow[];
@@ -130,19 +122,6 @@ export function CompanyAdminDashboard({
   companyProfile: CompanyProfile | null;
   jobsites: CompanyJobsite[];
   creditBalance: number | null;
-  liveMatrixSummary: LiveMatrixRow[];
-  moduleSummaries: ModuleSummaryItem[];
-  highRiskAlerts: Array<{ id: string; title: string; detail: string; tone: "warning" | "info" }>;
-  companyDashboardMetrics: {
-    totalActiveJobsites: number;
-    totalOpenObservations: number;
-    totalHighRiskObservations: number;
-    sifCount: number;
-    averageClosureTimeHours: number;
-    topHazardCategories: Array<{ category: string; count: number }>;
-    openIncidents: number;
-    dapCompletionToday: { completed: number; total: number; percent: number };
-  } | null;
 }) {
   const [selectedJobsite, setSelectedJobsite] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -185,6 +164,11 @@ export function CompanyAdminDashboard({
       normalized !== "archived"
     );
   });
+  const documentsSubmittedThisWeek = documents.filter(
+    (document) =>
+      referenceTime - new Date(document.created_at).getTime() <= 1000 * 60 * 60 * 24 * 7
+  );
+
   const jobsiteOptions = ["all", ...jobsites.map((jobsite) => jobsite.name)];
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
@@ -237,16 +221,6 @@ export function CompanyAdminDashboard({
   const activeJobsitesCount = jobsites.filter((jobsite) =>
     ["Active", "Action needed", "Planned"].includes(jobsite.status)
   ).length;
-  const dashboardMetrics = companyDashboardMetrics ?? {
-    totalActiveJobsites: activeJobsitesCount,
-    totalOpenObservations: liveMatrixSummary.reduce((sum, row) => sum + row.open + row.inProgress, 0),
-    totalHighRiskObservations: highRiskAlerts.length,
-    sifCount: highRiskAlerts.length,
-    averageClosureTimeHours: 0,
-    topHazardCategories: [] as Array<{ category: string; count: number }>,
-    openIncidents: moduleSummaries.find((item) => item.key === "incidents")?.open ?? 0,
-    dapCompletionToday: { completed: 0, total: 0, percent: 0 },
-  };
 
   const kpiCards = [
     {
@@ -265,52 +239,45 @@ export function CompanyAdminDashboard({
     },
     {
       title: "Current Active Jobsites",
-      value: String(dashboardMetrics.totalActiveJobsites),
-      note: "Total active jobsites in company scope",
+      value: String(activeJobsitesCount),
+      note: "Grouped from live project and document activity",
       href: "/jobsites",
-      tone: dashboardMetrics.totalActiveJobsites > 0 ? ("success" as const) : ("neutral" as const),
+      tone: activeJobsitesCount > 0 ? ("success" as const) : ("neutral" as const),
     },
     {
-      title: "Open Observations",
-      value: String(dashboardMetrics.totalOpenObservations),
-      note: "All open/in-progress field observations",
+      title: "Pending Documents",
+      value: String(pendingDocuments.length),
+      note: "Files waiting on internal review or next action",
+      href: "/library",
+      tone: pendingDocuments.length > 0 ? ("warning" as const) : ("success" as const),
+    },
+    {
+      title: "Open Safety Issues",
+      value: "0",
+      note: "Field iD Exchange goes live as your team starts reporting",
       href: "/field-id-exchange",
-      tone: dashboardMetrics.totalOpenObservations > 0 ? ("warning" as const) : ("success" as const),
+      tone: "neutral" as const,
     },
     {
-      title: "High-Risk Observations",
-      value: String(dashboardMetrics.totalHighRiskObservations),
-      note: "High/critical observations requiring priority attention",
+      title: "Overdue Actions",
+      value: String(overdueActionsCount),
+      note: "Pending approvals and older review items",
+      href: "/reports",
+      tone: overdueActionsCount > 0 ? ("warning" as const) : ("success" as const),
+    },
+    {
+      title: "Documents Submitted This Week",
+      value: String(documentsSubmittedThisWeek.length),
+      note: "New records added to the company workspace in the last 7 days",
+      href: "/reports",
+      tone: documentsSubmittedThisWeek.length > 0 ? ("info" as const) : ("neutral" as const),
+    },
+    {
+      title: "Closed Issues This Month",
+      value: "0",
+      note: "Corrective action tracking is ready for rollout",
       href: "/field-id-exchange",
-      tone: dashboardMetrics.totalHighRiskObservations > 0 ? ("warning" as const) : ("success" as const),
-    },
-    {
-      title: "SIF Count",
-      value: String(dashboardMetrics.sifCount),
-      note: "SIF-potential observations in current analytics window",
-      href: "/analytics",
-      tone: dashboardMetrics.sifCount > 0 ? ("warning" as const) : ("success" as const),
-    },
-    {
-      title: "Avg Closure Time (hrs)",
-      value: String(dashboardMetrics.averageClosureTimeHours),
-      note: "Average time to verified closure",
-      href: "/analytics",
-      tone: "info" as const,
-    },
-    {
-      title: "Open Incidents",
-      value: String(dashboardMetrics.openIncidents),
-      note: "Incidents not yet closed",
-      href: "/incidents",
-      tone: dashboardMetrics.openIncidents > 0 ? ("warning" as const) : ("success" as const),
-    },
-    {
-      title: "DAP Completion Today",
-      value: `${dashboardMetrics.dapCompletionToday.percent}%`,
-      note: `${dashboardMetrics.dapCompletionToday.completed}/${dashboardMetrics.dapCompletionToday.total} planned activities completed today`,
-      href: "/daps",
-      tone: "info" as const,
+      tone: "neutral" as const,
     },
   ];
 
@@ -387,17 +354,6 @@ export function CompanyAdminDashboard({
   ].slice(0, 6);
 
   const correctiveActions = [
-    ...(highRiskAlerts.length > 0
-      ? [
-          {
-            id: "high-risk-alerts",
-            title: `${highRiskAlerts.length} high-risk alert${highRiskAlerts.length === 1 ? "" : "s"} require immediate review`,
-            detail: "Open permits/incidents modules and clear escalations or stop-work states.",
-            meta: "Critical",
-            tone: "warning" as const,
-          },
-        ]
-      : []),
     ...(pendingUsers.length > 0
       ? [
           {
@@ -449,16 +405,6 @@ export function CompanyAdminDashboard({
     {
       title: "Jobsite Reporting",
       note: `${activeJobsitesCount} active jobsite${activeJobsitesCount === 1 ? "" : "s"} currently moving work through the company board.`,
-    },
-    {
-      title: "Top Hazard Categories",
-      note:
-        dashboardMetrics.topHazardCategories.length > 0
-          ? dashboardMetrics.topHazardCategories
-              .slice(0, 3)
-              .map((item) => `${item.category.replace(/_/g, " ")} (${item.count})`)
-              .join(" · ")
-          : "No hazard category trends yet.",
     },
   ];
 
@@ -870,57 +816,46 @@ export function CompanyAdminDashboard({
 
       <section id="field-id-exchange" className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <SectionCard
-          title="Live Safety Observation Matrix"
-          description="Daily operations matrix showing open, in-progress, closed, and overdue corrective action counts by category."
+          title="Field iD Exchange"
+          description="A live field board for hazards, near misses, stop-work events, positive observations, and corrective actions tied to each jobsite."
           aside={
             <div className="flex flex-wrap gap-2">
               <Link
                 href="/field-id-exchange"
                 className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white"
               >
-                Open Corrective Actions
+                Report Safety Issue
               </Link>
               <Link
-                href="/safety-submit"
+                href="/upload"
                 className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
               >
-                Individual Safety Submission
+                Upload Field Photo
               </Link>
             </div>
           }
         >
-          {liveMatrixSummary.length === 0 ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {[
+              "Hazard",
+              "Near Miss",
+              "Incident",
+              "Good Catch",
+              "PPE Violation",
+              "Equipment Issue",
+            ].map((category) => (
+              <div key={category} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-sm font-semibold text-slate-900">{category}</div>
+                <div className="mt-1 text-xs text-slate-500">0 open reports</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6">
             <EmptyState
-              title="No matrix items are live yet"
-              description="As corrective actions are created and reviewed, matrix rows will appear here by category."
+              title="No field issues are live yet"
+              description="This board becomes the company’s live issue exchange as supervisors begin reporting hazards, near misses, and corrective actions."
             />
-          ) : (
-            <div className="overflow-hidden rounded-2xl border border-slate-200">
-              <div className="grid grid-cols-[minmax(0,1.3fr)_0.8fr_0.8fr_0.8fr_0.8fr] gap-3 bg-slate-50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                <div>Category</div>
-                <div>Open</div>
-                <div>In Progress</div>
-                <div>Closed</div>
-                <div>Overdue</div>
-              </div>
-              <div className="divide-y divide-slate-200 bg-white">
-                {liveMatrixSummary.map((row) => (
-                  <div
-                    key={row.category}
-                    className="grid grid-cols-[minmax(0,1.3fr)_0.8fr_0.8fr_0.8fr_0.8fr] gap-3 px-4 py-3 text-sm text-slate-700"
-                  >
-                    <div className="font-semibold text-slate-900">{row.category.replace(/_/g, " ")}</div>
-                    <div>{row.open}</div>
-                    <div>{row.inProgress}</div>
-                    <div>{row.closed}</div>
-                    <div className={row.overdue > 0 ? "font-semibold text-amber-700" : "text-slate-500"}>
-                      {row.overdue}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          </div>
         </SectionCard>
 
         <div id="action-board" className="space-y-6">
@@ -969,47 +904,36 @@ export function CompanyAdminDashboard({
           </SectionCard>
 
           <SectionCard
-            title="Module Summary"
-            description="Scaffold modules with live totals to guide daily operations."
+            title="Workspace Signals"
+            description="A quick pulse on what the company admin cares about most."
           >
             <div className="grid gap-3">
-              {moduleSummaries.map((module) => (
-                <div key={module.key} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              {[
+                {
+                  label: "Company users online",
+                  value: `${onlineUsers.length} online now`,
+                },
+                {
+                  label: "Pending employee approvals",
+                  value: `${pendingUsers.length} waiting`,
+                },
+                {
+                  label: "Invites not accepted yet",
+                  value: `${companyInvites.length} pending`,
+                },
+                {
+                  label: "Company profile status",
+                  value: companyProfile?.status?.trim() || "Active",
+                },
+              ].map((signal) => (
+                <div key={signal.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                    {module.label}
+                    {signal.label}
                   </div>
-                  <div className="mt-2 text-sm font-semibold text-slate-900">
-                    {module.total} total · {module.open} open · {module.inProgress} active · {module.closed} closed
-                  </div>
+                  <div className="mt-2 text-sm font-semibold text-slate-900">{signal.value}</div>
                 </div>
               ))}
             </div>
-          </SectionCard>
-
-          <SectionCard
-            title="High-Risk Alerts"
-            description="Auto-escalated SIF and stop-work items from permits and incidents."
-          >
-            {highRiskAlerts.length === 0 ? (
-              <EmptyState
-                title="No high-risk alerts right now"
-                description="Critical escalations and active stop-work items will appear here automatically."
-              />
-            ) : (
-              <div className="space-y-3">
-                {highRiskAlerts.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-slate-900">{item.title}</div>
-                        <div className="mt-1 text-sm text-slate-500">{item.detail}</div>
-                      </div>
-                      <StatusBadge label="High Risk" tone={item.tone} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </SectionCard>
         </div>
       </section>

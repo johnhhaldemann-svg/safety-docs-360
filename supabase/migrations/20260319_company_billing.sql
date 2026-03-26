@@ -33,6 +33,7 @@ select distinct
       from public.subscriptions s
       join public.user_roles ur on ur.user_id = s.user_id
       where ur.company_id = c.id
+      order by s.created_at desc nulls last
       limit 1
     ),
     'inactive'

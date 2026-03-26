@@ -1,19 +1,10 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
-import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 
 export const runtime = "nodejs";
 
-const ACTION_STATUSES = new Set([
-  "open",
-  "assigned",
-  "in_progress",
-  "corrected",
-  "verified_closed",
-  "escalated",
-  "stop_work",
-]);
+const ACTION_STATUSES = new Set(["open", "in_progress", "closed"]);
 const ACTION_SEVERITIES = new Set(["low", "medium", "high", "critical"]);
 const ISSUE_CATEGORIES = new Set([
   "hazard",
@@ -39,14 +30,6 @@ type ActionUpdatePayload = {
   assignedUserId?: string;
   dueAt?: string;
   jobsiteId?: string;
-  dapId?: string;
-  dapActivityId?: string;
-  workflowStatus?: string;
-  convertToIncident?: boolean;
-  incidentType?: string;
-  observationType?: "positive" | "negative" | "near_miss";
-  sifPotential?: boolean;
-  sifCategory?: string;
 };
 
 function normalizeStatus(status?: string | null) {
@@ -70,61 +53,14 @@ function isMissingCorrectiveActionsTable(message?: string | null) {
 }
 
 function canManageCorrectiveActions(role: string) {
-  return (
-    isAdminRole(role) ||
-    role === "company_admin" ||
-    role === "manager" ||
-    role === "safety_manager" ||
-    role === "project_manager" ||
-    role === "foreman"
-  );
+  return isAdminRole(role) || role === "company_admin" || role === "manager";
 }
 
 function isValidTransition(fromStatus: string, toStatus: string) {
   if (fromStatus === toStatus) return true;
-  if (fromStatus === "open" && (toStatus === "assigned" || toStatus === "stop_work")) return true;
-  if (fromStatus === "assigned" && (toStatus === "in_progress" || toStatus === "escalated")) return true;
-  if (fromStatus === "in_progress" && (toStatus === "corrected" || toStatus === "stop_work")) return true;
-  if (fromStatus === "corrected" && toStatus === "verified_closed") return true;
-  if (fromStatus === "escalated" && (toStatus === "in_progress" || toStatus === "stop_work")) return true;
-  if (fromStatus === "stop_work" && (toStatus === "in_progress" || toStatus === "verified_closed")) return true;
+  if (fromStatus === "open" && toStatus === "in_progress") return true;
+  if (fromStatus === "in_progress" && toStatus === "open") return true;
   return false;
-}
-
-function isSafetyManagerOrAbove(role: string) {
-  return (
-    isAdminRole(role) ||
-    role === "company_admin" ||
-    role === "manager" ||
-    role === "safety_manager"
-  );
-}
-
-function shouldRequireImmediateAction(severity: string, category: string) {
-  return severity === "high" || severity === "critical" || category === "near_miss";
-}
-
-const SIF_CATEGORIES = new Set([
-  "fall_from_height",
-  "struck_by",
-  "caught_between",
-  "electrical",
-  "excavation_collapse",
-  "confined_space",
-  "hazardous_energy",
-  "crane_rigging",
-  "line_of_fire",
-]);
-
-function normalizeObservationType(input?: string | null) {
-  const value = (input ?? "").trim().toLowerCase();
-  if (value === "positive" || value === "near_miss") return value;
-  return "negative";
-}
-
-function normalizeSifCategory(input?: string | null) {
-  const value = (input ?? "").trim().toLowerCase();
-  return SIF_CATEGORIES.has(value) ? value : null;
 }
 
 export async function PATCH(
@@ -162,7 +98,7 @@ export async function PATCH(
 
   const existingResult = await auth.supabase
     .from("company_corrective_actions")
-    .select("id, status, category, severity, observation_type, sif_potential, sif_category, jobsite_id")
+    .select("id, status, category")
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
     .maybeSingle();
@@ -189,22 +125,6 @@ export async function PATCH(
   }
 
   const body = (await request.json().catch(() => null)) as ActionUpdatePayload | null;
-  const nextJobsiteId =
-    typeof body?.jobsiteId === "string"
-      ? body.jobsiteId.trim() || null
-      : existingResult.data.jobsite_id;
-  const jobsiteScope = await getJobsiteAccessScope({
-    supabase: auth.supabase,
-    userId: auth.user.id,
-    companyId: companyScope.companyId,
-    role: auth.role,
-  });
-  if (!isJobsiteAllowed(nextJobsiteId, jobsiteScope)) {
-    return NextResponse.json(
-      { error: "You can only update observations for assigned jobsites." },
-      { status: 403 }
-    );
-  }
   const title = typeof body?.title === "string" ? body.title.trim() : undefined;
   const dueAtRaw = typeof body?.dueAt === "string" ? body.dueAt.trim() : undefined;
   const nextStatus = body?.status ? normalizeStatus(body.status) : undefined;
@@ -213,17 +133,11 @@ export async function PATCH(
     return NextResponse.json({ error: "Issue title cannot be empty." }, { status: 400 });
   }
 
-  if (nextStatus === "verified_closed" && !isSafetyManagerOrAbove(auth.role)) {
-    return NextResponse.json(
-      { error: "Only Safety Manager or above can mark Verified Closed." },
-      { status: 403 }
-    );
-  }
-  if (nextStatus === "verified_closed") {
+  if (nextStatus === "closed") {
     return NextResponse.json(
       {
         error:
-          "Use the verify close endpoint so closure note, proof, and validation review are enforced.",
+          "Use the close endpoint so completion proof or manager override can be enforced correctly.",
       },
       { status: 400 }
     );
@@ -251,91 +165,17 @@ export async function PATCH(
     }
   }
 
-  const nextSeverity =
-    typeof body?.severity === "string"
-      ? normalizeSeverity(body.severity)
-      : normalizeSeverity(existingResult.data.severity);
-  const nextCategory =
-    typeof body?.category === "string"
-      ? normalizeCategory(body.category)
-      : normalizeCategory(existingResult.data.category);
-  const nextObservationType =
-    typeof body?.observationType === "string"
-      ? normalizeObservationType(body.observationType)
-      : normalizeObservationType(existingResult.data.observation_type);
-  const hasSifPotential = typeof body?.sifPotential === "boolean";
-  const nextSifPotential =
-    nextObservationType === "negative"
-      ? hasSifPotential
-        ? Boolean(body?.sifPotential)
-        : Boolean(existingResult.data.sif_potential)
-      : null;
-  const nextSifCategory =
-    nextObservationType === "negative" && nextSifPotential
-      ? normalizeSifCategory(
-          typeof body?.sifCategory === "string" ? body.sifCategory : existingResult.data.sif_category
-        )
-      : null;
-  if (nextObservationType === "negative" && !hasSifPotential && existingResult.data.sif_potential === null) {
-    return NextResponse.json(
-      { error: "SIF evaluation is required for negative observations." },
-      { status: 400 }
-    );
-  }
-  if (nextObservationType === "negative" && nextSifPotential && !nextSifCategory) {
-    return NextResponse.json(
-      { error: "SIF category is required when sif_potential is yes." },
-      { status: 400 }
-    );
-  }
-  const derivedWorkflowStatus =
-    shouldRequireImmediateAction(nextSeverity, nextCategory) &&
-    (!body?.workflowStatus || String(body.workflowStatus).trim().toLowerCase() === "open")
-      ? "immediate_action_required"
-      : typeof body?.workflowStatus === "string"
-        ? body.workflowStatus.trim().toLowerCase()
-        : undefined;
-
-  const immediateActionRequired =
-    shouldRequireImmediateAction(nextSeverity, nextCategory) ||
-    (nextObservationType === "negative" && Boolean(nextSifPotential));
-
   const updateValues = {
-    ...(typeof body?.observationType === "string"
-      ? { observation_type: nextObservationType }
-      : {}),
-    ...(typeof body?.sifPotential === "boolean" ? { sif_potential: nextSifPotential } : {}),
-    ...(typeof body?.sifCategory === "string" || nextSifCategory === null
-      ? { sif_category: nextSifCategory }
-      : {}),
-    priority: nextSifPotential ? "high" : nextSeverity,
-    immediate_action_required: immediateActionRequired,
     ...(typeof title === "string" ? { title } : {}),
     ...(typeof body?.description === "string" ? { description: body.description.trim() || null } : {}),
-    ...(typeof body?.severity === "string" ? { severity: nextSeverity } : {}),
-    ...(typeof body?.category === "string" ? { category: nextCategory } : {}),
+    ...(typeof body?.severity === "string" ? { severity: normalizeSeverity(body.severity) } : {}),
+    ...(typeof body?.category === "string" ? { category: normalizeCategory(body.category) } : {}),
     ...(typeof body?.jobsiteId === "string" ? { jobsite_id: body.jobsiteId.trim() || null } : {}),
-    ...(typeof body?.dapId === "string" ? { dap_id: body.dapId.trim() || null } : {}),
-    ...(typeof body?.dapActivityId === "string"
-      ? { dap_activity_id: body.dapActivityId.trim() || null }
-      : {}),
-    ...(typeof derivedWorkflowStatus === "string" ? { workflow_status: derivedWorkflowStatus } : {}),
     ...(typeof body?.assignedUserId === "string"
       ? { assigned_user_id: body.assignedUserId.trim() || null }
       : {}),
     ...(typeof dueAtIso !== "undefined" ? { due_at: dueAtIso } : {}),
-    ...(nextStatus
-      ? {
-          status: nextStatus,
-          started_at:
-            nextStatus === "in_progress"
-              ? new Date().toISOString()
-              : nextStatus === "open" || nextStatus === "assigned"
-                ? null
-                : undefined,
-          closed_at: nextStatus === "verified_closed" ? new Date().toISOString() : undefined,
-        }
-      : {}),
+    ...(nextStatus ? { status: nextStatus, started_at: nextStatus === "in_progress" ? new Date().toISOString() : null } : {}),
     updated_by: auth.user.id,
   };
 
@@ -365,48 +205,10 @@ export async function PATCH(
       status: nextStatus,
       category: body?.category,
       assignedUserId: body?.assignedUserId,
-      dapId: body?.dapId,
-      dapActivityId: body?.dapActivityId,
-      workflowStatus: body?.workflowStatus,
-      observationType: body?.observationType,
-      sifPotential: typeof body?.sifPotential === "boolean" ? body.sifPotential : undefined,
-      sifCategory: body?.sifCategory,
-      immediateActionRequired,
       dueAt: dueAtIso,
     },
     created_by: auth.user.id,
   });
-
-  if (nextObservationType === "negative" && nextSifPotential) {
-    await auth.supabase.from("company_corrective_action_events").insert({
-      action_id: id,
-      company_id: companyScope.companyId,
-      event_type: "notify_safety_manager",
-      detail: "SIF-potential observation requires Safety Manager attention.",
-      event_payload: {
-        sifCategory: nextSifCategory,
-        priority: "high",
-      },
-      created_by: auth.user.id,
-    });
-  }
-
-  if (body?.convertToIncident) {
-    await auth.supabase.from("company_incidents").insert({
-      company_id: companyScope.companyId,
-      jobsite_id: updateResult.data.jobsite_id,
-      title: updateResult.data.title,
-      description: updateResult.data.description,
-      status: "open",
-      severity: updateResult.data.severity,
-      category: (body.incidentType ?? "incident").trim().toLowerCase(),
-      observation_id: id,
-      dap_activity_id:
-        typeof body?.dapActivityId === "string" ? body.dapActivityId.trim() || null : null,
-      created_by: auth.user.id,
-      updated_by: auth.user.id,
-    });
-  }
 
   return NextResponse.json({
     success: true,
