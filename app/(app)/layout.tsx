@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getDefaultAgreementConfig, type AgreementConfig } from "@/lib/legal";
 import type { PermissionMap } from "@/lib/rbac";
 
@@ -52,6 +52,7 @@ const companyAdminQuickLinks: NavItem[] = [
   { href: "/peshep", label: "PESHEP", short: "PB" },
   { href: "/csep", label: "CSEP", short: "CS" },
   { href: "/company-users", label: "Users", short: "US" },
+  { href: "/training-matrix", label: "Training matrix", short: "TM" },
   { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
   { href: "/daps", label: "DAPs", short: "DP" },
   { href: "/permits", label: "Permits", short: "PM" },
@@ -66,6 +67,7 @@ const companyManagerQuickLinks: NavItem[] = [
   { href: "/library", label: "Documents", short: "DC" },
   { href: "/peshep", label: "PESHEP", short: "PB" },
   { href: "/csep", label: "CSEP", short: "CS" },
+  { href: "/training-matrix", label: "Training matrix", short: "TM" },
   { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
   { href: "/daps", label: "DAPs", short: "DP" },
   { href: "/permits", label: "Permits", short: "PM" },
@@ -147,6 +149,7 @@ const companyAdminSideSections: NavSection[] = [
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
       { href: "/company-users", label: "Users", short: "US" },
+      { href: "/training-matrix", label: "Training matrix", short: "TM" },
       { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
       { href: "/daps", label: "DAPs", short: "DP" },
       { href: "/permits", label: "Permits", short: "PM" },
@@ -179,6 +182,7 @@ const companyManagerSideSections: NavSection[] = [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
+      { href: "/training-matrix", label: "Training matrix", short: "TM" },
       { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
       { href: "/daps", label: "DAPs", short: "DP" },
       { href: "/permits", label: "Permits", short: "PM" },
@@ -208,6 +212,7 @@ const companyUserSideSections: NavSection[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/library", label: "Documents", short: "DC" },
+      { href: "/training-matrix", label: "Training matrix", short: "TM" },
       { href: "/submit", label: "Submit Document", short: "SD" },
       { href: "/upload", label: "Upload File", short: "UF" },
       { href: "/profile", label: "Construction Profile", short: "CP" },
@@ -495,14 +500,10 @@ export default function AppLayout({
     };
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
-
-    async function syncSession(
+  const syncSession = useCallback(
+    async (
       session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]
-    ) {
-      if (!mounted) return;
-
+    ) => {
       if (!session) {
         router.replace("/login");
         return;
@@ -531,9 +532,7 @@ export default function AppLayout({
                 pendingCompanySignupRequest?: { id?: string; companyName?: string } | null;
               };
           }
-        | null;
-
-        if (!mounted) return;
+          | null;
 
         const email = data?.user?.email ?? session.user.email ?? "";
         const hasPendingCompanySignupRequest = Boolean(
@@ -552,132 +551,6 @@ export default function AppLayout({
         setAccountStatus(nextAccountStatus);
         setAcceptedTerms(Boolean(data?.user?.acceptedTerms));
         setTermsError("");
-
-        if (nextAccountStatus === "suspended") {
-          setLoading(false);
-          return;
-        }
-
-        const nextRole = data?.user?.role ?? "viewer";
-        const nextCompanyId = data?.user?.companyId ?? null;
-        const nextProfileComplete = Boolean(data?.user?.profileComplete);
-        const needsProfile = !Boolean(data?.user?.permissionMap?.can_access_internal_admin) && !nextProfileComplete;
-        const canOpenCompanySetup =
-          !needsProfile &&
-          !Boolean(data?.user?.permissionMap?.can_access_internal_admin) &&
-          nextRole !== "company_admin" &&
-          nextRole !== "manager" &&
-          nextRole !== "safety_manager" &&
-          nextRole !== "company_user" &&
-          nextRole !== "project_manager" &&
-          nextRole !== "foreman" &&
-          nextRole !== "field_user" &&
-          nextRole !== "read_only" &&
-          !nextCompanyId;
-
-        if (!Boolean(data?.user?.acceptedTerms)) {
-          setLoading(false);
-          return;
-        }
-
-        if (needsProfile) {
-          if (pathname !== "/profile") {
-            router.replace("/profile");
-            return;
-          }
-
-          setLoading(false);
-          return;
-        }
-
-        if (!canOpenCompanySetup && pathname === "/company-setup") {
-          router.replace("/dashboard");
-          return;
-        }
-
-        if (
-          nextRole === "company_admin" ||
-          nextRole === "manager" ||
-          nextRole === "safety_manager" ||
-          nextRole === "company_user" ||
-          nextRole === "project_manager" ||
-          nextRole === "foreman" ||
-          nextRole === "field_user" ||
-          nextRole === "read_only"
-        ) {
-          if (nextRole === "read_only") {
-            const readOnlyAllowedRoutes = ["/dashboard", "/reports"];
-            const inReadOnlyRoute = readOnlyAllowedRoutes.some(
-              (route) => pathname === route || pathname.startsWith(`${route}/`)
-            );
-            if (!inReadOnlyRoute) {
-              router.replace("/dashboard");
-              return;
-            }
-            setLoading(false);
-            return;
-          }
-
-          const companyAllowedRoutes = ["/dashboard", "/library", "/profile"];
-
-          if (
-            nextRole === "project_manager" ||
-            nextRole === "foreman" ||
-            nextRole === "field_user"
-          ) {
-            companyAllowedRoutes.push("/jobsites");
-          }
-
-          if (
-            nextRole === "company_admin" ||
-            nextRole === "manager" ||
-            nextRole === "safety_manager"
-          ) {
-            companyAllowedRoutes.push(
-              "/companies",
-              "/jobsites",
-              "/field-id-exchange",
-              "/safety-submit",
-              "/daps",
-              "/permits",
-              "/incidents",
-              "/analytics",
-              "/reports"
-            );
-          }
-
-          if (
-            data?.user?.permissionMap?.can_create_documents ||
-            data?.user?.permissionMap?.can_edit_documents ||
-            data?.user?.permissionMap?.can_submit_documents
-          ) {
-            companyAllowedRoutes.push(
-              "/submit",
-              "/safety-submit",
-              "/upload",
-              "/peshep",
-              "/csep"
-            );
-          }
-
-          if (data?.user?.permissionMap?.can_manage_company_users) {
-            companyAllowedRoutes.push("/company-users");
-          }
-
-          const inAllowedRoute = companyAllowedRoutes.some(
-            (route) => pathname === route || pathname.startsWith(`${route}/`)
-          );
-
-          if (!inAllowedRoute) {
-            router.replace("/dashboard");
-            return;
-          }
-        }
-
-        if (isAdminArea && !Boolean(data?.user?.permissionMap?.can_access_internal_admin)) {
-          router.replace("/dashboard");
-          return;
-        }
       } catch (error) {
         console.error("Failed to load role context:", error);
         setUserEmail(session.user.email ?? "");
@@ -689,26 +562,28 @@ export default function AppLayout({
         setProfileSummary(null);
         setAccountStatus("active");
         setAcceptedTerms(false);
-
-        if (isAdminArea) {
-          router.replace("/dashboard");
-          return;
-        }
+      } finally {
+        setLoading(false);
       }
+    },
+    [router]
+  );
 
-      setLoading(false);
-    }
+  useEffect(() => {
+    let mounted = true;
 
     void (async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
+      if (!mounted) return;
       await syncSession(session);
     })();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
       if (!session) {
         router.replace("/login");
         return;
@@ -720,7 +595,118 @@ export default function AppLayout({
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [isAdminArea, pathname, router]);
+  }, [router, syncSession]);
+
+  useEffect(() => {
+    if (loading) return;
+
+    if (accountStatus === "pending" || accountStatus === "suspended" || !acceptedTerms) {
+      return;
+    }
+
+    if (needsProfileSetup) {
+      if (pathname !== "/profile") {
+        router.replace("/profile");
+      }
+      return;
+    }
+
+    if (!needsCompanySetup && pathname === "/company-setup") {
+      router.replace("/dashboard");
+      return;
+    }
+
+    if (isCompanyScopedUser) {
+      if (userRole === "read_only") {
+        const readOnlyAllowedRoutes = ["/dashboard", "/reports"];
+        const inReadOnlyRoute = readOnlyAllowedRoutes.some(
+          (route) => pathname === route || pathname.startsWith(`${route}/`)
+        );
+        if (!inReadOnlyRoute) {
+          router.replace("/dashboard");
+        }
+        return;
+      }
+
+      const companyAllowedRoutes = ["/dashboard", "/library", "/profile"];
+
+      if (
+        userRole === "project_manager" ||
+        userRole === "foreman" ||
+        userRole === "field_user"
+      ) {
+        companyAllowedRoutes.push("/jobsites");
+      }
+
+      if (
+        userRole === "company_admin" ||
+        userRole === "manager" ||
+        userRole === "safety_manager"
+      ) {
+        companyAllowedRoutes.push(
+          "/companies",
+          "/jobsites",
+          "/field-id-exchange",
+          "/safety-submit",
+          "/daps",
+          "/permits",
+          "/incidents",
+          "/analytics",
+          "/reports"
+        );
+      }
+
+      const canOpenTrainingMatrix =
+        Boolean(permissionMap?.can_view_analytics) ||
+        Boolean(permissionMap?.can_manage_company_users) ||
+        userRole === "company_admin" ||
+        userRole === "manager" ||
+        userRole === "safety_manager" ||
+        userRole === "project_manager";
+
+      if (canOpenTrainingMatrix) {
+        companyAllowedRoutes.push("/training-matrix");
+      }
+
+      if (
+        permissionMap?.can_create_documents ||
+        permissionMap?.can_edit_documents ||
+        permissionMap?.can_submit_documents
+      ) {
+        companyAllowedRoutes.push("/submit", "/safety-submit", "/upload", "/peshep", "/csep");
+      }
+
+      if (permissionMap?.can_manage_company_users) {
+        companyAllowedRoutes.push("/company-users");
+      }
+
+      const inAllowedRoute = companyAllowedRoutes.some(
+        (route) => pathname === route || pathname.startsWith(`${route}/`)
+      );
+
+      if (!inAllowedRoute) {
+        router.replace("/dashboard");
+      }
+      return;
+    }
+
+    if (isAdminArea && !canAccessInternalAdmin) {
+      router.replace("/dashboard");
+    }
+  }, [
+    acceptedTerms,
+    accountStatus,
+    canAccessInternalAdmin,
+    isAdminArea,
+    isCompanyScopedUser,
+    loading,
+    needsCompanySetup,
+    needsProfileSetup,
+    pathname,
+    permissionMap,
+    router,
+    userRole,
+  ]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -998,42 +984,52 @@ export default function AppLayout({
                       {section.title}
                     </div>
                     <div className="mt-2 space-y-1.5">
-                      {section.items.map((item) => {
-                        const active = isActivePath(pathname, item.href);
-                        return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            className={cx(
-                              "flex items-center gap-3 rounded-2xl border px-3 py-3 transition",
-                              active
-                                ? "border-sky-200 bg-[linear-gradient(135deg,_rgba(255,255,255,0.96)_0%,_rgba(232,243,255,0.96)_100%)] text-slate-950 shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
-                                : "border-transparent text-slate-200 hover:bg-white/8 hover:text-white"
-                            )}
-                          >
-                            <span
+                      {section.items
+                        .filter((item) => {
+                          if (item.href !== "/training-matrix") return true;
+                          return (
+                            userRole === "company_admin" ||
+                            userRole === "manager" ||
+                            userRole === "safety_manager" ||
+                            userRole === "project_manager"
+                          );
+                        })
+                        .map((item) => {
+                          const active = isActivePath(pathname, item.href);
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
                               className={cx(
-                                "inline-flex h-8 w-8 items-center justify-center rounded-xl text-[11px] font-black",
+                                "flex items-center gap-3 rounded-2xl border px-3 py-3 transition",
                                 active
-                                  ? "bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-sky-700"
-                                  : "bg-white/8 text-sky-200"
+                                  ? "border-sky-200 bg-[linear-gradient(135deg,_rgba(255,255,255,0.96)_0%,_rgba(232,243,255,0.96)_100%)] text-slate-950 shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
+                                  : "border-transparent text-slate-200 hover:bg-white/8 hover:text-white"
                               )}
                             >
-                              {item.short}
-                            </span>
-                            <div className="min-w-0">
-                            <div
+                              <span
                                 className={cx(
-                                  "truncate text-sm font-semibold",
-                                  active ? "text-slate-950" : "text-white"
+                                  "inline-flex h-8 w-8 items-center justify-center rounded-xl text-[11px] font-black",
+                                  active
+                                    ? "bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-sky-700"
+                                    : "bg-white/8 text-sky-200"
                                 )}
                               >
-                                {item.label}
+                                {item.short}
+                              </span>
+                              <div className="min-w-0">
+                                <div
+                                  className={cx(
+                                    "truncate text-sm font-semibold",
+                                    active ? "text-slate-950" : "text-white"
+                                  )}
+                                >
+                                  {item.label}
+                                </div>
                               </div>
-                            </div>
-                          </Link>
-                        );
-                      })}
+                            </Link>
+                          );
+                        })}
                     </div>
                   </div>
                 ))}
@@ -1220,3 +1216,4 @@ export default function AppLayout({
     </div>
   );
 }
+
