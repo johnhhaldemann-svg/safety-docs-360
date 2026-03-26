@@ -6,11 +6,26 @@ export const runtime = "nodejs";
 
 const ACTION_STATUSES = new Set(["open", "in_progress", "closed"]);
 const ACTION_SEVERITIES = new Set(["low", "medium", "high", "critical"]);
+const ISSUE_CATEGORIES = new Set([
+  "hazard",
+  "near_miss",
+  "incident",
+  "good_catch",
+  "ppe_violation",
+  "housekeeping",
+  "equipment_issue",
+  "fall_hazard",
+  "electrical_hazard",
+  "excavation_trench_concern",
+  "fire_hot_work_concern",
+  "corrective_action",
+]);
 
 type ActionUpdatePayload = {
   title?: string;
   description?: string;
   severity?: string;
+  category?: string;
   status?: string;
   assignedUserId?: string;
   dueAt?: string;
@@ -25,6 +40,11 @@ function normalizeStatus(status?: string | null) {
 function normalizeSeverity(severity?: string | null) {
   const normalized = (severity ?? "").trim().toLowerCase();
   return ACTION_SEVERITIES.has(normalized) ? normalized : "medium";
+}
+
+function normalizeCategory(category?: string | null) {
+  const normalized = (category ?? "").trim().toLowerCase();
+  return ISSUE_CATEGORIES.has(normalized) ? normalized : "corrective_action";
 }
 
 function isMissingCorrectiveActionsTable(message?: string | null) {
@@ -78,7 +98,7 @@ export async function PATCH(
 
   const existingResult = await auth.supabase
     .from("company_corrective_actions")
-    .select("id, status")
+    .select("id, status, category")
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
     .maybeSingle();
@@ -149,6 +169,7 @@ export async function PATCH(
     ...(typeof title === "string" ? { title } : {}),
     ...(typeof body?.description === "string" ? { description: body.description.trim() || null } : {}),
     ...(typeof body?.severity === "string" ? { severity: normalizeSeverity(body.severity) } : {}),
+    ...(typeof body?.category === "string" ? { category: normalizeCategory(body.category) } : {}),
     ...(typeof body?.jobsiteId === "string" ? { jobsite_id: body.jobsiteId.trim() || null } : {}),
     ...(typeof body?.assignedUserId === "string"
       ? { assigned_user_id: body.assignedUserId.trim() || null }
@@ -164,7 +185,7 @@ export async function PATCH(
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
     .select(
-      "id, company_id, jobsite_id, title, description, severity, status, assigned_user_id, due_at, started_at, closed_at, manager_override_close, manager_override_reason, created_at, updated_at"
+      "id, company_id, jobsite_id, title, description, severity, category, status, assigned_user_id, due_at, started_at, closed_at, manager_override_close, manager_override_reason, created_at, updated_at"
     )
     .single();
 
@@ -182,6 +203,7 @@ export async function PATCH(
     detail: nextStatus ? `Status updated to ${nextStatus}.` : "Issue details updated.",
     event_payload: {
       status: nextStatus,
+      category: body?.category,
       assignedUserId: body?.assignedUserId,
       dueAt: dueAtIso,
     },

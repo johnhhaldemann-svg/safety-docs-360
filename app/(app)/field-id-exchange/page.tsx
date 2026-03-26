@@ -28,6 +28,19 @@ type CorrectiveActionRow = {
   title: string;
   description: string | null;
   severity: "low" | "medium" | "high" | "critical";
+  category:
+    | "hazard"
+    | "near_miss"
+    | "incident"
+    | "good_catch"
+    | "ppe_violation"
+    | "housekeeping"
+    | "equipment_issue"
+    | "fall_hazard"
+    | "electrical_hazard"
+    | "excavation_trench_concern"
+    | "fire_hot_work_concern"
+    | "corrective_action";
   status: "open" | "in_progress" | "closed";
   assigned_user_id: string | null;
   due_at: string | null;
@@ -62,6 +75,24 @@ type EvidenceRow = {
   file_name: string;
   mime_type: string | null;
   created_at: string;
+};
+
+type SafetySubmissionRow = {
+  id: string;
+  company_id: string;
+  jobsite_id: string | null;
+  title: string;
+  description: string | null;
+  severity: CorrectiveActionRow["severity"];
+  category: CorrectiveActionRow["category"];
+  photo_path: string | null;
+  submitted_by: string | null;
+  review_status: "pending" | "approved" | "rejected";
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  linked_action_id: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 const EMPTY_CREATE_ACTION: CreateActionState = {
@@ -99,13 +130,28 @@ function getSeverityLabel(severity: CorrectiveActionRow["severity"]) {
   return severity.charAt(0).toUpperCase() + severity.slice(1);
 }
 
+function getCategoryLabel(category: CorrectiveActionRow["category"]) {
+  const labels: Record<CorrectiveActionRow["category"], string> = {
+    hazard: "Hazard",
+    near_miss: "Near Miss",
+    incident: "Incident",
+    good_catch: "Good Catch",
+    ppe_violation: "PPE Violation",
+    housekeeping: "Housekeeping",
+    equipment_issue: "Equipment Issue",
+    fall_hazard: "Fall Hazard",
+    electrical_hazard: "Electrical Hazard",
+    excavation_trench_concern: "Excavation / Trench Concern",
+    fire_hot_work_concern: "Fire / Hot Work Concern",
+    corrective_action: "Corrective Action",
+  };
+  return labels[category];
+}
+
 export default function FieldIdExchangePage() {
   const {
     companyName,
     companyLocation,
-    pendingDocuments,
-    pendingUsers,
-    companyInvites,
     jobsites,
     companyUsers,
     referenceTime,
@@ -114,6 +160,7 @@ export default function FieldIdExchangePage() {
   const [actions, setActions] = useState<CorrectiveActionRow[]>([]);
   const [loadingActions, setLoadingActions] = useState(true);
   const [jobsiteFilter, setJobsiteFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [composer, setComposer] = useState<CreateActionState>(EMPTY_CREATE_ACTION);
@@ -132,6 +179,8 @@ export default function FieldIdExchangePage() {
     Record<string, EvidenceRow[]>
   >({});
   const [loadingProofHistoryActionId, setLoadingProofHistoryActionId] = useState<string | null>(null);
+  const [pendingSubmissions, setPendingSubmissions] = useState<SafetySubmissionRow[]>([]);
+  const [reviewingSubmissionId, setReviewingSubmissionId] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -139,17 +188,26 @@ export default function FieldIdExchangePage() {
     async function loadActions() {
       setLoadingActions(true);
       try {
-        const response = await fetch("/api/company/corrective-actions");
-        const payload = (await response.json().catch(() => null)) as
+        const [actionsResponse, submissionsResponse] = await Promise.all([
+          fetch("/api/company/corrective-actions"),
+          fetch("/api/company/safety-submissions?status=pending"),
+        ]);
+        const actionsPayload = (await actionsResponse.json().catch(() => null)) as
           | { actions?: CorrectiveActionRow[]; error?: string }
           | null;
+        const submissionsPayload = (await submissionsResponse.json().catch(() => null)) as
+          | { submissions?: SafetySubmissionRow[]; error?: string }
+          | null;
         if (!ignore) {
-          if (!response.ok) {
+          if (!actionsResponse.ok) {
             setActions([]);
-            setMessage(payload?.error || "Unable to load corrective actions.");
+            setMessage(actionsPayload?.error || "Unable to load corrective actions.");
             setMessageTone("error");
           } else {
-            setActions(payload?.actions ?? []);
+            setActions(actionsPayload?.actions ?? []);
+            setPendingSubmissions(
+              submissionsResponse.ok ? submissionsPayload?.submissions ?? [] : []
+            );
           }
         }
       } catch (error) {
@@ -193,6 +251,8 @@ export default function FieldIdExchangePage() {
     return actions.filter((item) => {
       const actionJobsite = item.jobsite_id ? (jobsiteNameById.get(item.jobsite_id) ?? "") : "";
       const matchesJobsite = jobsiteFilter === "all" || actionJobsite === jobsiteFilter;
+      const matchesCategory =
+        categoryFilter === "all" || getCategoryLabel(item.category) === categoryFilter;
       const statusLabel = getStatusLabel(item.status);
       const matchesStatus = statusFilter === "all" || statusLabel === statusFilter;
       const ownerLabel = item.assigned_user_id
@@ -212,13 +272,20 @@ export default function FieldIdExchangePage() {
           .toLowerCase()
           .includes(normalizedSearch);
 
-      return matchesJobsite && matchesStatus && matchesSearch;
+      return matchesJobsite && matchesCategory && matchesStatus && matchesSearch;
     });
-  }, [actions, assigneeLabelById, jobsiteFilter, jobsiteNameById, normalizedSearch, statusFilter]);
+  }, [
+    actions,
+    assigneeLabelById,
+    categoryFilter,
+    jobsiteFilter,
+    jobsiteNameById,
+    normalizedSearch,
+    statusFilter,
+  ]);
 
   const openCount = filteredItems.filter((item) => item.status === "open").length;
   const inProgressCount = filteredItems.filter((item) => item.status === "in_progress").length;
-  const closedCount = filteredItems.filter((item) => item.status === "closed").length;
   const overdueCount = filteredItems.filter(
     (item) => item.status !== "closed" && item.due_at && new Date(item.due_at).getTime() < referenceTime
   ).length;
@@ -236,25 +303,90 @@ export default function FieldIdExchangePage() {
     tone: getSeverityTone(item.severity),
   }));
 
+  const categoryCounts = useMemo(() => {
+    const categories = [
+      "Hazard",
+      "Near Miss",
+      "Incident",
+      "Good Catch",
+      "PPE Violation",
+      "Housekeeping",
+      "Equipment Issue",
+      "Fall Hazard",
+      "Electrical Hazard",
+      "Excavation / Trench Concern",
+      "Fire / Hot Work Concern",
+      "Corrective Action",
+    ];
+    return categories.map((label) => ({
+      label,
+      count: filteredItems.filter((item) => getCategoryLabel(item.category) === label).length,
+    }));
+  }, [filteredItems]);
+
   async function reloadActions() {
     setLoadingActions(true);
     try {
-      const response = await fetch("/api/company/corrective-actions");
-      const payload = (await response.json().catch(() => null)) as
+      const [actionsResponse, submissionsResponse] = await Promise.all([
+        fetch("/api/company/corrective-actions"),
+        fetch("/api/company/safety-submissions?status=pending"),
+      ]);
+      const actionsPayload = (await actionsResponse.json().catch(() => null)) as
         | { actions?: CorrectiveActionRow[]; error?: string }
         | null;
-      if (!response.ok) {
-        setMessage(payload?.error || "Unable to load corrective actions.");
+      const submissionsPayload = (await submissionsResponse.json().catch(() => null)) as
+        | { submissions?: SafetySubmissionRow[] }
+        | null;
+      if (!actionsResponse.ok) {
+        setMessage(actionsPayload?.error || "Unable to load corrective actions.");
         setMessageTone("error");
         return;
       }
-      setActions(payload?.actions ?? []);
+      setActions(actionsPayload?.actions ?? []);
+      setPendingSubmissions(submissionsResponse.ok ? submissionsPayload?.submissions ?? [] : []);
     } catch (error) {
       console.error("Failed to reload corrective actions:", error);
       setMessage("Unable to refresh corrective actions right now.");
       setMessageTone("error");
     } finally {
       setLoadingActions(false);
+    }
+  }
+
+  async function reviewSubmission(
+    submission: SafetySubmissionRow,
+    decision: "approved" | "rejected",
+    actionStatus: "open" | "closed"
+  ) {
+    setReviewingSubmissionId(submission.id);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/company/safety-submissions/${submission.id}/review`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          decision,
+          actionStatus,
+          category: submission.category,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; message?: string }
+        | null;
+      if (!response.ok) {
+        setMessage(payload?.error || "Failed to review submission.");
+        setMessageTone("error");
+        return;
+      }
+      setMessage(payload?.message || "Submission reviewed.");
+      setMessageTone("success");
+      await reloadActions();
+    } catch (error) {
+      console.error("Failed to review submission:", error);
+      setMessage("Failed to review submission right now.");
+      setMessageTone("error");
+    } finally {
+      setReviewingSubmissionId(null);
     }
   }
 
@@ -520,16 +652,12 @@ export default function FieldIdExchangePage() {
         description={`Track hazards and corrective actions for ${companyName} with assignees, due dates, reminders, and closure controls.`}
         actions={
           <>
-            <button
-              type="button"
-              onClick={() => {
-                setComposer(EMPTY_CREATE_ACTION);
-                setMessage(null);
-              }}
+            <Link
+              href="/safety-submit"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
             >
-              New Corrective Action
-            </button>
+              Individual Safety Submission
+            </Link>
             <Link
               href="/upload"
               className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
@@ -541,8 +669,9 @@ export default function FieldIdExchangePage() {
       />
 
       <InlineMessage tone="neutral">
-        Safety issue tracking is now backed by dedicated corrective-action data. Closing an issue
-        requires photo proof unless a manager override is recorded.
+        Individual safety submissions are now a separate intake flow from normal review requests.
+        Each submission opens a corrective action immediately. Closing an issue requires photo proof
+        unless a manager override is recorded.
       </InlineMessage>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -707,7 +836,7 @@ export default function FieldIdExchangePage() {
           title="Live Exchange Feed"
           description="Assign, move to in progress, upload proof, then close with accountability."
         >
-          <div className="mb-4 grid gap-3 lg:grid-cols-3">
+          <div className="mb-4 grid gap-3 lg:grid-cols-4">
             <input
               type="text"
               value={searchQuery}
@@ -737,6 +866,18 @@ export default function FieldIdExchangePage() {
               <option value="In Progress">In Progress</option>
               <option value="Closed">Closed</option>
             </select>
+            <select
+              value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value)}
+              className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+            >
+              <option value="all">All categories</option>
+              {categoryCounts.map((category) => (
+                <option key={category.label} value={category.label}>
+                  {category.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {loadingActions ? (
@@ -754,7 +895,7 @@ export default function FieldIdExchangePage() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="text-sm font-semibold text-slate-900">{item.title}</div>
-                        <StatusBadge label="Corrective Action" tone="info" />
+                        <StatusBadge label={getCategoryLabel(item.category)} tone="info" />
                         <StatusBadge label={getSeverityLabel(item.severity)} tone={getSeverityTone(item.severity)} />
                         <StatusBadge label={getStatusLabel(item.status)} tone={getStatusTone(item.status)} />
                       </div>
@@ -933,34 +1074,85 @@ export default function FieldIdExchangePage() {
 
         <div className="space-y-6">
           <SectionCard
-            title="Reminder Signals"
-            description="In-app reminders highlight overdue actions and unresolved safety accountability."
+            title="Admin Review Queue"
+            description="Individual safety submissions await company admin review before final issue status decisions."
           >
-            <div className="grid gap-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-sm font-semibold text-slate-900">Overdue corrective actions</div>
-                <div className="mt-1 text-xs text-slate-500">
-                  {overdueCount} overdue, {closedCount} closed.
-                </div>
+            {pendingSubmissions.length === 0 ? (
+              <EmptyState
+                title="No pending safety submissions"
+                description="New submissions will appear here for admin review and status update."
+              />
+            ) : (
+              <div className="space-y-3">
+                {pendingSubmissions.slice(0, 6).map((submission) => (
+                  <div
+                    key={submission.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                  >
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-semibold text-slate-900">{submission.title}</div>
+                        <StatusBadge label={getCategoryLabel(submission.category)} tone="info" />
+                        <StatusBadge
+                          label={getSeverityLabel(submission.severity)}
+                          tone={getSeverityTone(submission.severity)}
+                        />
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Submitted {formatRelative(submission.created_at, referenceTime)}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void reviewSubmission(submission, "approved", "open")
+                          }
+                          disabled={reviewingSubmissionId === submission.id}
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                        >
+                          Approve as Open
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void reviewSubmission(submission, "approved", "closed")
+                          }
+                          disabled={reviewingSubmissionId === submission.id}
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                        >
+                          Approve as Closed
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void reviewSubmission(submission, "rejected", "closed")
+                          }
+                          disabled={reviewingSubmissionId === submission.id}
+                          className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-sm font-semibold text-slate-900">Pending user approvals</div>
-                <div className="mt-1 text-xs text-slate-500">
-                  {pendingUsers.length} account(s) still waiting for company approval.
+            )}
+          </SectionCard>
+
+          <SectionCard
+            title="Issue Categories"
+            description="Track volume by issue category after admin review decisions."
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              {categoryCounts.map((category) => (
+                <div key={category.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="text-sm font-semibold text-slate-900">{category.label}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {category.count} active issue{category.count === 1 ? "" : "s"}
+                  </div>
                 </div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-sm font-semibold text-slate-900">Unaccepted invites</div>
-                <div className="mt-1 text-xs text-slate-500">
-                  {companyInvites.length} invite(s) have not joined yet.
-                </div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-sm font-semibold text-slate-900">Pending documents</div>
-                <div className="mt-1 text-xs text-slate-500">
-                  {pendingDocuments.length} document(s) still need review.
-                </div>
-              </div>
+              ))}
             </div>
           </SectionCard>
 

@@ -6,11 +6,26 @@ export const runtime = "nodejs";
 
 const ACTION_STATUSES = new Set(["open", "in_progress", "closed"]);
 const ACTION_SEVERITIES = new Set(["low", "medium", "high", "critical"]);
+const ISSUE_CATEGORIES = new Set([
+  "hazard",
+  "near_miss",
+  "incident",
+  "good_catch",
+  "ppe_violation",
+  "housekeeping",
+  "equipment_issue",
+  "fall_hazard",
+  "electrical_hazard",
+  "excavation_trench_concern",
+  "fire_hot_work_concern",
+  "corrective_action",
+]);
 
 type CorrectiveActionPayload = {
   title?: string;
   description?: string;
   severity?: string;
+  category?: string;
   jobsiteId?: string;
   assignedUserId?: string;
   dueAt?: string;
@@ -24,6 +39,11 @@ function normalizeStatus(status?: string | null) {
 function normalizeSeverity(severity?: string | null) {
   const normalized = (severity ?? "").trim().toLowerCase();
   return ACTION_SEVERITIES.has(normalized) ? normalized : "medium";
+}
+
+function normalizeCategory(category?: string | null) {
+  const normalized = (category ?? "").trim().toLowerCase();
+  return ISSUE_CATEGORIES.has(normalized) ? normalized : "corrective_action";
 }
 
 function isMissingCorrectiveActionsTable(message?: string | null) {
@@ -67,7 +87,7 @@ export async function GET(request: Request) {
   let query = auth.supabase
     .from("company_corrective_actions")
     .select(
-      "id, company_id, jobsite_id, title, description, severity, status, assigned_user_id, due_at, started_at, closed_at, manager_override_close, manager_override_reason, created_at, updated_at, created_by, updated_by"
+      "id, company_id, jobsite_id, title, description, severity, category, status, assigned_user_id, due_at, started_at, closed_at, manager_override_close, manager_override_reason, created_at, updated_at, created_by, updated_by"
     )
     .eq("company_id", companyScope.companyId)
     .order("updated_at", { ascending: false });
@@ -184,6 +204,7 @@ export async function POST(request: Request) {
   const title = body?.title?.trim() ?? "";
   const description = body?.description?.trim() ?? "";
   const severity = normalizeSeverity(body?.severity);
+  const category = normalizeCategory(body?.category);
   const jobsiteId = body?.jobsiteId?.trim() ?? "";
   const assignedUserId = body?.assignedUserId?.trim() ?? "";
   const dueAtRaw = body?.dueAt?.trim() ?? "";
@@ -205,6 +226,7 @@ export async function POST(request: Request) {
       title,
       description: description || null,
       severity,
+      category,
       status: "open",
       assigned_user_id: assignedUserId || null,
       due_at: dueAtIso,
@@ -212,7 +234,7 @@ export async function POST(request: Request) {
       updated_by: auth.user.id,
     })
     .select(
-      "id, company_id, jobsite_id, title, description, severity, status, assigned_user_id, due_at, started_at, closed_at, manager_override_close, manager_override_reason, created_at, updated_at"
+      "id, company_id, jobsite_id, title, description, severity, category, status, assigned_user_id, due_at, started_at, closed_at, manager_override_close, manager_override_reason, created_at, updated_at"
     )
     .single();
 
@@ -240,6 +262,7 @@ export async function POST(request: Request) {
     detail: "Issue created.",
     event_payload: {
       severity,
+      category,
       assignedUserId: assignedUserId || null,
       dueAt: dueAtIso,
     },
