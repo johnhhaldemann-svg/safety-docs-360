@@ -276,12 +276,8 @@ export default function FieldIdExchangePage() {
       setLoadingActions(true);
       try {
         const headers = await getAuthHeaders();
-
-        // Batch 1: primary data
-        const actionsResponse = await fetchWithTimeout("/api/company/observations", { headers }, 15000);
-
-        // Batch 2: secondary data (after first call completes)
-        const [submissionsResponse, activitiesResponse] = await Promise.all([
+        const [actionsResponse, submissionsResponse, activitiesResponse] = await Promise.all([
+          fetchWithTimeout("/api/company/observations", { headers }, 15000),
           fetchWithTimeout("/api/company/safety-submissions?status=pending", { headers }, 15000),
           fetchWithTimeout("/api/company/dap-activities", { headers }, 15000),
         ]);

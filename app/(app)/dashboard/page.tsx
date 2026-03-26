@@ -241,9 +241,11 @@ export default function DashboardPage() {
 
       try {
         const authHeaders = { Authorization: `Bearer ${accessToken}` };
-
-        // Batch 1: identity only (1 call)
-        const meResponse = await fetchWithTimeout("/api/auth/me", { headers: authHeaders }, 15000);
+        const [meResponse, documentsResponse, creditResponse] = await Promise.all([
+          fetchWithTimeout("/api/auth/me", { headers: authHeaders }, 15000),
+          fetchWithTimeout("/api/workspace/documents", { headers: authHeaders }, 15000),
+          fetchWithTimeout("/api/library/credits", { headers: authHeaders }, 15000),
+        ]);
         const meData = (await meResponse.json().catch(() => null)) as
           | {
               user?: {
@@ -262,12 +264,6 @@ export default function DashboardPage() {
           setPermissionMap(meData?.user?.permissionMap ?? null);
           setCompanyProfile(meData?.user?.companyProfile ?? null);
         }
-
-        // Batch 2: documents + credits (2 calls)
-        const [documentsResponse, creditResponse] = await Promise.all([
-          fetchWithTimeout("/api/workspace/documents", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/library/credits", { headers: authHeaders }, 15000),
-        ]);
 
         const documentsData = (await documentsResponse.json().catch(() => null)) as
           | { documents?: DocumentRow[] }
@@ -295,18 +291,25 @@ export default function DashboardPage() {
         setLoading(false);
 
         if (canLoadCompanyWorkspace) {
-          // Batch 3: company users + workspace summary (2 calls instead of 8)
-          const [companyResponse, summaryResponse, analyticsResponse] = await Promise.all([
+          const [companyResponse, jobsitesResponse, correctiveResponse, dapsResponse, permitsResponse, incidentsResponse, reportsResponse, analyticsResponse] = await Promise.all([
             fetchWithTimeout("/api/company/users", { headers: authHeaders }, 15000),
-            fetchWithTimeout("/api/company/workspace/summary", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/jobsites", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/observations", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/daps", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/permits", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/incidents", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/reports", { headers: authHeaders }, 15000),
             fetchWithTimeout("/api/company/analytics/summary?days=30", { headers: authHeaders }, 15000),
           ]);
 
           const companyData = (await companyResponse.json().catch(() => null)) as { users?: CompanyUser[]; invites?: CompanyInvite[] } | null;
-          const summaryData = (await summaryResponse.json().catch(() => null)) as {
-            jobsites?: CompanyJobsiteRow[];
+          const jobsitesData = (await jobsitesResponse.json().catch(() => null)) as { jobsites?: CompanyJobsiteRow[] } | null;
+          const correctiveData = (await correctiveResponse.json().catch(() => null)) as {
+            actions?: CorrectiveActionSummaryRow[];
             observations?: CorrectiveActionSummaryRow[];
-            daps?: Array<{ status?: string | null }>;
+          } | null;
+          const dapsData = (await dapsResponse.json().catch(() => null)) as { daps?: Array<{ status?: string | null }> } | null;
+          const permitsData = (await permitsResponse.json().catch(() => null)) as {
             permits?: Array<{
               id?: string;
               title?: string | null;
@@ -316,6 +319,8 @@ export default function DashboardPage() {
               escalation_level?: string | null;
               stop_work_status?: string | null;
             }>;
+          } | null;
+          const incidentsData = (await incidentsResponse.json().catch(() => null)) as {
             incidents?: Array<{
               id?: string;
               title?: string | null;
@@ -325,8 +330,8 @@ export default function DashboardPage() {
               escalation_level?: string | null;
               stop_work_status?: string | null;
             }>;
-            reports?: Array<{ status?: string | null }>;
-          } | null;
+          };
+          const reportsData = (await reportsResponse.json().catch(() => null)) as { reports?: Array<{ status?: string | null }> } | null;
           const analyticsData = (await analyticsResponse.json().catch(() => null)) as {
             summary?: { companyDashboard?: CompanyDashboardMetrics };
           } | null;
@@ -335,13 +340,11 @@ export default function DashboardPage() {
             setCompanyUsers(companyData?.users ?? []);
             setCompanyInvites(companyData?.invites ?? []);
           }
-          if (summaryResponse.ok) setCompanyJobsiteRows((summaryData?.jobsites ?? []) as CompanyJobsiteRow[]);
+          if (jobsitesResponse.ok) setCompanyJobsiteRows(jobsitesData?.jobsites ?? []);
 
-          const correctiveActions = summaryResponse.ok
-            ? summaryData?.observations ?? []
+          const correctiveActions = correctiveResponse.ok
+            ? correctiveData?.observations ?? correctiveData?.actions ?? []
             : [];
-          const permitsData = { permits: summaryData?.permits ?? [] };
-          const incidentsData = { incidents: summaryData?.incidents ?? [] };
           const rows = new Map<string, LiveMatrixRow>();
           for (const action of correctiveActions) {
             const category = (action.category ?? "corrective_action").trim().toLowerCase();
@@ -371,10 +374,10 @@ export default function DashboardPage() {
             return { key, label, total: items.length, open, inProgress, closed };
           };
           setModuleSummaries([
-            summarize("daps", "DAPs", summaryResponse.ok ? summaryData?.daps ?? [] : []),
-            summarize("permits", "Permits", summaryResponse.ok ? permitsData.permits : []),
-            summarize("incidents", "Incidents", summaryResponse.ok ? incidentsData.incidents : []),
-            summarize("reports", "Reports", summaryResponse.ok ? summaryData?.reports ?? [] : []),
+            summarize("daps", "DAPs", dapsResponse.ok ? dapsData?.daps ?? [] : []),
+            summarize("permits", "Permits", permitsResponse.ok ? permitsData?.permits ?? [] : []),
+            summarize("incidents", "Incidents", incidentsResponse.ok ? incidentsData?.incidents ?? [] : []),
+            summarize("reports", "Reports", reportsResponse.ok ? reportsData?.reports ?? [] : []),
           ]);
 
           const alerts: HighRiskAlert[] = [];
