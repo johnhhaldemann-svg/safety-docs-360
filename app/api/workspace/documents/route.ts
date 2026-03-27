@@ -112,7 +112,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  let documents = (data ?? []) as Array<Record<string, unknown>>;
+  let documents = (data ?? []) as unknown as Array<Record<string, unknown>>;
 
   if (isCompanyRole(auth.role)) {
     const companyScope = await getCompanyScope({

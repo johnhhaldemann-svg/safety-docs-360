@@ -37,15 +37,20 @@ type DocumentRow = {
   id: string;
   created_at: string;
   user_id: string | null;
+  company_id: string | null;
+  status: string | null;
   project_name: string | null;
-  document_title: string;
+  document_title: string | null;
   document_type: string | null;
   category: string | null;
-  notes: string | null;
-  file_name: string;
-  file_path: string;
+  file_name: string | null;
+  file_path: string | null;
+  draft_file_path: string | null;
+  final_file_path: string | null;
   file_size: number | null;
   uploaded_by: string | null;
+  updated_at: string | null;
+  review_notes: string | null;
 };
 
 export default function UploadPage() {
@@ -328,7 +333,7 @@ async function confirmOpenFile() {
   ];
   const uploadActivityItems = documents.slice(0, 4).map((doc) => ({
     id: doc.id,
-    title: doc.document_title || doc.file_name,
+    title: doc.document_title ?? doc.file_name ?? "Untitled",
     detail: `${doc.document_type || "Document"} in ${doc.category || "General"} was saved to the workspace.`,
     meta: formatRelative(doc.created_at),
     tone: "info" as const,
@@ -618,7 +623,7 @@ async function confirmOpenFile() {
                       {doc.category}
                     </td>
                     <td className="border-y border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                      {doc.file_name}
+                      {doc.file_name ?? "—"}
                     </td>
                     <td className="rounded-r-2xl border-y border-r border-slate-200 bg-slate-50 px-4 py-4 text-right">
                       <button
@@ -641,7 +646,7 @@ async function confirmOpenFile() {
                   <div className="mt-2 grid gap-3 sm:grid-cols-2">
                     <InfoBox label="Type" value={doc.document_type || "Not set"} />
                     <InfoBox label="Category" value={doc.category || "Not set"} />
-                    <InfoBox label="File" value={doc.file_name} />
+                    <InfoBox label="File" value={doc.file_name ?? "—"} />
                     <InfoBox label="Uploader" value={doc.uploaded_by || "Unknown"} />
                   </div>
                   <button
