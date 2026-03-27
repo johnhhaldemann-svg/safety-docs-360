@@ -25,8 +25,17 @@ type FallbackUserRoleRow = {
   user_id: string;
   role: string;
   team: string | null;
+  company_id?: string | null;
   account_status: string | null;
   created_at?: string | null;
+};
+
+type CompanyMembershipLookupRow = {
+  user_id: string;
+  company_id: string;
+  companies?: {
+    name?: string | null;
+  } | null;
 };
 
 type RpcAdminUserRow = {
@@ -177,7 +186,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await auth.supabase
       .from("user_roles")
-      .select("user_id, role, team, account_status, created_at")
+      .select("user_id, role, team, company_id, account_status, created_at")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -207,6 +216,8 @@ export async function GET(request: Request) {
           name,
           role: formatAppRole(row.role),
           team: row.team?.trim() || "General",
+          companyId: row.company_id ?? null,
+          companyName: row.company_id ? row.team?.trim() || "Company Workspace" : "",
           status: formatAccountStatus(row.account_status),
           created_at: row.created_at ?? null,
           last_sign_in_at: null,
@@ -235,6 +246,24 @@ export async function GET(request: Request) {
     );
   }
 
+  const { data: membershipData } = await adminClient
+    .from("company_memberships")
+    .select("user_id, company_id, companies(name)");
+
+  const companyMembershipMap = new Map<
+    string,
+    { companyId: string; companyName: string }
+  >();
+
+  for (const row of (membershipData as CompanyMembershipLookupRow[] | null) ?? []) {
+    const companyId = row.company_id?.trim() ?? "";
+    if (!companyId) continue;
+    companyMembershipMap.set(row.user_id, {
+      companyId,
+      companyName: row.companies?.name?.trim() || "Company Workspace",
+    });
+  }
+
   const users = (
     await Promise.all(
     (data.users ?? []).map(async (user) => {
@@ -249,6 +278,8 @@ export async function GET(request: Request) {
         name: getDisplayName(user),
         role: formatAppRole(roleContext.role),
         team: roleContext.team || getTeam(user),
+        companyId: companyMembershipMap.get(user.id)?.companyId ?? null,
+        companyName: companyMembershipMap.get(user.id)?.companyName || roleContext.team || getTeam(user),
         status:
           roleContext.accountStatus === "pending" ||
           roleContext.accountStatus === "suspended"

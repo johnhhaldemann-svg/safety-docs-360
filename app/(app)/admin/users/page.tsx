@@ -23,9 +23,17 @@ type AdminUser = {
   name: string;
   role: string;
   team: string;
+  companyId?: string | null;
+  companyName?: string;
   status: string;
   created_at?: string | null;
   last_sign_in_at?: string | null;
+};
+
+type CompanyOption = {
+  id: string;
+  name: string;
+  status: string;
 };
 
 type AdminUserCapabilities = {
@@ -52,6 +60,17 @@ const internalRoles = new Set([
   "Admin",
   "Editor",
   "Viewer",
+]);
+
+const companyAssignableRoles = new Set([
+  "Company Admin",
+  "Operations Manager",
+  "Company User",
+  "Safety Manager",
+  "Project Manager",
+  "Foreman",
+  "Field User",
+  "Read Only",
 ]);
 
 function statusClasses(status: string) {
@@ -82,6 +101,18 @@ function formatRelative(timestamp?: string | null) {
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
+function findCompanyIdForUser(user: AdminUser, companies: CompanyOption[]) {
+  if (user.companyId) {
+    return user.companyId;
+  }
+
+  const matchedByName = companies.find(
+    (company) => company.name.trim().toLowerCase() === user.team.trim().toLowerCase()
+  );
+
+  return matchedByName?.id ?? "";
+}
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [capabilities, setCapabilities] = useState<AdminUserCapabilities>({
@@ -100,9 +131,12 @@ export default function AdminUsersPage() {
   const [inviteRole, setInviteRole] = useState("Viewer");
   const [inviteTeam, setInviteTeam] = useState("General");
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [companiesLoading, setCompaniesLoading] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editRole, setEditRole] = useState("Viewer");
   const [editTeam, setEditTeam] = useState("General");
+  const [editCompanyId, setEditCompanyId] = useState("");
   const [editStatus, setEditStatus] = useState("Active");
   const [saveLoading, setSaveLoading] = useState(false);
   const [removeLoading, setRemoveLoading] = useState(false);
@@ -122,6 +156,44 @@ export default function AdminUsersPage() {
     }
     return session.access_token;
   }
+
+  const loadCompanies = useCallback(async () => {
+    setCompaniesLoading(true);
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/admin/companies", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json().catch(() => null)) as
+        | {
+            companies?: Array<{
+              id?: string;
+              name?: string;
+              status?: string;
+            }>;
+          }
+        | null;
+
+      if (!res.ok) {
+        setCompanies([]);
+        setCompaniesLoading(false);
+        return;
+      }
+
+      setCompanies(
+        (data?.companies ?? [])
+          .map((company) => ({
+            id: company.id ?? "",
+            name: company.name?.trim() || "Unnamed Company",
+            status: company.status?.trim() || "active",
+          }))
+          .filter((company) => Boolean(company.id))
+      );
+    } catch {
+      setCompanies([]);
+    }
+    setCompaniesLoading(false);
+  }, []);
 
   const loadUsers = useCallback(async (options?: { preserveMessage?: boolean }) => {
     setLoading(true);
@@ -159,6 +231,11 @@ export default function AdminUsersPage() {
         canRunAdminAuthActions: Boolean(data?.capabilities?.canRunAdminAuthActions),
         canViewAllUsers: Boolean(data?.capabilities?.canViewAllUsers),
       });
+      if (Boolean(data?.capabilities?.canViewAllUsers)) {
+        await loadCompanies();
+      } else {
+        setCompanies([]);
+      }
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to load users.");
@@ -170,7 +247,7 @@ export default function AdminUsersPage() {
       });
     }
     setLoading(false);
-  }, []);
+  }, [loadCompanies]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -326,6 +403,20 @@ export default function AdminUsersPage() {
     setModalMessage("");
     setModalMessageTone("neutral");
     try {
+      const nextCompanyId =
+        capabilities.canViewAllUsers && companyAssignableRoles.has(editRole)
+          ? editCompanyId.trim()
+          : "";
+
+      if (capabilities.canViewAllUsers && companyAssignableRoles.has(editRole) && !nextCompanyId) {
+        setMessageTone("error");
+        setMessage("Please choose a company workspace for this company-scoped role.");
+        setModalMessageTone("error");
+        setModalMessage("Please choose a company workspace for this company-scoped role.");
+        setSaveLoading(false);
+        return;
+      }
+
       const token = await getAccessToken();
       const res = await fetch(`/api/admin/users/${editingUser.id}`, {
         method: "PATCH",
@@ -337,6 +428,7 @@ export default function AdminUsersPage() {
           role: editRole,
           team: editTeam,
           accountStatus: editStatus,
+          companyId: nextCompanyId || null,
         }),
       });
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -571,6 +663,19 @@ export default function AdminUsersPage() {
     setActionLoading("");
   }
 
+  const resolvedEditCompanyId = useMemo(() => {
+    if (!editingUser) {
+      return "";
+    }
+
+    const currentValue = editCompanyId.trim();
+    if (currentValue) {
+      return currentValue;
+    }
+
+    return findCompanyIdForUser(editingUser, companies);
+  }, [companies, editCompanyId, editingUser]);
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -758,14 +863,15 @@ export default function AdminUsersPage() {
                         {actionLoading === `${user.id}:Active` ? "Approving..." : "Approve"}
                       </button>
                       <button
-                        onClick={() => {
-                          setEditingUser(user);
-                          setEditRole(user.role);
-                          setEditTeam(user.team);
-                          setEditStatus("Pending");
-                          setModalMessage("");
-                          setModalMessageTone("neutral");
-                        }}
+                      onClick={() => {
+                        setEditingUser(user);
+                        setEditRole(user.role);
+                        setEditTeam(user.team);
+                        setEditCompanyId(findCompanyIdForUser(user, companies));
+                        setEditStatus("Pending");
+                        setModalMessage("");
+                        setModalMessageTone("neutral");
+                      }}
                         className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
                       >
                         Review Details
@@ -854,6 +960,11 @@ export default function AdminUsersPage() {
                     <p className="mt-1 text-sm text-slate-500">{user.email}</p>
                     <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
                       <span>Team: {user.team}</span>
+                      {capabilities.canViewAllUsers ? (
+                        <span>
+                          Company: {user.companyName?.trim() || user.team || "Not assigned"}
+                        </span>
+                      ) : null}
                       <span>Last seen {formatRelative(user.last_sign_in_at)}</span>
                     </div>
                   </div>
@@ -862,6 +973,7 @@ export default function AdminUsersPage() {
                       setEditingUser(user);
                       setEditRole(user.role);
                       setEditTeam(user.team);
+                      setEditCompanyId(findCompanyIdForUser(user, companies));
                       setEditStatus(
                         user.status === "Pending"
                           ? "Pending"
@@ -918,6 +1030,26 @@ export default function AdminUsersPage() {
                   <option key={role}>{role}</option>
                 ))}
               </select>
+              {capabilities.canViewAllUsers ? (
+                <select
+                  value={resolvedEditCompanyId}
+                  onChange={(e) => setEditCompanyId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                >
+                  <option value="">
+                    {companiesLoading
+                      ? "Loading company workspaces..."
+                      : "Select a company workspace"}
+                  </option>
+                  {companies
+                    .filter((company) => company.status.toLowerCase() !== "archived")
+                    .map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.name}
+                      </option>
+                    ))}
+                </select>
+              ) : null}
               <input
                 type="text"
                 value={editTeam}

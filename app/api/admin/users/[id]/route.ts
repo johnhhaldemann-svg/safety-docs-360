@@ -13,6 +13,13 @@ type UpdatePayload = {
   role?: string;
   team?: string;
   accountStatus?: string;
+  companyId?: string | null;
+};
+
+type CompanyLookupRow = {
+  id: string;
+  name: string | null;
+  status: string | null;
 };
 
 type ActionPayload = {
@@ -27,6 +34,10 @@ function formatRoleConstraintError(message?: string | null) {
   return message || "Role update failed.";
 }
 
+function trimText(value?: string | null) {
+  return (value ?? "").trim();
+}
+
 async function resolveCompanyAssignment(params: {
   adminClient: ReturnType<typeof createSupabaseAdminClient>;
   currentUser: {
@@ -37,11 +48,84 @@ async function resolveCompanyAssignment(params: {
   team: string;
   role: string;
   actorUserId: string;
+  requestedCompanyId?: string | null;
+  isSuperAdmin: boolean;
 }) {
-  const { adminClient, currentUser, userId, team, role, actorUserId } = params;
+  const {
+    adminClient,
+    currentUser,
+    userId,
+    team,
+    role,
+    actorUserId,
+    requestedCompanyId,
+    isSuperAdmin,
+  } = params;
 
   if (!adminClient) {
-    return null;
+    return { companyId: null, companyName: null, error: null as string | null };
+  }
+
+  const normalizedRequestedCompanyId = trimText(requestedCompanyId);
+
+  if (normalizedRequestedCompanyId) {
+    if (!isSuperAdmin) {
+      return {
+        companyId: null,
+        companyName: null,
+        error: "Only a Super Admin can assign a user to a specific company workspace.",
+      };
+    }
+
+    if (!isCompanyRole(role)) {
+      return {
+        companyId: null,
+        companyName: null,
+        error: "Choose a company-scoped role when assigning a user to a company workspace.",
+      };
+    }
+
+    const companyLookup = await adminClient
+      .from("companies")
+      .select("id, name, status")
+      .eq("id", normalizedRequestedCompanyId)
+      .maybeSingle();
+
+    if (companyLookup.error) {
+      return {
+        companyId: null,
+        companyName: null,
+        error: companyLookup.error.message || "Failed to load the selected company.",
+      };
+    }
+
+    const company = companyLookup.data as CompanyLookupRow | null;
+
+    if (!company?.id) {
+      return {
+        companyId: null,
+        companyName: null,
+        error: "The selected company workspace could not be found.",
+      };
+    }
+
+    if ((company.status ?? "active").trim().toLowerCase() === "archived") {
+      return {
+        companyId: null,
+        companyName: null,
+        error: "Restore that company workspace before assigning users to it.",
+      };
+    }
+
+    return {
+      companyId: company.id,
+      companyName: company.name?.trim() || team || "Company Workspace",
+      error: null as string | null,
+    };
+  }
+
+  if (!isCompanyRole(role)) {
+    return { companyId: null, companyName: null, error: null as string | null };
   }
 
   const metadataCompanyId =
@@ -52,7 +136,18 @@ async function resolveCompanyAssignment(params: {
         : null;
 
   if (metadataCompanyId) {
-    return metadataCompanyId;
+    const companyLookup = await adminClient
+      .from("companies")
+      .select("id, name")
+      .eq("id", metadataCompanyId)
+      .maybeSingle();
+
+    const company = companyLookup.data as CompanyLookupRow | null;
+    return {
+      companyId: metadataCompanyId,
+      companyName: company?.name?.trim() || team || "Company Workspace",
+      error: null as string | null,
+    };
   }
 
   const { data: existingMembership } = await adminClient
@@ -70,11 +165,26 @@ async function resolveCompanyAssignment(params: {
       : null;
 
   if (existingCompanyId) {
-    return existingCompanyId;
+    const companyLookup = await adminClient
+      .from("companies")
+      .select("id, name")
+      .eq("id", existingCompanyId)
+      .maybeSingle();
+
+    const company = companyLookup.data as CompanyLookupRow | null;
+    return {
+      companyId: existingCompanyId,
+      companyName: company?.name?.trim() || team || "Company Workspace",
+      error: null as string | null,
+    };
   }
 
-  if (!isCompanyRole(role)) {
-    return null;
+  if (isSuperAdmin) {
+    return {
+      companyId: null,
+      companyName: null,
+      error: "Select a company workspace for company-scoped roles.",
+    };
   }
 
   const { data: existingCompany } = await adminClient
@@ -89,7 +199,11 @@ async function resolveCompanyAssignment(params: {
     "id" in existingCompany &&
     typeof existingCompany.id === "string"
   ) {
-    return existingCompany.id;
+    return {
+      companyId: existingCompany.id,
+      companyName: team || "Company Workspace",
+      error: null as string | null,
+    };
   }
 
   const { data: createdCompany } = await adminClient
@@ -115,10 +229,14 @@ async function resolveCompanyAssignment(params: {
     "id" in createdCompany &&
     typeof createdCompany.id === "string"
   ) {
-    return createdCompany.id;
+    return {
+      companyId: createdCompany.id,
+      companyName: team || "Company Workspace",
+      error: null as string | null,
+    };
   }
 
-  return null;
+  return { companyId: null, companyName: null, error: null as string | null };
 }
 
 export async function PATCH(
@@ -140,6 +258,8 @@ export async function PATCH(
   const role = normalizeAppRole(body.role);
   const team = body.team?.trim() || "General";
   const accountStatus = normalizeAccountStatus(body.accountStatus);
+  const requestedCompanyId = trimText(body.companyId);
+  const isSuperAdmin = auth.role === "super_admin";
 
   if (!adminClient) {
     const { error: roleError } = await auth.supabase.from("user_roles").upsert(
@@ -183,28 +303,34 @@ export async function PATCH(
     );
   }
 
-  const companyId = await resolveCompanyAssignment({
+  const companyAssignment = await resolveCompanyAssignment({
     adminClient,
     currentUser: currentUser.user,
     userId: id,
     team,
     role,
     actorUserId: auth.user.id,
+    requestedCompanyId,
+    isSuperAdmin,
   });
+
+  if (companyAssignment.error) {
+    return NextResponse.json({ error: companyAssignment.error }, { status: 400 });
+  }
 
   const mergedUserMetadata = {
     ...(currentUser.user.user_metadata ?? {}),
     role,
-    team,
-    company_id: companyId,
+    team: companyAssignment.companyName || team,
+    company_id: companyAssignment.companyId,
     account_status: accountStatus,
   };
 
   const mergedAppMetadata = {
     ...(currentUser.user.app_metadata ?? {}),
     role,
-    team,
-    company_id: companyId,
+    team: companyAssignment.companyName || team,
+    company_id: companyAssignment.companyId,
     account_status: accountStatus,
   };
 
@@ -227,8 +353,8 @@ export async function PATCH(
     {
       user_id: id,
       role,
-      team,
-      company_id: companyId,
+      team: companyAssignment.companyName || team,
+      company_id: companyAssignment.companyId,
       account_status: accountStatus,
       created_by: auth.user.id,
       updated_by: auth.user.id,
@@ -245,13 +371,28 @@ export async function PATCH(
     );
   }
 
-  if (companyId) {
-    await adminClient.from("company_memberships").upsert(
+  const { error: membershipDeleteError } = await adminClient
+    .from("company_memberships")
+    .delete()
+    .eq("user_id", id);
+
+  if (membershipDeleteError) {
+    return NextResponse.json(
+      {
+        error:
+          membershipDeleteError.message || "Failed to reset company membership records.",
+      },
+      { status: 500 }
+    );
+  }
+
+  if (companyAssignment.companyId) {
+    const { error: membershipError } = await adminClient.from("company_memberships").upsert(
       {
         user_id: id,
-        company_id: companyId,
+        company_id: companyAssignment.companyId,
         role: isCompanyRole(role) ? role : "company_user",
-        status: accountStatus,
+        status: accountStatus === "pending" ? "pending" : "active",
         created_by: auth.user.id,
         updated_by: auth.user.id,
       },
@@ -259,13 +400,20 @@ export async function PATCH(
         onConflict: "user_id,company_id",
       }
     );
+
+    if (membershipError) {
+      return NextResponse.json(
+        { error: membershipError.message || "Failed to sync company membership." },
+        { status: 500 }
+      );
+    }
   }
 
   return NextResponse.json({
     success: true,
     role,
-    team,
-    companyId,
+    team: companyAssignment.companyName || team,
+    companyId: companyAssignment.companyId,
     accountStatus,
   });
 }
