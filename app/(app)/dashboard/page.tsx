@@ -228,6 +228,9 @@ export default function DashboardPage() {
   const [moduleSummaries, setModuleSummaries] = useState<ModuleSummaryItem[]>([]);
   const [highRiskAlerts, setHighRiskAlerts] = useState<HighRiskAlert[]>([]);
   const [companyDashboardMetrics, setCompanyDashboardMetrics] = useState<CompanyDashboardMetrics | null>(null);
+  const [companyWorkspaceLoaded, setCompanyWorkspaceLoaded] = useState(false);
+  const [companyWorkspaceLoading, setCompanyWorkspaceLoading] = useState(false);
+  const [companyWorkspaceError, setCompanyWorkspaceError] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -241,11 +244,7 @@ export default function DashboardPage() {
 
       try {
         const authHeaders = { Authorization: `Bearer ${accessToken}` };
-        const [meResponse, documentsResponse, creditResponse] = await Promise.all([
-          fetchWithTimeout("/api/auth/me", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/workspace/documents", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/library/credits", { headers: authHeaders }, 15000),
-        ]);
+        const meResponse = await fetchWithTimeout("/api/auth/me", { headers: authHeaders }, 15000);
         const meData = (await meResponse.json().catch(() => null)) as
           | {
               user?: {
@@ -264,6 +263,17 @@ export default function DashboardPage() {
           setPermissionMap(meData?.user?.permissionMap ?? null);
           setCompanyProfile(meData?.user?.companyProfile ?? null);
         }
+
+        const isCompanyAdmin = meData?.user?.role === "company_admin";
+        if (isCompanyAdmin) {
+          setLoading(false);
+          return;
+        }
+
+        const [documentsResponse, creditResponse] = await Promise.all([
+          fetchWithTimeout("/api/workspace/documents", { headers: authHeaders }, 15000),
+          fetchWithTimeout("/api/library/credits", { headers: authHeaders }, 15000),
+        ]);
 
         const documentsData = (await documentsResponse.json().catch(() => null)) as
           | { documents?: DocumentRow[] }
@@ -291,25 +301,20 @@ export default function DashboardPage() {
         setLoading(false);
 
         if (canLoadCompanyWorkspace) {
-          const [companyResponse, jobsitesResponse, correctiveResponse, dapsResponse, permitsResponse, incidentsResponse, reportsResponse, analyticsResponse] = await Promise.all([
+          const [companyResponse, workspaceSummaryResponse, analyticsResponse] = await Promise.all([
             fetchWithTimeout("/api/company/users", { headers: authHeaders }, 15000),
-            fetchWithTimeout("/api/company/jobsites", { headers: authHeaders }, 15000),
-            fetchWithTimeout("/api/company/observations", { headers: authHeaders }, 15000),
-            fetchWithTimeout("/api/company/daps", { headers: authHeaders }, 15000),
-            fetchWithTimeout("/api/company/permits", { headers: authHeaders }, 15000),
-            fetchWithTimeout("/api/company/incidents", { headers: authHeaders }, 15000),
-            fetchWithTimeout("/api/company/reports", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/company/workspace/summary", { headers: authHeaders }, 15000),
             fetchWithTimeout("/api/company/analytics/summary?days=30", { headers: authHeaders }, 15000),
           ]);
 
-          const companyData = (await companyResponse.json().catch(() => null)) as { users?: CompanyUser[]; invites?: CompanyInvite[] } | null;
-          const jobsitesData = (await jobsitesResponse.json().catch(() => null)) as { jobsites?: CompanyJobsiteRow[] } | null;
-          const correctiveData = (await correctiveResponse.json().catch(() => null)) as {
-            actions?: CorrectiveActionSummaryRow[];
-            observations?: CorrectiveActionSummaryRow[];
+          const companyData = (await companyResponse.json().catch(() => null)) as {
+            users?: CompanyUser[];
+            invites?: CompanyInvite[];
           } | null;
-          const dapsData = (await dapsResponse.json().catch(() => null)) as { daps?: Array<{ status?: string | null }> } | null;
-          const permitsData = (await permitsResponse.json().catch(() => null)) as {
+          const workspaceSummaryData = (await workspaceSummaryResponse.json().catch(() => null)) as {
+            jobsites?: CompanyJobsiteRow[];
+            observations?: CorrectiveActionSummaryRow[];
+            daps?: Array<{ status?: string | null }>;
             permits?: Array<{
               id?: string;
               title?: string | null;
@@ -319,8 +324,6 @@ export default function DashboardPage() {
               escalation_level?: string | null;
               stop_work_status?: string | null;
             }>;
-          } | null;
-          const incidentsData = (await incidentsResponse.json().catch(() => null)) as {
             incidents?: Array<{
               id?: string;
               title?: string | null;
@@ -330,8 +333,8 @@ export default function DashboardPage() {
               escalation_level?: string | null;
               stop_work_status?: string | null;
             }>;
-          };
-          const reportsData = (await reportsResponse.json().catch(() => null)) as { reports?: Array<{ status?: string | null }> } | null;
+            reports?: Array<{ status?: string | null }>;
+          } | null;
           const analyticsData = (await analyticsResponse.json().catch(() => null)) as {
             summary?: { companyDashboard?: CompanyDashboardMetrics };
           } | null;
@@ -340,16 +343,23 @@ export default function DashboardPage() {
             setCompanyUsers(companyData?.users ?? []);
             setCompanyInvites(companyData?.invites ?? []);
           }
-          if (jobsitesResponse.ok) setCompanyJobsiteRows(jobsitesData?.jobsites ?? []);
+          if (workspaceSummaryResponse.ok) {
+            setCompanyJobsiteRows(workspaceSummaryData?.jobsites ?? []);
+          }
 
-          const correctiveActions = correctiveResponse.ok
-            ? correctiveData?.observations ?? correctiveData?.actions ?? []
+          const correctiveActions = workspaceSummaryResponse.ok
+            ? workspaceSummaryData?.observations ?? []
             : [];
+          const daps = workspaceSummaryResponse.ok ? workspaceSummaryData?.daps ?? [] : [];
+          const permits = workspaceSummaryResponse.ok ? workspaceSummaryData?.permits ?? [] : [];
+          const incidents = workspaceSummaryResponse.ok ? workspaceSummaryData?.incidents ?? [] : [];
+          const reports = workspaceSummaryResponse.ok ? workspaceSummaryData?.reports ?? [] : [];
           const rows = new Map<string, LiveMatrixRow>();
           for (const action of correctiveActions) {
             const category = (action.category ?? "corrective_action").trim().toLowerCase();
             const status = (action.status ?? "open").trim().toLowerCase();
-            const row = rows.get(category) ?? { category, open: 0, inProgress: 0, closed: 0, overdue: 0 };
+            const row =
+              rows.get(category) ?? { category, open: 0, inProgress: 0, closed: 0, overdue: 0 };
             if (status === "closed") row.closed += 1;
             else if (status === "in_progress") row.inProgress += 1;
             else row.open += 1;
@@ -359,9 +369,15 @@ export default function DashboardPage() {
             }
             rows.set(category, row);
           }
-          setLiveMatrixSummary(Array.from(rows.values()).sort((a, b) => a.category.localeCompare(b.category)));
+          setLiveMatrixSummary(
+            Array.from(rows.values()).sort((a, b) => a.category.localeCompare(b.category))
+          );
 
-          const summarize = (key: ModuleSummaryItem["key"], label: string, items: Array<{ status?: string | null }>): ModuleSummaryItem => {
+          const summarize = (
+            key: ModuleSummaryItem["key"],
+            label: string,
+            items: Array<{ status?: string | null }>
+          ): ModuleSummaryItem => {
             let open = 0;
             let inProgress = 0;
             let closed = 0;
@@ -374,14 +390,14 @@ export default function DashboardPage() {
             return { key, label, total: items.length, open, inProgress, closed };
           };
           setModuleSummaries([
-            summarize("daps", "DAPs", dapsResponse.ok ? dapsData?.daps ?? [] : []),
-            summarize("permits", "Permits", permitsResponse.ok ? permitsData?.permits ?? [] : []),
-            summarize("incidents", "Incidents", incidentsResponse.ok ? incidentsData?.incidents ?? [] : []),
-            summarize("reports", "Reports", reportsResponse.ok ? reportsData?.reports ?? [] : []),
+            summarize("daps", "DAPs", daps),
+            summarize("permits", "Permits", permits),
+            summarize("incidents", "Incidents", incidents),
+            summarize("reports", "Reports", reports),
           ]);
 
           const alerts: HighRiskAlert[] = [];
-          for (const permit of permitsData?.permits ?? []) {
+          for (const permit of permits) {
             if (permit.stop_work_status === "stop_work_active") {
               alerts.push({
                 id: `permit-stop-${permit.id ?? Math.random()}`,
@@ -398,7 +414,7 @@ export default function DashboardPage() {
               });
             }
           }
-          for (const incident of incidentsData?.incidents ?? []) {
+          for (const incident of incidents) {
             if (incident.stop_work_status === "stop_work_active") {
               alerts.push({
                 id: `incident-stop-${incident.id ?? Math.random()}`,
@@ -419,6 +435,8 @@ export default function DashboardPage() {
           if (analyticsResponse.ok) {
             setCompanyDashboardMetrics(analyticsData?.summary?.companyDashboard ?? null);
           }
+
+          setCompanyWorkspaceLoaded(true);
         }
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
@@ -430,6 +448,175 @@ export default function DashboardPage() {
       }
     })();
   }, []);
+
+  async function loadCompanyWorkspace() {
+    setCompanyWorkspaceLoading(true);
+    setCompanyWorkspaceError(null);
+
+    try {
+      const sessionResult = await supabase.auth.getSession();
+      const accessToken = sessionResult.data.session?.access_token;
+
+      if (!accessToken) {
+        setCompanyWorkspaceError("Sign in again to load the company workspace.");
+        return;
+      }
+
+      const authHeaders = { Authorization: `Bearer ${accessToken}` };
+      const [documentsResponse, creditResponse, companyResponse, workspaceSummaryResponse, analyticsResponse] =
+        await Promise.all([
+          fetch("/api/workspace/documents", { headers: authHeaders }),
+          fetch("/api/library/credits", { headers: authHeaders }),
+          fetch("/api/company/users", { headers: authHeaders }),
+          fetch("/api/company/workspace/summary", { headers: authHeaders }),
+          fetch("/api/company/analytics/summary?days=30", { headers: authHeaders }),
+        ]);
+
+      const documentsData = (await documentsResponse.json().catch(() => null)) as
+        | { documents?: DocumentRow[] }
+        | null;
+      const creditData = (await creditResponse.json().catch(() => null)) as
+        | { creditBalance?: number }
+        | null;
+      const companyData = (await companyResponse.json().catch(() => null)) as
+        | { users?: CompanyUser[]; invites?: CompanyInvite[] }
+        | null;
+      const workspaceSummaryData = (await workspaceSummaryResponse.json().catch(() => null)) as {
+        jobsites?: CompanyJobsiteRow[];
+        observations?: CorrectiveActionSummaryRow[];
+        daps?: Array<{ status?: string | null }>;
+        permits?: Array<{
+          id?: string;
+          title?: string | null;
+          status?: string | null;
+          severity?: string | null;
+          sif_flag?: boolean | null;
+          escalation_level?: string | null;
+          stop_work_status?: string | null;
+        }>;
+        incidents?: Array<{
+          id?: string;
+          title?: string | null;
+          status?: string | null;
+          severity?: string | null;
+          sif_flag?: boolean | null;
+          escalation_level?: string | null;
+          stop_work_status?: string | null;
+        }>;
+        reports?: Array<{ status?: string | null }>;
+      } | null;
+      const analyticsData = (await analyticsResponse.json().catch(() => null)) as {
+        summary?: { companyDashboard?: CompanyDashboardMetrics };
+      } | null;
+
+      if (documentsResponse.ok) {
+        setDocuments(documentsData?.documents ?? []);
+      }
+      if (creditResponse.ok) {
+        setCreditBalance(Number(creditData?.creditBalance ?? 0));
+      }
+      if (companyResponse.ok) {
+        setCompanyUsers(companyData?.users ?? []);
+        setCompanyInvites(companyData?.invites ?? []);
+      }
+      if (workspaceSummaryResponse.ok) {
+        setCompanyJobsiteRows(workspaceSummaryData?.jobsites ?? []);
+      }
+
+      const correctiveActions = workspaceSummaryResponse.ok
+        ? workspaceSummaryData?.observations ?? []
+        : [];
+      const daps = workspaceSummaryResponse.ok ? workspaceSummaryData?.daps ?? [] : [];
+      const permits = workspaceSummaryResponse.ok ? workspaceSummaryData?.permits ?? [] : [];
+      const incidents = workspaceSummaryResponse.ok ? workspaceSummaryData?.incidents ?? [] : [];
+      const reports = workspaceSummaryResponse.ok ? workspaceSummaryData?.reports ?? [] : [];
+      const rows = new Map<string, LiveMatrixRow>();
+      for (const action of correctiveActions) {
+        const category = (action.category ?? "corrective_action").trim().toLowerCase();
+        const status = (action.status ?? "open").trim().toLowerCase();
+        const row = rows.get(category) ?? { category, open: 0, inProgress: 0, closed: 0, overdue: 0 };
+        if (status === "closed") row.closed += 1;
+        else if (status === "in_progress") row.inProgress += 1;
+        else row.open += 1;
+        if (status !== "closed" && action.due_at) {
+          const due = new Date(action.due_at).getTime();
+          if (!Number.isNaN(due) && due < Date.now()) row.overdue += 1;
+        }
+        rows.set(category, row);
+      }
+      setLiveMatrixSummary(Array.from(rows.values()).sort((a, b) => a.category.localeCompare(b.category)));
+
+      const summarize = (
+        key: ModuleSummaryItem["key"],
+        label: string,
+        items: Array<{ status?: string | null }>
+      ): ModuleSummaryItem => {
+        let open = 0;
+        let inProgress = 0;
+        let closed = 0;
+        for (const item of items) {
+          const status = (item.status ?? "").trim().toLowerCase();
+          if (status === "closed" || status === "archived" || status === "published" || status === "expired") closed += 1;
+          else if (status === "in_progress" || status === "active") inProgress += 1;
+          else open += 1;
+        }
+        return { key, label, total: items.length, open, inProgress, closed };
+      };
+      setModuleSummaries([
+        summarize("daps", "DAPs", daps),
+        summarize("permits", "Permits", permits),
+        summarize("incidents", "Incidents", incidents),
+        summarize("reports", "Reports", reports),
+      ]);
+
+      const alerts: HighRiskAlert[] = [];
+      for (const permit of permits) {
+        if (permit.stop_work_status === "stop_work_active") {
+          alerts.push({
+            id: `permit-stop-${permit.id ?? Math.random()}`,
+            title: permit.title || "Permit with active stop-work",
+            detail: "Stop-work is active and requires leadership clearance.",
+            tone: "warning",
+          });
+        } else if (permit.escalation_level === "critical" || permit.sif_flag) {
+          alerts.push({
+            id: `permit-risk-${permit.id ?? Math.random()}`,
+            title: permit.title || "Permit escalated",
+            detail: "Critical/SIF permit requires immediate operations review.",
+            tone: "warning",
+          });
+        }
+      }
+      for (const incident of incidents) {
+        if (incident.stop_work_status === "stop_work_active") {
+          alerts.push({
+            id: `incident-stop-${incident.id ?? Math.random()}`,
+            title: incident.title || "Incident with active stop-work",
+            detail: "Incident triggered stop-work and must be resolved before restart.",
+            tone: "warning",
+          });
+        } else if (incident.escalation_level === "critical" || incident.sif_flag) {
+          alerts.push({
+            id: `incident-risk-${incident.id ?? Math.random()}`,
+            title: incident.title || "Incident escalated",
+            detail: "Critical/SIF incident is in high-risk review.",
+            tone: "warning",
+          });
+        }
+      }
+      setHighRiskAlerts(alerts.slice(0, 8));
+      if (analyticsResponse.ok) {
+        setCompanyDashboardMetrics(analyticsData?.summary?.companyDashboard ?? null);
+      }
+
+      setCompanyWorkspaceLoaded(true);
+    } catch (error) {
+      console.error("Company workspace load error:", error);
+      setCompanyWorkspaceError("Unable to load the company workspace right now. Please try Refresh Workspace again.");
+    } finally {
+      setCompanyWorkspaceLoading(false);
+    }
+  }
 
   const isCompanyAdminDashboard = userRole === "company_admin";
   const isManagerView =
@@ -1102,11 +1289,15 @@ export default function DashboardPage() {
       ];
 
   const showWelcomeState = !loading && (isManagerView ? companyUserCount === 0 && approvedCount === 0 : activeDocuments.length === 0);
+  const companyWorkspaceDisplayLoading = companyWorkspaceLoading || !companyWorkspaceLoaded;
 
   if (isCompanyAdminDashboard) {
     return (
       <CompanyAdminDashboard
-        loading={loading}
+        loading={companyWorkspaceDisplayLoading}
+        workspaceLoaded={companyWorkspaceLoaded}
+        workspaceError={companyWorkspaceError}
+        onRefreshWorkspace={loadCompanyWorkspace}
         documents={activeDocuments}
         companyUsers={companyUsers}
         companyInvites={companyInvites}

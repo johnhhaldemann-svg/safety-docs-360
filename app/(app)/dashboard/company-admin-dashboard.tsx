@@ -112,6 +112,9 @@ function getStatusTone(label: string): "neutral" | "success" | "warning" | "info
 
 export function CompanyAdminDashboard({
   loading,
+  workspaceLoaded,
+  workspaceError,
+  onRefreshWorkspace,
   documents,
   companyUsers,
   companyInvites,
@@ -124,6 +127,9 @@ export function CompanyAdminDashboard({
   companyDashboardMetrics,
 }: {
   loading: boolean;
+  workspaceLoaded: boolean;
+  workspaceError?: string | null;
+  onRefreshWorkspace: () => void;
   documents: DocumentRow[];
   companyUsers: CompanyUser[];
   companyInvites: CompanyInvite[];
@@ -380,7 +386,7 @@ export function CompanyAdminDashboard({
     ...pendingUsers.slice(0, 2).map((user) => ({
       id: `user-${user.id}`,
       title: `${user.name} is waiting for approval`,
-      detail: "Approve or suspend access from Team Access.",
+      detail: "Approve or suspend access from Company Users.",
       meta: formatRelative(user.created_at),
       tone: "warning" as const,
     })),
@@ -479,7 +485,7 @@ export function CompanyAdminDashboard({
                   {companyName}
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                  Run company operations from one place: jobsites, documents, team access, field reporting, and overdue actions.
+                  Run company operations from one place: jobsites, documents, company access, field reporting, and overdue actions.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <StatusBadge label={companyProfile?.status?.trim() || "Active"} tone="success" />
@@ -504,10 +510,10 @@ export function CompanyAdminDashboard({
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
-                  Company Admin
+                  Workspace Lead
                 </div>
                 <div className="mt-2 text-sm font-semibold text-slate-900">
-                  Manage workspace operations
+                  Manage company operations
                 </div>
                 <div className="mt-1 text-xs text-slate-500">
                   Invite users, manage jobsites, and keep safety records moving
@@ -515,6 +521,20 @@ export function CompanyAdminDashboard({
               </div>
             </div>
           </div>
+
+          {!workspaceLoaded || workspaceError ? (
+            <div
+              className={`rounded-2xl border px-4 py-3 text-sm ${
+                workspaceError
+                  ? "border-amber-200 bg-amber-50 text-amber-800"
+                  : "border-sky-200 bg-sky-50 text-sky-800"
+              }`}
+            >
+              {workspaceError
+                ? workspaceError
+                : "This workspace loads on demand. Click Refresh Workspace to pull the latest company data."}
+            </div>
+          ) : null}
 
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_170px_auto]">
             <input
@@ -535,6 +555,14 @@ export function CompanyAdminDashboard({
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={onRefreshWorkspace}
+              disabled={loading}
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {loading ? "Loading..." : workspaceLoaded ? "Refresh Workspace" : "Load Workspace"}
+            </button>
             <Link
               href="/company-users"
               className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white"
@@ -683,7 +711,7 @@ export function CompanyAdminDashboard({
 
         <SectionCard
           title="Pending Documents"
-          description="The document queue that needs the company’s attention today."
+            description="The document queue that needs the company’s attention today."
         >
           {pendingDocuments.length === 0 ? (
             <EmptyState
@@ -943,7 +971,7 @@ export function CompanyAdminDashboard({
           />
 
           <SectionCard
-            title="Corrective Actions & Overdue Items"
+            title="Field Issues & Overdue Items"
             description="Today’s items that still need follow-up from the company side."
           >
             {correctiveActions.length === 0 ? (
@@ -1017,7 +1045,7 @@ export function CompanyAdminDashboard({
       <section id="reports" className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <SectionCard
           title="Reports & Trends"
-          description="High-level reporting blocks that help the company admin answer what needs action today."
+            description="High-level reporting blocks that help the workspace lead answer what needs action today."
           aside={
             <Link
               href="/reports"
@@ -1042,7 +1070,7 @@ export function CompanyAdminDashboard({
 
         <SectionCard
           title="Alerts & Notifications"
-          description="Everything the company admin should keep an eye on in the current workspace."
+            description="Everything the workspace lead should keep an eye on in the current workspace."
         >
           <div className="space-y-3">
             {[
