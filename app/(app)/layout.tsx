@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getDefaultAgreementConfig, type AgreementConfig } from "@/lib/legal";
 import type { PermissionMap } from "@/lib/rbac";
+import { getWorkspaceRouteRedirect } from "@/lib/workspaceRouteGuard";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -53,6 +54,7 @@ const companyAdminQuickLinks: NavItem[] = [
   { href: "/csep", label: "CSEP", short: "CS" },
   { href: "/company-users", label: "Users", short: "US" },
   { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
+  { href: "/safety-observations", label: "Safety Observations", short: "SO" },
   { href: "/daps", label: "DAPs", short: "DP" },
   { href: "/permits", label: "Permits", short: "PM" },
   { href: "/incidents", label: "Incidents", short: "IN" },
@@ -67,6 +69,7 @@ const companyManagerQuickLinks: NavItem[] = [
   { href: "/peshep", label: "PESHEP", short: "PB" },
   { href: "/csep", label: "CSEP", short: "CS" },
   { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
+  { href: "/safety-observations", label: "Safety Observations", short: "SO" },
   { href: "/daps", label: "DAPs", short: "DP" },
   { href: "/permits", label: "Permits", short: "PM" },
   { href: "/incidents", label: "Incidents", short: "IN" },
@@ -148,6 +151,7 @@ const companyAdminSideSections: NavSection[] = [
       { href: "/library", label: "Documents", short: "DC" },
       { href: "/company-users", label: "Users", short: "US" },
       { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
+      { href: "/safety-observations", label: "Safety Observations", short: "SO" },
       { href: "/daps", label: "DAPs", short: "DP" },
       { href: "/permits", label: "Permits", short: "PM" },
       { href: "/incidents", label: "Incidents", short: "IN" },
@@ -180,6 +184,7 @@ const companyManagerSideSections: NavSection[] = [
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
       { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
+      { href: "/safety-observations", label: "Safety Observations", short: "SO" },
       { href: "/daps", label: "DAPs", short: "DP" },
       { href: "/permits", label: "Permits", short: "PM" },
       { href: "/incidents", label: "Incidents", short: "IN" },
@@ -411,6 +416,8 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState("");
@@ -531,67 +538,13 @@ export default function AppLayout({
     let cancelled = false;
 
     async function loadAgreementConfig() {
-      // #region agent log
-      console.log("[dbg-690b86] agreement config load start");
-      fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-        body: JSON.stringify({
-          sessionId: "690b86",
-          runId: "agreement-1",
-          hypothesisId: "H12",
-          location: "app/(app)/layout.tsx:loadAgreementConfig:start",
-          message: "Agreement config request started",
-          data: {},
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       try {
         const res = await fetchWithTimeout("/api/legal/config", {}, 30000);
         const data = (await res.json().catch(() => null)) as AgreementConfig | null;
-        // #region agent log
-        console.log("[dbg-690b86] agreement config load result", { status: res.status, ok: res.ok });
-        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-          body: JSON.stringify({
-            sessionId: "690b86",
-            runId: "agreement-1",
-            hypothesisId: "H12",
-            location: "app/(app)/layout.tsx:loadAgreementConfig:result",
-            message: "Agreement config request completed",
-            data: { status: res.status, ok: res.ok, hasData: Boolean(data) },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
         if (!cancelled && res.ok && data) {
           setAgreementConfig(data);
         }
       } catch (error) {
-        // #region agent log
-        console.log("[dbg-690b86] agreement config load error", {
-          errorName: error instanceof Error ? error.name : "unknown",
-          errorMessage: error instanceof Error ? error.message : "unknown",
-        });
-        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-          body: JSON.stringify({
-            sessionId: "690b86",
-            runId: "agreement-1",
-            hypothesisId: "H12",
-            location: "app/(app)/layout.tsx:loadAgreementConfig:error",
-            message: "Agreement config request failed",
-            data: {
-              errorName: error instanceof Error ? error.name : "unknown",
-              errorMessage: error instanceof Error ? error.message.slice(0, 220) : "unknown",
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
         console.error("Failed to load agreement config:", error);
       }
     }
@@ -610,91 +563,17 @@ export default function AppLayout({
     ) {
       if (!mounted) return;
       if (syncSessionInFlightRef.current) {
-        // #region agent log
-        console.log("[dbg-690b86] layout syncSession skipped due in-flight request", {
-          pathname,
-        });
-        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-          body: JSON.stringify({
-            sessionId: "690b86",
-            runId: "post-fix-1",
-            hypothesisId: "H14",
-            location: "app/(app)/layout.tsx:syncSession:skipped-in-flight",
-            message: "Skipped duplicate syncSession while another is running",
-            data: { pathname },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
         return;
       }
       syncSessionInFlightRef.current = true;
-      // #region agent log
-      console.log("[dbg-690b86] layout syncSession start", {
-        hasSession: Boolean(session),
-        pathname,
-        isAdminArea,
-        mounted,
-      });
-      // #endregion
-      // #region agent log
-      fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-        body: JSON.stringify({
-          sessionId: "690b86",
-          runId: "baseline-1",
-          hypothesisId: "H1",
-          location: "app/(app)/layout.tsx:syncSession:start",
-          message: "syncSession entered",
-          data: { hasSession: Boolean(session), pathname, isAdminArea, mounted },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
 
       if (!session) {
-        // #region agent log
-        console.log("[dbg-690b86] layout no session -> /login", { pathname });
-        // #endregion
-        // #region agent log
-        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-          body: JSON.stringify({
-            sessionId: "690b86",
-            runId: "baseline-1",
-            hypothesisId: "H2",
-            location: "app/(app)/layout.tsx:syncSession:no-session",
-            message: "No session branch hit; redirecting to login",
-            data: { pathname },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
         router.replace("/login");
         setLoading(false);
         return;
       }
 
       try {
-        // #region agent log
-        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-          body: JSON.stringify({
-            sessionId: "690b86",
-            runId: "baseline-1",
-            hypothesisId: "H3",
-            location: "app/(app)/layout.tsx:syncSession:before-auth-me",
-            message: "About to call /api/auth/me",
-            data: { pathname, timeoutMs: 30000 },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
         const res = await fetchWithTimeout("/api/auth/me", {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
@@ -718,38 +597,6 @@ export default function AppLayout({
               };
           }
         | null;
-        // #region agent log
-        console.log("[dbg-690b86] layout auth/me response", {
-          status: res.status,
-          ok: res.ok,
-          role: data?.user?.role ?? "missing",
-          accountStatus: data?.user?.accountStatus ?? "missing",
-          acceptedTerms: Boolean(data?.user?.acceptedTerms),
-          pathname,
-        });
-        // #endregion
-        // #region agent log
-        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-          body: JSON.stringify({
-            sessionId: "690b86",
-            runId: "baseline-1",
-            hypothesisId: "H3",
-            location: "app/(app)/layout.tsx:syncSession:after-auth-me",
-            message: "Received /api/auth/me response",
-            data: {
-              status: res.status,
-              ok: res.ok,
-              hasUser: Boolean(data?.user),
-              role: data?.user?.role ?? "missing",
-              accountStatus: data?.user?.accountStatus ?? "missing",
-              acceptedTerms: Boolean(data?.user?.acceptedTerms),
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
 
         if (!mounted) return;
 
@@ -779,153 +626,30 @@ export default function AppLayout({
         const nextRole = data?.user?.role ?? "viewer";
         const nextCompanyId = data?.user?.companyId ?? null;
         const nextProfileComplete = Boolean(data?.user?.profileComplete);
-        const needsProfile = !Boolean(data?.user?.permissionMap?.can_access_internal_admin) && !nextProfileComplete;
-        const canOpenCompanySetup =
-          !needsProfile &&
-          !Boolean(data?.user?.permissionMap?.can_access_internal_admin) &&
-          nextRole !== "company_admin" &&
-          nextRole !== "manager" &&
-          nextRole !== "safety_manager" &&
-          nextRole !== "company_user" &&
-          nextRole !== "project_manager" &&
-          nextRole !== "foreman" &&
-          nextRole !== "field_user" &&
-          nextRole !== "read_only" &&
-          !nextCompanyId;
 
         if (!Boolean(data?.user?.acceptedTerms)) {
           setLoading(false);
           return;
         }
 
-        if (needsProfile) {
-          if (pathname !== "/profile") {
-            router.replace("/profile");
-            return;
-          }
-
-          setLoading(false);
-          return;
-        }
-
-        if (!canOpenCompanySetup && pathname === "/company-setup") {
-          router.replace("/dashboard");
-          return;
-        }
-
-        if (
-          nextRole === "company_admin" ||
-          nextRole === "manager" ||
-          nextRole === "safety_manager" ||
-          nextRole === "company_user" ||
-          nextRole === "project_manager" ||
-          nextRole === "foreman" ||
-          nextRole === "field_user" ||
-          nextRole === "read_only"
-        ) {
-          if (nextRole === "read_only") {
-            const readOnlyAllowedRoutes = ["/dashboard", "/reports"];
-            const inReadOnlyRoute = readOnlyAllowedRoutes.some(
-              (route) => pathname === route || pathname.startsWith(`${route}/`)
-            );
-            if (!inReadOnlyRoute) {
-              router.replace("/dashboard");
-              return;
-            }
-            setLoading(false);
-            return;
-          }
-
-          const companyAllowedRoutes = ["/dashboard", "/library", "/profile"];
-
-          if (
-            nextRole === "project_manager" ||
-            nextRole === "foreman" ||
-            nextRole === "field_user"
-          ) {
-            companyAllowedRoutes.push("/jobsites");
-          }
-
-          if (
-            nextRole === "company_admin" ||
-            nextRole === "manager" ||
-            nextRole === "safety_manager"
-          ) {
-            companyAllowedRoutes.push(
-              "/companies",
-              "/jobsites",
-              "/field-id-exchange",
-              "/safety-submit",
-              "/daps",
-              "/permits",
-              "/incidents",
-              "/analytics",
-              "/reports"
-            );
-          }
-
-          if (
-            data?.user?.permissionMap?.can_create_documents ||
-            data?.user?.permissionMap?.can_edit_documents ||
-            data?.user?.permissionMap?.can_submit_documents
-          ) {
-            companyAllowedRoutes.push(
-              "/submit",
-              "/safety-submit",
-              "/upload",
-              "/peshep",
-              "/csep"
-            );
-          }
-
-          if (data?.user?.permissionMap?.can_manage_company_users) {
-            companyAllowedRoutes.push("/company-users");
-          }
-
-          const inAllowedRoute = companyAllowedRoutes.some(
-            (route) => pathname === route || pathname.startsWith(`${route}/`)
-          );
-
-          if (!inAllowedRoute) {
-            router.replace("/dashboard");
-            return;
-          }
-        }
-
-        if (isAdminArea && !Boolean(data?.user?.permissionMap?.can_access_internal_admin)) {
-          router.replace("/dashboard");
+        const routeSnapshot = {
+          role: nextRole,
+          permissionMap: data?.user?.permissionMap ?? null,
+          profileComplete: nextProfileComplete,
+          acceptedTerms: true,
+          companyId: nextCompanyId,
+          accountStatus: nextAccountStatus,
+        };
+        const redirectTo = getWorkspaceRouteRedirect(
+          pathnameRef.current,
+          isAdminArea,
+          routeSnapshot
+        );
+        if (redirectTo) {
+          router.replace(redirectTo);
           return;
         }
       } catch (error) {
-        // #region agent log
-        console.log("[dbg-690b86] layout syncSession catch", {
-          errorName: error instanceof Error ? error.name : "unknown",
-          errorMessage: error instanceof Error ? error.message : "unknown",
-          pathname,
-          isAdminArea,
-        });
-        // #endregion
-        // #region agent log
-        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-          body: JSON.stringify({
-            sessionId: "690b86",
-            runId: "baseline-1",
-            hypothesisId: "H4",
-            location: "app/(app)/layout.tsx:syncSession:catch",
-            message: "syncSession catch branch",
-            data: {
-              errorName: error instanceof Error ? error.name : "unknown",
-              errorMessage:
-                error instanceof Error ? error.message.slice(0, 220) : "unknown",
-              pathname,
-              isAdminArea,
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
         console.error("Failed to load role context:", error);
         setUserEmail(session.user.email ?? "");
         setUserRole("viewer");
@@ -944,24 +668,6 @@ export default function AppLayout({
       } finally {
         syncSessionInFlightRef.current = false;
         if (mounted) {
-          // #region agent log
-          fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Debug-Session-Id": "690b86",
-            },
-            body: JSON.stringify({
-              sessionId: "690b86",
-              runId: "baseline-1",
-              hypothesisId: "H5",
-              location: "app/(app)/layout.tsx:syncSession:finally",
-              message: "syncSession finally setting loading false",
-              data: { pathname, mounted },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {});
-          // #endregion
           setLoading(false);
         }
       }
@@ -986,7 +692,33 @@ export default function AppLayout({
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [isAdminArea, pathname, router]);
+  }, [isAdminArea, router]);
+
+  useEffect(() => {
+    if (loading) return;
+    const redirectTo = getWorkspaceRouteRedirect(pathname, isAdminArea, {
+      role: userRole,
+      permissionMap,
+      profileComplete,
+      acceptedTerms,
+      companyId,
+      accountStatus,
+    });
+    if (redirectTo) {
+      router.replace(redirectTo);
+    }
+  }, [
+    pathname,
+    loading,
+    userRole,
+    permissionMap,
+    profileComplete,
+    acceptedTerms,
+    companyId,
+    accountStatus,
+    isAdminArea,
+    router,
+  ]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -1041,22 +773,6 @@ export default function AppLayout({
 
   async function handleAcceptTerms() {
     try {
-      // #region agent log
-      console.log("[dbg-690b86] accept terms start");
-      fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-        body: JSON.stringify({
-          sessionId: "690b86",
-          runId: "agreement-1",
-          hypothesisId: "H13",
-          location: "app/(app)/layout.tsx:handleAcceptTerms:start",
-          message: "Accept terms clicked",
-          data: {},
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       setAcceptingTerms(true);
       setTermsError("");
 
@@ -1074,50 +790,12 @@ export default function AppLayout({
       }, 120000);
 
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      // #region agent log
-      console.log("[dbg-690b86] accept terms result", { status: res.status, ok: res.ok });
-      fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-        body: JSON.stringify({
-          sessionId: "690b86",
-          runId: "agreement-1",
-          hypothesisId: "H13",
-          location: "app/(app)/layout.tsx:handleAcceptTerms:result",
-          message: "Accept terms request completed",
-          data: { status: res.status, ok: res.ok, hasError: Boolean(data?.error) },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       if (!res.ok) {
         throw new Error(data?.error || "Failed to record agreement acceptance.");
       }
 
       setAcceptedTerms(true);
     } catch (error) {
-      // #region agent log
-      console.log("[dbg-690b86] accept terms catch", {
-        errorName: error instanceof Error ? error.name : "unknown",
-        errorMessage: error instanceof Error ? error.message : "unknown",
-      });
-      fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-        body: JSON.stringify({
-          sessionId: "690b86",
-          runId: "agreement-1",
-          hypothesisId: "H13",
-          location: "app/(app)/layout.tsx:handleAcceptTerms:catch",
-          message: "Accept terms request failed",
-          data: {
-            errorName: error instanceof Error ? error.name : "unknown",
-            errorMessage: error instanceof Error ? error.message.slice(0, 220) : "unknown",
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       setTermsError(
         error instanceof Error ? error.message : "Failed to record agreement acceptance."
       );

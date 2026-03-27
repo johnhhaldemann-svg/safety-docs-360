@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
-import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
+import { EmptyState, InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,6 +15,8 @@ type AnalyticsSummary = {
     correctiveActions?: number;
     incidents?: number;
     permits?: number;
+    daps?: number;
+    dapActivities?: number;
   };
   closureTimes?: {
     averageHours?: number;
@@ -34,6 +36,16 @@ type AnalyticsSummary = {
     stopWork: number;
     overdue: number;
   }>;
+  companyDashboard?: {
+    totalActiveJobsites: number;
+    totalOpenObservations: number;
+    totalHighRiskObservations: number;
+    sifCount: number;
+    averageClosureTimeHours: number;
+    topHazardCategories: Array<{ category: string; count: number }>;
+    openIncidents: number;
+    dapCompletionToday: { completed: number; total: number; percent: number };
+  };
   safetyLeadership?: {
     trendOfObservationsByWeek: Array<{ week: string; count: number }>;
     repeatHazardCategories: Array<{ category: string; count: number }>;
@@ -43,6 +55,10 @@ type AnalyticsSummary = {
     positiveNegativeObservationRatio: { positive: number; negative: number; ratio: number };
   };
 };
+
+function formatCategory(category: string) {
+  return category.replace(/_/g, " ");
+}
 
 async function getAuthHeaders() {
   const {
@@ -105,31 +121,95 @@ export default function AnalyticsPage() {
 
   const totals = useMemo(() => summary?.totals ?? {}, [summary]);
   const closure = useMemo(() => summary?.closureTimes ?? {}, [summary]);
+  const dash = summary?.companyDashboard;
   const topHazards = summary?.topHazardCategories ?? [];
   const trends = summary?.observationTrends ?? [];
   const riskRows = summary?.jobsiteRiskScore ?? [];
   const sif = summary?.sifDashboard;
   const leadership = summary?.safetyLeadership;
 
+  const totalActions = totals.correctiveActions ?? 0;
+  const closedInWindow = closure.sampleSize ?? 0;
+  const resolutionPct =
+    !loading && totalActions > 0 ? Math.round((closedInWindow / totalActions) * 100) : null;
+
+  const kpiCards = [
+    {
+      title: "Open observations",
+      value: loading ? "—" : String(dash?.totalOpenObservations ?? 0),
+      note: "Corrective actions not yet verified closed (current company).",
+    },
+    {
+      title: "High-risk observations",
+      value: loading ? "—" : String(dash?.totalHighRiskObservations ?? 0),
+      note: "Severity / priority flagged as high in the selected window.",
+    },
+    {
+      title: "SIF potential",
+      value: loading ? "—" : String(sif?.potentialCount ?? dash?.sifCount ?? 0),
+      note: "Observations marked SIF-potential in the window.",
+    },
+    {
+      title: "Incidents (window)",
+      value: loading ? "—" : String(totals.incidents ?? 0),
+      note: `Open incidents now: ${loading ? "—" : dash?.openIncidents ?? 0}`,
+    },
+    {
+      title: "Active jobsites",
+      value: loading ? "—" : String(dash?.totalActiveJobsites ?? 0),
+      note: "Jobsites in an active / planned state.",
+    },
+    {
+      title: "Avg closure time",
+      value: loading ? "—" : `${dash?.averageClosureTimeHours ?? closure.averageHours ?? 0} hrs`,
+      note: `Based on ${closedInWindow} closed item${closedInWindow === 1 ? "" : "s"} in the window.`,
+    },
+    {
+      title: "DAP activity today",
+      value: loading ? "—" : `${dash?.dapCompletionToday?.percent ?? 0}%`,
+      note: `${dash?.dapCompletionToday?.completed ?? 0}/${dash?.dapCompletionToday?.total ?? 0} planned activities completed today.`,
+    },
+    {
+      title: "Actions logged (window)",
+      value: loading ? "—" : String(totalActions),
+      note: "Corrective actions created in the selected period.",
+    },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHero
-        eyebrow="Safety Modules"
-        title="Safety Observation Hub"
-        description="Centralized safety monitoring for observations, hazards, closures, and risk."
+        eyebrow="Analytics"
+        title="Company safety analytics"
+        description="Trends and counts across observations, incidents, permits, and DAPs for your company. Use the time window to match reporting periods."
         actions={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <select
               value={days}
               onChange={(event) => setDays(Number(event.target.value))}
-              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-800"
             >
               <option value={7}>Last 7 days</option>
               <option value={30}>Last 30 days</option>
               <option value={90}>Last 90 days</option>
             </select>
-            <Link href="/dashboard" className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">
-              Back to Dashboard
+            <Link
+              href="/field-id-exchange"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Corrective actions
+            </Link>
+            <Link
+              href="/reports"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Reports
+            </Link>
+            <Link
+              href="/dashboard"
+              className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500"
+            >
+              Dashboard
             </Link>
           </div>
         }
@@ -137,143 +217,198 @@ export default function AnalyticsPage() {
 
       {message ? <InlineMessage tone="error">{message}</InlineMessage> : null}
 
-      <div className="rounded-3xl border border-slate-700 bg-[radial-gradient(circle_at_top,_#1e293b_0%,_#0b1220_55%)] p-5 text-slate-100 shadow-2xl">
-        <div className="mb-4 flex flex-wrap gap-2">
-          {["Overview", "Near Misses", "Hazards", "Inspections"].map((tab, idx) => (
-            <span
-              key={tab}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                idx === 0 ? "bg-white text-slate-900" : "bg-slate-800 text-slate-200"
-              }`}
-            >
-              {tab}
-            </span>
-          ))}
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {kpiCards.map((card) => (
+          <div
+            key={card.title}
+            className="flex min-h-[152px] flex-col rounded-[1.35rem] border border-slate-200 bg-white p-5 pb-6 shadow-sm"
+          >
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">{card.title}</div>
+            <div className="mt-3 text-3xl font-black tracking-tight text-slate-950">{card.value}</div>
+            <p className="mt-auto pt-4 text-sm leading-relaxed text-slate-500">{card.note}</p>
+          </div>
+        ))}
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Permits (window)</div>
+          <div className="mt-2 text-2xl font-black text-slate-950">{loading ? "—" : totals.permits ?? 0}</div>
         </div>
-
-        <section className="grid gap-4 xl:grid-cols-[1.1fr_1.2fr_1fr]">
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Total Observations</div>
-              <div className="mt-2 text-4xl font-black">{loading ? "-" : totals.correctiveActions ?? 0}</div>
-            </div>
-            <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Open Issues</div>
-              <div className="mt-2 text-3xl font-black">
-                {loading ? "-" : (totals.correctiveActions ?? 0) - (closure.sampleSize ?? 0)}
-              </div>
-              <div className="mt-1 text-xs text-rose-300">Critical indicators are shown in risk panels</div>
-            </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">DAPs (window)</div>
+          <div className="mt-2 text-2xl font-black text-slate-950">{loading ? "—" : totals.daps ?? 0}</div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">DAP activities (window)</div>
+          <div className="mt-2 text-2xl font-black text-slate-950">{loading ? "—" : totals.dapActivities ?? 0}</div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Closed in window</div>
+          <div className="mt-2 text-2xl font-black text-slate-950">{loading ? "—" : closedInWindow}</div>
+          <div className="mt-1 text-xs text-slate-500">
+            {resolutionPct !== null ? `${resolutionPct}% of actions in period` : "—"}
           </div>
-
-          <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
-            <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Recent / Trending Hazards</div>
-            <div className="mt-3 space-y-2">
-              {(loading ? [] : topHazards.slice(0, 6)).map((item) => (
-                <div key={item.category} className="flex items-center justify-between rounded-xl bg-slate-800/70 px-3 py-2 text-sm">
-                  <span>{item.category.replace(/_/g, " ")}</span>
-                  <span className="font-bold">{item.count}</span>
-                </div>
-              ))}
-              {!loading && topHazards.length === 0 ? (
-                <div className="rounded-xl bg-slate-800/70 px-3 py-2 text-sm text-slate-300">No hazard data yet.</div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Observation Stats</div>
-              <div className="mt-2 space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span>High Priority</span>
-                  <span className="font-bold text-amber-300">{loading ? "-" : sif?.potentialCount ?? 0}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Medium</span>
-                  <span className="font-bold">{loading ? "-" : totals.incidents ?? 0}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Low</span>
-                  <span className="font-bold">{loading ? "-" : totals.permits ?? 0}</span>
-                </div>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Resolution Rate</div>
-              <div className="mt-2 text-3xl font-black text-emerald-300">
-                {loading || !totals.correctiveActions
-                  ? "-"
-                  : `${Math.round(((closure.sampleSize ?? 0) / Math.max(1, totals.correctiveActions ?? 1)) * 100)}%`}
-              </div>
-              <div className="mt-1 text-xs text-slate-300">Avg response {closure.averageHours ?? 0} hrs</div>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-4 grid gap-4 xl:grid-cols-2">
-          <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
-            <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Risk Heatmap</div>
-            <div className="mt-3 space-y-2">
-              {(loading ? [] : riskRows.slice(0, 6)).map((row) => (
-                <div key={row.jobsiteId} className="grid grid-cols-[1fr_auto] items-center rounded-xl bg-slate-800/70 px-3 py-2 text-sm">
-                  <span className="truncate">{row.jobsiteId}</span>
-                  <span className="font-bold text-amber-300">{row.score}</span>
-                </div>
-              ))}
-              {!loading && riskRows.length === 0 ? (
-                <div className="rounded-xl bg-slate-800/70 px-3 py-2 text-sm text-slate-300">No risk score data yet.</div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
-            <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Activity Trends</div>
-            <div className="mt-3 space-y-2">
-              {(loading ? [] : trends.slice(-8)).map((item) => (
-                <div key={item.date} className="grid grid-cols-[1fr_auto] items-center rounded-xl bg-slate-800/70 px-3 py-2 text-sm">
-                  <span>{item.date}</span>
-                  <span className="font-bold">{item.count}</span>
-                </div>
-              ))}
-              {!loading && trends.length === 0 ? (
-                <div className="rounded-xl bg-slate-800/70 px-3 py-2 text-sm text-slate-300">No trend data yet.</div>
-              ) : null}
-            </div>
-          </div>
-        </section>
-      </div>
+        </div>
+      </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
-        <SectionCard title="Safety Leadership Dashboard" description="Weekly trends and repeat hazards.">
-          <div className="space-y-3">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-              Positive vs Negative: {leadership?.positiveNegativeObservationRatio?.positive ?? 0} : {leadership?.positiveNegativeObservationRatio?.negative ?? 0}
-              {" "} (ratio {leadership?.positiveNegativeObservationRatio?.ratio ?? 0})
+        <SectionCard
+          title="Top hazard categories"
+          description="Grouped from corrective actions, incidents, and DAP activities in this window."
+        >
+          {loading ? (
+            <p className="text-sm text-slate-500">Loading…</p>
+          ) : topHazards.length === 0 ? (
+            <EmptyState
+              title="No hazard categories yet"
+              description="As observations and activities are logged, category counts will appear here."
+            />
+          ) : (
+            <div className="space-y-2">
+              {topHazards.slice(0, 8).map((item) => (
+                <div
+                  key={item.category}
+                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                >
+                  <span className="font-medium text-slate-800">{formatCategory(item.category)}</span>
+                  <span className="font-bold text-slate-950">{item.count}</span>
+                </div>
+              ))}
             </div>
-            {(leadership?.trendOfObservationsByWeek ?? []).slice(-6).map((row) => (
-              <div key={row.week} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-                <span>{row.week}</span>
-                <span className="font-semibold">{row.count}</span>
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title="Jobsite risk scores"
+          description="Weighted mix of incidents, SIF signals, stop-work, and overdue actions."
+        >
+          {loading ? (
+            <p className="text-sm text-slate-500">Loading…</p>
+          ) : riskRows.length === 0 ? (
+            <EmptyState
+              title="No risk scores yet"
+              description="Jobsite risk ranks appear when linked incidents, permits, or observations exist."
+            />
+          ) : (
+            <div className="space-y-2">
+              {riskRows.slice(0, 8).map((row) => (
+                <div
+                  key={row.jobsiteId}
+                  className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                >
+                  <span className="truncate font-medium text-slate-800">{row.jobsiteId}</span>
+                  <span className="font-bold text-amber-700">{row.score}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      </section>
+
+      <SectionCard
+        title="Observation activity by day"
+        description="Corrective actions created per day in the selected window."
+      >
+        {loading ? (
+          <p className="text-sm text-slate-500">Loading…</p>
+        ) : trends.length === 0 ? (
+          <EmptyState
+            title="No daily trend yet"
+            description="Log corrective actions to see day-by-day volume for this period."
+          />
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {trends.slice(-12).map((item) => (
+              <div
+                key={item.date}
+                className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm"
+              >
+                <span className="text-slate-600">{item.date}</span>
+                <span className="font-bold text-slate-950">{item.count}</span>
               </div>
             ))}
+          </div>
+        )}
+      </SectionCard>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <SectionCard
+          title="Safety leadership"
+          description="Weekly observation totals and positive vs negative balance."
+        >
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <span className="font-semibold text-slate-900">Positive vs negative: </span>
+              {leadership?.positiveNegativeObservationRatio?.positive ?? 0} :{" "}
+              {leadership?.positiveNegativeObservationRatio?.negative ?? 0}
+              <span className="text-slate-500">
+                {" "}
+                (ratio {leadership?.positiveNegativeObservationRatio?.ratio ?? 0})
+              </span>
+            </div>
+            {loading ? (
+              <p className="text-sm text-slate-500">Loading…</p>
+            ) : (leadership?.trendOfObservationsByWeek ?? []).length === 0 ? (
+              <EmptyState title="No weekly trend" description="Not enough observations to build week buckets yet." />
+            ) : (
+              <div className="space-y-2">
+                {(leadership?.trendOfObservationsByWeek ?? []).slice(-8).map((row) => (
+                  <div
+                    key={row.week}
+                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm"
+                  >
+                    <span className="text-slate-600">{row.week}</span>
+                    <span className="font-semibold text-slate-950">{row.count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </SectionCard>
 
-        <SectionCard title="SIF Categories" description="Potential SIF distribution and closure performance.">
-          <div className="space-y-3">
-            {(leadership?.sifByCategory ?? []).slice(0, 6).map((row) => (
-              <div key={row.category} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-                <span>{row.category.replace(/_/g, " ")}</span>
-                <span className="font-semibold">{row.count}</span>
+        <SectionCard
+          title="SIF categories & closure speed"
+          description="Potential SIF distribution and average closure hours by jobsite (where data exists)."
+        >
+          <div className="space-y-4">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">SIF by category</div>
+              <div className="mt-2 space-y-2">
+                {(leadership?.sifByCategory ?? []).length === 0 && !loading ? (
+                  <p className="text-sm text-slate-500">No SIF-tagged categories in this window.</p>
+                ) : null}
+                {(leadership?.sifByCategory ?? []).slice(0, 6).map((row) => (
+                  <div
+                    key={row.category}
+                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                  >
+                    <span>{formatCategory(row.category)}</span>
+                    <span className="font-semibold">{row.count}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-            {(leadership?.closurePerformanceByJobsite ?? []).slice(0, 4).map((row) => (
-              <div key={row.jobsiteId} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                <span>{row.jobsiteId}</span>
-                <span className="font-semibold">{row.averageHours} hrs</span>
+            </div>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Fastest average closure (jobsite)</div>
+              <div className="mt-2 space-y-2">
+                {(leadership?.closurePerformanceByJobsite ?? []).slice(0, 6).map((row) => (
+                  <div
+                    key={row.jobsiteId}
+                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm"
+                  >
+                    <span className="truncate text-slate-700">{row.jobsiteId}</span>
+                    <span className="shrink-0 font-semibold text-slate-900">
+                      {row.averageHours} hrs{" "}
+                      <span className="text-xs font-normal text-slate-500">(n={row.sampleSize})</span>
+                    </span>
+                  </div>
+                ))}
+                {!loading && (leadership?.closurePerformanceByJobsite ?? []).length === 0 ? (
+                  <p className="text-sm text-slate-500">No closed actions with timing in this window.</p>
+                ) : null}
               </div>
-            ))}
+            </div>
           </div>
         </SectionCard>
       </section>

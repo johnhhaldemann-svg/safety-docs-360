@@ -49,41 +49,10 @@ function parsePagination(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const debugStart = Date.now();
   const { page, pageSize, start, end } = parsePagination(request);
-  // #region agent log
-  fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-    body: JSON.stringify({
-      sessionId: "690b86",
-      runId: "workspace-docs-deep-1",
-      hypothesisId: "H16",
-      location: "app/api/workspace/documents/route.ts:GET:start",
-      message: "workspace documents route entered",
-      data: {},
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
   const auth = await authorizeRequest(request);
 
   if ("error" in auth) {
-    // #region agent log
-    fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-      body: JSON.stringify({
-        sessionId: "690b86",
-        runId: "workspace-docs-deep-1",
-        hypothesisId: "H16",
-        location: "app/api/workspace/documents/route.ts:GET:auth-error",
-        message: "authorizeRequest failed",
-        data: { elapsedMs: Date.now() - debugStart },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     return auth.error;
   }
 
@@ -94,21 +63,6 @@ export async function GET(request: Request) {
     .range(start, end);
 
   if (error) {
-    // #region agent log
-    fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-      body: JSON.stringify({
-        sessionId: "690b86",
-        runId: "workspace-docs-deep-1",
-        hypothesisId: "H16",
-        location: "app/api/workspace/documents/route.ts:GET:query-error",
-        message: "documents query failed",
-        data: { elapsedMs: Date.now() - debugStart, error: error.message ?? "unknown" },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -152,25 +106,6 @@ export async function GET(request: Request) {
       );
     });
   }
-  // #region agent log
-  fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
-    body: JSON.stringify({
-      sessionId: "690b86",
-      runId: "workspace-docs-deep-1",
-      hypothesisId: "H16",
-      location: "app/api/workspace/documents/route.ts:GET:success",
-      message: "workspace documents returning",
-      data: {
-        elapsedMs: Date.now() - debugStart,
-        role: auth.role,
-        count: documents.length,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   return NextResponse.json({
     documents,
