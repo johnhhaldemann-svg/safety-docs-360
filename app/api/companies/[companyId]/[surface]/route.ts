@@ -57,7 +57,10 @@ export async function GET(
     return NextResponse.json(jobsites.json ?? {}, { status: jobsites.status });
   }
   if (surface === "documents") {
-    const documents = await fetchFromSameOrigin(request, "/api/workspace/documents");
+    const documents = await fetchFromSameOrigin(
+      request,
+      "/api/workspace/documents?page=1&pageSize=100"
+    );
     return NextResponse.json(documents.json ?? {}, { status: documents.status });
   }
   if (surface === "analytics") {
@@ -68,7 +71,7 @@ export async function GET(
   const [users, jobsites, documents, analytics] = await Promise.all([
     fetchFromSameOrigin(request, "/api/company/users"),
     fetchFromSameOrigin(request, "/api/company/jobsites"),
-    fetchFromSameOrigin(request, "/api/workspace/documents"),
+    fetchFromSameOrigin(request, "/api/workspace/documents?page=1&pageSize=100"),
     fetchFromSameOrigin(request, "/api/company/analytics/summary"),
   ]);
 

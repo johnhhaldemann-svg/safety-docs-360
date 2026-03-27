@@ -35,25 +35,31 @@ export function SectionCard({
   children,
   aside,
   className = "",
+  contentClassName = "",
 }: {
   title: string;
   description?: string;
   children: React.ReactNode;
   aside?: React.ReactNode;
   className?: string;
+  contentClassName?: string;
 }) {
   return (
     <section
       className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm ${className}`.trim()}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+      <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
           <h2 className="text-xl font-bold text-slate-900">{title}</h2>
           {description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}
         </div>
-        {aside}
+        {aside ? (
+          <div className="flex shrink-0 flex-row flex-wrap items-center justify-start gap-2 sm:justify-end">
+            {aside}
+          </div>
+        ) : null}
       </div>
-      <div className="mt-6">{children}</div>
+      <div className={`mt-6 min-h-0 ${contentClassName}`.trim()}>{children}</div>
     </section>
   );
 }
@@ -183,6 +189,7 @@ export function ActivityFeed({
   title,
   description,
   items,
+  className = "",
 }: {
   title: string;
   description?: string;
@@ -193,14 +200,17 @@ export function ActivityFeed({
     meta: string;
     tone?: "neutral" | "success" | "warning" | "error" | "info";
   }>;
+  className?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div
+      className={`flex min-h-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${className}`.trim()}
+    >
       <h3 className="text-base font-semibold text-slate-900">{title}</h3>
       {description ? (
         <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
       ) : null}
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto">
         {items.map((item) => (
           <div
             key={item.id}

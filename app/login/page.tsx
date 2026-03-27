@@ -49,6 +49,28 @@ function LoginPageContent() {
   const [formTone, setFormTone] = useState<"error" | "success">("success");
 
   async function handleLogin() {
+    // #region agent log
+    console.log("[dbg-690b86] login handleLogin start", {
+      hasEmail: Boolean(email),
+      mode,
+      rememberDevice,
+    });
+    // #endregion
+    // #region agent log
+    fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+      body: JSON.stringify({
+        sessionId: "690b86",
+        runId: "baseline-2",
+        hypothesisId: "H6",
+        location: "app/login/page.tsx:handleLogin:start",
+        message: "Login submit started",
+        data: { hasEmail: Boolean(email), mode, rememberDevice },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     setFormMessage("");
     setLoading(true);
 
@@ -56,6 +78,31 @@ function LoginPageContent() {
       email,
       password,
     });
+    // #region agent log
+    console.log("[dbg-690b86] login signIn result", {
+      hasError: Boolean(error),
+      errorMessage: error?.message ?? null,
+    });
+    // #endregion
+
+    // #region agent log
+    fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+      body: JSON.stringify({
+        sessionId: "690b86",
+        runId: "baseline-2",
+        hypothesisId: "H6",
+        location: "app/login/page.tsx:handleLogin:result",
+        message: "Login submit result received",
+        data: {
+          hasError: Boolean(error),
+          errorMessage: error?.message?.slice(0, 220) ?? null,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
 
     setLoading(false);
 
@@ -65,6 +112,21 @@ function LoginPageContent() {
       return;
     }
 
+    // #region agent log
+    fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+      body: JSON.stringify({
+        sessionId: "690b86",
+        runId: "baseline-2",
+        hypothesisId: "H7",
+        location: "app/login/page.tsx:handleLogin:navigate",
+        message: "Login success, navigating to dashboard",
+        data: { target: "/dashboard" },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     router.push("/dashboard");
     router.refresh();
   }

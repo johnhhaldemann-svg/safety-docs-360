@@ -88,9 +88,12 @@ export default function AdminArchivePage() {
 
     const { data, error } = await supabase
       .from("documents")
-      .select("*")
+      .select(
+        "id,user_id,project_name,document_type,status,created_at,review_notes,draft_file_path,final_file_path,file_name,archived_at,archived_by_email,restored_at,restored_by_email"
+      )
       .order("archived_at", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(0, 299);
 
     if (error) {
       setMessage(error.message);

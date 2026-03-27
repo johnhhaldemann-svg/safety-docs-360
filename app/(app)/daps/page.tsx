@@ -51,14 +51,19 @@ export default function DapsPage() {
   const [daps, setDaps] = useState<DapRow[]>([]);
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [activities, setActivities] = useState<DapActivityRow[]>([]);
   const [selectedDapId, setSelectedDapId] = useState("");
   const [activityName, setActivityName] = useState("");
 
-  async function loadDaps() {
-    setLoading(true);
+  async function loadDaps(withSpinner = false) {
+    if (withSpinner) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     try {
       const headers = await getAuthHeaders();
       const response = await fetch("/api/company/daps", { headers });
@@ -76,11 +81,15 @@ export default function DapsPage() {
       setMessage(error instanceof Error ? error.message : "Failed to load DAPs.");
       setDaps([]);
     }
-    setLoading(false);
+    if (withSpinner) {
+      setRefreshing(false);
+    } else {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
-    void loadDaps();
+    void loadDaps(false);
   }, []);
 
   async function createDap() {
@@ -105,7 +114,7 @@ export default function DapsPage() {
       if (!selectedDapId && daps.length > 0) {
         setSelectedDapId(daps[0].id);
       }
-      await loadDaps();
+      setMessage("DAP created. Click Refresh to load latest updates.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to create DAP.");
     }
@@ -130,7 +139,7 @@ export default function DapsPage() {
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) throw new Error(data?.error || "Failed to create activity.");
       setActivityName("");
-      await loadDaps();
+      setMessage("Activity created. Click Refresh to load latest updates.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to create activity.");
     }
@@ -147,7 +156,7 @@ export default function DapsPage() {
       });
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) throw new Error(data?.error || "Failed to update DAP.");
-      await loadDaps();
+      setMessage("Status updated. Click Refresh to load latest updates.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to update DAP.");
     }
@@ -160,9 +169,19 @@ export default function DapsPage() {
         title="Daily Action Plans"
         description="Manage DAP lifecycle by draft, active, and closed states."
         actions={
-          <Link href="/dashboard" className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">
-            Back to Dashboard
-          </Link>
+          <>
+            <button
+              type="button"
+              onClick={() => void loadDaps(true)}
+              disabled={refreshing}
+              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </button>
+            <Link href="/dashboard" className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">
+              Back to Dashboard
+            </Link>
+          </>
         }
       />
 

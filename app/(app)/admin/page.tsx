@@ -121,8 +121,11 @@ export default function AdminPage() {
 
       const { data, error } = await supabase
         .from("documents")
-        .select("*")
-        .order("created_at", { ascending: false });
+        .select(
+          "id,created_at,archived_at,archived_by_email,restored_at,restored_by_email,project_name,document_type,status,final_file_path"
+        )
+        .order("created_at", { ascending: false })
+        .range(0, 199);
 
       if (error) {
         console.error("Admin dashboard load error:", error.message);

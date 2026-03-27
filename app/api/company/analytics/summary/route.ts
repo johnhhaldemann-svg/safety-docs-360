@@ -3,6 +3,40 @@ import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 
 export const runtime = "nodejs";
+const ANALYTICS_CACHE_TTL_MS = 60_000;
+const analyticsSummaryCache = new Map<
+  string,
+  { expiresAt: number; payload: Record<string, unknown> }
+>();
+
+function getAnalyticsCacheKey(companyId: string, since: string) {
+  return `${companyId}:${since}`;
+}
+
+function getCachedAnalyticsPayload(cacheKey: string) {
+  const cached = analyticsSummaryCache.get(cacheKey);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    analyticsSummaryCache.delete(cacheKey);
+    return null;
+  }
+  return cached.payload;
+}
+
+function setCachedAnalyticsPayload(cacheKey: string, payload: Record<string, unknown>) {
+  analyticsSummaryCache.set(cacheKey, {
+    expiresAt: Date.now() + ANALYTICS_CACHE_TTL_MS,
+    payload,
+  });
+}
+
+function invalidateCompanyAnalyticsCache(companyId: string) {
+  for (const key of analyticsSummaryCache.keys()) {
+    if (key.startsWith(`${companyId}:`)) {
+      analyticsSummaryCache.delete(key);
+    }
+  }
+}
 
 function isMissingTable(message?: string | null) {
   return (message ?? "").toLowerCase().includes("company_analytics_snapshots");
@@ -21,9 +55,19 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const days = Number(searchParams.get("days") ?? "30");
   const since = new Date(Date.now() - Math.max(1, days) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const cacheKey = getAnalyticsCacheKey(companyScope.companyId, since);
+  const cachedPayload = getCachedAnalyticsPayload(cacheKey);
+  if (cachedPayload) {
+    return NextResponse.json(cachedPayload, {
+      headers: {
+        "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+        "X-Analytics-Cache": "hit",
+      },
+    });
+  }
   const result = await auth.supabase
     .from("company_analytics_snapshots")
-    .select("*")
+    .select("id,company_id,jobsite_id,snapshot_date,metrics,created_at,created_by")
     .eq("company_id", companyScope.companyId)
     .gte("snapshot_date", since)
     .order("snapshot_date", { ascending: false });
@@ -211,7 +255,7 @@ export async function GET(request: Request) {
     return severity === "high" || severity === "critical" || priority === "high";
   }).length;
 
-  return NextResponse.json({
+  const payload = {
     snapshots: result.data ?? [],
     summary: {
       totals: {
@@ -276,6 +320,13 @@ export async function GET(request: Request) {
         },
       },
     },
+  };
+  setCachedAnalyticsPayload(cacheKey, payload);
+  return NextResponse.json(payload, {
+    headers: {
+      "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+      "X-Analytics-Cache": "miss",
+    },
   });
 }
 
@@ -305,11 +356,12 @@ export async function POST(request: Request) {
       },
       { onConflict: "company_id,jobsite_id,snapshot_date" }
     )
-    .select("*")
+    .select("id,company_id,jobsite_id,snapshot_date,metrics,created_at,created_by")
     .single();
   if (result.error) {
     return NextResponse.json({ error: result.error.message || "Failed to upsert analytics snapshot." }, { status: 500 });
   }
+  invalidateCompanyAnalyticsCache(companyScope.companyId);
   return NextResponse.json({ success: true, snapshot: result.data });
 }
 

@@ -160,7 +160,7 @@ export function isApprovedDocument(document: DocumentRow) {
 async function fetchWithTimeout(
   input: RequestInfo | URL,
   init: RequestInit,
-  timeoutMs = 15000
+  timeoutMs = 60000
 ) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -218,11 +218,15 @@ export function useCompanyWorkspaceData() {
         companyUsersResponse,
         jobsitesResponse,
       ] = await Promise.all([
-        fetchWithTimeout("/api/auth/me", { headers: authHeaders }, 15000),
-        fetchWithTimeout("/api/workspace/documents", { headers: authHeaders }, 15000),
-        fetchWithTimeout("/api/library/credits", { headers: authHeaders }, 15000),
-        fetchWithTimeout("/api/company/users", { headers: authHeaders }, 15000),
-        fetchWithTimeout("/api/company/jobsites", { headers: authHeaders }, 15000),
+        fetchWithTimeout("/api/auth/me", { headers: authHeaders }, 60000),
+        fetchWithTimeout(
+          "/api/workspace/documents?page=1&pageSize=100",
+          { headers: authHeaders },
+          60000
+        ),
+        fetchWithTimeout("/api/library/credits", { headers: authHeaders }, 60000),
+        fetchWithTimeout("/api/company/users", { headers: authHeaders }, 60000),
+        fetchWithTimeout("/api/company/jobsites", { headers: authHeaders }, 60000),
       ]);
 
       const meData = (await meResponse.json().catch(() => null)) as
@@ -259,11 +263,11 @@ export function useCompanyWorkspaceData() {
           incidentsResponse,
           reportsResponse,
         ] = await Promise.all([
-          fetchWithTimeout("/api/company/observations", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/company/daps", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/company/permits", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/company/incidents", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/company/reports", { headers: authHeaders }, 15000),
+          fetchWithTimeout("/api/company/observations", { headers: authHeaders }, 60000),
+          fetchWithTimeout("/api/company/daps", { headers: authHeaders }, 60000),
+          fetchWithTimeout("/api/company/permits", { headers: authHeaders }, 60000),
+          fetchWithTimeout("/api/company/incidents", { headers: authHeaders }, 60000),
+          fetchWithTimeout("/api/company/reports", { headers: authHeaders }, 60000),
         ]);
 
         const correctiveActionsData = (await correctiveActionsResponse.json().catch(() => null)) as

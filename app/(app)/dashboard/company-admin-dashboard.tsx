@@ -466,7 +466,7 @@ export function CompanyAdminDashboard({
     <div className="space-y-8">
       <section className="rounded-[1.9rem] border border-[#dbe9ff] bg-white p-6 shadow-[0_16px_36px_rgba(148,163,184,0.12)]">
         <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-start gap-4">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.6rem] bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-xl font-black text-sky-700">
                 {companyInitials || "CO"}
@@ -516,18 +516,18 @@ export function CompanyAdminDashboard({
             </div>
           </div>
 
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_170px_auto]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_170px_auto] xl:items-center">
             <input
               type="text"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search jobsites, documents, or employees..."
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-400"
+              className="min-h-[46px] rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-400"
             />
             <select
               value={selectedJobsite}
               onChange={(event) => setSelectedJobsite(event.target.value)}
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-400"
+              className="min-h-[46px] rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-400"
             >
               {jobsiteOptions.map((option) => (
                 <option key={option} value={option}>
@@ -537,12 +537,12 @@ export function CompanyAdminDashboard({
             </select>
             <Link
               href="/company-users"
-              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white"
+              className="inline-flex min-h-[46px] items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white"
             >
               {pendingUsers.length} pending approvals
             </Link>
             <details className="relative">
-              <summary className="flex cursor-pointer list-none items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(79,124,255,0.24)]">
+              <summary className="flex min-h-[46px] cursor-pointer list-none items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(79,124,255,0.24)]">
                 Add New
               </summary>
               <div className="absolute right-0 top-[calc(100%+0.75rem)] z-10 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
@@ -589,10 +589,12 @@ export function CompanyAdminDashboard({
         ))}
       </section>
 
-      <section id="jobsites" className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+      <section id="jobsites" className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr] xl:items-stretch">
         <SectionCard
           title="Jobsites Overview"
           description="Jobsite rows are grouped from the company documents you already have in the system, so you can organize the workspace before dedicated site assignment tables are added."
+          className="flex h-full min-h-0 flex-col"
+          contentClassName="flex min-h-0 flex-1 flex-col"
           aside={
             <div className="flex flex-wrap gap-2">
               <a
@@ -611,10 +613,12 @@ export function CompanyAdminDashboard({
           }
         >
           {filteredJobsites.length === 0 ? (
-            <EmptyState
-              title="No jobsites are active yet"
-              description="As project names are used in submitted documents, your company dashboard will group them here as jobsites."
-            />
+            <div className="flex min-h-[220px] flex-1 flex-col justify-center py-2">
+              <EmptyState
+                title="No jobsites are active yet"
+                description="As project names are used in submitted documents, your company dashboard will group them here as jobsites."
+              />
+            </div>
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
               {filteredJobsites.map((jobsite) => (
@@ -684,12 +688,16 @@ export function CompanyAdminDashboard({
         <SectionCard
           title="Pending Documents"
           description="The document queue that needs the company’s attention today."
+          className="flex h-full min-h-0 flex-col"
+          contentClassName="flex min-h-0 flex-1 flex-col"
         >
           {pendingDocuments.length === 0 ? (
-            <EmptyState
-              title="No documents are waiting right now"
-              description="Submitted company documents will appear here as soon as they need review or follow-up."
-            />
+            <div className="flex min-h-[220px] flex-1 flex-col justify-center py-2">
+              <EmptyState
+                title="No documents are waiting right now"
+                description="Submitted company documents will appear here as soon as they need review or follow-up."
+              />
+            </div>
           ) : (
             <div className="space-y-3">
               {pendingDocuments.slice(0, 5).map((document) => (
@@ -715,44 +723,51 @@ export function CompanyAdminDashboard({
         </SectionCard>
       </section>
 
-      <section id="documents" className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+      <section id="documents" className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr] xl:items-stretch">
         <SectionCard
           title="Document Control"
           description="Track the full company document pipeline from draft through approval."
+          className="flex h-full min-h-0 flex-col"
+          contentClassName="flex min-h-0 flex-1 flex-col"
           aside={
-            <div className="flex flex-wrap gap-2">
+            <>
               <Link
                 href="/submit"
-                className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white"
+                className="inline-flex shrink-0 items-center justify-center rounded-xl bg-sky-600 px-3 py-2 text-sm font-semibold text-white whitespace-nowrap"
               >
                 Submit New Document
               </Link>
               <Link
                 href="/upload"
-                className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                className="inline-flex shrink-0 items-center justify-center rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 whitespace-nowrap"
               >
                 Upload Existing Document
               </Link>
-            </div>
+            </>
           }
         >
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid shrink-0 auto-rows-[minmax(0,1fr)] grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">
             {documentSnapshotCards.map((card) => (
-              <div key={card.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              <div
+                key={card.title}
+                className="flex h-full min-h-[132px] flex-col rounded-2xl border border-slate-200 bg-slate-50 p-4"
+              >
+                <div className="line-clamp-2 min-h-[2.5rem] text-[11px] font-bold uppercase leading-tight tracking-[0.18em] text-slate-500">
                   {card.title}
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="text-3xl font-black text-slate-950">{card.value}</div>
-                  <StatusBadge label={card.title.split(" ")[0]} tone={card.tone} />
+                <div className="mt-2 flex min-h-[2.75rem] items-center justify-between gap-2">
+                  <div className="text-3xl font-black tracking-tight text-slate-950">{card.value}</div>
+                  <span className="shrink-0">
+                    <StatusBadge label={card.title.split(" ")[0]} tone={card.tone} />
+                  </span>
                 </div>
-                <div className="mt-3 text-sm text-slate-500">{card.note}</div>
+                <div className="mt-auto pt-3 text-sm leading-relaxed text-slate-500">{card.note}</div>
               </div>
             ))}
           </div>
 
-          <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
-            <div className="grid grid-cols-[minmax(0,1.7fr)_0.9fr_1fr_0.9fr_0.9fr_1fr] gap-3 bg-slate-50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+          <div className="mt-6 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200">
+            <div className="grid shrink-0 grid-cols-[minmax(0,1.7fr)_0.9fr_1fr_0.9fr_0.9fr_1fr] gap-3 bg-slate-50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
               <div>Document</div>
               <div>Type</div>
               <div>Jobsite</div>
@@ -760,11 +775,11 @@ export function CompanyAdminDashboard({
               <div>Submitted</div>
               <div>Action</div>
             </div>
-            <div className="divide-y divide-slate-200 bg-white">
+            <div className="flex min-h-0 flex-1 flex-col divide-y divide-slate-200 bg-white">
               {filteredDocuments.slice(0, 8).map((document) => (
                 <div
                   key={document.id}
-                  className="grid grid-cols-[minmax(0,1.7fr)_0.9fr_1fr_0.9fr_0.9fr_1fr] gap-3 px-4 py-4 text-sm text-slate-700"
+                  className="grid shrink-0 grid-cols-[minmax(0,1.7fr)_0.9fr_1fr_0.9fr_0.9fr_1fr] gap-3 px-4 py-4 text-sm text-slate-700"
                 >
                   <div className="min-w-0">
                     <div className="truncate font-semibold text-slate-900">{getDocumentLabel(document)}</div>
@@ -795,11 +810,13 @@ export function CompanyAdminDashboard({
                 </div>
               ))}
               {filteredDocuments.length === 0 ? (
-                <div className="px-4 py-8">
-                  <EmptyState
-                    title="No documents match this view"
-                    description="Change the search or jobsite filter, or add a new document to start the company record pipeline."
-                  />
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-6">
+                  <div className="w-full max-w-md">
+                    <EmptyState
+                      title="No documents match this view"
+                      description="Change the search or jobsite filter, or add a new document to start the company record pipeline."
+                    />
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -809,28 +826,35 @@ export function CompanyAdminDashboard({
         <SectionCard
           title="Users"
           description="The company access snapshot: who is online, waiting, invited, or inactive."
+          className="flex h-full min-h-0 flex-col"
+          contentClassName="flex min-h-0 flex-1 flex-col"
           aside={
             <Link
               href="/company-users"
-              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
+              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 whitespace-nowrap"
             >
               Manage Users
             </Link>
           }
         >
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid shrink-0 auto-rows-[minmax(0,1fr)] grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3">
             {userSnapshotCards.map((card) => (
-              <div key={card.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              <div
+                key={card.title}
+                className="flex h-full min-h-[132px] flex-col rounded-2xl border border-slate-200 bg-slate-50 p-4"
+              >
+                <div className="line-clamp-2 min-h-[2.5rem] text-[11px] font-bold uppercase leading-tight tracking-[0.18em] text-slate-500">
                   {card.title}
                 </div>
-                <div className="mt-3 text-3xl font-black text-slate-950">{card.value}</div>
-                <div className="mt-2 text-sm text-slate-500">{card.note}</div>
+                <div className="mt-2 min-h-[2.75rem] text-3xl font-black tracking-tight text-slate-950">
+                  {card.value}
+                </div>
+                <div className="mt-auto pt-3 text-sm leading-relaxed text-slate-500">{card.note}</div>
               </div>
             ))}
           </div>
 
-          <div className="mt-6 space-y-3">
+          <div className="mt-6 flex min-h-0 flex-1 flex-col space-y-3">
             {filteredUsers.slice(0, 6).map((user) => (
               <div key={user.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -859,19 +883,25 @@ export function CompanyAdminDashboard({
               </div>
             ))}
             {filteredUsers.length === 0 ? (
-              <EmptyState
-                title="No company users match this view"
-                description="Invite your first employee or adjust the current dashboard search."
-              />
+              <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-4">
+                <div className="w-full max-w-md">
+                  <EmptyState
+                    title="No company users match this view"
+                    description="Invite your first employee or adjust the current dashboard search."
+                  />
+                </div>
+              </div>
             ) : null}
           </div>
         </SectionCard>
       </section>
 
-      <section id="field-id-exchange" className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+      <section id="field-id-exchange" className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr] xl:items-stretch">
         <SectionCard
           title="Live Safety Observation Matrix"
           description="Daily operations matrix showing open, in-progress, closed, and overdue corrective action counts by category."
+          className="flex h-full min-h-0 flex-col"
+          contentClassName="flex min-h-0 flex-1 flex-col"
           aside={
             <div className="flex flex-wrap gap-2">
               <Link
@@ -890,20 +920,22 @@ export function CompanyAdminDashboard({
           }
         >
           {liveMatrixSummary.length === 0 ? (
-            <EmptyState
-              title="No matrix items are live yet"
-              description="As corrective actions are created and reviewed, matrix rows will appear here by category."
-            />
+            <div className="flex min-h-[260px] flex-1 flex-col justify-center py-2">
+              <EmptyState
+                title="No matrix items are live yet"
+                description="As corrective actions are created and reviewed, matrix rows will appear here by category."
+              />
+            </div>
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-slate-200">
-              <div className="grid grid-cols-[minmax(0,1.3fr)_0.8fr_0.8fr_0.8fr_0.8fr] gap-3 bg-slate-50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200">
+              <div className="grid shrink-0 grid-cols-[minmax(0,1.3fr)_0.8fr_0.8fr_0.8fr_0.8fr] gap-3 bg-slate-50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                 <div>Category</div>
                 <div>Open</div>
                 <div>In Progress</div>
                 <div>Closed</div>
                 <div>Overdue</div>
               </div>
-              <div className="divide-y divide-slate-200 bg-white">
+              <div className="min-h-0 flex-1 divide-y divide-slate-200 overflow-y-auto bg-white">
                 {liveMatrixSummary.map((row) => (
                   <div
                     key={row.category}
@@ -923,8 +955,12 @@ export function CompanyAdminDashboard({
           )}
         </SectionCard>
 
-        <div id="action-board" className="space-y-6">
+        <div
+          id="action-board"
+          className="flex min-h-0 flex-col gap-6 xl:h-full xl:min-h-[28rem]"
+        >
           <ActivityFeed
+            className="min-h-[140px] flex-1 basis-0 xl:min-h-0"
             title="Recent Activity"
             description="The latest document, invite, and access activity across the company workspace."
             items={
@@ -945,12 +981,16 @@ export function CompanyAdminDashboard({
           <SectionCard
             title="Corrective Actions & Overdue Items"
             description="Today’s items that still need follow-up from the company side."
+            className="flex min-h-[140px] flex-1 basis-0 flex-col xl:min-h-0"
+            contentClassName="flex min-h-0 flex-1 flex-col"
           >
             {correctiveActions.length === 0 ? (
-              <EmptyState
-                title="No overdue actions right now"
-                description="Pending approvals, document review items, and waiting invites will appear here when the company workspace needs action."
-              />
+              <div className="flex flex-1 flex-col justify-center py-2">
+                <EmptyState
+                  title="No overdue actions right now"
+                  description="Pending approvals, document review items, and waiting invites will appear here when the company workspace needs action."
+                />
+              </div>
             ) : (
               <div className="space-y-3">
                 {correctiveActions.map((item) => (
@@ -971,30 +1011,49 @@ export function CompanyAdminDashboard({
           <SectionCard
             title="Module Summary"
             description="Scaffold modules with live totals to guide daily operations."
+            className="flex min-h-[140px] min-h-0 flex-1 basis-0 flex-col xl:min-h-0"
+            contentClassName="flex min-h-0 flex-1 flex-col"
           >
-            <div className="grid gap-3">
-              {moduleSummaries.map((module) => (
-                <div key={module.key} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                    {module.label}
+            {moduleSummaries.length === 0 ? (
+              <div className="flex flex-1 flex-col justify-center py-2">
+                <EmptyState
+                  title="No module totals yet"
+                  description="As you use permits, incidents, and other modules, summary counts will appear here."
+                />
+              </div>
+            ) : (
+              <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto">
+                {moduleSummaries.map((module) => (
+                  <div
+                    key={module.key}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                  >
+                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                      {module.label}
+                    </div>
+                    <div className="mt-2 text-sm font-semibold leading-relaxed text-slate-900">
+                      {module.total} total · {module.open} open · {module.inProgress} active · {module.closed}{" "}
+                      closed
+                    </div>
                   </div>
-                  <div className="mt-2 text-sm font-semibold text-slate-900">
-                    {module.total} total · {module.open} open · {module.inProgress} active · {module.closed} closed
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </SectionCard>
 
           <SectionCard
             title="High-Risk Alerts"
             description="Auto-escalated SIF and stop-work items from permits and incidents."
+            className="flex min-h-[140px] flex-1 basis-0 flex-col xl:min-h-0"
+            contentClassName="flex min-h-0 flex-1 flex-col"
           >
             {highRiskAlerts.length === 0 ? (
-              <EmptyState
-                title="No high-risk alerts right now"
-                description="Critical escalations and active stop-work items will appear here automatically."
-              />
+              <div className="flex flex-1 flex-col justify-center py-2">
+                <EmptyState
+                  title="No high-risk alerts right now"
+                  description="Critical escalations and active stop-work items will appear here automatically."
+                />
+              </div>
             ) : (
               <div className="space-y-3">
                 {highRiskAlerts.map((item) => (
@@ -1027,14 +1086,14 @@ export function CompanyAdminDashboard({
             </Link>
           }
         >
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 sm:items-stretch">
             {reportWidgets.map((widget) => (
               <div
                 key={widget.title}
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                className="flex min-h-[104px] flex-col rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pb-5"
               >
                 <div className="text-sm font-semibold text-slate-900">{widget.title}</div>
-                <div className="mt-2 text-sm leading-6 text-slate-500">{widget.note}</div>
+                <div className="mt-2 flex-1 text-sm leading-relaxed text-slate-500">{widget.note}</div>
               </div>
             ))}
           </div>
@@ -1043,8 +1102,10 @@ export function CompanyAdminDashboard({
         <SectionCard
           title="Alerts & Notifications"
           description="Everything the company admin should keep an eye on in the current workspace."
+          className="flex h-full min-h-0 flex-col"
+          contentClassName="flex min-h-0 flex-1 flex-col"
         >
-          <div className="space-y-3">
+          <div className="flex flex-1 flex-col justify-center space-y-3">
             {[
               {
                 label: "Pending employee approvals",

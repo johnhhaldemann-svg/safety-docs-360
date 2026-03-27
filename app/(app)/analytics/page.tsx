@@ -57,7 +57,7 @@ async function getAuthHeaders() {
 async function fetchWithTimeout(
   input: RequestInfo | URL,
   init: RequestInit,
-  timeoutMs = 15000
+  timeoutMs = 60000
 ) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -79,7 +79,7 @@ export default function AnalyticsPage() {
     setMessage("");
     try {
       const headers = await getAuthHeaders();
-      const response = await fetchWithTimeout(`/api/company/analytics/summary?days=${windowDays}`, { headers }, 15000);
+      const response = await fetchWithTimeout(`/api/company/analytics/summary?days=${windowDays}`, { headers }, 60000);
       const data = (await response.json().catch(() => null)) as {
         summary?: AnalyticsSummary;
         error?: string;

@@ -62,7 +62,9 @@ export default function MySubmissionsPage() {
 
         const { data, error } = await supabase
           .from("submissions")
-          .select("*")
+          .select(
+            "id,user_id,title,service_type,status,customer_notes,internal_notes,assigned_to,completed_at,created_at"
+          )
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
 

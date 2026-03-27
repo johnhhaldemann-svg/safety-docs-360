@@ -83,6 +83,7 @@ function durationSince(iso: string) {
 
 export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState("");
   const [rows, setRows] = useState<ObservationRow[]>([]);
   const [activityCards, setActivityCards] = useState<ActivityCardRow[]>([]);
@@ -101,8 +102,12 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
   const [responsibleFilter, setResponsibleFilter] = useState("all");
   const [permitTypeFilter, setPermitTypeFilter] = useState("all");
 
-  async function load() {
-    setLoading(true);
+  async function load(withSpinner = false) {
+    if (withSpinner) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setMessage("");
     try {
       const headers = await getAuthHeaders();
@@ -132,11 +137,15 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
       setActivityCards([]);
       setPermits([]);
     }
-    setLoading(false);
+    if (withSpinner) {
+      setRefreshing(false);
+    } else {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
-    void load();
+    void load(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobsiteId]);
 
@@ -218,7 +227,7 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
     setMessage("");
     try {
       await action();
-      await load();
+      setMessage("Saved. Click Refresh to load latest data.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Action failed.");
     }
@@ -304,6 +313,16 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
         eyebrow="Jobsite Workspace"
         title="Live View"
         description="Real-time observation matrix and action workflow for this jobsite."
+        actions={
+          <button
+            type="button"
+            onClick={() => void load(true)}
+            disabled={refreshing}
+            className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
+        }
       />
       {message ? <InlineMessage tone="error">{message}</InlineMessage> : null}
 

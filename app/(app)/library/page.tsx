@@ -106,6 +106,9 @@ function getSubscriptionTone(status: string) {
 export default function LibraryPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [message, setMessage] = useState("");
   const [viewerRole, setViewerRole] = useState("viewer");
   const [creditState, setCreditState] = useState<CreditState>({
@@ -136,13 +139,19 @@ export default function LibraryPage() {
     return session.access_token;
   }, []);
 
-  const loadDocuments = useCallback(async () => {
-    setLoading(true);
-    setMessage("");
+  const loadDocuments = useCallback(async (targetPage = 1, append = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setMessage("");
+    }
 
     try {
       const token = await getAccessToken();
-      const response = await fetch("/api/workspace/documents", {
+      const response = await fetch(
+        `/api/workspace/documents?page=${targetPage}&pageSize=25`,
+        {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -152,22 +161,28 @@ export default function LibraryPage() {
             error?: string;
             documents?: DocumentRow[];
             viewerRole?: string;
+            pagination?: { page?: number; hasMore?: boolean };
           }
         | null;
 
       if (!response.ok) {
         setMessage(data?.error || "Error loading documents.");
         setLoading(false);
+        setLoadingMore(false);
         return;
       }
 
-      setDocuments(data?.documents ?? []);
+      const nextDocuments = data?.documents ?? [];
+      setDocuments((current) => (append ? [...current, ...nextDocuments] : nextDocuments));
       setViewerRole(data?.viewerRole ?? "viewer");
+      setPage(Number(data?.pagination?.page ?? targetPage));
+      setHasMore(Boolean(data?.pagination?.hasMore));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Error loading documents.");
     }
 
     setLoading(false);
+    setLoadingMore(false);
   }, [getAccessToken]);
 
   const loadCredits = useCallback(async () => {
@@ -847,6 +862,18 @@ export default function LibraryPage() {
         onOpen={(doc) => setPendingDownload({ mode: "completed", documentId: doc.id })}
         actionLabel="Open document"
       />
+
+      {!loading && hasMore ? (
+        <div className="flex justify-center">
+          <button
+            onClick={() => void loadDocuments(page + 1, true)}
+            disabled={loadingMore}
+            className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingMore ? "Loading..." : "Load more documents"}
+          </button>
+        </div>
+      ) : null}
 
       {!isManagerView ? (
         <MarketplaceSection

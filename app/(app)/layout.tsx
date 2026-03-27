@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getDefaultAgreementConfig, type AgreementConfig } from "@/lib/legal";
 import type { PermissionMap } from "@/lib/rbac";
 
@@ -234,6 +234,72 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs = 30000
+) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return new Response(
+        JSON.stringify({ error: "Request timed out while loading workspace." }),
+        {
+          status: 408,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function isInvalidRefreshTokenError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("invalid refresh token") ||
+    message.includes("refresh token not found")
+  );
+}
+
+async function clearStaleSession() {
+  try {
+    await supabase.auth.signOut({ scope: "local" });
+  } catch {
+    // Best effort only. Navigation still proceeds to login.
+  }
+}
+
+async function getSessionSafely() {
+  try {
+    const sessionResult = await supabase.auth.getSession();
+    if (
+      sessionResult.error &&
+      isInvalidRefreshTokenError(sessionResult.error)
+    ) {
+      console.warn("[auth] stale refresh token detected; clearing local session");
+      await clearStaleSession();
+      return null;
+    }
+    return sessionResult.data.session ?? null;
+  } catch (error) {
+    if (isInvalidRefreshTokenError(error)) {
+      console.warn("[auth] refresh token missing; clearing local session");
+      await clearStaleSession();
+      return null;
+    }
+    throw error;
+  }
+}
+
 function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -362,6 +428,7 @@ export default function AppLayout({
     getDefaultAgreementConfig()
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const syncSessionInFlightRef = useRef(false);
   const isAdminArea = pathname.startsWith("/admin");
   const isCompanyAdminUser = userRole === "company_admin";
   const isCompanyManagerUser = userRole === "manager" || userRole === "safety_manager";
@@ -464,13 +531,67 @@ export default function AppLayout({
     let cancelled = false;
 
     async function loadAgreementConfig() {
+      // #region agent log
+      console.log("[dbg-690b86] agreement config load start");
+      fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+        body: JSON.stringify({
+          sessionId: "690b86",
+          runId: "agreement-1",
+          hypothesisId: "H12",
+          location: "app/(app)/layout.tsx:loadAgreementConfig:start",
+          message: "Agreement config request started",
+          data: {},
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       try {
-        const res = await fetch("/api/legal/config");
+        const res = await fetchWithTimeout("/api/legal/config", {}, 30000);
         const data = (await res.json().catch(() => null)) as AgreementConfig | null;
+        // #region agent log
+        console.log("[dbg-690b86] agreement config load result", { status: res.status, ok: res.ok });
+        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+          body: JSON.stringify({
+            sessionId: "690b86",
+            runId: "agreement-1",
+            hypothesisId: "H12",
+            location: "app/(app)/layout.tsx:loadAgreementConfig:result",
+            message: "Agreement config request completed",
+            data: { status: res.status, ok: res.ok, hasData: Boolean(data) },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
         if (!cancelled && res.ok && data) {
           setAgreementConfig(data);
         }
       } catch (error) {
+        // #region agent log
+        console.log("[dbg-690b86] agreement config load error", {
+          errorName: error instanceof Error ? error.name : "unknown",
+          errorMessage: error instanceof Error ? error.message : "unknown",
+        });
+        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+          body: JSON.stringify({
+            sessionId: "690b86",
+            runId: "agreement-1",
+            hypothesisId: "H12",
+            location: "app/(app)/layout.tsx:loadAgreementConfig:error",
+            message: "Agreement config request failed",
+            data: {
+              errorName: error instanceof Error ? error.name : "unknown",
+              errorMessage: error instanceof Error ? error.message.slice(0, 220) : "unknown",
+            },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
         console.error("Failed to load agreement config:", error);
       }
     }
@@ -488,18 +609,97 @@ export default function AppLayout({
       session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]
     ) {
       if (!mounted) return;
+      if (syncSessionInFlightRef.current) {
+        // #region agent log
+        console.log("[dbg-690b86] layout syncSession skipped due in-flight request", {
+          pathname,
+        });
+        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+          body: JSON.stringify({
+            sessionId: "690b86",
+            runId: "post-fix-1",
+            hypothesisId: "H14",
+            location: "app/(app)/layout.tsx:syncSession:skipped-in-flight",
+            message: "Skipped duplicate syncSession while another is running",
+            data: { pathname },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
+        return;
+      }
+      syncSessionInFlightRef.current = true;
+      // #region agent log
+      console.log("[dbg-690b86] layout syncSession start", {
+        hasSession: Boolean(session),
+        pathname,
+        isAdminArea,
+        mounted,
+      });
+      // #endregion
+      // #region agent log
+      fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+        body: JSON.stringify({
+          sessionId: "690b86",
+          runId: "baseline-1",
+          hypothesisId: "H1",
+          location: "app/(app)/layout.tsx:syncSession:start",
+          message: "syncSession entered",
+          data: { hasSession: Boolean(session), pathname, isAdminArea, mounted },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
 
       if (!session) {
+        // #region agent log
+        console.log("[dbg-690b86] layout no session -> /login", { pathname });
+        // #endregion
+        // #region agent log
+        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+          body: JSON.stringify({
+            sessionId: "690b86",
+            runId: "baseline-1",
+            hypothesisId: "H2",
+            location: "app/(app)/layout.tsx:syncSession:no-session",
+            message: "No session branch hit; redirecting to login",
+            data: { pathname },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
         router.replace("/login");
+        setLoading(false);
         return;
       }
 
       try {
-        const res = await fetch("/api/auth/me", {
+        // #region agent log
+        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+          body: JSON.stringify({
+            sessionId: "690b86",
+            runId: "baseline-1",
+            hypothesisId: "H3",
+            location: "app/(app)/layout.tsx:syncSession:before-auth-me",
+            message: "About to call /api/auth/me",
+            data: { pathname, timeoutMs: 30000 },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
+        const res = await fetchWithTimeout("/api/auth/me", {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
-        });
+        }, 30000);
 
         const data = (await res.json().catch(() => null)) as
           | {
@@ -518,6 +718,38 @@ export default function AppLayout({
               };
           }
         | null;
+        // #region agent log
+        console.log("[dbg-690b86] layout auth/me response", {
+          status: res.status,
+          ok: res.ok,
+          role: data?.user?.role ?? "missing",
+          accountStatus: data?.user?.accountStatus ?? "missing",
+          acceptedTerms: Boolean(data?.user?.acceptedTerms),
+          pathname,
+        });
+        // #endregion
+        // #region agent log
+        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+          body: JSON.stringify({
+            sessionId: "690b86",
+            runId: "baseline-1",
+            hypothesisId: "H3",
+            location: "app/(app)/layout.tsx:syncSession:after-auth-me",
+            message: "Received /api/auth/me response",
+            data: {
+              status: res.status,
+              ok: res.ok,
+              hasUser: Boolean(data?.user),
+              role: data?.user?.role ?? "missing",
+              accountStatus: data?.user?.accountStatus ?? "missing",
+              acceptedTerms: Boolean(data?.user?.acceptedTerms),
+            },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
 
         if (!mounted) return;
 
@@ -665,6 +897,35 @@ export default function AppLayout({
           return;
         }
       } catch (error) {
+        // #region agent log
+        console.log("[dbg-690b86] layout syncSession catch", {
+          errorName: error instanceof Error ? error.name : "unknown",
+          errorMessage: error instanceof Error ? error.message : "unknown",
+          pathname,
+          isAdminArea,
+        });
+        // #endregion
+        // #region agent log
+        fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+          body: JSON.stringify({
+            sessionId: "690b86",
+            runId: "baseline-1",
+            hypothesisId: "H4",
+            location: "app/(app)/layout.tsx:syncSession:catch",
+            message: "syncSession catch branch",
+            data: {
+              errorName: error instanceof Error ? error.name : "unknown",
+              errorMessage:
+                error instanceof Error ? error.message.slice(0, 220) : "unknown",
+              pathname,
+              isAdminArea,
+            },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
         console.error("Failed to load role context:", error);
         setUserEmail(session.user.email ?? "");
         setUserRole("viewer");
@@ -680,15 +941,34 @@ export default function AppLayout({
           router.replace("/dashboard");
           return;
         }
+      } finally {
+        syncSessionInFlightRef.current = false;
+        if (mounted) {
+          // #region agent log
+          fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Debug-Session-Id": "690b86",
+            },
+            body: JSON.stringify({
+              sessionId: "690b86",
+              runId: "baseline-1",
+              hypothesisId: "H5",
+              location: "app/(app)/layout.tsx:syncSession:finally",
+              message: "syncSession finally setting loading false",
+              data: { pathname, mounted },
+              timestamp: Date.now(),
+            }),
+          }).catch(() => {});
+          // #endregion
+          setLoading(false);
+        }
       }
-
-      setLoading(false);
     }
 
     void (async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const session = await getSessionSafely();
       await syncSession(session);
     })();
 
@@ -761,31 +1041,83 @@ export default function AppLayout({
 
   async function handleAcceptTerms() {
     try {
+      // #region agent log
+      console.log("[dbg-690b86] accept terms start");
+      fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+        body: JSON.stringify({
+          sessionId: "690b86",
+          runId: "agreement-1",
+          hypothesisId: "H13",
+          location: "app/(app)/layout.tsx:handleAcceptTerms:start",
+          message: "Accept terms clicked",
+          data: {},
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       setAcceptingTerms(true);
       setTermsError("");
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const session = await getSessionSafely();
 
       if (!session?.access_token) {
         throw new Error("You must be logged in to accept the agreement.");
       }
 
-      const res = await fetch("/api/legal/accept", {
+      const res = await fetchWithTimeout("/api/legal/accept", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
-      });
+      }, 120000);
 
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      // #region agent log
+      console.log("[dbg-690b86] accept terms result", { status: res.status, ok: res.ok });
+      fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+        body: JSON.stringify({
+          sessionId: "690b86",
+          runId: "agreement-1",
+          hypothesisId: "H13",
+          location: "app/(app)/layout.tsx:handleAcceptTerms:result",
+          message: "Accept terms request completed",
+          data: { status: res.status, ok: res.ok, hasError: Boolean(data?.error) },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       if (!res.ok) {
         throw new Error(data?.error || "Failed to record agreement acceptance.");
       }
 
       setAcceptedTerms(true);
     } catch (error) {
+      // #region agent log
+      console.log("[dbg-690b86] accept terms catch", {
+        errorName: error instanceof Error ? error.name : "unknown",
+        errorMessage: error instanceof Error ? error.message : "unknown",
+      });
+      fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+        body: JSON.stringify({
+          sessionId: "690b86",
+          runId: "agreement-1",
+          hypothesisId: "H13",
+          location: "app/(app)/layout.tsx:handleAcceptTerms:catch",
+          message: "Accept terms request failed",
+          data: {
+            errorName: error instanceof Error ? error.name : "unknown",
+            errorMessage: error instanceof Error ? error.message.slice(0, 220) : "unknown",
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       setTermsError(
         error instanceof Error ? error.message : "Failed to record agreement acceptance."
       );
@@ -1145,47 +1477,40 @@ export default function AppLayout({
                 </div>
 
                 <div className="rounded-[1.35rem] border border-slate-200 bg-white p-3 shadow-sm">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
-                        Current Section
-                      </div>
-                      <div className="mt-1 text-sm font-semibold text-slate-900">
-                        {currentNavItem.label}
-                      </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <div className="inline-flex min-w-max gap-2">
-                        {quickLinks.map((item) => {
-                          const active = isActivePath(pathname, item.href);
-                          return (
-                            <Link
-                              key={item.href}
-                              href={item.href}
+                  <nav
+                    className="overflow-x-auto [scrollbar-width:thin]"
+                    aria-label="Workspace sections"
+                  >
+                    <div className="inline-flex min-w-max gap-2 pr-1">
+                      {quickLinks.map((item) => {
+                        const active = isActivePath(pathname, item.href);
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className={cx(
+                              "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition",
+                              active
+                                ? "bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)]"
+                                : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                            )}
+                          >
+                            <span
                               className={cx(
-                                "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition",
+                                "inline-flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-black",
                                 active
-                                  ? "bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)]"
-                                  : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                                  ? "bg-white/20 text-white"
+                                  : "bg-white text-slate-500"
                               )}
                             >
-                              <span
-                                className={cx(
-                                  "inline-flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-black",
-                                  active
-                                    ? "bg-white/20 text-white"
-                                    : "bg-white text-slate-500"
-                                )}
-                              >
-                                {item.short}
-                              </span>
-                              {item.label}
-                            </Link>
-                          );
-                        })}
-                      </div>
+                              {item.short}
+                            </span>
+                            {item.label}
+                          </Link>
+                        );
+                      })}
                     </div>
-                  </div>
+                  </nav>
                 </div>
               </div>
             </div>

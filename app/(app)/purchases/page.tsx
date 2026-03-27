@@ -148,7 +148,13 @@ export default function PurchasesPage() {
             Authorization: `Bearer ${token}`,
           },
         }),
-        supabase.from("documents").select("*").order("created_at", { ascending: false }),
+        supabase
+          .from("documents")
+          .select(
+            "id,created_at,user_id,company_id,status,project_name,document_title,document_type,category,notes,file_name,file_path,draft_file_path,final_file_path,file_size,uploaded_by"
+          )
+          .order("created_at", { ascending: false })
+          .range(0, 199),
         fetch("/api/library/credits", {
           headers: {
             Authorization: `Bearer ${token}`,

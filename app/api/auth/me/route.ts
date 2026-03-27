@@ -475,12 +475,58 @@ function getFallbackFullName(user: {
 }
 
 export async function GET(request: Request) {
+  const debugStart = Date.now();
+  // #region agent log
+  fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+    body: JSON.stringify({
+      sessionId: "690b86",
+      runId: "baseline-2",
+      hypothesisId: "H8",
+      location: "app/api/auth/me/route.ts:GET:start",
+      message: "auth/me route entered",
+      data: { hasAuthHeader: Boolean(request.headers.get("authorization")) },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   const auth = await authorizeRequest(request, {
     allowPending: true,
     allowSuspended: true,
   });
+  // #region agent log
+  fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+    body: JSON.stringify({
+      sessionId: "690b86",
+      runId: "authme-deep-1",
+      hypothesisId: "H15",
+      location: "app/api/auth/me/route.ts:GET:after-authorize",
+      message: "authorizeRequest completed",
+      data: { elapsedMs: Date.now() - debugStart, hasError: "error" in auth },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   if ("error" in auth) {
+    // #region agent log
+    fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+      body: JSON.stringify({
+        sessionId: "690b86",
+        runId: "baseline-2",
+        hypothesisId: "H8",
+        location: "app/api/auth/me/route.ts:GET:auth-error",
+        message: "authorizeRequest returned error",
+        data: {},
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return auth.error;
   }
 
@@ -515,6 +561,21 @@ export async function GET(request: Request) {
       appMetadata: auth.user.app_metadata ?? undefined,
     });
   }
+  // #region agent log
+  fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+    body: JSON.stringify({
+      sessionId: "690b86",
+      runId: "authme-deep-1",
+      hypothesisId: "H15",
+      location: "app/api/auth/me/route.ts:GET:after-auto-resolve",
+      message: "auto company resolution completed",
+      data: { elapsedMs: Date.now() - debugStart, shouldAutoResolveCompanyAccess },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   const refreshedRoleContext = shouldAutoResolveCompanyAccess
     ? await getUserRoleContext({
@@ -530,6 +591,21 @@ export async function GET(request: Request) {
   const agreementConfigPromise = getAgreementConfig(auth.supabase).catch(() =>
     getDefaultAgreementConfig()
   );
+  // #region agent log
+  fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+    body: JSON.stringify({
+      sessionId: "690b86",
+      runId: "authme-deep-1",
+      hypothesisId: "H15",
+      location: "app/api/auth/me/route.ts:GET:before-agreement-and-scope",
+      message: "starting agreement/scope/profile queries",
+      data: { elapsedMs: Date.now() - debugStart },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   const [agreementResult, agreementConfig] = await Promise.all([
     getUserAgreementRecord(
       auth.supabase,
@@ -587,6 +663,27 @@ export async function GET(request: Request) {
       (agreementResult.data?.terms_version ?? "") === agreementConfig.version
   );
 
+  // #region agent log
+  fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+    body: JSON.stringify({
+      sessionId: "690b86",
+      runId: "baseline-2",
+      hypothesisId: "H15",
+      location: "app/api/auth/me/route.ts:GET:success",
+      message: "auth/me returning success payload",
+      data: {
+        elapsedMs: Date.now() - debugStart,
+        role: refreshedRoleContext.role,
+        accountStatus: effectiveAccountStatus,
+        acceptedTerms,
+        hasCompanyId: Boolean(companyScope.companyId),
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   return NextResponse.json({
     user: {
       id: auth.user.id,

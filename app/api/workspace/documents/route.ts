@@ -17,19 +17,98 @@ import { normalizePurchasedIds } from "@/lib/marketplace";
 
 export const runtime = "nodejs";
 
+const DOCUMENT_LIST_SELECT = [
+  "id",
+  "created_at",
+  "user_id",
+  "company_id",
+  "status",
+  "project_name",
+  "document_title",
+  "document_type",
+  "category",
+  "notes",
+  "file_name",
+  "file_path",
+  "draft_file_path",
+  "final_file_path",
+  "file_size",
+  "uploaded_by",
+].join(",");
+
+function parsePagination(request: Request) {
+  const params = new URL(request.url).searchParams;
+  const page = Math.max(1, Number.parseInt(params.get("page") ?? "1", 10) || 1);
+  const pageSize = Math.min(
+    100,
+    Math.max(1, Number.parseInt(params.get("pageSize") ?? "25", 10) || 25)
+  );
+  const start = (page - 1) * pageSize;
+  const end = start + pageSize - 1;
+  return { page, pageSize, start, end };
+}
+
 export async function GET(request: Request) {
+  const debugStart = Date.now();
+  const { page, pageSize, start, end } = parsePagination(request);
+  // #region agent log
+  fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+    body: JSON.stringify({
+      sessionId: "690b86",
+      runId: "workspace-docs-deep-1",
+      hypothesisId: "H16",
+      location: "app/api/workspace/documents/route.ts:GET:start",
+      message: "workspace documents route entered",
+      data: {},
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   const auth = await authorizeRequest(request);
 
   if ("error" in auth) {
+    // #region agent log
+    fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+      body: JSON.stringify({
+        sessionId: "690b86",
+        runId: "workspace-docs-deep-1",
+        hypothesisId: "H16",
+        location: "app/api/workspace/documents/route.ts:GET:auth-error",
+        message: "authorizeRequest failed",
+        data: { elapsedMs: Date.now() - debugStart },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return auth.error;
   }
 
   const { data, error } = await auth.supabase
     .from("documents")
-    .select("*")
-    .order("created_at", { ascending: false });
+    .select(DOCUMENT_LIST_SELECT)
+    .order("created_at", { ascending: false })
+    .range(start, end);
 
   if (error) {
+    // #region agent log
+    fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+      body: JSON.stringify({
+        sessionId: "690b86",
+        runId: "workspace-docs-deep-1",
+        hypothesisId: "H16",
+        location: "app/api/workspace/documents/route.ts:GET:query-error",
+        message: "documents query failed",
+        data: { elapsedMs: Date.now() - debugStart, error: error.message ?? "unknown" },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -73,10 +152,35 @@ export async function GET(request: Request) {
       );
     });
   }
+  // #region agent log
+  fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "690b86" },
+    body: JSON.stringify({
+      sessionId: "690b86",
+      runId: "workspace-docs-deep-1",
+      hypothesisId: "H16",
+      location: "app/api/workspace/documents/route.ts:GET:success",
+      message: "workspace documents returning",
+      data: {
+        elapsedMs: Date.now() - debugStart,
+        role: auth.role,
+        count: documents.length,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   return NextResponse.json({
     documents,
     viewerRole: auth.role,
     viewerTeam: auth.team,
+    pagination: {
+      page,
+      pageSize,
+      returned: documents.length,
+      hasMore: documents.length === pageSize,
+    },
   });
 }

@@ -29,6 +29,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+const PAGE_SIZE = 50;
 
 type DocumentItem = {
   id: string;
@@ -49,24 +50,41 @@ export default function ReviewDocumentsPage() {
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [message, setMessage] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkLoading, setBulkLoading] = useState<"" | "archive" | "delete">("");
 
-  const loadDocuments = useCallback(async () => {
+  const loadDocuments = useCallback(async (targetPage = 1, append = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+    const start = (targetPage - 1) * PAGE_SIZE;
+    const end = start + PAGE_SIZE - 1;
     const { data, error } = await supabase
       .from("documents")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select(
+        "id,user_id,document_type,project_name,status,created_at,review_notes,final_file_path"
+      )
+      .order("created_at", { ascending: false })
+      .range(start, end);
 
     if (error) {
       console.error("Load documents error:", error.message);
       setMessage(error.message);
     } else {
-      setDocuments(data || []);
+      const rows = (data as DocumentItem[] | null) ?? [];
+      setDocuments((current) => (append ? [...current, ...rows] : rows));
+      setPage(targetPage);
+      setHasMore(rows.length === PAGE_SIZE);
     }
 
     setLoading(false);
+    setLoadingMore(false);
   }, []);
 
   const getAccessToken = useCallback(async () => {
@@ -134,7 +152,7 @@ export default function ReviewDocumentsPage() {
         }
       }
 
-      await loadDocuments();
+      await loadDocuments(1, false);
     })();
   }, [loadDocuments]);
 
@@ -330,6 +348,19 @@ export default function ReviewDocumentsPage() {
         selectedIds={selectedIds}
         setSelectedIds={setSelectedIds}
       />
+
+      {!loading && hasMore ? (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => void loadDocuments(page + 1, true)}
+            disabled={loadingMore}
+            className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingMore ? "Loading..." : "Load more records"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -83,7 +83,7 @@ export async function GET(
       fetchFromSameOrigin(request, "/api/company/reports"),
       fetchFromSameOrigin(request, "/api/company/corrective-actions"),
       fetchFromSameOrigin(request, "/api/company/users"),
-      fetchFromSameOrigin(request, "/api/workspace/documents"),
+      fetchFromSameOrigin(request, "/api/workspace/documents?page=1&pageSize=100"),
       fetchFromSameOrigin(request, "/api/company/analytics/summary"),
       fetchFromSameOrigin(request, `/api/company/dap-activities?workDate=${new Date().toISOString().slice(0, 10)}`),
     ]);

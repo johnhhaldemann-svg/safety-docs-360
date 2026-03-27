@@ -84,8 +84,11 @@ export default function UploadPage() {
 
     const { data, error } = await supabase
       .from("documents")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select(
+        "id,created_at,user_id,company_id,status,project_name,document_title,document_type,category,file_name,file_path,draft_file_path,final_file_path,file_size,uploaded_by,updated_at,review_notes"
+      )
+      .order("created_at", { ascending: false })
+      .range(0, 199);
 
     if (error) {
       setMessage(`Error loading documents: ${error.message}`);

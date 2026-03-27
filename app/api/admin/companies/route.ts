@@ -272,7 +272,9 @@ export async function GET(request: Request) {
     await Promise.all([
     adminClient
       .from("companies")
-      .select("*")
+      .select(
+        "id,name,team_key,industry,phone,website,address_line_1,city,state_region,postal_code,country,primary_contact_name,primary_contact_email,status,created_at,archived_at,archived_by_email,restored_at,restored_by_email"
+      )
       .order("name"),
     adminClient.from("company_memberships").select("company_id, role, status"),
     adminClient.from("company_invites").select("company_id, consumed_at"),
