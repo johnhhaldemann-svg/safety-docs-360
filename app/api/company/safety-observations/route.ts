@@ -1,3 +1,5 @@
+import type { PostgrestFilterBuilder } from "@supabase/postgrest-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
@@ -5,6 +7,10 @@ import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { canManageObservations } from "@/lib/companyPermissions";
 import { parseSafetyObservationBody } from "@/lib/safety-observations/validate";
 import type { SafetyObservationKpis, SafetyObservationRow } from "@/lib/safety-observations/types";
+
+/** Head-count chain on `safety_observations` (no generated DB types). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Postgrest generics require Schema/Row from generated types
+type SafetyObservationHeadFilter = PostgrestFilterBuilder<any, any, Record<string, unknown>, unknown, unknown, unknown, "GET">;
 
 export const runtime = "nodejs";
 
@@ -20,15 +26,16 @@ function startOfIsoWeek(d: Date) {
   return date.toISOString();
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function countScoped(
-  supabase: any,
+  supabase: SupabaseClient,
   companyId: string,
   jobsiteScope: { restricted: boolean; jobsiteIds: string[] },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  apply: (q: any) => any
+  apply: (q: SafetyObservationHeadFilter) => SafetyObservationHeadFilter
 ) {
-  let q = supabase.from("safety_observations").select("id", { count: "exact", head: true }).eq("company_id", companyId);
+  let q = supabase
+    .from("safety_observations")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyId) as unknown as SafetyObservationHeadFilter;
   if (jobsiteScope.restricted) {
     if (jobsiteScope.jobsiteIds.length < 1) return 0;
     q = q.in("jobsite_id", jobsiteScope.jobsiteIds);

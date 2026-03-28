@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
@@ -444,6 +444,7 @@ const supabase = createClient(
 );
 
 export default function CSEPPage() {
+  const submissionHandoffRef = useRef<HTMLDivElement>(null);
   const [form, setForm] = useState<CSEPForm>(initialForm);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [userId, setUserId] = useState("");
@@ -495,6 +496,15 @@ export default function CSEPPage() {
 
     void loadUser();
   }, []);
+
+  function scrollSubmissionHandoffIntoView() {
+    window.setTimeout(() => {
+      submissionHandoffRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }, 0);
+  }
 
   const selectedTrade = useMemo(() => {
     if (!form.trade) return null;
@@ -565,17 +575,20 @@ export default function CSEPPage() {
       if (!permissionMap?.can_submit_documents) {
         setMessageTone("warning");
         setMessage("Your current role cannot submit CSEP records into review.");
+        scrollSubmissionHandoffIntoView();
         return;
       }
       if (authLoading) {
         setMessageTone("warning");
         setMessage("Your account is still loading. Please wait a moment and try again.");
+        scrollSubmissionHandoffIntoView();
         return;
       }
 
       if (!userId) {
         setMessageTone("error");
         setMessage("No logged-in user found. Please log in again.");
+        scrollSubmissionHandoffIntoView();
         return;
       }
 
@@ -584,6 +597,14 @@ export default function CSEPPage() {
         setMessage(
           "You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before submitting your CSEP."
         );
+        scrollSubmissionHandoffIntoView();
+        return;
+      }
+
+      if (!form.project_name.trim()) {
+        setMessageTone("warning");
+        setMessage("Add a project name before submitting — it is required for the review queue.");
+        scrollSubmissionHandoffIntoView();
         return;
       }
 
@@ -648,6 +669,7 @@ export default function CSEPPage() {
 
       setMessageTone("success");
       setMessage("CSEP submitted successfully for admin review.");
+      scrollSubmissionHandoffIntoView();
     } catch (error) {
       console.error(error);
 
@@ -658,6 +680,7 @@ export default function CSEPPage() {
         setMessageTone("error");
         setMessage("Failed to submit CSEP.");
       }
+      scrollSubmissionHandoffIntoView();
     } finally {
       setSubmitLoading(false);
     }
@@ -758,7 +781,6 @@ export default function CSEPPage() {
                 Your current role can review CSEP workflow information, but it cannot create or edit CSEP drafts.
               </InlineMessage>
             ) : null}
-            {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
             <fieldset disabled={authLoading || !canUseBuilder} className="space-y-6 disabled:opacity-60">
             <section className="rounded-3xl bg-white p-6 shadow-lg">
               <h2 className="mb-4 text-xl font-semibold text-slate-900">
@@ -1247,7 +1269,12 @@ export default function CSEPPage() {
           </aside>
         </div>
 
-        <div className="sticky bottom-4 z-10 mt-6">
+        <div ref={submissionHandoffRef} className="sticky bottom-4 z-10 mt-6 scroll-mt-24">
+          {message ? (
+            <div className="mb-3" role="status" aria-live="polite">
+              <InlineMessage tone={messageTone}>{message}</InlineMessage>
+            </div>
+          ) : null}
           <div className="rounded-[1.5rem] border border-slate-200 bg-white/95 p-4 shadow-[0_18px_36px_rgba(148,163,184,0.18)] backdrop-blur">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>

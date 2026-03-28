@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
@@ -107,6 +107,7 @@ function toggleItem(values: string[], item: string) {
 }
 
 export default function PESHEPUniversalPage() {
+  const submissionHandoffRef = useRef<HTMLDivElement>(null);
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Answers>(initialAnswers);
   const [siteMap, setSiteMap] = useState("");
@@ -230,27 +231,46 @@ export default function PESHEPUniversalPage() {
     reader.readAsDataURL(file);
   }
 
+  function scrollSubmissionHandoffIntoView() {
+    window.setTimeout(() => {
+      submissionHandoffRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }, 0);
+  }
+
   async function handleSubmitForReview() {
     try {
       setMessage("");
       if (!permissionMap?.can_submit_documents) {
         setMessageTone("warning");
         setMessage("Your current role cannot submit PESHEP records into review.");
+        scrollSubmissionHandoffIntoView();
         return;
       }
       if (authLoading) {
         setMessageTone("warning");
         setMessage("Your account is still loading. Try again in a moment.");
+        scrollSubmissionHandoffIntoView();
         return;
       }
       if (!userId) {
         setMessageTone("error");
         setMessage("No logged-in user was found. Please sign in again.");
+        scrollSubmissionHandoffIntoView();
         return;
       }
       if (!agreedToSubmissionTerms) {
         setMessageTone("warning");
         setMessage("You must accept the agreement before submitting.");
+        scrollSubmissionHandoffIntoView();
+        return;
+      }
+      if (!answers.project_name.trim()) {
+        setMessageTone("warning");
+        setMessage("Add a project name before submitting — it is required for the review queue.");
+        scrollSubmissionHandoffIntoView();
         return;
       }
 
@@ -289,10 +309,12 @@ export default function PESHEPUniversalPage() {
       setMessageTone("success");
       setMessage("PESHEP submitted successfully and moved into the admin review queue.");
       setStep(6);
+      scrollSubmissionHandoffIntoView();
     } catch (error) {
       console.error("Submit error:", error);
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Something went wrong.");
+      scrollSubmissionHandoffIntoView();
     } finally {
       setSubmitLoading(false);
     }
@@ -476,7 +498,12 @@ export default function PESHEPUniversalPage() {
             </fieldset>
           </SectionCard>
 
-          <div className="sticky bottom-4 z-10">
+          <div ref={submissionHandoffRef} className="sticky bottom-4 z-10 scroll-mt-24">
+            {message ? (
+              <div className="mb-3" role="status" aria-live="polite">
+                <InlineMessage tone={messageTone}>{message}</InlineMessage>
+              </div>
+            ) : null}
             <div className="rounded-[1.5rem] border border-slate-200 bg-white/95 p-4 shadow-[0_18px_36px_rgba(148,163,184,0.18)] backdrop-blur">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>

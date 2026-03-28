@@ -30,6 +30,37 @@ const defaultForm = {
   due_date: "",
 };
 
+function formFromInitial(initial: SafetyObservationRow | null) {
+  if (initial) {
+    return {
+      observation_type: initial.observation_type,
+      category: initial.category,
+      subcategory: initial.subcategory,
+      severity: initial.severity,
+      status: initial.status,
+      jobsite_id: initial.jobsite_id ?? "",
+      title: initial.title,
+      description: initial.description ?? "",
+      location: initial.location ?? "",
+      trade: initial.trade ?? "",
+      immediate_action_taken: initial.immediate_action_taken ?? "",
+      corrective_action: initial.corrective_action ?? "",
+      assigned_to: initial.assigned_to ?? "",
+      due_date: initial.due_date ? initial.due_date.slice(0, 10) : "",
+    };
+  }
+  const firstType = OBSERVATION_TYPES[0];
+  const cats = getCategoriesForType(firstType);
+  const firstCat = cats[0] ?? "";
+  const subs = firstCat ? getSubcategoriesFor(firstType, firstCat) : [];
+  return {
+    ...defaultForm,
+    observation_type: firstType,
+    category: firstCat,
+    subcategory: subs[0] ?? "",
+  };
+}
+
 export function ObservationForm({
   jobsites,
   assignees,
@@ -45,41 +76,8 @@ export function ObservationForm({
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
 }) {
-  const [form, setForm] = useState(defaultForm);
+  const [form, setForm] = useState(() => formFromInitial(initial));
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (initial) {
-      setForm({
-        observation_type: initial.observation_type,
-        category: initial.category,
-        subcategory: initial.subcategory,
-        severity: initial.severity,
-        status: initial.status,
-        jobsite_id: initial.jobsite_id ?? "",
-        title: initial.title,
-        description: initial.description ?? "",
-        location: initial.location ?? "",
-        trade: initial.trade ?? "",
-        immediate_action_taken: initial.immediate_action_taken ?? "",
-        corrective_action: initial.corrective_action ?? "",
-        assigned_to: initial.assigned_to ?? "",
-        due_date: initial.due_date ? initial.due_date.slice(0, 10) : "",
-      });
-    } else {
-      const firstType = OBSERVATION_TYPES[0];
-      const cats = getCategoriesForType(firstType);
-      const firstCat = cats[0] ?? "";
-      const subs = firstCat ? getSubcategoriesFor(firstType, firstCat) : [];
-      setForm({
-        ...defaultForm,
-        observation_type: firstType,
-        category: firstCat,
-        subcategory: subs[0] ?? "",
-      });
-    }
-    setPhotoPreviews([]);
-  }, [initial]);
 
   const categories = useMemo(() => getCategoriesForType(form.observation_type), [form.observation_type]);
   const subcategories = useMemo(

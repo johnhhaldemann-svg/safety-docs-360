@@ -434,6 +434,7 @@ export function SafetyObservationsPage() {
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <ObservationForm
+          key={editing?.id ?? "new"}
           jobsites={jobsites}
           assignees={assignees}
           submitting={submitting}
