@@ -274,6 +274,7 @@ export async function GET(request: Request) {
     supabase: auth.supabase,
     userId: auth.user.id,
     fallbackTeam: auth.team,
+    authUser: auth.user,
   });
   const scopeTeam = companyScope.companyName?.trim() || auth.team || "General";
 
@@ -481,6 +482,7 @@ export async function POST(request: Request) {
         supabase: auth.supabase,
         userId: auth.user.id,
         fallbackTeam,
+        authUser: auth.user,
       })
     : await ensureCompanyScope({
         supabase: adminClient ?? auth.supabase,

@@ -40,6 +40,7 @@ export async function GET(request: Request) {
       supabase: auth.supabase,
       userId: auth.user.id,
       fallbackTeam: auth.team,
+      authUser: auth.user,
     });
     const transactionResult = await listCreditTransactions(auth.supabase, auth.user.id);
     const purchasedDocumentIds = !transactionResult.error

@@ -167,7 +167,11 @@ async function resolveProfileTarget(params: {
   const requestedUserId =
     trimText(params.requestedUserId) || getTargetUserIdFromRequest(params.request);
   const auth = params.auth as unknown as {
-    user: { id: string };
+    user: {
+      id: string;
+      app_metadata?: Record<string, unknown>;
+      user_metadata?: Record<string, unknown>;
+    };
     role: string;
     team: string;
     supabase: unknown;
@@ -199,6 +203,7 @@ async function resolveProfileTarget(params: {
     supabase: auth.supabase as never,
     userId: auth.user.id,
     fallbackTeam: auth.team,
+    authUser: auth.user,
   });
 
   if (!actorScope.companyId) {

@@ -2,29 +2,49 @@ type SupabaseLikeClient = {
   from: (table: string) => unknown;
 };
 
+type AuthUserLike = {
+  app_metadata?: Record<string, unknown>;
+  user_metadata?: Record<string, unknown>;
+};
+
 function normalizeTeamName(team?: string | null) {
   return team?.trim() || "General";
+}
+
+/** When DB rows lag JWT (e.g. super-admin assigned company_id in metadata only). */
+function companyIdFromJwtMetadata(authUser?: AuthUserLike | null): string | null {
+  if (!authUser) return null;
+  const fromApp = authUser.app_metadata?.company_id;
+  const fromUser = authUser.user_metadata?.company_id;
+  const raw = typeof fromApp === "string" ? fromApp : typeof fromUser === "string" ? fromUser : "";
+  const trimmed = raw.trim();
+  return trimmed || null;
 }
 
 export async function getCompanyScope(params: {
   supabase: SupabaseLikeClient;
   userId: string;
   fallbackTeam?: string | null;
+  /** If set, used when membership / user_roles lack company_id but JWT has company_id. */
+  authUser?: AuthUserLike | null;
 }) {
-  const { supabase, userId, fallbackTeam } = params;
+  const { supabase, userId, fallbackTeam, authUser } = params;
   const safeTeam = normalizeTeamName(fallbackTeam);
 
   const membershipResult = await (
     supabase.from("company_memberships") as {
       select: (columns: string) => {
         eq: (column: string, value: string) => {
-          maybeSingle: () => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
+          limit: (n: number) => {
+            maybeSingle: () => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
+          };
         };
       };
     }
   )
     .select("company_id, status, companies(id, name)")
     .eq("user_id", userId)
+    .limit(1)
     .maybeSingle();
 
   if (
@@ -93,6 +113,37 @@ export async function getCompanyScope(params: {
         companyName: companyData?.name?.trim() || normalizeTeamName(row.team) || safeTeam,
         source: "role_row" as const,
       };
+    }
+  }
+
+  const jwtCompanyId = companyIdFromJwtMetadata(authUser);
+  if (jwtCompanyId) {
+    const jwtCompanyLookup = await (
+      supabase.from("companies") as {
+        select: (columns: string) => {
+          eq: (column: string, value: string) => {
+            maybeSingle: () => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
+          };
+        };
+      }
+    )
+      .select("id, name")
+      .eq("id", jwtCompanyId)
+      .maybeSingle();
+
+    if (
+      !jwtCompanyLookup.error &&
+      jwtCompanyLookup.data &&
+      typeof jwtCompanyLookup.data === "object"
+    ) {
+      const c = jwtCompanyLookup.data as { id?: string | null; name?: string | null };
+      if (c.id) {
+        return {
+          companyId: jwtCompanyId,
+          companyName: c.name?.trim() || safeTeam,
+          source: "jwt_metadata" as const,
+        };
+      }
     }
   }
 

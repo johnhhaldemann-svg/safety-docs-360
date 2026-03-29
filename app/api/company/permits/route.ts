@@ -80,7 +80,7 @@ export async function GET(request: Request) {
     ],
   });
   if ("error" in auth) return auth.error;
-  const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team });
+  const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ permits: [] });
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
@@ -125,7 +125,7 @@ export async function POST(request: Request) {
   const auth = await authorizeRequest(request, { requireAnyPermission: ["can_create_documents", "can_view_all_company_data"] });
   if ("error" in auth) return auth.error;
   if (!canManage(auth.role)) return NextResponse.json({ error: "Only company admins and managers can create permits." }, { status: 403 });
-  const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team });
+  const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const title = String(body?.title ?? "").trim();
@@ -204,7 +204,7 @@ export async function PATCH(request: Request) {
   const auth = await authorizeRequest(request, { requireAnyPermission: ["can_edit_documents", "can_view_all_company_data"] });
   if ("error" in auth) return auth.error;
   if (!canManage(auth.role)) return NextResponse.json({ error: "Only company admins and managers can update permits." }, { status: 403 });
-  const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team });
+  const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const id = String(body?.id ?? "").trim();

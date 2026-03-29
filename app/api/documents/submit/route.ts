@@ -75,6 +75,7 @@ export async function POST(request: Request) {
       supabase,
       userId: user.id,
       fallbackTeam: auth.team,
+      authUser: user,
     });
     let fileData: BodyInit | null = null;
 

@@ -53,6 +53,7 @@ export async function POST(request: Request) {
     supabase,
     userId: user.id,
     fallbackTeam: auth.team,
+    authUser: user,
   });
   const body = (await request.json()) as PurchasePayload;
   const documentId = body.documentId?.trim();

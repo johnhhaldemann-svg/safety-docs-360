@@ -24,6 +24,7 @@ export async function GET(request: Request) {
     supabase: auth.supabase,
     userId: auth.user.id,
     fallbackTeam: auth.team,
+    authUser: auth.user,
   });
   if (!companyScope.companyId) {
     return NextResponse.json({

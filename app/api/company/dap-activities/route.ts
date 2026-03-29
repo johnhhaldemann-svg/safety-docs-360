@@ -40,6 +40,7 @@ export async function GET(request: Request) {
     supabase: auth.supabase,
     userId: auth.user.id,
     fallbackTeam: auth.team,
+    authUser: auth.user,
   });
   if (!companyScope.companyId) return NextResponse.json({ activities: [] });
 
@@ -86,6 +87,7 @@ export async function POST(request: Request) {
     supabase: auth.supabase,
     userId: auth.user.id,
     fallbackTeam: auth.team,
+    authUser: auth.user,
   });
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
@@ -138,6 +140,7 @@ export async function PATCH(request: Request) {
     supabase: auth.supabase,
     userId: auth.user.id,
     fallbackTeam: auth.team,
+    authUser: auth.user,
   });
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });

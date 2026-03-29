@@ -488,6 +488,7 @@ export async function GET(request: Request) {
     supabase: auth.supabase,
     userId: auth.user.id,
     fallbackTeam: auth.team,
+    authUser: auth.user,
   });
   const adminClient = createSupabaseAdminClient();
   const requestScopedSupabase = createRequestScopedSupabaseClient(request);
@@ -543,6 +544,7 @@ export async function GET(request: Request) {
         supabase: auth.supabase,
         userId: auth.user.id,
         fallbackTeam: auth.team,
+        authUser: auth.user,
       })
     : initialCompanyScope;
   const pendingCompanySignupRequest =

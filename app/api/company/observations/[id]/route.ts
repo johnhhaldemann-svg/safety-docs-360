@@ -41,6 +41,7 @@ async function loadScopedObservation({
     supabase: auth.supabase,
     userId: auth.user.id,
     fallbackTeam: auth.team,
+    authUser: auth.user,
   });
   if (!companyScope.companyId) return { ...auth, companyId: null, row: null };
   const row = await auth.supabase

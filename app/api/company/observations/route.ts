@@ -36,6 +36,7 @@ export async function GET(request: Request) {
     supabase: auth.supabase,
     userId: auth.user.id,
     fallbackTeam: auth.team,
+    authUser: auth.user,
   });
   if (!companyScope.companyId) return NextResponse.json({ observations: [] });
   const jobsiteScope = await getJobsiteAccessScope({
@@ -77,6 +78,7 @@ export async function POST(request: Request) {
     supabase: auth.supabase,
     userId: auth.user.id,
     fallbackTeam: auth.team,
+    authUser: auth.user,
   });
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "No company scope found." }, { status: 400 });

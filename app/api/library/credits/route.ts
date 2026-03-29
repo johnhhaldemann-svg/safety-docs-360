@@ -43,6 +43,7 @@ export async function GET(request: Request) {
     supabase,
     userId: user.id,
     fallbackTeam: auth.team,
+    authUser: user,
   });
 
   if (companyScope.companyId) {

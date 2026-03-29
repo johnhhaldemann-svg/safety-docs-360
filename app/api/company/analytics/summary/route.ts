@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     requireAnyPermission: ["can_view_analytics", "can_view_all_company_data"],
   });
   if ("error" in auth) return auth.error;
-  const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team });
+  const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ snapshots: [] });
   const { searchParams } = new URL(request.url);
   const days = Number(searchParams.get("days") ?? "30");
@@ -287,7 +287,7 @@ export async function POST(request: Request) {
   if (!canManage(auth.role)) {
     return NextResponse.json({ error: "Only company admins and managers can create analytics snapshots." }, { status: 403 });
   }
-  const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team });
+  const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const snapshotDate = String(body?.snapshotDate ?? "").trim() || new Date().toISOString().slice(0, 10);

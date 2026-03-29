@@ -98,6 +98,7 @@ export async function PATCH(
     supabase: auth.supabase,
     userId: auth.user.id,
     fallbackTeam,
+    authUser: auth.user,
   });
   const team = companyScope.companyName?.trim() || fallbackTeam;
   const accountStatus = normalizeAccountStatus(body.accountStatus);
@@ -315,6 +316,7 @@ export async function DELETE(
     supabase: auth.supabase,
     userId: auth.user.id,
     fallbackTeam,
+    authUser: auth.user,
   });
 
   if (!companyScope.companyId) {
