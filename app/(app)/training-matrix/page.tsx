@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, X } from "lucide-react";
+import { Check, Minus, X } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -10,6 +10,10 @@ import {
   PageHero,
   SectionCard,
 } from "@/components/WorkspacePrimitives";
+import {
+  CONSTRUCTION_POSITIONS,
+  CONSTRUCTION_TRADES,
+} from "@/lib/constructionProfileOptions";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,7 +26,11 @@ type Requirement = {
   sortOrder: number;
   matchKeywords: string[];
   matchFields: string[];
+  applyTrades: string[];
+  applyPositions: string[];
 };
+
+type MatrixCellState = "match" | "gap" | "na";
 
 type MatrixRow = {
   userId: string;
@@ -30,7 +38,7 @@ type MatrixRow = {
   email: string;
   role: string;
   status: string;
-  cells: Record<string, boolean>;
+  cells: Record<string, MatrixCellState>;
   unmatchedCertifications: string[];
   profileFields: {
     tradeSpecialty: string;
@@ -38,6 +46,17 @@ type MatrixRow = {
     readinessStatus: string;
   };
 };
+
+function toggleInList(list: string[], value: string): string[] {
+  return list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
+}
+
+function normalizeCellState(v: unknown): MatrixCellState {
+  if (v === true) return "match";
+  if (v === false) return "gap";
+  if (v === "match" || v === "gap" || v === "na") return v;
+  return "gap";
+}
 
 async function getAccessToken() {
   const {
@@ -63,13 +82,15 @@ export default function TrainingMatrixPage() {
 
   const [newTitle, setNewTitle] = useState("");
   const [newKeywords, setNewKeywords] = useState("");
-  const [newMatchFields, setNewMatchFields] = useState("certifications");
+  const [newApplyTrades, setNewApplyTrades] = useState<string[]>([]);
+  const [newApplyPositions, setNewApplyPositions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editKeywords, setEditKeywords] = useState("");
-  const [editMatchFields, setEditMatchFields] = useState("");
+  const [editApplyTrades, setEditApplyTrades] = useState<string[]>([]);
+  const [editApplyPositions, setEditApplyPositions] = useState<string[]>([]);
 
   const loadMatrix = useCallback(async () => {
     setLoading(true);
@@ -98,8 +119,21 @@ export default function TrainingMatrixPage() {
         return;
       }
 
-      setRequirements(data?.requirements ?? []);
-      setRows(data?.rows ?? []);
+      setRequirements(
+        (data?.requirements ?? []).map((r) => ({
+          ...r,
+          applyTrades: r.applyTrades ?? [],
+          applyPositions: r.applyPositions ?? [],
+        }))
+      );
+      setRows(
+        (data?.rows ?? []).map((row) => ({
+          ...row,
+          cells: Object.fromEntries(
+            Object.entries(row.cells ?? {}).map(([k, v]) => [k, normalizeCellState(v)])
+          ),
+        }))
+      );
       setCanMutate(Boolean(data?.capabilities?.canMutate));
       setWarning(data?.warning ?? null);
     } catch (e) {
@@ -129,10 +163,9 @@ export default function TrainingMatrixPage() {
         body: JSON.stringify({
           title: newTitle.trim(),
           keywords: newKeywords,
-          matchFields: newMatchFields
-            .split(/[\n,]+/)
-            .map((s) => s.trim())
-            .filter(Boolean),
+          matchFields: ["certifications"],
+          applyTrades: newApplyTrades,
+          applyPositions: newApplyPositions,
         }),
       });
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -146,20 +179,22 @@ export default function TrainingMatrixPage() {
       setMessage("Requirement added.");
       setNewTitle("");
       setNewKeywords("");
-      setNewMatchFields("certifications");
+      setNewApplyTrades([]);
+      setNewApplyPositions([]);
       await loadMatrix();
     } catch (e) {
       setMessageTone("error");
       setMessage(e instanceof Error ? e.message : "Failed to create requirement.");
     }
     setSaving(false);
-  }, [loadMatrix, newKeywords, newMatchFields, newTitle]);
+  }, [loadMatrix, newApplyPositions, newApplyTrades, newKeywords, newTitle]);
 
   const startEdit = useCallback((r: Requirement) => {
     setEditingId(r.id);
     setEditTitle(r.title);
     setEditKeywords(r.matchKeywords.join(", "));
-    setEditMatchFields(r.matchFields.join(", "));
+    setEditApplyTrades([...(r.applyTrades ?? [])]);
+    setEditApplyPositions([...(r.applyPositions ?? [])]);
   }, []);
 
   const cancelEdit = useCallback(() => {
@@ -181,10 +216,9 @@ export default function TrainingMatrixPage() {
         body: JSON.stringify({
           title: editTitle.trim(),
           keywords: editKeywords,
-          matchFields: editMatchFields
-            .split(/[\n,]+/)
-            .map((s) => s.trim())
-            .filter(Boolean),
+          matchFields: ["certifications"],
+          applyTrades: editApplyTrades,
+          applyPositions: editApplyPositions,
         }),
       });
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -203,7 +237,7 @@ export default function TrainingMatrixPage() {
       setMessage(e instanceof Error ? e.message : "Failed to update requirement.");
     }
     setSaving(false);
-  }, [editKeywords, editMatchFields, editTitle, editingId, loadMatrix]);
+  }, [editApplyPositions, editApplyTrades, editKeywords, editTitle, editingId, loadMatrix]);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -240,7 +274,7 @@ export default function TrainingMatrixPage() {
       <PageHero
         eyebrow="Company workspace"
         title="Training matrix"
-        description="Define required trainings for your company, then review coverage from each person’s construction profile (certifications and optional job title / trade fields). Profile data is per user account and is shared if someone belongs to more than one workspace."
+        description="Each requirement applies to selected trades and site positions (same lists as the construction profile). Keywords match certifications on the profile. Profile data is per user account and is shared across workspaces."
         actions={
           <Link
             href="/dashboard"
@@ -257,7 +291,7 @@ export default function TrainingMatrixPage() {
       {canMutate ? (
         <SectionCard
           title="Required trainings"
-          description="Add keywords that should match text in each person’s profile (usually certification names). Use commas or new lines. Match fields: certifications (default), job_title, trade_specialty."
+          description="Pick which trades and positions this training applies to (must match each person’s profile). Add certification keywords to check off when those credentials appear on their profile."
         >
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block text-sm font-medium text-slate-700">
@@ -270,29 +304,80 @@ export default function TrainingMatrixPage() {
               />
             </label>
             <label className="block text-sm font-medium text-slate-700">
-              Match fields
-              <input
-                value={newMatchFields}
-                onChange={(e) => setNewMatchFields(e.target.value)}
+              Certification keywords
+              <textarea
+                value={newKeywords}
+                onChange={(e) => setNewKeywords(e.target.value)}
+                rows={3}
                 className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
-                placeholder="certifications"
+                placeholder="osha 30, osha30, 30-hour"
               />
             </label>
           </div>
-          <label className="mt-3 block text-sm font-medium text-slate-700">
-            Keywords
-            <textarea
-              value={newKeywords}
-              onChange={(e) => setNewKeywords(e.target.value)}
-              rows={3}
-              className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
-              placeholder="osha 30, osha30, 30-hour"
-            />
-          </label>
+          <div className="mt-4 grid gap-5 md:grid-cols-2">
+            <div>
+              <div className="text-sm font-medium text-slate-700">
+                Applies to trades <span className="text-red-600">*</span>
+              </div>
+              <p className="mt-0.5 text-xs text-slate-500">Must match primary trade on the profile.</p>
+              <div className="mt-2 max-h-44 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
+                <div className="grid gap-2 sm:grid-cols-1">
+                  {CONSTRUCTION_TRADES.map((t) => (
+                    <label
+                      key={t}
+                      className="flex cursor-pointer items-start gap-2 text-sm text-slate-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={newApplyTrades.includes(t)}
+                        onChange={() =>
+                          setNewApplyTrades((prev) => toggleInList(prev, t))
+                        }
+                        className="mt-0.5 rounded border-slate-300 text-sky-600"
+                      />
+                      <span>{t}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-slate-700">
+                Applies to positions <span className="text-red-600">*</span>
+              </div>
+              <p className="mt-0.5 text-xs text-slate-500">Must match site position on the profile.</p>
+              <div className="mt-2 max-h-44 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
+                <div className="grid gap-2">
+                  {CONSTRUCTION_POSITIONS.map((p) => (
+                    <label
+                      key={p}
+                      className="flex cursor-pointer items-start gap-2 text-sm text-slate-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={newApplyPositions.includes(p)}
+                        onChange={() =>
+                          setNewApplyPositions((prev) => toggleInList(prev, p))
+                        }
+                        className="mt-0.5 rounded border-slate-300 text-sky-600"
+                      />
+                      <span>{p}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
           <div className="mt-4">
             <button
               type="button"
-              disabled={saving || !newTitle.trim() || !newKeywords.trim()}
+              disabled={
+                saving ||
+                !newTitle.trim() ||
+                !newKeywords.trim() ||
+                newApplyTrades.length === 0 ||
+                newApplyPositions.length === 0
+              }
               onClick={() => void handleCreate()}
               className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -314,23 +399,56 @@ export default function TrainingMatrixPage() {
                         onChange={(e) => setEditTitle(e.target.value)}
                         className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                       />
-                      <input
-                        value={editMatchFields}
-                        onChange={(e) => setEditMatchFields(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                        placeholder="certifications, job_title"
-                      />
                       <textarea
                         value={editKeywords}
                         onChange={(e) => setEditKeywords(e.target.value)}
                         rows={2}
                         className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="Certification keywords"
                       />
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                          <div className="mb-1 text-xs font-semibold text-slate-600">Trades</div>
+                          {CONSTRUCTION_TRADES.map((t) => (
+                            <label key={t} className="flex gap-2 text-xs text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={editApplyTrades.includes(t)}
+                                onChange={() =>
+                                  setEditApplyTrades((prev) => toggleInList(prev, t))
+                                }
+                              />
+                              {t}
+                            </label>
+                          ))}
+                        </div>
+                        <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                          <div className="mb-1 text-xs font-semibold text-slate-600">Positions</div>
+                          {CONSTRUCTION_POSITIONS.map((p) => (
+                            <label key={p} className="flex gap-2 text-xs text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={editApplyPositions.includes(p)}
+                                onChange={() =>
+                                  setEditApplyPositions((prev) => toggleInList(prev, p))
+                                }
+                              />
+                              {p}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => void handleSaveEdit()}
-                          disabled={saving}
+                          disabled={
+                            saving ||
+                            !editTitle.trim() ||
+                            !editKeywords.trim() ||
+                            editApplyTrades.length === 0 ||
+                            editApplyPositions.length === 0
+                          }
                           className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                         >
                           Save
@@ -349,7 +467,10 @@ export default function TrainingMatrixPage() {
                       <div>
                         <div className="font-semibold text-slate-900">{r.title}</div>
                         <div className="mt-1 text-xs text-slate-500">
-                          Fields: {r.matchFields.join(", ")}
+                          Trades: {(r.applyTrades ?? []).join(", ") || "—"}
+                        </div>
+                        <div className="mt-0.5 text-xs text-slate-500">
+                          Positions: {(r.applyPositions ?? []).join(", ") || "—"}
                         </div>
                         <div className="mt-1 text-sm text-slate-600">
                           {r.matchKeywords.join(" · ")}
@@ -386,7 +507,7 @@ export default function TrainingMatrixPage() {
 
       <SectionCard
         title="Coverage matrix"
-        description="Each cell reflects whether profile text matches your requirement keywords. The last column lists certifications on the profile that did not match any requirement."
+        description="Checkmark when the person’s certifications match keywords for a requirement that applies to their trade and position. A dash means this requirement does not apply to them. The last column lists certifications that did not satisfy any applicable requirement."
       >
         {loading ? (
           <InlineMessage>Loading matrix…</InlineMessage>
@@ -442,18 +563,26 @@ export default function TrainingMatrixPage() {
                       </Link>
                     </td>
                     {requirements.map((r) => {
-                      const ok = row.cells[r.id] === true;
+                      const state = row.cells[r.id] ?? "gap";
                       return (
                         <td key={r.id} className="px-3 py-3 text-center align-middle">
-                          {ok ? (
-                            <span className="inline-flex justify-center text-emerald-600" title="Match">
+                          {state === "match" ? (
+                            <span className="inline-flex justify-center text-emerald-600" title="Met">
                               <Check className="h-5 w-5" aria-hidden />
-                              <span className="sr-only">Match</span>
+                              <span className="sr-only">Met</span>
+                            </span>
+                          ) : state === "na" ? (
+                            <span
+                              className="inline-flex justify-center text-slate-300"
+                              title="Not required for this trade / position"
+                            >
+                              <Minus className="h-5 w-5" aria-hidden />
+                              <span className="sr-only">Not applicable</span>
                             </span>
                           ) : (
-                            <span className="inline-flex justify-center text-slate-300" title="No match">
+                            <span className="inline-flex justify-center text-amber-600" title="Required but not matched">
                               <X className="h-5 w-5" aria-hidden />
-                              <span className="sr-only">No match</span>
+                              <span className="sr-only">Gap</span>
                             </span>
                           )}
                         </td>

@@ -10,6 +10,10 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
+import {
+  CONSTRUCTION_POSITIONS,
+  CONSTRUCTION_TRADES,
+} from "@/lib/constructionProfileOptions";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -255,6 +259,18 @@ function getInitials(name: string) {
   return ((parts[0]?.[0] ?? "Y") + (parts[1]?.[0] ?? "")).toUpperCase();
 }
 
+const OTHER_SELECT = "__other__";
+
+function initProfileSelect(
+  saved: string | undefined,
+  options: readonly string[]
+): { select: string; other: string } {
+  const t = (saved ?? "").trim();
+  if (!t) return { select: "", other: "" };
+  if ((options as readonly string[]).includes(t)) return { select: t, other: "" };
+  return { select: OTHER_SELECT, other: t };
+}
+
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -272,8 +288,10 @@ export default function ProfilePage() {
   const [targetEmail, setTargetEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [preferredName, setPreferredName] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
-  const [tradeSpecialty, setTradeSpecialty] = useState("");
+  const [positionSelect, setPositionSelect] = useState("");
+  const [positionOther, setPositionOther] = useState("");
+  const [tradeSelect, setTradeSelect] = useState("");
+  const [tradeOther, setTradeOther] = useState("");
   const [yearsExperience, setYearsExperience] = useState("");
   const [phone, setPhone] = useState("");
   const [city, setCity] = useState("");
@@ -345,8 +363,12 @@ export default function ProfilePage() {
           setTargetEmail(profileData?.targetUser?.email ?? "");
           setFullName(profile.fullName ?? "");
           setPreferredName(profile.preferredName ?? "");
-          setJobTitle(profile.jobTitle ?? "");
-          setTradeSpecialty(profile.tradeSpecialty ?? "");
+          const pos = initProfileSelect(profile.jobTitle, CONSTRUCTION_POSITIONS);
+          setPositionSelect(pos.select);
+          setPositionOther(pos.other);
+          const tr = initProfileSelect(profile.tradeSpecialty, CONSTRUCTION_TRADES);
+          setTradeSelect(tr.select);
+          setTradeOther(tr.other);
           setYearsExperience(
             profile.yearsExperience === null || profile.yearsExperience === undefined
               ? ""
@@ -415,6 +437,36 @@ export default function ProfilePage() {
     setSaving(true);
     setMessage("");
     setMessageTone("neutral");
+
+    const jobTitle =
+      positionSelect === OTHER_SELECT ? positionOther.trim() : positionSelect.trim();
+    const tradeSpecialty =
+      tradeSelect === OTHER_SELECT ? tradeOther.trim() : tradeSelect.trim();
+
+    if (!positionSelect) {
+      setMessageTone("error");
+      setMessage("Select your site position.");
+      setSaving(false);
+      return;
+    }
+    if (positionSelect === OTHER_SELECT && !jobTitle) {
+      setMessageTone("error");
+      setMessage("Enter your site position when using Other.");
+      setSaving(false);
+      return;
+    }
+    if (!tradeSelect) {
+      setMessageTone("error");
+      setMessage("Select your primary trade.");
+      setSaving(false);
+      return;
+    }
+    if (tradeSelect === OTHER_SELECT && !tradeSpecialty) {
+      setMessageTone("error");
+      setMessage("Enter your trade when using Other.");
+      setSaving(false);
+      return;
+    }
 
     try {
       const {
@@ -528,13 +580,20 @@ export default function ProfilePage() {
 
   const displayName = getDisplayName(fullName, preferredName);
   const managedProfileLabel = targetDisplayName || targetEmail || "Employee";
+  const resolvedJobTitle =
+    positionSelect === OTHER_SELECT ? positionOther.trim() : positionSelect.trim();
+  const resolvedTrade =
+    tradeSelect === OTHER_SELECT ? tradeOther.trim() : tradeSelect.trim();
   const allCertifications = mergeCertifications(selectedCertifications, customCertificationsText);
   const previewTags = splitList(specialtiesText, 20).slice(0, 4);
   const previewCertifications = allCertifications.slice(0, 6);
   const previewEquipment = splitList(equipmentText, 20).slice(0, 4);
   const profileChecklist = [
     { label: "Identity and profile photo", done: Boolean(fullName.trim() && (photoPreview || photoUrl)) },
-    { label: "Trade role and job title", done: Boolean(jobTitle.trim() && tradeSpecialty.trim()) },
+    {
+      label: "Site position and trade",
+      done: Boolean(resolvedJobTitle && resolvedTrade),
+    },
     { label: "Field location and experience", done: Boolean(city.trim() && stateRegion.trim() && yearsExperience.trim()) },
     { label: "Construction experience summary", done: Boolean(bio.trim()) },
   ];
@@ -665,23 +724,71 @@ export default function ProfilePage() {
                     onChange={(event) => setFullName(event.target.value)}
                     className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
                   />
-                  <input
-                    type="text"
-                    placeholder="Crew role / position"
-                    value={jobTitle}
-                    onChange={(event) => setJobTitle(event.target.value)}
-                    className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
-                  />
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-600">
+                      Site position <span className="text-red-600">*</span>
+                    </label>
+                    <select
+                      value={positionSelect}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setPositionSelect(v);
+                        if (v !== OTHER_SELECT) setPositionOther("");
+                      }}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                    >
+                      <option value="">Select position…</option>
+                      {CONSTRUCTION_POSITIONS.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                      <option value={OTHER_SELECT}>Other (specify)</option>
+                    </select>
+                    {positionSelect === OTHER_SELECT ? (
+                      <input
+                        type="text"
+                        placeholder="Describe your position"
+                        value={positionOther}
+                        onChange={(e) => setPositionOther(e.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                      />
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <input
-                    type="text"
-                    placeholder="Primary trade"
-                    value={tradeSpecialty}
-                    onChange={(event) => setTradeSpecialty(event.target.value)}
-                    className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
-                  />
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-600">
+                      Primary trade <span className="text-red-600">*</span>
+                    </label>
+                    <select
+                      value={tradeSelect}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setTradeSelect(v);
+                        if (v !== OTHER_SELECT) setTradeOther("");
+                      }}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                    >
+                      <option value="">Select trade…</option>
+                      {CONSTRUCTION_TRADES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                      <option value={OTHER_SELECT}>Other (specify)</option>
+                    </select>
+                    {tradeSelect === OTHER_SELECT ? (
+                      <input
+                        type="text"
+                        placeholder="Describe your trade"
+                        value={tradeOther}
+                        onChange={(e) => setTradeOther(e.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                      />
+                    ) : null}
+                  </div>
                   <input
                     type="number"
                     min="0"
@@ -931,8 +1038,9 @@ export default function ProfilePage() {
               <div className="min-w-0 flex-1">
                 <div className="text-2xl font-black tracking-tight text-white">{displayName}</div>
                 <div className="mt-1 text-sm font-semibold text-sky-100">
-                  {jobTitle || "Job title"}{jobTitle && tradeSpecialty ? " - " : ""}
-                  {tradeSpecialty || ""}
+                  {resolvedJobTitle || "Job title"}
+                  {resolvedJobTitle && resolvedTrade ? " - " : ""}
+                  {resolvedTrade || ""}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <StatusBadge

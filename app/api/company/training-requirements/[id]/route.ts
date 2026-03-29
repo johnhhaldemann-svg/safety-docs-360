@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { canMutateCompanyTrainingRequirements } from "@/lib/companyTrainingAccess";
+import {
+  filterAllowedPositions,
+  filterAllowedTrades,
+} from "@/lib/constructionProfileOptions";
 import { DEFAULT_MATCH_FIELDS } from "@/lib/trainingMatrix";
 
 export const runtime = "nodejs";
@@ -15,6 +19,8 @@ type RequirementRow = {
   sort_order: number;
   match_keywords: string[];
   match_fields: string[];
+  apply_trades?: string[] | null;
+  apply_positions?: string[] | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -89,7 +95,9 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const { data: existingRaw, error: loadError } = await auth.supabase
     .from("company_training_requirements")
-    .select("id, company_id, title, sort_order, match_keywords, match_fields")
+    .select(
+      "id, company_id, title, sort_order, match_keywords, match_fields, apply_trades, apply_positions"
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -135,6 +143,28 @@ export async function PATCH(request: Request, context: RouteContext) {
     updates.match_fields = mf.length ? mf : [...DEFAULT_MATCH_FIELDS];
   }
 
+  if (body?.applyTrades !== undefined) {
+    const t = filterAllowedTrades(body.applyTrades);
+    if (t.length === 0) {
+      return NextResponse.json(
+        { error: "Select at least one trade this requirement applies to." },
+        { status: 400 }
+      );
+    }
+    updates.apply_trades = t;
+  }
+
+  if (body?.applyPositions !== undefined) {
+    const p = filterAllowedPositions(body.applyPositions);
+    if (p.length === 0) {
+      return NextResponse.json(
+        { error: "Select at least one position this requirement applies to." },
+        { status: 400 }
+      );
+    }
+    updates.apply_positions = p;
+  }
+
   if (typeof body?.sortOrder === "number" && Number.isFinite(body.sortOrder)) {
     updates.sort_order = body.sortOrder;
   }
@@ -144,7 +174,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     .update(updates)
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
-    .select("id, company_id, title, sort_order, match_keywords, match_fields, created_at, updated_at")
+    .select(
+      "id, company_id, title, sort_order, match_keywords, match_fields, apply_trades, apply_positions, created_at, updated_at"
+    )
     .single();
 
   const updated = data as RequirementRow | null;
@@ -164,6 +196,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       sortOrder: updated.sort_order,
       matchKeywords: updated.match_keywords ?? [],
       matchFields: updated.match_fields?.length ? updated.match_fields : [...DEFAULT_MATCH_FIELDS],
+      applyTrades: updated.apply_trades ?? [],
+      applyPositions: updated.apply_positions ?? [],
       createdAt: updated.created_at,
       updatedAt: updated.updated_at,
     },

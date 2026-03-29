@@ -5,6 +5,10 @@ import {
   canMutateCompanyTrainingRequirements,
   canViewCompanyTrainingMatrix,
 } from "@/lib/companyTrainingAccess";
+import {
+  filterAllowedPositions,
+  filterAllowedTrades,
+} from "@/lib/constructionProfileOptions";
 import { DEFAULT_MATCH_FIELDS } from "@/lib/trainingMatrix";
 
 export const runtime = "nodejs";
@@ -16,6 +20,8 @@ type RequirementRow = {
   sort_order: number;
   match_keywords: string[];
   match_fields: string[];
+  apply_trades: string[] | null;
+  apply_positions: string[] | null;
   created_at: string;
   updated_at: string;
 };
@@ -79,7 +85,7 @@ export async function GET(request: Request) {
   const { data, error } = await auth.supabase
     .from("company_training_requirements")
     .select(
-      "id, company_id, title, sort_order, match_keywords, match_fields, created_at, updated_at"
+      "id, company_id, title, sort_order, match_keywords, match_fields, apply_trades, apply_positions, created_at, updated_at"
     )
     .eq("company_id", companyScope.companyId)
     .order("sort_order", { ascending: true });
@@ -97,6 +103,8 @@ export async function GET(request: Request) {
     sortOrder: row.sort_order,
     matchKeywords: row.match_keywords ?? [],
     matchFields: row.match_fields?.length ? row.match_fields : [...DEFAULT_MATCH_FIELDS],
+    applyTrades: row.apply_trades ?? [],
+    applyPositions: row.apply_positions ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }));
@@ -157,6 +165,21 @@ export async function POST(request: Request) {
 
   const matchFields = parseMatchFields(body?.matchFields);
 
+  const applyTrades = filterAllowedTrades(body?.applyTrades);
+  const applyPositions = filterAllowedPositions(body?.applyPositions);
+  if (applyTrades.length === 0) {
+    return NextResponse.json(
+      { error: "Select at least one trade this requirement applies to." },
+      { status: 400 }
+    );
+  }
+  if (applyPositions.length === 0) {
+    return NextResponse.json(
+      { error: "Select at least one position this requirement applies to." },
+      { status: 400 }
+    );
+  }
+
   const { data: existing } = await auth.supabase
     .from("company_training_requirements")
     .select("sort_order")
@@ -181,13 +204,15 @@ export async function POST(request: Request) {
       sort_order: sortOrder,
       match_keywords: matchKeywords,
       match_fields: matchFields,
+      apply_trades: applyTrades,
+      apply_positions: applyPositions,
       created_at: nowIso,
       updated_at: nowIso,
       created_by: auth.user.id,
       updated_by: auth.user.id,
     })
     .select(
-      "id, company_id, title, sort_order, match_keywords, match_fields, created_at, updated_at"
+      "id, company_id, title, sort_order, match_keywords, match_fields, apply_trades, apply_positions, created_at, updated_at"
     )
     .single();
 
@@ -208,6 +233,8 @@ export async function POST(request: Request) {
       sortOrder: created.sort_order,
       matchKeywords: created.match_keywords ?? [],
       matchFields: created.match_fields?.length ? created.match_fields : [...DEFAULT_MATCH_FIELDS],
+      applyTrades: created.apply_trades ?? [],
+      applyPositions: created.apply_positions ?? [],
       createdAt: created.created_at,
       updatedAt: created.updated_at,
     },

@@ -2,10 +2,16 @@ export const DEFAULT_MATCH_FIELDS = ["certifications"] as const;
 
 export type MatchField = "certifications" | "job_title" | "trade_specialty";
 
+export type TrainingMatrixCellState = "match" | "gap" | "na";
+
 export type TrainingRequirementInput = {
   id: string;
   match_keywords: string[];
   match_fields?: string[] | null;
+  /** Empty or omitted = applies to all trades. */
+  apply_trades?: string[] | null;
+  /** Empty or omitted = applies to all positions. */
+  apply_positions?: string[] | null;
 };
 
 export type ProfileForMatching = {
@@ -22,6 +28,27 @@ export function normalizeForMatch(value: string): string {
 export function keywordMatchesHaystack(keywordNorm: string, haystackNorm: string): boolean {
   if (!keywordNorm || !haystackNorm) return false;
   return haystackNorm.includes(keywordNorm) || keywordNorm.includes(haystackNorm);
+}
+
+export function requirementAppliesToProfile(
+  profile: ProfileForMatching,
+  applyTrades?: string[] | null,
+  applyPositions?: string[] | null
+): boolean {
+  const trades = (applyTrades ?? []).map((t) => t.trim()).filter(Boolean);
+  const positions = (applyPositions ?? []).map((p) => p.trim()).filter(Boolean);
+
+  if (trades.length > 0) {
+    const t = normalizeForMatch(profile.trade_specialty ?? "");
+    if (!t) return false;
+    if (!trades.some((opt) => normalizeForMatch(opt) === t)) return false;
+  }
+  if (positions.length > 0) {
+    const p = normalizeForMatch(profile.job_title ?? "");
+    if (!p) return false;
+    if (!positions.some((opt) => normalizeForMatch(opt) === p)) return false;
+  }
+  return true;
 }
 
 function resolveMatchFields(fields?: string[] | null): MatchField[] {
@@ -71,13 +98,13 @@ function buildHaystacksByField(profile: ProfileForMatching, fields: MatchField[]
 }
 
 export type TrainingMatrixRowResult = {
-  cells: Record<string, boolean>;
+  cells: Record<string, TrainingMatrixCellState>;
   unmatchedCertifications: string[];
 };
 
 /**
- * For each requirement, satisfied if any normalized keyword matches any selected haystack (substring rule).
- * A certification list entry is "used" if any requirement's keyword matched that specific entry's text.
+ * For each requirement: if trade/position scope does not apply, cell is "na".
+ * Otherwise same keyword vs haystack rules; certifications only contribute when the requirement applied.
  */
 export function computeTrainingMatrixRow(
   profile: ProfileForMatching,
@@ -85,9 +112,14 @@ export function computeTrainingMatrixRow(
 ): TrainingMatrixRowResult {
   const certifications = profile.certifications ?? [];
   const certContributed = certifications.map(() => false);
-  const cells: Record<string, boolean> = {};
+  const cells: Record<string, TrainingMatrixCellState> = {};
 
   for (const req of requirements) {
+    if (!requirementAppliesToProfile(profile, req.apply_trades, req.apply_positions)) {
+      cells[req.id] = "na";
+      continue;
+    }
+
     const fields = resolveMatchFields(req.match_fields);
     const haystacks = buildHaystacksByField(profile, fields);
     const keywords = (req.match_keywords ?? [])
@@ -107,7 +139,7 @@ export function computeTrainingMatrixRow(
       }
     }
 
-    cells[req.id] = satisfied;
+    cells[req.id] = satisfied ? "match" : "gap";
   }
 
   const unmatchedCertifications = certifications.filter((_, i) => !certContributed[i]);

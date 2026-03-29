@@ -3,6 +3,7 @@ import {
   computeTrainingMatrixRow,
   keywordMatchesHaystack,
   normalizeForMatch,
+  requirementAppliesToProfile,
 } from "./trainingMatrix";
 
 describe("normalizeForMatch", () => {
@@ -24,13 +25,57 @@ describe("keywordMatchesHaystack", () => {
   });
 });
 
+describe("requirementAppliesToProfile", () => {
+  it("applies when filters are empty", () => {
+    expect(
+      requirementAppliesToProfile(
+        { certifications: [], trade_specialty: "Electrical", job_title: "Foreman" },
+        [],
+        []
+      )
+    ).toBe(true);
+  });
+  it("requires trade match when apply_trades set", () => {
+    expect(
+      requirementAppliesToProfile(
+        { certifications: [], trade_specialty: "Electrical", job_title: "Foreman" },
+        ["Electrical"],
+        []
+      )
+    ).toBe(true);
+    expect(
+      requirementAppliesToProfile(
+        { certifications: [], trade_specialty: "Plumbing", job_title: "Foreman" },
+        ["Electrical"],
+        []
+      )
+    ).toBe(false);
+  });
+  it("requires position match when apply_positions set", () => {
+    expect(
+      requirementAppliesToProfile(
+        { certifications: [], trade_specialty: null, job_title: "Foreman" },
+        [],
+        ["Foreman"]
+      )
+    ).toBe(true);
+    expect(
+      requirementAppliesToProfile(
+        { certifications: [], trade_specialty: null, job_title: "Laborer" },
+        [],
+        ["Foreman"]
+      )
+    ).toBe(false);
+  });
+});
+
 describe("computeTrainingMatrixRow", () => {
   it("marks requirement satisfied when cert contains keyword", () => {
     const { cells, unmatchedCertifications } = computeTrainingMatrixRow(
       { certifications: ["OSHA 30 Hour", "First Aid"] },
       [{ id: "r1", match_keywords: ["osha 30"] }]
     );
-    expect(cells.r1).toBe(true);
+    expect(cells.r1).toBe("match");
     expect(unmatchedCertifications).toEqual(["First Aid"]);
   });
 
@@ -42,8 +87,8 @@ describe("computeTrainingMatrixRow", () => {
         { id: "b", match_keywords: ["30"] },
       ]
     );
-    expect(cells.a).toBe(true);
-    expect(cells.b).toBe(true);
+    expect(cells.a).toBe("match");
+    expect(cells.b).toBe("match");
     expect(unmatchedCertifications).toEqual([]);
   });
 
@@ -61,16 +106,52 @@ describe("computeTrainingMatrixRow", () => {
         },
       ]
     );
-    expect(cells.safety).toBe(true);
+    expect(cells.safety).toBe("match");
     expect(unmatchedCertifications).toEqual(["CPR"]);
   });
 
-  it("returns false when nothing matches", () => {
+  it("returns gap when nothing matches", () => {
     const { cells, unmatchedCertifications } = computeTrainingMatrixRow(
       { certifications: ["Forklift"] },
       [{ id: "r1", match_keywords: ["crane"] }]
     );
-    expect(cells.r1).toBe(false);
+    expect(cells.r1).toBe("gap");
     expect(unmatchedCertifications).toEqual(["Forklift"]);
+  });
+
+  it("marks na when trade scope excludes profile", () => {
+    const { cells } = computeTrainingMatrixRow(
+      {
+        certifications: ["OSHA 30"],
+        trade_specialty: "Plumbing",
+        job_title: "Foreman",
+      },
+      [
+        {
+          id: "r1",
+          match_keywords: ["osha"],
+          apply_trades: ["Electrical"],
+        },
+      ]
+    );
+    expect(cells.r1).toBe("na");
+  });
+
+  it("does not consume certifications for na requirements", () => {
+    const { unmatchedCertifications } = computeTrainingMatrixRow(
+      {
+        certifications: ["OSHA 30"],
+        trade_specialty: "Plumbing",
+        job_title: "Foreman",
+      },
+      [
+        {
+          id: "scoped",
+          match_keywords: ["osha"],
+          apply_trades: ["Electrical"],
+        },
+      ]
+    );
+    expect(unmatchedCertifications).toEqual(["OSHA 30"]);
   });
 });

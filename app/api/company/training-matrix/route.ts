@@ -25,6 +25,8 @@ type RequirementRow = {
   sort_order: number;
   match_keywords: string[];
   match_fields: string[];
+  apply_trades: string[] | null;
+  apply_positions: string[] | null;
 };
 
 type ProfileRow = {
@@ -73,7 +75,9 @@ export async function GET(request: Request) {
 
   const requirementsResult = await auth.supabase
     .from("company_training_requirements")
-    .select("id, company_id, title, sort_order, match_keywords, match_fields")
+    .select(
+      "id, company_id, title, sort_order, match_keywords, match_fields, apply_trades, apply_positions"
+    )
     .eq("company_id", companyScope.companyId)
     .order("sort_order", { ascending: true });
 
@@ -90,6 +94,8 @@ export async function GET(request: Request) {
     sortOrder: row.sort_order,
     matchKeywords: row.match_keywords ?? [],
     matchFields: row.match_fields?.length ? row.match_fields : [...DEFAULT_MATCH_FIELDS],
+    applyTrades: row.apply_trades ?? [],
+    applyPositions: row.apply_positions ?? [],
   }));
 
   const requirementInputs: TrainingRequirementInput[] = ((requirementsResult.data ??
@@ -98,6 +104,8 @@ export async function GET(request: Request) {
       id: row.id,
       match_keywords: row.match_keywords ?? [],
       match_fields: row.match_fields?.length ? row.match_fields : [...DEFAULT_MATCH_FIELDS],
+      apply_trades: row.apply_trades ?? [],
+      apply_positions: row.apply_positions ?? [],
     })
   );
 
