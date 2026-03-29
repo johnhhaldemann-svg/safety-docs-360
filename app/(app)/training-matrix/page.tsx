@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Check, Minus, X } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
-import { type ChangeEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   EmptyState,
   InlineMessage,
@@ -47,10 +47,6 @@ type MatrixRow = {
   };
 };
 
-function valuesFromMultiSelect(event: ChangeEvent<HTMLSelectElement>): string[] {
-  return Array.from(event.target.selectedOptions, (opt) => opt.value);
-}
-
 function normalizeCellState(v: unknown): MatrixCellState {
   if (v === true) return "match";
   if (v === false) return "gap";
@@ -67,6 +63,138 @@ async function getAccessToken() {
     throw new Error("You must be logged in.");
   }
   return session.access_token;
+}
+
+/** Single-select dropdowns + chips — works on mobile; native multi-select is often invisible there. */
+function PickTradesAndPositions({
+  trades,
+  positions,
+  onTradesChange,
+  onPositionsChange,
+  variant = "default",
+}: {
+  trades: string[];
+  positions: string[];
+  onTradesChange: (next: string[]) => void;
+  onPositionsChange: (next: string[]) => void;
+  variant?: "default" | "compact";
+}) {
+  const selectClass =
+    variant === "compact"
+      ? "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+      : "mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500";
+
+  const chipClass =
+    variant === "compact"
+      ? "inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-800"
+      : "inline-flex max-w-full items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-sm font-medium text-slate-800";
+
+  const availableTrades = CONSTRUCTION_TRADES.filter((t) => !trades.includes(t));
+  const availablePositions = CONSTRUCTION_POSITIONS.filter((p) => !positions.includes(p));
+
+  const headingClass =
+    variant === "compact"
+      ? "text-xs font-semibold text-slate-600"
+      : "text-sm font-medium text-slate-700";
+
+  return (
+    <div className={variant === "compact" ? "grid gap-3 sm:grid-cols-2" : "mt-4 grid gap-5 md:grid-cols-2"}>
+      <div>
+        <div className={headingClass}>
+          Applies to trades <span className="text-red-600">*</span>
+        </div>
+        {variant === "default" ? (
+          <p className="mt-0.5 text-xs text-slate-500">
+            Same options as <strong>Primary trade</strong> on the construction profile. Choose from the
+            dropdown; add several if needed.
+          </p>
+        ) : null}
+        <select
+          key={`trade-dd-${trades.join("|")}`}
+          className={selectClass}
+          defaultValue=""
+          onChange={(e) => {
+            const v = e.target.value;
+            if (!v) return;
+            onTradesChange([...trades, v]);
+          }}
+        >
+          <option value="">Add a trade…</option>
+          {availableTrades.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+        {trades.length > 0 ? (
+          <ul className="mt-2 flex flex-wrap gap-2" aria-label="Selected trades">
+            {trades.map((t) => (
+              <li key={t} className={chipClass}>
+                <span className="truncate">{t}</span>
+                <button
+                  type="button"
+                  className="shrink-0 rounded px-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-900"
+                  aria-label={`Remove ${t}`}
+                  onClick={() => onTradesChange(trades.filter((x) => x !== t))}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-xs text-slate-400">No trades selected yet.</p>
+        )}
+      </div>
+      <div>
+        <div className={headingClass}>
+          Applies to positions <span className="text-red-600">*</span>
+        </div>
+        {variant === "default" ? (
+          <p className="mt-0.5 text-xs text-slate-500">
+            Same options as <strong>Site position</strong> on the construction profile. Choose from the
+            dropdown; add several if needed.
+          </p>
+        ) : null}
+        <select
+          key={`position-dd-${positions.join("|")}`}
+          className={selectClass}
+          defaultValue=""
+          onChange={(e) => {
+            const v = e.target.value;
+            if (!v) return;
+            onPositionsChange([...positions, v]);
+          }}
+        >
+          <option value="">Add a position…</option>
+          {availablePositions.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+        {positions.length > 0 ? (
+          <ul className="mt-2 flex flex-wrap gap-2" aria-label="Selected positions">
+            {positions.map((p) => (
+              <li key={p} className={chipClass}>
+                <span className="truncate">{p}</span>
+                <button
+                  type="button"
+                  className="shrink-0 rounded px-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-900"
+                  aria-label={`Remove ${p}`}
+                  onClick={() => onPositionsChange(positions.filter((x) => x !== p))}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-xs text-slate-400">No positions selected yet.</p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function TrainingMatrixPage() {
@@ -307,7 +435,7 @@ export default function TrainingMatrixPage() {
       {canMutate ? (
         <SectionCard
           title="Required trainings"
-          description="Use the trade and position dropdowns (same options as each person’s construction profile). Add certification keywords to check off when those credentials appear on their profile."
+          description="Add trades and positions using the dropdowns (same lists as the construction profile). Use certification keywords to match credentials on each profile."
         >
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block text-sm font-medium text-slate-700">
@@ -330,52 +458,13 @@ export default function TrainingMatrixPage() {
               />
             </label>
           </div>
-          <div className="mt-4 grid gap-5 md:grid-cols-2">
-            <label className="block text-sm font-medium text-slate-700">
-              <span>
-                Applies to trades <span className="text-red-600">*</span>
-              </span>
-              <p className="mt-0.5 font-normal text-xs text-slate-500">
-                Same list as <strong>Primary trade</strong> on the construction profile. Hold Ctrl
-                (Windows) or ⌘ (Mac) and click to choose more than one.
-              </p>
-              <select
-                multiple
-                size={10}
-                value={newApplyTrades}
-                onChange={(e) => setNewApplyTrades(valuesFromMultiSelect(e))}
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
-              >
-                {CONSTRUCTION_TRADES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm font-medium text-slate-700">
-              <span>
-                Applies to positions <span className="text-red-600">*</span>
-              </span>
-              <p className="mt-0.5 font-normal text-xs text-slate-500">
-                Same list as <strong>Site position</strong> on the construction profile. Hold Ctrl
-                (Windows) or ⌘ (Mac) and click to choose more than one.
-              </p>
-              <select
-                multiple
-                size={10}
-                value={newApplyPositions}
-                onChange={(e) => setNewApplyPositions(valuesFromMultiSelect(e))}
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
-              >
-                {CONSTRUCTION_POSITIONS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          <PickTradesAndPositions
+            trades={newApplyTrades}
+            positions={newApplyPositions}
+            onTradesChange={setNewApplyTrades}
+            onPositionsChange={setNewApplyPositions}
+            variant="default"
+          />
           <div className="mt-4">
             <button
               type="button"
@@ -414,40 +503,13 @@ export default function TrainingMatrixPage() {
                         className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                         placeholder="Certification keywords"
                       />
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <label className="block text-xs font-semibold text-slate-600">
-                          Trades (Ctrl / ⌘ + click for multiple)
-                          <select
-                            multiple
-                            size={8}
-                            value={editApplyTrades}
-                            onChange={(e) => setEditApplyTrades(valuesFromMultiSelect(e))}
-                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm font-normal text-slate-900"
-                          >
-                            {CONSTRUCTION_TRADES.map((t) => (
-                              <option key={t} value={t}>
-                                {t}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="block text-xs font-semibold text-slate-600">
-                          Positions (Ctrl / ⌘ + click for multiple)
-                          <select
-                            multiple
-                            size={8}
-                            value={editApplyPositions}
-                            onChange={(e) => setEditApplyPositions(valuesFromMultiSelect(e))}
-                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm font-normal text-slate-900"
-                          >
-                            {CONSTRUCTION_POSITIONS.map((p) => (
-                              <option key={p} value={p}>
-                                {p}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
+                      <PickTradesAndPositions
+                        trades={editApplyTrades}
+                        positions={editApplyPositions}
+                        onTradesChange={setEditApplyTrades}
+                        onPositionsChange={setEditApplyPositions}
+                        variant="compact"
+                      />
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
