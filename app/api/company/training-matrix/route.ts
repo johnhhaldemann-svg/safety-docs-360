@@ -10,10 +10,7 @@ import {
   loadCompanyWorkspaceUsers,
   loadCompanyWorkspaceUsersRls,
 } from "@/lib/companyWorkspaceDirectory";
-import {
-  fetchCompanyTrainingRequirements,
-  TRAINING_REQUIREMENTS_SCHEMA_WARNING,
-} from "@/lib/companyTrainingRequirementsDb";
+import { fetchCompanyTrainingRequirements } from "@/lib/companyTrainingRequirementsDb";
 import {
   computeTrainingMatrixRow,
   DEFAULT_MATCH_FIELDS,
@@ -60,6 +57,7 @@ export async function GET(request: Request) {
       requirements: [],
       rows: [],
       warning: null,
+      schemaMigrationNeeded: false,
       capabilities: { canMutate: canMutateCompanyTrainingRequirements(auth.role) },
     });
   }
@@ -97,7 +95,7 @@ export async function GET(request: Request) {
     apply_positions: row.apply_positions ?? [],
   }));
 
-  const schemaWarning = reqFetch.applyColumnsAvailable ? null : TRAINING_REQUIREMENTS_SCHEMA_WARNING;
+  const schemaMigrationNeeded = !reqFetch.applyColumnsAvailable;
 
   const scopeTeam = companyScope.companyName?.trim() || auth.team || "General";
 
@@ -121,11 +119,11 @@ export async function GET(request: Request) {
 
   const userIds = directory.users.map((u) => u.id);
   if (userIds.length === 0) {
-    const warningOnly = schemaWarning;
     return NextResponse.json({
       requirements,
       rows: [],
-      warning: warningOnly,
+      warning: null,
+      schemaMigrationNeeded,
       capabilities: { canMutate: canMutateCompanyTrainingRequirements(auth.role) },
     });
   }
@@ -151,10 +149,6 @@ export async function GET(request: Request) {
     const suffix =
       " Construction profiles could not be loaded for every row (permissions or configuration).";
     warning = warning ? `${warning}${suffix}` : suffix.trimStart();
-  }
-
-  if (schemaWarning) {
-    warning = warning ? `${warning} ${schemaWarning}` : schemaWarning;
   }
 
   const profileMap = new Map<string, ProfileRow>();
@@ -193,6 +187,7 @@ export async function GET(request: Request) {
     requirements,
     rows,
     warning,
+    schemaMigrationNeeded,
     capabilities: { canMutate: canMutateCompanyTrainingRequirements(auth.role) },
   });
 }

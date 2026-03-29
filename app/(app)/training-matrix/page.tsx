@@ -14,6 +14,7 @@ import {
   CONSTRUCTION_POSITIONS,
   CONSTRUCTION_TRADES,
 } from "@/lib/constructionProfileOptions";
+import { TRAINING_REQUIREMENTS_MIGRATION_SQL } from "@/lib/companyTrainingRequirementsDb";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -197,10 +198,62 @@ function PickTradesAndPositions({
   );
 }
 
+const SCHEMA_MIGRATION_BANNER_DISMISSED_KEY = "sd360_dismiss_training_schema_migration_v1";
+
+function SchemaMigrationBanner({ onDismiss }: { onDismiss: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  const copySql = () => {
+    void navigator.clipboard.writeText(TRAINING_REQUIREMENTS_MIGRATION_SQL).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-amber-950">Database: enable trade and position rules</p>
+          <p className="mt-1 text-sm leading-6 text-amber-900/90">
+            Run the SQL below in{" "}
+            <strong className="font-semibold">Supabase → SQL Editor</strong> for this project. Until then,
+            trade/position picks are not saved and requirements apply to everyone.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="shrink-0 rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950 transition hover:bg-amber-100"
+        >
+          Dismiss
+        </button>
+      </div>
+      <details className="mt-3 rounded-xl border border-amber-200/80 bg-white/60 p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-amber-950">
+          Show SQL to copy
+        </summary>
+        <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-slate-900/5 p-3 font-mono text-xs leading-relaxed text-slate-800">
+          {TRAINING_REQUIREMENTS_MIGRATION_SQL}
+        </pre>
+        <button
+          type="button"
+          onClick={() => copySql()}
+          className="mt-2 rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
+        >
+          {copied ? "Copied" : "Copy SQL"}
+        </button>
+      </details>
+    </div>
+  );
+}
+
 export default function TrainingMatrixPage() {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [rows, setRows] = useState<MatrixRow[]>([]);
   const [canMutate, setCanMutate] = useState(false);
+  const [schemaMigrationNeeded, setSchemaMigrationNeeded] = useState(false);
+  const [schemaMigrationBannerDismissed, setSchemaMigrationBannerDismissed] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -220,6 +273,28 @@ export default function TrainingMatrixPage() {
   const [editApplyTrades, setEditApplyTrades] = useState<string[]>([]);
   const [editApplyPositions, setEditApplyPositions] = useState<string[]>([]);
 
+  useEffect(() => {
+    try {
+      if (
+        typeof window !== "undefined" &&
+        window.localStorage.getItem(SCHEMA_MIGRATION_BANNER_DISMISSED_KEY) === "1"
+      ) {
+        setSchemaMigrationBannerDismissed(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const dismissSchemaMigrationBanner = useCallback(() => {
+    setSchemaMigrationBannerDismissed(true);
+    try {
+      window.localStorage.setItem(SCHEMA_MIGRATION_BANNER_DISMISSED_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const loadMatrix = useCallback(async () => {
     setLoading(true);
     setMessage("");
@@ -234,6 +309,7 @@ export default function TrainingMatrixPage() {
             requirements?: Requirement[];
             rows?: MatrixRow[];
             warning?: string | null;
+            schemaMigrationNeeded?: boolean;
             capabilities?: { canMutate?: boolean };
           }
         | null;
@@ -243,9 +319,12 @@ export default function TrainingMatrixPage() {
         setMessage(data?.error || "Failed to load training matrix.");
         setRequirements([]);
         setRows([]);
+        setSchemaMigrationNeeded(false);
         setLoading(false);
         return;
       }
+
+      setSchemaMigrationNeeded(Boolean(data?.schemaMigrationNeeded));
 
       setRequirements(
         (data?.requirements ?? []).map((r) => ({
@@ -269,6 +348,7 @@ export default function TrainingMatrixPage() {
       setMessage(e instanceof Error ? e.message : "Failed to load training matrix.");
       setRequirements([]);
       setRows([]);
+      setSchemaMigrationNeeded(false);
     }
     setLoading(false);
   }, []);
@@ -429,6 +509,9 @@ export default function TrainingMatrixPage() {
         }
       />
 
+      {schemaMigrationNeeded && !schemaMigrationBannerDismissed ? (
+        <SchemaMigrationBanner onDismiss={dismissSchemaMigrationBanner} />
+      ) : null}
       {warning ? <InlineMessage tone="warning">{warning}</InlineMessage> : null}
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 

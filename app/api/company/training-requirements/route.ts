@@ -223,7 +223,7 @@ export async function POST(request: Request) {
     .single();
 
   let schemaWarning: string | null = null;
-  if (createdRes.error && isMissingApplyColumnsError(createdRes.error.message)) {
+  if (createdRes.error && isMissingApplyColumnsError(createdRes.error)) {
     const { apply_trades: _t, apply_positions: _p, ...legacyPayload } = insertPayload;
     createdRes = await auth.supabase
       .from("company_training_requirements")
