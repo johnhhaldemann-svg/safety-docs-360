@@ -90,6 +90,8 @@ export default function JobsitesPage() {
     documents,
     pendingDocuments,
     companyInvites,
+    companyUsers,
+    activeUsers,
     activeJobsitesCount,
     reload,
     referenceTime,

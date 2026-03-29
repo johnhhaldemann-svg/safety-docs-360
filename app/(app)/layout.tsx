@@ -336,24 +336,6 @@ function getAvatarInitials(label: string) {
   return (parts[0]?.[0] ?? "U") + (parts[1]?.[0] ?? "");
 }
 
-async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-  timeoutMs = 10000
-) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    return await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    });
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
 function ProfileAvatar({
   profile,
   email,
