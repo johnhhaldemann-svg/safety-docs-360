@@ -9,6 +9,13 @@ import {
   filterAllowedPositions,
   filterAllowedTrades,
 } from "@/lib/constructionProfileOptions";
+import {
+  fetchCompanyTrainingRequirements,
+  isMissingApplyColumnsError,
+  selectReturnFull,
+  selectReturnLegacy,
+  TRAINING_REQUIREMENTS_SCHEMA_WARNING,
+} from "@/lib/companyTrainingRequirementsDb";
 import { DEFAULT_MATCH_FIELDS } from "@/lib/trainingMatrix";
 
 export const runtime = "nodejs";
@@ -82,22 +89,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ requirements: [], capabilities: { canMutate: false } });
   }
 
-  const { data, error } = await auth.supabase
-    .from("company_training_requirements")
-    .select(
-      "id, company_id, title, sort_order, match_keywords, match_fields, apply_trades, apply_positions, created_at, updated_at"
-    )
-    .eq("company_id", companyScope.companyId)
-    .order("sort_order", { ascending: true });
+  const fetched = await fetchCompanyTrainingRequirements(
+    auth.supabase,
+    companyScope.companyId,
+    true
+  );
 
-  if (error) {
+  if (fetched.error) {
     return NextResponse.json(
-      { error: error.message || "Failed to load training requirements." },
+      { error: fetched.error || "Failed to load training requirements." },
       { status: 500 }
     );
   }
 
-  const requirements = ((data ?? []) as RequirementRow[]).map((row) => ({
+  const requirements = fetched.rows.map((row) => ({
     id: row.id,
     title: row.title,
     sortOrder: row.sort_order,
@@ -114,6 +119,7 @@ export async function GET(request: Request) {
     capabilities: {
       canMutate: canMutateCompanyTrainingRequirements(auth.role),
     },
+    schemaWarning: fetched.applyColumnsAvailable ? null : TRAINING_REQUIREMENTS_SCHEMA_WARNING,
   });
 }
 
@@ -196,37 +202,49 @@ export async function POST(request: Request) {
 
   const nowIso = new Date().toISOString();
 
-  const { data, error } = await auth.supabase
+  const insertPayload: Record<string, unknown> = {
+    company_id: companyScope.companyId,
+    title,
+    sort_order: sortOrder,
+    match_keywords: matchKeywords,
+    match_fields: matchFields,
+    apply_trades: applyTrades,
+    apply_positions: applyPositions,
+    created_at: nowIso,
+    updated_at: nowIso,
+    created_by: auth.user.id,
+    updated_by: auth.user.id,
+  };
+
+  let createdRes = await auth.supabase
     .from("company_training_requirements")
-    .insert({
-      company_id: companyScope.companyId,
-      title,
-      sort_order: sortOrder,
-      match_keywords: matchKeywords,
-      match_fields: matchFields,
-      apply_trades: applyTrades,
-      apply_positions: applyPositions,
-      created_at: nowIso,
-      updated_at: nowIso,
-      created_by: auth.user.id,
-      updated_by: auth.user.id,
-    })
-    .select(
-      "id, company_id, title, sort_order, match_keywords, match_fields, apply_trades, apply_positions, created_at, updated_at"
-    )
+    .insert(insertPayload)
+    .select(selectReturnFull())
     .single();
 
-  const created = data as RequirementRow | null;
+  let schemaWarning: string | null = null;
+  if (createdRes.error && isMissingApplyColumnsError(createdRes.error.message)) {
+    const { apply_trades: _t, apply_positions: _p, ...legacyPayload } = insertPayload;
+    createdRes = await auth.supabase
+      .from("company_training_requirements")
+      .insert(legacyPayload)
+      .select(selectReturnLegacy())
+      .single();
+    schemaWarning = TRAINING_REQUIREMENTS_SCHEMA_WARNING;
+  }
 
-  if (error || !created) {
+  const created = createdRes.data as RequirementRow | null;
+
+  if (createdRes.error || !created) {
     return NextResponse.json(
-      { error: error?.message || "Failed to create training requirement." },
+      { error: createdRes.error?.message || "Failed to create training requirement." },
       { status: 500 }
     );
   }
 
   return NextResponse.json({
     success: true,
+    schemaWarning,
     requirement: {
       id: created.id,
       title: created.title,

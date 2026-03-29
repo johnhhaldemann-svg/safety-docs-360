@@ -168,15 +168,23 @@ export default function TrainingMatrixPage() {
           applyPositions: newApplyPositions,
         }),
       });
-      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+        schemaWarning?: string | null;
+      } | null;
       if (!res.ok) {
         setMessageTone("error");
         setMessage(data?.error || "Failed to create requirement.");
         setSaving(false);
         return;
       }
-      setMessageTone("success");
-      setMessage("Requirement added.");
+      if (data?.schemaWarning) {
+        setMessageTone("warning");
+        setMessage(`Requirement added. ${data.schemaWarning}`);
+      } else {
+        setMessageTone("success");
+        setMessage("Requirement added.");
+      }
       setNewTitle("");
       setNewKeywords("");
       setNewApplyTrades([]);
@@ -221,15 +229,23 @@ export default function TrainingMatrixPage() {
           applyPositions: editApplyPositions,
         }),
       });
-      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+        schemaWarning?: string | null;
+      } | null;
       if (!res.ok) {
         setMessageTone("error");
         setMessage(data?.error || "Failed to update requirement.");
         setSaving(false);
         return;
       }
-      setMessageTone("success");
-      setMessage("Requirement updated.");
+      if (data?.schemaWarning) {
+        setMessageTone("warning");
+        setMessage(`Requirement updated. ${data.schemaWarning}`);
+      } else {
+        setMessageTone("success");
+        setMessage("Requirement updated.");
+      }
       setEditingId(null);
       await loadMatrix();
     } catch (e) {

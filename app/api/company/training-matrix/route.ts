@@ -11,23 +11,16 @@ import {
   loadCompanyWorkspaceUsersRls,
 } from "@/lib/companyWorkspaceDirectory";
 import {
+  fetchCompanyTrainingRequirements,
+  TRAINING_REQUIREMENTS_SCHEMA_WARNING,
+} from "@/lib/companyTrainingRequirementsDb";
+import {
   computeTrainingMatrixRow,
   DEFAULT_MATCH_FIELDS,
   type TrainingRequirementInput,
 } from "@/lib/trainingMatrix";
 
 export const runtime = "nodejs";
-
-type RequirementRow = {
-  id: string;
-  company_id: string;
-  title: string;
-  sort_order: number;
-  match_keywords: string[];
-  match_fields: string[];
-  apply_trades: string[] | null;
-  apply_positions: string[] | null;
-};
 
 type ProfileRow = {
   user_id: string;
@@ -73,22 +66,20 @@ export async function GET(request: Request) {
 
   const adminClient = createSupabaseAdminClient();
 
-  const requirementsResult = await auth.supabase
-    .from("company_training_requirements")
-    .select(
-      "id, company_id, title, sort_order, match_keywords, match_fields, apply_trades, apply_positions"
-    )
-    .eq("company_id", companyScope.companyId)
-    .order("sort_order", { ascending: true });
+  const reqFetch = await fetchCompanyTrainingRequirements(
+    auth.supabase,
+    companyScope.companyId,
+    false
+  );
 
-  if (requirementsResult.error) {
+  if (reqFetch.error) {
     return NextResponse.json(
-      { error: requirementsResult.error.message || "Failed to load training requirements." },
+      { error: reqFetch.error || "Failed to load training requirements." },
       { status: 500 }
     );
   }
 
-  const requirements = ((requirementsResult.data ?? []) as RequirementRow[]).map((row) => ({
+  const requirements = reqFetch.rows.map((row) => ({
     id: row.id,
     title: row.title,
     sortOrder: row.sort_order,
@@ -98,16 +89,15 @@ export async function GET(request: Request) {
     applyPositions: row.apply_positions ?? [],
   }));
 
-  const requirementInputs: TrainingRequirementInput[] = ((requirementsResult.data ??
-    []) as RequirementRow[]).map(
-    (row) => ({
-      id: row.id,
-      match_keywords: row.match_keywords ?? [],
-      match_fields: row.match_fields?.length ? row.match_fields : [...DEFAULT_MATCH_FIELDS],
-      apply_trades: row.apply_trades ?? [],
-      apply_positions: row.apply_positions ?? [],
-    })
-  );
+  const requirementInputs: TrainingRequirementInput[] = reqFetch.rows.map((row) => ({
+    id: row.id,
+    match_keywords: row.match_keywords ?? [],
+    match_fields: row.match_fields?.length ? row.match_fields : [...DEFAULT_MATCH_FIELDS],
+    apply_trades: row.apply_trades ?? [],
+    apply_positions: row.apply_positions ?? [],
+  }));
+
+  const schemaWarning = reqFetch.applyColumnsAvailable ? null : TRAINING_REQUIREMENTS_SCHEMA_WARNING;
 
   const scopeTeam = companyScope.companyName?.trim() || auth.team || "General";
 
@@ -131,10 +121,11 @@ export async function GET(request: Request) {
 
   const userIds = directory.users.map((u) => u.id);
   if (userIds.length === 0) {
+    const warningOnly = schemaWarning;
     return NextResponse.json({
       requirements,
       rows: [],
-      warning: null,
+      warning: warningOnly,
       capabilities: { canMutate: canMutateCompanyTrainingRequirements(auth.role) },
     });
   }
@@ -160,6 +151,10 @@ export async function GET(request: Request) {
     const suffix =
       " Construction profiles could not be loaded for every row (permissions or configuration).";
     warning = warning ? `${warning}${suffix}` : suffix.trimStart();
+  }
+
+  if (schemaWarning) {
+    warning = warning ? `${warning} ${schemaWarning}` : schemaWarning;
   }
 
   const profileMap = new Map<string, ProfileRow>();

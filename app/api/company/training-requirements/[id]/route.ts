@@ -6,6 +6,12 @@ import {
   filterAllowedPositions,
   filterAllowedTrades,
 } from "@/lib/constructionProfileOptions";
+import {
+  fetchTrainingRequirementById,
+  selectReturnFull,
+  selectReturnLegacy,
+  TRAINING_REQUIREMENTS_SCHEMA_WARNING,
+} from "@/lib/companyTrainingRequirementsDb";
 import { DEFAULT_MATCH_FIELDS } from "@/lib/trainingMatrix";
 
 export const runtime = "nodejs";
@@ -93,26 +99,22 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
 
-  const { data: existingRaw, error: loadError } = await auth.supabase
-    .from("company_training_requirements")
-    .select(
-      "id, company_id, title, sort_order, match_keywords, match_fields, apply_trades, apply_positions"
-    )
-    .eq("id", id)
-    .maybeSingle();
+  const loaded = await fetchTrainingRequirementById(auth.supabase, id);
 
-  const existing = existingRaw as RequirementRow | null;
-
-  if (loadError) {
+  if (loaded.error) {
     return NextResponse.json(
-      { error: loadError.message || "Failed to load requirement." },
+      { error: loaded.error || "Failed to load requirement." },
       { status: 500 }
     );
   }
 
+  const existing = loaded.row as RequirementRow | null;
+
   if (!existing || existing.company_id !== companyScope.companyId) {
     return NextResponse.json({ error: "Training requirement not found." }, { status: 404 });
   }
+
+  const applyColumnsAvailable = loaded.applyColumnsAvailable;
 
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
@@ -169,27 +171,37 @@ export async function PATCH(request: Request, context: RouteContext) {
     updates.sort_order = body.sortOrder;
   }
 
-  const { data, error } = await auth.supabase
+  let schemaWarning: string | null = null;
+  if (!applyColumnsAvailable) {
+    if ("apply_trades" in updates || "apply_positions" in updates) {
+      schemaWarning = TRAINING_REQUIREMENTS_SCHEMA_WARNING;
+    }
+    delete updates.apply_trades;
+    delete updates.apply_positions;
+  }
+
+  const returnSelect = applyColumnsAvailable ? selectReturnFull() : selectReturnLegacy();
+
+  const updateRes = await auth.supabase
     .from("company_training_requirements")
     .update(updates)
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
-    .select(
-      "id, company_id, title, sort_order, match_keywords, match_fields, apply_trades, apply_positions, created_at, updated_at"
-    )
+    .select(returnSelect)
     .single();
 
-  const updated = data as RequirementRow | null;
+  const updated = updateRes.data as RequirementRow | null;
 
-  if (error || !updated) {
+  if (updateRes.error || !updated) {
     return NextResponse.json(
-      { error: error?.message || "Failed to update training requirement." },
+      { error: updateRes.error?.message || "Failed to update training requirement." },
       { status: 500 }
     );
   }
 
   return NextResponse.json({
     success: true,
+    schemaWarning,
     requirement: {
       id: updated.id,
       title: updated.title,
