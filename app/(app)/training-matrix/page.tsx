@@ -55,6 +55,38 @@ function normalizeCellState(v: unknown): MatrixCellState {
   return "gap";
 }
 
+const positionOptionSet = new Set<string>(CONSTRUCTION_POSITIONS);
+
+/** Stored title: `Training name (Position A, Position B)` for matrix / lists. */
+function composeRequirementTitle(trainingLine: string, positions: string[]): string {
+  const t = trainingLine.trim();
+  const pos = positions.filter(Boolean);
+  if (!t) return "";
+  if (pos.length === 0) return t;
+  return `${t} (${pos.join(", ")})`;
+}
+
+/** Split stored title for editing; falls back to API positions when title is legacy plain text. */
+function parseRequirementTitleForEdit(
+  storedTitle: string,
+  apiPositions: string[]
+): { trainingLine: string; positions: string[] } {
+  const m = storedTitle.trim().match(/^(.+)\s+\(([^)]+)\)\s*$/);
+  if (!m) {
+    return { trainingLine: storedTitle.trim(), positions: [...apiPositions] };
+  }
+  const trainingLine = m[1].trim();
+  const candidates = m[2]
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const matched = candidates.filter((p) => positionOptionSet.has(p));
+  if (matched.length > 0) {
+    return { trainingLine, positions: matched };
+  }
+  return { trainingLine: storedTitle.trim(), positions: [...apiPositions] };
+}
+
 async function getAccessToken() {
   const {
     data: { session },
@@ -153,8 +185,8 @@ function PickTradesAndPositions({
         </div>
         {variant === "default" ? (
           <p className="mt-0.5 text-xs text-slate-500">
-            Same options as <strong>Site position</strong> on the construction profile. Choose from the
-            dropdown; add several if needed.
+            Same options as <strong>Site position</strong> on the construction profile. Each pick is
+            included in the saved title after your training name.
           </p>
         ) : null}
         <select
@@ -261,15 +293,13 @@ export default function TrainingMatrixPage() {
     "neutral"
   );
 
-  const [newTitle, setNewTitle] = useState("");
-  const [newKeywords, setNewKeywords] = useState("");
+  const [newTrainingLine, setNewTrainingLine] = useState("");
   const [newApplyTrades, setNewApplyTrades] = useState<string[]>([]);
   const [newApplyPositions, setNewApplyPositions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editKeywords, setEditKeywords] = useState("");
+  const [editTrainingLine, setEditTrainingLine] = useState("");
   const [editApplyTrades, setEditApplyTrades] = useState<string[]>([]);
   const [editApplyPositions, setEditApplyPositions] = useState<string[]>([]);
 
@@ -369,8 +399,8 @@ export default function TrainingMatrixPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          title: newTitle.trim(),
-          keywords: newKeywords,
+          title: composeRequirementTitle(newTrainingLine, newApplyPositions),
+          keywords: newTrainingLine.trim(),
           matchFields: ["certifications"],
           applyTrades: newApplyTrades,
           applyPositions: newApplyPositions,
@@ -393,8 +423,7 @@ export default function TrainingMatrixPage() {
         setMessageTone("success");
         setMessage("Requirement added.");
       }
-      setNewTitle("");
-      setNewKeywords("");
+      setNewTrainingLine("");
       setNewApplyTrades([]);
       setNewApplyPositions([]);
       await loadMatrix();
@@ -403,14 +432,14 @@ export default function TrainingMatrixPage() {
       setMessage(e instanceof Error ? e.message : "Failed to create requirement.");
     }
     setSaving(false);
-  }, [loadMatrix, newApplyPositions, newApplyTrades, newKeywords, newTitle]);
+  }, [loadMatrix, newApplyPositions, newApplyTrades, newTrainingLine]);
 
   const startEdit = useCallback((r: Requirement) => {
     setEditingId(r.id);
-    setEditTitle(r.title);
-    setEditKeywords(r.matchKeywords.join(", "));
+    const parsed = parseRequirementTitleForEdit(r.title, r.applyPositions ?? []);
+    setEditTrainingLine(parsed.trainingLine);
     setEditApplyTrades([...(r.applyTrades ?? [])]);
-    setEditApplyPositions([...(r.applyPositions ?? [])]);
+    setEditApplyPositions(parsed.positions);
   }, []);
 
   const cancelEdit = useCallback(() => {
@@ -430,8 +459,8 @@ export default function TrainingMatrixPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          title: editTitle.trim(),
-          keywords: editKeywords,
+          title: composeRequirementTitle(editTrainingLine, editApplyPositions),
+          keywords: editTrainingLine.trim(),
           matchFields: ["certifications"],
           applyTrades: editApplyTrades,
           applyPositions: editApplyPositions,
@@ -461,7 +490,7 @@ export default function TrainingMatrixPage() {
       setMessage(e instanceof Error ? e.message : "Failed to update requirement.");
     }
     setSaving(false);
-  }, [editApplyPositions, editApplyTrades, editKeywords, editTitle, editingId, loadMatrix]);
+  }, [editApplyPositions, editApplyTrades, editTrainingLine, editingId, loadMatrix]);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -498,7 +527,7 @@ export default function TrainingMatrixPage() {
       <PageHero
         eyebrow="Company workspace"
         title="Training matrix"
-        description="Each requirement applies to selected trades and site positions (same lists as the construction profile). Keywords match certifications on the profile. Profile data is per user account and is shared across workspaces."
+        description="Name each training by what people need on their profile, and which site positions it applies to. The matrix matches certification text on each person’s construction profile."
         actions={
           <Link
             href="/dashboard"
@@ -518,29 +547,21 @@ export default function TrainingMatrixPage() {
       {canMutate ? (
         <SectionCard
           title="Required trainings"
-          description="Add trades and positions using the dropdowns (same lists as the construction profile). Use certification keywords to match credentials on each profile."
+          description="Enter the training or certification, then choose positions (and trades). The saved title becomes that training with the positions in parentheses, e.g. OSHA 30-Hour (Foreman, Superintendent)."
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="block text-sm font-medium text-slate-700">
-              Title
-              <input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
-                placeholder="e.g. OSHA 30"
-              />
-            </label>
-            <label className="block text-sm font-medium text-slate-700">
-              Certification keywords
-              <textarea
-                value={newKeywords}
-                onChange={(e) => setNewKeywords(e.target.value)}
-                rows={3}
-                className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
-                placeholder="osha 30, osha30, 30-hour"
-              />
-            </label>
-          </div>
+          <label className="block text-sm font-medium text-slate-700">
+            Training requirement
+            <input
+              value={newTrainingLine}
+              onChange={(e) => setNewTrainingLine(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              placeholder="e.g. OSHA 30-Hour — use commas for extra match phrases"
+            />
+            <span className="mt-1 block text-xs font-normal text-slate-500">
+              This text is matched against certifications on each profile. Positions you add below are
+              appended to the title.
+            </span>
+          </label>
           <PickTradesAndPositions
             trades={newApplyTrades}
             positions={newApplyPositions}
@@ -553,8 +574,7 @@ export default function TrainingMatrixPage() {
               type="button"
               disabled={
                 saving ||
-                !newTitle.trim() ||
-                !newKeywords.trim() ||
+                !newTrainingLine.trim() ||
                 newApplyTrades.length === 0 ||
                 newApplyPositions.length === 0
               }
@@ -574,18 +594,15 @@ export default function TrainingMatrixPage() {
                 >
                   {editingId === r.id ? (
                     <div className="grid gap-3">
-                      <input
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                      />
-                      <textarea
-                        value={editKeywords}
-                        onChange={(e) => setEditKeywords(e.target.value)}
-                        rows={2}
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                        placeholder="Certification keywords"
-                      />
+                      <label className="block text-xs font-semibold text-slate-600">
+                        Training requirement
+                        <input
+                          value={editTrainingLine}
+                          onChange={(e) => setEditTrainingLine(e.target.value)}
+                          className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-normal"
+                          placeholder="e.g. OSHA 30-Hour"
+                        />
+                      </label>
                       <PickTradesAndPositions
                         trades={editApplyTrades}
                         positions={editApplyPositions}
@@ -599,8 +616,7 @@ export default function TrainingMatrixPage() {
                           onClick={() => void handleSaveEdit()}
                           disabled={
                             saving ||
-                            !editTitle.trim() ||
-                            !editKeywords.trim() ||
+                            !editTrainingLine.trim() ||
                             editApplyTrades.length === 0 ||
                             editApplyPositions.length === 0
                           }
@@ -623,9 +639,6 @@ export default function TrainingMatrixPage() {
                         <div className="font-semibold text-slate-900">{r.title}</div>
                         <div className="mt-1 text-xs text-slate-500">
                           Trades: {(r.applyTrades ?? []).join(", ") || "—"}
-                        </div>
-                        <div className="mt-0.5 text-xs text-slate-500">
-                          Positions: {(r.applyPositions ?? []).join(", ") || "—"}
                         </div>
                         <div className="mt-1 text-sm text-slate-600">
                           {r.matchKeywords.join(" · ")}
