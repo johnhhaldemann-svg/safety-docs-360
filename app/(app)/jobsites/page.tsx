@@ -314,6 +314,13 @@ export default function JobsitesPage() {
           <>
             <button
               type="button"
+              onClick={() => void reload()}
+              className="rounded-xl border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+            >
+              {loading ? "Refreshing..." : "Refresh Jobsites"}
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setSelectedJobsiteId("all");
                 resetComposer();
@@ -335,7 +342,8 @@ export default function JobsitesPage() {
 
       <InlineMessage tone="neutral">
         Company admins can create managed jobsites here, while older document-only project names can
-        be converted into real jobsites as your workspace matures.
+        be converted into real jobsites as your workspace matures. Use Refresh Jobsites whenever
+        you want the latest company data.
       </InlineMessage>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -712,6 +720,291 @@ export default function JobsitesPage() {
             )}
           </div>
         </SectionCard>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+        <SectionCard
+          title={selectedJobsite ? `${selectedJobsite.name} Site Board` : "Site Board"}
+          description={
+            selectedJobsite
+              ? "Open site details, live document flow, and readiness data for the selected jobsite."
+              : "Pick a jobsite from the directory to open its board."
+          }
+        >
+          {!selectedJobsite ? (
+            <EmptyState
+              title="Choose a jobsite to open its board"
+              description="Once a site is selected, you will see site details, documents, and recent activity in one place."
+            />
+          ) : (
+            <div className="space-y-6">
+              {selectedJobsite.source === "document_fallback" ? (
+                <InlineMessage tone="warning">
+                  This site is still document-based. Save it in the form above to unlock managed
+                  site controls and richer site metadata.
+                </InlineMessage>
+              ) : null}
+
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  {
+                    title: "Company Users",
+                    value: String(companyUsers.length),
+                    note: "People assigned to this company workspace",
+                  },
+                  {
+                    title: "Users Online",
+                    value: String(activeUsers.length),
+                    note: "Field and office users active in the last 20 minutes",
+                  },
+                  {
+                    title: "Pending Site Docs",
+                    value: String(selectedJobsite.pendingDocuments),
+                    note: "Live documents waiting on next action",
+                  },
+                  {
+                    title: "Open Invites",
+                    value: String(companyInvites.length),
+                    note: "Invites still waiting for account setup",
+                  },
+                ].map((card) => (
+                  <div
+                    key={card.title}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+                  >
+                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                      {card.title}
+                    </div>
+                    <div className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+                      {loading ? "-" : card.value}
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-slate-500">{card.note}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-2xl font-black tracking-tight text-slate-950">
+                        {selectedJobsite.name}
+                      </h2>
+                      <StatusBadge
+                        label={selectedJobsite.status}
+                        tone={getJobsiteTone(selectedJobsite.status)}
+                      />
+                      <StatusBadge label={selectedJobsite.projectNumber} tone="info" />
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      {selectedJobsite.location || companyLocation}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <Link
+                      href="/submit"
+                      className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500"
+                    >
+                      Submit Site Document
+                    </Link>
+                    <Link
+                      href="/upload"
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Upload Existing File
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Project Manager
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-900">
+                      {selectedJobsite.projectManager || "Not assigned yet"}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Safety Lead
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-900">
+                      {selectedJobsite.safetyLead || "Not assigned yet"}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Start Date
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-900">
+                      {selectedJobsite.startDate || "Not set"}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      End Date
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-900">
+                      {selectedJobsite.endDate || "Not set"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    Site Notes
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">
+                    {selectedJobsite.notes ||
+                      "No site notes yet. Use the jobsite form to capture startup conditions, risk notes, and coordination details."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">Site Documents</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Live documents connected to this jobsite.
+                    </p>
+                  </div>
+                  <StatusBadge
+                    label={`${selectedJobsiteDocuments.length} file${
+                      selectedJobsiteDocuments.length === 1 ? "" : "s"
+                    }`}
+                    tone={selectedJobsiteDocuments.length > 0 ? "info" : "neutral"}
+                  />
+                </div>
+
+                {selectedJobsiteDocuments.length === 0 ? (
+                  <div className="mt-5">
+                    <EmptyState
+                      title="No site documents yet"
+                      description="Submit or upload the first document for this jobsite to start the live record."
+                      actionHref="/submit"
+                      actionLabel="Submit Document"
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+                    <div className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.7fr_0.7fr] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      <div>Document</div>
+                      <div>Type</div>
+                      <div>Status</div>
+                      <div>Submitted</div>
+                      <div>Action</div>
+                    </div>
+                    {selectedJobsiteDocuments.map((document) => (
+                      <div
+                        key={document.id}
+                        className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.7fr_0.7fr] gap-4 border-b border-slate-200 px-4 py-4 text-sm last:border-b-0"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-slate-900">
+                            {getDocumentLabel(document)}
+                          </div>
+                          <div className="mt-1 truncate text-slate-500">
+                            {document.file_name || selectedJobsite.name}
+                          </div>
+                        </div>
+                        <div className="text-slate-600">
+                          {document.document_type || "Document"}
+                        </div>
+                        <div>
+                          <StatusBadge
+                            label={getDocumentStatusLabel(
+                              document.status,
+                              Boolean(document.final_file_path)
+                            )}
+                            tone={
+                              selectedJobsite.pendingDocuments > 0 ? "warning" : "success"
+                            }
+                          />
+                        </div>
+                        <div className="text-slate-600">
+                          {formatRelative(document.created_at, referenceTime)}
+                        </div>
+                        <div>
+                          <Link
+                            href="/library"
+                            className="text-sm font-semibold text-sky-700 transition hover:text-sky-600"
+                          >
+                            Open
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </SectionCard>
+
+        <div className="space-y-6">
+          <ActivityFeed
+            title="Site Activity"
+            description="Recent document movement and site-level work happening around this jobsite."
+            items={selectedJobsiteActivity}
+          />
+
+          <SectionCard
+            title="Operations Readiness"
+            description="Quick links to the company modules tied to the selected jobsite."
+          >
+            <div className="grid gap-4">
+              {[
+                {
+                  title: "Users by Jobsite",
+                  detail: `${companyUsers.length} company users available for deployment and coordination.`,
+                  href: "/company-users",
+                  label: "Open Users",
+                },
+                {
+                  title: "Field iD Exchange",
+                  detail:
+                    "Track hazards, near misses, good catches, and live field observations for this site.",
+                  href: "/field-id-exchange",
+                  label: "Open Exchange",
+                },
+                {
+                  title: "Site Reporting",
+                  detail:
+                    "Review document status, submissions, and company-side reporting tied to active work.",
+                  href: "/reports",
+                  label: "Open Reports",
+                },
+                {
+                  title: "Corrective Actions",
+                  detail: `${pendingDocuments.length} pending document actions and ${companyInvites.length} open invites currently need follow-up.`,
+                  href: "/dashboard",
+                  label: "Back to Board",
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-900">{item.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">{item.detail}</p>
+                    </div>
+                    <Link
+                      href={item.href}
+                      className="inline-flex rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
+                    >
+                      {item.label}
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
       </section>
 
       <ActivityFeed

@@ -8,6 +8,7 @@ import {
   formatAccountStatus,
   formatAppRole,
   getUserRoleContext,
+  isCrossWorkspaceAdminRole,
   normalizeAccountStatus,
   normalizeAppRole,
 } from "@/lib/rbac";
@@ -125,7 +126,7 @@ function canViewRoleInDirectory(params: {
   viewerRole: string;
   targetRole?: string | null;
 }) {
-  if (normalizeAppRole(params.viewerRole) === "super_admin") {
+  if (isCrossWorkspaceAdminRole(params.viewerRole)) {
     return true;
   }
 
@@ -134,7 +135,7 @@ function canViewRoleInDirectory(params: {
 
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
-    requirePermission: "can_assign_roles",
+    requirePermission: "can_access_internal_admin",
   });
 
   if ("error" in auth) {
@@ -177,7 +178,7 @@ export async function GET(request: Request) {
         capabilities: {
           canPermanentlyDeleteUsers: false,
           canRunAdminAuthActions: false,
-          canViewAllUsers: auth.role === "super_admin",
+          canViewAllUsers: isCrossWorkspaceAdminRole(auth.role),
         },
         warning:
           "Showing database-backed admin directory fallback because the Supabase service role key is unavailable at runtime.",
@@ -230,7 +231,7 @@ export async function GET(request: Request) {
       capabilities: {
         canPermanentlyDeleteUsers: false,
         canRunAdminAuthActions: false,
-        canViewAllUsers: auth.role === "super_admin",
+        canViewAllUsers: isCrossWorkspaceAdminRole(auth.role),
       },
       warning:
         "Showing RBAC directory fallback because the Supabase service role key is unavailable at runtime.",
@@ -303,14 +304,14 @@ export async function GET(request: Request) {
     capabilities: {
       canPermanentlyDeleteUsers: auth.role === "super_admin",
       canRunAdminAuthActions: true,
-      canViewAllUsers: auth.role === "super_admin",
+      canViewAllUsers: isCrossWorkspaceAdminRole(auth.role),
     },
   });
 }
 
 export async function POST(request: Request) {
   const auth = await authorizeRequest(request, {
-    requirePermission: "can_assign_roles",
+    requirePermission: "can_access_internal_admin",
   });
 
   if ("error" in auth) {

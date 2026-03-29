@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -109,6 +110,7 @@ export default function AdminCompanyDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const router = useRouter();
   const [companyId, setCompanyId] = useState("");
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [summary, setSummary] = useState<CompanySummary | null>(null);
@@ -122,6 +124,10 @@ export default function AdminCompanyDetailPage({
   );
   const [loading, setLoading] = useState(true);
   const [processingAction, setProcessingAction] = useState(false);
+  const [canPermanentlyDeleteCompanies, setCanPermanentlyDeleteCompanies] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deletingCompany, setDeletingCompany] = useState(false);
 
   useEffect(() => {
     void params.then((resolved) => setCompanyId(resolved.id));
@@ -154,6 +160,7 @@ export default function AdminCompanyDetailPage({
       const data = (await res.json().catch(() => null)) as
         | {
             error?: string;
+            capabilities?: { canPermanentlyDeleteCompanies?: boolean };
             company?: CompanyDetail;
             summary?: CompanySummary;
             users?: CompanyUser[];
@@ -172,10 +179,14 @@ export default function AdminCompanyDetailPage({
         setInvites([]);
         setDocuments([]);
         setActivity([]);
+        setCanPermanentlyDeleteCompanies(false);
         setLoading(false);
         return;
       }
 
+      setCanPermanentlyDeleteCompanies(
+        Boolean(data?.capabilities?.canPermanentlyDeleteCompanies)
+      );
       setCompany(data?.company ?? null);
       setSummary(data?.summary ?? null);
       setUsers(data?.users ?? []);
@@ -262,6 +273,61 @@ export default function AdminCompanyDetailPage({
     [company, loadCompany]
   );
 
+  const handlePermanentDelete = useCallback(async () => {
+    if (!company) return;
+
+    setDeletingCompany(true);
+    setMessage("");
+
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error || !session?.access_token) {
+        setMessageTone("error");
+        setMessage("You must be logged in as an internal admin.");
+        setDeletingCompany(false);
+        return;
+      }
+
+      const res = await fetch(`/api/admin/companies/${company.id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ confirmName: deleteConfirmName.trim() }),
+      });
+
+      const data = (await res.json().catch(() => null)) as
+        | {
+            error?: string;
+            message?: string;
+          }
+        | null;
+
+      if (!res.ok) {
+        setMessageTone("error");
+        setMessage(data?.error || "Failed to delete company workspace.");
+        setDeletingCompany(false);
+        return;
+      }
+
+      setMessageTone("success");
+      setMessage(data?.message || "Company removed.");
+      setDeleteConfirmOpen(false);
+      setDeleteConfirmName("");
+      router.push("/admin/companies");
+    } catch (err) {
+      setMessageTone("error");
+      setMessage(err instanceof Error ? err.message : "Failed to delete company workspace.");
+    }
+
+    setDeletingCompany(false);
+  }, [company, deleteConfirmName, router]);
+
   useEffect(() => {
     if (!companyId) return;
     queueMicrotask(() => {
@@ -333,9 +399,82 @@ export default function AdminCompanyDetailPage({
                     : "Archive Workspace"}
               </button>
             ) : null}
+            {company && canPermanentlyDeleteCompanies ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteConfirmOpen(true);
+                  setDeleteConfirmName("");
+                }}
+                disabled={processingAction || deletingCompany}
+                className="rounded-xl border border-red-300 px-5 py-3 text-sm font-semibold text-red-800 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Delete from database
+              </button>
+            ) : null}
           </div>
         }
       />
+
+      {deleteConfirmOpen && company ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div
+            className="max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-company-title"
+          >
+            <h2
+              id="delete-company-title"
+              className="text-lg font-bold text-slate-900"
+            >
+              Permanently delete this workspace?
+            </h2>
+            <p className="mt-3 text-sm text-slate-600">
+              This removes the company row and related workspace data (memberships, invites, jobsites,
+              safety data, documents, and billing rows). Former members are reset to Viewer in{" "}
+              <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">user_roles</code> when their
+              profile was tied to this company. This cannot be undone.
+            </p>
+            <p className="mt-3 text-sm font-medium text-slate-800">
+              Type the workspace name to confirm:{" "}
+              <span className="font-bold text-slate-900">{company.name}</span>
+            </p>
+            <input
+              type="text"
+              value={deleteConfirmName}
+              onChange={(e) => setDeleteConfirmName(e.target.value)}
+              className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none ring-slate-400 focus:ring-2"
+              placeholder="Workspace name"
+              autoComplete="off"
+            />
+            <div className="mt-5 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteConfirmOpen(false);
+                  setDeleteConfirmName("");
+                }}
+                disabled={deletingCompany}
+                className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handlePermanentDelete()}
+                disabled={
+                  deletingCompany ||
+                  deleteConfirmName.trim() !== company.name.trim()
+                }
+                className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deletingCompany ? "Deleting..." : "Delete permanently"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ActivityFeed,
   EmptyState,
@@ -243,7 +243,8 @@ export default function FieldIdExchangePage() {
   } = useCompanyWorkspaceData();
 
   const [actions, setActions] = useState<CorrectiveActionRow[]>([]);
-  const [loadingActions, setLoadingActions] = useState(true);
+  const [loadingActions, setLoadingActions] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [jobsiteFilter, setJobsiteFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -487,18 +488,23 @@ export default function FieldIdExchangePage() {
   }, [filteredItems]);
 
   async function reloadActions() {
+    setHasLoaded(true);
     setLoadingActions(true);
     try {
       const headers = await getAuthHeaders();
-      const [actionsResponse, submissionsResponse] = await Promise.all([
+      const [actionsResponse, submissionsResponse, activitiesResponse] = await Promise.all([
         fetchWithTimeout("/api/company/observations", { headers }, 15000),
         fetchWithTimeout("/api/company/safety-submissions?status=pending", { headers }, 15000),
+        fetchWithTimeout("/api/company/dap-activities", { headers }, 15000),
       ]);
       const actionsPayload = (await actionsResponse.json().catch(() => null)) as
         | { actions?: CorrectiveActionRow[]; observations?: CorrectiveActionRow[]; error?: string }
         | null;
       const submissionsPayload = (await submissionsResponse.json().catch(() => null)) as
         | { submissions?: SafetySubmissionRow[] }
+        | null;
+      const activitiesPayload = (await activitiesResponse.json().catch(() => null)) as
+        | { activities?: DapActivityOption[] }
         | null;
       if (!actionsResponse.ok) {
         setMessage(actionsPayload?.error || "Unable to load corrective actions.");
@@ -507,6 +513,36 @@ export default function FieldIdExchangePage() {
       }
       setActions(actionsPayload?.observations ?? actionsPayload?.actions ?? []);
       setPendingSubmissions(submissionsResponse.ok ? submissionsPayload?.submissions ?? [] : []);
+      setDapActivities(activitiesResponse.ok ? activitiesPayload?.activities ?? [] : []);
+      const preselectedActivity = searchParams.get("dapActivityId")?.trim() ?? "";
+      if (preselectedActivity) {
+        const activity = (activitiesPayload?.activities ?? []).find(
+          (item) => item.id === preselectedActivity
+        );
+        const prefilledTitle = activity
+          ? `${activity.area || "General"} - ${activity.activity_name || "Planned Activity"}`
+          : "";
+        const prefilledDescription = activity
+          ? [
+              activity.trade ? `Trade: ${activity.trade}` : null,
+              activity.area ? `Area: ${activity.area}` : null,
+              activity.activity_name ? `Activity: ${activity.activity_name}` : null,
+              activity.hazard_category ? `Hazard Category: ${activity.hazard_category}` : null,
+              `Permit Required: ${activity.permit_required ? "Yes" : "No"}`,
+              activity.permit_type ? `Permit Type: ${activity.permit_type}` : null,
+            ]
+              .filter(Boolean)
+              .join(" | ")
+          : "";
+        setComposer((current) => ({
+          ...current,
+          dapActivityId: preselectedActivity,
+          title: current.title || prefilledTitle,
+          description: current.description || prefilledDescription,
+          jobsiteId: current.jobsiteId || activity?.jobsite_id || "",
+        }));
+        setShowAdvancedComposer(true);
+      }
     } catch (error) {
       console.error("Failed to reload corrective actions:", error);
       setMessage(
@@ -906,6 +942,13 @@ export default function FieldIdExchangePage() {
         description={`Track hazards and corrective actions for ${companyName} with assignees, due dates, reminders, and closure controls.`}
         actions={
           <>
+            <button
+              type="button"
+              onClick={() => void reloadActions()}
+              className="rounded-xl border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+            >
+              {loadingActions ? "Refreshing..." : hasLoaded ? "Refresh Board" : "Load Board"}
+            </button>
             <Link
               href="/safety-submit"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
@@ -923,9 +966,8 @@ export default function FieldIdExchangePage() {
       />
 
       <InlineMessage tone="neutral">
-        Individual safety submissions are now a separate intake flow from normal review requests.
-        Each submission opens a corrective action immediately. Closing an issue requires photo proof
-        unless a manager override is recorded.
+        This board stays on-demand. Click Refresh Board to load the current field items, then use
+        the cards and filters below to review or update corrective actions.
       </InlineMessage>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -1268,7 +1310,12 @@ export default function FieldIdExchangePage() {
             </select>
           </div>
 
-          {loadingActions ? (
+          {!hasLoaded ? (
+            <EmptyState
+              title="Load the field board"
+              description="Click Refresh Board to pull the latest corrective actions, pending submissions, and DAP activity."
+            />
+          ) : loadingActions ? (
             <EmptyState title="Loading corrective actions" description="Please wait..." />
           ) : filteredItems.length === 0 ? (
             <EmptyState

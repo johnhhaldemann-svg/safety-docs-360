@@ -341,7 +341,13 @@ export async function GET(request: Request) {
     };
   });
 
-  return NextResponse.json({ companies, signupRequests });
+  return NextResponse.json({
+    companies,
+    signupRequests,
+    capabilities: {
+      canPermanentlyDeleteCompanies: auth.role === "super_admin",
+    },
+  });
 }
 
 export async function PATCH(request: Request) {

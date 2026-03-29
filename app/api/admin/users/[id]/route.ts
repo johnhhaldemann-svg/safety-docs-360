@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   authorizeRequest,
   isCompanyRole,
+  isCrossWorkspaceAdminRole,
   normalizeAccountStatus,
   normalizeAppRole,
 } from "@/lib/rbac";
@@ -49,7 +50,7 @@ async function resolveCompanyAssignment(params: {
   role: string;
   actorUserId: string;
   requestedCompanyId?: string | null;
-  isSuperAdmin: boolean;
+  canAssignCompanyWorkspace: boolean;
 }) {
   const {
     adminClient,
@@ -59,7 +60,7 @@ async function resolveCompanyAssignment(params: {
     role,
     actorUserId,
     requestedCompanyId,
-    isSuperAdmin,
+    canAssignCompanyWorkspace,
   } = params;
 
   if (!adminClient) {
@@ -69,11 +70,11 @@ async function resolveCompanyAssignment(params: {
   const normalizedRequestedCompanyId = trimText(requestedCompanyId);
 
   if (normalizedRequestedCompanyId) {
-    if (!isSuperAdmin) {
+    if (!canAssignCompanyWorkspace) {
       return {
         companyId: null,
         companyName: null,
-        error: "Only a Super Admin can assign a user to a specific company workspace.",
+        error: "Only a Super Admin or Platform Admin can assign a user to a specific company workspace.",
       };
     }
 
@@ -179,7 +180,7 @@ async function resolveCompanyAssignment(params: {
     };
   }
 
-  if (isSuperAdmin) {
+  if (canAssignCompanyWorkspace) {
     return {
       companyId: null,
       companyName: null,
@@ -244,7 +245,7 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   const auth = await authorizeRequest(request, {
-    requirePermission: "can_assign_roles",
+    requirePermission: "can_access_internal_admin",
   });
 
   if ("error" in auth) {
@@ -259,7 +260,7 @@ export async function PATCH(
   const team = body.team?.trim() || "General";
   const accountStatus = normalizeAccountStatus(body.accountStatus);
   const requestedCompanyId = trimText(body.companyId);
-  const isSuperAdmin = auth.role === "super_admin";
+  const canAssignCompanyWorkspace = isCrossWorkspaceAdminRole(auth.role);
 
   if (!adminClient) {
     const { error: roleError } = await auth.supabase.from("user_roles").upsert(
@@ -311,7 +312,7 @@ export async function PATCH(
     role,
     actorUserId: auth.user.id,
     requestedCompanyId,
-    isSuperAdmin,
+    canAssignCompanyWorkspace,
   });
 
   if (companyAssignment.error) {
@@ -392,7 +393,7 @@ export async function PATCH(
         user_id: id,
         company_id: companyAssignment.companyId,
         role: isCompanyRole(role) ? role : "company_user",
-        status: accountStatus === "pending" ? "pending" : "active",
+        status: accountStatus,
         created_by: auth.user.id,
         updated_by: auth.user.id,
       },
@@ -423,7 +424,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   const auth = await authorizeRequest(request, {
-    requirePermission: "can_assign_roles",
+    requirePermission: "can_access_internal_admin",
   });
 
   if ("error" in auth) {
@@ -561,7 +562,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   const auth = await authorizeRequest(request, {
-    requirePermission: "can_assign_roles",
+    requirePermission: "can_access_internal_admin",
   });
 
   if ("error" in auth) {

@@ -253,6 +253,36 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+const AGREEMENT_CACHE_PREFIX = "safety360docs:accepted-terms:";
+
+function getAgreementCacheKey(email: string, version: string) {
+  return `${AGREEMENT_CACHE_PREFIX}${email.trim().toLowerCase()}:${version}`;
+}
+
+function readAcceptedTermsCache(email: string, version: string) {
+  if (typeof window === "undefined" || !email.trim()) {
+    return false;
+  }
+
+  try {
+    return window.localStorage.getItem(getAgreementCacheKey(email, version)) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeAcceptedTermsCache(email: string, version: string) {
+  if (typeof window === "undefined" || !email.trim()) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(getAgreementCacheKey(email, version), "true");
+  } catch {
+    // Ignore storage failures; the server still remains the source of truth.
+  }
+}
+
 function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -304,6 +334,24 @@ function getAvatarInitials(label: string) {
     .filter(Boolean);
 
   return (parts[0]?.[0] ?? "U") + (parts[1]?.[0] ?? "");
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  timeoutMs = 10000
+) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 function ProfileAvatar({
@@ -381,6 +429,7 @@ export default function AppLayout({
     getDefaultAgreementConfig()
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [bootError, setBootError] = useState("");
   const isAdminArea = pathname.startsWith("/admin");
   const isCompanyAdminUser = userRole === "company_admin";
   const isCompanyManagerUser = userRole === "manager" || userRole === "safety_manager";
@@ -452,33 +501,6 @@ export default function AppLayout({
     };
   }, [isAdminArea, pathname, sideSections]);
 
-  const quickLinks = useMemo(() => {
-    if (needsCompanySetup) {
-      return accountSetupQuickLinks;
-    }
-    if (!isAdminArea && isCompanyAdminUser) {
-      return companyAdminQuickLinks;
-    }
-    if (!isAdminArea && isCompanyManagerUser) {
-      return companyManagerQuickLinks;
-    }
-    if (!isAdminArea && isCompanyUser) {
-      return companyUserQuickLinks;
-    }
-    const base = isAdminArea ? adminQuickLinks : userQuickLinks;
-    if (!isAdminArea && canAccessInternalAdmin) {
-      return [...base, { href: "/admin", label: "Admin Panel", short: "AD" }];
-    }
-    return base;
-  }, [
-    canAccessInternalAdmin,
-    isAdminArea,
-    isCompanyAdminUser,
-    isCompanyManagerUser,
-    isCompanyUser,
-    needsCompanySetup,
-  ]);
-
   useEffect(() => {
     let cancelled = false;
 
@@ -500,21 +522,36 @@ export default function AppLayout({
     };
   }, []);
 
+  useEffect(() => {
+    if (!userEmail.trim() || acceptedTerms) {
+      return;
+    }
+
+    if (readAcceptedTermsCache(userEmail, agreementConfig.version)) {
+      setAcceptedTerms(true);
+    }
+  }, [acceptedTerms, agreementConfig.version, userEmail]);
+
   const syncSession = useCallback(
     async (
       session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]
     ) => {
       if (!session) {
+        setLoading(false);
         router.replace("/login");
         return;
       }
 
       try {
-        const res = await fetchWithTimeout("/api/auth/me", {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
+        const res = await fetchWithTimeout(
+          "/api/auth/me",
+          {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
           },
-        }, 10000);
+          10000
+        );
 
         const data = (await res.json().catch(() => null)) as
           | {
@@ -538,9 +575,12 @@ export default function AppLayout({
         const hasPendingCompanySignupRequest = Boolean(
           data?.user?.pendingCompanySignupRequest
         );
+        const serverAcceptedTerms = Boolean(data?.user?.acceptedTerms);
+        const cachedAcceptedTerms = readAcceptedTermsCache(email, agreementConfig.version);
         const nextAccountStatus = hasPendingCompanySignupRequest
           ? "pending"
           : data?.user?.accountStatus ?? "active";
+
         setUserEmail(email);
         setUserRole(data?.user?.role ?? "viewer");
         setPermissionMap(data?.user?.permissionMap ?? null);
@@ -549,10 +589,15 @@ export default function AppLayout({
         setProfileComplete(Boolean(data?.user?.profileComplete));
         setProfileSummary(data?.user?.profile ?? null);
         setAccountStatus(nextAccountStatus);
-        setAcceptedTerms(Boolean(data?.user?.acceptedTerms));
+        setAcceptedTerms(serverAcceptedTerms || cachedAcceptedTerms);
+        if (email && (serverAcceptedTerms || cachedAcceptedTerms)) {
+          writeAcceptedTermsCache(email, agreementConfig.version);
+        }
         setTermsError("");
+        setBootError("");
       } catch (error) {
         console.error("Failed to load role context:", error);
+        const fallbackEmail = session.user.email ?? "";
         setUserEmail(session.user.email ?? "");
         setUserRole("viewer");
         setPermissionMap(null);
@@ -561,16 +606,25 @@ export default function AppLayout({
         setProfileComplete(false);
         setProfileSummary(null);
         setAccountStatus("active");
-        setAcceptedTerms(false);
+        setAcceptedTerms(
+          fallbackEmail ? readAcceptedTermsCache(fallbackEmail, agreementConfig.version) : false
+        );
+        if (!(error instanceof Error && error.name === "AbortError")) {
+          setBootError("Workspace session could not be fully loaded. Showing a limited session view.");
+        }
       } finally {
         setLoading(false);
       }
     },
-    [router]
+    [agreementConfig.version, router]
   );
 
   useEffect(() => {
     let mounted = true;
+    const bootstrapFallback = window.setTimeout(() => {
+      if (!mounted) return;
+      setLoading(false);
+    }, 12000);
 
     void (async () => {
       const {
@@ -593,6 +647,7 @@ export default function AppLayout({
 
     return () => {
       mounted = false;
+      window.clearTimeout(bootstrapFallback);
       subscription.unsubscribe();
     };
   }, [router, syncSession]);
@@ -784,6 +839,9 @@ export default function AppLayout({
         throw new Error(data?.error || "Failed to record agreement acceptance.");
       }
 
+      if (session.user.email) {
+        writeAcceptedTermsCache(session.user.email, agreementConfig.version);
+      }
       setAcceptedTerms(true);
     } catch (error) {
       setTermsError(
@@ -1154,55 +1212,17 @@ export default function AppLayout({
                   </div>
                 </div>
 
-                <div className="rounded-[1.35rem] border border-slate-200 bg-white p-3 shadow-sm">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
-                        Current Section
-                      </div>
-                      <div className="mt-1 text-sm font-semibold text-slate-900">
-                        {currentNavItem.label}
-                      </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <div className="inline-flex min-w-max gap-2">
-                        {quickLinks.map((item) => {
-                          const active = isActivePath(pathname, item.href);
-                          return (
-                            <Link
-                              key={item.href}
-                              href={item.href}
-                              className={cx(
-                                "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition",
-                                active
-                                  ? "bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)]"
-                                  : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                              )}
-                            >
-                              <span
-                                className={cx(
-                                  "inline-flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-black",
-                                  active
-                                    ? "bg-white/20 text-white"
-                                    : "bg-white text-slate-500"
-                                )}
-                              >
-                                {item.short}
-                              </span>
-                              {item.label}
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </header>
 
           <main className="flex-1 px-4 py-5 sm:px-6 xl:px-8">
             <div className="mx-auto w-full max-w-[1600px] space-y-5">
+              {bootError ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
+                  {bootError}
+                </div>
+              ) : null}
               <div className="rounded-[1.6rem] border border-[#dbe9ff] bg-[linear-gradient(180deg,_#f7fbff_0%,_#eef5ff_100%)] p-3 shadow-[0_18px_40px_rgba(148,163,184,0.14)] sm:rounded-[2rem] sm:p-4">
                 {children}
               </div>
@@ -1216,4 +1236,3 @@ export default function AppLayout({
     </div>
   );
 }
-

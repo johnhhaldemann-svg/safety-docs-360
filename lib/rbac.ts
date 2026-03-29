@@ -254,6 +254,12 @@ export function isAdminRole(role?: string | null) {
   );
 }
 
+/** Full user directory across workspaces + assign users to a specific company (super / platform admin). */
+export function isCrossWorkspaceAdminRole(role?: string | null) {
+  const normalized = normalizeAppRole(role);
+  return normalized === "super_admin" || normalized === "platform_admin";
+}
+
 export function isManagerRole(role?: string | null) {
   return normalizeAppRole(role) === "manager";
 }

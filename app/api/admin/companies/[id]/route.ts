@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient, getSupabaseServerEnvStatus } from "@/lib/supabaseAdmin";
 import { authorizeRequest, formatAccountStatus, formatAppRole } from "@/lib/rbac";
 
+type ServiceSupabase = NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
+
 export const runtime = "nodejs";
 
 type RouteContext = {
@@ -116,6 +118,126 @@ function getAuthStatus(user: {
   const daysSinceSeen = (Date.now() - lastSeenMs) / (1000 * 60 * 60 * 24);
 
   return daysSinceSeen > 30 ? "Inactive" : "Active";
+}
+
+function workspaceDisplayName(company: CompanyRow) {
+  return company.name?.trim() || company.team_key?.trim() || "Unnamed Company";
+}
+
+async function deleteCompanyRelatedRows(adminClient: ServiceSupabase, companyId: string) {
+  const steps: Array<{
+    label: string;
+    run: () => PromiseLike<{ error: { message?: string | null } | null }>;
+  }> = [
+    {
+      label: "company_risk_events",
+      run: () =>
+        adminClient.from("company_risk_events").delete().eq("company_id", companyId),
+    },
+    {
+      label: "company_corrective_action_evidence",
+      run: () =>
+        adminClient
+          .from("company_corrective_action_evidence")
+          .delete()
+          .eq("company_id", companyId),
+    },
+    {
+      label: "company_corrective_action_events",
+      run: () =>
+        adminClient.from("company_corrective_action_events").delete().eq("company_id", companyId),
+    },
+    {
+      label: "company_corrective_actions",
+      run: () =>
+        adminClient.from("company_corrective_actions").delete().eq("company_id", companyId),
+    },
+    {
+      label: "company_incidents",
+      run: () => adminClient.from("company_incidents").delete().eq("company_id", companyId),
+    },
+    {
+      label: "company_safety_submissions",
+      run: () =>
+        adminClient.from("company_safety_submissions").delete().eq("company_id", companyId),
+    },
+    {
+      label: "company_jobsites",
+      run: () => adminClient.from("company_jobsites").delete().eq("company_id", companyId),
+    },
+    {
+      label: "documents",
+      run: () => adminClient.from("documents").delete().eq("company_id", companyId),
+    },
+    {
+      label: "company_invites",
+      run: () => adminClient.from("company_invites").delete().eq("company_id", companyId),
+    },
+    {
+      label: "company_memberships",
+      run: () => adminClient.from("company_memberships").delete().eq("company_id", companyId),
+    },
+    {
+      label: "company_credit_transactions",
+      run: () =>
+        adminClient.from("company_credit_transactions").delete().eq("company_id", companyId),
+    },
+    {
+      label: "company_subscriptions",
+      run: () => adminClient.from("company_subscriptions").delete().eq("company_id", companyId),
+    },
+  ];
+
+  for (const step of steps) {
+    const { error } = await step.run();
+    if (error) {
+      return { error: error.message || `Failed while deleting ${step.label}.` };
+    }
+  }
+
+  return { error: null as string | null };
+}
+
+async function clearAuthCompanyFieldsForUsers(params: {
+  adminClient: ServiceSupabase;
+  userIds: string[];
+  companyId: string;
+}) {
+  const { adminClient, userIds, companyId } = params;
+
+  for (const userId of userIds) {
+    const { data, error } = await adminClient.auth.admin.getUserById(userId);
+    if (error || !data.user) {
+      continue;
+    }
+
+    const user = data.user;
+    const um = { ...(user.user_metadata ?? {}) };
+    const am = { ...(user.app_metadata ?? {}) };
+    const umCompany =
+      typeof um.company_id === "string" ? um.company_id.trim() : "";
+    const amCompany =
+      typeof am.company_id === "string" ? am.company_id.trim() : "";
+
+    if (umCompany !== companyId && amCompany !== companyId) {
+      continue;
+    }
+
+    um.role = "viewer";
+    um.team = "General";
+    um.company_id = null;
+    if ("company_name" in um) {
+      um.company_name = null;
+    }
+    am.role = "viewer";
+    am.team = "General";
+    am.company_id = null;
+
+    await adminClient.auth.admin.updateUserById(userId, {
+      user_metadata: um,
+      app_metadata: am,
+    });
+  }
 }
 
 export async function GET(request: Request, context: RouteContext) {
@@ -400,6 +522,9 @@ export async function GET(request: Request, context: RouteContext) {
     }));
 
   return NextResponse.json({
+    capabilities: {
+      canPermanentlyDeleteCompanies: auth.role === "super_admin",
+    },
     company: {
       id: company.id,
       name: company.name?.trim() || company.team_key?.trim() || "Unnamed Company",
@@ -446,5 +571,148 @@ export async function GET(request: Request, context: RouteContext) {
       companyUserDirectoryMode === "partial"
         ? "Showing partial company directory because the Supabase service role key is unavailable at runtime."
         : null,
+  });
+}
+
+type DeleteCompanyBody = {
+  confirmName?: string;
+};
+
+export async function DELETE(request: Request, context: RouteContext) {
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_access_internal_admin",
+  });
+
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  if (auth.role !== "super_admin") {
+    return NextResponse.json(
+      { error: "Only a Super Admin can permanently delete a company workspace." },
+      { status: 403 }
+    );
+  }
+
+  const adminClient = createSupabaseAdminClient();
+
+  if (!adminClient) {
+    return NextResponse.json(
+      {
+        error:
+          "Deleting a company workspace requires the Supabase service role to be available in this deployment.",
+      },
+      { status: 500 }
+    );
+  }
+
+  const { id } = await context.params;
+  const companyId = id.trim();
+
+  if (!companyId) {
+    return NextResponse.json({ error: "Company id is required." }, { status: 400 });
+  }
+
+  const body = (await request.json().catch(() => null)) as DeleteCompanyBody | null;
+  const confirmName = body?.confirmName?.trim() ?? "";
+
+  const companyLookup = await adminClient
+    .from("companies")
+    .select("id, name, team_key")
+    .eq("id", companyId)
+    .maybeSingle();
+
+  if (companyLookup.error) {
+    return NextResponse.json(
+      { error: companyLookup.error.message || "Failed to load company workspace." },
+      { status: 500 }
+    );
+  }
+
+  const companyRow = (companyLookup.data as CompanyRow | null) ?? null;
+
+  if (!companyRow?.id) {
+    return NextResponse.json({ error: "Company workspace not found." }, { status: 404 });
+  }
+
+  const expectedName = workspaceDisplayName(companyRow);
+  if (confirmName !== expectedName) {
+    return NextResponse.json(
+      {
+        error: "Confirmation name does not match this workspace. Type the workspace name exactly.",
+      },
+      { status: 400 }
+    );
+  }
+
+  const membershipsResult = await adminClient
+    .from("company_memberships")
+    .select("user_id")
+    .eq("company_id", companyId);
+
+  if (membershipsResult.error) {
+    return NextResponse.json(
+      {
+        error:
+          membershipsResult.error.message ||
+          "Failed to load company members before deleting the workspace.",
+      },
+      { status: 500 }
+    );
+  }
+
+  const memberUserIds = Array.from(
+    new Set(
+      ((membershipsResult.data as { user_id: string }[] | null) ?? []).map((row) => row.user_id)
+    )
+  );
+
+  const cascadeResult = await deleteCompanyRelatedRows(adminClient, companyId);
+  if (cascadeResult.error) {
+    return NextResponse.json({ error: cascadeResult.error }, { status: 500 });
+  }
+
+  const nowIso = new Date().toISOString();
+  const { error: roleUpdateError } = await adminClient
+    .from("user_roles")
+    .update({
+      company_id: null,
+      role: "viewer",
+      team: "General",
+      account_status: "active",
+      updated_at: nowIso,
+      updated_by: auth.user.id,
+    })
+    .eq("company_id", companyId);
+
+  if (roleUpdateError) {
+    return NextResponse.json(
+      { error: roleUpdateError.message || "Failed to reset user_roles for this workspace." },
+      { status: 500 }
+    );
+  }
+
+  await clearAuthCompanyFieldsForUsers({
+    adminClient,
+    userIds: memberUserIds,
+    companyId,
+  });
+
+  const { error: companyDeleteError } = await adminClient
+    .from("companies")
+    .delete()
+    .eq("id", companyId);
+
+  if (companyDeleteError) {
+    return NextResponse.json(
+      { error: companyDeleteError.message || "Failed to delete the company workspace row." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    message: `${expectedName} was permanently removed from the database.`,
+    deletedCompanyId: companyId,
   });
 }

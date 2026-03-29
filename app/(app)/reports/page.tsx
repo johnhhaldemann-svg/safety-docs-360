@@ -240,6 +240,13 @@ export default function ReportsPage() {
         description="Generate daily and weekly operational summaries from live safety data."
         actions={
           <>
+            <button
+              type="button"
+              onClick={() => void loadReports()}
+              className="rounded-xl border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+            >
+              {loading ? "Refreshing..." : "Refresh Reports"}
+            </button>
             <Link
               href="/analytics"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
@@ -257,6 +264,9 @@ export default function ReportsPage() {
       />
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
+      <InlineMessage tone="neutral">
+        Reports update on demand. Click Refresh Reports whenever you want the latest history.
+      </InlineMessage>
 
       <section className="grid gap-4 md:grid-cols-2">
         <SectionCard title="Generate Reports" description="Run operational summaries on demand.">

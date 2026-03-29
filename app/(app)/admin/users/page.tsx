@@ -1031,24 +1031,34 @@ export default function AdminUsersPage() {
                 ))}
               </select>
               {capabilities.canViewAllUsers ? (
-                <select
-                  value={resolvedEditCompanyId}
-                  onChange={(e) => setEditCompanyId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
-                >
-                  <option value="">
-                    {companiesLoading
-                      ? "Loading company workspaces..."
-                      : "Select a company workspace"}
-                  </option>
-                  {companies
-                    .filter((company) => company.status.toLowerCase() !== "archived")
-                    .map((company) => (
-                      <option key={company.id} value={company.id}>
-                        {company.name}
-                      </option>
-                    ))}
-                </select>
+                <div className="grid gap-1">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Company workspace
+                  </label>
+                  <select
+                    value={resolvedEditCompanyId}
+                    onChange={(e) => setEditCompanyId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                  >
+                    <option value="">
+                      {companiesLoading
+                        ? "Loading company workspaces..."
+                        : "Select a company workspace"}
+                    </option>
+                    {companies
+                      .filter((company) => company.status.toLowerCase() !== "archived")
+                      .map((company) => (
+                        <option key={company.id} value={company.id}>
+                          {company.name}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="text-xs text-slate-500">
+                    Super Admin / Platform Admin: required when the role is company-scoped (e.g. Company Admin,
+                    Field User). Links the user in{" "}
+                    <code className="rounded bg-slate-100 px-1">company_memberships</code> and profile metadata.
+                  </p>
+                </div>
               ) : null}
               <input
                 type="text"

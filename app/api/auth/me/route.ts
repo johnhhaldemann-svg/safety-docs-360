@@ -557,17 +557,13 @@ export async function GET(request: Request) {
     companyScope.companyId
       ? await auth.supabase
           .from("companies")
-          .select(
-            "id, name, team_key, industry, phone, website, address_line_1, city, state_region, postal_code, country, primary_contact_name, primary_contact_email, status"
-          )
+          .select("id, name, city, state_region, status")
           .eq("id", companyScope.companyId)
           .maybeSingle()
       : null;
   const userProfileResult = await auth.supabase
     .from("user_profiles")
-    .select(
-      "user_id, full_name, preferred_name, job_title, trade_specialty, years_experience, phone, city, state_region, readiness_status, certifications, specialties, equipment, bio, photo_url, photo_path, profile_complete"
-    )
+    .select("user_id, full_name, preferred_name, job_title, trade_specialty, photo_url, photo_path, profile_complete")
     .eq("user_id", auth.user.id)
     .maybeSingle();
   const userProfile = !userProfileResult.error
@@ -587,7 +583,8 @@ export async function GET(request: Request) {
       (agreementResult.data?.terms_version ?? "") === agreementConfig.version
   );
 
-  return NextResponse.json({
+  return NextResponse.json(
+    {
     user: {
       id: auth.user.id,
       email: auth.user.email ?? "",
@@ -636,5 +633,11 @@ export async function GET(request: Request) {
         (agreementResult.data?.terms_version ?? "") === agreementConfig.version,
       requiredTermsVersion: agreementConfig.version,
     },
-  });
+    },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=15, stale-while-revalidate=45",
+      },
+    }
+  );
 }

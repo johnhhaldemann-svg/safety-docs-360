@@ -548,13 +548,21 @@ export default function CompanyUsersPage() {
         title="Workforce Operations"
         description={`Manage role/status, assignment readiness, and module access visibility for ${scopeCompanyName}.`}
         actions={
-          <button
-            onClick={handleInvite}
-            disabled={inviteLoading || !inviteEmail.trim()}
-            className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
-          >
-            {inviteLoading ? "Sending Invite..." : "Invite Employee"}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/training-matrix"
+              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+            >
+              Training matrix
+            </Link>
+            <button
+              onClick={handleInvite}
+              disabled={inviteLoading || !inviteEmail.trim()}
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
+            >
+              {inviteLoading ? "Sending Invite..." : "Invite Employee"}
+            </button>
+          </div>
         }
       />
 
