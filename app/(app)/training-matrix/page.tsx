@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Check, Minus, X } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
-import { useCallback, useEffect, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useState } from "react";
 import {
   EmptyState,
   InlineMessage,
@@ -47,8 +47,8 @@ type MatrixRow = {
   };
 };
 
-function toggleInList(list: string[], value: string): string[] {
-  return list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
+function valuesFromMultiSelect(event: ChangeEvent<HTMLSelectElement>): string[] {
+  return Array.from(event.target.selectedOptions, (opt) => opt.value);
 }
 
 function normalizeCellState(v: unknown): MatrixCellState {
@@ -307,7 +307,7 @@ export default function TrainingMatrixPage() {
       {canMutate ? (
         <SectionCard
           title="Required trainings"
-          description="Pick which trades and positions this training applies to (must match each person’s profile). Add certification keywords to check off when those credentials appear on their profile."
+          description="Use the trade and position dropdowns (same options as each person’s construction profile). Add certification keywords to check off when those credentials appear on their profile."
         >
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block text-sm font-medium text-slate-700">
@@ -331,58 +331,50 @@ export default function TrainingMatrixPage() {
             </label>
           </div>
           <div className="mt-4 grid gap-5 md:grid-cols-2">
-            <div>
-              <div className="text-sm font-medium text-slate-700">
+            <label className="block text-sm font-medium text-slate-700">
+              <span>
                 Applies to trades <span className="text-red-600">*</span>
-              </div>
-              <p className="mt-0.5 text-xs text-slate-500">Must match primary trade on the profile.</p>
-              <div className="mt-2 max-h-44 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
-                <div className="grid gap-2 sm:grid-cols-1">
-                  {CONSTRUCTION_TRADES.map((t) => (
-                    <label
-                      key={t}
-                      className="flex cursor-pointer items-start gap-2 text-sm text-slate-700"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={newApplyTrades.includes(t)}
-                        onChange={() =>
-                          setNewApplyTrades((prev) => toggleInList(prev, t))
-                        }
-                        className="mt-0.5 rounded border-slate-300 text-sky-600"
-                      />
-                      <span>{t}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-slate-700">
+              </span>
+              <p className="mt-0.5 font-normal text-xs text-slate-500">
+                Same list as <strong>Primary trade</strong> on the construction profile. Hold Ctrl
+                (Windows) or ⌘ (Mac) and click to choose more than one.
+              </p>
+              <select
+                multiple
+                size={10}
+                value={newApplyTrades}
+                onChange={(e) => setNewApplyTrades(valuesFromMultiSelect(e))}
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              >
+                {CONSTRUCTION_TRADES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              <span>
                 Applies to positions <span className="text-red-600">*</span>
-              </div>
-              <p className="mt-0.5 text-xs text-slate-500">Must match site position on the profile.</p>
-              <div className="mt-2 max-h-44 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
-                <div className="grid gap-2">
-                  {CONSTRUCTION_POSITIONS.map((p) => (
-                    <label
-                      key={p}
-                      className="flex cursor-pointer items-start gap-2 text-sm text-slate-700"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={newApplyPositions.includes(p)}
-                        onChange={() =>
-                          setNewApplyPositions((prev) => toggleInList(prev, p))
-                        }
-                        className="mt-0.5 rounded border-slate-300 text-sky-600"
-                      />
-                      <span>{p}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
+              </span>
+              <p className="mt-0.5 font-normal text-xs text-slate-500">
+                Same list as <strong>Site position</strong> on the construction profile. Hold Ctrl
+                (Windows) or ⌘ (Mac) and click to choose more than one.
+              </p>
+              <select
+                multiple
+                size={10}
+                value={newApplyPositions}
+                onChange={(e) => setNewApplyPositions(valuesFromMultiSelect(e))}
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              >
+                {CONSTRUCTION_POSITIONS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
           <div className="mt-4">
             <button
@@ -423,36 +415,38 @@ export default function TrainingMatrixPage() {
                         placeholder="Certification keywords"
                       />
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 p-2">
-                          <div className="mb-1 text-xs font-semibold text-slate-600">Trades</div>
-                          {CONSTRUCTION_TRADES.map((t) => (
-                            <label key={t} className="flex gap-2 text-xs text-slate-700">
-                              <input
-                                type="checkbox"
-                                checked={editApplyTrades.includes(t)}
-                                onChange={() =>
-                                  setEditApplyTrades((prev) => toggleInList(prev, t))
-                                }
-                              />
-                              {t}
-                            </label>
-                          ))}
-                        </div>
-                        <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 p-2">
-                          <div className="mb-1 text-xs font-semibold text-slate-600">Positions</div>
-                          {CONSTRUCTION_POSITIONS.map((p) => (
-                            <label key={p} className="flex gap-2 text-xs text-slate-700">
-                              <input
-                                type="checkbox"
-                                checked={editApplyPositions.includes(p)}
-                                onChange={() =>
-                                  setEditApplyPositions((prev) => toggleInList(prev, p))
-                                }
-                              />
-                              {p}
-                            </label>
-                          ))}
-                        </div>
+                        <label className="block text-xs font-semibold text-slate-600">
+                          Trades (Ctrl / ⌘ + click for multiple)
+                          <select
+                            multiple
+                            size={8}
+                            value={editApplyTrades}
+                            onChange={(e) => setEditApplyTrades(valuesFromMultiSelect(e))}
+                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm font-normal text-slate-900"
+                          >
+                            {CONSTRUCTION_TRADES.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block text-xs font-semibold text-slate-600">
+                          Positions (Ctrl / ⌘ + click for multiple)
+                          <select
+                            multiple
+                            size={8}
+                            value={editApplyPositions}
+                            onChange={(e) => setEditApplyPositions(valuesFromMultiSelect(e))}
+                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm font-normal text-slate-900"
+                          >
+                            {CONSTRUCTION_POSITIONS.map((p) => (
+                              <option key={p} value={p}>
+                                {p}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button
