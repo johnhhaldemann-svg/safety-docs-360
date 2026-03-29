@@ -154,3 +154,78 @@ export async function loadCompanyWorkspaceUsers(params: {
 
   return { users };
 }
+
+/**
+ * Lists workspace users using the caller's JWT (no service role). Uses `company_memberships`
+ * so managers and admins see the full member set; names/emails for others are placeholders
+ * unless the service-role path is used elsewhere.
+ */
+export async function loadCompanyWorkspaceUsersRls(params: {
+  supabase: SupabaseClient;
+  authUser: AuthLikeUser;
+  companyId: string;
+  scopeTeam: string;
+}): Promise<{ users: CompanyDirectoryUser[]; error?: string }> {
+  const { supabase, authUser, companyId, scopeTeam } = params;
+
+  const { data: membershipData, error: memError } = await supabase
+    .from("company_memberships")
+    .select("user_id, role, status, created_at")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false });
+
+  if (memError) {
+    return { users: [], error: memError.message };
+  }
+
+  const { data: selfRoleRow } = await supabase
+    .from("user_roles")
+    .select("team, account_status, created_at")
+    .eq("user_id", authUser.id)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  const selfScoped = selfRoleRow as FallbackUserRoleRow | null;
+  const selfTeam = selfScoped?.team?.trim() || scopeTeam;
+
+  type MemRow = {
+    user_id: string;
+    role: string;
+    status: string | null;
+    created_at?: string | null;
+  };
+
+  const membershipRows = (membershipData ?? []) as MemRow[];
+  const byUserId = new Map<string, MemRow>();
+  for (const row of membershipRows) {
+    if (!byUserId.has(row.user_id)) {
+      byUserId.set(row.user_id, row);
+    }
+  }
+
+  const users: CompanyDirectoryUser[] = Array.from(byUserId.values()).map((m) => {
+    const isCurrentUser = m.user_id === authUser.id;
+    const resolvedRole = m.role ?? "company_user";
+    const resolvedStatus = m.status ?? "active";
+    const team = isCurrentUser ? selfTeam : scopeTeam;
+    const statusLabel =
+      resolvedStatus === "pending" || resolvedStatus === "suspended"
+        ? formatAccountStatus(resolvedStatus)
+        : "Active";
+
+    return {
+      id: m.user_id,
+      email: isCurrentUser ? authUser.email ?? "" : "",
+      name: isCurrentUser ? getDisplayName(authUser) : `User ${m.user_id.slice(0, 8)}`,
+      role: formatAppRole(resolvedRole),
+      team,
+      status: statusLabel,
+      created_at: m.created_at ?? null,
+      last_sign_in_at: null,
+    } satisfies CompanyDirectoryUser;
+  });
+
+  users.sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
+
+  return { users };
+}

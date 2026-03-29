@@ -5,8 +5,11 @@ import {
   canMutateCompanyTrainingRequirements,
   canViewCompanyTrainingMatrix,
 } from "@/lib/companyTrainingAccess";
-import { createSupabaseAdminClient, getSupabaseServerEnvStatus } from "@/lib/supabaseAdmin";
-import { loadCompanyWorkspaceUsers } from "@/lib/companyWorkspaceDirectory";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import {
+  loadCompanyWorkspaceUsers,
+  loadCompanyWorkspaceUsersRls,
+} from "@/lib/companyWorkspaceDirectory";
 import {
   computeTrainingMatrixRow,
   DEFAULT_MATCH_FIELDS,
@@ -67,7 +70,6 @@ export async function GET(request: Request) {
   }
 
   const adminClient = createSupabaseAdminClient();
-  const envStatus = getSupabaseServerEnvStatus();
 
   const requirementsResult = await auth.supabase
     .from("company_training_requirements")
@@ -99,24 +101,21 @@ export async function GET(request: Request) {
     })
   );
 
-  if (!adminClient) {
-    return NextResponse.json({
-      requirements,
-      rows: [],
-      warning:
-        "Training matrix needs the Supabase service role to load company members and construction profiles. " +
-        (envStatus ? JSON.stringify(envStatus) : ""),
-      capabilities: { canMutate: canMutateCompanyTrainingRequirements(auth.role) },
-    });
-  }
-
   const scopeTeam = companyScope.companyName?.trim() || auth.team || "General";
-  const directory = await loadCompanyWorkspaceUsers({
-    adminClient,
-    authUser: auth.user,
-    companyId: companyScope.companyId,
-    scopeTeam,
-  });
+
+  const directory = adminClient
+    ? await loadCompanyWorkspaceUsers({
+        adminClient,
+        authUser: auth.user,
+        companyId: companyScope.companyId,
+        scopeTeam,
+      })
+    : await loadCompanyWorkspaceUsersRls({
+        supabase: auth.supabase,
+        authUser: auth.user,
+        companyId: companyScope.companyId,
+        scopeTeam,
+      });
 
   if (directory.error) {
     return NextResponse.json({ error: directory.error }, { status: 500 });
@@ -132,16 +131,27 @@ export async function GET(request: Request) {
     });
   }
 
-  const { data: profileData, error: profileError } = await adminClient
+  const profileClient = adminClient ?? auth.supabase;
+  const { data: profileData, error: profileError } = await profileClient
     .from("user_profiles")
     .select("user_id, certifications, job_title, trade_specialty, readiness_status")
     .in("user_id", userIds);
 
-  if (profileError) {
+  if (profileError && adminClient) {
     return NextResponse.json(
       { error: profileError.message || "Failed to load user profiles." },
       { status: 500 }
     );
+  }
+
+  let warning: string | null = adminClient
+    ? null
+    : "Showing members from your company workspace. Add SUPABASE_SERVICE_ROLE_KEY to the server environment for full names, emails, and last sign-in from Auth.";
+
+  if (profileError && !adminClient) {
+    const suffix =
+      " Construction profiles could not be loaded for every row (permissions or configuration).";
+    warning = warning ? `${warning}${suffix}` : suffix.trimStart();
   }
 
   const profileMap = new Map<string, ProfileRow>();
@@ -179,7 +189,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     requirements,
     rows,
-    warning: null,
+    warning,
     capabilities: { canMutate: canMutateCompanyTrainingRequirements(auth.role) },
   });
 }
