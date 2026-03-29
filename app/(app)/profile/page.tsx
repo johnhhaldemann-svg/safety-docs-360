@@ -11,6 +11,10 @@ import {
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
 import {
+  PROFILE_CERTIFICATION_GROUPS,
+  PROFILE_CERTIFICATION_SET,
+} from "@/lib/constructionProfileCertifications";
+import {
   CONSTRUCTION_POSITIONS,
   CONSTRUCTION_TRADES,
 } from "@/lib/constructionProfileOptions";
@@ -74,124 +78,6 @@ const readinessOptions = [
   },
 ];
 
-const certificationGroups = [
-  {
-    title: "Core Safety Certifications",
-    items: [
-      "CSP - Certified Safety Professional",
-      "ASP - Associate Safety Professional",
-      "GSP - Graduate Safety Practitioner",
-      "SMS - Safety Management Specialist",
-      "STS - Safety Trained Supervisor",
-      "STSC - Safety Trained Supervisor Construction",
-      "CHST - Construction Health & Safety Technician",
-      "OHST - Occupational Health & Safety Technician",
-    ],
-  },
-  {
-    title: "OSHA & General Safety Training",
-    items: [
-      "OSHA 10-Hour (Construction / General Industry)",
-      "OSHA 30-Hour (Construction / General Industry)",
-      "OSHA 500 - Construction Trainer",
-      "OSHA 501 - General Industry Trainer",
-      "OSHA 510 - Construction Standards",
-      "OSHA 511 - General Industry Standards",
-    ],
-  },
-  {
-    title: "Environmental / Health / Industrial Hygiene",
-    items: [
-      "CIH - Certified Industrial Hygienist",
-      "CHMM - Certified Hazardous Materials Manager",
-      "REM - Registered Environmental Manager",
-      "HAZWOPER 40-Hour",
-      "HAZWOPER 24-Hour",
-      "HAZWOPER Refresher",
-    ],
-  },
-  {
-    title: "Fire / Emergency Response",
-    items: [
-      "CFPS - Certified Fire Protection Specialist",
-      "Fire Inspector I / II",
-      "Fire Instructor I / II",
-      "Emergency Medical Responder (EMR)",
-      "EMT / Paramedic",
-      "CPR / AED / First Aid",
-    ],
-  },
-  {
-    title: "Construction-Specific / Field Safety",
-    items: [
-      "NCCER Safety Certification",
-      "Competent Person (Trenching & Excavation)",
-      "Competent Person (Fall Protection)",
-      "Competent Person (Scaffolding)",
-      "Competent Person (Confined Space)",
-      "Site Safety Health Officer (SSHO - USACE)",
-      "Site Safety Manager (NYC DOB)",
-      "Crane Signal Person",
-      "Rigger Level I / II",
-    ],
-  },
-  {
-    title: "Equipment & Operator Certifications",
-    items: [
-      "Forklift Certification",
-      "Aerial Lift / MEWP Certification",
-      "Crane Operator Certification (NCCCO)",
-      "Heavy Equipment Operator Certifications",
-      "Telehandler Certification",
-    ],
-  },
-  {
-    title: "Specialized Safety Programs",
-    items: [
-      "LOTO Authorized Employee",
-      "Confined Space Entry Supervisor",
-      "Confined Space Entrant / Attendant",
-      "Fall Protection Competent Person",
-      "Electrical Qualified Person (NFPA 70E)",
-      "Arc Flash Training",
-      "Hot Work / Fire Watch Training",
-    ],
-  },
-  {
-    title: "Transportation / DOT",
-    items: [
-      "CDL (Class A / B)",
-      "DOT Trainer Certification",
-      "Smith System Driver Trainer",
-      "Defensive Driving Instructor",
-      "FMCSA Compliance Certification",
-    ],
-  },
-  {
-    title: "Management / Systems / Auditing",
-    items: [
-      "ISO 45001 Lead Auditor",
-      "ISO 14001 Lead Auditor",
-      "ISO 9001 Lead Auditor",
-      "Six Sigma (Yellow / Green / Black Belt)",
-      "Lean Certification",
-      "Risk Management Professional (PMI-RMP)",
-    ],
-  },
-  {
-    title: "Additional Training",
-    items: [
-      "First Aid Instructor",
-      "OSHA Outreach Instructor",
-      "Safety Committee Certification",
-      "Human Performance / HOP Training",
-      "Behavior-Based Safety (BBS) Training",
-    ],
-  },
-];
-
-const knownCertificationSet = new Set(certificationGroups.flatMap((group) => group.items));
-
 function splitList(value: string, limit = 20) {
   return value
     .split(/[\n,]/)
@@ -213,7 +99,7 @@ function splitKnownCertifications(items: string[] | undefined) {
   const custom: string[] = [];
 
   for (const item of items ?? []) {
-    if (knownCertificationSet.has(item)) {
+    if (PROFILE_CERTIFICATION_SET.has(item)) {
       selected.push(item);
     } else {
       custom.push(item);
@@ -907,7 +793,7 @@ export default function ProfilePage() {
               </div>
 
               <div className="grid gap-4 xl:grid-cols-2">
-                {certificationGroups.map((group) => {
+                {PROFILE_CERTIFICATION_GROUPS.map((group) => {
                   const groupSelectedCount = group.items.filter((item) =>
                     selectedCertifications.includes(item)
                   ).length;

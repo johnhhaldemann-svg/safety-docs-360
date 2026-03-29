@@ -10,11 +10,15 @@ import {
   PageHero,
   SectionCard,
 } from "@/components/WorkspacePrimitives";
+import { TRAINING_REQUIREMENTS_MIGRATION_SQL } from "@/lib/companyTrainingRequirementsDb";
+import {
+  PROFILE_CERTIFICATION_GROUPS,
+  PROFILE_CERTIFICATION_SET,
+} from "@/lib/constructionProfileCertifications";
 import {
   CONSTRUCTION_POSITIONS,
   CONSTRUCTION_TRADES,
 } from "@/lib/constructionProfileOptions";
-import { TRAINING_REQUIREMENTS_MIGRATION_SQL } from "@/lib/companyTrainingRequirementsDb";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -56,6 +60,21 @@ function normalizeCellState(v: unknown): MatrixCellState {
 }
 
 const positionOptionSet = new Set<string>(CONSTRUCTION_POSITIONS);
+
+/** Dropdown sentinel for a certification not in the profile catalog. */
+const CUSTOM_PROFILE_CERT_VALUE = "__custom_cert__";
+
+function resolvedTrainingFromCertPicker(select: string, custom: string): string {
+  if (select === CUSTOM_PROFILE_CERT_VALUE) return custom.trim();
+  return select.trim();
+}
+
+function certPickerStateFromTrainingLine(trainingLine: string): { select: string; custom: string } {
+  const t = trainingLine.trim();
+  if (!t) return { select: "", custom: "" };
+  if (PROFILE_CERTIFICATION_SET.has(t)) return { select: t, custom: "" };
+  return { select: CUSTOM_PROFILE_CERT_VALUE, custom: t };
+}
 
 /** Stored title: `Training name (Position A, Position B)` for matrix / lists. */
 function composeRequirementTitle(trainingLine: string, positions: string[]): string {
@@ -293,13 +312,15 @@ export default function TrainingMatrixPage() {
     "neutral"
   );
 
-  const [newTrainingLine, setNewTrainingLine] = useState("");
+  const [newProfileCertSelect, setNewProfileCertSelect] = useState("");
+  const [newProfileCertCustom, setNewProfileCertCustom] = useState("");
   const [newApplyTrades, setNewApplyTrades] = useState<string[]>([]);
   const [newApplyPositions, setNewApplyPositions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTrainingLine, setEditTrainingLine] = useState("");
+  const [editProfileCertSelect, setEditProfileCertSelect] = useState("");
+  const [editProfileCertCustom, setEditProfileCertCustom] = useState("");
   const [editApplyTrades, setEditApplyTrades] = useState<string[]>([]);
   const [editApplyPositions, setEditApplyPositions] = useState<string[]>([]);
 
@@ -399,8 +420,11 @@ export default function TrainingMatrixPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          title: composeRequirementTitle(newTrainingLine, newApplyPositions),
-          keywords: newTrainingLine.trim(),
+          title: composeRequirementTitle(
+            resolvedTrainingFromCertPicker(newProfileCertSelect, newProfileCertCustom),
+            newApplyPositions
+          ),
+          keywords: resolvedTrainingFromCertPicker(newProfileCertSelect, newProfileCertCustom),
           matchFields: ["certifications"],
           applyTrades: newApplyTrades,
           applyPositions: newApplyPositions,
@@ -423,7 +447,8 @@ export default function TrainingMatrixPage() {
         setMessageTone("success");
         setMessage("Requirement added.");
       }
-      setNewTrainingLine("");
+      setNewProfileCertSelect("");
+      setNewProfileCertCustom("");
       setNewApplyTrades([]);
       setNewApplyPositions([]);
       await loadMatrix();
@@ -432,12 +457,20 @@ export default function TrainingMatrixPage() {
       setMessage(e instanceof Error ? e.message : "Failed to create requirement.");
     }
     setSaving(false);
-  }, [loadMatrix, newApplyPositions, newApplyTrades, newTrainingLine]);
+  }, [
+    loadMatrix,
+    newApplyPositions,
+    newApplyTrades,
+    newProfileCertCustom,
+    newProfileCertSelect,
+  ]);
 
   const startEdit = useCallback((r: Requirement) => {
     setEditingId(r.id);
     const parsed = parseRequirementTitleForEdit(r.title, r.applyPositions ?? []);
-    setEditTrainingLine(parsed.trainingLine);
+    const certUi = certPickerStateFromTrainingLine(parsed.trainingLine);
+    setEditProfileCertSelect(certUi.select);
+    setEditProfileCertCustom(certUi.custom);
     setEditApplyTrades([...(r.applyTrades ?? [])]);
     setEditApplyPositions(parsed.positions);
   }, []);
@@ -459,8 +492,11 @@ export default function TrainingMatrixPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          title: composeRequirementTitle(editTrainingLine, editApplyPositions),
-          keywords: editTrainingLine.trim(),
+          title: composeRequirementTitle(
+            resolvedTrainingFromCertPicker(editProfileCertSelect, editProfileCertCustom),
+            editApplyPositions
+          ),
+          keywords: resolvedTrainingFromCertPicker(editProfileCertSelect, editProfileCertCustom),
           matchFields: ["certifications"],
           applyTrades: editApplyTrades,
           applyPositions: editApplyPositions,
@@ -490,7 +526,14 @@ export default function TrainingMatrixPage() {
       setMessage(e instanceof Error ? e.message : "Failed to update requirement.");
     }
     setSaving(false);
-  }, [editApplyPositions, editApplyTrades, editTrainingLine, editingId, loadMatrix]);
+  }, [
+    editApplyPositions,
+    editApplyTrades,
+    editProfileCertCustom,
+    editProfileCertSelect,
+    editingId,
+    loadMatrix,
+  ]);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -527,7 +570,7 @@ export default function TrainingMatrixPage() {
       <PageHero
         eyebrow="Company workspace"
         title="Training matrix"
-        description="Name each training by what people need on their profile, and which site positions it applies to. The matrix matches certification text on each person’s construction profile."
+        description="Requirements use the same certification list as the construction profile. Pick one, then which trades and positions it applies to. The matrix checks profile certifications."
         actions={
           <Link
             href="/dashboard"
@@ -547,19 +590,42 @@ export default function TrainingMatrixPage() {
       {canMutate ? (
         <SectionCard
           title="Required trainings"
-          description="Enter the training or certification, then choose positions (and trades). The saved title becomes that training with the positions in parentheses, e.g. OSHA 30-Hour (Foreman, Superintendent)."
+          description="Pick a certification from the same list workers use on their construction profile, then choose trades and positions. The saved title adds positions in parentheses."
         >
           <label className="block text-sm font-medium text-slate-700">
             Training requirement
-            <input
-              value={newTrainingLine}
-              onChange={(e) => setNewTrainingLine(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
-              placeholder="e.g. OSHA 30-Hour — use commas for extra match phrases"
-            />
+            <select
+              value={newProfileCertSelect}
+              onChange={(e) => {
+                const v = e.target.value;
+                setNewProfileCertSelect(v);
+                if (v !== CUSTOM_PROFILE_CERT_VALUE) setNewProfileCertCustom("");
+              }}
+              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+            >
+              <option value="">Select from profile certifications…</option>
+              {PROFILE_CERTIFICATION_GROUPS.map((group) => (
+                <optgroup key={group.title} label={group.title}>
+                  {group.items.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+              <option value={CUSTOM_PROFILE_CERT_VALUE}>Other (not in list)…</option>
+            </select>
+            {newProfileCertSelect === CUSTOM_PROFILE_CERT_VALUE ? (
+              <input
+                value={newProfileCertCustom}
+                onChange={(e) => setNewProfileCertCustom(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+                placeholder="Custom name — should match text on profiles"
+              />
+            ) : null}
             <span className="mt-1 block text-xs font-normal text-slate-500">
-              This text is matched against certifications on each profile. Positions you add below are
-              appended to the title.
+              Matching uses this certification text against each person’s profile. Positions you add
+              below are included in the column title.
             </span>
           </label>
           <PickTradesAndPositions
@@ -574,7 +640,7 @@ export default function TrainingMatrixPage() {
               type="button"
               disabled={
                 saving ||
-                !newTrainingLine.trim() ||
+                !resolvedTrainingFromCertPicker(newProfileCertSelect, newProfileCertCustom).trim() ||
                 newApplyTrades.length === 0 ||
                 newApplyPositions.length === 0
               }
@@ -596,12 +662,35 @@ export default function TrainingMatrixPage() {
                     <div className="grid gap-3">
                       <label className="block text-xs font-semibold text-slate-600">
                         Training requirement
-                        <input
-                          value={editTrainingLine}
-                          onChange={(e) => setEditTrainingLine(e.target.value)}
-                          className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-normal"
-                          placeholder="e.g. OSHA 30-Hour"
-                        />
+                        <select
+                          value={editProfileCertSelect}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setEditProfileCertSelect(v);
+                            if (v !== CUSTOM_PROFILE_CERT_VALUE) setEditProfileCertCustom("");
+                          }}
+                          className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                        >
+                          <option value="">Select from profile certifications…</option>
+                          {PROFILE_CERTIFICATION_GROUPS.map((group) => (
+                            <optgroup key={group.title} label={group.title}>
+                              {group.items.map((item) => (
+                                <option key={item} value={item}>
+                                  {item}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                          <option value={CUSTOM_PROFILE_CERT_VALUE}>Other (not in list)…</option>
+                        </select>
+                        {editProfileCertSelect === CUSTOM_PROFILE_CERT_VALUE ? (
+                          <input
+                            value={editProfileCertCustom}
+                            onChange={(e) => setEditProfileCertCustom(e.target.value)}
+                            className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-normal"
+                            placeholder="Custom certification name"
+                          />
+                        ) : null}
                       </label>
                       <PickTradesAndPositions
                         trades={editApplyTrades}
@@ -616,7 +705,10 @@ export default function TrainingMatrixPage() {
                           onClick={() => void handleSaveEdit()}
                           disabled={
                             saving ||
-                            !editTrainingLine.trim() ||
+                            !resolvedTrainingFromCertPicker(
+                              editProfileCertSelect,
+                              editProfileCertCustom
+                            ).trim() ||
                             editApplyTrades.length === 0 ||
                             editApplyPositions.length === 0
                           }
