@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
 import { authorizeRequest } from "@/lib/rbac";
 import { isAdminRole, isCompanyAdminRole } from "@/lib/rbac";
+import {
+  normalizeCertificationExpirationsPayload,
+  parseCertificationExpirations,
+} from "@/lib/certificationExpirations";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -18,6 +22,7 @@ type ProfileRow = {
   state_region: string | null;
   readiness_status: string | null;
   certifications: string[] | null;
+  certification_expirations: Record<string, string> | null;
   specialties: string[] | null;
   equipment: string[] | null;
   bio: string | null;
@@ -38,6 +43,7 @@ type ProfilePayload = {
   stateRegion?: string;
   readinessStatus?: string;
   certifications?: string[] | string;
+  certificationExpirations?: Record<string, unknown>;
   specialties?: string[] | string;
   equipment?: string[] | string;
   bio?: string;
@@ -148,6 +154,9 @@ function serializeProfile(profile: ProfileRow | null, fallbackFullName: string) 
     stateRegion: profile?.state_region?.trim() || "",
     readinessStatus: profile?.readiness_status?.trim() || "ready",
     certifications: profile?.certifications ?? [],
+    certificationExpirations: parseCertificationExpirations(
+      profile?.certification_expirations ?? undefined
+    ),
     specialties: profile?.specialties ?? [],
     equipment: profile?.equipment ?? [],
     bio: profile?.bio?.trim() || "",
@@ -267,7 +276,7 @@ export async function GET(request: Request) {
   const { data, error } = await auth.supabase
     .from("user_profiles")
     .select(
-      "user_id, full_name, preferred_name, job_title, trade_specialty, years_experience, phone, city, state_region, readiness_status, certifications, specialties, equipment, bio, photo_url, photo_path, profile_complete"
+      "user_id, full_name, preferred_name, job_title, trade_specialty, years_experience, phone, city, state_region, readiness_status, certifications, certification_expirations, specialties, equipment, bio, photo_url, photo_path, profile_complete"
     )
     .eq("user_id", targetAccess.targetUserId)
     .maybeSingle();
@@ -339,6 +348,10 @@ export async function PATCH(request: Request) {
   const readinessStatus = normalizeReadiness(body?.readinessStatus);
   const yearsExperience = normalizeYearsExperience(body?.yearsExperience);
   const certifications = normalizeList(body?.certifications, 60);
+  const certificationExpirations = normalizeCertificationExpirationsPayload(
+    body?.certificationExpirations,
+    new Set(certifications)
+  );
   const specialties = normalizeList(body?.specialties, 20);
   const equipment = normalizeList(body?.equipment, 20);
   const photoUrl = typeof body?.photoUrl === "string" ? body.photoUrl.trim() : "";
@@ -365,6 +378,7 @@ export async function PATCH(request: Request) {
     state_region: stateRegion || null,
     readiness_status: readinessStatus,
     certifications,
+    certification_expirations: certificationExpirations,
     specialties,
     equipment,
     bio: bio || null,
@@ -379,7 +393,7 @@ export async function PATCH(request: Request) {
       onConflict: "user_id",
     })
     .select(
-      "user_id, full_name, preferred_name, job_title, trade_specialty, years_experience, phone, city, state_region, readiness_status, certifications, specialties, equipment, bio, photo_url, photo_path, profile_complete"
+      "user_id, full_name, preferred_name, job_title, trade_specialty, years_experience, phone, city, state_region, readiness_status, certifications, certification_expirations, specialties, equipment, bio, photo_url, photo_path, profile_complete"
     )
     .maybeSingle();
 

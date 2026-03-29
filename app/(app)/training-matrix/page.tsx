@@ -33,6 +33,7 @@ type Requirement = {
   matchFields: string[];
   applyTrades: string[];
   applyPositions: string[];
+  renewalMonths?: number | null;
 };
 
 type MatrixCellState = "match" | "gap" | "na";
@@ -60,6 +61,22 @@ function normalizeCellState(v: unknown): MatrixCellState {
 }
 
 const positionOptionSet = new Set<string>(CONSTRUCTION_POSITIONS);
+
+function parseRenewalMonthsInput(raw: string): number | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const n = Number.parseInt(t, 10);
+  if (!Number.isFinite(n) || n < 1 || n > 600) return null;
+  return n;
+}
+
+function requirementHeaderTitle(r: Requirement): string {
+  const kw = r.matchKeywords.join(", ");
+  if (r.renewalMonths != null && r.renewalMonths > 0) {
+    return `${kw}\nTypical renewal: ${r.renewalMonths} mo (hint only; profile expiration dates control the matrix).`;
+  }
+  return kw;
+}
 
 /** Dropdown sentinel for a certification not in the profile catalog. */
 const CUSTOM_PROFILE_CERT_VALUE = "__custom_cert__";
@@ -250,6 +267,7 @@ function PickTradesAndPositions({
 }
 
 const SCHEMA_MIGRATION_BANNER_DISMISSED_KEY = "sd360_dismiss_training_schema_migration_v1";
+const DIRECTORY_NOTICE_DISMISSED_KEY = "sd360_dismiss_training_matrix_directory_notice_v1";
 
 function SchemaMigrationBanner({ onDismiss }: { onDismiss: () => void }) {
   const [copied, setCopied] = useState(false);
@@ -305,7 +323,9 @@ export default function TrainingMatrixPage() {
   const [canMutate, setCanMutate] = useState(false);
   const [schemaMigrationNeeded, setSchemaMigrationNeeded] = useState(false);
   const [schemaMigrationBannerDismissed, setSchemaMigrationBannerDismissed] = useState(false);
+  const [directoryNoticeDismissed, setDirectoryNoticeDismissed] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
+  const [directoryNotice, setDirectoryNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">(
@@ -316,6 +336,7 @@ export default function TrainingMatrixPage() {
   const [newProfileCertCustom, setNewProfileCertCustom] = useState("");
   const [newApplyTrades, setNewApplyTrades] = useState<string[]>([]);
   const [newApplyPositions, setNewApplyPositions] = useState<string[]>([]);
+  const [newRenewalMonths, setNewRenewalMonths] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -323,6 +344,7 @@ export default function TrainingMatrixPage() {
   const [editProfileCertCustom, setEditProfileCertCustom] = useState("");
   const [editApplyTrades, setEditApplyTrades] = useState<string[]>([]);
   const [editApplyPositions, setEditApplyPositions] = useState<string[]>([]);
+  const [editRenewalMonths, setEditRenewalMonths] = useState("");
 
   useEffect(() => {
     try {
@@ -331,6 +353,12 @@ export default function TrainingMatrixPage() {
         window.localStorage.getItem(SCHEMA_MIGRATION_BANNER_DISMISSED_KEY) === "1"
       ) {
         setSchemaMigrationBannerDismissed(true);
+      }
+      if (
+        typeof window !== "undefined" &&
+        window.localStorage.getItem(DIRECTORY_NOTICE_DISMISSED_KEY) === "1"
+      ) {
+        setDirectoryNoticeDismissed(true);
       }
     } catch {
       /* ignore */
@@ -341,6 +369,15 @@ export default function TrainingMatrixPage() {
     setSchemaMigrationBannerDismissed(true);
     try {
       window.localStorage.setItem(SCHEMA_MIGRATION_BANNER_DISMISSED_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const dismissDirectoryNotice = useCallback(() => {
+    setDirectoryNoticeDismissed(true);
+    try {
+      window.localStorage.setItem(DIRECTORY_NOTICE_DISMISSED_KEY, "1");
     } catch {
       /* ignore */
     }
@@ -360,6 +397,7 @@ export default function TrainingMatrixPage() {
             requirements?: Requirement[];
             rows?: MatrixRow[];
             warning?: string | null;
+            directoryNotice?: string | null;
             schemaMigrationNeeded?: boolean;
             capabilities?: { canMutate?: boolean };
           }
@@ -371,6 +409,8 @@ export default function TrainingMatrixPage() {
         setRequirements([]);
         setRows([]);
         setSchemaMigrationNeeded(false);
+        setWarning(null);
+        setDirectoryNotice(null);
         setLoading(false);
         return;
       }
@@ -382,6 +422,7 @@ export default function TrainingMatrixPage() {
           ...r,
           applyTrades: r.applyTrades ?? [],
           applyPositions: r.applyPositions ?? [],
+          renewalMonths: r.renewalMonths ?? null,
         }))
       );
       setRows(
@@ -394,12 +435,15 @@ export default function TrainingMatrixPage() {
       );
       setCanMutate(Boolean(data?.capabilities?.canMutate));
       setWarning(data?.warning ?? null);
+      setDirectoryNotice(data?.directoryNotice ?? null);
     } catch (e) {
       setMessageTone("error");
       setMessage(e instanceof Error ? e.message : "Failed to load training matrix.");
       setRequirements([]);
       setRows([]);
       setSchemaMigrationNeeded(false);
+      setWarning(null);
+      setDirectoryNotice(null);
     }
     setLoading(false);
   }, []);
@@ -428,6 +472,7 @@ export default function TrainingMatrixPage() {
           matchFields: ["certifications"],
           applyTrades: newApplyTrades,
           applyPositions: newApplyPositions,
+          renewalMonths: parseRenewalMonthsInput(newRenewalMonths),
         }),
       });
       const data = (await res.json().catch(() => null)) as {
@@ -451,6 +496,7 @@ export default function TrainingMatrixPage() {
       setNewProfileCertCustom("");
       setNewApplyTrades([]);
       setNewApplyPositions([]);
+      setNewRenewalMonths("");
       await loadMatrix();
     } catch (e) {
       setMessageTone("error");
@@ -463,6 +509,7 @@ export default function TrainingMatrixPage() {
     newApplyTrades,
     newProfileCertCustom,
     newProfileCertSelect,
+    newRenewalMonths,
   ]);
 
   const startEdit = useCallback((r: Requirement) => {
@@ -473,6 +520,9 @@ export default function TrainingMatrixPage() {
     setEditProfileCertCustom(certUi.custom);
     setEditApplyTrades([...(r.applyTrades ?? [])]);
     setEditApplyPositions(parsed.positions);
+    setEditRenewalMonths(
+      r.renewalMonths != null && r.renewalMonths > 0 ? String(r.renewalMonths) : ""
+    );
   }, []);
 
   const cancelEdit = useCallback(() => {
@@ -500,6 +550,7 @@ export default function TrainingMatrixPage() {
           matchFields: ["certifications"],
           applyTrades: editApplyTrades,
           applyPositions: editApplyPositions,
+          renewalMonths: parseRenewalMonthsInput(editRenewalMonths),
         }),
       });
       const data = (await res.json().catch(() => null)) as {
@@ -531,6 +582,7 @@ export default function TrainingMatrixPage() {
     editApplyTrades,
     editProfileCertCustom,
     editProfileCertSelect,
+    editRenewalMonths,
     editingId,
     loadMatrix,
   ]);
@@ -584,6 +636,20 @@ export default function TrainingMatrixPage() {
       {schemaMigrationNeeded && !schemaMigrationBannerDismissed ? (
         <SchemaMigrationBanner onDismiss={dismissSchemaMigrationBanner} />
       ) : null}
+      {directoryNotice && !directoryNoticeDismissed ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+          <div className="min-w-0 flex-1">
+            <InlineMessage tone="neutral">{directoryNotice}</InlineMessage>
+          </div>
+          <button
+            type="button"
+            onClick={dismissDirectoryNotice}
+            className="shrink-0 self-end rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-100 sm:mt-2 sm:self-start"
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
       {warning ? <InlineMessage tone="warning">{warning}</InlineMessage> : null}
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 
@@ -635,6 +701,22 @@ export default function TrainingMatrixPage() {
             onPositionsChange={setNewApplyPositions}
             variant="default"
           />
+          <label className="mt-4 block text-sm font-medium text-slate-700">
+            Typical renewal (months, optional)
+            <input
+              type="number"
+              min={1}
+              max={600}
+              value={newRenewalMonths}
+              onChange={(e) => setNewRenewalMonths(e.target.value)}
+              placeholder="e.g. 36"
+              className="mt-1 w-full max-w-[200px] rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+            />
+            <span className="mt-1 block text-xs font-normal text-slate-500">
+              Policy hint for your team. Actual compliance still uses each worker’s expiration dates on their
+              construction profile.
+            </span>
+          </label>
           <div className="mt-4">
             <button
               type="button"
@@ -699,6 +781,18 @@ export default function TrainingMatrixPage() {
                         onPositionsChange={setEditApplyPositions}
                         variant="compact"
                       />
+                      <label className="block text-xs font-semibold text-slate-600">
+                        Typical renewal (months, optional)
+                        <input
+                          type="number"
+                          min={1}
+                          max={600}
+                          value={editRenewalMonths}
+                          onChange={(e) => setEditRenewalMonths(e.target.value)}
+                          placeholder="Clear to remove"
+                          className="mt-1 w-full max-w-[180px] rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                        />
+                      </label>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -732,6 +826,11 @@ export default function TrainingMatrixPage() {
                         <div className="mt-1 text-xs text-slate-500">
                           Trades: {(r.applyTrades ?? []).join(", ") || "—"}
                         </div>
+                        {r.renewalMonths != null && r.renewalMonths > 0 ? (
+                          <div className="mt-1 text-xs font-medium text-sky-800">
+                            Typical renewal: {r.renewalMonths} mo
+                          </div>
+                        ) : null}
                         <div className="mt-1 text-sm text-slate-600">
                           {r.matchKeywords.join(" · ")}
                         </div>
@@ -792,7 +891,7 @@ export default function TrainingMatrixPage() {
                     <th
                       key={r.id}
                       className="min-w-[100px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-600"
-                      title={r.matchKeywords.join(", ")}
+                      title={requirementHeaderTitle(r)}
                     >
                       <span className="line-clamp-3">{r.title}</span>
                     </th>

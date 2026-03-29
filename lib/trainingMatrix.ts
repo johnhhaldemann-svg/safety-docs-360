@@ -1,3 +1,8 @@
+import {
+  activeCertificationsForMatching,
+  type CertificationExpirationMap,
+} from "./certificationExpirations";
+
 export const DEFAULT_MATCH_FIELDS = ["certifications"] as const;
 
 export type MatchField = "certifications" | "job_title" | "trade_specialty";
@@ -16,6 +21,8 @@ export type TrainingRequirementInput = {
 
 export type ProfileForMatching = {
   certifications: string[] | null | undefined;
+  /** YYYY-MM-DD per certification name; omitted keys are treated as not expired. */
+  certificationExpirations?: CertificationExpirationMap | null;
   job_title?: string | null;
   trade_specialty?: string | null;
 };
@@ -65,7 +72,10 @@ function resolveMatchFields(fields?: string[] | null): MatchField[] {
 }
 
 function buildHaystacksByField(profile: ProfileForMatching, fields: MatchField[]) {
-  const certifications = profile.certifications ?? [];
+  const certifications = activeCertificationsForMatching(
+    profile.certifications,
+    profile.certificationExpirations ?? undefined
+  );
   const byField: Record<MatchField, { raw: string; norm: string; certIndex: number | null }[]> = {
     certifications: certifications.map((raw, certIndex) => ({
       raw,
@@ -110,7 +120,10 @@ export function computeTrainingMatrixRow(
   profile: ProfileForMatching,
   requirements: TrainingRequirementInput[]
 ): TrainingMatrixRowResult {
-  const certifications = profile.certifications ?? [];
+  const certifications = activeCertificationsForMatching(
+    profile.certifications,
+    profile.certificationExpirations ?? undefined
+  );
   const certContributed = certifications.map(() => false);
   const cells: Record<string, TrainingMatrixCellState> = {};
 

@@ -16,6 +16,7 @@ import {
   selectReturnLegacy,
   TRAINING_REQUIREMENTS_SCHEMA_WARNING,
 } from "@/lib/companyTrainingRequirementsDb";
+import { normalizeRenewalMonths } from "@/lib/trainingRequirementRenewal";
 import { DEFAULT_MATCH_FIELDS } from "@/lib/trainingMatrix";
 
 export const runtime = "nodejs";
@@ -29,6 +30,7 @@ type RequirementRow = {
   match_fields: string[];
   apply_trades: string[] | null;
   apply_positions: string[] | null;
+  renewal_months: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -110,6 +112,7 @@ export async function GET(request: Request) {
     matchFields: row.match_fields?.length ? row.match_fields : [...DEFAULT_MATCH_FIELDS],
     applyTrades: row.apply_trades ?? [],
     applyPositions: row.apply_positions ?? [],
+    renewalMonths: row.renewal_months ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }));
@@ -201,6 +204,7 @@ export async function POST(request: Request) {
       : maxOrder + 1;
 
   const nowIso = new Date().toISOString();
+  const renewalMonths = normalizeRenewalMonths(body?.renewalMonths, "create");
 
   const insertPayload: Record<string, unknown> = {
     company_id: companyScope.companyId,
@@ -210,6 +214,7 @@ export async function POST(request: Request) {
     match_fields: matchFields,
     apply_trades: applyTrades,
     apply_positions: applyPositions,
+    renewal_months: renewalMonths,
     created_at: nowIso,
     updated_at: nowIso,
     created_by: auth.user.id,
@@ -253,6 +258,7 @@ export async function POST(request: Request) {
       matchFields: created.match_fields?.length ? created.match_fields : [...DEFAULT_MATCH_FIELDS],
       applyTrades: created.apply_trades ?? [],
       applyPositions: created.apply_positions ?? [],
+      renewalMonths: created.renewal_months ?? null,
       createdAt: created.created_at,
       updatedAt: created.updated_at,
     },

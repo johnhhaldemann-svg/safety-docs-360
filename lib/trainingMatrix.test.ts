@@ -154,4 +154,16 @@ describe("computeTrainingMatrixRow", () => {
     );
     expect(unmatchedCertifications).toEqual(["OSHA 30"]);
   });
+
+  it("treats certifications past expiration as absent for matching", () => {
+    const { cells, unmatchedCertifications } = computeTrainingMatrixRow(
+      {
+        certifications: ["OSHA 30 Hour", "First Aid"],
+        certificationExpirations: { "OSHA 30 Hour": "2000-01-01" },
+      },
+      [{ id: "r1", match_keywords: ["osha 30"] }]
+    );
+    expect(cells.r1).toBe("gap");
+    expect(unmatchedCertifications).toEqual(["First Aid"]);
+  });
 });

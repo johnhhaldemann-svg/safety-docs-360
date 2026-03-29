@@ -14,6 +14,7 @@ import {
   PROFILE_CERTIFICATION_GROUPS,
   PROFILE_CERTIFICATION_SET,
 } from "@/lib/constructionProfileCertifications";
+import { isCertificationExpired } from "@/lib/certificationExpirations";
 import {
   CONSTRUCTION_POSITIONS,
   CONSTRUCTION_TRADES,
@@ -45,6 +46,7 @@ type ProfileResponse = {
     stateRegion?: string;
     readinessStatus?: string;
     certifications?: string[];
+    certificationExpirations?: Record<string, string>;
     specialties?: string[];
     equipment?: string[];
     bio?: string;
@@ -184,6 +186,7 @@ export default function ProfilePage() {
   const [stateRegion, setStateRegion] = useState("");
   const [readinessStatus, setReadinessStatus] = useState("ready");
   const [selectedCertifications, setSelectedCertifications] = useState<string[]>([]);
+  const [certExpirations, setCertExpirations] = useState<Record<string, string>>({});
   const [customCertificationsText, setCustomCertificationsText] = useState("");
   const [specialtiesText, setSpecialtiesText] = useState("");
   const [equipmentText, setEquipmentText] = useState("");
@@ -266,6 +269,7 @@ export default function ProfilePage() {
           setReadinessStatus(profile.readinessStatus ?? "ready");
           const { selected, custom } = splitKnownCertifications(profile.certifications);
           setSelectedCertifications(selected);
+          setCertExpirations({ ...(profile.certificationExpirations ?? {}) });
           setCustomCertificationsText(joinList(custom));
           setSpecialtiesText(joinList(profile.specialties));
           setEquipmentText(joinList(profile.equipment));
@@ -365,6 +369,11 @@ export default function ProfilePage() {
 
       const { nextPhotoUrl, nextPhotoPath } = await uploadPhoto();
 
+      const allowedCertNames = new Set(allCertifications);
+      const certificationExpirationsPayload = Object.fromEntries(
+        Object.entries(certExpirations).filter(([name]) => allowedCertNames.has(name))
+      );
+
       const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: {
@@ -383,6 +392,7 @@ export default function ProfilePage() {
           stateRegion,
           readinessStatus,
           certifications: allCertifications,
+          certificationExpirations: certificationExpirationsPayload,
           specialties: splitList(specialtiesText, 20),
           equipment: splitList(equipmentText, 20),
           bio,
@@ -409,6 +419,13 @@ export default function ProfilePage() {
       }
       if (data?.profile?.photoPath) {
         setPhotoPath(data.profile.photoPath);
+      }
+
+      const savedProfile = data?.profile as
+        | { certificationExpirations?: Record<string, string> }
+        | undefined;
+      if (savedProfile?.certificationExpirations) {
+        setCertExpirations(savedProfile.certificationExpirations);
       }
 
       const profileComplete = Boolean(data?.profile?.profileComplete);
@@ -457,11 +474,29 @@ export default function ProfilePage() {
   }
 
   function toggleCertification(certification: string) {
-    setSelectedCertifications((current) =>
-      current.includes(certification)
-        ? current.filter((item) => item !== certification)
-        : dedupeList([...current, certification], 60)
-    );
+    setSelectedCertifications((current) => {
+      if (current.includes(certification)) {
+        setCertExpirations((exp) => {
+          const next = { ...exp };
+          delete next[certification];
+          return next;
+        });
+        return current.filter((item) => item !== certification);
+      }
+      return dedupeList([...current, certification], 60);
+    });
+  }
+
+  function setExpirationForCert(certification: string, isoDate: string) {
+    setCertExpirations((prev) => {
+      const next = { ...prev };
+      if (!isoDate) {
+        delete next[certification];
+      } else {
+        next[certification] = isoDate;
+      }
+      return next;
+    });
   }
 
   const displayName = getDisplayName(fullName, preferredName);
@@ -764,7 +799,8 @@ export default function ProfilePage() {
                       Certification library
                     </div>
                     <p className="mt-1 text-sm leading-6 text-slate-500">
-                      Choose every certification, license, and safety training item that applies to this construction profile.
+                      Choose every certification, license, and safety training item that applies to this construction
+                      profile. Optional expiration dates keep the training matrix accurate when credentials lapse.
                     </p>
                   </div>
                   <StatusBadge
@@ -807,7 +843,7 @@ export default function ProfilePage() {
                         <div>
                           <div className="text-sm font-semibold text-slate-900">{group.title}</div>
                           <p className="mt-1 text-xs leading-5 text-slate-500">
-                            Select all certifications that apply.
+                            Select all that apply. When checked, you can record an expiration date (YYYY-MM-DD).
                           </p>
                         </div>
                         <StatusBadge
@@ -819,24 +855,54 @@ export default function ProfilePage() {
                       <div className="mt-4 space-y-2">
                         {group.items.map((item) => {
                           const checked = selectedCertifications.includes(item);
+                          const exp = certExpirations[item] ?? "";
+                          const expired = exp ? isCertificationExpired(exp, new Date()) : false;
                           return (
-                            <label
+                            <div
                               key={item}
                               className={[
-                                "flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-sm transition",
+                                "rounded-xl border px-3 py-3 text-sm transition",
                                 checked
-                                  ? "border-sky-200 bg-sky-50"
-                                  : "border-slate-200 bg-slate-50 hover:border-sky-200 hover:bg-sky-50/70",
+                                  ? expired
+                                    ? "border-amber-300 bg-amber-50"
+                                    : "border-sky-200 bg-sky-50"
+                                  : "border-slate-200 bg-slate-50",
                               ].join(" ")}
                             >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => toggleCertification(item)}
-                                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-                              />
-                              <span className="leading-6 text-slate-700">{item}</span>
-                            </label>
+                              <label className="flex cursor-pointer items-start gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleCertification(item)}
+                                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                                />
+                                <span className="flex-1 leading-6 text-slate-700">{item}</span>
+                              </label>
+                              {checked ? (
+                                <div className="mt-2 flex flex-col gap-1 pl-7 sm:flex-row sm:items-center sm:gap-3">
+                                  <label className="text-xs font-medium text-slate-600">
+                                    Expires
+                                    <input
+                                      type="date"
+                                      value={exp}
+                                      onChange={(e) => setExpirationForCert(item, e.target.value)}
+                                      className="ml-2 mt-1 block w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 sm:mt-0 sm:inline-block sm:w-auto"
+                                    />
+                                  </label>
+                                  {expired ? (
+                                    <span className="text-xs font-semibold text-amber-800">
+                                      Expired — renew to count toward training requirements
+                                    </span>
+                                  ) : exp ? (
+                                    <span className="text-xs text-slate-500">Counts until this date (UTC)</span>
+                                  ) : (
+                                    <span className="text-xs text-slate-500">
+                                      Leave blank if no expiry (counts as current)
+                                    </span>
+                                  )}
+                                </div>
+                              ) : null}
+                            </div>
                           );
                         })}
                       </div>
@@ -852,6 +918,10 @@ export default function ProfilePage() {
                 onChange={(event) => setCustomCertificationsText(event.target.value)}
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
+              <p className="text-xs text-slate-500">
+                Expiration dates apply to items selected from the certification library above. Custom entries here are
+                treated as current until you move them into the library list with a date.
+              </p>
               <textarea
                 rows={3}
                 placeholder="Site specialties (comma separated) - excavation, confined space, crane planning, scaffold oversight..."
@@ -1001,14 +1071,31 @@ export default function ProfilePage() {
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {previewCertifications.length > 0 ? (
-                    previewCertifications.map((item) => (
-                      <span
-                        key={item}
-                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700"
-                      >
-                        {item}
-                      </span>
-                    ))
+                    previewCertifications.map((item) => {
+                      const exp = certExpirations[item];
+                      const expired = exp ? isCertificationExpired(exp, new Date()) : false;
+                      return (
+                        <span
+                          key={item}
+                          className={[
+                            "inline-flex max-w-full flex-col rounded-full border px-3 py-1.5 text-xs font-semibold sm:max-w-none sm:inline-flex sm:flex-row sm:items-center sm:gap-2",
+                            expired
+                              ? "border-amber-300 bg-amber-50 text-amber-900"
+                              : exp
+                                ? "border-sky-200 bg-sky-50 text-sky-900"
+                                : "border-slate-200 bg-slate-50 text-slate-700",
+                          ].join(" ")}
+                        >
+                          <span className="truncate">{item}</span>
+                          {exp ? (
+                            <span className="font-normal opacity-90">
+                              {expired ? "expired " : "expires "}
+                              {exp}
+                            </span>
+                          ) : null}
+                        </span>
+                      );
+                    })
                   ) : (
                     <span className="text-sm text-slate-500">Add certifications to complete this section.</span>
                   )}

@@ -12,6 +12,7 @@ import {
   selectReturnLegacy,
   TRAINING_REQUIREMENTS_SCHEMA_WARNING,
 } from "@/lib/companyTrainingRequirementsDb";
+import { normalizeRenewalMonths } from "@/lib/trainingRequirementRenewal";
 import { DEFAULT_MATCH_FIELDS } from "@/lib/trainingMatrix";
 
 export const runtime = "nodejs";
@@ -27,6 +28,7 @@ type RequirementRow = {
   match_fields: string[];
   apply_trades?: string[] | null;
   apply_positions?: string[] | null;
+  renewal_months?: number | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -171,6 +173,11 @@ export async function PATCH(request: Request, context: RouteContext) {
     updates.sort_order = body.sortOrder;
   }
 
+  const renewalPatch = normalizeRenewalMonths(body?.renewalMonths, "patch");
+  if (renewalPatch !== undefined) {
+    updates.renewal_months = renewalPatch;
+  }
+
   let schemaWarning: string | null = null;
   if (!applyColumnsAvailable) {
     if ("apply_trades" in updates || "apply_positions" in updates) {
@@ -210,6 +217,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       matchFields: updated.match_fields?.length ? updated.match_fields : [...DEFAULT_MATCH_FIELDS],
       applyTrades: updated.apply_trades ?? [],
       applyPositions: updated.apply_positions ?? [],
+      renewalMonths: updated.renewal_months ?? null,
       createdAt: updated.created_at,
       updatedAt: updated.updated_at,
     },

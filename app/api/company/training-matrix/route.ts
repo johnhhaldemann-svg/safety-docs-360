@@ -11,6 +11,7 @@ import {
   loadCompanyWorkspaceUsersRls,
 } from "@/lib/companyWorkspaceDirectory";
 import { fetchCompanyTrainingRequirements } from "@/lib/companyTrainingRequirementsDb";
+import { parseCertificationExpirations } from "@/lib/certificationExpirations";
 import {
   computeTrainingMatrixRow,
   DEFAULT_MATCH_FIELDS,
@@ -22,6 +23,7 @@ export const runtime = "nodejs";
 type ProfileRow = {
   user_id: string;
   certifications: string[] | null;
+  certification_expirations: Record<string, string> | null;
   job_title: string | null;
   trade_specialty: string | null;
   readiness_status: string | null;
@@ -85,6 +87,7 @@ export async function GET(request: Request) {
     matchFields: row.match_fields?.length ? row.match_fields : [...DEFAULT_MATCH_FIELDS],
     applyTrades: row.apply_trades ?? [],
     applyPositions: row.apply_positions ?? [],
+    renewalMonths: row.renewal_months ?? null,
   }));
 
   const requirementInputs: TrainingRequirementInput[] = reqFetch.rows.map((row) => ({
@@ -123,6 +126,9 @@ export async function GET(request: Request) {
       requirements,
       rows: [],
       warning: null,
+      directoryNotice: adminClient
+        ? null
+        : "Names, emails, and last sign-in use limited Auth data until you add SUPABASE_SERVICE_ROLE_KEY to the server environment (for example in Vercel → Settings → Environment Variables). Never expose it to the browser.",
       schemaMigrationNeeded,
       capabilities: { canMutate: canMutateCompanyTrainingRequirements(auth.role) },
     });
@@ -131,7 +137,9 @@ export async function GET(request: Request) {
   const profileClient = adminClient ?? auth.supabase;
   const { data: profileData, error: profileError } = await profileClient
     .from("user_profiles")
-    .select("user_id, certifications, job_title, trade_specialty, readiness_status")
+    .select(
+      "user_id, certifications, certification_expirations, job_title, trade_specialty, readiness_status"
+    )
     .in("user_id", userIds);
 
   if (profileError && adminClient) {
@@ -141,15 +149,14 @@ export async function GET(request: Request) {
     );
   }
 
-  let warning: string | null = adminClient
+  const directoryNotice: string | null = adminClient
     ? null
-    : "Showing members from your company workspace. Add SUPABASE_SERVICE_ROLE_KEY to the server environment for full names, emails, and last sign-in from Auth.";
+    : "Names, emails, and last sign-in use limited Auth data until you add SUPABASE_SERVICE_ROLE_KEY to the server environment (for example in Vercel → Settings → Environment Variables). Never expose it to the browser.";
 
-  if (profileError && !adminClient) {
-    const suffix =
-      " Construction profiles could not be loaded for every row (permissions or configuration).";
-    warning = warning ? `${warning}${suffix}` : suffix.trimStart();
-  }
+  let warning: string | null =
+    profileError && !adminClient
+      ? "Construction profiles could not be loaded for every row (permissions or configuration)."
+      : null;
 
   const profileMap = new Map<string, ProfileRow>();
   for (const row of (profileData as ProfileRow[] | null) ?? []) {
@@ -161,6 +168,9 @@ export async function GET(request: Request) {
     const { cells, unmatchedCertifications } = computeTrainingMatrixRow(
       {
         certifications: profile?.certifications ?? [],
+        certificationExpirations: parseCertificationExpirations(
+          profile?.certification_expirations ?? undefined
+        ),
         job_title: profile?.job_title ?? null,
         trade_specialty: profile?.trade_specialty ?? null,
       },
@@ -187,6 +197,7 @@ export async function GET(request: Request) {
     requirements,
     rows,
     warning,
+    directoryNotice,
     schemaMigrationNeeded,
     capabilities: { canMutate: canMutateCompanyTrainingRequirements(auth.role) },
   });

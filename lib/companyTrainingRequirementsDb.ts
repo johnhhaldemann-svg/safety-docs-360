@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const COLS_CORE =
-  "id, company_id, title, sort_order, match_keywords, match_fields";
+  "id, company_id, title, sort_order, match_keywords, match_fields, renewal_months";
 const COLS_APPLY = "apply_trades, apply_positions";
 const COLS_TS = "created_at, updated_at";
 
@@ -22,6 +22,7 @@ export type TrainingRequirementDbRow = {
   match_fields: string[];
   apply_trades: string[] | null;
   apply_positions: string[] | null;
+  renewal_months: number | null;
   created_at?: string;
   updated_at?: string;
 };
