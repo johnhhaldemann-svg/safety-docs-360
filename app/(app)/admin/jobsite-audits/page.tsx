@@ -1,6 +1,7 @@
 "use client";
 
 import * as Tabs from "@radix-ui/react-tabs";
+import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuditorDashboard, buildDefaultTrend } from "@/components/jobsite-audits/AuditorDashboard";
 import { ExcelTemplateByCategory } from "@/components/jobsite-audits/ExcelTemplateByCategory";
@@ -10,8 +11,17 @@ import {
   PageHero,
   SectionCard,
 } from "@/components/WorkspacePrimitives";
-import { getEnvironmentalSections, getHealthSafetySections } from "@/lib/jobsiteAudits/auditRows";
+import {
+  deriveExcelSectionLabels,
+  getEnvironmentalSections,
+  getHealthSafetySections,
+} from "@/lib/jobsiteAudits/auditRows";
 import { OSHA_FIELD_AUDIT_SECTIONS, fieldItemKey } from "@/lib/jobsiteAudits/oshaFieldAuditTemplate";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 const STORAGE_KEY_V2 = "safety360docs:jobsite-audit-checklist:v2";
 const STORAGE_KEY_V1 = "safety360docs:jobsite-audit-checklist:v1";
@@ -127,9 +137,20 @@ function loadDraft(): PersistedDraft {
   };
 }
 
+type SubmissionRow = {
+  id: string;
+  created_at: string;
+  created_by_email: string | null;
+  jobsite_name: string | null;
+  audit_date: string | null;
+  auditors: string | null;
+};
+
 export default function AdminJobsiteAuditsPage() {
   const envSections = useMemo(() => getEnvironmentalSections(), []);
   const hsSections = useMemo(() => getHealthSafetySections(), []);
+  const hsSectionTitles = useMemo(() => deriveExcelSectionLabels(hsSections, "hs"), [hsSections]);
+  const envSectionTitles = useMemo(() => deriveExcelSectionLabels(envSections, "env"), [envSections]);
 
   const [jobsite, setJobsite] = useState("");
   const [auditors, setAuditors] = useState("");
@@ -139,6 +160,10 @@ export default function AdminJobsiteAuditsPage() {
   const [photoCounts, setPhotoCounts] = useState<Record<string, number>>({});
   const [history, setHistory] = useState<MonthPoint[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => {
@@ -232,17 +257,141 @@ export default function AdminJobsiteAuditsPage() {
     window.localStorage.removeItem(HISTORY_KEY);
   }, []);
 
+  const buildPayload = useCallback(() => {
+    return {
+      version: "safety360-jobsite-audit-v3",
+      capturedAt: new Date().toISOString(),
+      sourcePath: "/admin/jobsite-audits",
+      query,
+      statusMap,
+      photoCounts,
+      complianceHistory: history,
+      excel: {
+        hsSectionLabels: hsSectionTitles,
+        envSectionLabels: envSectionTitles,
+        hsBlockCount: hsSections.length,
+        envBlockCount: envSections.length,
+      },
+      fieldAuditTemplate: OSHA_FIELD_AUDIT_SECTIONS.map((s) => ({
+        id: s.id,
+        title: s.title,
+        itemIds: s.items.map((i) => i.id),
+      })),
+      summary: {
+        scoredCells: Object.keys(statusMap).length,
+        photosAttached: Object.values(photoCounts).reduce((a, n) => a + n, 0),
+      },
+    };
+  }, [
+    envSectionTitles,
+    history,
+    hsSectionTitles,
+    hsSections.length,
+    envSections.length,
+    photoCounts,
+    query,
+    statusMap,
+  ]);
+
+  const refreshSubmissions = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    const res = await fetch("/api/admin/jobsite-audits", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const data = (await res.json().catch(() => null)) as { submissions?: SubmissionRow[] } | null;
+    if (res.ok && data?.submissions) {
+      setSubmissions(data.submissions);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void refreshSubmissions();
+  }, [hydrated, refreshSubmissions]);
+
+  const downloadJson = useCallback(() => {
+    const payload = buildPayload();
+    const body = JSON.stringify(
+      {
+        jobsite,
+        auditors,
+        auditDate,
+        ...payload,
+      },
+      null,
+      2
+    );
+    const blob = new Blob([body], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `jobsite-audit-${auditDate || "draft"}-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setSubmitMessage("Download started.");
+    setSubmitError("");
+  }, [auditDate, auditors, buildPayload, jobsite]);
+
+  const submitToServer = useCallback(async () => {
+    setSubmitting(true);
+    setSubmitError("");
+    setSubmitMessage("");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setSubmitError("You must be signed in to submit.");
+        return;
+      }
+      const payload = buildPayload();
+      const res = await fetch("/api/admin/jobsite-audits", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          jobsite,
+          auditors,
+          auditDate: auditDate || null,
+          payload: {
+            jobsite,
+            auditors,
+            auditDate,
+            ...payload,
+          },
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as { error?: string; submission?: { id: string } } | null;
+      if (!res.ok) {
+        setSubmitError(data?.error || "Submit failed.");
+        return;
+      }
+      setSubmitMessage(`Saved to platform (id ${data?.submission?.id?.slice(0, 8) ?? "…"}).`);
+      void refreshSubmissions();
+    } catch {
+      setSubmitError("Network error while submitting.");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [auditDate, auditors, buildPayload, jobsite, refreshSubmissions]);
+
   return (
     <div className="space-y-6">
       <PageHero
         eyebrow="Internal — platform admin"
         title="Safety auditor workspace"
-        description="Dashboard-style overview, OSHA-aligned field audit, and your original Excel-derived templates. Data stays in this browser until you export to your formal system."
+        description="Dashboard, OSHA field checklist, and full Excel-derived templates split by category. Drafts autosave in this browser; submit or download JSON to record the same payload on the platform."
       />
 
       <InlineMessage tone="warning">
-        Stored locally on this device only (not in Safety360Docs database). Citations are abbreviated;
-        confirm requirements with current OSHA / state rules.
+        Draft checklist scores are cached in local storage on this device. Use Submit or Download JSON to capture
+        a full snapshot (field audit + Excel lines + labels). Citations are abbreviated; confirm rules in force for
+        your jurisdiction.
       </InlineMessage>
 
       <SectionCard
@@ -286,6 +435,75 @@ export default function AdminJobsiteAuditsPage() {
               className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm"
             />
           </label>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Submit audit record"
+        description="Saves checklist scores, Excel category labels, and metadata for internal admins (requires service role on the server)."
+        aside={
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={downloadJson}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Download JSON
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => void submitToServer()}
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {submitting ? "Submitting…" : "Submit to platform"}
+            </button>
+          </div>
+        }
+      >
+        {submitError ? (
+          <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{submitError}</p>
+        ) : null}
+        {submitMessage ? (
+          <p className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            {submitMessage}
+          </p>
+        ) : null}
+        <p className="text-sm text-slate-600">
+          Submit stores one row in <code className="rounded bg-slate-100 px-1">internal_jobsite_audits</code> with a
+          JSON payload mirroring your workbook lines (keys <code className="rounded bg-slate-100 px-1">hs-*</code>,{" "}
+          <code className="rounded bg-slate-100 px-1">env-*</code>, <code className="rounded bg-slate-100 px-1">field-*</code>
+          ) and monthly trend history.
+        </p>
+        <div className="mt-4 max-h-48 overflow-y-auto rounded-xl border border-slate-100">
+          <table className="w-full text-left text-xs">
+            <thead className="sticky top-0 bg-slate-50 text-[10px] font-bold uppercase text-slate-500">
+              <tr>
+                <th className="px-3 py-2">When</th>
+                <th className="px-3 py-2">Job</th>
+                <th className="px-3 py-2">Auditors</th>
+              </tr>
+            </thead>
+            <tbody>
+              {submissions.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-3 py-4 text-center text-slate-500">
+                    No submissions yet, or list still loading.
+                  </td>
+                </tr>
+              ) : (
+                submissions.map((s) => (
+                  <tr key={s.id} className="border-t border-slate-100">
+                    <td className="px-3 py-2 text-slate-600">
+                      {new Date(s.created_at).toLocaleString()}
+                    </td>
+                    <td className="px-3 py-2 font-medium text-slate-900">{s.jobsite_name || "—"}</td>
+                    <td className="px-3 py-2 text-slate-600">{s.auditors || "—"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </SectionCard>
 
@@ -368,24 +586,27 @@ export default function AdminJobsiteAuditsPage() {
                 </p>
                 <ExcelTemplateByCategory
                   sections={hsSections}
+                  sectionTitles={hsSectionTitles}
                   tabPrefix="hs"
                   query={query}
                   statusMap={statusMap}
                   onRowStatus={setRowStatus}
-                  categoryLabel="H&S blocks"
+                  categoryLabel="H&S categories"
                 />
               </Tabs.Content>
               <Tabs.Content value="env" className="mt-6 outline-none">
                 <p className="mb-4 text-sm text-slate-600">
-                  From <em>Quick Audit Tool Env.xlsx</em> — generic program rows; site permit IDs stripped.
+                  From <em>Quick Audit Tool Env.xlsx</em> — full Sheet1 export (all rows and columns from the
+                  workbook JSON).
                 </p>
                 <ExcelTemplateByCategory
                   sections={envSections}
+                  sectionTitles={envSectionTitles}
                   tabPrefix="env"
                   query={query}
                   statusMap={statusMap}
                   onRowStatus={setRowStatus}
-                  categoryLabel="Environmental blocks"
+                  categoryLabel="Environmental categories"
                 />
               </Tabs.Content>
             </Tabs.Root>

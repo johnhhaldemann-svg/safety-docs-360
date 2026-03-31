@@ -30,57 +30,6 @@ function isBlank(v: unknown): v is null | undefined | "" {
   return v == null || String(v).trim() === "";
 }
 
-/** True when a column still has real checklist text after stripping template "N/A" padding. */
-export function meaningfulTemplateCategory(value: string | undefined): boolean {
-  if (isBlank(value)) return false;
-  const withoutNa = String(value)
-    .replace(/\s*N\/A\s*/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return withoutNa.length >= 4;
-}
-
-/**
- * Environmental workbook mixes program checklist lines with site-filled permit/equipment rows.
- * Keep only rows that still carry at least one program/category column (generic template).
- */
-export function shouldIncludeEnvironmentalRow(row: AuditExcelRow): boolean {
-  return (
-    meaningfulTemplateCategory(row["Category/Requirement"]) ||
-    meaningfulTemplateCategory(row["Category/Requirement_1"])
-  );
-}
-
-function looksLikeFacilityPermitNumber(value: string): boolean {
-  return /^[A-Z]\d{4,}\s*$/i.test(value.trim());
-}
-
-/** Remove example permit IDs and tagged equipment lines copied from one facility. */
-export function sanitizeEnvironmentalRow(row: AuditExcelRow): AuditExcelRow {
-  const out: AuditExcelRow = { ...row };
-  for (const key of ["Permit #", "Permit #_1"] as const) {
-    const v = out[key];
-    if (v && looksLikeFacilityPermitNumber(String(v))) {
-      delete out[key];
-    }
-  }
-  for (const key of ["Permit Type/Condition", "Permit Type/Condition_1"] as const) {
-    const v = out[key];
-    if (!v) continue;
-    const t = String(v).trim();
-    if (/\b(Furnace|Oven|Boiler|Scrubber|Press|Tank|Kiln|Generator)\s*#\s*\d+/i.test(t)) {
-      delete out[key];
-    }
-  }
-  for (const key of ["Comments_1", "Comments_2", "Comments_3"] as const) {
-    const v = out[key];
-    if (v && /\bS\/N\b|Model\s*#/i.test(String(v))) {
-      delete out[key];
-    }
-  }
-  return out;
-}
-
 /** Excel repeats a header row with literal column titles. */
 export function isChecklistColumnHeaderRow(row: AuditExcelRow): boolean {
   return String(row["Category/Requirement"] ?? "").trim() === "Category/Requirement";
@@ -141,12 +90,44 @@ export function orderedRowEntries(row: AuditExcelRow): [string, string][] {
   return entries;
 }
 
+/** Strip template padding so sidebar titles match how the Excel reads. */
+function titleFromCategoryCell(value: string | undefined): string {
+  if (isBlank(value)) return "";
+  return String(value)
+    .replace(/\s*N\/A\s*/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * One label per Excel "block" (split on header rows), from the first data row — same idea as workbook sections.
+ */
+export function deriveExcelSectionLabel(
+  rows: AuditExcelRow[],
+  index: number,
+  kind: "hs" | "env"
+): string {
+  const fallback =
+    kind === "hs" ? `Health & safety · Part ${index + 1}` : `Environmental · Part ${index + 1}`;
+  if (rows.length === 0) return fallback;
+  const first = rows[0];
+  const left = titleFromCategoryCell(first["Category/Requirement"]);
+  const right = titleFromCategoryCell(first["Category/Requirement_1"]);
+  const pick = left.length >= 4 ? left : right.length >= 4 ? right : "";
+  if (!pick) return fallback;
+  return pick.length > 64 ? `${pick.slice(0, 61)}…` : pick;
+}
+
+export function deriveExcelSectionLabels(
+  sections: AuditExcelRow[][],
+  kind: "hs" | "env"
+): string[] {
+  return sections.map((rows, i) => deriveExcelSectionLabel(rows, i, kind));
+}
+
+/** Full Sheet1 export — no row/column stripping so the app matches your Excel workbook. */
 export function getEnvironmentalSections(): AuditExcelRow[][] {
-  const source = environmentalRows as AuditExcelRow[];
-  const filtered = source.filter(
-    (row) => isChecklistColumnHeaderRow(row) || shouldIncludeEnvironmentalRow(row)
-  );
-  return splitIntoSections(filtered).map((section) => section.map(sanitizeEnvironmentalRow));
+  return splitIntoSections(environmentalRows as AuditExcelRow[]);
 }
 
 export function getHealthSafetySections(): AuditExcelRow[][] {

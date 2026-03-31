@@ -15,6 +15,7 @@ function rowMatchesQuery(row: AuditExcelRow, q: string): boolean {
 
 export function ExcelTemplateByCategory({
   sections,
+  sectionTitles,
   tabPrefix,
   query,
   statusMap,
@@ -22,6 +23,8 @@ export function ExcelTemplateByCategory({
   categoryLabel = "Category",
 }: {
   sections: AuditExcelRow[][];
+  /** One title per section — from first Excel row text (see deriveExcelSectionLabels). */
+  sectionTitles: string[];
   tabPrefix: "env" | "hs";
   query: string;
   statusMap: Record<string, RowStatus>;
@@ -68,6 +71,10 @@ export function ExcelTemplateByCategory({
     return <p className="text-sm text-slate-500">No template sections loaded.</p>;
   }
 
+  const titleAt = (i: number) =>
+    sectionTitles[i]?.trim() ||
+    (tabPrefix === "hs" ? `Health & safety · Part ${i + 1}` : `Environmental · Part ${i + 1}`);
+
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(200px,260px)_1fr]">
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 lg:max-h-[min(70vh,720px)] lg:overflow-y-auto">
@@ -95,8 +102,9 @@ export function ExcelTemplateByCategory({
                     : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-white"
                 }`}
               >
-                <span className="leading-snug">
-                  {tabPrefix === "hs" ? "H&S block" : "Env. block"} {sIdx + 1}
+                <span className="leading-snug">{titleAt(sIdx)}</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  {tabPrefix === "hs" ? "H&S" : "Env."} · Block {sIdx + 1}/{sections.length}
                 </span>
                 <span className="text-[11px] font-normal text-slate-500">
                   {filtered.length} line{filtered.length === 1 ? "" : "s"}
@@ -111,10 +119,11 @@ export function ExcelTemplateByCategory({
       <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div>
-            <h3 className="text-base font-bold text-slate-900">
-              {tabPrefix === "hs" ? "Health & safety" : "Environmental"} — block {safeIdx + 1}{" "}
-              <span className="text-slate-500">/ {sections.length}</span>
-            </h3>
+            <h3 className="text-base font-bold text-slate-900">{titleAt(safeIdx)}</h3>
+            <p className="text-xs font-semibold text-slate-500">
+              {tabPrefix === "hs" ? "Health & safety" : "Environmental"} · Category {safeIdx + 1} of{" "}
+              {sections.length}
+            </p>
             <p className="text-xs text-slate-500">
               {currentRows.length} checklist line{currentRows.length === 1 ? "" : "s"} in this category
               {query.trim() ? " (after filter)" : ""}

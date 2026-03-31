@@ -1,49 +1,51 @@
 import { describe, expect, it } from "vitest";
+import environmentalRows from "./environmental-audit-rows.json";
+import healthSafetyRows from "./health-safety-audit-rows.json";
 import {
-  meaningfulTemplateCategory,
-  sanitizeEnvironmentalRow,
-  shouldIncludeEnvironmentalRow,
+  deriveExcelSectionLabel,
+  getEnvironmentalSections,
+  getHealthSafetySections,
+  isChecklistColumnHeaderRow,
+  splitIntoSections,
+  type AuditExcelRow,
 } from "./auditRows";
 
-describe("jobsite environmental audit rows", () => {
-  it("detects meaningful category text after N/A padding", () => {
-    expect(meaningfulTemplateCategory("Air Emissions                                                       N/A  ")).toBe(
-      true
-    );
-    expect(meaningfulTemplateCategory("                                                                                      N/A")).toBe(
-      false
-    );
-    expect(meaningfulTemplateCategory(undefined)).toBe(false);
+describe("jobsite audit rows (Excel JSON fidelity)", () => {
+  it("environmental: keeps every non-header row from the export (no filtering)", () => {
+    const rows = environmentalRows as AuditExcelRow[];
+    const headerCount = rows.filter((r) => isChecklistColumnHeaderRow(r)).length;
+    const sections = getEnvironmentalSections();
+    const flat = sections.flat();
+    expect(flat.length).toBe(rows.length - headerCount);
   });
 
-  it("includes rows with at least one real program column", () => {
-    expect(
-      shouldIncludeEnvironmentalRow({
-        "Category/Requirement": "NESHAP                                                                  N/A",
-        "Category/Requirement_1": "Store Haz Matial or Haz Waste          N/A",
-      })
-    ).toBe(true);
-    expect(
-      shouldIncludeEnvironmentalRow({
-        "Permit Type/Condition": "Type of Feed Gases",
-        Comments_2: "Daily Records",
-      })
-    ).toBe(false);
+  it("health & safety: splits full Sheet1 export", () => {
+    const rows = healthSafetyRows as AuditExcelRow[];
+    const headerCount = rows.filter((r) => isChecklistColumnHeaderRow(r)).length;
+    const sections = getHealthSafetySections();
+    const flat = sections.flat();
+    expect(flat.length).toBe(rows.length - headerCount);
   });
 
-  it("strips example permit numbers and tagged equipment conditions", () => {
-    const row = sanitizeEnvironmentalRow({
-      "Category/Requirement": "Air Emissions  N/A",
-      "Permit Type/Condition": "Furnace #44",
-      "Permit #": "G71192",
-      "Permit Type/Condition_1": "Thermal Oxidizer",
-      "Permit #_1": "F58509",
-      Comments_3: "THM-1, S/N 0438",
-    });
-    expect(row["Permit #"]).toBeUndefined();
-    expect(row["Permit #_1"]).toBeUndefined();
-    expect(row["Permit Type/Condition"]).toBeUndefined();
-    expect(row["Permit Type/Condition_1"]).toBe("Thermal Oxidizer");
-    expect(row.Comments_3).toBeUndefined();
+  it("deriveExcelSectionLabel uses first row category text", () => {
+    const rows: AuditExcelRow[] = [
+      {
+        "Category/Requirement": "Cal OSHA IIPP                           N/A  ",
+        "Category/Requirement_1": "Cal OSHA RMI (Ergo)           N/A  ",
+      },
+    ];
+    expect(deriveExcelSectionLabel(rows, 0, "hs")).toContain("Cal OSHA IIPP");
+  });
+
+  it("splitIntoSections separates on repeated column-header rows", () => {
+    const rows: AuditExcelRow[] = [
+      { "Category/Requirement": "Topic A", "Category/Requirement_1": "Topic B" },
+      { "Category/Requirement": "Category/Requirement", Date: "Date", "Y/N": "Y/N" },
+      { "Category/Requirement": "After header" },
+    ];
+    const sections = splitIntoSections(rows);
+    expect(sections.length).toBe(2);
+    expect(sections[0].map((r) => r["Category/Requirement"])).toContain("Topic A");
+    expect(sections[1].map((r) => r["Category/Requirement"])).toContain("After header");
   });
 });
