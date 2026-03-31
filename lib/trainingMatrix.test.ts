@@ -71,16 +71,18 @@ describe("requirementAppliesToProfile", () => {
 
 describe("computeTrainingMatrixRow", () => {
   it("marks requirement satisfied when cert contains keyword", () => {
-    const { cells, unmatchedCertifications } = computeTrainingMatrixRow(
+    const { cells, cellDetails, unmatchedCertifications } = computeTrainingMatrixRow(
       { certifications: ["OSHA 30 Hour", "First Aid"] },
       [{ id: "r1", match_keywords: ["osha 30"] }]
     );
     expect(cells.r1).toBe("match");
+    expect(cellDetails.r1?.state).toBe("match");
+    expect(cellDetails.r1?.matchedLabel).toBe("OSHA 30 Hour");
     expect(unmatchedCertifications).toEqual(["First Aid"]);
   });
 
   it("treats cert as matched for multiple requirements without duplicating unmatched", () => {
-    const { cells, unmatchedCertifications } = computeTrainingMatrixRow(
+    const { cells, cellDetails, unmatchedCertifications } = computeTrainingMatrixRow(
       { certifications: ["OSHA 30"] },
       [
         { id: "a", match_keywords: ["osha"] },
@@ -89,11 +91,12 @@ describe("computeTrainingMatrixRow", () => {
     );
     expect(cells.a).toBe("match");
     expect(cells.b).toBe("match");
+    expect(cellDetails.a?.matchedLabel).toBe("OSHA 30");
     expect(unmatchedCertifications).toEqual([]);
   });
 
   it("matches job_title when match_fields includes job_title", () => {
-    const { cells, unmatchedCertifications } = computeTrainingMatrixRow(
+    const { cells, cellDetails, unmatchedCertifications } = computeTrainingMatrixRow(
       {
         certifications: ["CPR"],
         job_title: "Site Safety Supervisor",
@@ -107,20 +110,22 @@ describe("computeTrainingMatrixRow", () => {
       ]
     );
     expect(cells.safety).toBe("match");
+    expect(cellDetails.safety?.matchSource).toBe("job_title");
     expect(unmatchedCertifications).toEqual(["CPR"]);
   });
 
   it("returns gap when nothing matches", () => {
-    const { cells, unmatchedCertifications } = computeTrainingMatrixRow(
+    const { cells, cellDetails, unmatchedCertifications } = computeTrainingMatrixRow(
       { certifications: ["Forklift"] },
       [{ id: "r1", match_keywords: ["crane"] }]
     );
     expect(cells.r1).toBe("gap");
+    expect(cellDetails.r1?.gapKeywords).toEqual(["crane"]);
     expect(unmatchedCertifications).toEqual(["Forklift"]);
   });
 
   it("marks na when trade scope excludes profile", () => {
-    const { cells } = computeTrainingMatrixRow(
+    const { cells, cellDetails } = computeTrainingMatrixRow(
       {
         certifications: ["OSHA 30"],
         trade_specialty: "Plumbing",
@@ -135,6 +140,7 @@ describe("computeTrainingMatrixRow", () => {
       ]
     );
     expect(cells.r1).toBe("na");
+    expect(cellDetails.r1?.state).toBe("na");
   });
 
   it("does not consume certifications for na requirements", () => {
@@ -165,5 +171,19 @@ describe("computeTrainingMatrixRow", () => {
     );
     expect(cells.r1).toBe("gap");
     expect(unmatchedCertifications).toEqual(["First Aid"]);
+  });
+
+  it("includes expiry metadata on matched certification cells", () => {
+    const { cells, cellDetails } = computeTrainingMatrixRow(
+      {
+        certifications: ["OSHA 10"],
+        certificationExpirations: { "OSHA 10": "2030-06-15" },
+      },
+      [{ id: "r1", match_keywords: ["osha 10"] }],
+      new Date("2026-01-01T12:00:00.000Z")
+    );
+    expect(cells.r1).toBe("match");
+    expect(cellDetails.r1?.expiresOn).toBe("2030-06-15");
+    expect(cellDetails.r1?.expiryStatus).toBe("ok");
   });
 });

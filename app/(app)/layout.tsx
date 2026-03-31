@@ -5,6 +5,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  accountSetupSideSections,
+  adminSideSections,
+  companyAdminSideSections,
+  companyManagerSideSections,
+  companyUserSideSections,
+  internalAdminAppendedSection,
+  userSideSections,
+} from "@/lib/appNavigation";
 import { getDefaultAgreementConfig, type AgreementConfig } from "@/lib/legal";
 import type { PermissionMap } from "@/lib/rbac";
 
@@ -13,17 +22,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-type NavItem = {
-  href: string;
-  label: string;
-  short: string;
-};
-
-type NavSection = {
-  title: string;
-  items: NavItem[];
-};
-
 type ProfileSummary = {
   fullName?: string;
   preferredName?: string;
@@ -31,209 +29,6 @@ type ProfileSummary = {
   tradeSpecialty?: string;
   photoUrl?: string;
 };
-
-const userQuickLinks: NavItem[] = [
-  { href: "/submit", label: "Submit Request", short: "SB" },
-  { href: "/upload", label: "Upload", short: "UP" },
-  { href: "/library", label: "Library", short: "LI" },
-];
-
-const adminQuickLinks: NavItem[] = [
-  { href: "/admin/review-documents", label: "Review Queue", short: "RQ" },
-  { href: "/admin/users", label: "Users", short: "US" },
-  { href: "/admin/companies", label: "Companies", short: "CO" },
-  { href: "/admin/agreements", label: "Agreements", short: "AG" },
-];
-
-const companyAdminQuickLinks: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", short: "DB" },
-  { href: "/jobsites", label: "Jobsites", short: "JS" },
-  { href: "/library", label: "Documents", short: "DC" },
-  { href: "/peshep", label: "PESHEP", short: "PB" },
-  { href: "/csep", label: "CSEP", short: "CS" },
-  { href: "/company-users", label: "Users", short: "US" },
-  { href: "/training-matrix", label: "Training matrix", short: "TM" },
-  { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
-  { href: "/daps", label: "DAPs", short: "DP" },
-  { href: "/permits", label: "Permits", short: "PM" },
-  { href: "/incidents", label: "Incidents", short: "IN" },
-  { href: "/analytics", label: "Analytics", short: "AN" },
-  { href: "/reports", label: "Reports", short: "RP" },
-];
-
-const companyManagerQuickLinks: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", short: "DB" },
-  { href: "/jobsites", label: "Jobsites", short: "JS" },
-  { href: "/library", label: "Documents", short: "DC" },
-  { href: "/peshep", label: "PESHEP", short: "PB" },
-  { href: "/csep", label: "CSEP", short: "CS" },
-  { href: "/training-matrix", label: "Training matrix", short: "TM" },
-  { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
-  { href: "/daps", label: "DAPs", short: "DP" },
-  { href: "/permits", label: "Permits", short: "PM" },
-  { href: "/incidents", label: "Incidents", short: "IN" },
-  { href: "/analytics", label: "Analytics", short: "AN" },
-  { href: "/reports", label: "Reports", short: "RP" },
-];
-
-const companyUserQuickLinks: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", short: "DB" },
-  { href: "/library", label: "Documents", short: "DC" },
-  { href: "/submit", label: "Submit Document", short: "SD" },
-  { href: "/upload", label: "Upload File", short: "UF" },
-  { href: "/profile", label: "Construction Profile", short: "CP" },
-];
-
-const userSideSections: NavSection[] = [
-  {
-    title: "Workspace",
-    items: [
-      { href: "/dashboard", label: "Dashboard", short: "HM" },
-      { href: "/submit", label: "Submit Request", short: "SB" },
-      { href: "/library", label: "Library", short: "LB" },
-      { href: "/upload", label: "Upload", short: "UP" },
-      { href: "/search", label: "Search", short: "SR" },
-    ],
-  },
-  {
-    title: "Builders",
-    items: [
-      { href: "/peshep", label: "PESHEP Builder", short: "PB" },
-      { href: "/csep", label: "CSEP Builder", short: "CS" },
-    ],
-  },
-  {
-    title: "Account",
-    items: [
-      { href: "/profile", label: "Construction Profile", short: "CP" },
-      { href: "/purchases", label: "My Purchases", short: "MP" },
-    ],
-  },
-];
-
-const adminSideSections: NavSection[] = [
-  {
-    title: "Admin",
-    items: [
-      { href: "/admin", label: "Dashboard", short: "AH" },
-      { href: "/admin/review-documents", label: "Review Queue", short: "RQ" },
-      { href: "/admin/users", label: "Users", short: "US" },
-      { href: "/admin/companies", label: "Companies", short: "CO" },
-      { href: "/admin/agreements", label: "Agreements", short: "AG" },
-      { href: "/admin/marketplace", label: "Marketplace", short: "MP" },
-    ],
-  },
-  {
-    title: "Operations",
-    items: [
-      { href: "/admin/archive", label: "Archive", short: "AR" },
-      { href: "/admin/transactions", label: "Transactions", short: "TX" },
-      { href: "/admin/settings", label: "Settings", short: "ST" },
-    ],
-  },
-  {
-    title: "Shared Tools",
-    items: [
-      { href: "/library", label: "Library", short: "LB" },
-      { href: "/search", label: "Search", short: "SR" },
-      { href: "/profile", label: "Construction Profile", short: "CP" },
-    ],
-  },
-];
-
-const companyAdminSideSections: NavSection[] = [
-  {
-    title: "Company Board",
-    items: [
-      { href: "/dashboard", label: "Dashboard", short: "HM" },
-      { href: "/jobsites", label: "Jobsites", short: "JS" },
-      { href: "/library", label: "Documents", short: "DC" },
-      { href: "/company-users", label: "Users", short: "US" },
-      { href: "/training-matrix", label: "Training matrix", short: "TM" },
-      { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
-      { href: "/daps", label: "DAPs", short: "DP" },
-      { href: "/permits", label: "Permits", short: "PM" },
-      { href: "/incidents", label: "Incidents", short: "IN" },
-      { href: "/analytics", label: "Analytics", short: "AN" },
-      { href: "/reports", label: "Reports", short: "RP" },
-    ],
-  },
-  {
-    title: "Workflow",
-    items: [
-      { href: "/submit", label: "Submit Document", short: "SD" },
-      { href: "/upload", label: "Upload File", short: "UF" },
-      { href: "/peshep", label: "PESHEP Builder", short: "PB" },
-      { href: "/csep", label: "CSEP Builder", short: "CS" },
-    ],
-  },
-  {
-    title: "Account",
-    items: [
-      { href: "/profile", label: "Construction Profile", short: "CP" },
-    ],
-  },
-];
-
-const companyManagerSideSections: NavSection[] = [
-  {
-    title: "Company Operations",
-    items: [
-      { href: "/dashboard", label: "Dashboard", short: "HM" },
-      { href: "/jobsites", label: "Jobsites", short: "JS" },
-      { href: "/library", label: "Documents", short: "DC" },
-      { href: "/training-matrix", label: "Training matrix", short: "TM" },
-      { href: "/field-id-exchange", label: "Corrective Actions", short: "CA" },
-      { href: "/daps", label: "DAPs", short: "DP" },
-      { href: "/permits", label: "Permits", short: "PM" },
-      { href: "/incidents", label: "Incidents", short: "IN" },
-      { href: "/analytics", label: "Analytics", short: "AN" },
-      { href: "/reports", label: "Reports", short: "RP" },
-    ],
-  },
-  {
-    title: "Workflow",
-    items: [
-      { href: "/submit", label: "Submit Document", short: "SD" },
-      { href: "/upload", label: "Upload File", short: "UF" },
-      { href: "/peshep", label: "PESHEP Builder", short: "PB" },
-      { href: "/csep", label: "CSEP Builder", short: "CS" },
-    ],
-  },
-  {
-    title: "Account",
-    items: [{ href: "/profile", label: "Construction Profile", short: "CP" }],
-  },
-];
-
-const companyUserSideSections: NavSection[] = [
-  {
-    title: "Company Workspace",
-    items: [
-      { href: "/dashboard", label: "Dashboard", short: "HM" },
-      { href: "/library", label: "Documents", short: "DC" },
-      { href: "/training-matrix", label: "Training matrix", short: "TM" },
-      { href: "/submit", label: "Submit Document", short: "SD" },
-      { href: "/upload", label: "Upload File", short: "UF" },
-      { href: "/profile", label: "Construction Profile", short: "CP" },
-    ],
-  },
-];
-
-const accountSetupSideSections: NavSection[] = [
-  {
-    title: "Getting Started",
-    items: [
-      { href: "/profile", label: "Build Construction Profile", short: "CP" },
-      { href: "/company-setup", label: "Create Company Workspace", short: "CO" },
-    ],
-  },
-];
-
-const accountSetupQuickLinks: NavItem[] = [
-  { href: "/profile", label: "Build Construction Profile", short: "CP" },
-  { href: "/company-setup", label: "Create Company Workspace", short: "CO" },
-];
 
 async function fetchWithTimeout(
   input: RequestInfo | URL,
@@ -251,6 +46,24 @@ async function fetchWithTimeout(
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+/** Supabase JS persists the session under localStorage keys like `sb-<ref>-auth-token`. */
+function hasPersistedSupabaseAuthKeys() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key?.includes("-auth-token")) {
+        return true;
+      }
+    }
+  } catch {
+    return false;
+  }
+  return false;
 }
 
 const AGREEMENT_CACHE_PREFIX = "safety360docs:accepted-terms:";
@@ -451,10 +264,7 @@ export default function AppLayout({
     if (!isAdminArea && canAccessInternalAdmin) {
       return [
         ...base,
-        {
-          title: "Admin",
-          items: [{ href: "/admin", label: "Admin Panel", short: "AD" }],
-        },
+        internalAdminAppendedSection,
       ];
     }
     return base;
@@ -609,22 +419,30 @@ export default function AppLayout({
     }, 12000);
 
     void (async () => {
-      const {
+      let {
         data: { session },
       } = await supabase.auth.getSession();
+      if (!session && hasPersistedSupabaseAuthKeys()) {
+        await new Promise((r) => window.setTimeout(r, 100));
+        ({
+          data: { session },
+        } = await supabase.auth.getSession());
+      }
       if (!mounted) return;
       await syncSession(session);
     })();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
-      if (!session) {
-        router.replace("/login");
+      if (event === "SIGNED_OUT") {
+        void syncSession(null);
         return;
       }
-      void syncSession(session);
+      if (session) {
+        void syncSession(session);
+      }
     });
 
     return () => {
@@ -1015,12 +833,15 @@ export default function AppLayout({
 
             <nav className="flex-1 overflow-y-auto px-3 py-3">
               <div className="px-3 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
-                Navigation
+                Menu
               </div>
-              <div className="mt-4 space-y-5">
-                {sideSections.map((section) => (
-                  <div key={section.title}>
-                    <div className="px-3 text-[10px] font-bold uppercase tracking-[0.26em] text-slate-500">
+              <div className="mt-4 space-y-0">
+                {sideSections.map((section, sectionIndex) => (
+                  <div
+                    key={`nav-section-${sectionIndex}-${section.title}`}
+                    className={sectionIndex > 0 ? "mt-5 border-t border-white/10 pt-5" : ""}
+                  >
+                    <div className="px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">
                       {section.title}
                     </div>
                     <div className="mt-2 space-y-1.5">
@@ -1038,7 +859,7 @@ export default function AppLayout({
                           const active = isActivePath(pathname, item.href);
                           return (
                             <Link
-                              key={item.href}
+                              key={`${section.title}-${item.href}`}
                               href={item.href}
                               className={cx(
                                 "flex items-center gap-3 rounded-2xl border px-3 py-3 transition",

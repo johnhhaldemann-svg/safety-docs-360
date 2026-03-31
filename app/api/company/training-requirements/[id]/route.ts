@@ -8,14 +8,24 @@ import {
 } from "@/lib/constructionProfileOptions";
 import {
   fetchTrainingRequirementById,
+  isMissingRenewalMonthsError,
   selectReturnFull,
+  selectReturnFullNoRenewal,
   selectReturnLegacy,
+  selectReturnLegacyWithRenewal,
   TRAINING_REQUIREMENTS_SCHEMA_WARNING,
 } from "@/lib/companyTrainingRequirementsDb";
 import { normalizeRenewalMonths } from "@/lib/trainingRequirementRenewal";
 import { DEFAULT_MATCH_FIELDS } from "@/lib/trainingMatrix";
 
 export const runtime = "nodejs";
+
+function selectAfterUpdate(applyColumnsAvailable: boolean, renewalMonthsAvailable: boolean): string {
+  if (applyColumnsAvailable && renewalMonthsAvailable) return selectReturnFull();
+  if (applyColumnsAvailable && !renewalMonthsAvailable) return selectReturnFullNoRenewal();
+  if (!applyColumnsAvailable && renewalMonthsAvailable) return selectReturnLegacyWithRenewal();
+  return selectReturnLegacy();
+}
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -117,6 +127,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const applyColumnsAvailable = loaded.applyColumnsAvailable;
+  const renewalMonthsAvailable = loaded.renewalMonthsAvailable;
 
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
@@ -187,15 +198,33 @@ export async function PATCH(request: Request, context: RouteContext) {
     delete updates.apply_positions;
   }
 
-  const returnSelect = applyColumnsAvailable ? selectReturnFull() : selectReturnLegacy();
+  if (!renewalMonthsAvailable && "renewal_months" in updates) {
+    delete updates.renewal_months;
+  }
 
-  const updateRes = await auth.supabase
+  let returnSelect = selectAfterUpdate(applyColumnsAvailable, renewalMonthsAvailable);
+  let updatePayload: Record<string, unknown> = { ...updates };
+
+  let updateRes = await auth.supabase
     .from("company_training_requirements")
-    .update(updates)
+    .update(updatePayload)
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
     .select(returnSelect)
     .single();
+
+  if (updateRes.error && isMissingRenewalMonthsError(updateRes.error)) {
+    const { renewal_months: _r, ...withoutRenewal } = updatePayload;
+    updatePayload = withoutRenewal;
+    returnSelect = selectAfterUpdate(applyColumnsAvailable, false);
+    updateRes = await auth.supabase
+      .from("company_training_requirements")
+      .update(updatePayload)
+      .eq("id", id)
+      .eq("company_id", companyScope.companyId)
+      .select(returnSelect)
+      .single();
+  }
 
   const updated = updateRes.data as RequirementRow | null;
 

@@ -1,6 +1,9 @@
 import {
   activeCertificationsForMatching,
   type CertificationExpirationMap,
+  daysUntilExpiryCalendar,
+  expiryUiStatus,
+  type ExpiryUiStatus,
 } from "./certificationExpirations";
 
 export const DEFAULT_MATCH_FIELDS = ["certifications"] as const;
@@ -71,19 +74,34 @@ function resolveMatchFields(fields?: string[] | null): MatchField[] {
   return out.length ? out : ["certifications"];
 }
 
-function buildHaystacksByField(profile: ProfileForMatching, fields: MatchField[]) {
+type HaystackEntry = {
+  norm: string;
+  certIndex: number | null;
+  field: MatchField;
+  raw: string;
+};
+
+function buildHaystacksByField(profile: ProfileForMatching, fields: MatchField[]): HaystackEntry[] {
   const certifications = activeCertificationsForMatching(
     profile.certifications,
     profile.certificationExpirations ?? undefined
   );
-  const byField: Record<MatchField, { raw: string; norm: string; certIndex: number | null }[]> = {
+  const byField: Record<MatchField, HaystackEntry[]> = {
     certifications: certifications.map((raw, certIndex) => ({
       raw,
       norm: normalizeForMatch(raw),
       certIndex,
+      field: "certifications",
     })),
     job_title: profile.job_title
-      ? [{ raw: profile.job_title, norm: normalizeForMatch(profile.job_title), certIndex: null }]
+      ? [
+          {
+            raw: profile.job_title,
+            norm: normalizeForMatch(profile.job_title),
+            certIndex: null,
+            field: "job_title",
+          },
+        ]
       : [],
     trade_specialty: profile.trade_specialty
       ? [
@@ -91,24 +109,37 @@ function buildHaystacksByField(profile: ProfileForMatching, fields: MatchField[]
             raw: profile.trade_specialty,
             norm: normalizeForMatch(profile.trade_specialty),
             certIndex: null,
+            field: "trade_specialty",
           },
         ]
       : [],
   };
 
-  const haystacks: { norm: string; certIndex: number | null }[] = [];
+  const haystacks: HaystackEntry[] = [];
   for (const f of fields) {
     for (const entry of byField[f]) {
       if (entry.norm) {
-        haystacks.push({ norm: entry.norm, certIndex: entry.certIndex });
+        haystacks.push(entry);
       }
     }
   }
   return haystacks;
 }
 
+export type TrainingMatrixCellDetail = {
+  state: TrainingMatrixCellState;
+  matchSource?: MatchField;
+  matchedLabel?: string;
+  expiresOn?: string | null;
+  daysUntilExpiry?: number | null;
+  expiryStatus?: ExpiryUiStatus;
+  /** For gap cells: requirement keywords to help remediation. */
+  gapKeywords?: string[];
+};
+
 export type TrainingMatrixRowResult = {
   cells: Record<string, TrainingMatrixCellState>;
+  cellDetails: Record<string, TrainingMatrixCellDetail>;
   unmatchedCertifications: string[];
 };
 
@@ -116,9 +147,50 @@ export type TrainingMatrixRowResult = {
  * For each requirement: if trade/position scope does not apply, cell is "na".
  * Otherwise same keyword vs haystack rules; certifications only contribute when the requirement applied.
  */
+const AS_OF = () => new Date();
+
+function detailForMatch(
+  profile: ProfileForMatching,
+  hit: HaystackEntry,
+  activeCerts: string[],
+  asOf: Date
+): Pick<
+  TrainingMatrixCellDetail,
+  "matchSource" | "matchedLabel" | "expiresOn" | "daysUntilExpiry" | "expiryStatus"
+> {
+  if (hit.field === "certifications" && hit.certIndex !== null) {
+    const raw = activeCerts[hit.certIndex] ?? hit.raw;
+    const exp = profile.certificationExpirations?.[raw] ?? null;
+    return {
+      matchSource: "certifications",
+      matchedLabel: raw,
+      expiresOn: exp ?? null,
+      daysUntilExpiry: daysUntilExpiryCalendar(exp, asOf),
+      expiryStatus: expiryUiStatus(exp, asOf),
+    };
+  }
+  if (hit.field === "job_title") {
+    return {
+      matchSource: "job_title",
+      matchedLabel: hit.raw,
+      expiresOn: null,
+      daysUntilExpiry: null,
+      expiryStatus: "none",
+    };
+  }
+  return {
+    matchSource: "trade_specialty",
+    matchedLabel: hit.raw,
+    expiresOn: null,
+    daysUntilExpiry: null,
+    expiryStatus: "none",
+  };
+}
+
 export function computeTrainingMatrixRow(
   profile: ProfileForMatching,
-  requirements: TrainingRequirementInput[]
+  requirements: TrainingRequirementInput[],
+  asOf: Date = AS_OF()
 ): TrainingMatrixRowResult {
   const certifications = activeCertificationsForMatching(
     profile.certifications,
@@ -126,10 +198,12 @@ export function computeTrainingMatrixRow(
   );
   const certContributed = certifications.map(() => false);
   const cells: Record<string, TrainingMatrixCellState> = {};
+  const cellDetails: Record<string, TrainingMatrixCellDetail> = {};
 
   for (const req of requirements) {
     if (!requirementAppliesToProfile(profile, req.apply_trades, req.apply_positions)) {
       cells[req.id] = "na";
+      cellDetails[req.id] = { state: "na" };
       continue;
     }
 
@@ -140,22 +214,40 @@ export function computeTrainingMatrixRow(
       .filter(Boolean);
 
     let satisfied = false;
+    let firstHit: HaystackEntry | null = null;
 
     for (const kw of keywords) {
-      for (const { norm, certIndex } of haystacks) {
-        if (keywordMatchesHaystack(kw, norm)) {
+      for (const entry of haystacks) {
+        if (keywordMatchesHaystack(kw, entry.norm)) {
           satisfied = true;
-          if (certIndex !== null && certIndex >= 0 && certIndex < certContributed.length) {
-            certContributed[certIndex] = true;
+          if (entry.certIndex !== null && entry.certIndex >= 0 && entry.certIndex < certContributed.length) {
+            certContributed[entry.certIndex] = true;
+          }
+          if (!firstHit) {
+            firstHit = entry;
           }
         }
       }
     }
 
-    cells[req.id] = satisfied ? "match" : "gap";
+    const state: TrainingMatrixCellState = satisfied ? "match" : "gap";
+    cells[req.id] = state;
+
+    if (satisfied && firstHit) {
+      const d = detailForMatch(profile, firstHit, certifications, asOf);
+      cellDetails[req.id] = { state: "match", ...d };
+    } else if (!satisfied) {
+      const rawKw = (req.match_keywords ?? []).map((k) => k.trim()).filter(Boolean);
+      cellDetails[req.id] = {
+        state: "gap",
+        gapKeywords: rawKw.slice(0, 4),
+      };
+    } else {
+      cellDetails[req.id] = { state: "match" };
+    }
   }
 
   const unmatchedCertifications = certifications.filter((_, i) => !certContributed[i]);
 
-  return { cells, unmatchedCertifications };
+  return { cells, cellDetails, unmatchedCertifications };
 }

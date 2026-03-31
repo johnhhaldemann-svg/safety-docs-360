@@ -36,12 +36,14 @@ export async function GET(request: Request) {
   const [actionsRes, incidentsRes, permitsRes, dapsRes, activitiesRes, jobsitesRes] = await Promise.all([
     auth.supabase
       .from("company_corrective_actions")
-      .select("id, category, status, severity, priority, observation_type, created_at, closed_at, due_at, jobsite_id, sif_potential, sif_category")
+      .select(
+        "id, title, category, status, severity, priority, observation_type, created_at, closed_at, due_at, jobsite_id, sif_potential, sif_category"
+      )
       .eq("company_id", companyScope.companyId)
       .gte("created_at", since),
     auth.supabase
       .from("company_incidents")
-      .select("id, category, status, severity, sif_flag, escalation_level, created_at, closed_at, jobsite_id")
+      .select("id, category, status, severity, sif_flag, escalation_level, created_at, jobsite_id")
       .eq("company_id", companyScope.companyId)
       .gte("created_at", since),
     auth.supabase
@@ -211,6 +213,76 @@ export async function GET(request: Request) {
     return severity === "high" || severity === "critical" || priority === "high";
   }).length;
 
+  function observationReportTag(row: (typeof actions)[0]) {
+    const ot = String(row.observation_type ?? "").toLowerCase();
+    if (ot === "positive") return "POSITIVE" as const;
+    if (ot === "near_miss") return "NEAR MISS" as const;
+    if (ot === "hazard" || ot === "negative") return "HAZARD" as const;
+    return "OBSERVATION" as const;
+  }
+
+  const recentReports = [...actions]
+    .sort((a, b) => {
+      const tb = new Date(String(b.created_at ?? 0)).getTime();
+      const ta = new Date(String(a.created_at ?? 0)).getTime();
+      return tb - ta;
+    })
+    .slice(0, 6)
+    .map((row) => ({
+      id: row.id,
+      title: String(row.title ?? "").trim() || "Untitled observation",
+      tag: observationReportTag(row),
+    }));
+
+  const observationBreakdown = {
+    nearMiss: actions.filter((a) => String(a.observation_type ?? "").toLowerCase() === "near_miss").length,
+    hazard:
+      actions.filter((a) =>
+        ["hazard", "negative"].includes(String(a.observation_type ?? "").toLowerCase())
+      ).length,
+    positive: positiveObservationCount,
+    other: actions.filter((a) => {
+      const ot = String(a.observation_type ?? "").toLowerCase();
+      return !["near_miss", "hazard", "negative", "positive"].includes(ot);
+    }).length,
+    inspections: permits.length + activities.length,
+    daps: daps.length,
+  };
+
+  function severityRowIndex(severity: string | null | undefined) {
+    const v = String(severity ?? "").toLowerCase();
+    if (v === "critical") return 0;
+    if (v === "high") return 1;
+    if (v === "medium" || v === "moderate") return 2;
+    if (v === "low") return 3;
+    return 2;
+  }
+  function priorityColIndex(priority: string | null | undefined) {
+    const v = String(priority ?? "").toLowerCase();
+    if (v === "high") return 0;
+    if (v === "medium") return 1;
+    if (v === "low") return 2;
+    return 3;
+  }
+  const heatRows = ["Critical", "High", "Moderate", "Low"] as const;
+  const heatCols = ["High", "Moderate", "Low", "—"] as const;
+  const riskHeatmapCells = Array.from({ length: 4 }, () => Array(4).fill(0));
+  for (const a of actions) {
+    const r = severityRowIndex(a.severity);
+    const c = priorityColIndex(a.priority);
+    riskHeatmapCells[r][c] += 1;
+  }
+  const heatMax = Math.max(1, ...riskHeatmapCells.flat());
+
+  const observationPriorityBands = {
+    high: highRiskObservations,
+    medium: actions.filter((item) => {
+      const s = String(item.severity ?? "").toLowerCase();
+      return s === "medium" || s === "moderate";
+    }).length,
+    low: actions.filter((item) => String(item.severity ?? "").toLowerCase() === "low").length,
+  };
+
   return NextResponse.json({
     snapshots: result.data ?? [],
     summary: {
@@ -238,6 +310,7 @@ export async function GET(request: Request) {
         averageClosureTimeHours: avgClosureHours,
         topHazardCategories,
         openIncidents,
+        observationPriorityBands,
         dapCompletionToday: {
           completed: completedToday,
           total: todayActivities.length,
@@ -246,6 +319,14 @@ export async function GET(request: Request) {
               ? Number(((completedToday / todayActivities.length) * 100).toFixed(1))
               : 0,
         },
+      },
+      recentReports,
+      observationBreakdown,
+      riskHeatmap: {
+        rowLabels: [...heatRows],
+        colLabels: [...heatCols],
+        cells: riskHeatmapCells,
+        max: heatMax,
       },
       safetyLeadership: {
         trendOfObservationsByWeek: Array.from(weeklyObservations.entries())

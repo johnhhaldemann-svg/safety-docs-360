@@ -12,7 +12,9 @@ import {
 import {
   fetchCompanyTrainingRequirements,
   isMissingApplyColumnsError,
+  isMissingRenewalMonthsError,
   selectReturnFull,
+  selectReturnFullNoRenewal,
   selectReturnLegacy,
   TRAINING_REQUIREMENTS_SCHEMA_WARNING,
 } from "@/lib/companyTrainingRequirementsDb";
@@ -228,14 +230,30 @@ export async function POST(request: Request) {
     .single();
 
   let schemaWarning: string | null = null;
-  if (createdRes.error && isMissingApplyColumnsError(createdRes.error)) {
-    const { apply_trades: _t, apply_positions: _p, ...legacyPayload } = insertPayload;
+  if (createdRes.error && isMissingRenewalMonthsError(createdRes.error)) {
+    const { renewal_months: _r, ...noRenewalPayload } = insertPayload;
     createdRes = await auth.supabase
       .from("company_training_requirements")
-      .insert(legacyPayload)
+      .insert(noRenewalPayload)
+      .select(selectReturnFullNoRenewal())
+      .single();
+  }
+  if (createdRes.error && isMissingApplyColumnsError(createdRes.error)) {
+    const { apply_trades: _t, apply_positions: _p, ...withMaybeRenewal } = insertPayload;
+    createdRes = await auth.supabase
+      .from("company_training_requirements")
+      .insert(withMaybeRenewal)
       .select(selectReturnLegacy())
       .single();
     schemaWarning = TRAINING_REQUIREMENTS_SCHEMA_WARNING;
+    if (createdRes.error && isMissingRenewalMonthsError(createdRes.error)) {
+      const { renewal_months: _r, ...minimalInsert } = withMaybeRenewal as Record<string, unknown>;
+      createdRes = await auth.supabase
+        .from("company_training_requirements")
+        .insert(minimalInsert)
+        .select(selectReturnLegacy())
+        .single();
+    }
   }
 
   const created = createdRes.data as RequirementRow | null;

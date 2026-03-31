@@ -56,6 +56,59 @@ export function activeCertificationsForMatching(
   return list.filter((name) => !isCertificationExpired(exp[name], asOf));
 }
 
+export type ExpiryUiStatus = "none" | "ok" | "soon" | "expired";
+
+/** Whole calendar days from asOf (UTC date) until expiresOn (UTC date), inclusive of expiry day as 0 when same day. */
+export function daysUntilExpiryCalendar(
+  expiresOn: string | null | undefined,
+  asOf: Date
+): number | null {
+  if (expiresOn == null || String(expiresOn).trim() === "") return null;
+  const exp = parseIsoDateOnly(String(expiresOn));
+  if (!exp) return null;
+  const t = new Date(asOf);
+  const todayUtc = Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate());
+  return Math.round((exp.getTime() - todayUtc) / 86400000);
+}
+
+export function expiryUiStatus(
+  expiresOn: string | null | undefined,
+  asOf: Date,
+  soonThresholdDays = 60
+): ExpiryUiStatus {
+  if (expiresOn == null || String(expiresOn).trim() === "") return "none";
+  if (isCertificationExpired(expiresOn, asOf)) return "expired";
+  const days = daysUntilExpiryCalendar(expiresOn, asOf);
+  if (days !== null && days >= 0 && days <= soonThresholdDays) return "soon";
+  return "ok";
+}
+
+export type CertificationInventoryItem = {
+  name: string;
+  expiresOn: string | null;
+  daysUntilExpiry: number | null;
+  expiryStatus: ExpiryUiStatus;
+};
+
+/** Every profile certification with expiry context (includes expired — not only “active” matches). */
+export function buildProfileCertificationInventory(
+  certifications: string[] | null | undefined,
+  expirations: CertificationExpirationMap | null | undefined,
+  asOf: Date = new Date()
+): CertificationInventoryItem[] {
+  const list = certifications ?? [];
+  const exp = expirations ?? {};
+  return list.map((name) => {
+    const eo = exp[name] ?? null;
+    return {
+      name,
+      expiresOn: eo,
+      daysUntilExpiry: daysUntilExpiryCalendar(eo, asOf),
+      expiryStatus: expiryUiStatus(eo, asOf),
+    };
+  });
+}
+
 export function normalizeCertificationExpirationsPayload(
   body: unknown,
   allowedNames: Set<string>

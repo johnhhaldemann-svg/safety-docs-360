@@ -3,13 +3,9 @@
 import Link from "next/link";
 import { Check, Minus, X } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
-import { useCallback, useEffect, useState } from "react";
-import {
-  EmptyState,
-  InlineMessage,
-  PageHero,
-  SectionCard,
-} from "@/components/WorkspacePrimitives";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ComplianceCommandCenter } from "@/components/training-matrix/ComplianceCommandCenter";
+import { InlineMessage, SectionCard } from "@/components/WorkspacePrimitives";
 import { TRAINING_REQUIREMENTS_MIGRATION_SQL } from "@/lib/companyTrainingRequirementsDb";
 import {
   PROFILE_CERTIFICATION_GROUPS,
@@ -38,6 +34,23 @@ type Requirement = {
 
 type MatrixCellState = "match" | "gap" | "na";
 
+type MatrixCellDetail = {
+  state: MatrixCellState;
+  matchSource?: string;
+  matchedLabel?: string;
+  expiresOn?: string | null;
+  daysUntilExpiry?: number | null;
+  expiryStatus?: "none" | "ok" | "soon" | "expired";
+  gapKeywords?: string[];
+};
+
+type CertificationInventoryItem = {
+  name: string;
+  expiresOn: string | null;
+  daysUntilExpiry: number | null;
+  expiryStatus: "none" | "ok" | "soon" | "expired";
+};
+
 type MatrixRow = {
   userId: string;
   name: string;
@@ -45,11 +58,14 @@ type MatrixRow = {
   role: string;
   status: string;
   cells: Record<string, MatrixCellState>;
+  cellDetails?: Record<string, MatrixCellDetail>;
   unmatchedCertifications: string[];
+  certificationInventory?: CertificationInventoryItem[];
   profileFields: {
     tradeSpecialty: string;
     jobTitle: string;
     readinessStatus: string;
+    yearsExperience: number | null;
   };
 };
 
@@ -76,6 +92,266 @@ function requirementHeaderTitle(r: Requirement): string {
     return `${kw}\nTypical renewal: ${r.renewalMonths} mo (hint only; profile expiration dates control the matrix).`;
   }
   return kw;
+}
+
+function readinessLabel(raw: string): string {
+  const s = raw.trim().toLowerCase();
+  if (s === "travel_ready") return "Travel ready";
+  if (s === "limited") return "Limited availability";
+  if (s === "ready") return "Ready for site";
+  return raw || "—";
+}
+
+function ledgerChipToneDark(
+  status: CertificationInventoryItem["expiryStatus"]
+): { wrap: string; dot: string } {
+  switch (status) {
+    case "expired":
+      return { wrap: "bg-rose-500/15 text-rose-100 ring-rose-500/40", dot: "bg-rose-400" };
+    case "soon":
+      return { wrap: "bg-amber-500/15 text-amber-100 ring-amber-500/35", dot: "bg-amber-400" };
+    case "ok":
+      return { wrap: "bg-emerald-500/15 text-emerald-100 ring-emerald-500/35", dot: "bg-emerald-400" };
+    default:
+      return { wrap: "bg-zinc-800/80 text-zinc-300 ring-zinc-600", dot: "bg-zinc-500" };
+  }
+}
+
+function cellExpiryCaption(d: MatrixCellDetail | undefined): string {
+  if (!d || d.state !== "match") return "";
+  if (d.expiryStatus === "none" || d.expiryStatus === undefined) {
+    return "No expiry on file";
+  }
+  if (d.expiresOn && d.daysUntilExpiry !== null && d.daysUntilExpiry !== undefined) {
+    if (d.daysUntilExpiry < 0) return `Expired ${d.expiresOn}`;
+    if (d.daysUntilExpiry === 0) return `Expires today (${d.expiresOn})`;
+    return `Expires ${d.expiresOn} · ${d.daysUntilExpiry}d`;
+  }
+  if (d.expiresOn) return `Expires ${d.expiresOn}`;
+  return "";
+}
+
+function requirementCellTitle(r: Requirement, d: MatrixCellDetail | undefined, state: MatrixCellState): string {
+  if (state === "na") return "Not required for this trade / position";
+  if (state === "gap") {
+    const kw = d?.gapKeywords?.length ? d.gapKeywords.join(", ") : r.matchKeywords.slice(0, 3).join(", ");
+    return `Gap — profile should include training matching: ${kw || "see requirement keywords"}`;
+  }
+  if (d?.matchSource === "job_title") {
+    return `Met via job title (“${d.matchedLabel ?? ""}”), not a certification line item`;
+  }
+  if (d?.matchSource === "trade_specialty") {
+    return `Met via trade (“${d.matchedLabel ?? ""}”), not a certification line item`;
+  }
+  const cap = cellExpiryCaption(d);
+  return [d?.matchedLabel ? `Matched: ${d.matchedLabel}` : "Met", cap].filter(Boolean).join("\n");
+}
+
+type PositionRollup = {
+  missing: Requirement[];
+  met: Requirement[];
+  metExpiringSoon: Array<{ req: Requirement; detail: MatrixCellDetail }>;
+  notRequired: Requirement[];
+  expiredProfileCerts: CertificationInventoryItem[];
+  soonProfileCerts: CertificationInventoryItem[];
+};
+
+function buildPositionRollup(row: MatrixRow, requirements: Requirement[]): PositionRollup {
+  const missing: Requirement[] = [];
+  const met: Requirement[] = [];
+  const metExpiringSoon: Array<{ req: Requirement; detail: MatrixCellDetail }> = [];
+  const notRequired: Requirement[] = [];
+
+  for (const r of requirements) {
+    const s = row.cells[r.id] ?? "gap";
+    const d = row.cellDetails?.[r.id];
+    if (s === "gap") {
+      missing.push(r);
+    } else if (s === "match") {
+      met.push(r);
+      if (d?.expiryStatus === "soon") {
+        metExpiringSoon.push({ req: r, detail: d });
+      }
+    } else {
+      notRequired.push(r);
+    }
+  }
+
+  const inv = row.certificationInventory ?? [];
+  const expiredProfileCerts = inv.filter((c) => c.expiryStatus === "expired");
+  const soonProfileCerts = inv.filter((c) => c.expiryStatus === "soon");
+
+  return { missing, met, metExpiringSoon, notRequired, expiredProfileCerts, soonProfileCerts };
+}
+
+function PositionScopeSummary({
+  rollup,
+  requirementsCount,
+  theme = "light",
+}: {
+  rollup: PositionRollup;
+  requirementsCount: number;
+  theme?: "light" | "dark";
+}) {
+  const d = theme === "dark";
+  if (requirementsCount === 0) {
+    return (
+      <p className={`mt-2 text-[11px] ${d ? "text-zinc-500" : "text-slate-500"}`}>
+        No company requirements yet — add rules above to track gaps by position and trade.
+      </p>
+    );
+  }
+
+  const scopedCount = rollup.missing.length + rollup.met.length;
+
+  return (
+    <div
+      className={
+        d
+          ? "mt-3 space-y-2 rounded-xl border border-zinc-700 bg-zinc-900/70 p-2.5"
+          : "mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50/90 p-2.5"
+      }
+    >
+      <p
+        className={
+          d
+            ? "text-[10px] font-bold uppercase tracking-wide text-zinc-500"
+            : "text-[10px] font-bold uppercase tracking-wide text-slate-600"
+        }
+      >
+        For this position & trade
+      </p>
+
+      {rollup.missing.length > 0 ? (
+        <div>
+          <p className={`text-[10px] font-bold ${d ? "text-amber-300" : "text-amber-900"}`}>
+            Missing ({rollup.missing.length})
+          </p>
+          <ul
+            className={`mt-1 space-y-0.5 text-[11px] leading-snug ${d ? "text-amber-100" : "text-amber-950"}`}
+          >
+            {rollup.missing.map((r) => (
+              <li
+                key={r.id}
+                className={`border-l-2 pl-1.5 ${d ? "border-amber-500" : "border-amber-400"}`}
+              >
+                <span className="line-clamp-2 font-medium">{r.title}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : scopedCount === 0 ? (
+        <p className={`text-[11px] ${d ? "text-zinc-400" : "text-slate-600"}`}>
+          No rules apply to this trade/position combination yet.
+        </p>
+      ) : (
+        <p className={`text-[11px] font-semibold ${d ? "text-emerald-400" : "text-emerald-800"}`}>
+          Every in-scope training rule satisfied ({rollup.met.length}).
+        </p>
+      )}
+
+      {rollup.met.length > 0 ? (
+        <div>
+          <p className={`text-[10px] font-bold ${d ? "text-emerald-400" : "text-emerald-900"}`}>
+            Covered for your role ({rollup.met.length})
+          </p>
+          <ul
+            className={`mt-1 max-h-28 space-y-0.5 overflow-y-auto text-[11px] leading-snug ${d ? "text-emerald-100" : "text-emerald-950"}`}
+          >
+            {rollup.met.slice(0, 8).map((r) => (
+              <li
+                key={r.id}
+                className={`line-clamp-2 border-l-2 pl-1.5 ${d ? "border-emerald-500" : "border-emerald-400"}`}
+              >
+                {r.title}
+              </li>
+            ))}
+          </ul>
+          {rollup.met.length > 8 ? (
+            <p className={`mt-0.5 text-[10px] ${d ? "text-emerald-300" : "text-emerald-800"}`}>
+              +{rollup.met.length - 8} more
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {rollup.metExpiringSoon.length > 0 ? (
+        <div>
+          <p className={`text-[10px] font-bold ${d ? "text-amber-300" : "text-amber-900"}`}>
+            Met — expiring soon ({rollup.metExpiringSoon.length})
+          </p>
+          <ul className={`mt-1 space-y-1 text-[11px] leading-snug ${d ? "text-amber-100" : "text-amber-950"}`}>
+            {rollup.metExpiringSoon.map(({ req, detail }) => (
+              <li
+                key={req.id}
+                className={
+                  d
+                    ? "rounded-md bg-amber-500/15 px-1.5 py-1 ring-1 ring-amber-500/30"
+                    : "rounded-md bg-amber-100/80 px-1.5 py-1"
+                }
+              >
+                <div className="font-semibold line-clamp-2">{req.title}</div>
+                <div className={`text-[10px] ${d ? "text-amber-200/90" : "text-amber-900/90"}`}>
+                  {detail.matchedLabel ? `${detail.matchedLabel} · ` : ""}
+                  {cellExpiryCaption(detail)}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {rollup.expiredProfileCerts.length > 0 ? (
+        <div>
+          <p className={`text-[10px] font-bold ${d ? "text-rose-400" : "text-red-900"}`}>
+            Expired on profile ({rollup.expiredProfileCerts.length})
+          </p>
+          <ul className={`mt-1 space-y-0.5 text-[11px] leading-snug ${d ? "text-rose-100" : "text-red-950"}`}>
+            {rollup.expiredProfileCerts.map((c) => (
+              <li key={c.name} className={`border-l-2 pl-1.5 ${d ? "border-rose-500" : "border-red-400"}`}>
+                <span className="font-medium">{c.name}</span>
+                {c.expiresOn ? (
+                  <span className={d ? "text-rose-200/90" : "text-red-800/90"}> · ended {c.expiresOn}</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {rollup.soonProfileCerts.length > 0 ? (
+        <div>
+          <p className={`text-[10px] font-bold ${d ? "text-amber-300" : "text-amber-900"}`}>
+            Credential expiring soon ({rollup.soonProfileCerts.length})
+          </p>
+          <ul className={`mt-1 space-y-0.5 text-[11px] leading-snug ${d ? "text-amber-100" : "text-amber-950"}`}>
+            {rollup.soonProfileCerts.map((c) => (
+              <li key={c.name} className={`border-l-2 pl-1.5 ${d ? "border-amber-400" : "border-amber-500"}`}>
+                <span className="font-medium">{c.name}</span>
+                {c.expiresOn ? (
+                  <span className={d ? "text-amber-200/85" : "text-amber-900/85"}>
+                    {" "}
+                    · {c.expiresOn}
+                    {c.daysUntilExpiry != null ? ` (${c.daysUntilExpiry}d)` : ""}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {rollup.notRequired.length > 0 ? (
+        <p className={`text-[10px] ${d ? "text-zinc-500" : "text-slate-500"}`}>
+          <span className={`font-semibold ${d ? "text-zinc-400" : "text-slate-600"}`}>
+            {rollup.notRequired.length}
+          </span>{" "}
+          other company rule{rollup.notRequired.length === 1 ? "" : "s"} do not apply to this position/trade
+          (see “Out of scope” in the grid).
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 /** Dropdown sentinel for a certification not in the profile catalog. */
@@ -132,6 +408,19 @@ async function getAccessToken() {
     throw new Error("You must be logged in.");
   }
   return session.access_token;
+}
+
+function sanitizeApiErrorMessage(raw: string): string {
+  const t = raw.trim();
+  if (
+    t.startsWith("<!DOCTYPE") ||
+    t.startsWith("<html") ||
+    t.includes("<title>500") ||
+    t.includes("Internal Server Error</h1>")
+  ) {
+    return "The server returned an error while loading the training matrix. Please try again. If it continues, confirm your Supabase migrations are applied (training requirements + profile columns).";
+  }
+  return t;
 }
 
 /** Single-select dropdowns + chips — works on mobile; native multi-select is often invisible there. */
@@ -326,7 +615,8 @@ export default function TrainingMatrixPage() {
   const [directoryNoticeDismissed, setDirectoryNoticeDismissed] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
   const [directoryNotice, setDirectoryNotice] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [workspaceDataLoaded, setWorkspaceDataLoaded] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">(
     "neutral"
@@ -405,13 +695,12 @@ export default function TrainingMatrixPage() {
 
       if (!res.ok) {
         setMessageTone("error");
-        setMessage(data?.error || "Failed to load training matrix.");
+        setMessage(sanitizeApiErrorMessage(data?.error || "Failed to load training matrix."));
         setRequirements([]);
         setRows([]);
         setSchemaMigrationNeeded(false);
         setWarning(null);
         setDirectoryNotice(null);
-        setLoading(false);
         return;
       }
 
@@ -431,6 +720,18 @@ export default function TrainingMatrixPage() {
           cells: Object.fromEntries(
             Object.entries(row.cells ?? {}).map(([k, v]) => [k, normalizeCellState(v)])
           ),
+          cellDetails: (row.cellDetails ?? {}) as Record<string, MatrixCellDetail>,
+          certificationInventory: (row.certificationInventory ?? []) as CertificationInventoryItem[],
+          profileFields: {
+            tradeSpecialty: row.profileFields?.tradeSpecialty ?? "",
+            jobTitle: row.profileFields?.jobTitle ?? "",
+            readinessStatus: row.profileFields?.readinessStatus ?? "",
+            yearsExperience:
+              row.profileFields?.yearsExperience !== undefined &&
+              row.profileFields?.yearsExperience !== null
+                ? row.profileFields.yearsExperience
+                : null,
+          },
         }))
       );
       setCanMutate(Boolean(data?.capabilities?.canMutate));
@@ -438,19 +739,21 @@ export default function TrainingMatrixPage() {
       setDirectoryNotice(data?.directoryNotice ?? null);
     } catch (e) {
       setMessageTone("error");
-      setMessage(e instanceof Error ? e.message : "Failed to load training matrix.");
+      setMessage(
+        sanitizeApiErrorMessage(
+          e instanceof Error ? e.message : "Failed to load training matrix."
+        )
+      );
       setRequirements([]);
       setRows([]);
       setSchemaMigrationNeeded(false);
       setWarning(null);
       setDirectoryNotice(null);
+    } finally {
+      setLoading(false);
+      setWorkspaceDataLoaded(true);
     }
-    setLoading(false);
   }, []);
-
-  useEffect(() => {
-    queueMicrotask(() => void loadMatrix());
-  }, [loadMatrix]);
 
   const handleCreate = useCallback(async () => {
     setSaving(true);
@@ -617,21 +920,63 @@ export default function TrainingMatrixPage() {
     [loadMatrix]
   );
 
+  const trackerStats = useMemo(() => {
+    if (!rows.length || !requirements.length) return null;
+    let met = 0;
+    let gap = 0;
+    let na = 0;
+    for (const row of rows) {
+      for (const r of requirements) {
+        const s = row.cells[r.id] ?? "gap";
+        if (s === "match") met++;
+        else if (s === "na") na++;
+        else gap++;
+      }
+    }
+    return { met, gap, na, total: met + gap + na };
+  }, [rows, requirements]);
+
   return (
     <div className="space-y-8">
-      <PageHero
-        eyebrow="Company workspace"
-        title="Training matrix"
-        description="Requirements use the same certification list as the construction profile. Pick one, then which trades and positions it applies to. The matrix checks profile certifications."
-        actions={
-          <Link
-            href="/dashboard"
-            className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            Back to dashboard
-          </Link>
-        }
-      />
+      <section className="overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-6 shadow-xl ring-1 ring-zinc-700/50 sm:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-400">
+              Company workspace
+            </p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              Training matrix
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-400">
+              Requirements use the same certification list as the construction profile. Configure rules
+              below; the command center shows KPIs, charts, and the credential ledger. Load data on demand
+              — nothing refreshes in the background.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => void loadMatrix()}
+              disabled={loading}
+              className="rounded-xl bg-gradient-to-r from-cyan-500 to-fuchsia-500 px-5 py-3 text-sm font-bold text-zinc-950 shadow-lg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading
+                ? workspaceDataLoaded
+                  ? "Refreshing…"
+                  : "Loading…"
+                : workspaceDataLoaded
+                  ? "Refresh data"
+                  : "Load data"}
+            </button>
+            <Link
+              href="/dashboard"
+              className="rounded-xl border border-zinc-600 bg-zinc-900/60 px-5 py-3 text-sm font-semibold text-zinc-200 transition hover:border-zinc-500 hover:bg-zinc-800"
+            >
+              Back to dashboard
+            </Link>
+          </div>
+        </div>
+      </section>
 
       {schemaMigrationNeeded && !schemaMigrationBannerDismissed ? (
         <SchemaMigrationBanner onDismiss={dismissSchemaMigrationBanner} />
@@ -858,121 +1203,243 @@ export default function TrainingMatrixPage() {
             </ul>
           ) : (
             <p className="mt-4 text-sm text-slate-500">
-              No requirements yet. Add at least one to populate matrix columns.
+              {workspaceDataLoaded
+                ? "No requirements yet. Add at least one to populate matrix columns."
+                : "Load workspace data (header) to see existing requirements, or add one below — the list refreshes after save."}
             </p>
           )}
         </SectionCard>
       ) : null}
 
-      <SectionCard
-        title="Coverage matrix"
-        description="Checkmark when the person’s certifications match keywords for a requirement that applies to their trade and position. A dash means this requirement does not apply to them. The last column lists certifications that did not satisfy any applicable requirement."
+      <ComplianceCommandCenter
+        rows={rows}
+        requirements={requirements}
+        loading={loading}
+        workspaceDataLoaded={workspaceDataLoaded}
+        warning={warning}
+        onRefresh={() => void loadMatrix()}
+        footer={
+          !loading && rows.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+              <span>
+                <span className="font-semibold text-zinc-300">{rows.length}</span> people in this workspace
+              </span>
+              {trackerStats ? (
+                <>
+                  <span className="hidden sm:inline text-zinc-600" aria-hidden>
+                    ·
+                  </span>
+                  <span>
+                    <span className="font-semibold text-emerald-400">{trackerStats.met}</span> met ·{" "}
+                    <span className="font-semibold text-fuchsia-400">{trackerStats.gap}</span> gaps ·{" "}
+                    <span className="font-semibold text-zinc-500">{trackerStats.na}</span> not applicable
+                  </span>
+                  <span className="hidden sm:inline text-zinc-600" aria-hidden>
+                    ·
+                  </span>
+                  <span>{trackerStats.total} requirement checks total</span>
+                </>
+              ) : null}
+            </div>
+          ) : null
+        }
       >
-        {loading ? (
-          <InlineMessage>Loading matrix…</InlineMessage>
-        ) : rows.length === 0 ? (
-          <EmptyState
-            title="No team members to show"
-            description={
-              warning
-                ? "Fix the configuration warning above, or invite users to this workspace."
-                : "Invite users and ensure they complete their construction profile certifications."
-            }
-          />
-        ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-200">
-            <table className="min-w-full border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="sticky left-0 z-10 min-w-[200px] bg-slate-50 px-4 py-3 font-semibold text-slate-800">
-                    Person
+        <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/50">
+          <table className="min-w-full border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 bg-zinc-900/90">
+                <th className="sticky left-0 z-10 min-w-[260px] max-w-[320px] bg-zinc-900 px-4 py-3 font-semibold text-zinc-200 shadow-[1px_0_0_0_rgb(63_63_70)]">
+                  Person & field profile
+                </th>
+                {requirements.map((r) => (
+                  <th
+                    key={r.id}
+                    className="min-w-[156px] border-l border-zinc-800 px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-400"
+                    title={requirementHeaderTitle(r)}
+                  >
+                    <span className="line-clamp-3">{r.title}</span>
                   </th>
-                  {requirements.map((r) => (
-                    <th
-                      key={r.id}
-                      className="min-w-[100px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-600"
-                      title={requirementHeaderTitle(r)}
-                    >
-                      <span className="line-clamp-3">{r.title}</span>
-                    </th>
-                  ))}
-                  <th className="min-w-[180px] px-4 py-3 font-semibold text-slate-800">
-                    Other profile certifications
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.userId} className="border-b border-slate-100">
-                    <td className="sticky left-0 z-10 bg-white px-4 py-3 align-top shadow-[1px_0_0_0_rgb(226_232_240)]">
-                      <div className="font-semibold text-slate-900">{row.name}</div>
-                      <div className="text-xs text-slate-500">{row.email || row.userId}</div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {row.role}
-                        {row.profileFields.jobTitle ? ` · ${row.profileFields.jobTitle}` : ""}
-                        {row.profileFields.tradeSpecialty
-                          ? ` · ${row.profileFields.tradeSpecialty}`
-                          : ""}
-                      </div>
+                ))}
+                <th className="min-w-[300px] border-l border-zinc-800 px-3 py-3 font-semibold text-zinc-200">
+                  On-profile certs
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const positionRollup = buildPositionRollup(row, requirements);
+                return (
+                  <tr key={row.userId} className="border-b border-zinc-800/80 bg-zinc-950/30">
+                    <td className="sticky left-0 z-10 min-w-[260px] max-w-[320px] bg-zinc-950 px-4 py-3 align-top shadow-[1px_0_0_0_rgb(63_63_70)]">
+                      <div className="font-semibold text-white">{row.name}</div>
+                      <div className="text-xs text-zinc-500">{row.email || row.userId}</div>
+                      <dl className="mt-2 space-y-1 text-xs text-zinc-300">
+                        <div className="flex gap-1">
+                          <dt className="shrink-0 font-semibold text-zinc-500">Position</dt>
+                          <dd className="min-w-0">{row.profileFields.jobTitle || "—"}</dd>
+                        </div>
+                        <div className="flex gap-1">
+                          <dt className="shrink-0 font-semibold text-zinc-500">Trade</dt>
+                          <dd className="min-w-0">{row.profileFields.tradeSpecialty || "—"}</dd>
+                        </div>
+                        <div className="flex gap-1">
+                          <dt className="shrink-0 font-semibold text-zinc-500">Readiness</dt>
+                          <dd>{readinessLabel(row.profileFields.readinessStatus)}</dd>
+                        </div>
+                        {row.profileFields.yearsExperience != null ? (
+                          <div className="flex gap-1">
+                            <dt className="shrink-0 font-semibold text-zinc-500">Experience</dt>
+                            <dd>{row.profileFields.yearsExperience} yr</dd>
+                          </div>
+                        ) : null}
+                      </dl>
+                      <PositionScopeSummary
+                        rollup={positionRollup}
+                        requirementsCount={requirements.length}
+                        theme="dark"
+                      />
+                      <div className="mt-2 text-[11px] text-zinc-600">Workspace access: {row.role}</div>
                       <Link
                         href={`/profile?userId=${encodeURIComponent(row.userId)}&returnTo=${encodeURIComponent("/training-matrix")}`}
-                        className="mt-2 inline-block text-xs font-semibold text-sky-700 hover:underline"
+                        className="mt-2 inline-block text-xs font-semibold text-cyan-400 hover:text-cyan-300 hover:underline"
                       >
-                        Open profile
+                        Update profile & dates
                       </Link>
                     </td>
                     {requirements.map((r) => {
                       const state = row.cells[r.id] ?? "gap";
+                      const d = row.cellDetails?.[r.id];
+                      const tip = requirementCellTitle(r, d, state);
                       return (
-                        <td key={r.id} className="px-3 py-3 text-center align-middle">
-                          {state === "match" ? (
-                            <span className="inline-flex justify-center text-emerald-600" title="Met">
-                              <Check className="h-5 w-5" aria-hidden />
-                              <span className="sr-only">Met</span>
-                            </span>
-                          ) : state === "na" ? (
-                            <span
-                              className="inline-flex justify-center text-slate-300"
-                              title="Not required for this trade / position"
-                            >
-                              <Minus className="h-5 w-5" aria-hidden />
-                              <span className="sr-only">Not applicable</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex justify-center text-amber-600" title="Required but not matched">
-                              <X className="h-5 w-5" aria-hidden />
-                              <span className="sr-only">Gap</span>
-                            </span>
-                          )}
+                        <td
+                          key={r.id}
+                          className="border-l border-zinc-800/80 px-2 py-2 align-top text-center"
+                          title={tip}
+                        >
+                          <div className="flex flex-col items-center gap-1">
+                            {state === "match" ? (
+                              <span className="inline-flex text-emerald-400">
+                                <Check className="h-5 w-5 shrink-0" aria-hidden />
+                                <span className="sr-only">Met</span>
+                              </span>
+                            ) : state === "na" ? (
+                              <span className="inline-flex text-zinc-600">
+                                <Minus className="h-5 w-5 shrink-0" aria-hidden />
+                                <span className="sr-only">Not applicable</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex text-fuchsia-400">
+                                <X className="h-5 w-5 shrink-0" aria-hidden />
+                                <span className="sr-only">Gap</span>
+                              </span>
+                            )}
+                            {state === "match" ? (
+                              <>
+                                {d?.matchSource === "certifications" && d.matchedLabel ? (
+                                  <p className="line-clamp-3 w-full text-[10px] font-medium leading-snug text-zinc-200">
+                                    {d.matchedLabel}
+                                  </p>
+                                ) : d?.matchSource === "job_title" || d?.matchSource === "trade_specialty" ? (
+                                  <p className="text-[10px] font-semibold leading-snug text-cyan-300">
+                                    Via {d.matchSource === "job_title" ? "position" : "trade"} match
+                                  </p>
+                                ) : null}
+                                {d?.expiryStatus === "soon" ? (
+                                  <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-200 ring-1 ring-amber-500/40">
+                                    Expiring soon
+                                  </span>
+                                ) : null}
+                                {(d?.expiryStatus === "soon" || d?.expiryStatus === "ok") && d.expiresOn ? (
+                                  <span className="text-[10px] leading-tight text-zinc-500">
+                                    {cellExpiryCaption(d)}
+                                  </span>
+                                ) : null}
+                                {d?.matchSource === "certifications" && d.expiryStatus === "none" ? (
+                                  <span className="text-[10px] text-zinc-500">No expiry on file</span>
+                                ) : null}
+                              </>
+                            ) : null}
+                            {state === "gap" ? (
+                              <div className="w-full text-left">
+                                <p className="text-[10px] font-bold text-amber-300">Missing</p>
+                                {d?.gapKeywords?.length ? (
+                                  <p className="mt-0.5 line-clamp-4 text-[10px] leading-snug text-zinc-400">
+                                    {d.gapKeywords.join(" · ")}
+                                  </p>
+                                ) : (
+                                  <p className="mt-0.5 text-[10px] text-zinc-500">Add matching training</p>
+                                )}
+                              </div>
+                            ) : null}
+                            {state === "na" ? (
+                              <p className="text-[10px] text-zinc-600">Out of scope</p>
+                            ) : null}
+                          </div>
                         </td>
                       );
                     })}
-                    <td className="px-4 py-3 align-top text-slate-600">
-                      {row.unmatchedCertifications.length ? (
-                        <div className="flex flex-wrap gap-1">
-                          {row.unmatchedCertifications.map((c) => (
-                            <span
-                              key={c}
-                              className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-900 ring-1 ring-amber-200"
-                            >
-                              {c}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
+                    <td className="border-l border-zinc-800/80 px-3 py-3 align-top">
+                      <div className="space-y-2">
+                        {row.certificationInventory && row.certificationInventory.length > 0 ? (
+                          <ul className="space-y-1.5">
+                            {row.certificationInventory.map((item) => {
+                              const t = ledgerChipToneDark(item.expiryStatus);
+                              return (
+                                <li
+                                  key={item.name}
+                                  className={`rounded-lg px-2 py-1.5 text-xs ring-1 ${t.wrap}`}
+                                >
+                                  <div className="flex items-start gap-2">
+                                    <span
+                                      className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${t.dot}`}
+                                      aria-hidden
+                                    />
+                                    <div className="min-w-0">
+                                      <div className="font-semibold leading-snug text-white">{item.name}</div>
+                                      <div className="mt-0.5 text-[11px] opacity-90">
+                                        {item.expiryStatus === "expired" && item.expiresOn
+                                          ? `Expired ${item.expiresOn}`
+                                          : item.expiryStatus === "soon" && item.expiresOn
+                                            ? `Expires ${item.expiresOn} · ${item.daysUntilExpiry}d left`
+                                            : item.expiryStatus === "ok" && item.expiresOn
+                                              ? `Good through ${item.expiresOn}`
+                                              : "No expiration date on file"}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <span className="text-sm text-zinc-600">No certifications on profile.</span>
+                        )}
+                        {row.unmatchedCertifications.length > 0 ? (
+                          <div className="border-t border-dashed border-zinc-700 pt-2">
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-violet-300">
+                              Not applied to any requirement
+                            </p>
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {row.unmatchedCertifications.map((c) => (
+                                <span
+                                  key={c}
+                                  className="rounded-full bg-violet-500/15 px-2 py-0.5 text-xs font-medium text-violet-200 ring-1 ring-violet-500/40"
+                                >
+                                  {c}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {!loading && rows.length > 0 ? (
-          <p className="mt-3 text-xs text-slate-500">Showing {rows.length} people in this workspace.</p>
-        ) : null}
-      </SectionCard>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </ComplianceCommandCenter>
     </div>
   );
 }

@@ -49,7 +49,8 @@ async function resolveCompanyAssignment(params: {
   team: string;
   role: string;
   actorUserId: string;
-  requestedCompanyId?: string | null;
+  /** Set when the client included `companyId` in the PATCH body (string or null). Omit for legacy resolution. */
+  explicitCompanyId?: string | null;
   canAssignCompanyWorkspace: boolean;
 }) {
   const {
@@ -59,7 +60,7 @@ async function resolveCompanyAssignment(params: {
     team,
     role,
     actorUserId,
-    requestedCompanyId,
+    explicitCompanyId,
     canAssignCompanyWorkspace,
   } = params;
 
@@ -67,7 +68,32 @@ async function resolveCompanyAssignment(params: {
     return { companyId: null, companyName: null, error: null as string | null };
   }
 
-  const normalizedRequestedCompanyId = trimText(requestedCompanyId);
+  const companyIdExplicitlyProvided = explicitCompanyId !== undefined;
+  const normalizedRequestedCompanyId =
+    explicitCompanyId === undefined || explicitCompanyId === null
+      ? ""
+      : trimText(String(explicitCompanyId));
+
+  if (companyIdExplicitlyProvided) {
+    if (!normalizedRequestedCompanyId) {
+      if (!isCompanyRole(role)) {
+        return { companyId: null, companyName: null, error: null as string | null };
+      }
+      if (!canAssignCompanyWorkspace) {
+        return {
+          companyId: null,
+          companyName: null,
+          error:
+            "Only a Super Admin or Platform Admin can move a user between company workspaces.",
+        };
+      }
+      return {
+        companyId: null,
+        companyName: null,
+        error: "Select a company workspace for company-scoped roles.",
+      };
+    }
+  }
 
   if (normalizedRequestedCompanyId) {
     if (!canAssignCompanyWorkspace) {
@@ -259,7 +285,12 @@ export async function PATCH(
   const role = normalizeAppRole(body.role);
   const team = body.team?.trim() || "General";
   const accountStatus = normalizeAccountStatus(body.accountStatus);
-  const requestedCompanyId = trimText(body.companyId);
+  const companyIdInBody = Object.prototype.hasOwnProperty.call(body, "companyId");
+  const explicitCompanyId = companyIdInBody
+    ? body.companyId === null || body.companyId === undefined
+      ? ""
+      : trimText(String(body.companyId))
+    : undefined;
   const canAssignCompanyWorkspace = isCrossWorkspaceAdminRole(auth.role);
 
   if (!adminClient) {
@@ -311,7 +342,7 @@ export async function PATCH(
     team,
     role,
     actorUserId: auth.user.id,
-    requestedCompanyId,
+    explicitCompanyId,
     canAssignCompanyWorkspace,
   });
 

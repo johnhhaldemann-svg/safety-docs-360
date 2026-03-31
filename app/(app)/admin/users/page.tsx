@@ -195,6 +195,19 @@ export default function AdminUsersPage() {
     setCompaniesLoading(false);
   }, []);
 
+  /** Keep company dropdown state aligned with loaded companies (fixes save sending null while UI showed a workspace). */
+  useEffect(() => {
+    if (!editingUser || companiesLoading || companies.length === 0) return;
+    setEditCompanyId((prev) => {
+      if (prev.trim()) return prev;
+      return (
+        (editingUser.companyId && editingUser.companyId.trim()) ||
+        findCompanyIdForUser(editingUser, companies) ||
+        ""
+      );
+    });
+  }, [editingUser, companies, companiesLoading]);
+
   const loadUsers = useCallback(async (options?: { preserveMessage?: boolean }) => {
     setLoading(true);
     if (!options?.preserveMessage) {
@@ -403,12 +416,11 @@ export default function AdminUsersPage() {
     setModalMessage("");
     setModalMessageTone("neutral");
     try {
-      const nextCompanyId =
-        capabilities.canViewAllUsers && companyAssignableRoles.has(editRole)
-          ? editCompanyId.trim()
-          : "";
+      const needsCompanyWorkspace =
+        capabilities.canViewAllUsers && companyAssignableRoles.has(editRole);
+      const nextCompanyId = needsCompanyWorkspace ? editCompanyId.trim() : "";
 
-      if (capabilities.canViewAllUsers && companyAssignableRoles.has(editRole) && !nextCompanyId) {
+      if (needsCompanyWorkspace && !nextCompanyId) {
         setMessageTone("error");
         setMessage("Please choose a company workspace for this company-scoped role.");
         setModalMessageTone("error");
@@ -428,7 +440,7 @@ export default function AdminUsersPage() {
           role: editRole,
           team: editTeam,
           accountStatus: editStatus,
-          companyId: nextCompanyId || null,
+          ...(needsCompanyWorkspace ? { companyId: nextCompanyId } : {}),
         }),
       });
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -662,19 +674,6 @@ export default function AdminUsersPage() {
     }
     setActionLoading("");
   }
-
-  const resolvedEditCompanyId = useMemo(() => {
-    if (!editingUser) {
-      return "";
-    }
-
-    const currentValue = editCompanyId.trim();
-    if (currentValue) {
-      return currentValue;
-    }
-
-    return findCompanyIdForUser(editingUser, companies);
-  }, [companies, editCompanyId, editingUser]);
 
   return (
     <div className="space-y-8">
@@ -1036,7 +1035,7 @@ export default function AdminUsersPage() {
                     Company workspace
                   </label>
                   <select
-                    value={resolvedEditCompanyId}
+                    value={editCompanyId}
                     onChange={(e) => setEditCompanyId(e.target.value)}
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
                   >
@@ -1060,12 +1059,18 @@ export default function AdminUsersPage() {
                   </p>
                 </div>
               ) : null}
-              <input
-                type="text"
-                value={editTeam}
-                onChange={(e) => setEditTeam(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
-              />
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Team label
+                </label>
+                <input
+                  type="text"
+                  value={editTeam}
+                  onChange={(e) => setEditTeam(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                  placeholder="Display label (synced with workspace name when company is set)"
+                />
+              </div>
               <select
                 value={editStatus}
                 onChange={(e) => setEditStatus(e.target.value)}

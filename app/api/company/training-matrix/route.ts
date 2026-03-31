@@ -11,7 +11,10 @@ import {
   loadCompanyWorkspaceUsersRls,
 } from "@/lib/companyWorkspaceDirectory";
 import { fetchCompanyTrainingRequirements } from "@/lib/companyTrainingRequirementsDb";
-import { parseCertificationExpirations } from "@/lib/certificationExpirations";
+import {
+  buildProfileCertificationInventory,
+  parseCertificationExpirations,
+} from "@/lib/certificationExpirations";
 import {
   computeTrainingMatrixRow,
   DEFAULT_MATCH_FIELDS,
@@ -23,13 +26,24 @@ export const runtime = "nodejs";
 type ProfileRow = {
   user_id: string;
   certifications: string[] | null;
-  certification_expirations: Record<string, string> | null;
+  certification_expirations?: Record<string, string> | null;
   job_title: string | null;
   trade_specialty: string | null;
   readiness_status: string | null;
+  years_experience?: number | null;
 };
 
 export async function GET(request: Request) {
+  try {
+    return await getTrainingMatrix(request);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unexpected error loading training matrix.";
+    console.error("[training-matrix]", e);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+async function getTrainingMatrix(request: Request) {
   const auth = await authorizeRequest(request);
 
   if ("error" in auth) {
@@ -135,12 +149,23 @@ export async function GET(request: Request) {
   }
 
   const profileClient = adminClient ?? auth.supabase;
-  const { data: profileData, error: profileError } = await profileClient
-    .from("user_profiles")
-    .select(
-      "user_id, certifications, certification_expirations, job_title, trade_specialty, readiness_status"
-    )
-    .in("user_id", userIds);
+  const profileSelectAttempts = [
+    "user_id, certifications, certification_expirations, job_title, trade_specialty, readiness_status, years_experience",
+    "user_id, certifications, job_title, trade_specialty, readiness_status, years_experience",
+    "user_id, certifications, job_title, trade_specialty, readiness_status",
+  ];
+
+  let profileData: ProfileRow[] | null = null;
+  let profileError: { message: string } | null = null;
+  for (const columns of profileSelectAttempts) {
+    const res = await profileClient.from("user_profiles").select(columns).in("user_id", userIds);
+    if (!res.error) {
+      profileData = res.data as unknown as ProfileRow[] | null;
+      profileError = null;
+      break;
+    }
+    profileError = res.error;
+  }
 
   if (profileError && adminClient) {
     return NextResponse.json(
@@ -163,18 +188,19 @@ export async function GET(request: Request) {
     profileMap.set(row.user_id, row);
   }
 
+  const asOf = new Date();
   const rows = directory.users.map((user) => {
     const profile = profileMap.get(user.id);
-    const { cells, unmatchedCertifications } = computeTrainingMatrixRow(
+    const expMap = parseCertificationExpirations(profile?.certification_expirations ?? undefined);
+    const { cells, cellDetails, unmatchedCertifications } = computeTrainingMatrixRow(
       {
         certifications: profile?.certifications ?? [],
-        certificationExpirations: parseCertificationExpirations(
-          profile?.certification_expirations ?? undefined
-        ),
+        certificationExpirations: expMap,
         job_title: profile?.job_title ?? null,
         trade_specialty: profile?.trade_specialty ?? null,
       },
-      requirementInputs
+      requirementInputs,
+      asOf
     );
 
     return {
@@ -184,11 +210,18 @@ export async function GET(request: Request) {
       role: user.role,
       status: user.status,
       cells,
+      cellDetails,
       unmatchedCertifications,
+      certificationInventory: buildProfileCertificationInventory(
+        profile?.certifications ?? [],
+        expMap,
+        asOf
+      ),
       profileFields: {
         tradeSpecialty: profile?.trade_specialty?.trim() || "",
         jobTitle: profile?.job_title?.trim() || "",
         readinessStatus: profile?.readiness_status?.trim() || "",
+        yearsExperience: profile?.years_experience ?? null,
       },
     };
   });

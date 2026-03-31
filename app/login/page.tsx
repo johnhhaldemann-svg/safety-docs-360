@@ -294,6 +294,7 @@ function LoginPageContent() {
                 <div className="mt-8 space-y-4">
                   {formMessage ? (
                     <div
+                      data-testid={formTone === "error" ? "login-error" : "login-success"}
                       className={[
                         "rounded-2xl border px-4 py-3 text-sm",
                         formTone === "error"
