@@ -329,6 +329,45 @@ function filterLiveRowsByMonth(rows: LiveSignalRow[], monthLabel: string): LiveS
   });
 }
 
+/** Same calendar month, shifted by years (e.g. April 2026 → April 2025). Uses `parseMonthLabel` for robust parsing. */
+export function shiftMonthLabelByYears(monthLabel: string, deltaYears: number): string | null {
+  const base = parseMonthLabel(monthLabel);
+  if (!base) return null;
+  const d = new Date(base.getFullYear() + deltaYears, base.getMonth(), 1);
+  return d.toLocaleString("en-US", { month: "long", year: "numeric" });
+}
+
+/**
+ * When the selected month has no signal rows, prefer the same month last year, then all dates.
+ * Display month in the dashboard stays the user’s selection; `recordWindowLabel` explains the fallback.
+ */
+export function resolveMonthScopedRowsWithFallback(
+  allRows: LiveSignalRow[],
+  selectedMonth: string
+): { rows: LiveSignalRow[]; recordWindowLabel: string } {
+  const primary = filterLiveRowsByMonth(allRows, selectedMonth);
+  if (primary.length > 0) {
+    return {
+      rows: primary,
+      recordWindowLabel: `Month-scoped signals: ${selectedMonth}`,
+    };
+  }
+  const priorYearLabel = shiftMonthLabelByYears(selectedMonth, -1);
+  if (priorYearLabel) {
+    const priorYearRows = filterLiveRowsByMonth(allRows, priorYearLabel);
+    if (priorYearRows.length > 0) {
+      return {
+        rows: priorYearRows,
+        recordWindowLabel: `Month-scoped signals: ${priorYearLabel} (prior-year fallback — no rows in ${selectedMonth})`,
+      };
+    }
+  }
+  return {
+    rows: allRows,
+    recordWindowLabel: `All dates (historical pool — no rows in ${selectedMonth}${priorYearLabel ? ` or ${priorYearLabel}` : ""}; used to estimate risk for that period)`,
+  };
+}
+
 function isFutureMonth(month?: string): boolean {
   const parsed = parseMonthFilter(month);
   if (!parsed) return false;
@@ -387,6 +426,12 @@ export async function getInjuryWeatherDashboardData(filters?: {
   /** 7-day ops and/or hours/day vs a 40h reference week — likelihood / structural calendar path only. */
   workSchedule?: Partial<WorkScheduleInputs>;
 }): Promise<InjuryWeatherDashboardData> {
+  /**
+   * Forecast principle: the selected month is the **target** for likelihood and seasonal factors.
+   * **Signal rows** come from history when the target month has no data: same month prior year, then
+   * full historical pool. **Future months** have no observations yet, so we always use the full
+   * historical signal set to project present/future risk (see `recordWindowLabel` on provenance).
+   */
   const admin = createSupabaseAdminClient();
   const monthLabel = filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
   const workbookRows = seedRows();
@@ -422,14 +467,20 @@ export async function getInjuryWeatherDashboardData(filters?: {
   }
 
   const shouldFilterSignalsByMonth = filters?.month ? !isFutureMonth(filters.month) : false;
-  const recordWindowLabel =
-    shouldFilterSignalsByMonth && filters?.month
-      ? `Month-scoped signals: ${filters.month}`
-      : "All dates (no month filter on SOR / corrective actions / incidents)";
   /** One fetch of all signals (3 queries) — filter by month in memory when needed. Avoids duplicate full-table reads. */
   const allRows = await fetchLiveSignals(admin, { trade: filters?.trade });
-  const liveSourceRows =
-    shouldFilterSignalsByMonth && filters?.month ? filterLiveRowsByMonth(allRows, filters.month) : allRows;
+  const selectedMonth = filters?.month;
+  const targetIsFutureMonth = selectedMonth ? isFutureMonth(selectedMonth) : false;
+  const { rows: liveSourceRows, recordWindowLabel } =
+    shouldFilterSignalsByMonth && selectedMonth
+      ? resolveMonthScopedRowsWithFallback(allRows, selectedMonth)
+      : {
+          rows: allRows,
+          recordWindowLabel:
+            targetIsFutureMonth && selectedMonth
+              ? `Forecast: historical safety signals (all dates) — ${selectedMonth} is not observed yet; present/future scores use past patterns.`
+              : "All dates (no month filter on SOR / corrective actions / incidents)",
+        };
   const historyTrend = buildDashboardFromLiveSignals(allRows, {
     month: monthLabel,
     recordWindowLabel: "All dates (history for month picker)",

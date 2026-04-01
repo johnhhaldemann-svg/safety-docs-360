@@ -319,7 +319,8 @@ export function InjuryWeatherDashboard() {
           <p className="mt-1 text-lg text-slate-300">Predictive Risk Analysis for Your Jobsite</p>
           <p className="mx-auto mt-4 max-w-3xl text-sm leading-relaxed text-slate-400">
             Plan the month ahead—prioritize training, engineering controls, and field focus from your safety signals to help prevent
-            injuries and give admins a clear prep list before work ramps up.
+            injuries and give admins a clear prep list before work ramps up. The forecast uses historical signals to estimate the
+            selected period—including future months before they are observed.
           </p>
         </div>
         <div className="grid gap-2 border-b border-slate-600/40 bg-black/20 px-5 py-3 sm:grid-cols-3">
@@ -361,10 +362,11 @@ export function InjuryWeatherDashboard() {
           </div>
         ) : null}
         <p className="border-b border-slate-600/40 bg-black/30 px-5 py-2 text-left text-xs leading-relaxed text-slate-400">
-          <span className="font-semibold text-slate-300">Leading-indicator model:</span> The exposure number blends likelihood with
-          workforce or trend volume; the % index maps structural risk × trade/site climate. These are prioritization signals, not
-          validated injury predictions, until compared to your incident history over time. AI suggestions support training and
-          controls—they do not change the math instantly.
+          <span className="font-semibold text-slate-300">Leading-indicator model:</span> Present and future risk scores are
+          estimated from historical SOR, corrective actions, and incidents when the target month has no or limited live data; the
+          exposure number blends likelihood with workforce or trend volume; the % index maps structural risk × trade/site climate.
+          These are prioritization signals, not validated injury predictions, until compared to your incident history over time. AI
+          suggestions support training and controls—they do not change the math instantly.
         </p>
         <div className="grid gap-2 bg-black/25 px-5 py-3 sm:grid-cols-2 lg:grid-cols-5">
           <select value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-lg border border-slate-500/50 bg-slate-900/80 px-3 py-2 text-sm">

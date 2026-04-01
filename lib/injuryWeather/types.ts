@@ -229,7 +229,7 @@ export type InjuryWeatherSignalProvenance = {
 };
 
 export const INJURY_WEATHER_ASSUMPTIONS =
-  "This view uses a leading-indicator model from safety signals (SOR, corrective actions, incidents), optional workforce or hours normalization, and trade- and state-aware weather exposure (not live weather data). Outputs are not validated injury predictions until compared to your incident history. Use for prioritization and discussion, not as a compliance guarantee.";
+  "Forecasts for the month you select use historical safety signals when that month has no or sparse live data, and future months use past patterns until real observations exist. The model blends SOR, corrective actions, and incidents with optional workforce or hours normalization and trade- and state-aware weather exposure (not live weather station data). Outputs are not validated injury predictions until compared to your incident history. Use for prioritization and discussion, not as a compliance guarantee.";
 
 export type InjuryWeatherDashboardData = {
   summary: DashboardSummary;
