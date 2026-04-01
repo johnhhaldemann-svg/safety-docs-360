@@ -26,6 +26,8 @@ export const userQuickLinks: NavItem[] = [
 export const adminQuickLinks: NavItem[] = [
   { href: "/admin", label: "Admin home", short: "AH" },
   { href: "/admin/review-documents", label: "Review queue", short: "RQ" },
+  { href: "/admin/sor-audit", label: "SOR audit", short: "SA" },
+  { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
   { href: "/admin/users", label: "Users", short: "US" },
   { href: "/admin/companies", label: "Companies", short: "CO" },
   { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },
@@ -93,6 +95,8 @@ export const adminSideSections: NavSection[] = [
     items: [
       { href: "/admin", label: "Admin dashboard", short: "AH" },
       { href: "/admin/review-documents", label: "Review queue", short: "RQ" },
+      { href: "/admin/sor-audit", label: "SOR audit", short: "SA" },
+      { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
       { href: "/admin/users", label: "Users", short: "US" },
       { href: "/admin/companies", label: "Companies", short: "CO" },
       { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },

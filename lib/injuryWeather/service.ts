@@ -1,0 +1,985 @@
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { inferCalibrationTrend, computeBacktestCorrelations } from "@/lib/injuryWeather/backtest";
+import {
+  effectiveTradeWeatherWeightFromByTrade,
+  getLocationWeatherContext,
+  mergeLocationWithTradeWeather,
+} from "@/lib/injuryWeather/locationWeather";
+import {
+  INJURY_WEATHER_MODEL,
+  buildTradeCategoryForecasts,
+  computeIncidentLikelihoodIndexPct,
+  computeProjectedCaseEstimate,
+  computeRepeatIssueRatePct,
+  computeStructuralRiskScore,
+  computeTradeCategoryConcentrationPct,
+  computeTrendPressureAndMomentumFromHistory,
+  computeWorkforceSignalDensityPct,
+  riskBandFromStressCount,
+  riskLevelFromStructuralScore,
+} from "@/lib/injuryWeather/riskModel";
+import sorSeed from "@/lib/injuryWeather/sor-fixed-seed.json";
+import type {
+  DashboardAlert,
+  DashboardSummary,
+  InjuryWeatherBlendNormalization,
+  InjuryWeatherBacktestResult,
+  InjuryWeatherBacktestRow,
+  InjuryWeatherBacktestRunSnapshot,
+  InjuryWeatherDashboardData,
+  InjuryWeatherSignalProvenance,
+  RiskLevel,
+  TradeForecast,
+  TrendPoint,
+} from "@/lib/injuryWeather/types";
+
+const DEFAULT_TRADE_FORECASTS: TradeForecast[] = [
+  {
+    trade: "Roofing",
+    forecastProvenance: "demo",
+    categories: [
+      { name: "Fall Protection", predictedCount: 58, riskLevel: "HIGH", note: "Critical Risk" },
+      { name: "Ladder Safety", predictedCount: 27, riskLevel: "MODERATE" },
+      { name: "PPE Compliance", predictedCount: 12, riskLevel: "LOW" },
+    ],
+    footerNote: "View Controls",
+  },
+  {
+    trade: "Electrical",
+    forecastProvenance: "demo",
+    categories: [
+      { name: "Lockout/Tagout (LOTO)", predictedCount: 21, riskLevel: "MODERATE" },
+      { name: "Temporary Power", predictedCount: 33, riskLevel: "HIGH" },
+    ],
+    footerNote: "Temporary power inspection watchlist is elevated.",
+  },
+  {
+    trade: "Concrete",
+    forecastProvenance: "demo",
+    categories: [
+      { name: "Struck-By Hazards", predictedCount: 15, riskLevel: "LOW" },
+      { name: "Formwork Safety", predictedCount: 9, riskLevel: "LOW" },
+    ],
+    footerNote: "Current Status: Under Control",
+  },
+  {
+    trade: "Steel Work",
+    forecastProvenance: "demo",
+    categories: [
+      { name: "Rigging Safety", predictedCount: 41, riskLevel: "MODERATE" },
+      { name: "Welding Safety", predictedCount: 26, riskLevel: "MODERATE" },
+    ],
+    footerNote: "Reminder: review lift plans and hot-work permits.",
+  },
+];
+
+const DEFAULT_ALERTS: DashboardAlert[] = [
+  { id: "1", title: "Fall Protection Training Required", severity: "CRITICAL", dueLabel: "Due in 2 days" },
+  { id: "2", title: "Temporary Power Inspection Needed", severity: "HIGH", dueLabel: "Due tomorrow" },
+  { id: "3", title: "Struck-By Hazard Review", severity: "MODERATE", dueLabel: "Due this week" },
+];
+
+const DEFAULT_TREND: TrendPoint[] = [
+  { month: "Oct 2025", value: 35 },
+  { month: "Nov 2025", value: 41 },
+  { month: "Dec 2025", value: 39 },
+  { month: "Jan 2026", value: 48, highRisk: true },
+  { month: "Feb 2026", value: 54, highRisk: true },
+  { month: "Mar 2026", value: 47 },
+  { month: "Apr 2026", value: 52, highRisk: true },
+];
+
+const DEFAULT_CONTROLS = [
+  "Schedule targeted fall-protection refresher for roofing crews.",
+  "Increase temporary power and GFCI inspections to daily cadence.",
+  "Run pre-task rigging checks with documented supervisor signoff.",
+  "Review permit queue for hot-work and energized-work gaps.",
+];
+
+const TRAINING_PLAYBOOK: Array<{ match: RegExp; training: string }> = [
+  { match: /fall|ladder|harness/i, training: "Fall Protection refresher + ladder inspection competency checks." },
+  { match: /loto|lockout|tagout|electrical|arc|power/i, training: "LOTO and temporary power safety recertification for affected crews." },
+  { match: /rigging|crane|lift/i, training: "Rigging & lift planning workshop with qualified rigger verification." },
+  { match: /weld|hot.?work/i, training: "Hot-work permit and fire watch training with supervisor signoff." },
+  { match: /struck|material|formwork|concrete/i, training: "Struck-by prevention and material handling toolbox training." },
+  { match: /ppe/i, training: "PPE compliance coaching with field audit walkthroughs." },
+];
+
+const DEFAULT_MONTHLY_TRAINING = [
+  "Supervisor-led hazard recognition and pre-task planning training for top risk trades.",
+  "Permit-to-work quality and closeout discipline training for foremen and leads.",
+  "Incident learning review session focused on high-severity trends and near misses.",
+];
+
+function buildMonthlyTrainingRecommendations(tradeForecasts: TradeForecast[]): string[] {
+  const picks: string[] = [];
+  const seen = new Set<string>();
+  for (const tf of tradeForecasts.slice(0, 4)) {
+    for (const cat of tf.categories.slice(0, 3)) {
+      const label = `${tf.trade} ${cat.name}`;
+      const matched = TRAINING_PLAYBOOK.find((p) => p.match.test(label));
+      if (!matched) continue;
+      if (seen.has(matched.training)) continue;
+      seen.add(matched.training);
+      picks.push(matched.training);
+      if (picks.length >= 4) return picks;
+    }
+  }
+  return picks.length > 0 ? picks : DEFAULT_MONTHLY_TRAINING;
+}
+
+type SeedRow = {
+  observed_at?: number | string | null;
+  description?: string | null;
+  category?: string | null;
+  subcategory?: string | null;
+  severity?: string | null;
+  observation_type?: string | null;
+  status?: string | null;
+};
+
+type LiveSignalRow = {
+  trade: string;
+  category: string;
+  severity: string;
+  created_at: string;
+  source: "sor" | "corrective_action" | "incident";
+};
+
+function countSignalSources(rows: LiveSignalRow[]): Pick<
+  InjuryWeatherSignalProvenance,
+  "sorRecords" | "correctiveActions" | "incidents"
+> {
+  let sorRecords = 0;
+  let correctiveActions = 0;
+  let incidents = 0;
+  for (const r of rows) {
+    if (r.source === "sor") sorRecords += 1;
+    else if (r.source === "corrective_action") correctiveActions += 1;
+    else incidents += 1;
+  }
+  return { sorRecords, correctiveActions, incidents };
+}
+
+function liveProvenance(
+  filtered: LiveSignalRow[],
+  recordWindowLabel: string,
+  blendNormalization?: InjuryWeatherBlendNormalization
+): InjuryWeatherSignalProvenance {
+  return {
+    mode: "live",
+    ...countSignalSources(filtered),
+    recordWindowLabel,
+    alertsAreIllustrative: true,
+    ...(blendNormalization ? { blendNormalization } : {}),
+  };
+}
+
+function seedProvenance(partial: {
+  seedWorkbookRows: number;
+  recordWindowLabel: string;
+  blendNormalization?: InjuryWeatherBlendNormalization;
+}): InjuryWeatherSignalProvenance {
+  return {
+    mode: "seed",
+    sorRecords: 0,
+    correctiveActions: 0,
+    incidents: 0,
+    seedWorkbookRows: partial.seedWorkbookRows,
+    recordWindowLabel: partial.recordWindowLabel,
+    alertsAreIllustrative: true,
+    ...(partial.blendNormalization ? { blendNormalization: partial.blendNormalization } : {}),
+  };
+}
+
+const BASE_TRADES = ["General Contractor", ...DEFAULT_TRADE_FORECASTS.map((t) => t.trade)];
+const KNOWN_TRADE_LIBRARY = [
+  "Carpentry",
+  "Masonry",
+  "Drywall",
+  "Painting",
+  "Plumbing",
+  "HVAC",
+  "Earthworks",
+  "Scaffolding",
+  "Demolition",
+  "Glazing",
+  "Roadwork",
+  "Landscaping",
+];
+
+function uniqueSortedTrades(rows: LiveSignalRow[]): string[] {
+  return [...new Set(rows.map((r) => r.trade).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+function formatMonthKey(date: Date): string {
+  return date.toLocaleString("en-US", { month: "short", year: "numeric" });
+}
+
+function parseMonthLabel(monthLabel: string): Date | null {
+  const parsed = new Date(monthLabel);
+  if (!Number.isNaN(parsed.getTime())) return new Date(parsed.getFullYear(), parsed.getMonth(), 1);
+  const parts = monthLabel.trim().split(/\s+/);
+  if (parts.length < 2) return null;
+  const fallback = new Date(`${parts[0]} 1, ${parts[1]}`);
+  if (Number.isNaN(fallback.getTime())) return null;
+  return new Date(fallback.getFullYear(), fallback.getMonth(), 1);
+}
+
+function monthSortValue(monthLabel: string): number {
+  const parsed = parseMonthLabel(monthLabel);
+  return parsed ? parsed.getTime() : 0;
+}
+
+function build90DayOutlookMonths(months: string[]): string[] {
+  const clean = [...new Set(months)].sort((a, b) => monthSortValue(a) - monthSortValue(b));
+  const latestDate = parseMonthLabel(clean[clean.length - 1] ?? "") ?? new Date();
+  const withOutlook = [...clean];
+  for (let i = 1; i <= 3; i += 1) {
+    const next = new Date(latestDate.getFullYear(), latestDate.getMonth() + i, 1);
+    withOutlook.push(formatMonthKey(next));
+  }
+  return [...new Set(withOutlook)].sort((a, b) => monthSortValue(a) - monthSortValue(b));
+}
+
+function buildFutureTrendFromMonthly(monthly: Map<string, number>, horizonMonths = 6): TrendPoint[] {
+  const sortedHistory = [...monthly.entries()].sort((a, b) => monthSortValue(a[0]) - monthSortValue(b[0]));
+  const historyValues = sortedHistory.map(([, value]) => value);
+  const lastDate = parseMonthLabel(sortedHistory[sortedHistory.length - 1]?.[0] ?? "") ?? new Date();
+  const last3 = historyValues.slice(-3);
+  const prev3 = historyValues.slice(-6, -3);
+  const avg = (arr: number[]) => (arr.length ? arr.reduce((sum, v) => sum + v, 0) / arr.length : 0);
+  const recentAvg = avg(last3) || avg(historyValues) || 12;
+  const prevAvg = avg(prev3) || recentAvg;
+  const momentum = prevAvg > 0 ? (recentAvg - prevAvg) / prevAvg : 0;
+  const boundedMomentum = Math.max(-0.12, Math.min(0.18, momentum));
+
+  const trend: TrendPoint[] = [];
+  let base = Math.max(1, recentAvg);
+  for (let i = 1; i <= horizonMonths; i += 1) {
+    const monthDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + i, 1);
+    // Add mild seasonality so the line is not flat in low-volume datasets.
+    const seasonal = 1 + 0.04 * Math.sin(i * 0.9);
+    base = Math.max(1, base * (1 + boundedMomentum * 0.55) * seasonal);
+    const value = Math.max(1, Math.round(base));
+    trend.push({
+      month: formatMonthKey(monthDate),
+      value,
+      highRisk: value >= 40,
+    });
+  }
+  return trend;
+}
+
+function buildTradeUniverse(liveTrades: string[], seedData: SeedRow[]): string[] {
+  const fromSeed = seedData.map((r) => inferTradeFromSeedRow(r));
+  return [...new Set([...BASE_TRADES, ...KNOWN_TRADE_LIBRARY, ...fromSeed, ...liveTrades].filter(Boolean))].sort(
+    (a, b) => a.localeCompare(b)
+  );
+}
+
+function parseMonthFilter(month?: string): { start: Date; end: Date } | null {
+  if (!month) return null;
+  const parsed = new Date(month);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const start = new Date(parsed.getFullYear(), parsed.getMonth(), 1);
+  const end = new Date(parsed.getFullYear(), parsed.getMonth() + 1, 1);
+  return { start, end };
+}
+
+function isFutureMonth(month?: string): boolean {
+  const parsed = parseMonthFilter(month);
+  if (!parsed) return false;
+  const now = new Date();
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  return parsed.start.getTime() > currentMonthStart.getTime();
+}
+
+/** Prefer workforce or hours as denominator so raw counts are comparable across sites. */
+function resolveExposureDenominator(
+  workforce: number,
+  hours: number
+): { kind: "workforce" | "hours"; value: number } | null {
+  if (hours > 0) return { kind: "hours", value: hours };
+  if (workforce > 0) return { kind: "workforce", value: workforce };
+  return null;
+}
+
+function blendNormalizationFromExposure(exposure: ReturnType<typeof resolveExposureDenominator>): InjuryWeatherBlendNormalization {
+  if (!exposure) return { kind: "row_counts" };
+  return { kind: exposure.kind, denominator: exposure.value };
+}
+
+function excelSerialToDate(serial: number): Date {
+  // Excel epoch starts at 1899-12-30 for serial conversion.
+  const ms = (serial - 25569) * 86400 * 1000;
+  return new Date(ms);
+}
+
+function inferTradeFromSeedRow(row: SeedRow): string {
+  const haystack = `${row.category ?? ""} ${row.subcategory ?? ""} ${row.description ?? ""}`.toLowerCase();
+  if (haystack.includes("roof") || haystack.includes("ladder") || haystack.includes("harness")) return "Roofing";
+  if (haystack.includes("electrical") || haystack.includes("loto") || haystack.includes("power") || haystack.includes("wiring")) return "Electrical";
+  if (haystack.includes("concrete") || haystack.includes("formwork") || haystack.includes("rebar")) return "Concrete";
+  if (haystack.includes("rigging") || haystack.includes("steel") || haystack.includes("welding")) return "Steel Work";
+  return "General Contractor";
+}
+
+function seedRows(): SeedRow[] {
+  const sheets = (sorSeed as { sheets?: Record<string, SeedRow[]> }).sheets ?? {};
+  const firstSheet = Object.keys(sheets)[0];
+  return firstSheet ? sheets[firstSheet] ?? [] : [];
+}
+
+export async function getInjuryWeatherDashboardData(filters?: {
+  month?: string;
+  trade?: string;
+  trades?: string[];
+  workforceTotal?: number;
+  /** Hours worked in scope (e.g. month); takes precedence over workforce for blend normalization */
+  hoursWorked?: number;
+  stateCode?: string;
+}): Promise<InjuryWeatherDashboardData> {
+  const admin = createSupabaseAdminClient();
+  const monthLabel = filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
+  const workbookRows = seedRows();
+  const trendFromSeed = computeTrendFromSeed(workbookRows, filters);
+
+  if (!admin) {
+    const fallback = computeFromSeed(workbookRows, filters);
+    return {
+      summary: { ...fallback.summary, month: monthLabel },
+      tradeForecasts: fallback.tradeForecasts,
+      alerts: fallback.alerts,
+      trend: trendFromSeed.trend,
+      recommendedControls: fallback.recommendedControls,
+      monthlyTrainingRecommendations: fallback.monthlyTrainingRecommendations,
+      availableMonths: build90DayOutlookMonths(trendFromSeed.availableMonths),
+      availableTrades: buildTradeUniverse(fallback.availableTrades, workbookRows),
+      location: fallback.location,
+      signalProvenance: fallback.signalProvenance,
+    };
+  }
+
+  const shouldFilterSignalsByMonth = filters?.month ? !isFutureMonth(filters.month) : false;
+  const signalMonthFilter = shouldFilterSignalsByMonth ? filters?.month : undefined;
+  const recordWindowLabel =
+    shouldFilterSignalsByMonth && filters?.month
+      ? `Month-scoped signals: ${filters.month}`
+      : "All dates (no month filter on SOR / corrective actions / incidents)";
+  const [liveRows, historyRows] = await Promise.all([
+    fetchLiveSignals(admin, { month: signalMonthFilter, trade: filters?.trade, trades: filters?.trades }),
+    fetchLiveSignals(admin, {}),
+  ]);
+  const historyTrend = buildDashboardFromLiveSignals(historyRows, {
+    month: monthLabel,
+    recordWindowLabel: "All dates (history for month picker)",
+    trendFallback: trendFromSeed,
+  });
+  const live = buildDashboardFromLiveSignals(liveRows, {
+    month: monthLabel,
+    trade: filters?.trade,
+    trades: filters?.trades,
+    workforceTotal: filters?.workforceTotal,
+    hoursWorked: filters?.hoursWorked,
+    stateCode: filters?.stateCode,
+    recordWindowLabel,
+    trendFallback: trendFromSeed,
+  });
+  live.availableMonths = build90DayOutlookMonths(historyTrend.availableMonths);
+  live.availableTrades = buildTradeUniverse(historyTrend.availableTrades, workbookRows);
+  return live;
+}
+
+export async function refreshInjuryWeatherDailySnapshot() {
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return { ok: false, error: "Missing Supabase admin client." };
+  }
+  const month = new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
+  const trendFromSeed = computeTrendFromSeed(seedRows(), {});
+  const liveRows = await fetchLiveSignals(admin, {});
+  const payload = buildDashboardFromLiveSignals(liveRows, {
+    month,
+    recordWindowLabel: "All dates (daily snapshot)",
+    trendFallback: trendFromSeed,
+  });
+  payload.availableMonths = build90DayOutlookMonths(payload.availableMonths);
+  payload.availableTrades = buildTradeUniverse(payload.availableTrades, seedRows());
+  const snapshotDate = new Date().toISOString().slice(0, 10);
+  const upsert = await admin.from("injury_weather_daily_snapshots").upsert(
+    {
+      snapshot_date: snapshotDate,
+      generated_at: new Date().toISOString(),
+      payload,
+      source_counts: {
+        liveSignalRows: liveRows.length,
+        availableMonths: payload.availableMonths.length,
+      },
+      created_by: null,
+    },
+    { onConflict: "snapshot_date" }
+  );
+  if (upsert.error) {
+    return { ok: false, error: upsert.error.message || "Failed to upsert injury weather snapshot." };
+  }
+  return { ok: true, snapshotDate };
+}
+
+async function fetchLiveSignals(
+  admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  filters?: { month?: string; trade?: string; trades?: string[] }
+): Promise<LiveSignalRow[]> {
+  const monthWindow = parseMonthFilter(filters?.month);
+  let sorQuery = admin
+    .from("company_sor_records")
+    .select("trade, category, severity, created_at")
+    .eq("is_deleted", false);
+  let actionQuery = admin
+    .from("company_corrective_actions")
+    .select("category, severity, created_at");
+  let incidentQuery = admin
+    .from("company_incidents")
+    .select("category, severity, created_at");
+  if (monthWindow) {
+    const start = monthWindow.start.toISOString();
+    const end = monthWindow.end.toISOString();
+    sorQuery = sorQuery.gte("created_at", start).lt("created_at", end);
+    actionQuery = actionQuery.gte("created_at", start).lt("created_at", end);
+    incidentQuery = incidentQuery.gte("created_at", start).lt("created_at", end);
+  }
+  if (filters?.trade) {
+    sorQuery = sorQuery.ilike("trade", `%${filters.trade}%`);
+  }
+  const [sorResult, actionResult, incidentResult] = await Promise.all([sorQuery, actionQuery, incidentQuery]);
+  const sorRows = (sorResult.error ? [] : sorResult.data ?? []).map((r) => ({
+    trade: String(r.trade ?? "General Contractor"),
+    category: String(r.category ?? "General Observation"),
+    severity: String(r.severity ?? "medium"),
+    created_at: String(r.created_at ?? ""),
+    source: "sor" as const,
+  }));
+  const actionRows = (actionResult.error ? [] : actionResult.data ?? []).map((r) => {
+    const category = String(r.category ?? "Corrective Action");
+    return {
+      trade: inferTradeFromText(category),
+      category,
+      severity: String(r.severity ?? "medium"),
+      created_at: String(r.created_at ?? ""),
+      source: "corrective_action" as const,
+    };
+  });
+  const incidentRows = (incidentResult.error ? [] : incidentResult.data ?? []).map((r) => {
+    const category = String(r.category ?? "Incident");
+    return {
+      trade: inferTradeFromText(category),
+      category,
+      severity: String(r.severity ?? "high"),
+      created_at: String(r.created_at ?? ""),
+      source: "incident" as const,
+    };
+  });
+  return [...sorRows, ...actionRows, ...incidentRows];
+}
+
+function buildDashboardFromLiveSignals(
+  rows: LiveSignalRow[],
+  params: {
+    month: string;
+    recordWindowLabel: string;
+    trade?: string;
+    trades?: string[];
+    workforceTotal?: number;
+    hoursWorked?: number;
+    stateCode?: string;
+    trendFallback: { availableMonths: string[]; trend: TrendPoint[] };
+  }
+): InjuryWeatherDashboardData {
+  const selectedTrades = (params.trades ?? []).map((t) => t.toLowerCase());
+  const filtered = rows.filter((r) => {
+    if (selectedTrades.length > 0) {
+      return selectedTrades.some((t) => r.trade.toLowerCase().includes(t));
+    }
+    if (params.trade) return r.trade.toLowerCase().includes(params.trade.toLowerCase());
+    return true;
+  });
+  const byTrade = new Map<string, Map<string, number>>();
+  const monthly = new Map<string, number>();
+  let highOrCritical = 0;
+  for (const row of filtered) {
+    if (["high", "critical"].includes(row.severity.toLowerCase())) highOrCritical += 1;
+    const catMap = byTrade.get(row.trade) ?? new Map<string, number>();
+    catMap.set(row.category, (catMap.get(row.category) ?? 0) + 1);
+    byTrade.set(row.trade, catMap);
+    const d = new Date(row.created_at);
+    if (!Number.isNaN(d.getTime())) {
+      const key = formatMonthKey(d);
+      monthly.set(key, (monthly.get(key) ?? 0) + 1);
+    }
+  }
+  const tradeForecasts = [...byTrade.entries()]
+    .sort((a, b) => [...b[1].values()].reduce((n, v) => n + v, 0) - [...a[1].values()].reduce((n, v) => n + v, 0))
+    .slice(0, 4);
+  const tradeWeatherBlend = effectiveTradeWeatherWeightFromByTrade(byTrade);
+  const location = mergeLocationWithTradeWeather(getLocationWeatherContext(params.stateCode), tradeWeatherBlend);
+  const trend = [...monthly.entries()]
+    .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+    .slice(-7)
+    .map(([month, value]) => ({ month, value, highRisk: value >= 40 }));
+  const forecastTrend = buildFutureTrendFromMonthly(monthly, 6);
+  const selectedMonthLabel = params.month.trim();
+  const selectedTrendPoint =
+    forecastTrend.find((p) => p.month.toLowerCase() === selectedMonthLabel.toLowerCase()) ?? forecastTrend[0];
+  const projectedBase = trend.slice(-3).reduce((sum, p) => sum + p.value, 0) / Math.max(1, Math.min(3, trend.length));
+  const workforceForExposure = params.workforceTotal ? Math.max(1, Number(params.workforceTotal)) : 0;
+  const hoursForExposure = params.hoursWorked ? Math.max(1, Number(params.hoursWorked)) : 0;
+  const exposure = resolveExposureDenominator(workforceForExposure, hoursForExposure);
+  const exposureDenom = exposure?.value ?? null;
+  const rawSeverityPct = Math.round((highOrCritical / Math.max(1, filtered.length)) * 100);
+  const severityRatioPct = exposureDenom
+    ? Math.min(100, Math.round((highOrCritical / exposureDenom) * 100))
+    : rawSeverityPct;
+  const { trendPressurePct, momentumBoostPct } = computeTrendPressureAndMomentumFromHistory(trend, monthly);
+  const highRiskCategoryConcentration = computeTradeCategoryConcentrationPct(filtered, exposureDenom);
+  const repeatIssueRate = computeRepeatIssueRatePct(filtered, exposureDenom);
+  const workforceSignalDensityPct = computeWorkforceSignalDensityPct(filtered.length, workforceForExposure);
+  const structuralRiskScore = computeStructuralRiskScore({
+    severityRatioPct,
+    trendPressurePct,
+    momentumBoostPct,
+    highRiskCategoryConcentration,
+    repeatIssueRate,
+    workforceSignalDensityPct,
+  });
+  const overallRiskLevel = riskLevelFromStructuralScore(structuralRiskScore);
+  const weatherFactor = location.combinedWeatherFactor ?? location.weatherRiskMultiplier;
+  const incidentLikelihoodIndexPct = computeIncidentLikelihoodIndexPct(structuralRiskScore, weatherFactor);
+  const rawMonthFactor = selectedTrendPoint ? selectedTrendPoint.value / Math.max(1, projectedBase) : 1;
+  const monthProjectionFactor = Math.min(INJURY_WEATHER_MODEL.MONTH_PROJECTION_CAP, rawMonthFactor);
+  const projectedCaseEstimate = computeProjectedCaseEstimate({
+    incidentLikelihoodIndexPct,
+    workforceCount: workforceForExposure,
+    trendVolumeBase: projectedBase,
+    monthProjectionFactor,
+  });
+  const roundedStructural = Math.round(structuralRiskScore * 10) / 10;
+  const normalizedTradeForecasts = buildTradeCategoryForecasts({
+    tradeForecastsRaw: tradeForecasts,
+    projectedCaseEstimate,
+    incidentLikelihoodIndexPct,
+    defaultForecasts: DEFAULT_TRADE_FORECASTS,
+  });
+
+  return {
+    summary: {
+      month: params.month,
+      predictedObservations: filtered.length,
+      potentialInjuryEvents: highOrCritical,
+      predictedInjuriesNextMonth: projectedCaseEstimate,
+      increasedIncidentRiskPercent: incidentLikelihoodIndexPct,
+      overallRiskLevel,
+      structuralRiskScore: roundedStructural,
+      riskModelVersion: INJURY_WEATHER_MODEL.VERSION,
+      overallRiskScore: roundedStructural,
+      lastUpdatedAt: new Date().toISOString(),
+    },
+    tradeForecasts: normalizedTradeForecasts.length > 0 ? normalizedTradeForecasts : DEFAULT_TRADE_FORECASTS,
+    alerts: DEFAULT_ALERTS,
+    trend: forecastTrend.length > 0 ? forecastTrend : params.trendFallback.trend,
+    recommendedControls: DEFAULT_CONTROLS,
+    monthlyTrainingRecommendations: buildMonthlyTrainingRecommendations(
+      normalizedTradeForecasts.length > 0 ? normalizedTradeForecasts : DEFAULT_TRADE_FORECASTS
+    ),
+    availableMonths:
+      monthly.size > 0
+        ? [...monthly.keys()].sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+        : params.trendFallback.availableMonths,
+    availableTrades: uniqueSortedTrades(filtered.length > 0 ? filtered : rows),
+    location,
+    signalProvenance: liveProvenance(
+      filtered,
+      params.recordWindowLabel,
+      blendNormalizationFromExposure(exposure)
+    ),
+  };
+}
+
+function inferTradeFromText(text: string): string {
+  const haystack = text.toLowerCase();
+  if (haystack.includes("roof") || haystack.includes("ladder") || haystack.includes("fall")) return "Roofing";
+  if (haystack.includes("electrical") || haystack.includes("loto") || haystack.includes("power")) return "Electrical";
+  if (haystack.includes("concrete") || haystack.includes("formwork") || haystack.includes("rebar")) return "Concrete";
+  if (haystack.includes("rigging") || haystack.includes("steel") || haystack.includes("welding") || haystack.includes("crane")) return "Steel Work";
+  return "General Contractor";
+}
+
+function computeFromSeed(
+  rows: SeedRow[],
+  filters?: { month?: string; trade?: string; stateCode?: string; workforceTotal?: number; hoursWorked?: number }
+): Omit<InjuryWeatherDashboardData, "summary"> & { summary: DashboardSummary } {
+  const locEmpty = mergeLocationWithTradeWeather(getLocationWeatherContext(filters?.stateCode), 1);
+  if (rows.length === 0) {
+    const weatherDemo = locEmpty.combinedWeatherFactor ?? locEmpty.weatherRiskMultiplier;
+    const demoStructural = 58;
+    const demoLikelihood = computeIncidentLikelihoodIndexPct(demoStructural, weatherDemo);
+    const demoCases = computeProjectedCaseEstimate({
+      incidentLikelihoodIndexPct: demoLikelihood,
+      workforceCount: 0,
+      trendVolumeBase: 48,
+      monthProjectionFactor: 1,
+    });
+    return {
+      summary: {
+        month: new Date().toLocaleString("en-US", { month: "long", year: "numeric" }),
+        predictedObservations: 270,
+        potentialInjuryEvents: 86,
+        predictedInjuriesNextMonth: demoCases,
+        increasedIncidentRiskPercent: demoLikelihood,
+        overallRiskLevel: riskLevelFromStructuralScore(demoStructural),
+        structuralRiskScore: demoStructural,
+        riskModelVersion: INJURY_WEATHER_MODEL.VERSION,
+        overallRiskScore: demoStructural,
+        lastUpdatedAt: new Date().toISOString(),
+      },
+      tradeForecasts: DEFAULT_TRADE_FORECASTS,
+      alerts: DEFAULT_ALERTS,
+      trend: DEFAULT_TREND,
+      recommendedControls: DEFAULT_CONTROLS,
+      monthlyTrainingRecommendations: DEFAULT_MONTHLY_TRAINING,
+      availableMonths: DEFAULT_TREND.map((t) => t.month),
+      availableTrades: DEFAULT_TRADE_FORECASTS.map((t) => t.trade),
+      location: locEmpty,
+      signalProvenance: seedProvenance({
+        seedWorkbookRows: 0,
+        recordWindowLabel: "Demo defaults (no workbook seed rows; admin DB unavailable)",
+        blendNormalization: { kind: "row_counts" },
+      }),
+    };
+  }
+
+  const monthWindow = filters?.month && !isFutureMonth(filters.month) ? parseMonthFilter(filters.month) : null;
+  const filtered = rows.filter((r) => {
+    if (monthWindow) {
+      const obsDate = typeof r.observed_at === "number" ? excelSerialToDate(r.observed_at) : new Date(String(r.observed_at ?? ""));
+      if (
+        Number.isNaN(obsDate.getTime()) ||
+        obsDate.getTime() < monthWindow.start.getTime() ||
+        obsDate.getTime() >= monthWindow.end.getTime()
+      ) {
+        return false;
+      }
+    }
+    if (!filters?.trade) return true;
+    return inferTradeFromSeedRow(r).toLowerCase().includes(filters.trade.toLowerCase());
+  });
+
+  const byTrade = new Map<string, Map<string, number>>();
+  const monthly = new Map<string, number>();
+  let highSev = 0;
+  for (const r of filtered) {
+    const trade = inferTradeFromSeedRow(r);
+    const category = String(r.subcategory ?? r.category ?? "General").trim() || "General";
+    const sev = String(r.severity ?? "").toLowerCase();
+    if (sev === "high" || sev === "critical") highSev += 1;
+    const catMap = byTrade.get(trade) ?? new Map<string, number>();
+    catMap.set(category, (catMap.get(category) ?? 0) + 1);
+    byTrade.set(trade, catMap);
+
+    const obs = typeof r.observed_at === "number" ? excelSerialToDate(r.observed_at) : new Date(String(r.observed_at ?? ""));
+    if (!Number.isNaN(obs.getTime())) {
+      const label = formatMonthKey(obs);
+      monthly.set(label, (monthly.get(label) ?? 0) + 1);
+    }
+  }
+
+  const tradeForecastsRaw = [...byTrade.entries()]
+    .sort((a, b) => {
+      const sa = [...a[1].values()].reduce((n, v) => n + v, 0);
+      const sb = [...b[1].values()].reduce((n, v) => n + v, 0);
+      return sb - sa;
+    })
+    .slice(0, 4);
+
+  const allMonths = [...monthly.entries()]
+    .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+    .map(([month]) => month);
+  const trend = [...monthly.entries()]
+    .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+    .slice(-7)
+    .map(([month, value]) => ({ month, value, highRisk: value >= 40 }));
+
+  const projectedBase = trend.slice(-3).reduce((sum, p) => sum + p.value, 0) / Math.max(1, Math.min(3, trend.length));
+  const locSeed = mergeLocationWithTradeWeather(
+    getLocationWeatherContext(filters?.stateCode),
+    effectiveTradeWeatherWeightFromByTrade(byTrade)
+  );
+  const seedWeatherFactor = locSeed.combinedWeatherFactor ?? locSeed.weatherRiskMultiplier;
+  const wfSeed = filters?.workforceTotal ? Math.max(1, Number(filters.workforceTotal)) : 0;
+  const hrsSeed = filters?.hoursWorked ? Math.max(1, Number(filters.hoursWorked)) : 0;
+  const exposureSeed = resolveExposureDenominator(wfSeed, hrsSeed);
+  const exposureDenomSeed = exposureSeed?.value ?? null;
+  const severityRatioPctSeed = exposureDenomSeed
+    ? Math.min(100, Math.round((highSev / exposureDenomSeed) * 100))
+    : Math.round((highSev / Math.max(1, filtered.length)) * 100);
+  const { trendPressurePct: tpSeed, momentumBoostPct: mbSeed } = computeTrendPressureAndMomentumFromHistory(
+    trend.length > 0 ? trend : DEFAULT_TREND,
+    monthly
+  );
+  const pseudoRows = filtered.map((r) => ({
+    trade: inferTradeFromSeedRow(r),
+    category: String(r.subcategory ?? r.category ?? "General").trim() || "General",
+  }));
+  const workforceDensitySeed = computeWorkforceSignalDensityPct(filtered.length, wfSeed);
+  const seedStructural = computeStructuralRiskScore({
+    severityRatioPct: severityRatioPctSeed,
+    trendPressurePct: tpSeed,
+    momentumBoostPct: mbSeed,
+    highRiskCategoryConcentration: computeTradeCategoryConcentrationPct(pseudoRows, exposureDenomSeed),
+    repeatIssueRate: computeRepeatIssueRatePct(pseudoRows, exposureDenomSeed),
+    workforceSignalDensityPct: workforceDensitySeed,
+  });
+  const seedLikelihood = computeIncidentLikelihoodIndexPct(seedStructural, seedWeatherFactor);
+  const seedCases = computeProjectedCaseEstimate({
+    incidentLikelihoodIndexPct: seedLikelihood,
+    workforceCount: wfSeed,
+    trendVolumeBase: projectedBase,
+    monthProjectionFactor: 1,
+  });
+  const roundedSeedStructural = Math.round(seedStructural * 10) / 10;
+  const tradeForecasts = buildTradeCategoryForecasts({
+    tradeForecastsRaw,
+    projectedCaseEstimate: seedCases,
+    incidentLikelihoodIndexPct: seedLikelihood,
+    defaultForecasts: DEFAULT_TRADE_FORECASTS,
+  });
+
+  const summary: DashboardSummary = {
+    month: filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" }),
+    predictedObservations: filtered.length,
+    potentialInjuryEvents: highSev,
+    predictedInjuriesNextMonth: seedCases,
+    increasedIncidentRiskPercent: seedLikelihood,
+    overallRiskLevel: riskLevelFromStructuralScore(seedStructural),
+    structuralRiskScore: roundedSeedStructural,
+    riskModelVersion: INJURY_WEATHER_MODEL.VERSION,
+    overallRiskScore: roundedSeedStructural,
+    lastUpdatedAt: new Date().toISOString(),
+  };
+
+  const alerts = DEFAULT_ALERTS;
+  const recommendedControls = DEFAULT_CONTROLS;
+  return {
+    summary,
+    tradeForecasts: tradeForecasts.length > 0 ? tradeForecasts : DEFAULT_TRADE_FORECASTS,
+    alerts,
+    trend: trend.length > 0 ? trend : DEFAULT_TREND,
+    recommendedControls,
+    monthlyTrainingRecommendations: buildMonthlyTrainingRecommendations(
+      tradeForecasts.length > 0 ? tradeForecasts : DEFAULT_TRADE_FORECASTS
+    ),
+    availableMonths: allMonths.length > 0 ? allMonths : DEFAULT_TREND.map((t) => t.month),
+    availableTrades: [...new Set(rows.map((r) => inferTradeFromSeedRow(r)))].sort((a, b) => a.localeCompare(b)),
+    location: locSeed,
+    signalProvenance: seedProvenance({
+      seedWorkbookRows: filtered.length,
+      recordWindowLabel:
+        filters?.month && !isFutureMonth(filters.month)
+          ? `Seed workbook · ${filters.month}`
+          : "Seed workbook (all dates in file)",
+      blendNormalization: blendNormalizationFromExposure(exposureSeed),
+    }),
+  };
+}
+
+function computeTrendFromSeed(rows: SeedRow[], filters?: { month?: string; trade?: string }) {
+  const monthly = new Map<string, number>();
+  for (const r of rows) {
+    if (filters?.trade && !inferTradeFromSeedRow(r).toLowerCase().includes(filters.trade.toLowerCase())) continue;
+    const obs = typeof r.observed_at === "number" ? excelSerialToDate(r.observed_at) : new Date(String(r.observed_at ?? ""));
+    if (!Number.isNaN(obs.getTime())) {
+      const label = formatMonthKey(obs);
+      monthly.set(label, (monthly.get(label) ?? 0) + 1);
+    }
+  }
+  const availableMonths = [...monthly.keys()].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  const forecastTrend = buildFutureTrendFromMonthly(monthly, 6);
+  return { availableMonths, trend: forecastTrend.length > 0 ? forecastTrend : DEFAULT_TREND };
+}
+
+const BACKTEST_METHODOLOGY =
+  "For each calendar month M, the model is run on safety signals (SOR, corrective actions, incidents) with created_at in M only. Outcome is the count of company_incidents rows with created_at in month M+1 (platform-wide). Correlations use Pearson and Spearman; interpret cautiously with small N and confounders.";
+
+function enumerateScoreOutcomePairs(lookbackMonths: number): Array<{
+  scoreLabel: string;
+  outcomeMonthLabel: string;
+  outcomeStart: Date;
+  outcomeEnd: Date;
+}> {
+  const capped = Math.min(24, Math.max(3, lookbackMonths));
+  const now = new Date();
+  const lastCompleteOutcomeMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const pairs: Array<{
+    scoreLabel: string;
+    outcomeMonthLabel: string;
+    outcomeStart: Date;
+    outcomeEnd: Date;
+  }> = [];
+  for (let i = 0; i < capped; i += 1) {
+    const outcomeMonthStart = new Date(
+      lastCompleteOutcomeMonthStart.getFullYear(),
+      lastCompleteOutcomeMonthStart.getMonth() - i,
+      1
+    );
+    const scoreMonthStart = new Date(outcomeMonthStart.getFullYear(), outcomeMonthStart.getMonth() - 1, 1);
+    const scoreLabel = formatMonthKey(scoreMonthStart);
+    const outcomeMonthLabel = formatMonthKey(outcomeMonthStart);
+    const outcomeEnd = new Date(outcomeMonthStart.getFullYear(), outcomeMonthStart.getMonth() + 1, 1);
+    pairs.push({
+      scoreLabel,
+      outcomeMonthLabel,
+      outcomeStart: outcomeMonthStart,
+      outcomeEnd,
+    });
+  }
+  return pairs.reverse();
+}
+
+async function countIncidentsInRange(
+  admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  start: Date,
+  end: Date
+): Promise<number> {
+  const { count, error } = await admin
+    .from("company_incidents")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", start.toISOString())
+    .lt("created_at", end.toISOString());
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+/**
+ * Compare month-scoped model scores to incident counts in the following month (last 3–24 months).
+ * Requires service-role DB access to read all signal sources and incidents.
+ */
+export async function runInjuryWeatherBacktest(options?: {
+  lookbackMonths?: number;
+  stateCode?: string;
+  workforceTotal?: number;
+  hoursWorked?: number;
+}): Promise<InjuryWeatherBacktestResult | { error: string }> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return { error: "Missing Supabase admin client." };
+  }
+  const lookbackMonths = Math.min(24, Math.max(3, options?.lookbackMonths ?? 12));
+  const trendFromSeed = computeTrendFromSeed(seedRows(), {});
+  const pairs = enumerateScoreOutcomePairs(lookbackMonths);
+  const rows: InjuryWeatherBacktestRow[] = [];
+
+  for (const p of pairs) {
+    const liveRows = await fetchLiveSignals(admin, { month: p.scoreLabel });
+    const dash = buildDashboardFromLiveSignals(liveRows, {
+      month: p.scoreLabel,
+      recordWindowLabel: `Back-test score month (${p.scoreLabel})`,
+      trendFallback: trendFromSeed,
+      workforceTotal: options?.workforceTotal,
+      hoursWorked: options?.hoursWorked,
+      stateCode: options?.stateCode,
+    });
+    const incidentsNextMonth = await countIncidentsInRange(admin, p.outcomeStart, p.outcomeEnd);
+    rows.push({
+      scoreMonth: p.scoreLabel,
+      outcomeMonth: p.outcomeMonthLabel,
+      injuryChancePct: dash.summary.increasedIncidentRiskPercent,
+      structuralRiskScore: dash.summary.structuralRiskScore ?? null,
+      projectedCaseEstimate: dash.summary.predictedInjuriesNextMonth,
+      overallRiskLevel: dash.summary.overallRiskLevel,
+      signalRows: dash.summary.predictedObservations,
+      incidentsNextMonth,
+    });
+  }
+
+  const correlations = computeBacktestCorrelations(rows);
+  const previousRuns = await fetchRecentBacktestRuns(admin, 1);
+  const prevPearson = previousRuns[0]?.pearsonStructuralVsIncidents ?? null;
+  const calibrationTrend = inferCalibrationTrend(correlations.pearsonStructuralVsIncidents, prevPearson);
+  await persistInjuryWeatherBacktestRun(admin, {
+    lookbackMonths,
+    rowCount: rows.length,
+    correlations,
+  });
+  const recentRuns = await fetchRecentBacktestRuns(admin, 12);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    lookbackMonths,
+    methodology: BACKTEST_METHODOLOGY,
+    rows,
+    ...correlations,
+    recentRuns,
+    calibrationTrend,
+  };
+}
+
+async function fetchRecentBacktestRuns(
+  admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  limit: number
+): Promise<InjuryWeatherBacktestRunSnapshot[]> {
+  const { data, error } = await admin
+    .from("injury_weather_backtest_runs")
+    .select(
+      "id, run_at, lookback_months, pearson_structural_vs_incidents, spearman_structural_vs_incidents, pearson_likelihood_vs_incidents, spearman_likelihood_vs_incidents, pearson_cases_vs_incidents, spearman_cases_vs_incidents"
+    )
+    .order("run_at", { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.warn("[injury-weather] backtest history unavailable:", error.message);
+    return [];
+  }
+  if (!data) return [];
+  return (data as Record<string, unknown>[]).map((row) => ({
+    id: String(row.id),
+    runAt: String(row.run_at),
+    lookbackMonths: Number(row.lookback_months),
+    pearsonStructuralVsIncidents: row.pearson_structural_vs_incidents != null ? Number(row.pearson_structural_vs_incidents) : null,
+    spearmanStructuralVsIncidents: row.spearman_structural_vs_incidents != null ? Number(row.spearman_structural_vs_incidents) : null,
+    pearsonLikelihoodVsIncidents: row.pearson_likelihood_vs_incidents != null ? Number(row.pearson_likelihood_vs_incidents) : null,
+    spearmanLikelihoodVsIncidents: row.spearman_likelihood_vs_incidents != null ? Number(row.spearman_likelihood_vs_incidents) : null,
+    pearsonCasesVsIncidents: row.pearson_cases_vs_incidents != null ? Number(row.pearson_cases_vs_incidents) : null,
+    spearmanCasesVsIncidents: row.spearman_cases_vs_incidents != null ? Number(row.spearman_cases_vs_incidents) : null,
+  }));
+}
+
+async function persistInjuryWeatherBacktestRun(
+  admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  input: {
+    lookbackMonths: number;
+    rowCount: number;
+    correlations: Pick<
+      InjuryWeatherBacktestResult,
+      | "pearsonStructuralVsIncidents"
+      | "spearmanStructuralVsIncidents"
+      | "pearsonLikelihoodVsIncidents"
+      | "spearmanLikelihoodVsIncidents"
+      | "pearsonCasesVsIncidents"
+      | "spearmanCasesVsIncidents"
+    >;
+  }
+): Promise<void> {
+  const { error } = await admin.from("injury_weather_backtest_runs").insert({
+    lookback_months: input.lookbackMonths,
+    row_count: input.rowCount,
+    pearson_structural_vs_incidents: input.correlations.pearsonStructuralVsIncidents,
+    spearman_structural_vs_incidents: input.correlations.spearmanStructuralVsIncidents,
+    pearson_likelihood_vs_incidents: input.correlations.pearsonLikelihoodVsIncidents,
+    spearman_likelihood_vs_incidents: input.correlations.spearmanLikelihoodVsIncidents,
+    pearson_cases_vs_incidents: input.correlations.pearsonCasesVsIncidents,
+    spearman_cases_vs_incidents: input.correlations.spearmanCasesVsIncidents,
+    payload: { storedAt: new Date().toISOString() },
+  });
+  if (error) {
+    // Table may not exist until migration is applied — do not fail the API response.
+    console.warn("[injury-weather] backtest persist skipped:", error.message);
+  }
+}

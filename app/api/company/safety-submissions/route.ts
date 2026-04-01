@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 
@@ -51,6 +52,31 @@ function canReviewSafetySubmissions(role: string) {
   return isAdminRole(role) || role === "company_admin" || role === "manager";
 }
 
+function computeSubmissionHash(input: {
+  id?: string | null;
+  companyId: string;
+  title: string;
+  description: string | null;
+  severity: string;
+  category: string;
+  photoPath: string | null;
+  createdBy: string | null;
+  version: number;
+}) {
+  const normalized = JSON.stringify({
+    id: input.id ?? null,
+    company_id: input.companyId,
+    title: input.title,
+    description: input.description ?? null,
+    severity: input.severity,
+    category: input.category,
+    photo_path: input.photoPath ?? null,
+    created_by: input.createdBy ?? null,
+    version: input.version,
+  });
+  return createHash("sha256").update(normalized).digest("hex");
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: ["can_create_documents", "can_view_all_company_data", "can_view_analytics"],
@@ -77,7 +103,7 @@ export async function GET(request: Request) {
   let query = auth.supabase
     .from("company_safety_submissions")
     .select(
-      "id, company_id, jobsite_id, title, description, severity, category, photo_path, submitted_by, review_status, reviewed_by, reviewed_at, linked_action_id, created_at, updated_at"
+      "id, company_id, jobsite_id, title, description, severity, category, photo_path, submitted_by, created_by, review_status, reviewed_by, reviewed_at, linked_action_id, created_at, updated_at, last_modified, version, hash"
     )
     .eq("company_id", companyScope.companyId)
     .order("created_at", { ascending: false });
@@ -156,10 +182,14 @@ export async function POST(request: Request) {
       category,
       photo_path: photoPath || null,
       submitted_by: auth.user.id,
+      created_by: auth.user.id,
+      last_modified: new Date().toISOString(),
+      version: 1,
+      hash: null,
       review_status: "pending",
     })
     .select(
-      "id, company_id, jobsite_id, title, description, severity, category, photo_path, submitted_by, review_status, created_at"
+      "id, company_id, jobsite_id, title, description, severity, category, photo_path, submitted_by, created_by, review_status, created_at, updated_at, last_modified, version, hash"
     )
     .single();
 
@@ -176,6 +206,35 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       { error: submissionResult.error.message || "Failed to create safety submission." },
+      { status: 500 }
+    );
+  }
+
+  const computedHash = computeSubmissionHash({
+    id: submissionResult.data.id,
+    companyId: companyScope.companyId,
+    title,
+    description: description || null,
+    severity,
+    category,
+    photoPath: photoPath || null,
+    createdBy: auth.user.id,
+    version: 1,
+  });
+
+  const hashedSubmissionResult = await auth.supabase
+    .from("company_safety_submissions")
+    .update({ hash: computedHash })
+    .eq("id", submissionResult.data.id)
+    .eq("company_id", companyScope.companyId)
+    .select(
+      "id, company_id, jobsite_id, title, description, severity, category, photo_path, submitted_by, created_by, review_status, reviewed_by, reviewed_at, linked_action_id, created_at, updated_at, last_modified, version, hash"
+    )
+    .single();
+
+  if (hashedSubmissionResult.error) {
+    return NextResponse.json(
+      { error: hashedSubmissionResult.error.message || "Failed to finalize safety submission metadata." },
       { status: 500 }
     );
   }
@@ -216,7 +275,7 @@ export async function POST(request: Request) {
     event_type: "created_from_submission",
     detail: "Corrective action created from individual safety submission.",
     event_payload: {
-      submissionId: submissionResult.data.id,
+      submissionId: hashedSubmissionResult.data.id,
       severity,
       category,
       photoPath: photoPath || null,
@@ -229,7 +288,7 @@ export async function POST(request: Request) {
     .update({
       linked_action_id: correctiveActionResult.data.id,
     })
-    .eq("id", submissionResult.data.id)
+    .eq("id", hashedSubmissionResult.data.id)
     .eq("company_id", companyScope.companyId);
 
   if (photoPath) {
@@ -245,9 +304,9 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     success: true,
-    submission: submissionResult.data,
+    submission: hashedSubmissionResult.data,
     action: correctiveActionResult.data,
-    submissionId: submissionResult.data.id,
+    submissionId: hashedSubmissionResult.data.id,
     actionId: correctiveActionResult.data.id,
     message: "Safety submission received. Awaiting company admin review.",
   });

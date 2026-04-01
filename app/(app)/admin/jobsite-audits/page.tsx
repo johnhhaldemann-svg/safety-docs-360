@@ -16,6 +16,10 @@ import {
   getEnvironmentalSections,
   getHealthSafetySections,
 } from "@/lib/jobsiteAudits/auditRows";
+import {
+  AUDIT_SYSTEM_BLUEPRINT,
+  AUDIT_SYSTEM_BLUEPRINT_TEXT,
+} from "@/lib/jobsiteAudits/auditSystemBlueprint";
 import { OSHA_FIELD_AUDIT_SECTIONS, fieldItemKey } from "@/lib/jobsiteAudits/oshaFieldAuditTemplate";
 
 const supabase = createClient(
@@ -147,6 +151,8 @@ type SubmissionRow = {
 };
 
 export default function AdminJobsiteAuditsPage() {
+  const auditSystem = AUDIT_SYSTEM_BLUEPRINT.audit_system;
+  const tradeOptions = auditSystem.audit_header.trade_scope_being_audited;
   const envSections = useMemo(() => getEnvironmentalSections(), []);
   const hsSections = useMemo(() => getHealthSafetySections(), []);
   const hsSectionTitles = useMemo(() => deriveExcelSectionLabels(hsSections, "hs"), [hsSections]);
@@ -155,6 +161,7 @@ export default function AdminJobsiteAuditsPage() {
   const [jobsite, setJobsite] = useState("");
   const [auditors, setAuditors] = useState("");
   const [auditDate, setAuditDate] = useState("");
+  const [selectedTrade, setSelectedTrade] = useState<(typeof tradeOptions)[number]>("general_contractor");
   const [query, setQuery] = useState("");
   const [statusMap, setStatusMap] = useState<Record<string, RowStatus>>({});
   const [photoCounts, setPhotoCounts] = useState<Record<string, number>>({});
@@ -258,11 +265,25 @@ export default function AdminJobsiteAuditsPage() {
   }, []);
 
   const buildPayload = useCallback(() => {
+    const tradeProfile =
+      auditSystem.trade_profiles[
+        selectedTrade as keyof typeof auditSystem.trade_profiles
+      ] ?? null;
+    const excludedTradePrompts = Object.entries(auditSystem.trade_profiles)
+      .filter(([trade]) => trade !== selectedTrade)
+      .flatMap(([, profile]) => [
+        ...profile.checklist_items,
+        ...profile.common_hazards,
+        ...profile.required_permits,
+      ]);
     return {
       version: "safety360-jobsite-audit-v3",
       capturedAt: new Date().toISOString(),
       sourcePath: "/admin/jobsite-audits",
       query,
+      auditHeader: {
+        trade_scope_being_audited: [selectedTrade],
+      },
       statusMap,
       photoCounts,
       complianceHistory: history,
@@ -281,8 +302,18 @@ export default function AdminJobsiteAuditsPage() {
         scoredCells: Object.keys(statusMap).length,
         photosAttached: Object.values(photoCounts).reduce((a, n) => a + n, 0),
       },
+      auditSystemBlueprint: AUDIT_SYSTEM_BLUEPRINT,
+      tradeDrivenReportScope: {
+        selectedTrade,
+        universal_items_always_included: auditSystem.universal_audit_sections,
+        applicable_trade_checklist_items: tradeProfile?.checklist_items ?? [],
+        applicable_trade_hazard_prompts: tradeProfile?.common_hazards ?? [],
+        applicable_trade_permit_prompts: tradeProfile?.required_permits ?? [],
+        non_applicable_trade_prompts_excluded: excludedTradePrompts,
+      },
     };
   }, [
+    auditSystem,
     envSectionTitles,
     history,
     hsSectionTitles,
@@ -290,6 +321,7 @@ export default function AdminJobsiteAuditsPage() {
     envSections.length,
     photoCounts,
     query,
+    selectedTrade,
     statusMap,
   ]);
 
@@ -435,6 +467,20 @@ export default function AdminJobsiteAuditsPage() {
               className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm"
             />
           </label>
+          <label className="block text-sm font-semibold text-slate-700">
+            Trade scope being audited
+            <select
+              value={selectedTrade}
+              onChange={(e) => setSelectedTrade(e.target.value as (typeof tradeOptions)[number])}
+              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm"
+            >
+              {tradeOptions.map((trade) => (
+                <option key={trade} value={trade}>
+                  {trade.replaceAll("_", " ")}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </SectionCard>
 
@@ -473,7 +519,8 @@ export default function AdminJobsiteAuditsPage() {
           Submit stores one row in <code className="rounded bg-slate-100 px-1">internal_jobsite_audits</code> with a
           JSON payload mirroring your workbook lines (keys <code className="rounded bg-slate-100 px-1">hs-*</code>,{" "}
           <code className="rounded bg-slate-100 px-1">env-*</code>, <code className="rounded bg-slate-100 px-1">field-*</code>
-          ) and monthly trend history.
+          ) and monthly trend history. Report prompts are filtered by the selected trade so non-applicable trade items
+          are excluded.
         </p>
         <div className="mt-4 max-h-48 overflow-y-auto rounded-xl border border-slate-100">
           <table className="w-full text-left text-xs">
@@ -512,6 +559,7 @@ export default function AdminJobsiteAuditsPage() {
           {[
             { id: "dashboard", label: "Dashboard" },
             { id: "field", label: "Field audit" },
+            { id: "audit-system", label: "Audit system" },
             { id: "reference", label: "Excel templates" },
           ].map((t) => (
             <Tabs.Trigger
@@ -548,6 +596,17 @@ export default function AdminJobsiteAuditsPage() {
               onPhotoCapture={bumpPhoto}
             />
           </div>
+        </Tabs.Content>
+
+        <Tabs.Content value="audit-system" className="mt-6 outline-none">
+          <SectionCard
+            title="Audit system blueprint"
+            description="Master hierarchy for the Audit tab, including header fields, universal sections, trade profiles, observation entries, report logic, and templates."
+          >
+            <pre className="max-h-[70vh] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-700">
+              {AUDIT_SYSTEM_BLUEPRINT_TEXT}
+            </pre>
+          </SectionCard>
         </Tabs.Content>
 
         <Tabs.Content value="reference" className="mt-6 outline-none">

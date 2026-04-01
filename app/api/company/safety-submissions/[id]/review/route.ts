@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 
@@ -51,6 +52,33 @@ function normalizeCategory(category?: string | null) {
   return ISSUE_CATEGORIES.has(normalized) ? normalized : "hazard";
 }
 
+function computeSubmissionHash(input: {
+  id: string;
+  companyId: string;
+  title: string;
+  description?: string | null;
+  severity?: string | null;
+  category: string;
+  createdBy?: string | null;
+  version: number;
+  reviewStatus: "approved" | "rejected" | "pending";
+  linkedActionId?: string | null;
+}) {
+  const normalized = JSON.stringify({
+    id: input.id,
+    company_id: input.companyId,
+    title: input.title,
+    description: input.description ?? null,
+    severity: input.severity ?? null,
+    category: input.category,
+    created_by: input.createdBy ?? null,
+    version: input.version,
+    review_status: input.reviewStatus,
+    linked_action_id: input.linkedActionId ?? null,
+  });
+  return createHash("sha256").update(normalized).digest("hex");
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -99,7 +127,7 @@ export async function PATCH(
 
   const submissionResult = await auth.supabase
     .from("company_safety_submissions")
-    .select("id, review_status, linked_action_id, title")
+    .select("id, review_status, linked_action_id, title, description, severity, created_by, version")
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
     .maybeSingle();
@@ -121,6 +149,19 @@ export async function PATCH(
   }
 
   const now = new Date().toISOString();
+  const nextSubmissionVersion = Math.max((submissionResult.data.version ?? 1) + 1, 1);
+  const nextSubmissionHash = computeSubmissionHash({
+    id,
+    companyId: companyScope.companyId,
+    title: submissionResult.data.title || "Safety submission",
+    description: submissionResult.data.description ?? null,
+    severity: submissionResult.data.severity ?? null,
+    category,
+    createdBy: submissionResult.data.created_by ?? null,
+    version: nextSubmissionVersion,
+    reviewStatus: decision,
+    linkedActionId: submissionResult.data.linked_action_id,
+  });
   const nextActionStatus = decision === "rejected" ? "verified_closed" : actionStatus;
   const shouldConvertToIncident =
     decision === "approved" &&
@@ -197,11 +238,14 @@ export async function PATCH(
       category,
       reviewed_by: auth.user.id,
       reviewed_at: now,
+      version: nextSubmissionVersion,
+      last_modified: now,
+      hash: nextSubmissionHash,
     })
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
     .select(
-      "id, review_status, category, reviewed_by, reviewed_at, linked_action_id, title, created_at"
+      "id, review_status, category, reviewed_by, reviewed_at, linked_action_id, title, created_at, created_by, last_modified, version, hash"
     )
     .single();
 

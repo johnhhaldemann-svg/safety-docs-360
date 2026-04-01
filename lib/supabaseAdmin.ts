@@ -17,7 +17,8 @@ export function getSupabaseServiceRoleKey() {
   return (
     readEnv("SUPABASE_SERVICE_ROLE_KEY") ??
     readEnv("SUPABASE_SERVICE_ROLE") ??
-    readEnv("SUPABASE_SERVICE_KEY")
+    readEnv("SUPABASE_SERVICE_KEY") ??
+    readEnv("SUPABASE_SERIVCE_ROLE_KEY")
   );
 }
 
@@ -39,6 +40,7 @@ export function getSupabaseServerEnvStatus() {
         (readEnv("SUPABASE_SERVICE_ROLE_KEY") && "SUPABASE_SERVICE_ROLE_KEY") ||
         (readEnv("SUPABASE_SERVICE_ROLE") && "SUPABASE_SERVICE_ROLE") ||
         (readEnv("SUPABASE_SERVICE_KEY") && "SUPABASE_SERVICE_KEY") ||
+        (readEnv("SUPABASE_SERIVCE_ROLE_KEY") && "SUPABASE_SERIVCE_ROLE_KEY") ||
         null,
     },
   };
