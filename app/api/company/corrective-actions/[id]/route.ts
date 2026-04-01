@@ -1,4 +1,11 @@
 import { NextResponse } from "next/server";
+import { normalizeBodyPart } from "@/lib/incidents/bodyPart";
+import { coerceNonNegativeInt, readJobTransfer } from "@/lib/incidents/dart";
+import { normalizeExposureEventType } from "@/lib/incidents/exposureEventType";
+import { injuryTimePatternFromOccurredAt } from "@/lib/incidents/injuryTimePatterns";
+import { normalizeIncidentSource } from "@/lib/incidents/incidentSource";
+import { normalizeInjuryType } from "@/lib/incidents/injuryType";
+import { readObjectiveFlag } from "@/lib/incidents/objectiveSeverity";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
@@ -44,6 +51,16 @@ type ActionUpdatePayload = {
   workflowStatus?: string;
   convertToIncident?: boolean;
   incidentType?: string;
+  injuryType?: string | null;
+  eventType?: string | null;
+  daysAwayFromWork?: number | null;
+  daysRestricted?: number | null;
+  jobTransfer?: boolean;
+  bodyPart?: string | null;
+  source?: string | null;
+  recordable?: boolean;
+  lostTime?: boolean;
+  fatality?: boolean;
   observationType?: "positive" | "negative" | "near_miss";
   sifPotential?: boolean;
   sifCategory?: string;
@@ -393,6 +410,17 @@ export async function PATCH(
   }
 
   if (body?.convertToIncident) {
+    const convCategory = String(body.incidentType ?? "incident")
+      .trim()
+      .toLowerCase();
+    const convInjury = normalizeInjuryType(body.injuryType);
+    const convEvent = normalizeExposureEventType(body.eventType) ?? "other";
+    const convDaysAway = coerceNonNegativeInt(body?.daysAwayFromWork);
+    const convDaysRestricted = coerceNonNegativeInt(body?.daysRestricted);
+    const convBodyPart = normalizeBodyPart(body?.bodyPart);
+    const convSource = normalizeIncidentSource(body?.source) ?? "other";
+    const convOccurredAt = new Date().toISOString();
+    const convTimePatterns = injuryTimePatternFromOccurredAt(convOccurredAt);
     await auth.supabase.from("company_incidents").insert({
       company_id: companyScope.companyId,
       jobsite_id: updateResult.data.jobsite_id,
@@ -400,7 +428,19 @@ export async function PATCH(
       description: updateResult.data.description,
       status: "open",
       severity: updateResult.data.severity,
-      category: (body.incidentType ?? "incident").trim().toLowerCase(),
+      category: convCategory,
+      injury_source: convSource,
+      exposure_event_type: convEvent,
+      days_away_from_work: convDaysAway.ok ? convDaysAway.value : 0,
+      days_restricted: convDaysRestricted.ok ? convDaysRestricted.value : 0,
+      job_transfer: readJobTransfer(body?.jobTransfer, false),
+      recordable: readObjectiveFlag(body?.recordable, false),
+      lost_time: readObjectiveFlag(body?.lostTime, false),
+      fatality: readObjectiveFlag(body?.fatality, false),
+      injury_type: convCategory === "incident" ? convInjury ?? "other" : null,
+      body_part: convCategory === "incident" ? convBodyPart ?? "other" : null,
+      occurred_at: convOccurredAt,
+      ...convTimePatterns,
       observation_id: id,
       dap_activity_id:
         typeof body?.dapActivityId === "string" ? body.dapActivityId.trim() || null : null,

@@ -1,19 +1,27 @@
 import { NextResponse } from "next/server";
+import {
+  normalizeSorHazardCategoryCode,
+  SOR_HAZARD_CATEGORY_CODES,
+  SOR_HAZARD_CATEGORY_LABELS,
+} from "@/lib/incidents/sorHazardCategory";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { computeSorHash } from "@/lib/sor/hash";
+import { COMPANY_SOR_RECORD_SELECT } from "@/lib/sor/recordSelect";
 
 export const runtime = "nodejs";
 
-const SOR_SELECT =
-  "id, company_id, date, project, location, trade, category, subcategory, description, severity, created_at, created_by, updated_at, updated_by, status, version_number, previous_version_id, record_hash, previous_hash, change_reason, is_deleted";
+const SOR_SELECT = COMPANY_SOR_RECORD_SELECT;
 
 type SorCreatePayload = {
   date?: string;
   project?: string;
   location?: string;
   trade?: string;
+  /** Display label; defaults from hazard code when omitted. */
   category?: string;
+  /** Required structured hazard class (maps to incident exposure types). */
+  hazardCategoryCode?: string;
   subcategory?: string;
   description?: string;
   severity?: string;
@@ -71,11 +79,20 @@ export async function POST(request: Request) {
   const project = String(body?.project ?? "").trim();
   const location = String(body?.location ?? "").trim();
   const trade = String(body?.trade ?? "").trim();
-  const category = String(body?.category ?? "").trim();
   const description = String(body?.description ?? "").trim();
-  if (!date || !project || !location || !trade || !category || !description) {
+  const hazardCode = normalizeSorHazardCategoryCode(body?.hazardCategoryCode);
+  if (!hazardCode) {
     return NextResponse.json(
-      { error: "date, project, location, trade, category, and description are required." },
+      {
+        error: `hazardCategoryCode is required. Use one of: ${SOR_HAZARD_CATEGORY_CODES.join(", ")}.`,
+      },
+      { status: 400 }
+    );
+  }
+  const category = String(body?.category ?? "").trim() || SOR_HAZARD_CATEGORY_LABELS[hazardCode];
+  if (!date || !project || !location || !trade || !description) {
+    return NextResponse.json(
+      { error: "date, project, location, trade, and description are required." },
       { status: 400 }
     );
   }
@@ -90,6 +107,7 @@ export async function POST(request: Request) {
       location,
       trade,
       category,
+      hazard_category_code: hazardCode,
       subcategory: String(body?.subcategory ?? "").trim() || null,
       description,
       severity: String(body?.severity ?? "").trim().toLowerCase() || "medium",

@@ -65,6 +65,39 @@ type AnalyticsSummary = {
     cells: number[][];
     max: number;
   };
+  benchmarking?: {
+    industryCode: string | null;
+    industryInjuryRate: number | null;
+    tradeInjuryRate: number | null;
+    /** Denominator for rate; align period with incident counts (e.g. annual hours for TRIR). */
+    hoursWorked: number | null;
+    /** Injury incidents in the selected window counted for the rate (category incident, not explicitly non-recordable). */
+    incidentsForRate: number;
+    /** (incidentsForRate × 200,000) / hoursWorked when hours are set. */
+    incidentRate: number | null;
+    industryBenchmarkRates?: {
+      naicsPrefix: string;
+      recordableCasesPer200kHours: number | null;
+      dartCasesPer200kHours: number | null;
+      fatalityPer200kHours: number | null;
+      sourceNote: string;
+      injuryFactsIndustryProfilesUrl: string;
+      injuryFactsIncidentTrendsUrl: string;
+      historicalTrendSummary: string;
+      referenceDataNote: string;
+      unitEquivalenceNote: string;
+    };
+  };
+  injuryAnalytics?: {
+    averageSeverityScore: number;
+    severitySampleSize: number;
+    sorToInjuryRatio: number | null;
+    sorCount: number;
+    injuryIncidentCount: number;
+    /** Percent of (near-miss + hazard observations + injury incidents) that were injuries. */
+    observationToInjuryConversionRate: number | null;
+    injuryPredictionModelUrl: string;
+  };
 };
 
 type TabId = "overview" | "near_misses" | "hazards" | "inspections";
@@ -317,6 +350,126 @@ export default function AnalyticsPage() {
               : "The page is ready. Choose a time range or click Refresh view to load current figures."}
           </div>
         )}
+
+        {summary?.benchmarking &&
+        (summary.benchmarking.industryCode ||
+          summary.benchmarking.industryInjuryRate != null ||
+          summary.benchmarking.tradeInjuryRate != null ||
+          summary.benchmarking.hoursWorked != null) ? (
+          <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-50">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-200/90">
+              Industry and trade benchmarks
+            </p>
+            <p className="mt-1 text-xs text-emerald-100/90">
+              NAICS{" "}
+              <span className="font-mono font-semibold text-white">
+                {summary.benchmarking.industryCode ?? "—"}
+              </span>
+              {" · "}
+              Industry ref. rate:{" "}
+              <span className="font-semibold text-white">
+                {summary.benchmarking.industryInjuryRate != null
+                  ? summary.benchmarking.industryInjuryRate.toString()
+                  : "—"}
+              </span>
+              {" · "}
+              Trade ref. rate:{" "}
+              <span className="font-semibold text-white">
+                {summary.benchmarking.tradeInjuryRate != null
+                  ? summary.benchmarking.tradeInjuryRate.toString()
+                  : "—"}
+              </span>
+            </p>
+            <p className="mt-2 text-xs text-emerald-100/90">
+              <span className="text-emerald-200/90">Exposure hours: </span>
+              <span className="font-semibold text-white">
+                {summary.benchmarking.hoursWorked != null
+                  ? summary.benchmarking.hoursWorked.toLocaleString()
+                  : "—"}
+              </span>
+              {" · "}
+              <span className="text-emerald-200/90">Injury incidents (window, for rate): </span>
+              <span className="font-semibold text-white">{summary.benchmarking.incidentsForRate ?? 0}</span>
+              {" · "}
+              <span className="text-emerald-200/90">Incident rate (per 200k hrs): </span>
+              <span className="font-semibold text-white">
+                {summary.benchmarking.incidentRate != null
+                  ? summary.benchmarking.incidentRate.toFixed(2)
+                  : "—"}
+              </span>
+            </p>
+            <p className="mt-2 text-[11px] text-emerald-200/70">
+              Rate = (injury incidents × 200,000) ÷ hours worked. Use exposure hours for the same period as your
+              incident window (or annual hours with a matching annual numerator). Update hours and NAICS via{" "}
+              <code className="rounded bg-black/30 px-1 py-0.5 text-[10px]">PATCH /api/company/benchmarking</code>
+              .
+            </p>
+            {summary.benchmarking.industryBenchmarkRates ? (
+              <div className="mt-2 space-y-2 text-[11px] text-emerald-200/80">
+                <p>
+                  Dataset ref. (NAICS prefix {summary.benchmarking.industryBenchmarkRates.naicsPrefix}): recordable{" "}
+                  {summary.benchmarking.industryBenchmarkRates.recordableCasesPer200kHours ?? "—"} / 200k hrs · DART{" "}
+                  {summary.benchmarking.industryBenchmarkRates.dartCasesPer200kHours ?? "—"} / 200k.{" "}
+                  {summary.benchmarking.industryBenchmarkRates.sourceNote}
+                </p>
+                <p>
+                  <span className="text-emerald-200/90">Historical trends (NAICS): </span>
+                  <a
+                    href={summary.benchmarking.industryBenchmarkRates.injuryFactsIndustryProfilesUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold text-emerald-100 underline decoration-emerald-400/50 underline-offset-2 hover:text-white"
+                  >
+                    NSC Injury Facts — Industry Profiles
+                  </a>
+                  {" · "}
+                  <a
+                    href={summary.benchmarking.industryBenchmarkRates.injuryFactsIncidentTrendsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold text-emerald-100 underline decoration-emerald-400/50 underline-offset-2 hover:text-white"
+                  >
+                    Incident rate trends
+                  </a>
+                </p>
+                <p className="text-emerald-200/70">{summary.benchmarking.industryBenchmarkRates.referenceDataNote}</p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {summary?.injuryAnalytics ? (
+          <div className="rounded-xl border border-violet-500/25 bg-violet-500/10 px-4 py-3 text-sm text-violet-50">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-violet-200/90">
+              Injury outcome &amp; prediction inputs
+            </p>
+            <p className="mt-1 text-xs text-violet-100/90">
+              Avg. severity score (DART + lost time):{" "}
+              <span className="font-semibold text-white">
+                {summary.injuryAnalytics.averageSeverityScore}
+              </span>{" "}
+              (n={summary.injuryAnalytics.severitySampleSize}) · SOR→injury ratio:{" "}
+              <span className="font-semibold text-white">
+                {summary.injuryAnalytics.sorToInjuryRatio != null
+                  ? summary.injuryAnalytics.sorToInjuryRatio.toString()
+                  : "—"}
+              </span>{" "}
+              ({summary.injuryAnalytics.injuryIncidentCount} injuries / {summary.injuryAnalytics.sorCount} SOR) ·
+              Observation→injury %:{" "}
+              <span className="font-semibold text-white">
+                {summary.injuryAnalytics.observationToInjuryConversionRate != null
+                  ? `${summary.injuryAnalytics.observationToInjuryConversionRate}%`
+                  : "—"}
+              </span>
+            </p>
+            <p className="mt-2 text-[11px] text-violet-200/70">
+              Full SOR↔exposure mapping and event→injury likelihood:{" "}
+              <code className="rounded bg-black/30 px-1 py-0.5 text-[10px]">
+                GET {summary.injuryAnalytics.injuryPredictionModelUrl}
+              </code>
+            </p>
+          </div>
+        ) : null}
 
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5 shadow-inner">

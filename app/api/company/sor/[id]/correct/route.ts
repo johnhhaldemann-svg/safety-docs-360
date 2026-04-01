@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
+import { normalizeSorHazardCategoryCode } from "@/lib/incidents/sorHazardCategory";
 import { authorizeRequest, isAdminRole, normalizeAppRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { computeSorHash } from "@/lib/sor/hash";
+import { COMPANY_SOR_RECORD_SELECT } from "@/lib/sor/recordSelect";
 
 export const runtime = "nodejs";
 
-const SOR_SELECT =
-  "id, company_id, date, project, location, trade, category, subcategory, description, severity, created_at, created_by, updated_at, updated_by, status, version_number, previous_version_id, record_hash, previous_hash, change_reason, is_deleted";
+const SOR_SELECT = COMPANY_SOR_RECORD_SELECT;
 
 type CorrectPayload = {
   date?: string;
@@ -14,6 +15,7 @@ type CorrectPayload = {
   location?: string;
   trade?: string;
   category?: string;
+  hazardCategoryCode?: string;
   subcategory?: string;
   description?: string;
   severity?: string;
@@ -63,6 +65,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const nextVersion = baseResult.data.version_number + 1;
   const now = new Date().toISOString();
+  const nextHazard =
+    typeof body?.hazardCategoryCode === "string"
+      ? normalizeSorHazardCategoryCode(body.hazardCategoryCode)
+      : normalizeSorHazardCategoryCode(baseResult.data.hazard_category_code);
   const insertResult = await auth.supabase
     .from("company_sor_records")
     .insert({
@@ -72,6 +78,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       location: String(body?.location ?? baseResult.data.location).trim(),
       trade: String(body?.trade ?? baseResult.data.trade).trim(),
       category: String(body?.category ?? baseResult.data.category).trim(),
+      hazard_category_code: nextHazard ?? baseResult.data.hazard_category_code,
       subcategory:
         typeof body?.subcategory === "string"
           ? body.subcategory.trim() || null

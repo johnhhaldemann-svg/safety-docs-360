@@ -11,11 +11,57 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
+import { BODY_PARTS, BODY_PART_LABELS, type BodyPart } from "@/lib/incidents/bodyPart";
+import {
+  EXPOSURE_EVENT_TYPES,
+  EXPOSURE_EVENT_TYPE_LABELS,
+  type ExposureEventType,
+} from "@/lib/incidents/exposureEventType";
+import {
+  INCIDENT_SOURCES,
+  INCIDENT_SOURCE_LABELS,
+  type IncidentSource,
+} from "@/lib/incidents/incidentSource";
+import {
+  formatInjuryDayOfWeekLabel,
+  INJURY_DAYS_OF_WEEK,
+  INJURY_SEASON_LABELS,
+  INJURY_TIME_OF_DAY_LABELS,
+  type InjuryDayOfWeek,
+  type InjurySeason,
+  type InjuryTimeOfDay,
+} from "@/lib/incidents/injuryTimePatterns";
+import { INJURY_TYPES, INJURY_TYPE_LABELS, type InjuryType } from "@/lib/incidents/injuryType";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+function occurredAtToLocalInput(iso: string | null | undefined): string {
+  if (!iso?.trim()) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear().toString()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatIncidentTimePatternLine(item: IncidentRow): string | null {
+  if (item.injury_month == null || item.injury_month < 1) return null;
+  const season =
+    item.injury_season && item.injury_season in INJURY_SEASON_LABELS
+      ? INJURY_SEASON_LABELS[item.injury_season as InjurySeason]
+      : (item.injury_season ?? "—");
+  const dow =
+    item.injury_day_of_week && (INJURY_DAYS_OF_WEEK as readonly string[]).includes(item.injury_day_of_week)
+      ? formatInjuryDayOfWeekLabel(item.injury_day_of_week as InjuryDayOfWeek)
+      : (item.injury_day_of_week ?? "—");
+  const tod =
+    item.injury_time_of_day && item.injury_time_of_day in INJURY_TIME_OF_DAY_LABELS
+      ? INJURY_TIME_OF_DAY_LABELS[item.injury_time_of_day as InjuryTimeOfDay]
+      : (item.injury_time_of_day ?? "—");
+  return `M${item.injury_month.toString()} · ${season} · ${dow} · ${tod} (UTC bands)`;
+}
 
 type IncidentRow = {
   id: string;
@@ -23,16 +69,48 @@ type IncidentRow = {
   status: string;
   category: string;
   severity: string;
+  injury_type?: InjuryType | null;
+  body_part?: BodyPart | null;
+  injury_source?: IncidentSource | null;
+  exposure_event_type?: ExposureEventType | null;
+  days_away_from_work?: number | null;
+  days_restricted?: number | null;
+  job_transfer?: boolean | null;
+  recordable?: boolean | null;
+  lost_time?: boolean | null;
+  fatality?: boolean | null;
   sif_flag: boolean;
   escalation_level: string;
   stop_work_status: string;
   created_at: string;
+  occurred_at?: string | null;
+  injury_month?: number | null;
+  injury_season?: string | null;
+  injury_day_of_week?: string | null;
+  injury_time_of_day?: string | null;
 };
 
 const EMPTY_FORM = {
   title: "",
   category: "incident",
   severity: "medium",
+  /** Required when category is `incident` (API + loss modeling). */
+  injuryType: "" as InjuryType | "",
+  /** Required when category is `incident` (trade / prevention analytics). */
+  bodyPart: "" as BodyPart | "",
+  /** OSHA/BLS-style event/exposure; required for all new incidents (API). */
+  eventType: "" as ExposureEventType | "",
+  /** Equipment / object involved; required for all new incidents (API `source`). */
+  source: "" as IncidentSource | "",
+  daysAwayFromWork: 0,
+  daysRestricted: 0,
+  jobTransfer: false,
+  /** OSHA-style objective flags (separate from severity band). */
+  recordable: false,
+  lostTime: false,
+  fatality: false,
+  /** Local datetime; API stores UTC and derives month/season/day/time-of-day (UTC). */
+  occurredAt: "",
   observationId: "",
   dapActivityId: "",
 };
@@ -96,6 +174,26 @@ export default function IncidentsPage() {
 
   async function createIncident() {
     if (!form.title.trim()) return;
+    if (!form.eventType) {
+      setMessageTone("warning");
+      setMessage("Select an event / exposure type (required for regulatory and loss analytics).");
+      return;
+    }
+    if (!form.source) {
+      setMessageTone("warning");
+      setMessage("Select an injury source (equipment / object) to link hazards and outcomes.");
+      return;
+    }
+    if (form.category === "incident" && !form.injuryType) {
+      setMessageTone("warning");
+      setMessage("Select an injury type for injury incidents (required for structured loss analytics).");
+      return;
+    }
+    if (form.category === "incident" && !form.bodyPart) {
+      setMessageTone("warning");
+      setMessage("Select a body part for injury incidents (required for trade and prevention analytics).");
+      return;
+    }
     setSaving(true);
     setMessage("");
     try {
@@ -111,6 +209,18 @@ export default function IncidentsPage() {
           escalationLevel: "none",
           stopWorkStatus: "normal",
           sifFlag: form.category === "incident",
+          eventType: form.eventType,
+          source: form.source,
+          daysAwayFromWork: form.daysAwayFromWork,
+          daysRestricted: form.daysRestricted,
+          jobTransfer: form.jobTransfer,
+          recordable: form.recordable,
+          lostTime: form.lostTime,
+          fatality: form.fatality,
+          ...(form.category === "incident"
+            ? { injuryType: form.injuryType, bodyPart: form.bodyPart }
+            : {}),
+          occurredAt: form.occurredAt.trim() ? new Date(form.occurredAt).toISOString() : null,
           observationId: form.observationId || null,
           dapActivityId: form.dapActivityId || null,
         }),
@@ -167,10 +277,24 @@ export default function IncidentsPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="text-xs text-slate-500">Stop Work</div><div className="mt-2 text-3xl font-black">{counts.stopWork}</div></div>
       </section>
 
-      <SectionCard title="Create Incident / Near Miss" description="Capture event details and classify risk immediately.">
+      <SectionCard
+        title="Create Incident / Near Miss"
+        description="Classify event/exposure, equipment source, injury details when applicable, and DART outcomes—so hazards tie to outcomes across the program."
+      >
         <div className="grid gap-3 md:grid-cols-3">
           <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Incident title" className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
-          <select value={form.category} onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))} className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+          <select
+            value={form.category}
+            onChange={(event) =>
+              setForm((prev) => ({
+                ...prev,
+                category: event.target.value,
+                injuryType: event.target.value === "incident" ? prev.injuryType : "",
+                bodyPart: event.target.value === "incident" ? prev.bodyPart : "",
+              }))
+            }
+            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+          >
             <option value="incident">Incident</option>
             <option value="near_miss">Near Miss</option>
             <option value="hazard">Hazard</option>
@@ -181,6 +305,153 @@ export default function IncidentsPage() {
             <option value="high">High</option>
             <option value="critical">Critical</option>
           </select>
+          <label className="flex flex-col gap-1 text-xs text-slate-600 md:col-span-1">
+            <span className="font-semibold text-slate-700">When it occurred (optional)</span>
+            <input
+              type="datetime-local"
+              value={form.occurredAt}
+              onChange={(e) => setForm((prev) => ({ ...prev, occurredAt: e.target.value }))}
+              className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+            />
+            <span className="leading-snug text-slate-500">
+              Drives injury month, season, weekday, and time-of-day (stored in UTC).
+            </span>
+          </label>
+          <select
+            value={form.eventType}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, eventType: event.target.value as ExposureEventType | "" }))
+            }
+            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+            aria-label="Event or exposure type"
+          >
+            <option value="">Select event / exposure type…</option>
+            {EXPOSURE_EVENT_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {EXPOSURE_EVENT_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </select>
+          <select
+            value={form.source}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, source: event.target.value as IncidentSource | "" }))
+            }
+            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+            aria-label="Injury source (equipment or object)"
+          >
+            <option value="">Select equipment / object source…</option>
+            {INCIDENT_SOURCES.map((t) => (
+              <option key={t} value={t}>
+                {INCIDENT_SOURCE_LABELS[t]}
+              </option>
+            ))}
+          </select>
+          <select
+            value={form.injuryType}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, injuryType: event.target.value as InjuryType | "" }))
+            }
+            disabled={form.category !== "incident"}
+            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+            aria-label="Injury type"
+          >
+            <option value="">{form.category === "incident" ? "Select injury type…" : "N/A (not an injury incident)"}</option>
+            {INJURY_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {INJURY_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </select>
+          <select
+            value={form.bodyPart}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, bodyPart: event.target.value as BodyPart | "" }))
+            }
+            disabled={form.category !== "incident"}
+            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+            aria-label="Body part affected"
+          >
+            <option value="">{form.category === "incident" ? "Select body part…" : "N/A (not an injury incident)"}</option>
+            {BODY_PARTS.map((t) => (
+              <option key={t} value={t}>
+                {BODY_PART_LABELS[t]}
+              </option>
+            ))}
+          </select>
+          <label className="flex flex-col gap-1 text-xs text-slate-600">
+            <span className="font-semibold text-slate-700">Days away from work</span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={form.daysAwayFromWork}
+              onChange={(event) => {
+                const n = parseInt(event.target.value, 10);
+                setForm((prev) => ({
+                  ...prev,
+                  daysAwayFromWork: Number.isFinite(n) && n >= 0 ? n : 0,
+                }));
+              }}
+              className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-slate-600">
+            <span className="font-semibold text-slate-700">Days restricted duty</span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={form.daysRestricted}
+              onChange={(event) => {
+                const n = parseInt(event.target.value, 10);
+                setForm((prev) => ({
+                  ...prev,
+                  daysRestricted: Number.isFinite(n) && n >= 0 ? n : 0,
+                }));
+              }}
+              className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+            />
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={form.jobTransfer}
+              onChange={(event) => setForm((prev) => ({ ...prev, jobTransfer: event.target.checked }))}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            Job transfer (DART)
+          </label>
+          <div className="col-span-full flex flex-wrap gap-4 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-3 text-sm text-slate-700">
+            <span className="w-full text-xs font-semibold text-slate-500">Objective severity (OSHA-style)</span>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.recordable}
+                onChange={(e) => setForm((prev) => ({ ...prev, recordable: e.target.checked }))}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Recordable
+            </label>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.lostTime}
+                onChange={(e) => setForm((prev) => ({ ...prev, lostTime: e.target.checked }))}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Lost time
+            </label>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.fatality}
+                onChange={(e) => setForm((prev) => ({ ...prev, fatality: e.target.checked }))}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Fatality
+            </label>
+          </div>
           <input
             value={form.observationId}
             onChange={(event) => setForm((prev) => ({ ...prev, observationId: event.target.value }))}
@@ -195,7 +466,17 @@ export default function IncidentsPage() {
           />
         </div>
         <div className="mt-4">
-          <button onClick={() => void createIncident()} disabled={saving || !form.title.trim()} className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+          <button
+            onClick={() => void createIncident()}
+            disabled={
+              saving ||
+              !form.title.trim() ||
+              !form.eventType ||
+              !form.source ||
+              (form.category === "incident" && (!form.injuryType || !form.bodyPart))
+            }
+            className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+          >
             {saving ? "Creating..." : "Create Incident"}
           </button>
         </div>
@@ -221,7 +502,52 @@ export default function IncidentsPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-slate-900">{item.title}</div>
-                    <div className="mt-1 text-xs text-slate-500">{item.category} · {item.severity}</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {item.category} · {item.severity}
+                      {item.exposure_event_type ? (
+                        <> · Event: {EXPOSURE_EVENT_TYPE_LABELS[item.exposure_event_type]}</>
+                      ) : (
+                        <> · Event/exposure not set</>
+                      )}
+                      {item.injury_source ? (
+                        <> · Source: {INCIDENT_SOURCE_LABELS[item.injury_source]}</>
+                      ) : (
+                        <> · Source not set</>
+                      )}
+                      {item.injury_type ? (
+                        <> · Injury: {INJURY_TYPE_LABELS[item.injury_type]}</>
+                      ) : item.category === "incident" ? (
+                        <> · Injury type not set</>
+                      ) : null}
+                      {item.body_part ? (
+                        <> · Body: {BODY_PART_LABELS[item.body_part]}</>
+                      ) : item.category === "incident" ? (
+                        <> · Body part not set</>
+                      ) : null}
+                      {(item.days_away_from_work ?? 0) > 0 ||
+                      (item.days_restricted ?? 0) > 0 ||
+                      item.job_transfer ? (
+                        <>
+                          {" "}
+                          · Away {(item.days_away_from_work ?? 0).toString()}d · Restricted{" "}
+                          {(item.days_restricted ?? 0).toString()}d
+                          {item.job_transfer ? " · Job transfer" : ""}
+                        </>
+                      ) : null}
+                      {(item.recordable || item.lost_time || item.fatality) && (
+                        <>
+                          {" "}
+                          · Obj:
+                          {item.recordable ? " Rec" : ""}
+                          {item.lost_time ? " LT" : ""}
+                          {item.fatality ? " Fatality" : ""}
+                        </>
+                      )}
+                      {(() => {
+                        const timePatternLine = formatIncidentTimePatternLine(item);
+                        return timePatternLine ? <> · {timePatternLine}</> : null;
+                      })()}
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <StatusBadge label={item.status} tone={item.status === "closed" ? "neutral" : item.status === "in_progress" ? "info" : "warning"} />
@@ -229,7 +555,187 @@ export default function IncidentsPage() {
                     <StatusBadge label={item.stop_work_status} tone={item.stop_work_status === "stop_work_active" ? "warning" : "neutral"} />
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <label className="flex shrink-0 flex-col gap-1 text-xs text-slate-600">
+                    <span className="font-semibold">Occurred (local)</span>
+                    <input
+                      key={`${item.id}-occ-${item.occurred_at ?? ""}-${String(item.injury_month ?? "")}`}
+                      type="datetime-local"
+                      defaultValue={occurredAtToLocalInput(item.occurred_at)}
+                      onBlur={(e) => {
+                        const v = e.target.value;
+                        const nextIso = v ? new Date(v).toISOString() : null;
+                        const prev = item.occurred_at ?? null;
+                        if (nextIso !== prev) void updateIncident(item, { occurredAt: nextIso });
+                      }}
+                      className="w-[11.5rem] rounded-lg border border-slate-300 px-2 py-1 text-xs"
+                      title="Sets occurred_at; month, season, weekday, and time-of-day follow in UTC."
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-600">
+                    <span className="font-semibold">Event / exposure</span>
+                    <select
+                      value={item.exposure_event_type ?? ""}
+                      onChange={(e) =>
+                        void updateIncident(item, {
+                          eventType: e.target.value || null,
+                        })
+                      }
+                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs max-w-[14rem]"
+                      title="OSHA/BLS-style event or exposure classification"
+                    >
+                      <option value="">Unset</option>
+                      {EXPOSURE_EVENT_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {EXPOSURE_EVENT_TYPE_LABELS[t]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-600">
+                    <span className="font-semibold">Source</span>
+                    <select
+                      value={item.injury_source ?? ""}
+                      onChange={(e) =>
+                        void updateIncident(item, {
+                          source: e.target.value || null,
+                        })
+                      }
+                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs max-w-[11rem]"
+                      title="Equipment or object involved (SOR / hazard linkage)"
+                    >
+                      <option value="">Unset</option>
+                      {INCIDENT_SOURCES.map((t) => (
+                        <option key={t} value={t}>
+                          {INCIDENT_SOURCE_LABELS[t]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-600">
+                    <span className="font-semibold">Injury type</span>
+                    <select
+                      value={item.injury_type ?? ""}
+                      onChange={(e) =>
+                        void updateIncident(item, {
+                          injuryType: e.target.value || null,
+                        })
+                      }
+                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs"
+                      disabled={item.category !== "incident"}
+                      title={
+                        item.category === "incident"
+                          ? "Nature of injury for loss / recovery analytics"
+                          : "Only injury incidents use structured injury types"
+                      }
+                    >
+                      <option value="">{item.category === "incident" ? "Unset" : "—"}</option>
+                      {INJURY_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {INJURY_TYPE_LABELS[t]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-600">
+                    <span className="font-semibold">Body part</span>
+                    <select
+                      value={item.body_part ?? ""}
+                      onChange={(e) =>
+                        void updateIncident(item, {
+                          bodyPart: e.target.value || null,
+                        })
+                      }
+                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs max-w-[9rem]"
+                      disabled={item.category !== "incident"}
+                      title={
+                        item.category === "incident"
+                          ? "Primary region for trade / prevention analytics"
+                          : "Only injury incidents use structured body regions"
+                      }
+                    >
+                      <option value="">{item.category === "incident" ? "Unset" : "—"}</option>
+                      {BODY_PARTS.map((t) => (
+                        <option key={t} value={t}>
+                          {BODY_PART_LABELS[t]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-1 text-xs text-slate-600">
+                    <span className="font-semibold">Away</span>
+                    <input
+                      key={`${item.id}-away-${(item.days_away_from_work ?? 0).toString()}`}
+                      type="number"
+                      min={0}
+                      step={1}
+                      defaultValue={item.days_away_from_work ?? 0}
+                      onBlur={(e) => {
+                        const n = parseInt(e.target.value, 10);
+                        const v = Number.isFinite(n) && n >= 0 ? n : 0;
+                        if (v !== (item.days_away_from_work ?? 0)) {
+                          void updateIncident(item, { daysAwayFromWork: v });
+                        }
+                      }}
+                      className="w-14 rounded-lg border border-slate-300 px-1 py-1 text-xs"
+                      title="Days away from work"
+                    />
+                  </label>
+                  <label className="flex items-center gap-1 text-xs text-slate-600">
+                    <span className="font-semibold">Restr.</span>
+                    <input
+                      key={`${item.id}-rest-${(item.days_restricted ?? 0).toString()}`}
+                      type="number"
+                      min={0}
+                      step={1}
+                      defaultValue={item.days_restricted ?? 0}
+                      onBlur={(e) => {
+                        const n = parseInt(e.target.value, 10);
+                        const v = Number.isFinite(n) && n >= 0 ? n : 0;
+                        if (v !== (item.days_restricted ?? 0)) {
+                          void updateIncident(item, { daysRestricted: v });
+                        }
+                      }}
+                      className="w-14 rounded-lg border border-slate-300 px-1 py-1 text-xs"
+                      title="Days restricted duty"
+                    />
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(item.job_transfer)}
+                      onChange={(e) => void updateIncident(item, { jobTransfer: e.target.checked })}
+                      className="h-3.5 w-3.5 rounded border-slate-300"
+                    />
+                    <span className="font-semibold">Transfer</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(item.recordable)}
+                      onChange={(e) => void updateIncident(item, { recordable: e.target.checked })}
+                      className="h-3.5 w-3.5 rounded border-slate-300"
+                    />
+                    <span className="font-semibold">Rec.</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(item.lost_time)}
+                      onChange={(e) => void updateIncident(item, { lostTime: e.target.checked })}
+                      className="h-3.5 w-3.5 rounded border-slate-300"
+                    />
+                    <span className="font-semibold">LT</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(item.fatality)}
+                      onChange={(e) => void updateIncident(item, { fatality: e.target.checked })}
+                      className="h-3.5 w-3.5 rounded border-slate-300"
+                    />
+                    <span className="font-semibold">Fatality</span>
+                  </label>
                   <button onClick={() => void updateIncident(item, { status: item.status === "open" ? "in_progress" : item.status === "in_progress" ? "closed" : "open" })} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">
                     Cycle Status
                   </button>

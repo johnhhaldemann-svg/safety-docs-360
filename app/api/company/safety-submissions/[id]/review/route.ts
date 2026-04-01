@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
+import { injuryTimePatternFromOccurredAt } from "@/lib/incidents/injuryTimePatterns";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 
@@ -191,6 +192,7 @@ export async function PATCH(
 
   let incidentId: string | null = null;
   if (shouldConvertToIncident) {
+    const incidentTimePatterns = injuryTimePatternFromOccurredAt(now);
     const incidentInsertResult = await auth.supabase
       .from("company_incidents")
       .insert({
@@ -201,8 +203,19 @@ export async function PATCH(
         status: nextActionStatus === "verified_closed" ? "closed" : "open",
         severity: "medium",
         category,
+        injury_source: "other",
+        exposure_event_type: "other",
+        days_away_from_work: 0,
+        days_restricted: 0,
+        job_transfer: false,
+        recordable: false,
+        lost_time: false,
+        fatality: false,
+        injury_type: category === "incident" ? "other" : null,
+        body_part: category === "incident" ? "other" : null,
         owner_user_id: auth.user.id,
         occurred_at: now,
+        ...incidentTimePatterns,
         sif_flag: category === "incident",
         escalation_level: category === "incident" ? "monitor" : "none",
         stop_work_status: "normal",

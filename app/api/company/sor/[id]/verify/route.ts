@@ -3,11 +3,11 @@ import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { verifySorChain, verifySorRecordHash } from "@/lib/sor/verify";
 import type { SorRecordRow } from "@/lib/sor/types";
+import { COMPANY_SOR_RECORD_SELECT } from "@/lib/sor/recordSelect";
 
 export const runtime = "nodejs";
 
-const SOR_SELECT =
-  "id, company_id, date, project, location, trade, category, subcategory, description, severity, created_at, created_by, updated_at, updated_by, status, version_number, previous_version_id, record_hash, previous_hash, change_reason, is_deleted";
+const SOR_SELECT = COMPANY_SOR_RECORD_SELECT;
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authorizeRequest(request, {

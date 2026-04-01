@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
+import { inferSorHazardCategoryFromLabel, normalizeSorHazardCategoryCode } from "@/lib/incidents/sorHazardCategory";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { computeSorHash } from "@/lib/sor/hash";
+import { COMPANY_SOR_RECORD_SELECT } from "@/lib/sor/recordSelect";
 
 export const runtime = "nodejs";
 
-const SOR_SELECT =
-  "id, company_id, date, project, location, trade, category, subcategory, description, severity, created_at, created_by, updated_at, updated_by, status, version_number, previous_version_id, record_hash, previous_hash, change_reason, is_deleted";
+const SOR_SELECT = COMPANY_SOR_RECORD_SELECT;
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authorizeRequest(request, {
@@ -35,6 +36,36 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
   if (current.data.created_by !== auth.user.id) {
     return NextResponse.json({ error: "You can only submit your own draft SOR." }, { status: 403 });
+  }
+
+  let hazardCode =
+    normalizeSorHazardCategoryCode(current.data.hazard_category_code) ??
+    inferSorHazardCategoryFromLabel(current.data.category);
+  if (!hazardCode) {
+    return NextResponse.json(
+      {
+        error:
+          "Structured hazard class is required before submit. Set hazardCategoryCode on the draft (PATCH) or use a clearer category label.",
+      },
+      { status: 400 }
+    );
+  }
+  if (!current.data.hazard_category_code) {
+    const patched = await auth.supabase
+      .from("company_sor_records")
+      .update({ hazard_category_code: hazardCode, updated_by: auth.user.id })
+      .eq("id", id)
+      .eq("company_id", scope.companyId)
+      .select(SOR_SELECT)
+      .single();
+    if (patched.error) {
+      return NextResponse.json(
+        { error: patched.error.message || "Failed to set hazard_category_code before submit." },
+        { status: 500 }
+      );
+    }
+    current.data = patched.data;
+    hazardCode = normalizeSorHazardCategoryCode(patched.data.hazard_category_code) ?? hazardCode;
   }
 
   const previous = await auth.supabase

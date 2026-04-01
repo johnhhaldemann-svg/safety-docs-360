@@ -1,4 +1,9 @@
-import { computeDataConfidenceFromMetrics, riskBandMeaningForDataConfidence } from "@/lib/injuryWeather/dataConfidence";
+import { INJURY_FACTS_REFERENCE } from "@/lib/benchmarking/industryBenchmarkDataset";
+import {
+  computeDataConfidenceFromMetrics,
+  forecastModeDisplayLabel,
+  riskBandMeaningForDataConfidence,
+} from "@/lib/injuryWeather/dataConfidence";
 import type {
   AiPriorityTheme,
   InjuryWeatherAiInsights,
@@ -25,6 +30,98 @@ function validPriorityTheme(t: unknown): t is AiPriorityTheme {
   );
 }
 
+function severityRank(level: RiskLevel): number {
+  if (level === "CRITICAL") return 4;
+  if (level === "HIGH") return 3;
+  if (level === "MODERATE") return 2;
+  return 1;
+}
+
+function maxRiskLevel(a: RiskLevel, b: RiskLevel): RiskLevel {
+  return severityRank(a) >= severityRank(b) ? a : b;
+}
+
+/** Rotate focus lines so priority themes are not copy-paste of the same action. */
+const PRIORITY_FOCUS_VARIATIONS: readonly { focus: string; dueLabel: string }[] = [
+  {
+    focus: "Field-verify critical controls and documented pre-task plans",
+    dueLabel: "Emphasize over the next 7–14 days",
+  },
+  {
+    focus: "Short management walkdown on repeat findings in this category",
+    dueLabel: "Schedule within this forecast month",
+  },
+  {
+    focus: "Confirm corrective actions close with effectiveness checks before re-start",
+    dueLabel: "Prioritize while this trade is active",
+  },
+  {
+    focus: "Toolbox + competent-person review of controls before shift peaks",
+    dueLabel: "Next 2–3 work weeks",
+  },
+  {
+    focus: "Spot-check permit quality and stop-work escalation readiness",
+    dueLabel: "Align with this month’s risk band",
+  },
+];
+
+const PRIORITY_PAD_THEMES: readonly AiPriorityTheme[] = [
+  {
+    title: "Program level: balance SOR volume with timely corrective closure and incident learning",
+    dueLabel: "Review in leadership safety meeting this month",
+    severity: "MODERATE",
+  },
+  {
+    title: "Cross-trade check on high-severity-weighted signals in the safety system",
+    dueLabel: "Assign ownership for verification cadence",
+    severity: "MODERATE",
+  },
+  {
+    title: "Document management field presence when structural or likelihood index trends up",
+    dueLabel: "Plan walkthroughs against top hazard families",
+    severity: "MODERATE",
+  },
+];
+
+type CategoryRow = InjuryWeatherDashboardData["tradeForecasts"][number]["categories"][number];
+
+function pickDiverseTradeCategoryThemes(
+  forecasts: InjuryWeatherDashboardData["tradeForecasts"],
+  limit: number
+): { trade: string; category: CategoryRow }[] {
+  const flat: { trade: string; category: CategoryRow }[] = [];
+  for (const tf of forecasts) {
+    for (const c of tf.categories) {
+      flat.push({ trade: tf.trade, category: c });
+    }
+  }
+  if (flat.length === 0) return [];
+
+  flat.sort((a, b) => {
+    const sr = severityRank(b.category.riskLevel) - severityRank(a.category.riskLevel);
+    if (sr !== 0) return sr;
+    return (b.category.predictedCount ?? 0) - (a.category.predictedCount ?? 0);
+  });
+
+  const out: { trade: string; category: CategoryRow }[] = [];
+  const tradesUsed = new Set<string>();
+  for (const row of flat) {
+    if (out.length >= limit) break;
+    if (!tradesUsed.has(row.trade)) {
+      out.push(row);
+      tradesUsed.add(row.trade);
+    }
+  }
+  for (const row of flat) {
+    if (out.length >= limit) break;
+    const key = `${row.trade}\0${row.category.name}`;
+    if (!out.some((o) => `${o.trade}\0${o.category.name}` === key)) {
+      out.push(row);
+    }
+  }
+  return out.slice(0, limit);
+}
+
 /** Deterministic blocks shaped like AI output — derived from dashboard data (no static demo card titles). */
 export function fallbackDashboardBlocksFromData(data: InjuryWeatherDashboardData): {
   priorityThemes: AiPriorityTheme[];
@@ -32,23 +129,21 @@ export function fallbackDashboardBlocksFromData(data: InjuryWeatherDashboardData
   recommendedControls: string[];
 } {
   const themes: AiPriorityTheme[] = [];
-  for (const tf of data.tradeForecasts) {
-    for (const c of tf.categories) {
-      if (themes.length >= 3) break;
-      themes.push({
-        title: `${tf.trade}: ${c.name} — strengthen verification and pre-task focus`,
-        dueLabel: "Plan emphasis over the next 7–30 days",
-        severity: c.riskLevel,
-      });
-    }
-    if (themes.length >= 3) break;
-  }
-  while (themes.length < 3) {
+  const picks = pickDiverseTradeCategoryThemes(data.tradeForecasts, 3);
+  const overall = data.summary.overallRiskLevel;
+  for (let i = 0; i < picks.length; i += 1) {
+    const { trade, category: c } = picks[i];
+    const v = PRIORITY_FOCUS_VARIATIONS[i % PRIORITY_FOCUS_VARIATIONS.length];
     themes.push({
-      title: "High-severity signals in SOR / corrective actions / incidents — supervisor verification cadence",
-      dueLabel: "Align reviews with this forecast month",
-      severity: "MODERATE",
+      title: `${trade}: ${c.name} — ${v.focus}`,
+      dueLabel: v.dueLabel,
+      severity: i === 0 ? maxRiskLevel(c.riskLevel, overall) : c.riskLevel,
     });
+  }
+  let padIdx = 0;
+  while (themes.length < 3) {
+    themes.push({ ...PRIORITY_PAD_THEMES[padIdx % PRIORITY_PAD_THEMES.length] });
+    padIdx += 1;
   }
 
   const trainingPad = [
@@ -248,6 +343,8 @@ function computeAiContext(data: InjuryWeatherDashboardData) {
       overallRiskLevel: data.summary.overallRiskLevel,
       dataConfidence: data.summary.dataConfidence,
       forecastMode: data.summary.forecastMode,
+      forecastModeUserLabel: forecastModeDisplayLabel(data.summary.forecastMode),
+      dataRefreshNote: "Safety signal inputs use a daily snapshot, not a live or real-time feed.",
       forecastConfidenceScore: data.summary.forecastConfidenceScore,
       riskModelVersion: data.summary.riskModelVersion,
       modelRole: "leading_indicator_unvalidated" as const,
@@ -298,7 +395,7 @@ function fallbackInsights(data: InjuryWeatherDashboardData): InjuryWeatherAiInsi
   return {
     headline: `For ${data.summary.month}, aggregated signals center on ${topTrade} — ${topCategory}. Structural risk band: ${data.summary.overallRiskLevel}. Data confidence ${dc} — ${dcLine}.`,
     likelyInjuryDrivers: [
-      `Model inputs: ${n} weighted observations; ${sev} high/critical-weight signals (${mixPct}% of total).`,
+      `Model inputs: ${n} weighted safety signals (SOR, corrective actions, incidents); ${sev} high/critical-weight signals (${mixPct}% of total).`,
       `Trade/category emphasis from current data: ${topTrade} / ${topCategory}.`,
       `Location context: ${loc}.`,
     ],
@@ -312,6 +409,33 @@ function fallbackInsights(data: InjuryWeatherDashboardData): InjuryWeatherAiInsi
   };
 }
 
+/**
+ * `/v1/responses` JSON often omits top-level `output_text` (that field is mainly an SDK helper).
+ * Aggregate assistant `output_text` segments from `output[].content[]` for raw `fetch` callers.
+ */
+export function extractResponsesApiOutputText(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const o = body as Record<string, unknown>;
+  if (typeof o.output_text === "string" && o.output_text.trim()) return o.output_text.trim();
+
+  const output = o.output;
+  if (!Array.isArray(output)) return null;
+  const chunks: string[] = [];
+  for (const item of output) {
+    if (!item || typeof item !== "object") continue;
+    const itemObj = item as Record<string, unknown>;
+    const content = itemObj.content;
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (!part || typeof part !== "object") continue;
+      const p = part as Record<string, unknown>;
+      if (p.type === "output_text" && typeof p.text === "string") chunks.push(p.text);
+    }
+  }
+  const joined = chunks.join("").trim();
+  return joined || null;
+}
+
 export async function generateInjuryWeatherAiInsights(
   data: InjuryWeatherDashboardData
 ): Promise<InjuryWeatherAiInsights> {
@@ -322,7 +446,7 @@ export async function generateInjuryWeatherAiInsights(
   const prompt = [
     "You are a construction safety analyst helping with a MONTHLY RISK ASSESSMENT for monthlyRiskAssessment.forecastMonth.",
     "The user needs grounded support for that month’s assessment—not invented incidents or fake triggers.",
-    "Evidence you may use: totals, trendSignals, tradeSignals (including topTrades with categories), locationContext, dataCoverage, oshaPriorYearsCrossReference (sector baseline only). genericUiSuggestions.controlThemes are legacy layout hints only—do NOT copy them verbatim; you author fresh priorityThemes, monthlyTrainingRecommendations, and recommendedControls from the structured signals.",
+    "Evidence you may use: totals (including finalRiskScoreV2, riskBandLabelV2, riskSignalCount), riskEngineV2Explainability when present (weighted drivers, recurrence, trend slope—do not contradict these numbers), trendSignals, tradeSignals (including topTrades with categories), locationContext, dataCoverage, oshaPriorYearsCrossReference (sector baseline only). genericUiSuggestions.controlThemes are legacy layout hints only—do NOT copy them verbatim; you author fresh priorityThemes, monthlyTrainingRecommendations, and recommendedControls from the structured signals.",
     "Do NOT: invent injuries, near-misses, equipment failures, OSHA visits, citations, or people; do not claim specific due dates or overdue CAPA items; do not mention trades or hazard categories not in grounding.allowedTradeNames / allowedCategoryNames or tradeSignals.",
     "Output strict JSON with fields:",
     "headline (string, 1 sentence tied to the month and real signals), likelyInjuryDrivers (exactly 3 strings), priorityActions (exactly 3 strings), confidence (LOW|MEDIUM|HIGH),",
@@ -331,15 +455,18 @@ export async function generateInjuryWeatherAiInsights(
     "recommendedControls (exactly 4 playbook-style control/action strings tied to trades/categories above).",
     "Rules:",
     "- Each likelyInjuryDriver must tie to at least one of: severity mix (totals), trend momentum (trendSignals), or trade concentration (tradeSignals)—use the actual numbers when you state them.",
+    "- Do not describe riskSignalCount as “observations”; call them weighted safety signals or structured inputs (SOR records, corrective actions, incidents)—not generic field observations.",
+    "- When describing data freshness or forecast path, use totals.forecastModeUserLabel and totals.dataRefreshNote. Never claim real-time, streaming, or “live” system data.",
     "- Mention specific trade/category drivers only from tradeSignals.topTrades / allowed lists.",
     "- If locationContext.stateCode is set, add one clause consistent with impactNote; if null, do not invent regional weather.",
     "- Include one behavior/process angle (e.g., pre-task planning, permit discipline, verification of high-severity items in the system) without claiming a specific incident.",
     "- In one driver or action, contrast oshaPriorYearsCrossReference (sector baseline) with current tradeSignals—without implying this employer’s OSHA record.",
+    `- For national historical incidence trends by industry (BLS SOII/CFOI context, not this site’s record), you may point readers to NSC Injury Facts Industry Profiles (${INJURY_FACTS_REFERENCE.injuryFactsIndustryProfilesUrl}) and work-related incident rate trends (${INJURY_FACTS_REFERENCE.injuryFactsIncidentTrendsUrl}). Do not invent or quote specific national rates unless they appear explicitly in this JSON (e.g. oshaPriorYearsCrossReference).`,
     "- Priority actions: operational for 7–30 days and verifiable; none may depend on imaginary triggers.",
     "- In one priority action, state clearly that executing controls improves conditions over time and reduces future signal severity/volume—the headline exposure estimate is a leading-indicator model output and does not drop instantly when reading the AI text.",
     "- Set confidence to confidenceRubricHint unless you have a strong reason from sparse data to use LOW.",
-    "- Data confidence is about evidence density (baseline vs live signals), NOT hazard level: LOW confidence does not mean “low risk”; HIGH means the estimate is supported by enough live observations.",
-    "- priorityThemes: titles must reference real trade/category patterns from tradeSignals (not generic demo card titles). dueLabel must be a planning horizon (e.g. “Emphasize over the next 7–14 days”)—never “Due tomorrow” or fake deadlines.",
+    "- Data confidence is about evidence density (baseline vs latest daily snapshot of signals), NOT hazard level: LOW confidence does not mean “low risk”; HIGH means the estimate is supported by enough structured safety signal data (SOR / actions / incidents). Do not imply real-time or streaming data.",
+    "- priorityThemes: titles must reference real trade/category patterns from tradeSignals (not generic demo card titles). The 3 titles must NOT reuse the same action phrase or trailing clause (e.g. do not end all three with “strengthen verification and pre-task focus”); vary verification vs walkdown vs corrective closeout vs permit/toolbox focus. Prefer different trades across themes when tradeSignals lists multiple trades. dueLabel must differ across themes where possible. dueLabel must be a planning horizon—never “Due tomorrow” or fake deadlines.",
     "- monthlyTrainingRecommendations: concrete training topics aligned to top hazard categories and severity mix.",
     "- recommendedControls: specific, verifiable field actions; at least two should name a trade or hazard family from allowed lists.",
     JSON.stringify(aiContext),
@@ -421,11 +548,15 @@ export async function generateInjuryWeatherAiInsights(
     });
 
     if (!res.ok) return fallbackInsights(data);
-    const json = (await res.json()) as {
-      output_text?: string;
-    };
-    if (!json.output_text) return fallbackInsights(data);
-    const parsed = JSON.parse(json.output_text) as Partial<InjuryWeatherAiInsights>;
+    const json: unknown = await res.json();
+    const rawText = extractResponsesApiOutputText(json);
+    if (!rawText) return fallbackInsights(data);
+    let parsed: Partial<InjuryWeatherAiInsights>;
+    try {
+      parsed = JSON.parse(rawText) as Partial<InjuryWeatherAiInsights>;
+    } catch {
+      return fallbackInsights(data);
+    }
     if (!parsed.headline || !parsed.likelyInjuryDrivers?.length || !parsed.priorityActions?.length) {
       return fallbackInsights(data);
     }

@@ -8,6 +8,7 @@ export type SorRecordRow = {
   location: string;
   trade: string;
   category: string;
+  hazard_category_code?: string | null;
   subcategory: string | null;
   description: string;
   severity: string;

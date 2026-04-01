@@ -77,6 +77,7 @@ export default function SorDetailPage() {
               <p>Updated by: {record.updated_by ?? "—"}</p>
               <p>Updated at: {new Date(record.updated_at).toLocaleString()}</p>
               <p>Version number: {record.version_number}</p>
+              <p>Hazard class: {record.hazard_category_code ?? "—"}</p>
               <p>Previous version: {record.previous_version_id ?? "—"}</p>
               <p className="sm:col-span-2 break-all">Record hash: {record.record_hash ?? "—"}</p>
               <p className="sm:col-span-2 break-all">Previous hash: {record.previous_hash ?? "—"}</p>

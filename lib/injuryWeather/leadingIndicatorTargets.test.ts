@@ -69,7 +69,7 @@ function minimalData(overrides: Partial<InjuryWeatherDashboardData> = {}): Injur
 }
 
 describe("buildLeadingIndicatorTargets", () => {
-  it("returns signal mix and trade focus for live data", () => {
+  it("returns signal mix and trade focus when snapshot has signals", () => {
     const r = buildLeadingIndicatorTargets(minimalData());
     expect(r.items.some((i) => i.label.includes("Signal mix"))).toBe(true);
     expect(r.items.some((i) => i.action.includes("Roofing"))).toBe(true);

@@ -1,4 +1,11 @@
 import { NextResponse } from "next/server";
+import { coerceNonNegativeInt, readJobTransfer } from "@/lib/incidents/dart";
+import { normalizeBodyPart } from "@/lib/incidents/bodyPart";
+import { normalizeExposureEventType } from "@/lib/incidents/exposureEventType";
+import { normalizeIncidentSource } from "@/lib/incidents/incidentSource";
+import { normalizeInjuryType } from "@/lib/incidents/injuryType";
+import { injuryTimePatternFromOccurredAt } from "@/lib/incidents/injuryTimePatterns";
+import { readObjectiveFlag } from "@/lib/incidents/objectiveSeverity";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
@@ -129,6 +136,47 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const title = String(body?.title ?? "").trim();
   if (!title) return NextResponse.json({ error: "Title is required." }, { status: 400 });
+  const category = String(body?.category ?? "").trim().toLowerCase() || "incident";
+  const exposureEventType = normalizeExposureEventType(body?.eventType);
+  if (!exposureEventType) {
+    return NextResponse.json(
+      {
+        error:
+          "eventType is required. Use one of: fall_same_level, fall_to_lower_level, struck_by_object, caught_in_between, overexertion, contact_with_equipment, exposure_harmful_substance, electrical, other.",
+      },
+      { status: 400 }
+    );
+  }
+  const injurySource = normalizeIncidentSource(body?.source);
+  if (!injurySource) {
+    return NextResponse.json(
+      {
+        error:
+          "source is required. Use one of: ladder, scaffold, hand_tools, heavy_equipment, material_handling, electrical_system, other.",
+      },
+      { status: 400 }
+    );
+  }
+  const injuryType = normalizeInjuryType(body?.injuryType);
+  if (category === "incident" && !injuryType) {
+    return NextResponse.json(
+      {
+        error:
+          "injuryType is required for injury incidents. Use one of: strain, sprain, fracture, laceration, contusion, burn, amputation, other.",
+      },
+      { status: 400 }
+    );
+  }
+  const bodyPart = normalizeBodyPart(body?.bodyPart);
+  if (category === "incident" && !bodyPart) {
+    return NextResponse.json(
+      {
+        error:
+          "bodyPart is required for injury incidents. Use one of: back, hand, fingers, knee, shoulder, eye, foot, other.",
+      },
+      { status: 400 }
+    );
+  }
   const severity = String(body?.severity ?? "").trim().toLowerCase() || "medium";
   const sifFlag = Boolean(body?.sifFlag);
   const automated = applyIncidentAutomation({
@@ -158,6 +206,20 @@ export async function POST(request: Request) {
       { status: 403 }
     );
   }
+  const daysAwayParsed = coerceNonNegativeInt(body?.daysAwayFromWork);
+  if (!daysAwayParsed.ok) {
+    return NextResponse.json({ error: `daysAwayFromWork: ${daysAwayParsed.message}` }, { status: 400 });
+  }
+  const daysRestrictedParsed = coerceNonNegativeInt(body?.daysRestricted);
+  if (!daysRestrictedParsed.ok) {
+    return NextResponse.json({ error: `daysRestricted: ${daysRestrictedParsed.message}` }, { status: 400 });
+  }
+  const jobTransfer = readJobTransfer(body?.jobTransfer, false);
+  const recordable = readObjectiveFlag(body?.recordable, false);
+  const lostTime = readObjectiveFlag(body?.lostTime, false);
+  const fatality = readObjectiveFlag(body?.fatality, false);
+  const occurredAt = String(body?.occurredAt ?? "").trim() || null;
+  const injuryTimePatterns = injuryTimePatternFromOccurredAt(occurredAt);
   const result = await auth.supabase.from("company_incidents").insert({
     company_id: companyScope.companyId,
     jobsite_id: jobsiteId,
@@ -165,10 +227,21 @@ export async function POST(request: Request) {
     description: String(body?.description ?? "").trim() || null,
     status: normalizeStatus(body?.status),
     severity,
-    category: String(body?.category ?? "").trim().toLowerCase() || "incident",
+    category,
+    injury_type: injuryType,
+    body_part: category === "incident" ? bodyPart : null,
+    exposure_event_type: exposureEventType,
+    injury_source: injurySource,
+    days_away_from_work: daysAwayParsed.value,
+    days_restricted: daysRestrictedParsed.value,
+    job_transfer: jobTransfer,
+    recordable,
+    lost_time: lostTime,
+    fatality,
     owner_user_id: String(body?.ownerUserId ?? "").trim() || null,
     due_at: String(body?.dueAt ?? "").trim() || null,
-    occurred_at: String(body?.occurredAt ?? "").trim() || null,
+    occurred_at: occurredAt,
+    ...injuryTimePatterns,
     sif_flag: sifFlag,
     escalation_level: escalationLevel,
     escalation_reason: automated.escalationReason,
@@ -212,7 +285,9 @@ export async function PATCH(request: Request) {
   if (!id) return NextResponse.json({ error: "Incident id is required." }, { status: 400 });
   const existing = await auth.supabase
     .from("company_incidents")
-    .select("id, jobsite_id, status, severity, sif_flag, escalation_level, stop_work_status")
+    .select(
+      "id, jobsite_id, status, severity, sif_flag, escalation_level, stop_work_status, category, injury_type, body_part, exposure_event_type, injury_source"
+    )
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
     .maybeSingle();
@@ -261,16 +336,115 @@ export async function PATCH(request: Request) {
   if (nextStopWork && nextStopWork !== "normal" && !stopWorkReason && existing.data.stop_work_status === "normal") {
     return NextResponse.json({ error: "Stop work reason is required when activating stop work." }, { status: 400 });
   }
+  const ex = existing.data as {
+    category?: string | null;
+    injury_type?: string | null;
+    body_part?: string | null;
+    exposure_event_type?: string | null;
+    injury_source?: string | null;
+  };
+  const mergedCategory =
+    typeof body?.category === "string"
+      ? body.category.trim().toLowerCase()
+      : String(ex.category ?? "").trim().toLowerCase() || "incident";
+  const mergedInjuryType =
+    "injuryType" in (body ?? {}) ? normalizeInjuryType(body?.injuryType) : normalizeInjuryType(ex.injury_type);
+  const mergedBodyPart =
+    "bodyPart" in (body ?? {}) ? normalizeBodyPart(body?.bodyPart) : normalizeBodyPart(ex.body_part);
+  const mergedEventType =
+    "eventType" in (body ?? {})
+      ? normalizeExposureEventType(body?.eventType)
+      : normalizeExposureEventType(ex.exposure_event_type);
+  const mergedSource =
+    "source" in (body ?? {}) ? normalizeIncidentSource(body?.source) : normalizeIncidentSource(ex.injury_source);
+  if (mergedCategory === "incident") {
+    if (!mergedInjuryType || !mergedBodyPart || !mergedEventType || !mergedSource) {
+      return NextResponse.json(
+        {
+          error:
+            "Injury incidents require structured fields: injuryType, bodyPart, eventType, and source (equipment/object).",
+        },
+        { status: 400 }
+      );
+    }
+  }
+  const dartPatch: {
+    days_away_from_work?: number;
+    days_restricted?: number;
+    job_transfer?: boolean;
+  } = {};
+  if ("daysAwayFromWork" in (body ?? {})) {
+    const r = coerceNonNegativeInt(body?.daysAwayFromWork);
+    if (!r.ok) return NextResponse.json({ error: `daysAwayFromWork: ${r.message}` }, { status: 400 });
+    dartPatch.days_away_from_work = r.value;
+  }
+  if ("daysRestricted" in (body ?? {})) {
+    const r = coerceNonNegativeInt(body?.daysRestricted);
+    if (!r.ok) return NextResponse.json({ error: `daysRestricted: ${r.message}` }, { status: 400 });
+    dartPatch.days_restricted = r.value;
+  }
+  if ("jobTransfer" in (body ?? {})) {
+    if (typeof body?.jobTransfer !== "boolean") {
+      return NextResponse.json({ error: "jobTransfer must be a boolean." }, { status: 400 });
+    }
+    dartPatch.job_transfer = body.jobTransfer;
+  }
+  const objectivePatch: {
+    recordable?: boolean;
+    lost_time?: boolean;
+    fatality?: boolean;
+  } = {};
+  if ("recordable" in (body ?? {})) {
+    if (typeof body?.recordable !== "boolean") {
+      return NextResponse.json({ error: "recordable must be a boolean." }, { status: 400 });
+    }
+    objectivePatch.recordable = body.recordable;
+  }
+  if ("lostTime" in (body ?? {})) {
+    if (typeof body?.lostTime !== "boolean") {
+      return NextResponse.json({ error: "lostTime must be a boolean." }, { status: 400 });
+    }
+    objectivePatch.lost_time = body.lostTime;
+  }
+  if ("fatality" in (body ?? {})) {
+    if (typeof body?.fatality !== "boolean") {
+      return NextResponse.json({ error: "fatality must be a boolean." }, { status: 400 });
+    }
+    objectivePatch.fatality = body.fatality;
+  }
   const result = await auth.supabase.from("company_incidents").update({
     ...(typeof body?.title === "string" ? { title: body.title.trim() } : {}),
     ...(typeof body?.description === "string" ? { description: body.description.trim() || null } : {}),
     ...(nextStatus ? { status: nextStatus } : {}),
     ...(typeof body?.severity === "string" ? { severity } : {}),
     ...(typeof body?.category === "string" ? { category: body.category.trim().toLowerCase() } : {}),
+    ...("injuryType" in (body ?? {})
+      ? { injury_type: normalizeInjuryType((body as { injuryType?: unknown }).injuryType) }
+      : {}),
+    ...("bodyPart" in (body ?? {})
+      ? { body_part: normalizeBodyPart((body as { bodyPart?: unknown }).bodyPart) }
+      : {}),
+    ...("eventType" in (body ?? {})
+      ? {
+          exposure_event_type: normalizeExposureEventType(
+            (body as { eventType?: unknown }).eventType
+          ),
+        }
+      : {}),
+    ...("source" in (body ?? {})
+      ? { injury_source: normalizeIncidentSource((body as { source?: unknown }).source) }
+      : {}),
+    ...objectivePatch,
+    ...dartPatch,
     ...(typeof body?.ownerUserId === "string" ? { owner_user_id: body.ownerUserId.trim() || null } : {}),
     ...(typeof body?.jobsiteId === "string" ? { jobsite_id: body.jobsiteId.trim() || null } : {}),
     ...(typeof body?.dueAt === "string" ? { due_at: body.dueAt.trim() || null } : {}),
-    ...(typeof body?.occurredAt === "string" ? { occurred_at: body.occurredAt.trim() || null } : {}),
+    ...(typeof body?.occurredAt === "string"
+      ? (() => {
+          const o = body.occurredAt.trim() || null;
+          return { occurred_at: o, ...injuryTimePatternFromOccurredAt(o) };
+        })()
+      : {}),
     ...(typeof body?.sifFlag === "boolean" ? { sif_flag: sifFlag } : {}),
     ...(nextEscalation ? { escalation_level: nextEscalation } : {}),
     ...(typeof automated.escalationReason !== "undefined"

@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
+import { normalizeSorHazardCategoryCode } from "@/lib/incidents/sorHazardCategory";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { computeSorHash } from "@/lib/sor/hash";
+import { COMPANY_SOR_RECORD_SELECT } from "@/lib/sor/recordSelect";
 
 export const runtime = "nodejs";
 
-const SOR_SELECT =
-  "id, company_id, date, project, location, trade, category, subcategory, description, severity, created_at, created_by, updated_at, updated_by, status, version_number, previous_version_id, record_hash, previous_hash, change_reason, is_deleted";
+const SOR_SELECT = COMPANY_SOR_RECORD_SELECT;
 
 type SorUpdatePayload = {
   date?: string;
@@ -14,6 +15,7 @@ type SorUpdatePayload = {
   location?: string;
   trade?: string;
   category?: string;
+  hazardCategoryCode?: string | null;
   subcategory?: string;
   description?: string;
   severity?: string;
@@ -72,12 +74,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const body = (await request.json().catch(() => null)) as SorUpdatePayload | null;
+  if (body && "hazardCategoryCode" in body && body.hazardCategoryCode !== null && body.hazardCategoryCode !== "") {
+    const c = normalizeSorHazardCategoryCode(body.hazardCategoryCode);
+    if (!c) {
+      return NextResponse.json({ error: "hazardCategoryCode is not a valid structured hazard class." }, { status: 400 });
+    }
+  }
   const updatePayload = {
     ...(typeof body?.date === "string" ? { date: body.date.trim() } : {}),
     ...(typeof body?.project === "string" ? { project: body.project.trim() } : {}),
     ...(typeof body?.location === "string" ? { location: body.location.trim() } : {}),
     ...(typeof body?.trade === "string" ? { trade: body.trade.trim() } : {}),
     ...(typeof body?.category === "string" ? { category: body.category.trim() } : {}),
+    ...(body && "hazardCategoryCode" in body
+      ? {
+          hazard_category_code:
+            body.hazardCategoryCode === null || body.hazardCategoryCode === ""
+              ? null
+              : normalizeSorHazardCategoryCode(body.hazardCategoryCode),
+        }
+      : {}),
     ...(typeof body?.subcategory === "string" ? { subcategory: body.subcategory.trim() || null } : {}),
     ...(typeof body?.description === "string" ? { description: body.description.trim() } : {}),
     ...(typeof body?.severity === "string" ? { severity: body.severity.trim().toLowerCase() } : {}),

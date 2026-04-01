@@ -228,24 +228,19 @@ function seedProvenance(partial: {
   };
 }
 
-const BASE_TRADES = ["General Contractor", ...DEFAULT_TRADE_FORECASTS.map((t) => t.trade)];
-const KNOWN_TRADE_LIBRARY = [
-  "Carpentry",
-  "Masonry",
-  "Drywall",
-  "Painting",
-  "Plumbing",
-  "HVAC",
-  "Earthworks",
-  "Scaffolding",
-  "Demolition",
-  "Glazing",
-  "Roadwork",
-  "Landscaping",
-];
-
 function uniqueSortedTrades(rows: NormalizedLiveSignalRow[]): string[] {
   return [...new Set(rows.map((r) => r.tradeLabel).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Trade filter chips: only labels that appear in normalized safety signals and/or seed workbook rows.
+ * No static construction-trade library — keeps the UI aligned with actual data.
+ */
+function availableTradesFromData(liveTradeLabels: string[], seedData: SeedRow[]): string[] {
+  const fromSeed = seedData.map((r) => inferTradeFromSeedRow(r)).filter(Boolean);
+  const merged = [...new Set([...liveTradeLabels, ...fromSeed])].sort((a, b) => a.localeCompare(b));
+  if (merged.length > 0) return merged;
+  return ["General Contractor"];
 }
 
 function formatMonthKey(date: Date): string {
@@ -305,13 +300,6 @@ function buildFutureTrendFromMonthly(monthly: Map<string, number>, horizonMonths
     });
   }
   return trend;
-}
-
-function buildTradeUniverse(liveTrades: string[], seedData: SeedRow[]): string[] {
-  const fromSeed = seedData.map((r) => inferTradeFromSeedRow(r));
-  return [...new Set([...BASE_TRADES, ...KNOWN_TRADE_LIBRARY, ...fromSeed, ...liveTrades].filter(Boolean))].sort(
-    (a, b) => a.localeCompare(b)
-  );
 }
 
 function parseMonthFilter(month?: string): { start: Date; end: Date } | null {
@@ -463,7 +451,7 @@ export async function getInjuryWeatherDashboardData(filters?: {
       recommendedControls: fallback.recommendedControls,
       monthlyTrainingRecommendations: fallback.monthlyTrainingRecommendations,
       availableMonths,
-      availableTrades: buildTradeUniverse(fallback.availableTrades, workbookRows),
+      availableTrades: availableTradesFromData(fallback.availableTrades, workbookRows),
       location: fallback.location,
       signalProvenance: fallback.signalProvenance,
       behaviorSignals: fallback.behaviorSignals,
@@ -505,7 +493,7 @@ export async function getInjuryWeatherDashboardData(filters?: {
     trendFallback: trendFromSeed,
   });
   live.availableMonths = build90DayOutlookMonths(historyTrend.availableMonths);
-  live.availableTrades = buildTradeUniverse(historyTrend.availableTrades, workbookRows);
+  live.availableTrades = availableTradesFromData(historyTrend.availableTrades, workbookRows);
   live.summary = {
     ...live.summary,
     dataConfidence: computeDataConfidenceFromMetrics(
@@ -533,7 +521,7 @@ export async function refreshInjuryWeatherDailySnapshot() {
     trendFallback: trendFromSeed,
   });
   payload.availableMonths = build90DayOutlookMonths(payload.availableMonths);
-  payload.availableTrades = buildTradeUniverse(payload.availableTrades, seedRows());
+  payload.availableTrades = availableTradesFromData(payload.availableTrades, seedRows());
   payload.summary = {
     ...payload.summary,
     dataConfidence: computeDataConfidenceFromMetrics(
@@ -578,7 +566,11 @@ async function fetchLiveSignals(
   let actionQuery = admin
     .from("company_corrective_actions")
     .select("category, severity, created_at, status");
-  let incidentQuery = admin.from("company_incidents").select("category, severity, created_at");
+  let incidentQuery = admin
+    .from("company_incidents")
+    .select(
+      "category, severity, created_at, injury_month, injury_season, injury_day_of_week, injury_time_of_day"
+    );
   if (range) {
     const start = range.start.toISOString();
     const end = range.end.toISOString();
@@ -623,6 +615,12 @@ async function fetchLiveSignals(
   const incidentRows = (incidentResult.error ? [] : incidentResult.data ?? []).map((r) => {
     const categoryLabel = String(r.category ?? "Incident");
     const resolved = resolveTradeForRow({ source: "incident", categoryLabel });
+    const row = r as {
+      injury_month?: number | null;
+      injury_season?: string | null;
+      injury_day_of_week?: string | null;
+      injury_time_of_day?: string | null;
+    };
     return {
       tradeId: resolved.tradeId,
       tradeLabel: resolved.tradeLabel,
@@ -632,6 +630,10 @@ async function fetchLiveSignals(
       created_at: String(r.created_at ?? ""),
       source: "incident" as const,
       usedCategoryInference: resolved.usedCategoryInference,
+      injuryMonth: row.injury_month ?? null,
+      injurySeason: row.injury_season ?? null,
+      injuryDayOfWeek: row.injury_day_of_week ?? null,
+      injuryTimeOfDay: row.injury_time_of_day ?? null,
     } satisfies NormalizedLiveSignalRow;
   });
   return [...sorRows, ...actionRows, ...incidentRows];

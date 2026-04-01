@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation";
 import { LeadingIndicatorsPanel } from "@/components/injury-weather/LeadingIndicatorsPanel";
 import { InjuryRiskTreePanel } from "@/components/injury-weather/InjuryRiskTreePanel";
 import { US_STATE_OPTIONS } from "@/lib/injuryWeather/locationWeather";
-import { riskBandMeaningForDataConfidence } from "@/lib/injuryWeather/dataConfidence";
+import {
+  forecastModeDisplayLabel,
+  riskBandMeaningForDataConfidence,
+} from "@/lib/injuryWeather/dataConfidence";
+import { fallbackDashboardBlocksFromData } from "@/lib/injuryWeather/ai";
 import { INJURY_WEATHER_ASSUMPTIONS } from "@/lib/injuryWeather/types";
 import type {
   InjuryWeatherAiInsights,
@@ -119,6 +123,10 @@ export function InjuryWeatherDashboard() {
   const [reportRun, setReportRun] = useState(0);
   const [refreshTick, setRefreshTick] = useState(0);
   const bypassCacheOnce = useRef(false);
+  /** Trade-chip toggles set this so the first request skips OpenAI and the UI can render immediately. */
+  const deferAiAfterTradeToggleRef = useRef(false);
+  /** Drop stale background AI responses when the user changes filters again. */
+  const dashboardFetchSeqRef = useRef(0);
   const [project, setProject] = useState("All Projects");
   const [data, setData] = useState<InjuryWeatherDashboardData | null>(null);
   const [error, setError] = useState("");
@@ -139,58 +147,101 @@ export function InjuryWeatherDashboard() {
   }, []);
 
   useEffect(() => {
+    const fetchSeq = ++dashboardFetchSeqRef.current;
     void (async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      if (!token) {
-        router.replace("/login");
-        return;
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) {
+          router.replace("/login");
+          return;
+        }
+        const meRes = await fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } });
+        const meData = (await meRes.json().catch(() => null)) as { user?: { role?: string } } | null;
+        if (!meRes.ok) {
+          router.replace("/login");
+          return;
+        }
+        if (String(meData?.user?.role ?? "").toLowerCase() !== "super_admin") {
+          router.replace("/dashboard");
+          return;
+        }
+
+        const buildQs = (includeAi: boolean) => {
+          const qs = new URLSearchParams();
+          if (appliedMonth) qs.set("month", appliedMonth);
+          if (appliedTrades.length > 0) qs.set("trades", appliedTrades.join(","));
+          if (appliedWorkforceTotal.trim()) qs.set("workforceTotal", appliedWorkforceTotal.trim());
+          if (appliedHoursWorked.trim()) qs.set("hoursWorked", appliedHoursWorked.trim());
+          if (appliedWorkSevenDaysPerWeek) qs.set("workSevenDaysPerWeek", "1");
+          if (appliedHoursPerDaySchedule.trim()) qs.set("hoursPerDay", appliedHoursPerDaySchedule.trim());
+          if (appliedStateCode.trim()) qs.set("state", appliedStateCode.trim());
+          qs.set("includeAi", includeAi ? "true" : "false");
+          if (bypassCacheOnce.current) {
+            qs.set("refresh", "1");
+            bypassCacheOnce.current = false;
+          }
+          return qs;
+        };
+
+        const deferAiForSpeed = deferAiAfterTradeToggleRef.current;
+        deferAiAfterTradeToggleRef.current = false;
+
+        const res = await fetch(`/api/superadmin/injury-weather?${buildQs(!deferAiForSpeed).toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        const payload = (await res.json().catch(() => null)) as
+          | (InjuryWeatherDashboardData & { aiInsights?: InjuryWeatherAiInsights })
+          | { error?: string }
+          | null;
+        if (fetchSeq !== dashboardFetchSeqRef.current) return;
+
+        if (!res.ok || !payload || "error" in payload) {
+          setError((payload as { error?: string } | null)?.error || "Failed to load Injury Weather dashboard.");
+        } else {
+          const typed = payload as InjuryWeatherDashboardData & { aiInsights?: InjuryWeatherAiInsights };
+          setData(typed);
+          if (deferAiForSpeed) {
+            setAiInsights(null);
+          } else {
+            setAiInsights(typed.aiInsights ?? null);
+          }
+          if (!month) {
+            const months = typed.availableMonths;
+            const latest = months.length > 0 ? months[months.length - 1] : typed.summary.month;
+            setMonth(latest);
+            setAppliedMonth(latest);
+          } else if (!appliedMonth) setAppliedMonth(month);
+
+          if (deferAiForSpeed) {
+            const qsAi = buildQs(true);
+            void (async () => {
+              try {
+                const r = await fetch(`/api/superadmin/injury-weather?${qsAi.toString()}`, {
+                  headers: { Authorization: `Bearer ${token}` },
+                  cache: "no-store",
+                });
+                const body = (await r.json().catch(() => null)) as
+                  | (InjuryWeatherDashboardData & { aiInsights?: InjuryWeatherAiInsights })
+                  | null;
+                if (fetchSeq !== dashboardFetchSeqRef.current) return;
+                if (r.ok && body && !("error" in body)) {
+                  setAiInsights((body as { aiInsights?: InjuryWeatherAiInsights }).aiInsights ?? null);
+                }
+              } catch {
+                if (fetchSeq === dashboardFetchSeqRef.current) setAiInsights(null);
+              }
+            })();
+          }
+        }
+      } catch {
+        setError("Failed to load Injury Weather dashboard.");
+      } finally {
+        if (fetchSeq === dashboardFetchSeqRef.current) {
+          setLoading(false);
+        }
       }
-      const meRes = await fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } });
-      const meData = (await meRes.json().catch(() => null)) as { user?: { role?: string } } | null;
-      if (!meRes.ok) {
-        router.replace("/login");
-        return;
-      }
-      if (String(meData?.user?.role ?? "").toLowerCase() !== "super_admin") {
-        router.replace("/dashboard");
-        return;
-      }
-      const qs = new URLSearchParams();
-      if (appliedMonth) qs.set("month", appliedMonth);
-      if (appliedTrades.length > 0) qs.set("trades", appliedTrades.join(","));
-      if (appliedWorkforceTotal.trim()) qs.set("workforceTotal", appliedWorkforceTotal.trim());
-      if (appliedHoursWorked.trim()) qs.set("hoursWorked", appliedHoursWorked.trim());
-      if (appliedWorkSevenDaysPerWeek) qs.set("workSevenDaysPerWeek", "1");
-      if (appliedHoursPerDaySchedule.trim()) qs.set("hoursPerDay", appliedHoursPerDaySchedule.trim());
-      if (appliedStateCode.trim()) qs.set("state", appliedStateCode.trim());
-      qs.set("includeAi", "true");
-      if (bypassCacheOnce.current) {
-        qs.set("refresh", "1");
-        bypassCacheOnce.current = false;
-      }
-      const res = await fetch(`/api/superadmin/injury-weather?${qs.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      const payload = (await res.json().catch(() => null)) as
-        | (InjuryWeatherDashboardData & { aiInsights?: InjuryWeatherAiInsights })
-        | { error?: string }
-        | null;
-      if (!res.ok || !payload || "error" in payload) {
-        setError((payload as { error?: string } | null)?.error || "Failed to load Injury Weather dashboard.");
-      } else {
-        const typed = payload as InjuryWeatherDashboardData & { aiInsights?: InjuryWeatherAiInsights };
-        setData(typed);
-        setAiInsights(typed.aiInsights ?? null);
-        if (!month) {
-          const months = typed.availableMonths;
-          const latest = months.length > 0 ? months[months.length - 1] : typed.summary.month;
-          setMonth(latest);
-          setAppliedMonth(latest);
-        } else if (!appliedMonth) setAppliedMonth(month);
-      }
-      setLoading(false);
     })();
   }, [
     router,
@@ -211,10 +262,11 @@ export function InjuryWeatherDashboard() {
     [data]
   );
   const toggleTrade = (tradeName: string) => {
+    deferAiAfterTradeToggleRef.current = true;
     setSelectedTrades((prev) => {
       const next = prev.includes(tradeName) ? prev.filter((t) => t !== tradeName) : [...prev, tradeName];
-      // Keep API + AI in sync with chips: appliedTrades previously only updated on "Generate Report",
-      // so the dashboard (including AI Safety Advisor) stayed on unfiltered data.
+      // Keep API in sync with chips. OpenAI is loaded in a second request so the page does not sit on
+      // "Loading dashboard..." for a full model round-trip on every chip click.
       setAppliedTrades(next);
       setLoading(true);
       setRefreshTick((n) => n + 1);
@@ -260,6 +312,12 @@ export function InjuryWeatherDashboard() {
     const fallback = source.slice(0, 4);
     return fallback.length > 0 ? fallback : source;
   }, [data, appliedTrades]);
+
+  const priorityThemesRows = useMemo(() => {
+    if (!data) return [];
+    if (aiInsights?.priorityThemes?.length === 3) return aiInsights.priorityThemes;
+    return fallbackDashboardBlocksFromData(data).priorityThemes;
+  }, [data, aiInsights]);
 
   const exportReportJson = () => {
     if (!data) return;
@@ -338,7 +396,8 @@ export function InjuryWeatherDashboard() {
             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Overall risk level</p>
             <p className="mt-0.5 text-[10px] text-slate-500">
               From structural score {(data.summary.structuralRiskScore ?? data.summary.overallRiskScore ?? 0).toFixed(1)} ·
-              predicted risk {data.summary.predictedRisk.toFixed(2)} · v{data.summary.riskModelVersion ?? "—"}
+              predicted risk {data.summary.predictedRisk.toFixed(2)} · v{data.summary.riskModelVersion ?? "—"} · refreshes daily,
+              not real-time
             </p>
             <div className="mt-2">
               <span className={`inline-flex rounded-md border px-4 py-1.5 text-2xl font-black ${riskTone(data.summary.overallRiskLevel)}`}>
@@ -352,18 +411,19 @@ export function InjuryWeatherDashboard() {
             </p>
             <p className="mt-1 text-[10px] text-slate-500">
               Forecast confidence {(data.summary.forecastConfidenceScore ?? 0.8).toFixed(1)} ·{" "}
-              {(data.summary.forecastMode ?? "live_adjusted") === "baseline_only" ? "baseline_only" : "live_adjusted"}
+              {forecastModeDisplayLabel(data.summary.forecastMode)}
             </p>
           </div>
         </div>
         {(data.summary.forecastMode ?? "live_adjusted") === "baseline_only" ? (
           <div className="border-b border-amber-500/45 bg-amber-950/50 px-5 py-3 text-center text-sm font-medium leading-snug text-amber-100/95">
-            No recent observations — forecast based on historical patterns and selected trades.
+            No recent safety signals in window — forecast based on historical patterns and selected trades.
           </div>
         ) : null}
         <p className="border-b border-slate-600/40 bg-black/30 px-5 py-2 text-left text-xs leading-relaxed text-slate-400">
           <span className="font-semibold text-slate-300">Leading-indicator model:</span> Present and future risk scores are
-          estimated from historical SOR, corrective actions, and incidents when the target month has no or limited live data; the
+          estimated from historical SOR, corrective actions, and incidents when the target month has no or limited signal data in
+          the latest snapshot; the
           exposure number blends likelihood with workforce or trend volume; the % index maps structural risk × trade/site climate.
           These are prioritization signals, not validated injury predictions, until compared to your incident history over time. AI
           suggestions support training and controls—they do not change the math instantly.
@@ -466,7 +526,11 @@ export function InjuryWeatherDashboard() {
           )}
         </p>
         <div className="space-y-3 border-t border-slate-600/40 bg-black/20 px-5 py-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Trades Working This Month</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Trades in your safety data</p>
+          <p className="text-[11px] text-slate-500">
+            Chips list trade labels that appear in SOR, corrective actions, and incidents for this workspace (plus seed workbook
+            trades if loaded). No static trade catalog.
+          </p>
           <div className="flex flex-wrap gap-2">
             {trades.map((t) => {
               const selected = selectedTrades.includes(t);
@@ -532,25 +596,6 @@ export function InjuryWeatherDashboard() {
         <p className="mt-1 text-xs leading-relaxed text-amber-100/85">{INJURY_WEATHER_ASSUMPTIONS}</p>
         <p className="mt-2 text-xs text-amber-200/80">{provenanceLine}</p>
       </section>
-
-      <InjuryRiskTreePanel />
-
-      <section className="rounded-2xl border border-slate-700 bg-slate-900/80 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Monthly Forecast Update</p>
-            <p className="mt-1 text-sm text-slate-300">
-              Updated for {data.summary.month}. Estimated exposure (projected case index, next ~30 days):
-            </p>
-          </div>
-          <p className="text-3xl font-black text-rose-300">{data.summary.predictedInjuriesNextMonth}</p>
-        </div>
-        <p className="mt-2 text-xs text-slate-500">
-          Last updated: {new Date(data.summary.lastUpdatedAt).toLocaleString()}
-        </p>
-      </section>
-
-      <LeadingIndicatorsPanel data={data} />
 
       {aiInsights ? (
         <section className="rounded-2xl border border-sky-700/40 bg-slate-900/80 p-5">
@@ -643,17 +688,14 @@ export function InjuryWeatherDashboard() {
           <div className="rounded-2xl border border-slate-600/70 bg-slate-900/80 p-5">
             <h3 className="text-lg font-bold">Priority themes</h3>
             <p className="mt-1 text-xs text-slate-500">
-              {aiInsights
+              {aiInsights?.priorityThemes?.length === 3
                 ? "Defined by the AI Safety Advisor from structured signals—not verified open items or CAPA due dates. Confirm against your SOR, CAPA, and incident system."
-                : "Sample layout when AI is off—use SOR, CAPA, and incident lists for real items."}
+                : "Built from your top trade/category signals (deterministic). Not verified open items or CAPA due dates—confirm in your safety system."}
             </p>
             <div className="mt-3 space-y-2">
-              {(aiInsights?.priorityThemes?.length
-                ? aiInsights.priorityThemes
-                : data.alerts.map((a) => ({ title: a.title, dueLabel: a.dueLabel ?? "", severity: a.severity }))
-              ).map((item, idx) => (
+              {priorityThemesRows.map((item, idx) => (
                 <div
-                  key={aiInsights?.priorityThemes?.length ? `${item.title}-${idx}` : (data.alerts[idx]?.id ?? idx)}
+                  key={`${item.title}-${idx}`}
                   className="rounded-xl border border-slate-700 bg-slate-950/60 p-3"
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -708,6 +750,25 @@ export function InjuryWeatherDashboard() {
         </div>
       </section>
 
+      <div className="space-y-5 border-t border-slate-700/60 pt-6">
+        <InjuryRiskTreePanel />
+        <section className="rounded-2xl border border-slate-700 bg-slate-900/80 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Monthly Forecast Update</p>
+              <p className="mt-1 text-sm text-slate-300">
+                Updated for {data.summary.month}. Estimated exposure (projected case index, next ~30 days):
+              </p>
+            </div>
+            <p className="text-3xl font-black text-rose-300">{data.summary.predictedInjuriesNextMonth}</p>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Last updated: {new Date(data.summary.lastUpdatedAt).toLocaleString()}
+          </p>
+        </section>
+        <LeadingIndicatorsPanel data={data} />
+      </div>
+
       {numberBreakdownOpen ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -743,11 +804,11 @@ export function InjuryWeatherDashboard() {
                   The category values you see here—for example <strong className="text-slate-100">58</strong>,{" "}
                   <strong className="text-slate-100">27</strong>, and <strong className="text-slate-100">12</strong> on the Roofing
                   illustration—are <strong className="text-amber-200/90">static demo numbers</strong> from the dashboard layout. They
-                  appear when there are no matching live safety signals for the current filters, or when the app is using offline/seed
+                  appear when there are no matching safety signals for the current filters, or when the app is using offline/seed
                   data.
                 </p>
                 <p className="text-xs text-slate-500">
-                  Generate a report with real month/trade filters (and live DB access) to replace these with counts derived from your SOR,
+                  Generate a report with real month/trade filters (and database access) to replace these with counts derived from your SOR,
                   corrective actions, and incidents.
                 </p>
               </div>
@@ -757,7 +818,7 @@ export function InjuryWeatherDashboard() {
                   The <strong className="text-slate-100">large numbers on each card</strong> are an{" "}
                   <strong>allocated case-style index</strong>: the headline projected case estimate (
                   <strong className="text-slate-100">{data.summary.predictedInjuriesNextMonth}</strong>) is split across trades using your
-                  signal mix and trade weather weights, then split across hazard categories by how many raw observations fell in each
+                  signal mix and trade weather weights, then split across hazard categories by how many raw SOR/action/incident rows fell in each
                   category.
                 </p>
                 {numberBreakdownOpen.tradeCaseAllocation != null ? (

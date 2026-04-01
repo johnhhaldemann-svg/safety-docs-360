@@ -1,4 +1,4 @@
-import type { DataConfidenceLevel } from "@/lib/injuryWeather/types";
+import type { DataConfidenceLevel, InjuryWeatherForecastMode } from "@/lib/injuryWeather/types";
 
 /**
  * Data-density rubric (aligned with `computeConfidenceRubric` in `ai.ts`).
@@ -24,8 +24,18 @@ export function riskBandMeaningForDataConfidence(confidence: DataConfidenceLevel
     case "LOW":
       return "Estimate based on baseline only";
     case "HIGH":
-      return "Confirmed by live data";
+      return "Strong support from latest daily snapshot";
     default:
-      return "Partially supported by live signals";
+      return "Partially supported by latest daily snapshot";
   }
+}
+
+/**
+ * User-facing forecast path label. Internal API may still use `live_adjusted` — this is not a real-time feed;
+ * safety signals are refreshed on a daily schedule.
+ */
+export function forecastModeDisplayLabel(mode: InjuryWeatherForecastMode | undefined | null): string {
+  const m = mode ?? "live_adjusted";
+  if (m === "baseline_only") return "Baseline only (no signals in current window)";
+  return "Daily snapshot (safety signals in window)";
 }

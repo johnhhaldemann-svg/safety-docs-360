@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { getIndustryBenchmarkRates } from "@/lib/benchmarking/industryBenchmarkDataset";
+import { incidentRatePer200kHours } from "@/lib/benchmarking/incidentRate";
+import { injurySeverityScore } from "@/lib/incidents/injurySeverityScore";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 
@@ -21,6 +24,21 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const days = Number(searchParams.get("days") ?? "30");
   const since = new Date(Date.now() - Math.max(1, days) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const companyBenchmarkRes = await auth.supabase
+    .from("companies")
+    .select("industry_code, industry_injury_rate, trade_injury_rate, hours_worked")
+    .eq("id", companyScope.companyId)
+    .maybeSingle();
+  const companyBenchmarkRow =
+    !companyBenchmarkRes.error && companyBenchmarkRes.data
+      ? (companyBenchmarkRes.data as {
+          industry_code?: string | null;
+          industry_injury_rate?: number | null;
+          trade_injury_rate?: number | null;
+          hours_worked?: number | null;
+        })
+      : null;
+  const hoursWorked = companyBenchmarkRow?.hours_worked ?? null;
   const result = await auth.supabase
     .from("company_analytics_snapshots")
     .select("*")
@@ -33,7 +51,7 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ error: result.error.message || "Failed to load analytics summary." }, { status: 500 });
   }
-  const [actionsRes, incidentsRes, permitsRes, dapsRes, activitiesRes, jobsitesRes] = await Promise.all([
+  const [actionsRes, incidentsRes, permitsRes, dapsRes, activitiesRes, jobsitesRes, sorRes] = await Promise.all([
     auth.supabase
       .from("company_corrective_actions")
       .select(
@@ -43,7 +61,9 @@ export async function GET(request: Request) {
       .gte("created_at", since),
     auth.supabase
       .from("company_incidents")
-      .select("id, category, status, severity, sif_flag, escalation_level, created_at, jobsite_id")
+      .select(
+        "id, category, status, severity, sif_flag, escalation_level, created_at, jobsite_id, recordable"
+      )
       .eq("company_id", companyScope.companyId)
       .gte("created_at", since),
     auth.supabase
@@ -65,6 +85,12 @@ export async function GET(request: Request) {
       .from("company_jobsites")
       .select("id, status")
       .eq("company_id", companyScope.companyId),
+    auth.supabase
+      .from("company_sor_records")
+      .select("id")
+      .eq("company_id", companyScope.companyId)
+      .eq("is_deleted", false)
+      .gte("created_at", since),
   ]);
   if (actionsRes.error) return NextResponse.json({ error: actionsRes.error.message || "Failed to load corrective actions." }, { status: 500 });
   if (incidentsRes.error) return NextResponse.json({ error: incidentsRes.error.message || "Failed to load incidents." }, { status: 500 });
@@ -79,6 +105,21 @@ export async function GET(request: Request) {
   const daps = dapsRes.data ?? [];
   const activities = activitiesRes.data ?? [];
   const jobsites = jobsitesRes.data ?? [];
+  const sorRows = sorRes.data ?? [];
+
+  const incidentsForRate = incidents.filter((row) => {
+    if (String(row.category ?? "").toLowerCase() !== "incident") return false;
+    if ((row as { recordable?: boolean | null }).recordable === false) return false;
+    return true;
+  }).length;
+  const benchmarking = {
+    industryCode: companyBenchmarkRow?.industry_code ?? null,
+    industryInjuryRate: companyBenchmarkRow?.industry_injury_rate ?? null,
+    tradeInjuryRate: companyBenchmarkRow?.trade_injury_rate ?? null,
+    hoursWorked,
+    incidentsForRate,
+    incidentRate: incidentRatePer200kHours(incidentsForRate, hoursWorked),
+  };
 
   const hazardCounts = new Map<string, number>();
   const actionsByDay = new Map<string, number>();
@@ -249,6 +290,47 @@ export async function GET(request: Request) {
     daps: daps.length,
   };
 
+  const injuryIncidentsInWindow = incidents.filter(
+    (row) => String(row.category ?? "").toLowerCase() === "incident"
+  ).length;
+  const sorCount = sorRows.length;
+  const sorToInjuryRatio = sorCount > 0 ? injuryIncidentsInWindow / sorCount : null;
+  const leadingSignals = observationBreakdown.nearMiss + observationBreakdown.hazard;
+  const observationToInjuryConversionRate =
+    leadingSignals + injuryIncidentsInWindow > 0
+      ? injuryIncidentsInWindow / (leadingSignals + injuryIncidentsInWindow)
+      : null;
+  let severitySum = 0;
+  let severityN = 0;
+  for (const row of incidents) {
+    if (String(row.category ?? "").toLowerCase() !== "incident") continue;
+    const r = row as {
+      days_away_from_work?: number | null;
+      days_restricted?: number | null;
+      lost_time?: boolean | null;
+      fatality?: boolean | null;
+    };
+    severitySum += injurySeverityScore({
+      daysAwayFromWork: Number(r.days_away_from_work ?? 0),
+      daysRestricted: Number(r.days_restricted ?? 0),
+      lostTime: Boolean(r.lost_time),
+      fatality: Boolean(r.fatality),
+    });
+    severityN += 1;
+  }
+  const injuryAnalytics = {
+    averageSeverityScore: severityN > 0 ? Number((severitySum / severityN).toFixed(2)) : 0,
+    severitySampleSize: severityN,
+    sorToInjuryRatio: sorToInjuryRatio != null ? Number(sorToInjuryRatio.toFixed(4)) : null,
+    sorCount,
+    injuryIncidentCount: injuryIncidentsInWindow,
+    observationToInjuryConversionRate:
+      observationToInjuryConversionRate != null
+        ? Number((observationToInjuryConversionRate * 100).toFixed(2))
+        : null,
+    injuryPredictionModelUrl: "/api/company/injury-analytics/model",
+  };
+
   function severityRowIndex(severity: string | null | undefined) {
     const v = String(severity ?? "").toLowerCase();
     if (v === "critical") return 0;
@@ -328,6 +410,8 @@ export async function GET(request: Request) {
         cells: riskHeatmapCells,
         max: heatMax,
       },
+      benchmarking,
+      injuryAnalytics,
       safetyLeadership: {
         trendOfObservationsByWeek: Array.from(weeklyObservations.entries())
           .sort((a, b) => a[0].localeCompare(b[0]))

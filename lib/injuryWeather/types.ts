@@ -27,12 +27,13 @@ export type WorkScheduleInputs = {
  * - `increasedIncidentRiskPercent`: next-~30-day **likelihood index** (structural × weather); not a calibrated probability.
  * - `predictedInjuriesNextMonth`: **projected case estimate** for prioritization; not equated with structural score.
  */
-/** How strongly live signal density supports the headline estimate (not the same axis as `overallRiskLevel`). */
+/** How strongly signal density in the latest snapshot supports the headline estimate (not the same axis as `overallRiskLevel`). */
 export type DataConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
 
 /**
- * `baseline_only` — no live signal rows in scope: `predictedRisk` = baseline × monthly × trade only.
- * `live_adjusted` — at least one row: adds behavior (incl. schedule) and weather to the product.
+ * `baseline_only` — no signal rows in scope: `predictedRisk` = baseline × monthly × trade only.
+ * `live_adjusted` — at least one row in the daily snapshot: adds behavior (incl. schedule) and weather to the product.
+ * (Name is historical; UI should use `forecastModeDisplayLabel` — data is refreshed on a schedule, not a live stream.)
  */
 export type InjuryWeatherForecastMode = "baseline_only" | "live_adjusted";
 
@@ -110,6 +111,11 @@ export type NormalizedLiveSignalRow = {
   source: "sor" | "corrective_action" | "incident";
   status?: "open" | "closed";
   usedCategoryInference?: boolean;
+  /** Incident rows: derived from `occurred_at` UTC when present. */
+  injuryMonth?: number | null;
+  injurySeason?: string | null;
+  injuryDayOfWeek?: string | null;
+  injuryTimeOfDay?: string | null;
 };
 
 /** Defensible breakdown for exports, UI, and AI grounding — numeric score is model-authored, not LLM. */
@@ -295,7 +301,7 @@ export type InjuryWeatherSignalProvenance = {
 };
 
 export const INJURY_WEATHER_ASSUMPTIONS =
-  "Forecasts for the month you select use historical safety signals when that month has no or sparse live data, and future months use past patterns until real observations exist. The model blends SOR, corrective actions, and incidents with optional workforce or hours normalization and trade- and state-aware weather exposure (not live weather station data). Outputs are not validated injury predictions until compared to your incident history. Use for prioritization and discussion, not as a compliance guarantee.";
+  "Forecasts for the month you select use historical safety signals when that month has no or sparse data in the latest daily snapshot, and future months use past patterns until new snapshot data exists. The model blends SOR, corrective actions, and incidents with optional workforce or hours normalization and trade- and state-aware weather exposure (not live weather station feeds). Signal inputs refresh on a schedule (e.g. daily), not in real time. Outputs are not validated injury predictions until compared to your incident history. Use for prioritization and discussion, not as a compliance guarantee.";
 
 export type InjuryWeatherDashboardData = {
   summary: DashboardSummary;
