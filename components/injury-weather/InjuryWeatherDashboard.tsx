@@ -641,26 +641,42 @@ export function InjuryWeatherDashboard() {
       <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-600/70 bg-slate-900/80 p-5">
-            <h3 className="text-lg font-bold">Illustrative priority themes</h3>
+            <h3 className="text-lg font-bold">Priority themes</h3>
             <p className="mt-1 text-xs text-slate-500">
-              Sample focus areas for the dashboard layout—not logged open items or verified triggers. Use your SOR, CAPA, and incident lists for real items.
+              {aiInsights
+                ? "Defined by the AI Safety Advisor from structured signals—not verified open items or CAPA due dates. Confirm against your SOR, CAPA, and incident system."
+                : "Sample layout when AI is off—use SOR, CAPA, and incident lists for real items."}
             </p>
             <div className="mt-3 space-y-2">
-              {data.alerts.map((a) => (
-                <div key={a.id} className="rounded-xl border border-slate-700 bg-slate-950/60 p-3">
+              {(aiInsights?.priorityThemes?.length
+                ? aiInsights.priorityThemes
+                : data.alerts.map((a) => ({ title: a.title, dueLabel: a.dueLabel ?? "", severity: a.severity }))
+              ).map((item, idx) => (
+                <div
+                  key={aiInsights?.priorityThemes?.length ? `${item.title}-${idx}` : (data.alerts[idx]?.id ?? idx)}
+                  className="rounded-xl border border-slate-700 bg-slate-950/60 p-3"
+                >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold">{a.title}</p>
-                    <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${riskTone(a.severity)}`}>{a.severity}</span>
+                    <p className="text-sm font-semibold">{item.title}</p>
+                    <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${riskTone(item.severity)}`}>
+                      {item.severity}
+                    </span>
                   </div>
-                  {a.dueLabel ? <p className="mt-1 text-xs text-slate-400">{a.dueLabel}</p> : null}
+                  {item.dueLabel ? <p className="mt-1 text-xs text-slate-400">{item.dueLabel}</p> : null}
                 </div>
               ))}
             </div>
           </div>
           <div className="rounded-2xl border border-slate-600/70 bg-slate-900/80 p-5">
             <h3 className="text-lg font-bold">Training To Implement ({data.summary.month})</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              {aiInsights ? "AI-generated from current trade and category emphasis." : "Deterministic suggestions from signal mix."}
+            </p>
             <ul className="mt-3 space-y-2">
-              {data.monthlyTrainingRecommendations.map((t) => (
+              {(aiInsights?.monthlyTrainingRecommendations?.length
+                ? aiInsights.monthlyTrainingRecommendations
+                : data.monthlyTrainingRecommendations
+              ).map((t) => (
                 <li key={t} className="rounded-xl border border-indigo-600/40 bg-indigo-950/25 px-3 py-2 text-sm text-indigo-100">
                   {t}
                 </li>
@@ -670,10 +686,12 @@ export function InjuryWeatherDashboard() {
           <div className="rounded-2xl border border-slate-600/70 bg-slate-900/80 p-5">
             <h3 className="text-lg font-bold">Recommended Controls / Actions</h3>
             <p className="mt-1 text-xs text-slate-500">
-              Playbook-style suggestions; tie implementation to trades and categories above and to your site program—not an audit finding list.
+              {aiInsights
+                ? "AI-authored playbook lines—tie to trades/categories above and your site program; not audit findings."
+                : "Playbook-style suggestions from the engine; tie to trades above—not an audit finding list."}
             </p>
             <ul className="mt-3 space-y-2">
-              {data.recommendedControls.map((c) => (
+              {(aiInsights?.recommendedControls?.length ? aiInsights.recommendedControls : data.recommendedControls).map((c) => (
                 <li key={c} className="rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-200">
                   {c}
                 </li>

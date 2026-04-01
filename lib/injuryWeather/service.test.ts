@@ -10,11 +10,13 @@ describe("shiftMonthLabelByYears", () => {
 
 describe("resolveMonthScopedRowsWithFallback", () => {
   const row = (iso: string) => ({
-    trade: "General Contractor",
-    category: "x",
-    severity: "medium",
+    tradeId: "general_contractor",
+    tradeLabel: "General Contractor",
+    categoryId: "x",
+    categoryLabel: "x",
+    severity: "medium" as const,
     created_at: iso,
-    source: "sor",
+    source: "sor" as const,
   });
 
   it("uses primary month when rows exist", () => {

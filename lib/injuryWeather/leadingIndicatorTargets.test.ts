@@ -6,13 +6,13 @@ function minimalData(overrides: Partial<InjuryWeatherDashboardData> = {}): Injur
   const base: InjuryWeatherDashboardData = {
     summary: {
       month: "Apr 2026",
-      predictedObservations: 20,
-      potentialInjuryEvents: 6,
+      riskSignalCount: 20,
+      highSeveritySignalCount: 6,
       predictedInjuriesNextMonth: 3,
       increasedIncidentRiskPercent: 22,
       overallRiskLevel: "MODERATE",
       structuralRiskScore: 35,
-      riskModelVersion: "2.9.0",
+      riskModelVersion: "3.0.0",
       predictedRisk: 1.5,
       predictedRiskFactors: {
         historicalBaseline: 1.1,
@@ -45,6 +45,8 @@ function minimalData(overrides: Partial<InjuryWeatherDashboardData> = {}): Injur
       stateCode: "WI",
       displayName: "Wisconsin",
       weatherRiskMultiplier: 1,
+      tradeWeatherWeight: 1,
+      combinedWeatherFactor: 1,
       impactNote: "Test",
     },
     signalProvenance: {
@@ -78,8 +80,8 @@ describe("buildLeadingIndicatorTargets", () => {
       minimalData({
         summary: {
           ...minimalData().summary,
-          predictedObservations: 1,
-          potentialInjuryEvents: 0,
+          riskSignalCount: 1,
+          highSeveritySignalCount: 0,
         },
       })
     );

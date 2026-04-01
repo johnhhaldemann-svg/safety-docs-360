@@ -46,7 +46,8 @@ import type {
 
 export const INJURY_WEATHER_MODEL = {
   /** Bump when blend weights or likelihood mapping change materially. */
-  VERSION: "2.9.0" as const,
+  /** Structural headline for live data uses `riskEngineV2` (weighted signals); likelihood / case paths still read these constants. */
+  VERSION: "3.0.0" as const,
 
   /** Forecast path confidence when no live rows match scope (`baseline_only`). */
   FORECAST_CONFIDENCE_BASELINE_ONLY: 0.4 as const,

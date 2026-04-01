@@ -5,13 +5,13 @@ import type { DataConfidenceLevel } from "@/lib/injuryWeather/types";
  * Use this when building `DashboardSummary` before the full `InjuryWeatherDashboardData` exists.
  */
 export function computeDataConfidenceFromMetrics(
-  predictedObservations: number,
+  riskSignalCount: number,
   trendLength: number,
   availableMonthsCount: number
 ): DataConfidenceLevel {
-  if (predictedObservations === 0) return "LOW";
-  if (predictedObservations < 12 || trendLength < 3 || availableMonthsCount < 2) return "LOW";
-  if (predictedObservations >= 45 && trendLength >= 5 && availableMonthsCount >= 4) return "HIGH";
+  if (riskSignalCount === 0) return "LOW";
+  if (riskSignalCount < 12 || trendLength < 3 || availableMonthsCount < 2) return "LOW";
+  if (riskSignalCount >= 45 && trendLength >= 5 && availableMonthsCount >= 4) return "HIGH";
   return "MEDIUM";
 }
 

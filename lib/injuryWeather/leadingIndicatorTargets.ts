@@ -20,8 +20,8 @@ export type LeadingIndicatorTargetsResult = {
 export function buildLeadingIndicatorTargets(data: InjuryWeatherDashboardData): LeadingIndicatorTargetsResult {
   const s = data.summary;
   const p = data.signalProvenance;
-  const total = Math.max(1, s.predictedObservations);
-  const highPct = Math.min(100, Math.round((s.potentialInjuryEvents / total) * 100));
+  const total = Math.max(1, s.riskSignalCount);
+  const highPct = Math.min(100, Math.round((s.highSeveritySignalCount / total) * 100));
 
   const items: LeadingIndicatorTargetItem[] = [];
 
@@ -103,7 +103,7 @@ export function buildLeadingIndicatorTargets(data: InjuryWeatherDashboardData): 
     });
   }
 
-  if (s.predictedObservations < 3 && p.mode === "live") {
+  if (s.riskSignalCount < 3 && p.mode === "live") {
     items.push({
       label: "Data thickness",
       action:

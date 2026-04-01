@@ -99,10 +99,76 @@ export type AIFinalPrediction = {
   recommendedInspectionFocus: string[];
 };
 
+/** V2 normalized signal row (SOR trade primary; category inference only as fallback). */
+export type NormalizedLiveSignalRow = {
+  tradeId: string;
+  tradeLabel: string;
+  categoryId: string | null;
+  categoryLabel: string;
+  severity: "low" | "medium" | "high" | "critical";
+  created_at: string;
+  source: "sor" | "corrective_action" | "incident";
+  status?: "open" | "closed";
+  usedCategoryInference?: boolean;
+};
+
+/** Defensible breakdown for exports, UI, and AI grounding — numeric score is model-authored, not LLM. */
+export type RiskEngineV2Explainability = {
+  riskEngineVersion: string;
+  includedRowCount: number;
+  excludedRowCount: number;
+  tradeNormalizationSummary: string;
+  sourceMix: { sor: number; corrective_action: number; incident: number };
+  leadingIndicatorWeightedScore: number;
+  correctivePressureScore: number;
+  laggingIndicatorScore: number;
+  severityMix: { low: number; medium: number; high: number; critical: number };
+  weightedTotals: {
+    sourceFactorMass: number;
+    severityFactorMass: number;
+    recencyFactorMass: number;
+    seasonalityFactorMass: number;
+    rowRiskScoreSum: number;
+  };
+  componentScoresRaw: {
+    totalSignalScore: number;
+    highSeveritySignalScore: number;
+    incidentPressureScore: number;
+    recurrenceScore: number;
+    unresolvedCorrectiveActionScore: number;
+  };
+  componentScoresScaled: {
+    totalSignalScore: number;
+    highSeveritySignalScore: number;
+    incidentPressureScore: number;
+    recurrenceScore: number;
+    unresolvedCorrectiveActionScore: number;
+  };
+  recentTrendSlope: number;
+  daysSinceLastIncident: number | null;
+  tradeCategoryRepeatClusters: number;
+  finalRiskScore: number;
+  bandLabel: "Low" | "Moderate" | "High" | "Severe";
+  /** 0–1 heuristic from row volume, recurrence, and incident presence — not statistical power. */
+  modelConfidenceHint: number;
+  /** Share of total `rowRiskScore` mass by source (sums to ~1 when scored rows exist). */
+  sourceRiskScoreShare: { sor: number; corrective_action: number; incident: number };
+  /** Average per-row recency multiplier (for explainability). */
+  meanRecencyWeight: number;
+  /** Average per-row seasonality multiplier vs forecast month. */
+  meanSeasonalityWeight: number;
+};
+
 export type DashboardSummary = {
   month: string;
-  predictedObservations: number;
-  potentialInjuryEvents: number;
+  /** Rows included after trade-ID filter (not weighted mass). */
+  riskSignalCount: number;
+  /** Count of high + critical severity rows in the included set. */
+  highSeveritySignalCount: number;
+  /** V2 weighted 0–100 headline score (defensible blend). */
+  finalRiskScore?: number;
+  /** V2 band label before mapping to `overallRiskLevel`. */
+  riskBandLabelV2?: "Low" | "Moderate" | "High" | "Severe";
   /** Projected case-load style count (next ~30 days); illustrative until calibrated against outcomes. */
   predictedInjuriesNextMonth: number;
   /**
@@ -116,7 +182,7 @@ export type DashboardSummary = {
    * `riskBandMeaningForDataConfidence` — LOW confidence does not mean “low risk.”
    */
   dataConfidence: DataConfidenceLevel;
-  /** `baseline_only` when there are no recent observations in the current scope (see `predictedObservations`). */
+  /** `baseline_only` when there are no recent signals in the current scope (see `riskSignalCount`). */
   forecastMode: InjuryWeatherForecastMode;
   /**
    * Scalar confidence for this forecast path (not the same as `dataConfidence` rubric): **0.4** when
@@ -242,10 +308,19 @@ export type InjuryWeatherDashboardData = {
   availableTrades: string[];
   location: InjuryWeatherLocation;
   signalProvenance: InjuryWeatherSignalProvenance;
+  /** Present for live Supabase-backed runs using the V2 weighted engine. */
+  riskEngineV2Explainability?: RiskEngineV2Explainability | null;
   /** Values used in the likelihood path (zeros when not supplied). */
   behaviorSignals: BehaviorSignals;
   /** Echo of schedule inputs used for `scheduleExposureFactor` (defaults when omitted). */
   workSchedule: WorkScheduleInputs;
+};
+
+/** AI Safety Advisor: priority theme row (not verified open items). */
+export type AiPriorityTheme = {
+  title: string;
+  dueLabel: string;
+  severity: RiskLevel;
 };
 
 export type InjuryWeatherAiInsights = {
@@ -253,6 +328,12 @@ export type InjuryWeatherAiInsights = {
   likelyInjuryDrivers: string[];
   priorityActions: string[];
   confidence: "LOW" | "MEDIUM" | "HIGH";
+  /** AI-defined focus themes — grounded in trade/category signals, not logged CAPA items. */
+  priorityThemes: AiPriorityTheme[];
+  /** AI-defined training initiatives for the forecast month. */
+  monthlyTrainingRecommendations: string[];
+  /** AI-defined control / action lines (playbook style). */
+  recommendedControls: string[];
 };
 
 /** One row of the month-ahead back-test: score from month M signals vs incidents recorded in M+1. */
