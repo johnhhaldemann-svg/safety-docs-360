@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getIndustryBenchmarkRates } from "@/lib/benchmarking/industryBenchmarkDataset";
 import { incidentRatePer200kHours } from "@/lib/benchmarking/incidentRate";
 import { eventToInjuryLikelihoodTable, type IncidentAnalyticsRow } from "@/lib/incidents/injuryHistoricalModel";
+import { likelyInjuryInsightFromIncidentAnalyticsRows } from "@/lib/injuryWeather/likelyInjuryFromSignals";
 import { injurySeverityScore } from "@/lib/incidents/injurySeverityScore";
 import {
   SOR_HAZARD_CATEGORY_CODES,
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       sorToExposureMap: [],
       eventToInjuryModel: [],
+      likelyInjuryInsight: likelyInjuryInsightFromIncidentAnalyticsRows([]),
       industryBenchmarkRates: getIndustryBenchmarkRates(null),
       incidentRate: null,
       hoursWorked: null,
@@ -128,6 +130,7 @@ export async function GET(request: Request) {
     since,
     sorToExposureMap,
     eventToInjuryModel,
+    likelyInjuryInsight: likelyInjuryInsightFromIncidentAnalyticsRows(incidents as IncidentAnalyticsRow[]),
     industryBenchmarkRates: getIndustryBenchmarkRates(industryCode),
     industryCode,
     hoursWorked,

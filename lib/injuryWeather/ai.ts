@@ -314,6 +314,7 @@ function computeAiContext(data: InjuryWeatherDashboardData) {
         "Do not treat UI alert titles or generic control lines as confirmed open items, violations, or real triggers—they are not in this JSON as verified findings.",
         "oshaPriorYearsCrossReference is sector baseline context only, not this employer’s record or an enforcement outcome.",
         "If locationContext.stateCode is null, do not claim a regional weather story beyond general language.",
+        "totals.likelyInjuryInsight is derived from incident injury/exposure fields in-window only—do not invent a different top injury type.",
       ],
     },
     month: data.summary.month,
@@ -349,6 +350,7 @@ function computeAiContext(data: InjuryWeatherDashboardData) {
       riskModelVersion: data.summary.riskModelVersion,
       modelRole: "leading_indicator_unvalidated" as const,
       highSeverityRatioPct,
+      likelyInjuryInsight: data.summary.likelyInjuryInsight,
     },
     riskEngineV2Explainability: data.riskEngineV2Explainability ?? null,
     trendSignals: {

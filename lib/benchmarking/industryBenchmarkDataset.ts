@@ -1,3 +1,5 @@
+import type { InjuryWeatherIndustryBenchmarkContext } from "@/lib/injuryWeather/types";
+
 /**
  * Industry reference rates for exposure normalization and AI/analytics context.
  *
@@ -110,4 +112,17 @@ export function getIndustryBenchmarkRates(industryCode: string | null | undefine
   const prefix = naicsPrefixFromCode(industryCode);
   const sector = prefix && DATASET[prefix] ? DATASET[prefix] : DEFAULT_SECTOR;
   return { ...INJURY_FACTS_REFERENCE, ...sector };
+}
+
+/** When Supabase admin is unavailable or before company query — still includes Injury Facts URLs. */
+export function offlineInjuryWeatherBenchmarkContext(): InjuryWeatherIndustryBenchmarkContext {
+  return {
+    injuryFactsIndustryProfilesUrl: INJURY_FACTS_REFERENCE.injuryFactsIndustryProfilesUrl,
+    injuryFactsIncidentTrendsUrl: INJURY_FACTS_REFERENCE.injuryFactsIncidentTrendsUrl,
+    dominantNaicsPrefix: null,
+    exampleIndustryCode: null,
+    recordableCasesPer200kHours: null,
+    benchmarkSummary:
+      "Craft/trade chips are not the same as NSC Industry Profiles (NAICS industries). Set company industry codes for in-app benchmark alignment; confirm rates on Injury Facts.",
+  };
 }

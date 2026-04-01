@@ -1,3 +1,8 @@
+import {
+  getIndustryBenchmarkRates,
+  naicsPrefixFromCode,
+  offlineInjuryWeatherBenchmarkContext,
+} from "@/lib/benchmarking/industryBenchmarkDataset";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { inferCalibrationTrend, computeBacktestCorrelations } from "@/lib/injuryWeather/backtest";
 import { computeDataConfidenceFromMetrics } from "@/lib/injuryWeather/dataConfidence";
@@ -35,7 +40,15 @@ import {
   normalizeSeverity,
   scoreRowsForForecast,
 } from "@/lib/injuryWeather/riskEngineV2";
-import { categoryToId, resolveTradeForRow, tradeFilterStringsToIds } from "@/lib/injuryWeather/tradeNormalization";
+import { DEMO_LIKELY_INJURY_INSIGHT, likelyInjuryInsightFromSignals } from "@/lib/injuryWeather/likelyInjuryFromSignals";
+import {
+  categoryToId,
+  curatedConstructionTradeLabels,
+  resolveTradeForRow,
+  tradeFilterStringsToIds,
+} from "@/lib/injuryWeather/tradeNormalization";
+import { isExposureEventType } from "@/lib/incidents/exposureEventType";
+import { normalizeInjuryType } from "@/lib/incidents/injuryType";
 import type {
   DashboardAlert,
   BehaviorSignals,
@@ -45,6 +58,7 @@ import type {
   InjuryWeatherBacktestRow,
   InjuryWeatherBacktestRunSnapshot,
   InjuryWeatherDashboardData,
+  InjuryWeatherIndustryBenchmarkContext,
   InjuryWeatherSignalProvenance,
   NormalizedLiveSignalRow,
   RiskLevel,
@@ -232,15 +246,72 @@ function uniqueSortedTrades(rows: NormalizedLiveSignalRow[]): string[] {
   return [...new Set(rows.map((r) => r.tradeLabel).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
+function modeNaicsPrefix(prefixes: string[]): string | null {
+  if (prefixes.length === 0) return null;
+  const counts = new Map<string, number>();
+  for (const p of prefixes) counts.set(p, (counts.get(p) ?? 0) + 1);
+  let best: string | null = null;
+  let bestN = 0;
+  for (const [k, n] of counts) {
+    if (n > bestN) {
+      bestN = n;
+      best = k;
+    }
+  }
+  return best;
+}
+
 /**
- * Trade filter chips: only labels that appear in normalized safety signals and/or seed workbook rows.
- * No static construction-trade library — keeps the UI aligned with actual data.
+ * Platform-level NAICS hint from `companies.industry_code` (superadmin aggregates all companies).
+ */
+async function resolvePlatformIndustryBenchmarkContext(
+  admin: ReturnType<typeof createSupabaseAdminClient> | null
+): Promise<InjuryWeatherIndustryBenchmarkContext> {
+  const offline = offlineInjuryWeatherBenchmarkContext();
+  if (!admin) return offline;
+  const { data, error } = await admin.from("companies").select("industry_code").not("industry_code", "is", null).limit(5000);
+  if (error || !data?.length) {
+    return {
+      ...offline,
+      benchmarkSummary:
+        "No companies with `industry_code` in this environment—in-app rates use an all-industry-style default. NSC Industry Profiles list hundreds of NAICS rows; trade chips are crafts/signals, not that download.",
+    };
+  }
+  const prefixes: string[] = [];
+  for (const row of data) {
+    const raw = String((row as { industry_code?: string | null }).industry_code ?? "").trim();
+    const p = naicsPrefixFromCode(raw);
+    if (p) prefixes.push(p);
+  }
+  const dominant = modeNaicsPrefix(prefixes);
+  if (!dominant) return offline;
+  const exampleRow = data.find(
+    (row) => naicsPrefixFromCode(String((row as { industry_code?: string | null }).industry_code ?? "")) === dominant
+  );
+  const exampleCode = exampleRow
+    ? String((exampleRow as { industry_code: string }).industry_code)
+    : `${dominant}00000`;
+  const rates = getIndustryBenchmarkRates(exampleCode);
+  return {
+    injuryFactsIndustryProfilesUrl: rates.injuryFactsIndustryProfilesUrl,
+    injuryFactsIncidentTrendsUrl: rates.injuryFactsIncidentTrendsUrl,
+    dominantNaicsPrefix: dominant,
+    exampleIndustryCode: exampleCode,
+    recordableCasesPer200kHours: rates.recordableCasesPer200kHours,
+    benchmarkSummary: `Among companies with an industry code on this platform, the most common 2-digit NAICS prefix is ${dominant}. Illustrative in-app rate: about ${rates.recordableCasesPer200kHours} recordable cases per 200k hours—confirm your NAICS on NSC Industry Profiles.`,
+  };
+}
+
+/**
+ * Trade filter chips: curated construction crafts union labels from normalized safety signals and/or seed rows.
+ * Trades with no rows still appear so users can filter (forecast cards show an empty state until signals exist).
  */
 function availableTradesFromData(liveTradeLabels: string[], seedData: SeedRow[]): string[] {
+  const curated = curatedConstructionTradeLabels();
   const fromSeed = seedData.map((r) => inferTradeFromSeedRow(r)).filter(Boolean);
-  const merged = [...new Set([...liveTradeLabels, ...fromSeed])].sort((a, b) => a.localeCompare(b));
-  if (merged.length > 0) return merged;
-  return ["General Contractor"];
+  const fromData = [...new Set([...liveTradeLabels, ...fromSeed])];
+  const union = [...new Set([...curated, ...fromData])].sort((a, b) => a.localeCompare(b));
+  return union.length > 0 ? union : ["General Contractor"];
 }
 
 function formatMonthKey(date: Date): string {
@@ -260,6 +331,44 @@ function parseMonthLabel(monthLabel: string): Date | null {
 function monthSortValue(monthLabel: string): number {
   const parsed = parseMonthLabel(monthLabel);
   return parsed ? parsed.getTime() : 0;
+}
+
+/**
+ * Build 0–100 monthly indices for the risk trend chart.
+ * Max-only normalization (w/max) makes every month with the same weighted sum map to 100 → a flat line.
+ * Min–max on weighted sums preserves relative change; if weighted spread is zero, use raw row counts per month.
+ */
+function buildHistoryMonthlyForTrend(
+  monthlyWeighted: Map<string, number>,
+  monthlyCountsFallback: Map<string, number>
+): Map<string, number> {
+  const monthKeys = [...new Set([...monthlyWeighted.keys(), ...monthlyCountsFallback.keys()])];
+  if (monthKeys.length === 0) return new Map();
+
+  if (monthlyWeighted.size > 0) {
+    const vals = [...monthlyWeighted.values()];
+    const vmax = Math.max(...vals);
+    const vmin = Math.min(...vals);
+    if (vmax > 0 && vmax - vmin > 1e-6) {
+      const span = vmax - vmin;
+      const out = new Map<string, number>();
+      for (const [k, w] of monthlyWeighted) {
+        out.set(k, Math.round(((w - vmin) / span) * 100));
+      }
+      return out;
+    }
+  }
+
+  const sorted = monthKeys.sort((a, b) => monthSortValue(a) - monthSortValue(b));
+  const counts = sorted.map((m) => monthlyCountsFallback.get(m) ?? 0);
+  const cmax = Math.max(...counts, 1);
+  const cmin = Math.min(...counts);
+  const cspan = Math.max(cmax - cmin, 1);
+  const out = new Map<string, number>();
+  for (let i = 0; i < sorted.length; i += 1) {
+    out.set(sorted[i], Math.round(((counts[i] - cmin) / cspan) * 100));
+  }
+  return out;
 }
 
 function build90DayOutlookMonths(months: string[]): string[] {
@@ -426,6 +535,7 @@ export async function getInjuryWeatherDashboardData(filters?: {
    * historical signal set to project present/future risk (see `recordWindowLabel` on provenance).
    */
   const admin = createSupabaseAdminClient();
+  const benchmarkCtx = await resolvePlatformIndustryBenchmarkContext(admin);
   const monthLabel = filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
   const workbookRows = seedRows();
   const trendFromSeed = computeTrendFromSeed(workbookRows, filters);
@@ -452,6 +562,7 @@ export async function getInjuryWeatherDashboardData(filters?: {
       monthlyTrainingRecommendations: fallback.monthlyTrainingRecommendations,
       availableMonths,
       availableTrades: availableTradesFromData(fallback.availableTrades, workbookRows),
+      industryBenchmarkContext: benchmarkCtx,
       location: fallback.location,
       signalProvenance: fallback.signalProvenance,
       behaviorSignals: fallback.behaviorSignals,
@@ -504,7 +615,7 @@ export async function getInjuryWeatherDashboardData(filters?: {
     forecastMode: forecastModeFromObservationCount(live.summary.riskSignalCount),
     forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(live.summary.riskSignalCount),
   };
-  return live;
+  return { ...live, industryBenchmarkContext: benchmarkCtx };
 }
 
 export async function refreshInjuryWeatherDailySnapshot() {
@@ -512,6 +623,7 @@ export async function refreshInjuryWeatherDailySnapshot() {
   if (!admin) {
     return { ok: false, error: "Missing Supabase admin client." };
   }
+  const benchmarkCtx = await resolvePlatformIndustryBenchmarkContext(admin);
   const month = new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
   const trendFromSeed = computeTrendFromSeed(seedRows(), {});
   const liveRows = await fetchLiveSignals(admin, {});
@@ -533,11 +645,12 @@ export async function refreshInjuryWeatherDailySnapshot() {
     forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(payload.summary.riskSignalCount),
   };
   const snapshotDate = new Date().toISOString().slice(0, 10);
+  const payloadWithBenchmark: InjuryWeatherDashboardData = { ...payload, industryBenchmarkContext: benchmarkCtx };
   const upsert = await admin.from("injury_weather_daily_snapshots").upsert(
     {
       snapshot_date: snapshotDate,
       generated_at: new Date().toISOString(),
-      payload,
+      payload: payloadWithBenchmark,
       source_counts: {
         liveSignalRows: liveRows.length,
         availableMonths: payload.availableMonths.length,
@@ -569,7 +682,7 @@ async function fetchLiveSignals(
   let incidentQuery = admin
     .from("company_incidents")
     .select(
-      "category, severity, created_at, injury_month, injury_season, injury_day_of_week, injury_time_of_day"
+      "category, severity, created_at, injury_month, injury_season, injury_day_of_week, injury_time_of_day, injury_type, exposure_event_type"
     );
   if (range) {
     const start = range.start.toISOString();
@@ -620,7 +733,11 @@ async function fetchLiveSignals(
       injury_season?: string | null;
       injury_day_of_week?: string | null;
       injury_time_of_day?: string | null;
+      injury_type?: string | null;
+      exposure_event_type?: string | null;
     };
+    const evRaw = row.exposure_event_type != null ? String(row.exposure_event_type).trim() : "";
+    const exposureEventType = evRaw && isExposureEventType(evRaw) ? evRaw : null;
     return {
       tradeId: resolved.tradeId,
       tradeLabel: resolved.tradeLabel,
@@ -634,6 +751,8 @@ async function fetchLiveSignals(
       injurySeason: row.injury_season ?? null,
       injuryDayOfWeek: row.injury_day_of_week ?? null,
       injuryTimeOfDay: row.injury_time_of_day ?? null,
+      injuryType: normalizeInjuryType(row.injury_type),
+      exposureEventType,
     } satisfies NormalizedLiveSignalRow;
   });
   return [...sorRows, ...actionRows, ...incidentRows];
@@ -690,14 +809,7 @@ function buildDashboardFromLiveSignals(
     monthlyWeighted.set(key, (monthlyWeighted.get(key) ?? 0) + r.rowRiskScore);
   }
 
-  const maxMonthlyW = monthlyWeighted.size > 0 ? Math.max(...monthlyWeighted.values()) : 0;
-  const monthlyDisplay = new Map<string, number>();
-  if (maxMonthlyW > 0) {
-    for (const [k, w] of monthlyWeighted) {
-      monthlyDisplay.set(k, Math.round(Math.min(100, (w / maxMonthlyW) * 100)));
-    }
-  }
-  const historyMonthly = monthlyDisplay.size > 0 ? monthlyDisplay : monthlyCountsFallback;
+  const historyMonthly = buildHistoryMonthlyForTrend(monthlyWeighted, monthlyCountsFallback);
 
   const tradeForecasts = [...byTrade.entries()]
     .sort((a, b) => [...b[1].values()].reduce((n, v) => n + v, 0) - [...a[1].values()].reduce((n, v) => n + v, 0))
@@ -805,6 +917,7 @@ function buildDashboardFromLiveSignals(
       forecastMode: forecastModeFromObservationCount(includedRows.length),
       forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(includedRows.length),
       lastUpdatedAt: new Date().toISOString(),
+      likelyInjuryInsight: likelyInjuryInsightFromSignals(includedRows),
     },
     tradeForecasts: normalizedTradeForecasts.length > 0 ? normalizedTradeForecasts : DEFAULT_TRADE_FORECASTS,
     alerts: DEFAULT_ALERTS,
@@ -827,6 +940,7 @@ function buildDashboardFromLiveSignals(
     riskEngineV2Explainability: explainability,
     behaviorSignals: resolvedBehavior,
     workSchedule: resolvedWorkSchedule,
+    industryBenchmarkContext: offlineInjuryWeatherBenchmarkContext(),
   };
 }
 
@@ -891,6 +1005,7 @@ function computeFromSeed(
         forecastMode: "live_adjusted",
         forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(270),
         lastUpdatedAt: new Date().toISOString(),
+        likelyInjuryInsight: DEMO_LIKELY_INJURY_INSIGHT,
       },
       tradeForecasts: DEFAULT_TRADE_FORECASTS,
       alerts: DEFAULT_ALERTS,
@@ -907,6 +1022,7 @@ function computeFromSeed(
       }),
       behaviorSignals: normalizeBehaviorSignals(filters?.behaviorSignals),
       workSchedule: demoWorkSchedule,
+      industryBenchmarkContext: offlineInjuryWeatherBenchmarkContext(),
     };
   }
 
@@ -1076,6 +1192,7 @@ function computeFromSeed(
     forecastMode: forecastModeFromObservationCount(filtered.length),
     forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(filtered.length),
     lastUpdatedAt: new Date().toISOString(),
+    likelyInjuryInsight: likelyInjuryInsightFromSignals([]),
   };
 
   const alerts = DEFAULT_ALERTS;
@@ -1102,6 +1219,7 @@ function computeFromSeed(
     }),
     behaviorSignals: normalizeBehaviorSignals(filters?.behaviorSignals),
     workSchedule: seedWorkSchedule,
+    industryBenchmarkContext: offlineInjuryWeatherBenchmarkContext(),
   };
 }
 

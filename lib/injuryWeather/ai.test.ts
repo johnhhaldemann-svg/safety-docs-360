@@ -6,6 +6,8 @@ import {
   generateInjuryWeatherAiInsights,
   validateAiInsightsAgainstData,
 } from "./ai";
+import { offlineInjuryWeatherBenchmarkContext } from "@/lib/benchmarking/industryBenchmarkDataset";
+import { DEMO_LIKELY_INJURY_INSIGHT } from "@/lib/injuryWeather/likelyInjuryFromSignals";
 import type { InjuryWeatherAiInsights, InjuryWeatherDashboardData } from "./types";
 
 function blocksFor(d: InjuryWeatherDashboardData): Pick<
@@ -40,6 +42,7 @@ function minimalDashboard(overrides: Partial<InjuryWeatherDashboardData> = {}): 
       dataConfidence: "MEDIUM",
       forecastMode: "live_adjusted",
       forecastConfidenceScore: 0.8,
+      likelyInjuryInsight: DEMO_LIKELY_INJURY_INSIGHT,
     },
     tradeForecasts: [
       {
@@ -84,6 +87,7 @@ function minimalDashboard(overrides: Partial<InjuryWeatherDashboardData> = {}): 
       workSevenDaysPerWeek: false,
       hoursPerDay: null,
     },
+    industryBenchmarkContext: offlineInjuryWeatherBenchmarkContext(),
   };
   return { ...base, ...overrides };
 }

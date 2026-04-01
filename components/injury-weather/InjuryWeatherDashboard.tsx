@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { LeadingIndicatorsPanel } from "@/components/injury-weather/LeadingIndicatorsPanel";
@@ -70,36 +70,219 @@ function categoryTone(level: RiskLevel) {
   return "border-emerald-500/70 bg-gradient-to-r from-emerald-700/80 to-emerald-500/50 text-white";
 }
 
+/** Risk index bands aligned with engine stress display (approximate). */
+function strokeForRiskIndex(v: number): string {
+  if (v >= 66) return "rgb(248 113 113)";
+  if (v >= 46) return "rgb(251 146 60)";
+  if (v >= 26) return "rgb(250 204 21)";
+  return "rgb(52 211 153)";
+}
+
 function TrendChart({ points }: { points: TrendPoint[] }) {
-  const w = 720;
-  const h = 220;
-  const pad = 26;
-  const max = Math.max(1, ...points.map((p) => p.value));
-  const min = 0;
-  const span = max - min || 1;
-  const coords = points.map((p, i) => {
-    const x = pad + (i / Math.max(1, points.length - 1)) * (w - pad * 2);
-    const y = h - pad - ((p.value - min) / span) * (h - pad * 2);
-    return { x, y, ...p };
-  });
+  const [hover, setHover] = useState<number | null>(null);
+  const chartUid = useId().replace(/:/g, "");
+  const w = 760;
+  const h = 268;
+  const padL = 48;
+  const padR = 20;
+  const padT = 28;
+  const padB = 44;
+
+  const layout = useMemo(() => {
+    const chartW = w - padL - padR;
+    const chartH = h - padT - padB;
+    if (points.length === 0) {
+      return {
+        coords: [] as { x: number; y: number; month: string; value: number; highRisk?: boolean }[],
+        yMin: 0,
+        yMax: 100,
+        yTicks: [0, 25, 50, 75, 100],
+        chartW,
+        chartH,
+      };
+    }
+    const vals = points.map((p) => p.value);
+    const rawMin = Math.min(...vals);
+    const rawMax = Math.max(...vals);
+    const spread = rawMax - rawMin;
+    const padY = Math.max(spread * 0.18, 6, rawMax * 0.06);
+    let yMin = Math.max(0, Math.floor(rawMin - padY));
+    let yMax = Math.ceil(rawMax + padY);
+    if (yMax - yMin < 16) {
+      const mid = (yMin + yMax) / 2;
+      yMin = Math.max(0, Math.floor(mid - 8));
+      yMax = Math.ceil(mid + 8);
+    }
+    const span = yMax - yMin || 1;
+    const tickCount = 5;
+    const step = span / (tickCount - 1);
+    const yTicks: number[] = [];
+    for (let i = 0; i < tickCount; i += 1) {
+      yTicks.push(Math.round(yMin + step * i));
+    }
+    const coords = points.map((p, i) => {
+      const x = padL + (i / Math.max(1, points.length - 1)) * chartW;
+      const y = padT + chartH - ((p.value - yMin) / span) * chartH;
+      return { x, y, month: p.month, value: p.value, highRisk: p.highRisk };
+    });
+    return { coords, yMin, yMax, yTicks, chartW, chartH };
+  }, [points]);
+
+  const { coords, yMin, yMax, yTicks, chartW, chartH } = layout;
+  const span = yMax - yMin || 1;
+
+  const areaPath =
+    coords.length > 0
+      ? `M ${coords[0].x},${padT + chartH} L ${coords.map((c) => `${c.x},${c.y}`).join(" L ")} L ${coords[coords.length - 1].x},${padT + chartH} Z`
+      : "";
+
+  const linePath = coords.length > 0 ? `M ${coords.map((c) => `${c.x},${c.y}`).join(" L ")}` : "";
+
+  const onLeave = useCallback(() => setHover(null), []);
+
+  if (points.length === 0) {
+    return (
+      <div className="flex h-52 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-950/40 text-sm text-slate-500">
+        No trend points for this view.
+      </div>
+    );
+  }
+
+  const hi = hover != null ? coords[hover] : null;
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-64 w-full">
-      <polyline
-        fill="none"
-        stroke="rgb(248 113 113)"
-        strokeWidth="3"
-        points={coords.map((c) => `${c.x},${c.y}`).join(" ")}
-      />
-      {coords.map((c) => (
-        <g key={c.month}>
-          <circle cx={c.x} cy={c.y} r="4.5" fill={c.highRisk ? "rgb(239 68 68)" : "white"} stroke="rgb(248 113 113)" strokeWidth="2" />
-          <text x={c.x} y={h - 4} textAnchor="middle" className="fill-slate-400" style={{ fontSize: "10px" }}>
-            {c.month}
-          </text>
-        </g>
-      ))}
-    </svg>
+    <div className="relative" onMouseLeave={onLeave}>
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        className="h-[min(20rem,55vw)] w-full max-w-full"
+        role="img"
+        aria-label="Risk trend line chart: relative signal index over months"
+      >
+        <defs>
+          <linearGradient id={`iwTrendArea-${chartUid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgb(248 113 113)" stopOpacity="0.35" />
+            <stop offset="55%" stopColor="rgb(99 102 241)" stopOpacity="0.12" />
+            <stop offset="100%" stopColor="rgb(15 23 42)" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id={`iwTrendLine-${chartUid}`} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="rgb(52 211 153)" />
+            <stop offset="35%" stopColor="rgb(250 204 21)" />
+            <stop offset="70%" stopColor="rgb(251 146 60)" />
+            <stop offset="100%" stopColor="rgb(248 113 113)" />
+          </linearGradient>
+          <filter id={`iwTrendGlow-${chartUid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="1.2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        <text x={padL} y={16} className="fill-slate-500" style={{ fontSize: "11px" }}>
+          Relative index
+        </text>
+
+        {yTicks.map((tick, ti) => {
+          const y = padT + chartH - ((tick - yMin) / span) * chartH;
+          return (
+            <g key={`y-${ti}-${tick}`}>
+              <line
+                x1={padL}
+                y1={y}
+                x2={padL + chartW}
+                y2={y}
+                stroke="rgb(51 65 85)"
+                strokeOpacity={0.55}
+                strokeWidth={1}
+                strokeDasharray="4 6"
+              />
+              <text x={padL - 8} y={y + 4} textAnchor="end" className="fill-slate-500" style={{ fontSize: "10px" }}>
+                {tick}
+              </text>
+            </g>
+          );
+        })}
+
+        <rect
+          x={padL}
+          y={padT}
+          width={chartW}
+          height={chartH}
+          fill="transparent"
+          className="pointer-events-none"
+        />
+
+        {areaPath ? <path d={areaPath} fill={`url(#iwTrendArea-${chartUid})`} /> : null}
+
+        {linePath ? (
+          <path
+            d={linePath}
+            fill="none"
+            stroke={`url(#iwTrendLine-${chartUid})`}
+            strokeWidth={3.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            filter={`url(#iwTrendGlow-${chartUid})`}
+          />
+        ) : null}
+
+        {coords.map((c, i) => {
+          const stroke = c.highRisk ? "rgb(239 68 68)" : strokeForRiskIndex(c.value);
+          return (
+            <g key={`${c.month}-${i}`}>
+              <circle
+                cx={c.x}
+                cy={c.y}
+                r={hover === i ? 9 : 6}
+                fill="rgb(15 23 42)"
+                stroke={stroke}
+                strokeWidth={hover === i ? 3 : 2}
+                className="cursor-crosshair"
+                onMouseEnter={() => setHover(i)}
+              />
+              <text
+                x={c.x}
+                y={h - 12}
+                textAnchor="middle"
+                className="fill-slate-400"
+                style={{ fontSize: "10px" }}
+              >
+                {c.month}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      <div
+        className={`mt-2 rounded-lg border px-3 py-2 text-center text-xs transition-colors ${
+          hi ? "border-sky-500/30 bg-slate-950/90 text-slate-200" : "border-transparent bg-transparent text-slate-600"
+        }`}
+      >
+        {hi ? (
+          <>
+            <span className="font-semibold text-white">{hi.month}</span>
+            {" · "}
+            Index <span className="font-mono text-sky-300">{hi.value}</span>
+            {hi.highRisk ? <span className="text-rose-300"> · Elevated band</span> : null}
+          </>
+        ) : (
+          "Hover a point for month and index"
+        )}
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-4 text-[10px] text-slate-500">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-4 rounded-sm bg-gradient-to-r from-emerald-400 via-amber-300 to-rose-400" />
+          Trajectory (momentum-weighted)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full border-2 border-rose-400 bg-slate-900" />
+          Elevated month flag
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -302,7 +485,7 @@ export function InjuryWeatherDashboard() {
         appliedTrades.some((a) => t.trade.toLowerCase().includes(a.toLowerCase()))
       );
       if (matched.length > 0) return matched.slice(0, 4);
-      return source.slice(0, 4);
+      return [];
     }
     const exact = ["Roofing", "Electrical", "Concrete", "Steel Work"];
     const picked = exact
@@ -375,13 +558,11 @@ export function InjuryWeatherDashboard() {
           <p className="text-sm font-black uppercase tracking-[0.25em] text-slate-200">Injury Weather System™</p>
           <h1 className="mt-1 text-5xl font-black tracking-tight text-white">Safety Forecast Dashboard</h1>
           <p className="mt-1 text-lg text-slate-300">Predictive Risk Analysis for Your Jobsite</p>
-          <p className="mx-auto mt-4 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Plan the month ahead—prioritize training, engineering controls, and field focus from your safety signals to help prevent
-            injuries and give admins a clear prep list before work ramps up. The forecast uses historical signals to estimate the
-            selected period—including future months before they are observed.
+          <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-400">
+            Outputs below reflect your current scope—adjust filters at the bottom to regenerate.
           </p>
         </div>
-        <div className="grid gap-2 border-b border-slate-600/40 bg-black/20 px-5 py-3 sm:grid-cols-3">
+        <div className="grid gap-2 border-b border-slate-600/40 bg-black/20 px-5 py-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-slate-500/40 bg-slate-900/70 p-3 text-center">
             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Estimated injury exposure</p>
             <p className="mt-0.5 text-[10px] text-slate-500">Projected case index · next ~30 days</p>
@@ -414,187 +595,23 @@ export function InjuryWeatherDashboard() {
               {forecastModeDisplayLabel(data.summary.forecastMode)}
             </p>
           </div>
+          <div className="rounded-xl border border-teal-500/35 bg-slate-900/70 p-3 text-center lg:text-left">
+            <p className="text-xs uppercase tracking-[0.2em] text-teal-300/90">Most likely injury type</p>
+            <p className="mt-0.5 text-[10px] text-slate-500">From incident history / exposure in this view</p>
+            <p className="mt-2 text-xl font-black leading-tight text-teal-100 sm:text-2xl">
+              {data.summary.likelyInjuryInsight.headline}
+            </p>
+            {data.summary.likelyInjuryInsight.secondaryLine ? (
+              <p className="mt-1 text-[11px] text-slate-400">{data.summary.likelyInjuryInsight.secondaryLine}</p>
+            ) : null}
+            <p className="mt-2 text-[10px] leading-snug text-slate-500">{data.summary.likelyInjuryInsight.detailNote}</p>
+          </div>
         </div>
         {(data.summary.forecastMode ?? "live_adjusted") === "baseline_only" ? (
           <div className="border-b border-amber-500/45 bg-amber-950/50 px-5 py-3 text-center text-sm font-medium leading-snug text-amber-100/95">
             No recent safety signals in window — forecast based on historical patterns and selected trades.
           </div>
         ) : null}
-        <p className="border-b border-slate-600/40 bg-black/30 px-5 py-2 text-left text-xs leading-relaxed text-slate-400">
-          <span className="font-semibold text-slate-300">Leading-indicator model:</span> Present and future risk scores are
-          estimated from historical SOR, corrective actions, and incidents when the target month has no or limited signal data in
-          the latest snapshot; the
-          exposure number blends likelihood with workforce or trend volume; the % index maps structural risk × trade/site climate.
-          These are prioritization signals, not validated injury predictions, until compared to your incident history over time. AI
-          suggestions support training and controls—they do not change the math instantly.
-        </p>
-        <div className="grid gap-2 bg-black/25 px-5 py-3 sm:grid-cols-2 lg:grid-cols-5">
-          <select value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-lg border border-slate-500/50 bg-slate-900/80 px-3 py-2 text-sm">
-            {!data.availableMonths.length ? <option value="">No month data</option> : null}
-            {data.availableMonths.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <select
-            value={stateCode}
-            onChange={(e) => setStateCode(e.target.value)}
-            className="rounded-lg border border-slate-500/50 bg-slate-900/80 px-3 py-2 text-sm"
-            aria-label="State or region for weather exposure"
-          >
-            {US_STATE_OPTIONS.map((s) => (
-              <option key={s.code || "national"} value={s.code}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          <input value={project} onChange={(e) => setProject(e.target.value)} className="rounded-lg border border-slate-500/50 bg-slate-900/80 px-3 py-2 text-sm" placeholder="All Projects" />
-          <input
-            type="number"
-            min={1}
-            value={workforceTotal}
-            onChange={(e) => setWorkforceTotal(e.target.value)}
-            className="rounded-lg border border-slate-500/50 bg-slate-900/80 px-3 py-2 text-sm"
-            placeholder="Workforce (optional)"
-          />
-          <input
-            type="number"
-            min={1}
-            value={hoursWorked}
-            onChange={(e) => setHoursWorked(e.target.value)}
-            className="rounded-lg border border-slate-500/50 bg-slate-900/80 px-3 py-2 text-sm"
-            placeholder="Hours worked (optional)"
-            title="When set, takes precedence over workforce for normalizing severity and concentration in the overall risk blend"
-          />
-        </div>
-        <div className="grid gap-2 bg-black/25 px-5 py-2 sm:grid-cols-2">
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-900/80 px-3 py-2 text-sm text-slate-200">
-            <input
-              type="checkbox"
-              checked={workSevenDaysPerWeek}
-              onChange={(e) => setWorkSevenDaysPerWeek(e.target.checked)}
-              className="rounded border-slate-500"
-            />
-            <span>7-day work week (vs typical 5-day)</span>
-          </label>
-          <input
-            type="number"
-            min={0.25}
-            max={24}
-            step={0.25}
-            value={hoursPerDaySchedule}
-            onChange={(e) => setHoursPerDaySchedule(e.target.value)}
-            className="rounded-lg border border-slate-500/50 bg-slate-900/80 px-3 py-2 text-sm"
-            placeholder="Hours per day (optional)"
-            title="Typical shift length; combined with day count to compare weekly hours to a 40h reference week"
-            aria-label="Hours per day for schedule exposure"
-          />
-        </div>
-        {(appliedWorkSevenDaysPerWeek || appliedHoursPerDaySchedule.trim()) && (
-          <p className="border-b border-slate-600/40 bg-black/15 px-5 py-2 text-xs text-slate-400">
-            Schedule inputs (likelihood): {appliedWorkSevenDaysPerWeek ? "7" : "5"} days/week ×{" "}
-            {appliedHoursPerDaySchedule.trim() || "8"} h/day vs a 40h reference week — factor ×
-            {data.summary.predictedRiskFactors.scheduleExposureFactor.toFixed(3)} on predicted risk.
-          </p>
-        )}
-        <p className="border-b border-slate-600/40 bg-black/20 px-5 py-2 text-xs text-slate-400">
-          Location / weather exposure: <span className="font-semibold text-slate-200">{data.location.displayName}</span>
-          {data.location.stateCode ? (
-            <>
-              {" "}
-              · site ×{data.location.weatherRiskMultiplier.toFixed(2)}
-              {data.location.tradeWeatherWeight != null ? (
-                <> · trade blend ×{data.location.tradeWeatherWeight.toFixed(2)}</>
-              ) : null}
-              {data.location.combinedWeatherFactor != null ? (
-                <> · combined ×{data.location.combinedWeatherFactor.toFixed(2)}</>
-              ) : null}{" "}
-              — {data.location.impactNote}
-            </>
-          ) : (
-            <>
-              {" "}
-              {data.location.tradeWeatherWeight != null ? (
-                <>trade blend ×{data.location.tradeWeatherWeight.toFixed(2)} · </>
-              ) : null}
-              {data.location.combinedWeatherFactor != null ? (
-                <>combined ×{data.location.combinedWeatherFactor.toFixed(2)} · </>
-              ) : null}
-              {data.location.impactNote}
-            </>
-          )}
-        </p>
-        <div className="space-y-3 border-t border-slate-600/40 bg-black/20 px-5 py-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Trades in your safety data</p>
-          <p className="text-[11px] text-slate-500">
-            Chips list trade labels that appear in SOR, corrective actions, and incidents for this workspace (plus seed workbook
-            trades if loaded). No static trade catalog.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {trades.map((t) => {
-              const selected = selectedTrades.includes(t);
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => toggleTrade(t)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                    selected
-                      ? "border-sky-400/70 bg-sky-500/25 text-sky-100"
-                      : "border-slate-500/50 bg-slate-900/70 text-slate-200"
-                  }`}
-                >
-                  {selected ? "✓ " : ""}
-                  {t}
-                </button>
-              );
-            })}
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-slate-400">
-              Selected trades: {selectedTrades.length > 0 ? selectedTrades.join(", ") : "All"}
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={fieldAttestation}
-                  onChange={(e) => setFieldAttestation(e.target.checked)}
-                  className="rounded border-slate-500"
-                />
-                Reviewed against field conditions (for export)
-              </label>
-              <button
-                type="button"
-                onClick={exportReportJson}
-                className="rounded-lg border border-slate-500/60 bg-slate-800/80 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-700/80"
-              >
-                Export JSON snapshot
-              </button>
-              <button
-                type="button"
-                onClick={onRefreshFromServer}
-                className="rounded-lg border border-sky-500/50 bg-sky-500/15 px-3 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/25"
-              >
-                Refresh data
-              </button>
-              <button
-                type="button"
-                onClick={onGenerateReport}
-                className="rounded-lg border border-emerald-400/60 bg-emerald-500/20 px-4 py-2 text-sm font-bold text-emerald-100 hover:bg-emerald-500/30"
-              >
-                Generate Report
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-amber-900/50 bg-amber-950/20 p-4 text-sm text-amber-100/90">
-        <p className="font-semibold text-amber-200">Assumptions</p>
-        <p className="mt-1 text-xs leading-relaxed text-amber-100/85">{INJURY_WEATHER_ASSUMPTIONS}</p>
-        <p className="mt-2 text-xs text-amber-200/80">{provenanceLine}</p>
       </section>
 
       {aiInsights ? (
@@ -639,7 +656,9 @@ export function InjuryWeatherDashboard() {
       <section className="grid gap-3 xl:grid-cols-4">
         {displayTrades.length === 0 ? (
           <div className="col-span-full rounded-2xl border border-slate-600/70 bg-slate-900/80 p-6 text-center text-sm text-slate-400">
-            No trade forecast cards for these filters. Choose another month, adjust trades, or click Generate Report to refresh.
+            {appliedTrades.length > 0
+              ? `No forecast cards for the selected trade(s) (${appliedTrades.join(", ")})—there are no matching safety signals in the current window. Clear trade filters to see the top trades by signal volume, or generate data for those crafts.`
+              : "No trade forecast cards for these filters. Choose another month, adjust trades, or click Generate Report to refresh."}
           </div>
         ) : (
           displayTrades.map((tf) => (
@@ -741,10 +760,13 @@ export function InjuryWeatherDashboard() {
             </ul>
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-600/70 bg-slate-900/80 p-5">
-          <h3 className="text-lg font-bold">Risk Trend Analysis</h3>
-          <p className="text-xs text-slate-400">Projected next months based on trend momentum (not historical replay).</p>
-          <div className="mt-3">
+        <div className="rounded-2xl border border-slate-600/70 bg-gradient-to-b from-slate-900/90 to-slate-950/95 p-5 shadow-inner">
+          <h3 className="text-lg font-bold text-white">Risk Trend Analysis</h3>
+          <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            Relative signal-strength index over recent months, extended with momentum (not a replay of raw history). Higher values
+            reflect more weighted safety activity in-window—compare to your incident program separately.
+          </p>
+          <div className="mt-4">
             <TrendChart points={data.trend} />
           </div>
         </div>
@@ -768,6 +790,275 @@ export function InjuryWeatherDashboard() {
         </section>
         <LeadingIndicatorsPanel data={data} />
       </div>
+
+      <section className="rounded-2xl border border-amber-900/45 bg-amber-950/15 p-5 text-sm text-amber-100/90">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300/90">Model assumptions</p>
+        <p className="mt-2 text-xs leading-relaxed text-amber-100/85">{INJURY_WEATHER_ASSUMPTIONS}</p>
+        <p className="mt-3 rounded-lg border border-amber-800/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200/90">{provenanceLine}</p>
+      </section>
+
+      <section className="rounded-2xl border border-slate-600/80 bg-slate-950/80 p-6 shadow-xl">
+        <div className="flex flex-col gap-2 border-b border-slate-700/80 pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Forecast parameters</p>
+            <h2 className="mt-1 text-xl font-bold text-white">Scope &amp; inputs</h2>
+            <p className="mt-1 max-w-xl text-sm text-slate-400">
+              Change filters below, then <span className="text-emerald-300/90">Generate Report</span> to refresh the outputs above.
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-700 bg-slate-900/90 px-3 py-2 text-[11px] text-slate-400">
+            <span className="font-semibold text-slate-300">Applied:</span> {appliedMonth || "—"}
+            {appliedStateCode ? (
+              <>
+                {" "}
+                · {US_STATE_OPTIONS.find((s) => s.code === appliedStateCode)?.name ?? appliedStateCode}
+              </>
+            ) : (
+              <> · National</>
+            )}
+            {" · "}
+            Trades: {appliedTrades.length > 0 ? appliedTrades.join(", ") : "All"}
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+            <span className="font-medium text-slate-400">Month</span>
+            <select
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100"
+            >
+              {!data.availableMonths.length ? <option value="">No month data</option> : null}
+              {data.availableMonths.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+            <span className="font-medium text-slate-400">Location (weather)</span>
+            <select
+              value={stateCode}
+              onChange={(e) => setStateCode(e.target.value)}
+              className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100"
+              aria-label="State or region for weather exposure"
+            >
+              {US_STATE_OPTIONS.map((s) => (
+                <option key={s.code || "national"} value={s.code}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+            <span className="font-medium text-slate-400">Project label</span>
+            <input
+              value={project}
+              onChange={(e) => setProject(e.target.value)}
+              className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100"
+              placeholder="All Projects"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+            <span className="font-medium text-slate-400">Workforce (optional)</span>
+            <input
+              type="number"
+              min={1}
+              value={workforceTotal}
+              onChange={(e) => setWorkforceTotal(e.target.value)}
+              className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100"
+              placeholder="e.g. 100"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+            <span className="font-medium text-slate-400">Hours worked (optional)</span>
+            <input
+              type="number"
+              min={1}
+              value={hoursWorked}
+              onChange={(e) => setHoursWorked(e.target.value)}
+              className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100"
+              placeholder="Overrides workforce for blend"
+              title="When set, takes precedence over workforce for normalizing severity and concentration in the overall risk blend"
+            />
+          </label>
+        </div>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-600 bg-slate-900/80 px-4 py-3 text-sm text-slate-200">
+            <input
+              type="checkbox"
+              checked={workSevenDaysPerWeek}
+              onChange={(e) => setWorkSevenDaysPerWeek(e.target.checked)}
+              className="rounded border-slate-500"
+            />
+            <span>7-day work week (vs typical 5-day)</span>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+            <span className="font-medium text-slate-400">Hours per day (optional)</span>
+            <input
+              type="number"
+              min={0.25}
+              max={24}
+              step={0.25}
+              value={hoursPerDaySchedule}
+              onChange={(e) => setHoursPerDaySchedule(e.target.value)}
+              className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100"
+              placeholder="Shift length"
+              title="Typical shift length; combined with day count to compare weekly hours to a 40h reference week"
+              aria-label="Hours per day for schedule exposure"
+            />
+          </label>
+        </div>
+
+        {(appliedWorkSevenDaysPerWeek || appliedHoursPerDaySchedule.trim()) && (
+          <p className="mt-3 rounded-lg border border-slate-700/80 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+            Schedule (likelihood path): {appliedWorkSevenDaysPerWeek ? "7" : "5"} days/week ×{" "}
+            {appliedHoursPerDaySchedule.trim() || "8"} h/day vs 40h reference — factor ×
+            {data.summary.predictedRiskFactors.scheduleExposureFactor.toFixed(3)} on predicted risk.
+          </p>
+        )}
+
+        <p className="mt-4 rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
+          <span className="font-semibold text-slate-300">Weather exposure</span>
+          {": "}
+          <span className="text-slate-200">{data.location.displayName}</span>
+          {data.location.stateCode ? (
+            <>
+              {" "}
+              · site ×{data.location.weatherRiskMultiplier.toFixed(2)}
+              {data.location.tradeWeatherWeight != null ? <> · trade blend ×{data.location.tradeWeatherWeight.toFixed(2)}</> : null}
+              {data.location.combinedWeatherFactor != null ? <> · combined ×{data.location.combinedWeatherFactor.toFixed(2)}</> : null}
+              {" — "}
+              {data.location.impactNote}
+            </>
+          ) : (
+            <>
+              {" "}
+              {data.location.tradeWeatherWeight != null ? <>trade blend ×{data.location.tradeWeatherWeight.toFixed(2)} · </> : null}
+              {data.location.combinedWeatherFactor != null ? <>combined ×{data.location.combinedWeatherFactor.toFixed(2)} · </> : null}
+              {data.location.impactNote}
+            </>
+          )}
+        </p>
+
+        <div className="mt-8 border-t border-slate-700/80 pt-6">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-slate-400">Trade &amp; craft filters</h3>
+          <p className="mt-2 max-w-3xl text-[11px] leading-relaxed text-slate-500">
+            Canonical crafts plus labels from your SOR, corrective actions, and incidents. Crafts with no rows yet show empty cards
+            until data exists—not the same as NSC{" "}
+            <span className="text-slate-400">Industry Profiles</span> (NAICS).
+          </p>
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+            {data.industryBenchmarkContext.benchmarkSummary}{" "}
+            <a
+              href={data.industryBenchmarkContext.injuryFactsIndustryProfilesUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sky-400 underline decoration-sky-500/50 hover:text-sky-300"
+            >
+              Industry Profiles
+            </a>
+            {" · "}
+            <a
+              href={data.industryBenchmarkContext.injuryFactsIncidentTrendsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sky-400 underline decoration-sky-500/50 hover:text-sky-300"
+            >
+              Rate trends
+            </a>
+          </p>
+          {data.industryBenchmarkContext.dominantNaicsPrefix ? (
+            <p className="mt-2 text-[11px] text-slate-400">
+              NAICS mode (companies with <code className="rounded bg-slate-800 px-1 text-slate-200">industry_code</code>): prefix{" "}
+              <span className="font-mono text-slate-200">{data.industryBenchmarkContext.dominantNaicsPrefix}</span>
+              {data.industryBenchmarkContext.exampleIndustryCode ? (
+                <>
+                  {" "}
+                  (<span className="font-mono text-slate-300">{data.industryBenchmarkContext.exampleIndustryCode}</span>)
+                </>
+              ) : null}
+              {data.industryBenchmarkContext.recordableCasesPer200kHours != null ? (
+                <>
+                  {" "}
+                  · ≈{data.industryBenchmarkContext.recordableCasesPer200kHours} recordables / 200k hrs (illustrative).
+                </>
+              ) : null}
+            </p>
+          ) : null}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {trades.map((t) => {
+              const selected = selectedTrades.includes(t);
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => toggleTrade(t)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    selected
+                      ? "border-sky-400/80 bg-sky-500/20 text-sky-100"
+                      : "border-slate-600 bg-slate-900 text-slate-300 hover:border-slate-500"
+                  }`}
+                >
+                  {selected ? "✓ " : ""}
+                  {t}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-5 flex flex-col gap-4 border-t border-slate-800 pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-slate-500">
+              Selected: <span className="text-slate-300">{selectedTrades.length > 0 ? selectedTrades.join(", ") : "All trades"}</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-400">
+                <input
+                  type="checkbox"
+                  checked={fieldAttestation}
+                  onChange={(e) => setFieldAttestation(e.target.checked)}
+                  className="rounded border-slate-600"
+                />
+                Field review (export)
+              </label>
+              <button
+                type="button"
+                onClick={exportReportJson}
+                className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
+              >
+                Export JSON
+              </button>
+              <button
+                type="button"
+                onClick={onRefreshFromServer}
+                className="rounded-lg border border-sky-500/50 bg-sky-500/10 px-3 py-2 text-sm font-semibold text-sky-200 hover:bg-sky-500/20"
+              >
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={onGenerateReport}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-emerald-900/30 hover:bg-emerald-500"
+              >
+                Generate Report
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-10 border-t border-slate-800 pt-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">About the leading-indicator model</p>
+          <p className="mt-3 text-sm leading-relaxed text-slate-400">
+            <span className="font-medium text-slate-300">Leading-indicator model:</span> Present and future risk scores use historical
+            SOR, corrective actions, and incidents when the target month has sparse data in the latest snapshot. The exposure index
+            blends likelihood with workforce or trend volume; the % headline maps structural risk × trade/site climate. These are
+            prioritization signals—not validated injury predictions until compared to your incident history. AI suggestions support
+            training and controls; they do not change the core math instantly.
+          </p>
+        </div>
+      </section>
 
       {numberBreakdownOpen ? (
         <div

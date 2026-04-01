@@ -10,6 +10,7 @@ export type TradeCanonical = {
 };
 
 /** CONFIG: extend aliases to match your org’s vocabulary. */
+/** Canonical craft labels for Injury Weather chips (unioned with trades seen in data). */
 export const TRADE_CANONICAL: TradeCanonical[] = [
   { id: "general_contractor", label: "General Contractor", aliases: ["general contractor", "gc", "general"] },
   { id: "steel_work", label: "Steel Work", aliases: ["steel work", "steel", "structural steel", "ironwork", "iron worker", "rebar"] },
@@ -29,6 +30,11 @@ export const TRADE_CANONICAL: TradeCanonical[] = [
   { id: "drywall", label: "Drywall", aliases: ["drywall", "gypsum"] },
   { id: "painting", label: "Painting", aliases: ["painting", "painter"] },
 ];
+
+/** Sorted labels from `TRADE_CANONICAL` — used to offer filters before a trade appears in safety data. */
+export function curatedConstructionTradeLabels(): string[] {
+  return [...TRADE_CANONICAL.map((t) => t.label)].sort((a, b) => a.localeCompare(b));
+}
 
 const ALIAS_TO_ID = new Map<string, { id: string; label: string }>();
 for (const t of TRADE_CANONICAL) {

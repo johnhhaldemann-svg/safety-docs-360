@@ -1,4 +1,14 @@
+import type { InjuryType } from "@/lib/incidents/injuryType";
+
 export type RiskLevel = "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
+
+/** Derived from incident injury/exposure fields in the current signal window. */
+export type LikelyInjuryInsight = {
+  headline: string;
+  secondaryLine: string | null;
+  detailNote: string;
+  hasData: boolean;
+};
 
 /** Named inputs to `predictedRisk` (six-factor product). See `computePredictedRiskProduct` in `riskModel.ts`. */
 export type PredictedRiskFactors = {
@@ -116,6 +126,9 @@ export type NormalizedLiveSignalRow = {
   injurySeason?: string | null;
   injuryDayOfWeek?: string | null;
   injuryTimeOfDay?: string | null;
+  /** Incident rows: when set on `company_incidents`. */
+  injuryType?: InjuryType | null;
+  exposureEventType?: string | null;
 };
 
 /** Defensible breakdown for exports, UI, and AI grounding — numeric score is model-authored, not LLM. */
@@ -218,6 +231,8 @@ export type DashboardSummary = {
    * @deprecated Use `structuralRiskScore`. Kept for short-term JSON compatibility.
    */
   overallRiskScore?: number;
+  /** Most likely injury nature from incident history / exposure priors in this scope. */
+  likelyInjuryInsight: LikelyInjuryInsight;
 };
 
 export type TradeForecast = {
@@ -285,6 +300,20 @@ export type InjuryWeatherBlendNormalization = {
 };
 
 /** Where the injury-weather model drew its rows (after month + trade filters). */
+/** NSC / NAICS benchmark context for Injury Weather (platform companies with `industry_code`). */
+export type InjuryWeatherIndustryBenchmarkContext = {
+  injuryFactsIndustryProfilesUrl: string;
+  injuryFactsIncidentTrendsUrl: string;
+  /** Mode of 2-digit NAICS among companies with `industry_code` set; null if none or empty. */
+  dominantNaicsPrefix: string | null;
+  /** One `companies.industry_code` value that maps to `dominantNaicsPrefix`, for display. */
+  exampleIndustryCode: string | null;
+  /** From `getIndustryBenchmarkRates` when a dominant prefix exists. */
+  recordableCasesPer200kHours: number | null;
+  /** Short explanation for the dashboard (data availability + link hint). */
+  benchmarkSummary: string;
+};
+
 export type InjuryWeatherSignalProvenance = {
   mode: "live" | "seed";
   sorRecords: number;
@@ -312,6 +341,8 @@ export type InjuryWeatherDashboardData = {
   monthlyTrainingRecommendations: string[];
   availableMonths: string[];
   availableTrades: string[];
+  /** NSC Injury Facts / NAICS vs craft trades; from company `industry_code` distribution when DB available. */
+  industryBenchmarkContext: InjuryWeatherIndustryBenchmarkContext;
   location: InjuryWeatherLocation;
   signalProvenance: InjuryWeatherSignalProvenance;
   /** Present for live Supabase-backed runs using the V2 weighted engine. */

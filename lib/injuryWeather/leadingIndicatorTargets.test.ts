@@ -1,3 +1,5 @@
+import { offlineInjuryWeatherBenchmarkContext } from "@/lib/benchmarking/industryBenchmarkDataset";
+import { DEMO_LIKELY_INJURY_INSIGHT } from "@/lib/injuryWeather/likelyInjuryFromSignals";
 import { describe, expect, it } from "vitest";
 import { buildLeadingIndicatorTargets } from "./leadingIndicatorTargets";
 import type { InjuryWeatherDashboardData } from "./types";
@@ -26,6 +28,7 @@ function minimalData(overrides: Partial<InjuryWeatherDashboardData> = {}): Injur
       dataConfidence: "LOW",
       forecastMode: "live_adjusted",
       forecastConfidenceScore: 0.8,
+      likelyInjuryInsight: DEMO_LIKELY_INJURY_INSIGHT,
     },
     tradeForecasts: [
       {
@@ -64,6 +67,7 @@ function minimalData(overrides: Partial<InjuryWeatherDashboardData> = {}): Injur
       overtimeHours: 0,
     },
     workSchedule: { workSevenDaysPerWeek: false, hoursPerDay: null },
+    industryBenchmarkContext: offlineInjuryWeatherBenchmarkContext(),
   };
   return { ...base, ...overrides };
 }
