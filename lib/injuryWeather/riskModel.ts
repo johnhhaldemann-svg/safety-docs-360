@@ -19,6 +19,9 @@
  *   3. `projectedCaseEstimate`: rough case-load style count for prioritization; uses (2) × exposure
  *      constants × optional trend step-up. **Not** equated with structural score.
  *   4. Trade/category **allocation** uses signal shares × weather weights for display only.
+ *
+ * Target product narrative (layers 1–8) maps to code fields in `injuryRiskDeterminationTree.ts` and the
+ * `InjuryRiskTreePanel` dashboard component.
  */
 
 import { getTradeWeatherWeight } from "@/lib/injuryWeather/locationWeather";

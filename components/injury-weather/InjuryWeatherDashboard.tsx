@@ -3,21 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import { LeadingIndicatorsPanel } from "@/components/injury-weather/LeadingIndicatorsPanel";
+import { InjuryRiskTreePanel } from "@/components/injury-weather/InjuryRiskTreePanel";
 import { US_STATE_OPTIONS } from "@/lib/injuryWeather/locationWeather";
 import { INJURY_WEATHER_ASSUMPTIONS } from "@/lib/injuryWeather/types";
 import type {
   InjuryWeatherAiInsights,
-  InjuryWeatherBacktestResult,
   InjuryWeatherDashboardData,
   RiskLevel,
   TradeForecast,
   TrendPoint,
 } from "@/lib/injuryWeather/types";
-
-function formatCorrelation(v: number | null): string {
-  if (v == null) return "—";
-  return v.toFixed(3);
-}
 
 function controlsForCategory(trade: string, categoryName: string, risk: RiskLevel): string[] {
   const hay = `${trade} ${categoryName}`.toLowerCase();
@@ -129,9 +125,6 @@ export function InjuryWeatherDashboard() {
   const [controlsOpen, setControlsOpen] = useState<TradeForecast | null>(null);
   const [numberBreakdownOpen, setNumberBreakdownOpen] = useState<TradeForecast | null>(null);
   const [fieldAttestation, setFieldAttestation] = useState(false);
-  const [backtest, setBacktest] = useState<InjuryWeatherBacktestResult | null>(null);
-  const [backtestLoading, setBacktestLoading] = useState(false);
-  const [backtestError, setBacktestError] = useState("");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -167,6 +160,8 @@ export function InjuryWeatherDashboard() {
       if (appliedTrades.length > 0) qs.set("trades", appliedTrades.join(","));
       if (appliedWorkforceTotal.trim()) qs.set("workforceTotal", appliedWorkforceTotal.trim());
       if (appliedHoursWorked.trim()) qs.set("hoursWorked", appliedHoursWorked.trim());
+      if (appliedWorkSevenDaysPerWeek) qs.set("workSevenDaysPerWeek", "1");
+      if (appliedHoursPerDaySchedule.trim()) qs.set("hoursPerDay", appliedHoursPerDaySchedule.trim());
       if (appliedStateCode.trim()) qs.set("state", appliedStateCode.trim());
       qs.set("includeAi", "true");
       if (bypassCacheOnce.current) {
@@ -208,48 +203,6 @@ export function InjuryWeatherDashboard() {
     month,
     reportRun,
     refreshTick,
-  ]);
-
-  /** Back-test uses filters that affect the model only — not `refreshTick` (trade chips) so we do not re-query the DB on every trade toggle. */
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      if (!token) return;
-      setBacktestLoading(true);
-      setBacktestError("");
-      const qs = new URLSearchParams();
-      qs.set("months", "12");
-      if (appliedStateCode.trim()) qs.set("state", appliedStateCode.trim());
-      if (appliedWorkforceTotal.trim()) qs.set("workforceTotal", appliedWorkforceTotal.trim());
-      if (appliedHoursWorked.trim()) qs.set("hoursWorked", appliedHoursWorked.trim());
-      if (appliedWorkSevenDaysPerWeek) qs.set("workSevenDaysPerWeek", "1");
-      if (appliedHoursPerDaySchedule.trim()) qs.set("hoursPerDay", appliedHoursPerDaySchedule.trim());
-      const res = await fetch(`/api/superadmin/injury-weather/backtest?${qs.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      const payload = (await res.json().catch(() => null)) as InjuryWeatherBacktestResult | { error?: string } | null;
-      if (cancelled) return;
-      if (!res.ok || !payload || ("error" in payload && payload.error)) {
-        setBacktest(null);
-        setBacktestError((payload as { error?: string } | null)?.error || "Could not load back-test.");
-      } else {
-        setBacktest(payload as InjuryWeatherBacktestResult);
-      }
-      setBacktestLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    appliedStateCode,
-    appliedWorkforceTotal,
-    appliedHoursWorked,
-    appliedWorkSevenDaysPerWeek,
-    appliedHoursPerDaySchedule,
-    reportRun,
   ]);
 
   const trades = useMemo(
@@ -303,7 +256,8 @@ export function InjuryWeatherDashboard() {
       .map((name) => source.find((t) => t.trade.toLowerCase() === name.toLowerCase()))
       .filter(Boolean) as InjuryWeatherDashboardData["tradeForecasts"];
     if (picked.length === 4) return picked;
-    return source.slice(0, 4);
+    const fallback = source.slice(0, 4);
+    return fallback.length > 0 ? fallback : source;
   }, [data, appliedTrades]);
 
   const exportReportJson = () => {
@@ -362,6 +316,10 @@ export function InjuryWeatherDashboard() {
           <p className="text-sm font-black uppercase tracking-[0.25em] text-slate-200">Injury Weather System™</p>
           <h1 className="mt-1 text-5xl font-black tracking-tight text-white">Safety Forecast Dashboard</h1>
           <p className="mt-1 text-lg text-slate-300">Predictive Risk Analysis for Your Jobsite</p>
+          <p className="mx-auto mt-4 max-w-3xl text-sm leading-relaxed text-slate-400">
+            Plan the month ahead—prioritize training, engineering controls, and field focus from your safety signals to help prevent
+            injuries and give admins a clear prep list before work ramps up.
+          </p>
         </div>
         <div className="grid gap-2 border-b border-slate-600/40 bg-black/20 px-5 py-3 sm:grid-cols-3">
           <div className="rounded-xl border border-slate-500/40 bg-slate-900/70 p-3 text-center">
@@ -389,9 +347,9 @@ export function InjuryWeatherDashboard() {
         </div>
         <p className="border-b border-slate-600/40 bg-black/30 px-5 py-2 text-left text-xs leading-relaxed text-slate-400">
           <span className="font-semibold text-slate-300">Leading-indicator model:</span> The exposure number blends likelihood with
-          workforce or trend volume; the % index maps structural risk × trade/site weather. These are not validated injury predictions
-          until compared to your incident history (see Validation). AI suggestions target real-world controls and signal quality—they
-          do not change the math instantly.
+          workforce or trend volume; the % index maps structural risk × trade/site climate. These are prioritization signals, not
+          validated injury predictions, until compared to your incident history over time. AI suggestions support training and
+          controls—they do not change the math instantly.
         </p>
         <div className="grid gap-2 bg-black/25 px-5 py-3 sm:grid-cols-2 lg:grid-cols-5">
           <select value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-lg border border-slate-500/50 bg-slate-900/80 px-3 py-2 text-sm">
@@ -552,97 +510,13 @@ export function InjuryWeatherDashboard() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-violet-800/45 bg-violet-950/25 p-4 text-sm text-violet-100/90">
-        <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-300/90">Validation</p>
-        <h3 className="mt-1 text-lg font-bold text-violet-100">Back-test: model score vs next-month incidents</h3>
-        <p className="mt-1 text-xs leading-relaxed text-violet-100/75">
-          Each row uses signals from month M to compute the same scores as the live dashboard, then compares to{" "}
-          <span className="font-semibold text-violet-50">recorded incidents</span> (company_incidents by created_at) in month M+1.
-          Positive correlation suggests higher scores align with more incidents; small samples and mix effects limit statistical power.
-        </p>
-        {backtestLoading ? (
-          <p className="mt-3 text-xs text-violet-200/70">Loading back-test…</p>
-        ) : backtestError ? (
-          <p className="mt-3 text-xs text-red-300/90">{backtestError}</p>
-        ) : backtest ? (
-          <div className="mt-3 space-y-3">
-            <p className="text-[11px] leading-relaxed text-violet-200/65">{backtest.methodology}</p>
-            <div className="overflow-x-auto rounded-lg border border-violet-800/40 bg-black/20">
-              <table className="min-w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-violet-800/50 text-violet-300/90">
-                    <th className="px-2 py-2 font-semibold">Score month</th>
-                    <th className="px-2 py-2 font-semibold">Outcome month</th>
-                    <th className="px-2 py-2 font-semibold">Likelihood %</th>
-                    <th className="px-2 py-2 font-semibold">Structural</th>
-                    <th className="px-2 py-2 font-semibold">Case est.</th>
-                    <th className="px-2 py-2 font-semibold">Signals</th>
-                    <th className="px-2 py-2 font-semibold">Incidents (next mo.)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {backtest.rows.map((row) => (
-                    <tr key={`${row.scoreMonth}-${row.outcomeMonth}`} className="border-b border-violet-900/30 text-violet-100/90">
-                      <td className="px-2 py-1.5">{row.scoreMonth}</td>
-                      <td className="px-2 py-1.5">{row.outcomeMonth}</td>
-                      <td className="px-2 py-1.5">{row.injuryChancePct}%</td>
-                      <td className="px-2 py-1.5">{row.structuralRiskScore != null ? row.structuralRiskScore : "—"}</td>
-                      <td className="px-2 py-1.5">{row.projectedCaseEstimate}</td>
-                      <td className="px-2 py-1.5">{row.signalRows}</td>
-                      <td className="px-2 py-1.5 font-semibold text-violet-50">{row.incidentsNextMonth}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="grid gap-2 text-[11px] text-violet-200/85 sm:grid-cols-2">
-              {backtest.calibrationTrend && backtest.calibrationTrend !== "unknown" ? (
-                <p className="sm:col-span-2 rounded border border-violet-700/40 bg-violet-950/40 px-2 py-1.5 text-violet-100/90">
-                  Calibration vs prior run (structural Pearson):{" "}
-                  <span className="font-semibold text-violet-50">{backtest.calibrationTrend}</span>
-                </p>
-              ) : null}
-              <p>
-                Pearson <em>r</em> (likelihood vs incidents):{" "}
-                <span className="font-mono text-violet-100">{formatCorrelation(backtest.pearsonLikelihoodVsIncidents)}</span>
-                {" · "}
-                Spearman ρ:{" "}
-                <span className="font-mono text-violet-100">{formatCorrelation(backtest.spearmanLikelihoodVsIncidents)}</span>
-              </p>
-              <p>
-                Pearson <em>r</em> (case estimate vs incidents):{" "}
-                <span className="font-mono text-violet-100">{formatCorrelation(backtest.pearsonCasesVsIncidents)}</span>
-                {" · "}
-                Spearman ρ:{" "}
-                <span className="font-mono text-violet-100">{formatCorrelation(backtest.spearmanCasesVsIncidents)}</span>
-              </p>
-              <p className="sm:col-span-2">
-                Pearson <em>r</em> (structural score vs incidents):{" "}
-                <span className="font-mono text-violet-100">{formatCorrelation(backtest.pearsonStructuralVsIncidents)}</span>
-                {" · "}
-                Spearman ρ:{" "}
-                <span className="font-mono text-violet-100">{formatCorrelation(backtest.spearmanStructuralVsIncidents)}</span>
-                <span className="text-violet-300/70"> · {backtest.lookbackMonths} month window</span>
-              </p>
-              {backtest.recentRuns && backtest.recentRuns.length > 1 ? (
-                <p className="sm:col-span-2 text-[10px] text-violet-300/70">
-                  Last {Math.min(5, backtest.recentRuns.length)} stored runs: structural Pearson{" "}
-                  {backtest.recentRuns
-                    .slice(0, 5)
-                    .map((r) => formatCorrelation(r.pearsonStructuralVsIncidents))
-                    .join(" → ")}
-                </p>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-      </section>
-
       <section className="rounded-2xl border border-amber-900/50 bg-amber-950/20 p-4 text-sm text-amber-100/90">
         <p className="font-semibold text-amber-200">Assumptions</p>
         <p className="mt-1 text-xs leading-relaxed text-amber-100/85">{INJURY_WEATHER_ASSUMPTIONS}</p>
         <p className="mt-2 text-xs text-amber-200/80">{provenanceLine}</p>
       </section>
+
+      <InjuryRiskTreePanel />
 
       <section className="rounded-2xl border border-slate-700 bg-slate-900/80 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -658,6 +532,8 @@ export function InjuryWeatherDashboard() {
           Last updated: {new Date(data.summary.lastUpdatedAt).toLocaleString()}
         </p>
       </section>
+
+      <LeadingIndicatorsPanel data={data} />
 
       {aiInsights ? (
         <section className="rounded-2xl border border-sky-700/40 bg-slate-900/80 p-5">
@@ -694,7 +570,12 @@ export function InjuryWeatherDashboard() {
       ) : null}
 
       <section className="grid gap-3 xl:grid-cols-4">
-        {displayTrades.map((tf) => (
+        {displayTrades.length === 0 ? (
+          <div className="col-span-full rounded-2xl border border-slate-600/70 bg-slate-900/80 p-6 text-center text-sm text-slate-400">
+            No trade forecast cards for these filters. Choose another month, adjust trades, or click Generate Report to refresh.
+          </div>
+        ) : (
+          displayTrades.map((tf) => (
           <article key={tf.trade} className="rounded-2xl border border-slate-600/70 bg-[linear-gradient(170deg,_#121e36_0%,_#0d1629_100%)] p-4">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-3xl font-black text-white">{tf.trade}</h2>
@@ -731,7 +612,8 @@ export function InjuryWeatherDashboard() {
             </div>
             {tf.footerNote ? <p className="mt-2 text-xs text-slate-300">{tf.footerNote}</p> : null}
           </article>
-        ))}
+        ))
+        )}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
