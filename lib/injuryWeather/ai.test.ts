@@ -12,7 +12,7 @@ function minimalDashboard(overrides: Partial<InjuryWeatherDashboardData> = {}): 
       increasedIncidentRiskPercent: 35,
       overallRiskLevel: "HIGH",
       structuralRiskScore: 48,
-      riskModelVersion: "2.3.0",
+      riskModelVersion: "2.9.0",
       overallRiskScore: 48,
       predictedRisk: 2.1,
       predictedRiskFactors: {
@@ -24,6 +24,9 @@ function minimalDashboard(overrides: Partial<InjuryWeatherDashboardData> = {}): 
         weatherFactor: 1,
       },
       lastUpdatedAt: new Date().toISOString(),
+      dataConfidence: "MEDIUM",
+      forecastMode: "live_adjusted",
+      forecastConfidenceScore: 0.8,
     },
     tradeForecasts: [
       {
@@ -73,6 +76,18 @@ function minimalDashboard(overrides: Partial<InjuryWeatherDashboardData> = {}): 
 }
 
 describe("computeConfidenceRubric", () => {
+  it("returns LOW when there are no observations", () => {
+    const d = minimalDashboard({
+      summary: {
+        ...minimalDashboard().summary,
+        predictedObservations: 0,
+        forecastMode: "baseline_only",
+        forecastConfidenceScore: 0.4,
+      },
+    });
+    expect(computeConfidenceRubric(d)).toBe("LOW");
+  });
+
   it("returns LOW when observation count is sparse", () => {
     const d = minimalDashboard({
       summary: { ...minimalDashboard().summary, predictedObservations: 5 },

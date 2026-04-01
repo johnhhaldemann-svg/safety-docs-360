@@ -12,7 +12,7 @@ function minimalData(overrides: Partial<InjuryWeatherDashboardData> = {}): Injur
       increasedIncidentRiskPercent: 22,
       overallRiskLevel: "MODERATE",
       structuralRiskScore: 35,
-      riskModelVersion: "2.3.0",
+      riskModelVersion: "2.9.0",
       predictedRisk: 1.5,
       predictedRiskFactors: {
         historicalBaseline: 1.1,
@@ -23,6 +23,9 @@ function minimalData(overrides: Partial<InjuryWeatherDashboardData> = {}): Injur
         weatherFactor: 1,
       },
       lastUpdatedAt: new Date().toISOString(),
+      dataConfidence: "LOW",
+      forecastMode: "live_adjusted",
+      forecastConfidenceScore: 0.8,
     },
     tradeForecasts: [
       {

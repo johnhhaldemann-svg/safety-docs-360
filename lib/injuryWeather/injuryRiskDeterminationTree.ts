@@ -1,6 +1,8 @@
 /**
  * Target logic tree for injury risk determination (product / comms).
  * See `riskModel.ts` + `service.ts` for what is implemented vs roadmap.
+ * Full target system architecture: `docs/AIInjuryForecastSystem.md` (hybrid: deterministic
+ * evidence engines + AI final review as the contextual predictor; see doc intro).
  */
 
 export type InjuryRiskTreeLayer = {

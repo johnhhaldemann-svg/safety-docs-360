@@ -1,3 +1,4 @@
+import { computeDataConfidenceFromMetrics, riskBandMeaningForDataConfidence } from "@/lib/injuryWeather/dataConfidence";
 import type { InjuryWeatherAiInsights, InjuryWeatherDashboardData } from "@/lib/injuryWeather/types";
 import { buildOshaCrossReference } from "@/lib/injuryWeather/oshaHistory";
 
@@ -9,12 +10,11 @@ const FORBIDDEN_ILLUSTRATION_PHRASES = [
 ];
 
 export function computeConfidenceRubric(data: InjuryWeatherDashboardData): InjuryWeatherAiInsights["confidence"] {
-  const n = data.summary.predictedObservations;
-  const trendLen = data.trend?.length ?? 0;
-  const months = data.availableMonths?.length ?? 0;
-  if (n < 12 || trendLen < 3 || months < 2) return "LOW";
-  if (n >= 45 && trendLen >= 5 && months >= 4) return "HIGH";
-  return "MEDIUM";
+  return computeDataConfidenceFromMetrics(
+    data.summary.predictedObservations,
+    data.trend?.length ?? 0,
+    data.availableMonths?.length ?? 0
+  );
 }
 
 function capConfidence(
@@ -140,6 +140,9 @@ function computeAiContext(data: InjuryWeatherDashboardData) {
       predictedRisk: data.summary.predictedRisk,
       predictedRiskFactors: data.summary.predictedRiskFactors,
       overallRiskLevel: data.summary.overallRiskLevel,
+      dataConfidence: data.summary.dataConfidence,
+      forecastMode: data.summary.forecastMode,
+      forecastConfidenceScore: data.summary.forecastConfidenceScore,
       riskModelVersion: data.summary.riskModelVersion,
       modelRole: "leading_indicator_unvalidated" as const,
       highSeverityRatioPct,
@@ -182,8 +185,10 @@ function fallbackInsights(data: InjuryWeatherDashboardData): InjuryWeatherAiInsi
     : "no state selected for climate modifier";
   const rubric = computeConfidenceRubric(data);
   const conf = capConfidence("MEDIUM", rubric);
+  const dc = data.summary.dataConfidence ?? "MEDIUM";
+  const dcLine = riskBandMeaningForDataConfidence(dc);
   return {
-    headline: `For ${data.summary.month}, aggregated signals center on ${topTrade} — ${topCategory} — with ${data.summary.overallRiskLevel} overall model risk.`,
+    headline: `For ${data.summary.month}, aggregated signals center on ${topTrade} — ${topCategory}. Structural risk band: ${data.summary.overallRiskLevel}. Data confidence ${dc} — ${dcLine}.`,
     likelyInjuryDrivers: [
       `Model inputs: ${n} weighted observations; ${sev} high/critical-weight signals (${mixPct}% of total).`,
       `Trade/category emphasis from current data: ${topTrade} / ${topCategory}.`,
@@ -221,6 +226,7 @@ export async function generateInjuryWeatherAiInsights(
     "- Priority actions: operational for 7–30 days and verifiable; none may depend on imaginary triggers.",
     "- In one priority action, state clearly that executing controls improves conditions over time and reduces future signal severity/volume—the headline exposure estimate is a leading-indicator model output and does not drop instantly when reading the AI text.",
     "- Set confidence to confidenceRubricHint unless you have a strong reason from sparse data to use LOW.",
+    "- Data confidence is about evidence density (baseline vs live signals), NOT hazard level: LOW confidence does not mean “low risk”; HIGH means the estimate is supported by enough live observations.",
     JSON.stringify(aiContext),
   ].join("\n");
 

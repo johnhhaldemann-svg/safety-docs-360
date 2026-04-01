@@ -27,6 +27,78 @@ export type WorkScheduleInputs = {
  * - `increasedIncidentRiskPercent`: next-~30-day **likelihood index** (structural × weather); not a calibrated probability.
  * - `predictedInjuriesNextMonth`: **projected case estimate** for prioritization; not equated with structural score.
  */
+/** How strongly live signal density supports the headline estimate (not the same axis as `overallRiskLevel`). */
+export type DataConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
+
+/**
+ * `baseline_only` — no live signal rows in scope: `predictedRisk` = baseline × monthly × trade only.
+ * `live_adjusted` — at least one row: adds behavior (incl. schedule) and weather to the product.
+ */
+export type InjuryWeatherForecastMode = "baseline_only" | "live_adjusted";
+
+/**
+ * User-selected scope for a forecast run (evidence pack / MasterEvidencePack `ForecastContext`).
+ * Aligns with `docs/AIInjuryForecastSystem.md` section 5.1.
+ */
+export type ForecastContext = {
+  selectedMonth: string;
+  selectedState: string;
+  selectedProject?: string;
+  selectedTrades: string[];
+  forecastWindowDays: number;
+  hoursWorked?: number;
+};
+
+/**
+ * Deterministic outputs from each engine in `docs/AIInjuryForecastSystem.md` section 4.
+ * Component shapes are filled incrementally; use `Record<string, unknown>` until fields are modeled.
+ */
+export type BaselineEvidence = Record<string, unknown>;
+export type LossPressureEvidence = Record<string, unknown>;
+export type LeadingIndicatorEvidence = Record<string, unknown>;
+export type EnvironmentalEvidence = Record<string, unknown>;
+export type ExposureEvidence = Record<string, unknown>;
+export type ControlEffectivenessEvidence = Record<string, unknown>;
+export type PatternAlignmentEvidence = Record<string, unknown>;
+export type ConfidenceEvidence = Record<string, unknown>;
+
+export type DeterministicEvidence = {
+  baselineEvidence: BaselineEvidence;
+  lossPressureEvidence: LossPressureEvidence;
+  leadingIndicatorEvidence: LeadingIndicatorEvidence;
+  environmentalEvidence: EnvironmentalEvidence;
+  exposureEvidence: ExposureEvidence;
+  controlEffectivenessEvidence: ControlEffectivenessEvidence;
+  patternAlignmentEvidence: PatternAlignmentEvidence;
+  confidenceEvidence: ConfidenceEvidence;
+};
+
+/**
+ * Structured AI review output (`docs/AIInjuryForecastSystem.md` section 6.4).
+ * String literals are model-facing labels — not the same as internal `RiskLevel` / `InjuryWeatherForecastMode`.
+ */
+export type AIFinalPrediction = {
+  predictedRiskLevel: "Low" | "Moderate" | "Elevated" | "High" | "Critical";
+  predictedRiskScoreBand: string;
+  likelyInjuryType: string;
+  secondaryLikelyInjuryType?: string;
+  confidenceLevel: "Low" | "Medium" | "High";
+  forecastMode:
+    | "BaselineOnly"
+    | "BaselinePlusSignals"
+    | "StrongSignalForecast"
+    | "LimitedDataForecast";
+  topRiskDrivers: string[];
+  topProtectiveDrivers: string[];
+  explanationNarrative: string;
+  whyThisMonthMatters: string;
+  whyThisTradeMixMatters: string;
+  whyCurrentSignalsMatter: string;
+  criticalUnknowns: string[];
+  recommendedActions: string[];
+  recommendedInspectionFocus: string[];
+};
+
 export type DashboardSummary = {
   month: string;
   predictedObservations: number;
@@ -39,6 +111,18 @@ export type DashboardSummary = {
    */
   increasedIncidentRiskPercent: number;
   overallRiskLevel: RiskLevel;
+  /**
+   * Evidence strength for the estimate (sparse signals → LOW). Pair with `overallRiskLevel` using
+   * `riskBandMeaningForDataConfidence` — LOW confidence does not mean “low risk.”
+   */
+  dataConfidence: DataConfidenceLevel;
+  /** `baseline_only` when there are no recent observations in the current scope (see `predictedObservations`). */
+  forecastMode: InjuryWeatherForecastMode;
+  /**
+   * Scalar confidence for this forecast path (not the same as `dataConfidence` rubric): **0.4** when
+   * `baseline_only`, **0.8** when live signals adjust the headline product.
+   */
+  forecastConfidenceScore: number;
   lastUpdatedAt: string;
   /**
    * Structural leading-indicator score 0–100 (severity, trend, momentum, concentration, repeats, optional workforce density).
@@ -51,8 +135,9 @@ export type DashboardSummary = {
    */
   riskModelVersion: string;
   /**
-   * `historicalBaseline × seasonalFactor × realTimeBehaviorFactor × siteConditionFactor × weatherFactor`
-   * (dimensionless index; not equated with structural score).
+   * Dimensionless index — not equated with structural score. **baseline_only:** `baseline × monthly × trade`
+   * (`computePredictedRiskProductWhenNoObservations`). **live_adjusted:** `baseline × monthly × trade × behavior × weather`
+   * where behavior = realtime behavior × schedule exposure (`computePredictedRiskProduct`).
    */
   predictedRisk: number;
   /** Breakdown for transparency / exports. */

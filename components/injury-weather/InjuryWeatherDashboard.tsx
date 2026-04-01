@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { LeadingIndicatorsPanel } from "@/components/injury-weather/LeadingIndicatorsPanel";
 import { InjuryRiskTreePanel } from "@/components/injury-weather/InjuryRiskTreePanel";
 import { US_STATE_OPTIONS } from "@/lib/injuryWeather/locationWeather";
+import { riskBandMeaningForDataConfidence } from "@/lib/injuryWeather/dataConfidence";
 import { INJURY_WEATHER_ASSUMPTIONS } from "@/lib/injuryWeather/types";
 import type {
   InjuryWeatherAiInsights,
@@ -343,8 +344,22 @@ export function InjuryWeatherDashboard() {
                 {data.summary.overallRiskLevel}
               </span>
             </div>
+            <p className="mt-2 text-[11px] leading-snug text-sky-100/90">
+              <span className="font-semibold text-sky-200/95">Data confidence {data.summary.dataConfidence ?? "—"}</span>
+              <span className="text-slate-400"> — </span>
+              {riskBandMeaningForDataConfidence(data.summary.dataConfidence ?? "MEDIUM")}
+            </p>
+            <p className="mt-1 text-[10px] text-slate-500">
+              Forecast confidence {(data.summary.forecastConfidenceScore ?? 0.8).toFixed(1)} ·{" "}
+              {(data.summary.forecastMode ?? "live_adjusted") === "baseline_only" ? "baseline_only" : "live_adjusted"}
+            </p>
           </div>
         </div>
+        {(data.summary.forecastMode ?? "live_adjusted") === "baseline_only" ? (
+          <div className="border-b border-amber-500/45 bg-amber-950/50 px-5 py-3 text-center text-sm font-medium leading-snug text-amber-100/95">
+            No recent observations — forecast based on historical patterns and selected trades.
+          </div>
+        ) : null}
         <p className="border-b border-slate-600/40 bg-black/30 px-5 py-2 text-left text-xs leading-relaxed text-slate-400">
           <span className="font-semibold text-slate-300">Leading-indicator model:</span> The exposure number blends likelihood with
           workforce or trend volume; the % index maps structural risk × trade/site climate. These are prioritization signals, not
@@ -539,9 +554,14 @@ export function InjuryWeatherDashboard() {
         <section className="rounded-2xl border border-sky-700/40 bg-slate-900/80 p-5">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-sky-200">AI Safety Advisor</h3>
-            <span className="rounded-full border border-sky-500/50 bg-sky-500/20 px-2.5 py-1 text-xs font-bold text-sky-200">
-              Confidence {aiInsights.confidence}
-            </span>
+            <div className="text-right">
+              <span className="rounded-full border border-sky-500/50 bg-sky-500/20 px-2.5 py-1 text-xs font-bold text-sky-200">
+                Data confidence {aiInsights.confidence}
+              </span>
+              <p className="mt-1 max-w-xs text-[11px] font-normal leading-snug text-slate-500">
+                {riskBandMeaningForDataConfidence(aiInsights.confidence)}
+              </p>
+            </div>
           </div>
           <p className="mt-2 text-sm text-slate-200">{aiInsights.headline}</p>
           <div className="mt-3 grid gap-3 lg:grid-cols-2">

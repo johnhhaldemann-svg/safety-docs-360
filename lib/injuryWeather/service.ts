@@ -1,5 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { inferCalibrationTrend, computeBacktestCorrelations } from "@/lib/injuryWeather/backtest";
+import { computeDataConfidenceFromMetrics } from "@/lib/injuryWeather/dataConfidence";
 import {
   effectiveTradeWeatherWeightFromByTrade,
   getLocationWeatherContext,
@@ -13,6 +14,10 @@ import {
   computeBaseRiskScore,
   computeIncidentLikelihoodIndexPct,
   computePredictedRiskProduct,
+  computePredictedRiskProductWhenNoObservations,
+  effectiveBaseRiskScoreForPredictedRisk,
+  forecastConfidenceScoreFromObservationCount,
+  forecastModeFromObservationCount,
   normalizeBehaviorSignals,
   normalizeWorkSchedule,
   computeProjectedCaseEstimate,
@@ -389,14 +394,25 @@ export async function getInjuryWeatherDashboardData(filters?: {
 
   if (!admin) {
     const fallback = computeFromSeed(workbookRows, filters);
+    const availableMonths = build90DayOutlookMonths(trendFromSeed.availableMonths);
     return {
-      summary: { ...fallback.summary, month: monthLabel },
+      summary: {
+        ...fallback.summary,
+        month: monthLabel,
+        dataConfidence: computeDataConfidenceFromMetrics(
+          fallback.summary.predictedObservations,
+          trendFromSeed.trend.length,
+          availableMonths.length
+        ),
+        forecastMode: forecastModeFromObservationCount(fallback.summary.predictedObservations),
+        forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(fallback.summary.predictedObservations),
+      },
       tradeForecasts: fallback.tradeForecasts,
       alerts: fallback.alerts,
       trend: trendFromSeed.trend,
       recommendedControls: fallback.recommendedControls,
       monthlyTrainingRecommendations: fallback.monthlyTrainingRecommendations,
-      availableMonths: build90DayOutlookMonths(trendFromSeed.availableMonths),
+      availableMonths,
       availableTrades: buildTradeUniverse(fallback.availableTrades, workbookRows),
       location: fallback.location,
       signalProvenance: fallback.signalProvenance,
@@ -434,6 +450,16 @@ export async function getInjuryWeatherDashboardData(filters?: {
   });
   live.availableMonths = build90DayOutlookMonths(historyTrend.availableMonths);
   live.availableTrades = buildTradeUniverse(historyTrend.availableTrades, workbookRows);
+  live.summary = {
+    ...live.summary,
+    dataConfidence: computeDataConfidenceFromMetrics(
+      live.summary.predictedObservations,
+      live.trend.length,
+      live.availableMonths.length
+    ),
+    forecastMode: forecastModeFromObservationCount(live.summary.predictedObservations),
+    forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(live.summary.predictedObservations),
+  };
   return live;
 }
 
@@ -452,6 +478,16 @@ export async function refreshInjuryWeatherDailySnapshot() {
   });
   payload.availableMonths = build90DayOutlookMonths(payload.availableMonths);
   payload.availableTrades = buildTradeUniverse(payload.availableTrades, seedRows());
+  payload.summary = {
+    ...payload.summary,
+    dataConfidence: computeDataConfidenceFromMetrics(
+      payload.summary.predictedObservations,
+      payload.trend.length,
+      payload.availableMonths.length
+    ),
+    forecastMode: forecastModeFromObservationCount(payload.summary.predictedObservations),
+    forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(payload.summary.predictedObservations),
+  };
   const snapshotDate = new Date().toISOString().slice(0, 10);
   const upsert = await admin.from("injury_weather_daily_snapshots").upsert(
     {
@@ -598,16 +634,27 @@ function buildDashboardFromLiveSignals(
     highRiskCategoryConcentration,
     repeatIssueRate,
     workforceSignalDensityPct,
-  });
-  const resolvedWorkSchedule = normalizeWorkSchedule(params.workSchedule);
-  const { predictedRisk, factors: predictedRiskFactors } = computePredictedRiskProduct({
-    baseRiskScore,
     monthLabel: params.month,
-    behaviorSignals: params.behaviorSignals,
-    workSchedule: resolvedWorkSchedule,
     tradeWeatherWeight: location.tradeWeatherWeight ?? 1,
-    weatherRiskMultiplier: location.weatherRiskMultiplier,
+    signalRowCount: filtered.length,
   });
+  const baseRiskForPredictedProduct = effectiveBaseRiskScoreForPredictedRisk(baseRiskScore, filtered.length);
+  const resolvedWorkSchedule = normalizeWorkSchedule(params.workSchedule);
+  const noObservations = filtered.length === 0;
+  const { predictedRisk, factors: predictedRiskFactors } = noObservations
+    ? computePredictedRiskProductWhenNoObservations({
+        baseRiskScore: baseRiskForPredictedProduct,
+        monthLabel: params.month,
+        tradeWeatherWeight: location.tradeWeatherWeight ?? 1,
+      })
+    : computePredictedRiskProduct({
+        baseRiskScore: baseRiskForPredictedProduct,
+        monthLabel: params.month,
+        behaviorSignals: params.behaviorSignals,
+        workSchedule: resolvedWorkSchedule,
+        tradeWeatherWeight: location.tradeWeatherWeight ?? 1,
+        weatherRiskMultiplier: location.weatherRiskMultiplier,
+      });
   const behavioralAdjustment = behavioralLikelihoodAdjustmentFromMonthLabel(
     params.month,
     params.behaviorSignals,
@@ -622,6 +669,9 @@ function buildDashboardFromLiveSignals(
     repeatIssueRate,
     workforceSignalDensityPct,
     behavioralAdjustment,
+    monthLabel: params.month,
+    tradeWeatherWeight: location.tradeWeatherWeight ?? 1,
+    signalRowCount: filtered.length,
   });
   const overallRiskLevel = riskLevelFromStructuralScore(structuralRiskScore);
   const weatherFactor = location.combinedWeatherFactor ?? location.weatherRiskMultiplier;
@@ -646,6 +696,12 @@ function buildDashboardFromLiveSignals(
           defaultForecasts: DEFAULT_TRADE_FORECASTS,
         });
 
+  const trendForConf = forecastTrend.length > 0 ? forecastTrend : params.trendFallback.trend;
+  const availMonthsForConf =
+    monthly.size > 0
+      ? [...monthly.keys()].sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+      : params.trendFallback.availableMonths;
+
   return {
     summary: {
       month: params.month,
@@ -659,6 +715,13 @@ function buildDashboardFromLiveSignals(
       overallRiskScore: roundedStructural,
       predictedRisk,
       predictedRiskFactors,
+      dataConfidence: computeDataConfidenceFromMetrics(
+        filtered.length,
+        trendForConf.length,
+        availMonthsForConf.length
+      ),
+      forecastMode: forecastModeFromObservationCount(filtered.length),
+      forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(filtered.length),
       lastUpdatedAt: new Date().toISOString(),
     },
     tradeForecasts: normalizedTradeForecasts.length > 0 ? normalizedTradeForecasts : DEFAULT_TRADE_FORECASTS,
@@ -747,6 +810,13 @@ function computeFromSeed(
         overallRiskScore: demoStructural,
         predictedRisk: demoPredictedRisk,
         predictedRiskFactors: demoPredictedRiskFactors,
+        dataConfidence: computeDataConfidenceFromMetrics(
+          270,
+          DEFAULT_TREND.length,
+          DEFAULT_TREND.map((t) => t.month).length
+        ),
+        forecastMode: "live_adjusted",
+        forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(270),
         lastUpdatedAt: new Date().toISOString(),
       },
       tradeForecasts: DEFAULT_TRADE_FORECASTS,
@@ -860,15 +930,26 @@ function computeFromSeed(
     highRiskCategoryConcentration: seedConc,
     repeatIssueRate: seedRepeat,
     workforceSignalDensityPct: workforceDensitySeed,
-  });
-  const { predictedRisk: seedPredictedRisk, factors: seedPredictedRiskFactors } = computePredictedRiskProduct({
-    baseRiskScore: seedBaseRisk,
     monthLabel: seedMonthLabel,
-    behaviorSignals: filters?.behaviorSignals,
-    workSchedule: seedWorkSchedule,
     tradeWeatherWeight: locSeed.tradeWeatherWeight ?? 1,
-    weatherRiskMultiplier: locSeed.weatherRiskMultiplier,
+    signalRowCount: filtered.length,
   });
+  const seedBaseForPredictedProduct = effectiveBaseRiskScoreForPredictedRisk(seedBaseRisk, filtered.length);
+  const seedNoObservations = filtered.length === 0;
+  const { predictedRisk: seedPredictedRisk, factors: seedPredictedRiskFactors } = seedNoObservations
+    ? computePredictedRiskProductWhenNoObservations({
+        baseRiskScore: seedBaseForPredictedProduct,
+        monthLabel: seedMonthLabel,
+        tradeWeatherWeight: locSeed.tradeWeatherWeight ?? 1,
+      })
+    : computePredictedRiskProduct({
+        baseRiskScore: seedBaseForPredictedProduct,
+        monthLabel: seedMonthLabel,
+        behaviorSignals: filters?.behaviorSignals,
+        workSchedule: seedWorkSchedule,
+        tradeWeatherWeight: locSeed.tradeWeatherWeight ?? 1,
+        weatherRiskMultiplier: locSeed.weatherRiskMultiplier,
+      });
   const seedStructural = computeStructuralRiskScore({
     severityRatioPct: severityRatioPctSeed,
     trendPressurePct: tpSeed,
@@ -877,6 +958,9 @@ function computeFromSeed(
     repeatIssueRate: seedRepeat,
     workforceSignalDensityPct: workforceDensitySeed,
     behavioralAdjustment: seedBehavioralAdjustment,
+    monthLabel: seedMonthLabel,
+    tradeWeatherWeight: locSeed.tradeWeatherWeight ?? 1,
+    signalRowCount: filtered.length,
   });
   const seedLikelihood = computeIncidentLikelihoodIndexPct(seedStructural, seedWeatherFactor, 1);
   const seedCases = computeProjectedCaseEstimate({
@@ -897,6 +981,8 @@ function computeFromSeed(
           defaultForecasts: DEFAULT_TRADE_FORECASTS,
         });
 
+  const trendForSeedConf = trend.length > 0 ? trend : DEFAULT_TREND;
+  const availMonthsForSeedConf = allMonths.length > 0 ? allMonths : DEFAULT_TREND.map((t) => t.month);
   const summary: DashboardSummary = {
     month: filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" }),
     predictedObservations: filtered.length,
@@ -909,6 +995,13 @@ function computeFromSeed(
     overallRiskScore: roundedSeedStructural,
     predictedRisk: seedPredictedRisk,
     predictedRiskFactors: seedPredictedRiskFactors,
+    dataConfidence: computeDataConfidenceFromMetrics(
+      filtered.length,
+      trendForSeedConf.length,
+      availMonthsForSeedConf.length
+    ),
+    forecastMode: forecastModeFromObservationCount(filtered.length),
+    forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(filtered.length),
     lastUpdatedAt: new Date().toISOString(),
   };
 
