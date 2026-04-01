@@ -12,8 +12,17 @@ function minimalDashboard(overrides: Partial<InjuryWeatherDashboardData> = {}): 
       increasedIncidentRiskPercent: 35,
       overallRiskLevel: "HIGH",
       structuralRiskScore: 48,
-      riskModelVersion: "2.0.0",
+      riskModelVersion: "2.3.0",
       overallRiskScore: 48,
+      predictedRisk: 2.1,
+      predictedRiskFactors: {
+        historicalBaseline: 1.19,
+        seasonalFactor: 1.15,
+        realTimeBehaviorFactor: 1,
+        scheduleExposureFactor: 1,
+        siteConditionFactor: 1.15,
+        weatherFactor: 1,
+      },
       lastUpdatedAt: new Date().toISOString(),
     },
     tradeForecasts: [
@@ -48,6 +57,16 @@ function minimalDashboard(overrides: Partial<InjuryWeatherDashboardData> = {}): 
       recordWindowLabel: "Test window",
       alertsAreIllustrative: true,
       blendNormalization: { kind: "row_counts" },
+    },
+    behaviorSignals: {
+      fatigueIndicators: 0,
+      rushingIndicators: 0,
+      newWorkerRatio: 0,
+      overtimeHours: 0,
+    },
+    workSchedule: {
+      workSevenDaysPerWeek: false,
+      hoursPerDay: null,
     },
   };
   return { ...base, ...overrides };

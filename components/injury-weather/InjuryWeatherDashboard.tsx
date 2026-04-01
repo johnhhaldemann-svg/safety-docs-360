@@ -113,6 +113,10 @@ export function InjuryWeatherDashboard() {
   const [appliedWorkforceTotal, setAppliedWorkforceTotal] = useState("");
   const [hoursWorked, setHoursWorked] = useState("");
   const [appliedHoursWorked, setAppliedHoursWorked] = useState("");
+  const [workSevenDaysPerWeek, setWorkSevenDaysPerWeek] = useState(false);
+  const [appliedWorkSevenDaysPerWeek, setAppliedWorkSevenDaysPerWeek] = useState(false);
+  const [hoursPerDaySchedule, setHoursPerDaySchedule] = useState("");
+  const [appliedHoursPerDaySchedule, setAppliedHoursPerDaySchedule] = useState("");
   const [stateCode, setStateCode] = useState("");
   const [appliedStateCode, setAppliedStateCode] = useState("");
   const [reportRun, setReportRun] = useState(0);
@@ -192,10 +196,22 @@ export function InjuryWeatherDashboard() {
       }
       setLoading(false);
     })();
-  }, [router, appliedMonth, appliedTrades, appliedWorkforceTotal, appliedHoursWorked, appliedStateCode, month, reportRun, refreshTick]);
+  }, [
+    router,
+    appliedMonth,
+    appliedTrades,
+    appliedWorkforceTotal,
+    appliedHoursWorked,
+    appliedWorkSevenDaysPerWeek,
+    appliedHoursPerDaySchedule,
+    appliedStateCode,
+    month,
+    reportRun,
+    refreshTick,
+  ]);
 
+  /** Back-test uses filters that affect the model only — not `refreshTick` (trade chips) so we do not re-query the DB on every trade toggle. */
   useEffect(() => {
-    if (loading) return;
     let cancelled = false;
     void (async () => {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -208,6 +224,8 @@ export function InjuryWeatherDashboard() {
       if (appliedStateCode.trim()) qs.set("state", appliedStateCode.trim());
       if (appliedWorkforceTotal.trim()) qs.set("workforceTotal", appliedWorkforceTotal.trim());
       if (appliedHoursWorked.trim()) qs.set("hoursWorked", appliedHoursWorked.trim());
+      if (appliedWorkSevenDaysPerWeek) qs.set("workSevenDaysPerWeek", "1");
+      if (appliedHoursPerDaySchedule.trim()) qs.set("hoursPerDay", appliedHoursPerDaySchedule.trim());
       const res = await fetch(`/api/superadmin/injury-weather/backtest?${qs.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
@@ -225,16 +243,29 @@ export function InjuryWeatherDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [loading, appliedStateCode, appliedWorkforceTotal, appliedHoursWorked, reportRun, refreshTick]);
+  }, [
+    appliedStateCode,
+    appliedWorkforceTotal,
+    appliedHoursWorked,
+    appliedWorkSevenDaysPerWeek,
+    appliedHoursPerDaySchedule,
+    reportRun,
+  ]);
 
   const trades = useMemo(
     () => (data?.availableTrades?.length ? data.availableTrades : data?.tradeForecasts.map((t) => t.trade) ?? []),
     [data]
   );
   const toggleTrade = (tradeName: string) => {
-    setSelectedTrades((prev) =>
-      prev.includes(tradeName) ? prev.filter((t) => t !== tradeName) : [...prev, tradeName]
-    );
+    setSelectedTrades((prev) => {
+      const next = prev.includes(tradeName) ? prev.filter((t) => t !== tradeName) : [...prev, tradeName];
+      // Keep API + AI in sync with chips: appliedTrades previously only updated on "Generate Report",
+      // so the dashboard (including AI Safety Advisor) stayed on unfiltered data.
+      setAppliedTrades(next);
+      setLoading(true);
+      setRefreshTick((n) => n + 1);
+      return next;
+    });
   };
   const onGenerateReport = () => {
     bypassCacheOnce.current = true;
@@ -243,6 +274,8 @@ export function InjuryWeatherDashboard() {
     setAppliedTrades(selectedTrades);
     setAppliedWorkforceTotal(workforceTotal);
     setAppliedHoursWorked(hoursWorked);
+    setAppliedWorkSevenDaysPerWeek(workSevenDaysPerWeek);
+    setAppliedHoursPerDaySchedule(hoursPerDaySchedule);
     setAppliedStateCode(stateCode);
     setReportRun((n) => n + 1);
   };
@@ -259,6 +292,11 @@ export function InjuryWeatherDashboard() {
         .map((name) => source.find((t) => t.trade.toLowerCase().includes(name.toLowerCase())))
         .filter(Boolean) as InjuryWeatherDashboardData["tradeForecasts"];
       if (selected.length > 0) return selected.slice(0, 4);
+      const matched = source.filter((t) =>
+        appliedTrades.some((a) => t.trade.toLowerCase().includes(a.toLowerCase()))
+      );
+      if (matched.length > 0) return matched.slice(0, 4);
+      return source.slice(0, 4);
     }
     const exact = ["Roofing", "Electrical", "Concrete", "Steel Work"];
     const picked = exact
@@ -279,6 +317,8 @@ export function InjuryWeatherDashboard() {
         state: appliedStateCode,
         workforceTotal: appliedWorkforceTotal,
         hoursWorked: appliedHoursWorked,
+        workSevenDaysPerWeek: appliedWorkSevenDaysPerWeek,
+        hoursPerDay: appliedHoursPerDaySchedule,
       },
       dashboard: data,
       aiInsights,
@@ -337,8 +377,8 @@ export function InjuryWeatherDashboard() {
           <div className="rounded-xl border border-slate-500/40 bg-slate-900/70 p-3 text-center">
             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Overall risk level</p>
             <p className="mt-0.5 text-[10px] text-slate-500">
-              From structural score {(data.summary.structuralRiskScore ?? data.summary.overallRiskScore ?? 0).toFixed(1)} · v
-              {data.summary.riskModelVersion ?? "—"}
+              From structural score {(data.summary.structuralRiskScore ?? data.summary.overallRiskScore ?? 0).toFixed(1)} ·
+              predicted risk {data.summary.predictedRisk.toFixed(2)} · v{data.summary.riskModelVersion ?? "—"}
             </p>
             <div className="mt-2">
               <span className={`inline-flex rounded-md border px-4 py-1.5 text-2xl font-black ${riskTone(data.summary.overallRiskLevel)}`}>
@@ -393,6 +433,36 @@ export function InjuryWeatherDashboard() {
             title="When set, takes precedence over workforce for normalizing severity and concentration in the overall risk blend"
           />
         </div>
+        <div className="grid gap-2 bg-black/25 px-5 py-2 sm:grid-cols-2">
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-900/80 px-3 py-2 text-sm text-slate-200">
+            <input
+              type="checkbox"
+              checked={workSevenDaysPerWeek}
+              onChange={(e) => setWorkSevenDaysPerWeek(e.target.checked)}
+              className="rounded border-slate-500"
+            />
+            <span>7-day work week (vs typical 5-day)</span>
+          </label>
+          <input
+            type="number"
+            min={0.25}
+            max={24}
+            step={0.25}
+            value={hoursPerDaySchedule}
+            onChange={(e) => setHoursPerDaySchedule(e.target.value)}
+            className="rounded-lg border border-slate-500/50 bg-slate-900/80 px-3 py-2 text-sm"
+            placeholder="Hours per day (optional)"
+            title="Typical shift length; combined with day count to compare weekly hours to a 40h reference week"
+            aria-label="Hours per day for schedule exposure"
+          />
+        </div>
+        {(appliedWorkSevenDaysPerWeek || appliedHoursPerDaySchedule.trim()) && (
+          <p className="border-b border-slate-600/40 bg-black/15 px-5 py-2 text-xs text-slate-400">
+            Schedule inputs (likelihood): {appliedWorkSevenDaysPerWeek ? "7" : "5"} days/week ×{" "}
+            {appliedHoursPerDaySchedule.trim() || "8"} h/day vs a 40h reference week — factor ×
+            {data.summary.predictedRiskFactors.scheduleExposureFactor.toFixed(3)} on predicted risk.
+          </p>
+        )}
         <p className="border-b border-slate-600/40 bg-black/20 px-5 py-2 text-xs text-slate-400">
           Location / weather exposure: <span className="font-semibold text-slate-200">{data.location.displayName}</span>
           {data.location.stateCode ? (

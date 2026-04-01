@@ -1,10 +1,25 @@
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { authorizeRequest, normalizeAppRole } from "@/lib/rbac";
-import { getInjuryWeatherDashboardData } from "@/lib/injuryWeather/service";
+import { getInjuryWeatherDashboardData, workScheduleFromUrlSearchParams } from "@/lib/injuryWeather/service";
 import { generateInjuryWeatherAiInsights } from "@/lib/injuryWeather/ai";
+import type { BehaviorSignals, WorkScheduleInputs } from "@/lib/injuryWeather/types";
 
 export const runtime = "nodejs";
+
+function parseBehaviorSignalsFromSearchParams(searchParams: URLSearchParams): Partial<BehaviorSignals> | undefined {
+  const fatigue = searchParams.get("fatigueIndicators");
+  const rush = searchParams.get("rushingIndicators");
+  const nw = searchParams.get("newWorkerRatio");
+  const ot = searchParams.get("overtimeHours");
+  if (fatigue == null && rush == null && nw == null && ot == null) return undefined;
+  return {
+    ...(fatigue != null && fatigue !== "" ? { fatigueIndicators: Number(fatigue) } : {}),
+    ...(rush != null && rush !== "" ? { rushingIndicators: Number(rush) } : {}),
+    ...(nw != null && nw !== "" ? { newWorkerRatio: Number(nw) } : {}),
+    ...(ot != null && ot !== "" ? { overtimeHours: Number(ot) } : {}),
+  };
+}
 
 /** Cache dashboard + AI per filter set for 2h to reduce repeated OpenAI calls. */
 const loadCachedDashboard = unstable_cache(
@@ -16,6 +31,8 @@ const loadCachedDashboard = unstable_cache(
       workforceTotal: number | null;
       hoursWorked: number | null;
       stateCode: string | null;
+      behaviorSignals: Partial<BehaviorSignals> | null;
+      workSchedule: Partial<WorkScheduleInputs> | null;
     };
     return getInjuryWeatherDashboardData({
       month: filters.month ?? undefined,
@@ -24,6 +41,8 @@ const loadCachedDashboard = unstable_cache(
       workforceTotal: filters.workforceTotal ?? undefined,
       hoursWorked: filters.hoursWorked ?? undefined,
       stateCode: filters.stateCode ?? undefined,
+      behaviorSignals: filters.behaviorSignals ?? undefined,
+      workSchedule: filters.workSchedule ?? undefined,
     });
   },
   ["injury-weather-dashboard"],
@@ -71,6 +90,8 @@ export async function GET(request: Request) {
   const hoursRaw = searchParams.get("hoursWorked");
   const hoursWorked = hoursRaw ? Number(hoursRaw) : undefined;
   const stateCode = searchParams.get("state")?.trim() || undefined;
+  const behaviorSignals = parseBehaviorSignalsFromSearchParams(searchParams);
+  const workSchedule = workScheduleFromUrlSearchParams(searchParams);
   const includeAi = searchParams.get("includeAi") === "true";
   const bypassCache = wantsCacheBypass(searchParams);
   const filterKey = JSON.stringify({
@@ -80,6 +101,8 @@ export async function GET(request: Request) {
     workforceTotal: workforceTotal && Number.isFinite(workforceTotal) ? workforceTotal : null,
     hoursWorked: hoursWorked && Number.isFinite(hoursWorked) ? hoursWorked : null,
     stateCode: stateCode ?? null,
+    behaviorSignals: behaviorSignals ?? null,
+    workSchedule: workSchedule ?? null,
   });
 
   const filters = {
@@ -89,6 +112,8 @@ export async function GET(request: Request) {
     workforceTotal: workforceTotal && Number.isFinite(workforceTotal) ? workforceTotal : undefined,
     hoursWorked: hoursWorked && Number.isFinite(hoursWorked) ? hoursWorked : undefined,
     stateCode,
+    behaviorSignals,
+    workSchedule,
   };
 
   if (bypassCache) {

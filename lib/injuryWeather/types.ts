@@ -1,5 +1,26 @@
 export type RiskLevel = "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
 
+/** Named inputs to `predictedRisk` (six-factor product). See `computePredictedRiskProduct` in `riskModel.ts`. */
+export type PredictedRiskFactors = {
+  historicalBaseline: number;
+  seasonalFactor: number;
+  realTimeBehaviorFactor: number;
+  /** Weekly hours vs a 5×8h reference week; 1 when schedule inputs are absent or match baseline. */
+  scheduleExposureFactor: number;
+  siteConditionFactor: number;
+  weatherFactor: number;
+};
+
+/**
+ * Optional site schedule for exposure / fatigue — likelihood path only (not raw signal counts).
+ * Compares weekly hours to a 40h reference (5 days × 8h).
+ */
+export type WorkScheduleInputs = {
+  workSevenDaysPerWeek: boolean;
+  /** Typical shift length; null = use 8 when computing weekly hours from day count. */
+  hoursPerDay: number | null;
+};
+
 /**
  * Dashboard headline metrics — intentionally split:
  * - `structuralRiskScore`: leading-indicator composite (no weather).
@@ -29,6 +50,13 @@ export type DashboardSummary = {
    * CONFIG: bump when weights change.
    */
   riskModelVersion: string;
+  /**
+   * `historicalBaseline × seasonalFactor × realTimeBehaviorFactor × siteConditionFactor × weatherFactor`
+   * (dimensionless index; not equated with structural score).
+   */
+  predictedRisk: number;
+  /** Breakdown for transparency / exports. */
+  predictedRiskFactors: PredictedRiskFactors;
   /**
    * @deprecated Use `structuralRiskScore`. Kept for short-term JSON compatibility.
    */
@@ -66,6 +94,18 @@ export type TrendPoint = {
   month: string;
   value: number;
   highRisk?: boolean;
+};
+
+/**
+ * Optional workforce / behavioral leading indicators (supply via API when you have them).
+ * Fed into likelihood only — not structural score — until calibrated.
+ */
+export type BehaviorSignals = {
+  fatigueIndicators: number;
+  rushingIndicators: number;
+  /** New or short-tenure workers as percent of crew (0–100); behavior score uses ÷100 as 0–1 ratio. */
+  newWorkerRatio: number;
+  overtimeHours: number;
 };
 
 export type InjuryWeatherLocation = {
@@ -117,6 +157,10 @@ export type InjuryWeatherDashboardData = {
   availableTrades: string[];
   location: InjuryWeatherLocation;
   signalProvenance: InjuryWeatherSignalProvenance;
+  /** Values used in the likelihood path (zeros when not supplied). */
+  behaviorSignals: BehaviorSignals;
+  /** Echo of schedule inputs used for `scheduleExposureFactor` (defaults when omitted). */
+  workSchedule: WorkScheduleInputs;
 };
 
 export type InjuryWeatherAiInsights = {

@@ -137,6 +137,8 @@ function computeAiContext(data: InjuryWeatherDashboardData) {
       incidentLikelihoodIndexPercent: data.summary.increasedIncidentRiskPercent,
       increasedIncidentRiskPercent: data.summary.increasedIncidentRiskPercent,
       structuralRiskScore: data.summary.structuralRiskScore,
+      predictedRisk: data.summary.predictedRisk,
+      predictedRiskFactors: data.summary.predictedRiskFactors,
       overallRiskLevel: data.summary.overallRiskLevel,
       riskModelVersion: data.summary.riskModelVersion,
       modelRole: "leading_indicator_unvalidated" as const,

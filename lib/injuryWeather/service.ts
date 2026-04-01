@@ -7,8 +7,14 @@ import {
 } from "@/lib/injuryWeather/locationWeather";
 import {
   INJURY_WEATHER_MODEL,
+  behavioralLikelihoodAdjustmentFromMonthLabel,
   buildTradeCategoryForecasts,
+  tradeForecastsWhenNoSignals,
+  computeBaseRiskScore,
   computeIncidentLikelihoodIndexPct,
+  computePredictedRiskProduct,
+  normalizeBehaviorSignals,
+  normalizeWorkSchedule,
   computeProjectedCaseEstimate,
   computeRepeatIssueRatePct,
   computeStructuralRiskScore,
@@ -21,6 +27,7 @@ import {
 import sorSeed from "@/lib/injuryWeather/sor-fixed-seed.json";
 import type {
   DashboardAlert,
+  BehaviorSignals,
   DashboardSummary,
   InjuryWeatherBlendNormalization,
   InjuryWeatherBacktestResult,
@@ -31,6 +38,7 @@ import type {
   RiskLevel,
   TradeForecast,
   TrendPoint,
+  WorkScheduleInputs,
 } from "@/lib/injuryWeather/types";
 
 const DEFAULT_TRADE_FORECASTS: TradeForecast[] = [
@@ -110,6 +118,24 @@ const DEFAULT_MONTHLY_TRAINING = [
   "Permit-to-work quality and closeout discipline training for foremen and leads.",
   "Incident learning review session focused on high-severity trends and near misses.",
 ];
+
+/** Parse optional schedule inputs from API query strings (Injury Weather dashboard / backtest). */
+export function workScheduleFromUrlSearchParams(searchParams: URLSearchParams): Partial<WorkScheduleInputs> | undefined {
+  const hRaw = searchParams.get("hoursPerDay");
+  const sevenRaw = searchParams.get("workSevenDaysPerWeek");
+  const hasHours = hRaw != null && hRaw !== "" && Number.isFinite(Number(hRaw));
+  const hasSeven = sevenRaw != null && sevenRaw !== "";
+  if (!hasHours && !hasSeven) return undefined;
+  return {
+    ...(hasSeven
+      ? {
+          workSevenDaysPerWeek:
+            sevenRaw === "1" || String(sevenRaw).toLowerCase() === "true" || String(sevenRaw).toLowerCase() === "yes",
+        }
+      : {}),
+    ...(hasHours ? { hoursPerDay: Number(hRaw) } : {}),
+  };
+}
 
 function buildMonthlyTrainingRecommendations(tradeForecasts: TradeForecast[]): string[] {
   const picks: string[] = [];
@@ -287,6 +313,17 @@ function parseMonthFilter(month?: string): { start: Date; end: Date } | null {
   return { start, end };
 }
 
+function filterLiveRowsByMonth(rows: LiveSignalRow[], monthLabel: string): LiveSignalRow[] {
+  const w = parseMonthFilter(monthLabel);
+  if (!w) return rows;
+  const a = w.start.getTime();
+  const b = w.end.getTime();
+  return rows.filter((r) => {
+    const t = new Date(r.created_at).getTime();
+    return !Number.isNaN(t) && t >= a && t < b;
+  });
+}
+
 function isFutureMonth(month?: string): boolean {
   const parsed = parseMonthFilter(month);
   if (!parsed) return false;
@@ -318,6 +355,7 @@ function excelSerialToDate(serial: number): Date {
 
 function inferTradeFromSeedRow(row: SeedRow): string {
   const haystack = `${row.category ?? ""} ${row.subcategory ?? ""} ${row.description ?? ""}`.toLowerCase();
+  if (haystack.includes("carpent") || haystack.includes("framing") || haystack.includes("millwork")) return "Carpentry";
   if (haystack.includes("roof") || haystack.includes("ladder") || haystack.includes("harness")) return "Roofing";
   if (haystack.includes("electrical") || haystack.includes("loto") || haystack.includes("power") || haystack.includes("wiring")) return "Electrical";
   if (haystack.includes("concrete") || haystack.includes("formwork") || haystack.includes("rebar")) return "Concrete";
@@ -339,6 +377,10 @@ export async function getInjuryWeatherDashboardData(filters?: {
   /** Hours worked in scope (e.g. month); takes precedence over workforce for blend normalization */
   hoursWorked?: number;
   stateCode?: string;
+  /** Optional behavioral leading indicators (fatigue, rush, new workers, OT) — likelihood only. */
+  behaviorSignals?: Partial<BehaviorSignals>;
+  /** 7-day ops and/or hours/day vs a 40h reference week — likelihood / structural calendar path only. */
+  workSchedule?: Partial<WorkScheduleInputs>;
 }): Promise<InjuryWeatherDashboardData> {
   const admin = createSupabaseAdminClient();
   const monthLabel = filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
@@ -358,31 +400,35 @@ export async function getInjuryWeatherDashboardData(filters?: {
       availableTrades: buildTradeUniverse(fallback.availableTrades, workbookRows),
       location: fallback.location,
       signalProvenance: fallback.signalProvenance,
+      behaviorSignals: fallback.behaviorSignals,
+      workSchedule: fallback.workSchedule,
     };
   }
 
   const shouldFilterSignalsByMonth = filters?.month ? !isFutureMonth(filters.month) : false;
-  const signalMonthFilter = shouldFilterSignalsByMonth ? filters?.month : undefined;
   const recordWindowLabel =
     shouldFilterSignalsByMonth && filters?.month
       ? `Month-scoped signals: ${filters.month}`
       : "All dates (no month filter on SOR / corrective actions / incidents)";
-  const [liveRows, historyRows] = await Promise.all([
-    fetchLiveSignals(admin, { month: signalMonthFilter, trade: filters?.trade, trades: filters?.trades }),
-    fetchLiveSignals(admin, {}),
-  ]);
-  const historyTrend = buildDashboardFromLiveSignals(historyRows, {
+  /** One fetch of all signals (3 queries) — filter by month in memory when needed. Avoids duplicate full-table reads. */
+  const allRows = await fetchLiveSignals(admin, { trade: filters?.trade });
+  const liveSourceRows =
+    shouldFilterSignalsByMonth && filters?.month ? filterLiveRowsByMonth(allRows, filters.month) : allRows;
+  const historyTrend = buildDashboardFromLiveSignals(allRows, {
     month: monthLabel,
     recordWindowLabel: "All dates (history for month picker)",
+    workSchedule: filters?.workSchedule,
     trendFallback: trendFromSeed,
   });
-  const live = buildDashboardFromLiveSignals(liveRows, {
+  const live = buildDashboardFromLiveSignals(liveSourceRows, {
     month: monthLabel,
     trade: filters?.trade,
     trades: filters?.trades,
     workforceTotal: filters?.workforceTotal,
     hoursWorked: filters?.hoursWorked,
     stateCode: filters?.stateCode,
+    behaviorSignals: filters?.behaviorSignals,
+    workSchedule: filters?.workSchedule,
     recordWindowLabel,
     trendFallback: trendFromSeed,
   });
@@ -428,9 +474,11 @@ export async function refreshInjuryWeatherDailySnapshot() {
 
 async function fetchLiveSignals(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
-  filters?: { month?: string; trade?: string; trades?: string[] }
+  filters?: { month?: string; trade?: string; trades?: string[]; dateRange?: { start: Date; end: Date } }
 ): Promise<LiveSignalRow[]> {
-  const monthWindow = parseMonthFilter(filters?.month);
+  const range =
+    filters?.dateRange ??
+    (filters?.month ? parseMonthFilter(filters.month) : null);
   let sorQuery = admin
     .from("company_sor_records")
     .select("trade, category, severity, created_at")
@@ -441,9 +489,9 @@ async function fetchLiveSignals(
   let incidentQuery = admin
     .from("company_incidents")
     .select("category, severity, created_at");
-  if (monthWindow) {
-    const start = monthWindow.start.toISOString();
-    const end = monthWindow.end.toISOString();
+  if (range) {
+    const start = range.start.toISOString();
+    const end = range.end.toISOString();
     sorQuery = sorQuery.gte("created_at", start).lt("created_at", end);
     actionQuery = actionQuery.gte("created_at", start).lt("created_at", end);
     incidentQuery = incidentQuery.gte("created_at", start).lt("created_at", end);
@@ -492,6 +540,8 @@ function buildDashboardFromLiveSignals(
     workforceTotal?: number;
     hoursWorked?: number;
     stateCode?: string;
+    behaviorSignals?: Partial<BehaviorSignals>;
+    workSchedule?: Partial<WorkScheduleInputs>;
     trendFallback: { availableMonths: string[]; trend: TrendPoint[] };
   }
 ): InjuryWeatherDashboardData {
@@ -543,6 +593,27 @@ function buildDashboardFromLiveSignals(
   const highRiskCategoryConcentration = computeTradeCategoryConcentrationPct(filtered, exposureDenom);
   const repeatIssueRate = computeRepeatIssueRatePct(filtered, exposureDenom);
   const workforceSignalDensityPct = computeWorkforceSignalDensityPct(filtered.length, workforceForExposure);
+  const baseRiskScore = computeBaseRiskScore({
+    severityRatioPct,
+    highRiskCategoryConcentration,
+    repeatIssueRate,
+    workforceSignalDensityPct,
+  });
+  const resolvedWorkSchedule = normalizeWorkSchedule(params.workSchedule);
+  const { predictedRisk, factors: predictedRiskFactors } = computePredictedRiskProduct({
+    baseRiskScore,
+    monthLabel: params.month,
+    behaviorSignals: params.behaviorSignals,
+    workSchedule: resolvedWorkSchedule,
+    tradeWeatherWeight: location.tradeWeatherWeight ?? 1,
+    weatherRiskMultiplier: location.weatherRiskMultiplier,
+  });
+  const behavioralAdjustment = behavioralLikelihoodAdjustmentFromMonthLabel(
+    params.month,
+    params.behaviorSignals,
+    resolvedWorkSchedule
+  );
+  const resolvedBehavior = normalizeBehaviorSignals(params.behaviorSignals);
   const structuralRiskScore = computeStructuralRiskScore({
     severityRatioPct,
     trendPressurePct,
@@ -550,10 +621,11 @@ function buildDashboardFromLiveSignals(
     highRiskCategoryConcentration,
     repeatIssueRate,
     workforceSignalDensityPct,
+    behavioralAdjustment,
   });
   const overallRiskLevel = riskLevelFromStructuralScore(structuralRiskScore);
   const weatherFactor = location.combinedWeatherFactor ?? location.weatherRiskMultiplier;
-  const incidentLikelihoodIndexPct = computeIncidentLikelihoodIndexPct(structuralRiskScore, weatherFactor);
+  const incidentLikelihoodIndexPct = computeIncidentLikelihoodIndexPct(structuralRiskScore, weatherFactor, 1);
   const rawMonthFactor = selectedTrendPoint ? selectedTrendPoint.value / Math.max(1, projectedBase) : 1;
   const monthProjectionFactor = Math.min(INJURY_WEATHER_MODEL.MONTH_PROJECTION_CAP, rawMonthFactor);
   const projectedCaseEstimate = computeProjectedCaseEstimate({
@@ -563,12 +635,16 @@ function buildDashboardFromLiveSignals(
     monthProjectionFactor,
   });
   const roundedStructural = Math.round(structuralRiskScore * 10) / 10;
-  const normalizedTradeForecasts = buildTradeCategoryForecasts({
-    tradeForecastsRaw: tradeForecasts,
-    projectedCaseEstimate,
-    incidentLikelihoodIndexPct,
-    defaultForecasts: DEFAULT_TRADE_FORECASTS,
-  });
+  const requestedTrades = params.trades ?? [];
+  const normalizedTradeForecasts =
+    tradeForecasts.length === 0 && requestedTrades.length > 0
+      ? tradeForecastsWhenNoSignals(requestedTrades)
+      : buildTradeCategoryForecasts({
+          tradeForecastsRaw: tradeForecasts,
+          projectedCaseEstimate,
+          incidentLikelihoodIndexPct,
+          defaultForecasts: DEFAULT_TRADE_FORECASTS,
+        });
 
   return {
     summary: {
@@ -581,6 +657,8 @@ function buildDashboardFromLiveSignals(
       structuralRiskScore: roundedStructural,
       riskModelVersion: INJURY_WEATHER_MODEL.VERSION,
       overallRiskScore: roundedStructural,
+      predictedRisk,
+      predictedRiskFactors,
       lastUpdatedAt: new Date().toISOString(),
     },
     tradeForecasts: normalizedTradeForecasts.length > 0 ? normalizedTradeForecasts : DEFAULT_TRADE_FORECASTS,
@@ -601,11 +679,14 @@ function buildDashboardFromLiveSignals(
       params.recordWindowLabel,
       blendNormalizationFromExposure(exposure)
     ),
+    behaviorSignals: resolvedBehavior,
+    workSchedule: resolvedWorkSchedule,
   };
 }
 
 function inferTradeFromText(text: string): string {
   const haystack = text.toLowerCase();
+  if (haystack.includes("carpent") || haystack.includes("framing") || haystack.includes("millwork")) return "Carpentry";
   if (haystack.includes("roof") || haystack.includes("ladder") || haystack.includes("fall")) return "Roofing";
   if (haystack.includes("electrical") || haystack.includes("loto") || haystack.includes("power")) return "Electrical";
   if (haystack.includes("concrete") || haystack.includes("formwork") || haystack.includes("rebar")) return "Concrete";
@@ -615,13 +696,38 @@ function inferTradeFromText(text: string): string {
 
 function computeFromSeed(
   rows: SeedRow[],
-  filters?: { month?: string; trade?: string; stateCode?: string; workforceTotal?: number; hoursWorked?: number }
+  filters?: {
+    month?: string;
+    trade?: string;
+    trades?: string[];
+    stateCode?: string;
+    workforceTotal?: number;
+    hoursWorked?: number;
+    behaviorSignals?: Partial<BehaviorSignals>;
+    workSchedule?: Partial<WorkScheduleInputs>;
+  }
 ): Omit<InjuryWeatherDashboardData, "summary"> & { summary: DashboardSummary } {
   const locEmpty = mergeLocationWithTradeWeather(getLocationWeatherContext(filters?.stateCode), 1);
   if (rows.length === 0) {
     const weatherDemo = locEmpty.combinedWeatherFactor ?? locEmpty.weatherRiskMultiplier;
-    const demoStructural = 58;
-    const demoLikelihood = computeIncidentLikelihoodIndexPct(demoStructural, weatherDemo);
+    const demoMonthLabel =
+      filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
+    const demoWorkSchedule = normalizeWorkSchedule(filters?.workSchedule);
+    const demoBehavioralAdjustment = behavioralLikelihoodAdjustmentFromMonthLabel(
+      demoMonthLabel,
+      filters?.behaviorSignals,
+      demoWorkSchedule
+    );
+    const demoStructural = Math.min(100, Math.round(58 * demoBehavioralAdjustment * 10) / 10);
+    const demoLikelihood = computeIncidentLikelihoodIndexPct(demoStructural, weatherDemo, 1);
+    const { predictedRisk: demoPredictedRisk, factors: demoPredictedRiskFactors } = computePredictedRiskProduct({
+      baseRiskScore: 58,
+      monthLabel: demoMonthLabel,
+      behaviorSignals: filters?.behaviorSignals,
+      workSchedule: demoWorkSchedule,
+      tradeWeatherWeight: 1,
+      weatherRiskMultiplier: locEmpty.weatherRiskMultiplier,
+    });
     const demoCases = computeProjectedCaseEstimate({
       incidentLikelihoodIndexPct: demoLikelihood,
       workforceCount: 0,
@@ -639,6 +745,8 @@ function computeFromSeed(
         structuralRiskScore: demoStructural,
         riskModelVersion: INJURY_WEATHER_MODEL.VERSION,
         overallRiskScore: demoStructural,
+        predictedRisk: demoPredictedRisk,
+        predictedRiskFactors: demoPredictedRiskFactors,
         lastUpdatedAt: new Date().toISOString(),
       },
       tradeForecasts: DEFAULT_TRADE_FORECASTS,
@@ -654,6 +762,8 @@ function computeFromSeed(
         recordWindowLabel: "Demo defaults (no workbook seed rows; admin DB unavailable)",
         blendNormalization: { kind: "row_counts" },
       }),
+      behaviorSignals: normalizeBehaviorSignals(filters?.behaviorSignals),
+      workSchedule: demoWorkSchedule,
     };
   }
 
@@ -669,8 +779,13 @@ function computeFromSeed(
         return false;
       }
     }
-    if (!filters?.trade) return true;
-    return inferTradeFromSeedRow(r).toLowerCase().includes(filters.trade.toLowerCase());
+    const tradeList = (filters?.trades ?? []).map((t) => t.toLowerCase());
+    if (tradeList.length > 0) {
+      const tr = inferTradeFromSeedRow(r).toLowerCase();
+      return tradeList.some((t) => tr.includes(t));
+    }
+    if (filters?.trade) return inferTradeFromSeedRow(r).toLowerCase().includes(filters.trade.toLowerCase());
+    return true;
   });
 
   const byTrade = new Map<string, Map<string, number>>();
@@ -730,15 +845,40 @@ function computeFromSeed(
     category: String(r.subcategory ?? r.category ?? "General").trim() || "General",
   }));
   const workforceDensitySeed = computeWorkforceSignalDensityPct(filtered.length, wfSeed);
+  const seedMonthLabel =
+    filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
+  const seedWorkSchedule = normalizeWorkSchedule(filters?.workSchedule);
+  const seedBehavioralAdjustment = behavioralLikelihoodAdjustmentFromMonthLabel(
+    seedMonthLabel,
+    filters?.behaviorSignals,
+    seedWorkSchedule
+  );
+  const seedConc = computeTradeCategoryConcentrationPct(pseudoRows, exposureDenomSeed);
+  const seedRepeat = computeRepeatIssueRatePct(pseudoRows, exposureDenomSeed);
+  const seedBaseRisk = computeBaseRiskScore({
+    severityRatioPct: severityRatioPctSeed,
+    highRiskCategoryConcentration: seedConc,
+    repeatIssueRate: seedRepeat,
+    workforceSignalDensityPct: workforceDensitySeed,
+  });
+  const { predictedRisk: seedPredictedRisk, factors: seedPredictedRiskFactors } = computePredictedRiskProduct({
+    baseRiskScore: seedBaseRisk,
+    monthLabel: seedMonthLabel,
+    behaviorSignals: filters?.behaviorSignals,
+    workSchedule: seedWorkSchedule,
+    tradeWeatherWeight: locSeed.tradeWeatherWeight ?? 1,
+    weatherRiskMultiplier: locSeed.weatherRiskMultiplier,
+  });
   const seedStructural = computeStructuralRiskScore({
     severityRatioPct: severityRatioPctSeed,
     trendPressurePct: tpSeed,
     momentumBoostPct: mbSeed,
-    highRiskCategoryConcentration: computeTradeCategoryConcentrationPct(pseudoRows, exposureDenomSeed),
-    repeatIssueRate: computeRepeatIssueRatePct(pseudoRows, exposureDenomSeed),
+    highRiskCategoryConcentration: seedConc,
+    repeatIssueRate: seedRepeat,
     workforceSignalDensityPct: workforceDensitySeed,
+    behavioralAdjustment: seedBehavioralAdjustment,
   });
-  const seedLikelihood = computeIncidentLikelihoodIndexPct(seedStructural, seedWeatherFactor);
+  const seedLikelihood = computeIncidentLikelihoodIndexPct(seedStructural, seedWeatherFactor, 1);
   const seedCases = computeProjectedCaseEstimate({
     incidentLikelihoodIndexPct: seedLikelihood,
     workforceCount: wfSeed,
@@ -746,12 +886,16 @@ function computeFromSeed(
     monthProjectionFactor: 1,
   });
   const roundedSeedStructural = Math.round(seedStructural * 10) / 10;
-  const tradeForecasts = buildTradeCategoryForecasts({
-    tradeForecastsRaw,
-    projectedCaseEstimate: seedCases,
-    incidentLikelihoodIndexPct: seedLikelihood,
-    defaultForecasts: DEFAULT_TRADE_FORECASTS,
-  });
+  const requestedTradesSeed = filters?.trades ?? [];
+  const tradeForecasts =
+    tradeForecastsRaw.length === 0 && requestedTradesSeed.length > 0
+      ? tradeForecastsWhenNoSignals(requestedTradesSeed)
+      : buildTradeCategoryForecasts({
+          tradeForecastsRaw,
+          projectedCaseEstimate: seedCases,
+          incidentLikelihoodIndexPct: seedLikelihood,
+          defaultForecasts: DEFAULT_TRADE_FORECASTS,
+        });
 
   const summary: DashboardSummary = {
     month: filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" }),
@@ -763,6 +907,8 @@ function computeFromSeed(
     structuralRiskScore: roundedSeedStructural,
     riskModelVersion: INJURY_WEATHER_MODEL.VERSION,
     overallRiskScore: roundedSeedStructural,
+    predictedRisk: seedPredictedRisk,
+    predictedRiskFactors: seedPredictedRiskFactors,
     lastUpdatedAt: new Date().toISOString(),
   };
 
@@ -788,6 +934,8 @@ function computeFromSeed(
           : "Seed workbook (all dates in file)",
       blendNormalization: blendNormalizationFromExposure(exposureSeed),
     }),
+    behaviorSignals: normalizeBehaviorSignals(filters?.behaviorSignals),
+    workSchedule: seedWorkSchedule,
   };
 }
 
@@ -844,18 +992,50 @@ function enumerateScoreOutcomePairs(lookbackMonths: number): Array<{
   return pairs.reverse();
 }
 
-async function countIncidentsInRange(
+const INCIDENT_CREATED_AT_PAGE = 1000;
+
+/** One or more paginated reads — replaces N per-month count queries for backtests. */
+async function fetchIncidentCreatedAtInRange(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
   start: Date,
   end: Date
-): Promise<number> {
-  const { count, error } = await admin
-    .from("company_incidents")
-    .select("id", { count: "exact", head: true })
-    .gte("created_at", start.toISOString())
-    .lt("created_at", end.toISOString());
-  if (error) throw new Error(error.message);
-  return count ?? 0;
+): Promise<string[]> {
+  const out: string[] = [];
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await admin
+      .from("company_incidents")
+      .select("created_at")
+      .gte("created_at", start.toISOString())
+      .lt("created_at", end.toISOString())
+      .order("created_at", { ascending: true })
+      .range(offset, offset + INCIDENT_CREATED_AT_PAGE - 1);
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []).map((r) => String((r as { created_at?: string }).created_at ?? ""));
+    out.push(...batch);
+    if (batch.length < INCIDENT_CREATED_AT_PAGE) break;
+    offset += INCIDENT_CREATED_AT_PAGE;
+  }
+  return out;
+}
+
+function countIncidentsPerOutcomeWindow(
+  createdAtIsoStrings: string[],
+  pairs: Array<{ outcomeMonthLabel: string; outcomeStart: Date; outcomeEnd: Date }>
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const p of pairs) counts.set(p.outcomeMonthLabel, 0);
+  for (const iso of createdAtIsoStrings) {
+    const t = new Date(iso).getTime();
+    if (Number.isNaN(t)) continue;
+    for (const p of pairs) {
+      if (t >= p.outcomeStart.getTime() && t < p.outcomeEnd.getTime()) {
+        counts.set(p.outcomeMonthLabel, (counts.get(p.outcomeMonthLabel) ?? 0) + 1);
+        break;
+      }
+    }
+  }
+  return counts;
 }
 
 /**
@@ -867,6 +1047,7 @@ export async function runInjuryWeatherBacktest(options?: {
   stateCode?: string;
   workforceTotal?: number;
   hoursWorked?: number;
+  workSchedule?: Partial<WorkScheduleInputs>;
 }): Promise<InjuryWeatherBacktestResult | { error: string }> {
   const admin = createSupabaseAdminClient();
   if (!admin) {
@@ -877,8 +1058,20 @@ export async function runInjuryWeatherBacktest(options?: {
   const pairs = enumerateScoreOutcomePairs(lookbackMonths);
   const rows: InjuryWeatherBacktestRow[] = [];
 
+  const firstScore = parseMonthFilter(pairs[0]?.scoreLabel);
+  const lastScore = parseMonthFilter(pairs[pairs.length - 1]?.scoreLabel);
+  if (!firstScore || !lastScore) {
+    return { error: "Could not parse score months for back-test." };
+  }
+
+  const [allSignals, incidentTimestamps] = await Promise.all([
+    fetchLiveSignals(admin, { dateRange: { start: firstScore.start, end: lastScore.end } }),
+    fetchIncidentCreatedAtInRange(admin, pairs[0]!.outcomeStart, pairs[pairs.length - 1]!.outcomeEnd),
+  ]);
+  const incidentsByOutcomeMonth = countIncidentsPerOutcomeWindow(incidentTimestamps, pairs);
+
   for (const p of pairs) {
-    const liveRows = await fetchLiveSignals(admin, { month: p.scoreLabel });
+    const liveRows = filterLiveRowsByMonth(allSignals, p.scoreLabel);
     const dash = buildDashboardFromLiveSignals(liveRows, {
       month: p.scoreLabel,
       recordWindowLabel: `Back-test score month (${p.scoreLabel})`,
@@ -886,8 +1079,9 @@ export async function runInjuryWeatherBacktest(options?: {
       workforceTotal: options?.workforceTotal,
       hoursWorked: options?.hoursWorked,
       stateCode: options?.stateCode,
+      workSchedule: options?.workSchedule,
     });
-    const incidentsNextMonth = await countIncidentsInRange(admin, p.outcomeStart, p.outcomeEnd);
+    const incidentsNextMonth = incidentsByOutcomeMonth.get(p.outcomeMonthLabel) ?? 0;
     rows.push({
       scoreMonth: p.scoreLabel,
       outcomeMonth: p.outcomeMonthLabel,
@@ -901,15 +1095,14 @@ export async function runInjuryWeatherBacktest(options?: {
   }
 
   const correlations = computeBacktestCorrelations(rows);
-  const previousRuns = await fetchRecentBacktestRuns(admin, 1);
-  const prevPearson = previousRuns[0]?.pearsonStructuralVsIncidents ?? null;
+  const recentRuns = await fetchRecentBacktestRuns(admin, 12);
+  const prevPearson = recentRuns[0]?.pearsonStructuralVsIncidents ?? null;
   const calibrationTrend = inferCalibrationTrend(correlations.pearsonStructuralVsIncidents, prevPearson);
   await persistInjuryWeatherBacktestRun(admin, {
     lookbackMonths,
     rowCount: rows.length,
     correlations,
   });
-  const recentRuns = await fetchRecentBacktestRuns(admin, 12);
 
   return {
     generatedAt: new Date().toISOString(),

@@ -9,8 +9,11 @@
  *   tracked separately; until then, constants below are **tunable placeholders**.
  *
  * SEPARATION OF CONCERNS:
- *   1. `structuralRiskScore` (0–100): composite of severity mix, trend pressure, momentum,
- *      concentration, repeats, and optional workforce-normalized signal density. **No weather.**
+ *   1. `structuralRiskScore` / `finalRiskScore` (0–100):
+ *      `baseRisk × trendPressure × momentumBoost × behavioralAdjustment` (calendar/behavior via
+ *      `behavioralLikelihoodAdjustmentFromMonthLabel`). **No weather** in this score.
+ *   1b. `predictedRisk` (dimensionless index): `historicalBaseline × seasonal × realTimeBehavior × scheduleExposure × site × weather`
+ *      (`computePredictedRiskProduct`) — parallel headline for calibration; not identical to (1).
  *   2. `incidentLikelihoodIndexPct`: illustrative “next ~30 day” likelihood index derived from
  *      structural score × trade/site weather exposure. **Not** the same unit as (1).
  *   3. `projectedCaseEstimate`: rough case-load style count for prioritization; uses (2) × exposure
@@ -19,7 +22,14 @@
  */
 
 import { getTradeWeatherWeight } from "@/lib/injuryWeather/locationWeather";
-import type { RiskLevel, TradeForecast, TrendPoint } from "@/lib/injuryWeather/types";
+import type {
+  BehaviorSignals,
+  PredictedRiskFactors,
+  RiskLevel,
+  TradeForecast,
+  TrendPoint,
+  WorkScheduleInputs,
+} from "@/lib/injuryWeather/types";
 
 // ---------------------------------------------------------------------------
 // CONFIGURABLE CONSTANTS — tune here; keep version in sync when changing material weights
@@ -27,7 +37,7 @@ import type { RiskLevel, TradeForecast, TrendPoint } from "@/lib/injuryWeather/t
 
 export const INJURY_WEATHER_MODEL = {
   /** Bump when blend weights or likelihood mapping change materially. */
-  VERSION: "2.0.0" as const,
+  VERSION: "2.3.0" as const,
 
   MODEL_ROLE: "leading_indicator_unvalidated" as const,
 
@@ -87,7 +97,221 @@ export const INJURY_WEATHER_MODEL = {
 
   /** Cap month-on-month step-up for case estimate (reduces explosion on thin history). */
   MONTH_PROJECTION_CAP: 1.35,
+
+  /**
+   * `scheduleExposureLikelihoodMultiplier`: maps weekly hours vs 5×8 reference; `(ratio - 1) * SCHEDULE_EXPOSURE_SENSITIVITY`, capped.
+   */
+  SCHEDULE_EXPOSURE_SENSITIVITY: 0.4,
+  SCHEDULE_EXPOSURE_MAX_LIFT: 0.22,
+
+  /**
+   * `trendPressureMultiplier = 1 + (trendPressurePct/100) * cap` — scales how much trend lifts `finalRiskScore`.
+   */
+  TREND_PRESSURE_MULT_CAP: 0.18,
+  /**
+   * `momentumMultiplier = 1 + (momentumBoostPct/100) * cap` — momentumBoostPct is typically 0–20.
+   */
+  MOMENTUM_MULT_CAP: 0.35,
+
+  /** `historicalBaseline = 1 + (baseRisk/100) * cap` from `computeBaseRiskScore` (0–100). */
+  HISTORICAL_BASELINE_CAP: 0.4,
 } as const;
+
+/**
+ * Calendar-month behavioral / operational stress (pace, holidays, heat, year-end rush).
+ * Tunable prior — not weather; folded into `behavioralLikelihoodAdjustment` and thus `finalRiskScore`.
+ */
+export const MONTHLY_BEHAVIOR_FACTOR: Readonly<Record<number, number>> = {
+  1: 1.15, // January (cold, slow, rushed)
+  2: 1.1,
+  3: 1.05, // ramp up work
+  4: 1.0,
+  5: 0.98,
+  6: 1.05, // heat begins
+  7: 1.12,
+  8: 1.1,
+  9: 1.03,
+  10: 1.0,
+  11: 1.08, // fatigue + deadlines
+  12: 1.15, // holidays, rushing
+};
+
+export function monthlyBehaviorFactorForCalendarMonth(month1to12: number): number {
+  if (!Number.isFinite(month1to12) || month1to12 < 1 || month1to12 > 12) return 1;
+  return MONTHLY_BEHAVIOR_FACTOR[month1to12] ?? 1;
+}
+
+/** Calendar month 1–12 from dashboard labels like "April 2026"; unparseable → current month. */
+export function calendarMonthFromMonthLabel(monthLabel: string): number {
+  const d = new Date(monthLabel.trim());
+  if (Number.isNaN(d.getTime())) return new Date().getMonth() + 1;
+  return d.getMonth() + 1;
+}
+
+/** Parses labels like "April 2026" / ISO month strings. */
+export function monthlyBehaviorFactorFromMonthLabel(monthLabel: string): number {
+  return monthlyBehaviorFactorForCalendarMonth(calendarMonthFromMonthLabel(monthLabel));
+}
+
+/** Coarse season multipliers (Northern Hemisphere); distinct from per-month `MONTHLY_BEHAVIOR_FACTOR`. */
+export type SeasonName = "winter" | "spring" | "summer" | "fall";
+
+export const SEASONAL_FACTOR: Readonly<Record<SeasonName, number>> = {
+  winter: 1.15,
+  spring: 1.05,
+  summer: 1.1,
+  fall: 1.08,
+};
+
+/** Calendar month 1–12 → meteorological season (Northern Hemisphere). */
+export function getSeason(month: number): SeasonName {
+  if (!Number.isFinite(month) || month < 1 || month > 12) return "spring";
+  if ([12, 1, 2].includes(month)) return "winter";
+  if ([3, 4, 5].includes(month)) return "spring";
+  if ([6, 7, 8].includes(month)) return "summer";
+  return "fall";
+}
+
+export function seasonalFactorForCalendarMonth(month1to12: number): number {
+  const s = getSeason(month1to12);
+  return SEASONAL_FACTOR[s] ?? 1;
+}
+
+export function seasonalFactorFromMonthLabel(monthLabel: string): number {
+  return seasonalFactorForCalendarMonth(calendarMonthFromMonthLabel(monthLabel));
+}
+
+/**
+ * `monthFactor * seasonFactor` only (no behavior). Prefer `behavioralLikelihoodAdjustmentFromMonthLabel` for likelihood.
+ */
+export function calendarLikelihoodMultiplierFromMonthLabel(monthLabel: string): number {
+  const currentMonth = calendarMonthFromMonthLabel(monthLabel);
+  const monthFactor = monthlyBehaviorFactorForCalendarMonth(currentMonth);
+  const seasonFactor = seasonalFactorForCalendarMonth(currentMonth);
+  return monthFactor * seasonFactor;
+}
+
+export function normalizeBehaviorSignals(input?: Partial<BehaviorSignals> | null): BehaviorSignals {
+  return {
+    fatigueIndicators: Math.max(0, Number(input?.fatigueIndicators ?? 0) || 0),
+    rushingIndicators: Math.max(0, Number(input?.rushingIndicators ?? 0) || 0),
+    newWorkerRatio: Math.min(100, Math.max(0, Number(input?.newWorkerRatio ?? 0) || 0)),
+    overtimeHours: Math.max(0, Number(input?.overtimeHours ?? 0) || 0),
+  };
+}
+
+/** Default construction-week reference: 5 days × 8 h = 40 h. */
+const REFERENCE_WEEKLY_HOURS = 5 * 8;
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, n));
+}
+
+export function normalizeWorkSchedule(input?: Partial<WorkScheduleInputs> | null): WorkScheduleInputs {
+  const rawH = input?.hoursPerDay;
+  const hoursPerDay =
+    rawH != null && Number.isFinite(Number(rawH)) && Number(rawH) > 0
+      ? Math.min(24, Math.max(0.25, Number(rawH)))
+      : null;
+  return {
+    workSevenDaysPerWeek: Boolean(input?.workSevenDaysPerWeek),
+    hoursPerDay,
+  };
+}
+
+/**
+ * Lifts likelihood when weekly hours exceed a 40h reference (longer days and/or 7-day operations).
+ * Returns 1 when no schedule signal is present (no 7-day flag and no hours/day).
+ */
+export function scheduleExposureLikelihoodMultiplier(workSchedule?: Partial<WorkScheduleInputs> | null): number {
+  const n = normalizeWorkSchedule(workSchedule);
+  const hasSignal = n.workSevenDaysPerWeek || n.hoursPerDay != null;
+  if (!hasSignal) return 1;
+  const daysPerWeek = n.workSevenDaysPerWeek ? 7 : 5;
+  const hoursPerDay = n.hoursPerDay ?? 8;
+  const weeklyHours = daysPerWeek * hoursPerDay;
+  const ratio = weeklyHours / REFERENCE_WEEKLY_HOURS;
+  const sens = INJURY_WEATHER_MODEL.SCHEDULE_EXPOSURE_SENSITIVITY;
+  const cap = INJURY_WEATHER_MODEL.SCHEDULE_EXPOSURE_MAX_LIFT;
+  const extra = (ratio - 1) * sens;
+  return 1 + clamp(extra, 0, cap);
+}
+
+/**
+ * `behaviorScore = fatigue*0.25 + rushing*0.30 + newWorkerRatio*0.25 + overtime*0.20`
+ * with `newWorkerRatio` as 0–1 (we convert from stored 0–100 percent).
+ * `behaviorMultiplier = 1 + clamp(behaviorScore, 0, 0.25)` → likelihood in [1, 1.25].
+ */
+export function behaviorSignalsLikelihoodMultiplier(signals: Partial<BehaviorSignals> | null | undefined): number {
+  const s = normalizeBehaviorSignals(signals);
+  const newWorkerRatio01 = s.newWorkerRatio / 100;
+  const behaviorScore =
+    s.fatigueIndicators * 0.25 +
+    s.rushingIndicators * 0.3 +
+    newWorkerRatio01 * 0.25 +
+    s.overtimeHours * 0.2;
+  return 1 + clamp(behaviorScore, 0, 0.25);
+}
+
+/**
+ * `monthFactor * seasonFactor * behaviorMultiplier * scheduleExposure` — behavior term omitted (×1) when `behaviorSignals` is null/undefined.
+ */
+export function behavioralLikelihoodAdjustmentFromMonthLabel(
+  monthLabel: string,
+  behaviorSignals?: Partial<BehaviorSignals> | null,
+  workSchedule?: Partial<WorkScheduleInputs> | null
+): number {
+  const currentMonth = calendarMonthFromMonthLabel(monthLabel);
+  const monthFactor = monthlyBehaviorFactorForCalendarMonth(currentMonth);
+  const seasonFactor = seasonalFactorForCalendarMonth(currentMonth);
+  const behaviorMultiplier =
+    behaviorSignals == null ? 1 : behaviorSignalsLikelihoodMultiplier(behaviorSignals);
+  const scheduleExposure = scheduleExposureLikelihoodMultiplier(workSchedule);
+  return monthFactor * seasonFactor * behaviorMultiplier * scheduleExposure;
+}
+
+export function historicalBaselineMultiplierFromBaseRisk(baseRisk0to100: number): number {
+  const k = INJURY_WEATHER_MODEL.HISTORICAL_BASELINE_CAP;
+  return 1 + Math.min(1, Math.max(0, baseRisk0to100) / 100) * k;
+}
+
+/**
+ * `predictedRisk = historicalBaseline × seasonalFactor × realTimeBehaviorFactor × scheduleExposureFactor × siteConditionFactor × weatherFactor`
+ * — site = calendar month stress × trade-mix sensitivity; weather = regional climate only (not combined).
+ */
+export function computePredictedRiskProduct(input: {
+  baseRiskScore: number;
+  monthLabel: string;
+  behaviorSignals?: Partial<BehaviorSignals> | null;
+  workSchedule?: Partial<WorkScheduleInputs> | null;
+  tradeWeatherWeight: number;
+  weatherRiskMultiplier: number;
+}): { predictedRisk: number; factors: PredictedRiskFactors } {
+  const historicalBaseline = historicalBaselineMultiplierFromBaseRisk(input.baseRiskScore);
+  const seasonalFactor = seasonalFactorFromMonthLabel(input.monthLabel);
+  const realTimeBehaviorFactor =
+    input.behaviorSignals == null ? 1 : behaviorSignalsLikelihoodMultiplier(input.behaviorSignals);
+  const scheduleExposureFactor = scheduleExposureLikelihoodMultiplier(input.workSchedule);
+  const siteConditionFactor =
+    monthlyBehaviorFactorFromMonthLabel(input.monthLabel) * input.tradeWeatherWeight;
+  const weatherFactor = input.weatherRiskMultiplier;
+  const predictedRisk =
+    historicalBaseline *
+    seasonalFactor *
+    realTimeBehaviorFactor *
+    scheduleExposureFactor *
+    siteConditionFactor *
+    weatherFactor;
+  const factors: PredictedRiskFactors = {
+    historicalBaseline,
+    seasonalFactor,
+    realTimeBehaviorFactor,
+    scheduleExposureFactor,
+    siteConditionFactor,
+    weatherFactor,
+  };
+  return { predictedRisk: Math.round(predictedRisk * 1000) / 1000, factors };
+}
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -171,38 +395,39 @@ export function computeWorkforceSignalDensityPct(signalCount: number, workforceC
   return Math.min(100, Math.round((signalCount / workforceCount) * INJURY_WEATHER_MODEL.SIGNALS_PER_WORKER_SCALE));
 }
 
-type StructuralInputs = {
+export type BaseRiskInputs = {
   severityRatioPct: number;
-  trendPressurePct: number;
-  momentumBoostPct: number;
   highRiskCategoryConcentration: number;
   repeatIssueRate: number;
   workforceSignalDensityPct: number | null;
 };
 
+export type StructuralInputs = BaseRiskInputs & {
+  trendPressurePct: number;
+  momentumBoostPct: number;
+  /** `behavioralLikelihoodAdjustmentFromMonthLabel` (month × season × optional behavior). Default 1. */
+  behavioralAdjustment?: number;
+};
+
 /**
- * Structural leading-indicator score (0–100). **Does not include weather** — weather applies only to
- * the likelihood index downstream.
+ * Severity mix (and concentration / repeats / optional density) with weights renormalized from
+ * `STRUCTURAL_BLEND` excluding trend/momentum — same redistribution rules as the old additive blend.
  */
-export function computeStructuralRiskScore(input: StructuralInputs): number {
+export function computeBaseRiskScore(input: BaseRiskInputs): number {
   const w = INJURY_WEATHER_MODEL.STRUCTURAL_BLEND;
-  let ws = w.severityRatio;
-  let wt = w.trendPressure;
-  let wm = w.momentum;
-  let wc = w.highRiskCategoryConcentration;
-  let wr = w.repeatIssueRate;
-  let wd: number = w.workforceSignalDensity;
+  const coreSum = w.severityRatio + w.highRiskCategoryConcentration + w.repeatIssueRate + w.workforceSignalDensity;
+  let ws = w.severityRatio / coreSum;
+  let wc = w.highRiskCategoryConcentration / coreSum;
+  let wr = w.repeatIssueRate / coreSum;
+  let wd = w.workforceSignalDensity / coreSum;
 
   if (input.workforceSignalDensityPct == null) {
     if (INJURY_WEATHER_MODEL.REDISTRIBUTE_DENSITY_TO_SEVERITY) {
       ws += wd;
       wd = 0;
     } else {
-      // normalize remaining five weights — fallback
-      const sum = ws + wt + wm + wc + wr;
+      const sum = ws + wc + wr;
       ws = (ws / sum) * (1 - wd);
-      wt = (wt / sum) * (1 - wd);
-      wm = (wm / sum) * (1 - wd);
       wc = (wc / sum) * (1 - wd);
       wr = (wr / sum) * (1 - wd);
       wd = 0;
@@ -213,22 +438,60 @@ export function computeStructuralRiskScore(input: StructuralInputs): number {
 
   return (
     input.severityRatioPct * ws +
-    input.trendPressurePct * wt +
-    input.momentumBoostPct * wm +
     input.highRiskCategoryConcentration * wc +
     input.repeatIssueRate * wr +
     density * wd
   );
 }
 
+/** Unitless multiplier (≥1) from trend pressure % (0–100). */
+export function trendPressureMultiplierFromPct(trendPressurePct: number): number {
+  const k = INJURY_WEATHER_MODEL.TREND_PRESSURE_MULT_CAP;
+  return 1 + Math.min(1, Math.max(0, trendPressurePct) / 100) * k;
+}
+
+/** Unitless multiplier (≥1) from momentum boost % (0–100). */
+export function momentumMultiplierFromPct(momentumBoostPct: number): number {
+  const k = INJURY_WEATHER_MODEL.MOMENTUM_MULT_CAP;
+  return 1 + Math.min(1, Math.max(0, momentumBoostPct) / 100) * k;
+}
+
 /**
- * Incident likelihood index (%) — **derived from structural score × weather**, not a second
- * independent regression on the same inputs (avoids double-counting severity/trend).
+ * `finalRiskScore = baseRisk × trendPressure × momentumBoost × behavioralAdjustment` (clamped 0–100). **No weather.**
  */
-export function computeIncidentLikelihoodIndexPct(structuralRiskScore: number, combinedWeatherFactor: number): number {
+export function computeFinalRiskScore(input: StructuralInputs): number {
+  const baseRisk = computeBaseRiskScore({
+    severityRatioPct: input.severityRatioPct,
+    highRiskCategoryConcentration: input.highRiskCategoryConcentration,
+    repeatIssueRate: input.repeatIssueRate,
+    workforceSignalDensityPct: input.workforceSignalDensityPct,
+  });
+  const trendPressure = trendPressureMultiplierFromPct(input.trendPressurePct);
+  const momentumBoost = momentumMultiplierFromPct(input.momentumBoostPct);
+  const behavioralAdjustment = input.behavioralAdjustment ?? 1;
+  const raw = baseRisk * trendPressure * momentumBoost * behavioralAdjustment;
+  return Math.min(100, Math.round(raw * 10) / 10);
+}
+
+/**
+ * Structural leading-indicator score (0–100) — alias for `computeFinalRiskScore` (product model).
+ */
+export function computeStructuralRiskScore(input: StructuralInputs): number {
+  return computeFinalRiskScore(input);
+}
+
+/**
+ * Incident likelihood index (%) — **structural × weather** (optionally × `extraLikelihoodMultiplier`).
+ * Calendar/behavior are folded into `structuralRiskScore` via `finalRiskScore`; default extra is 1.
+ */
+export function computeIncidentLikelihoodIndexPct(
+  structuralRiskScore: number,
+  combinedWeatherFactor: number,
+  extraLikelihoodMultiplier = 1
+): number {
   const { minPct, maxPct, slope } = INJURY_WEATHER_MODEL.LIKELIHOOD_FROM_STRUCTURAL;
   const base = minPct + structuralRiskScore * slope;
-  const raw = base * combinedWeatherFactor;
+  const raw = base * combinedWeatherFactor * extraLikelihoodMultiplier;
   return Math.max(minPct, Math.min(maxPct, Math.round(raw)));
 }
 
@@ -309,6 +572,46 @@ export function buildTradeCategoryForecasts(input: TradeForecastBuildInput): Tra
           shareOfTradeTopCategoriesPct: Math.round(catShare * 1000) / 10,
         };
       }),
+    };
+  });
+}
+
+/**
+ * When the user filters by trade(s) but no signals roll up to those trades, show one honest card per
+ * requested trade instead of falling back to demo Roofing/Electrical/etc. cards.
+ */
+export function tradeForecastsWhenNoSignals(requestedTradeLabels: string[]): TradeForecast[] {
+  const seen = new Set<string>();
+  const labels: string[] = [];
+  for (const raw of requestedTradeLabels) {
+    const s = raw.trim();
+    if (!s) continue;
+    const key = s.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    labels.push(s);
+  }
+  return labels.slice(0, 8).map((raw) => {
+    const trade = raw
+      .trim()
+      .split(/\s+/)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+    return {
+      trade,
+      forecastProvenance: "live" as const,
+      tradeCaseAllocation: 0,
+      categories: [
+        {
+          name: "No observations in selected window",
+          predictedCount: 0,
+          riskLevel: "LOW" as const,
+          sourceObservationCount: 0,
+          shareOfTradeTopCategoriesPct: 100,
+        },
+      ],
+      footerNote:
+        "No safety signals matched this trade for the current filters.",
     };
   });
 }
