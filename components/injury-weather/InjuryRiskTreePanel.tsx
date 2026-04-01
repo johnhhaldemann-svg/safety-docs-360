@@ -1,14 +1,41 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
 import {
   INJURY_RISK_FINAL_ENGINE,
   INJURY_RISK_OUTPUT,
   INJURY_RISK_TREE_LAYERS,
 } from "@/lib/injuryWeather/injuryRiskDeterminationTree";
 
-function TreeBranch({ children }: { children: ReactNode }) {
-  return <div className="border-l border-slate-600/80 pl-3">{children}</div>;
+function CollapsibleStep({
+  stepLabel,
+  title,
+  leadsTo,
+  children,
+}: {
+  stepLabel: string;
+  title: string;
+  leadsTo: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="group rounded-lg border border-slate-700/60 bg-slate-950/35 open:border-cyan-700/45 open:bg-slate-950/55">
+      <summary className="flex cursor-pointer list-none items-start gap-2 px-3 py-2.5 font-mono text-[11px] leading-snug text-slate-200 marker:hidden [&::-webkit-details-marker]:hidden">
+        <ChevronDown
+          aria-hidden
+          className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400/90 transition-transform duration-200 group-open:rotate-180"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="text-cyan-400/90">{stepLabel}</span> {title}
+          <span className="mt-0.5 block text-[10px] font-normal text-slate-500">
+            leads to <span className="font-semibold text-cyan-200/90">{leadsTo}</span>
+          </span>
+        </span>
+      </summary>
+      <div className="border-t border-slate-800/80 px-3 pb-3 pl-9 pt-1">{children}</div>
+    </details>
+  );
 }
 
 export function InjuryRiskTreePanel() {
@@ -24,54 +51,37 @@ export function InjuryRiskTreePanel() {
         START → layers feed multipliers → final score → banded output.
       </p>
 
-      <div className="mt-4 font-mono text-[11px] leading-relaxed text-slate-300">
+      <div className="mt-4 space-y-2 font-mono text-[11px] leading-relaxed text-slate-300">
         <p className="text-cyan-200/90">START</p>
         {INJURY_RISK_TREE_LAYERS.map((layer) => (
-          <TreeBranch key={layer.step}>
-            <p className="pt-2 text-slate-100">
-              <span className="text-cyan-400/90">{layer.step}.</span> {layer.title}
-            </p>
-            <ul className="mt-1 list-none space-y-0.5 pl-2 text-slate-400">
+          <CollapsibleStep key={layer.step} stepLabel={`${layer.step}.`} title={layer.title} leadsTo={layer.leadsTo}>
+            <ul className="list-none space-y-0.5 text-slate-400">
               {layer.inputs.map((line) => (
                 <li key={line}>├── {line}</li>
               ))}
             </ul>
-            <p className="mt-1 pl-2 text-slate-500">│</p>
-            <p className="pl-2 text-slate-300">
-              leads to: <span className="font-semibold text-cyan-200/95">{layer.leadsTo}</span>
-            </p>
-            <p className="mt-1.5 rounded border border-slate-700/80 bg-slate-950/50 px-2 py-1.5 text-[10px] leading-snug text-slate-500">
+            <p className="mt-2 rounded border border-slate-700/80 bg-slate-950/50 px-2 py-1.5 text-[10px] leading-snug text-slate-500">
               In this app: {layer.inCodeSummary}
             </p>
-          </TreeBranch>
+          </CollapsibleStep>
         ))}
 
-        <TreeBranch>
-          <p className="pt-3 text-slate-100">
-            <span className="text-cyan-400/90">7.</span> {INJURY_RISK_FINAL_ENGINE.title}
-          </p>
-          <ul className="mt-1 list-none space-y-0.5 pl-2 text-slate-400">
+        <CollapsibleStep stepLabel="7." title={INJURY_RISK_FINAL_ENGINE.title} leadsTo={INJURY_RISK_FINAL_ENGINE.leadsTo}>
+          <ul className="list-none space-y-0.5 text-slate-400">
             {INJURY_RISK_FINAL_ENGINE.factors.map((f) => (
               <li key={f}>├── {f}</li>
             ))}
           </ul>
-          <p className="mt-1 pl-2 text-slate-500">│</p>
-          <p className="pl-2 text-slate-300">
-            leads to: <span className="font-semibold text-cyan-200/95">{INJURY_RISK_FINAL_ENGINE.leadsTo}</span>
-          </p>
-        </TreeBranch>
+        </CollapsibleStep>
 
-        <TreeBranch>
-          <p className="pt-3 text-slate-100">
-            <span className="text-cyan-400/90">8.</span> {INJURY_RISK_OUTPUT.title}
-          </p>
-          <ul className="mt-1 list-none space-y-0.5 pl-2 text-slate-400">
+        <CollapsibleStep stepLabel="8." title={INJURY_RISK_OUTPUT.title} leadsTo="Banded risk label">
+          <ul className="list-none space-y-0.5 text-slate-400">
             {INJURY_RISK_OUTPUT.bands.map((b) => (
               <li key={b}>├── {b}</li>
             ))}
           </ul>
           <p className="mt-2 text-[10px] leading-relaxed text-slate-500">{INJURY_RISK_OUTPUT.bandNote}</p>
-        </TreeBranch>
+        </CollapsibleStep>
       </div>
     </section>
   );
