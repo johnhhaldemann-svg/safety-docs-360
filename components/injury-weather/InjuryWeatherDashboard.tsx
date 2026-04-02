@@ -524,6 +524,23 @@ export function InjuryWeatherDashboard() {
       return next;
     });
   };
+  const allTradesSelected =
+    trades.length > 0 && trades.every((t) => selectedTrades.includes(t));
+  const selectAllTrades = () => {
+    deferAiAfterTradeToggleRef.current = true;
+    const next = [...trades];
+    setSelectedTrades(next);
+    setAppliedTrades(next);
+    setLoading(true);
+    setRefreshTick((n) => n + 1);
+  };
+  const clearTradeSelection = () => {
+    deferAiAfterTradeToggleRef.current = true;
+    setSelectedTrades([]);
+    setAppliedTrades([]);
+    setLoading(true);
+    setRefreshTick((n) => n + 1);
+  };
   const onGenerateReport = () => {
     bypassCacheOnce.current = true;
     setLoading(true);
@@ -1333,9 +1350,31 @@ export function InjuryWeatherDashboard() {
             })}
           </div>
           <div className="mt-5 flex flex-col gap-4 border-t border-slate-800 pt-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-slate-500">
-              Selected: <span className="text-slate-300">{selectedTrades.length > 0 ? selectedTrades.join(", ") : "All trades"}</span>
-            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <p className="text-xs text-slate-500">
+                Selected: <span className="text-slate-300">{selectedTrades.length > 0 ? selectedTrades.join(", ") : "All trades"}</span>
+              </p>
+              {trades.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAllTrades}
+                    disabled={allTradesSelected}
+                    className="rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearTradeSelection}
+                    disabled={selectedTrades.length === 0}
+                    className="rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              ) : null}
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-400">
                 <input
