@@ -515,6 +515,21 @@ function seedRows(): SeedRow[] {
   return firstSheet ? sheets[firstSheet] ?? [] : [];
 }
 
+function injuryWeatherScopeNote(companyId?: string | null, jobsiteId?: string | null): string {
+  const c = companyId?.trim();
+  const j = jobsiteId?.trim();
+  if (!c) return "";
+  if (j) {
+    return " · Scoped: this company; incidents & corrective actions limited to the selected jobsite; SOR observations remain company-wide (no jobsite on SOR rows).";
+  }
+  return " · Scoped: this company’s SOR, corrective actions, and incidents only.";
+}
+
+export type InjuryWeatherLiveSignalScope = {
+  companyId?: string | null;
+  jobsiteId?: string | null;
+};
+
 export async function getInjuryWeatherDashboardData(filters?: {
   month?: string;
   trade?: string;
@@ -527,6 +542,10 @@ export async function getInjuryWeatherDashboardData(filters?: {
   behaviorSignals?: Partial<BehaviorSignals>;
   /** 7-day ops and/or hours/day vs a 40h reference week — likelihood / structural calendar path only. */
   workSchedule?: Partial<WorkScheduleInputs>;
+  /** When set, only that company’s signals (and optional jobsite on incidents/CAPA). */
+  companyId?: string | null;
+  /** When set with companyId, incidents & corrective actions must match this jobsite_id. */
+  jobsiteId?: string | null;
 }): Promise<InjuryWeatherDashboardData> {
   /**
    * Forecast principle: the selected month is the **target** for likelihood and seasonal factors.
@@ -539,6 +558,13 @@ export async function getInjuryWeatherDashboardData(filters?: {
   const monthLabel = filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
   const workbookRows = seedRows();
   const trendFromSeed = computeTrendFromSeed(workbookRows, filters);
+  const cid = filters?.companyId?.trim() || undefined;
+  const jid = cid && filters?.jobsiteId?.trim() ? filters.jobsiteId.trim() : undefined;
+  const liveScope: InjuryWeatherLiveSignalScope = {
+    companyId: cid,
+    jobsiteId: jid,
+  };
+  const scopeNote = injuryWeatherScopeNote(liveScope.companyId ?? null, liveScope.jobsiteId ?? null);
 
   if (!admin) {
     const fallback = computeFromSeed(workbookRows, filters);
@@ -572,10 +598,10 @@ export async function getInjuryWeatherDashboardData(filters?: {
 
   const shouldFilterSignalsByMonth = filters?.month ? !isFutureMonth(filters.month) : false;
   /** One fetch of all signals (3 queries) — filter by month in memory when needed. Avoids duplicate full-table reads. */
-  const allRows = await fetchLiveSignals(admin, {});
+  const allRows = await fetchLiveSignals(admin, liveScope);
   const selectedMonth = filters?.month;
   const targetIsFutureMonth = selectedMonth ? isFutureMonth(selectedMonth) : false;
-  const { rows: liveSourceRows, recordWindowLabel } =
+  const { rows: liveSourceRows, recordWindowLabel: baseRecordWindow } =
     shouldFilterSignalsByMonth && selectedMonth
       ? resolveMonthScopedRowsWithFallback(allRows, selectedMonth)
       : {
@@ -585,9 +611,10 @@ export async function getInjuryWeatherDashboardData(filters?: {
               ? `Forecast: historical safety signals (all dates) — ${selectedMonth} is not observed yet; present/future scores use past patterns.`
               : "All dates (no month filter on SOR / corrective actions / incidents)",
         };
+  const recordWindowLabel = `${baseRecordWindow}${scopeNote}`;
   const historyTrend = buildDashboardFromLiveSignals(allRows, {
     month: monthLabel,
-    recordWindowLabel: "All dates (history for month picker)",
+    recordWindowLabel: `All dates (history for month picker)${scopeNote}`,
     workSchedule: filters?.workSchedule,
     trendFallback: trendFromSeed,
   });
@@ -667,11 +694,19 @@ export async function refreshInjuryWeatherDailySnapshot() {
 
 async function fetchLiveSignals(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
-  filters?: { month?: string; dateRange?: { start: Date; end: Date } }
+  filters?: {
+    month?: string;
+    dateRange?: { start: Date; end: Date };
+  } & InjuryWeatherLiveSignalScope
 ): Promise<NormalizedLiveSignalRow[]> {
   const range =
     filters?.dateRange ??
     (filters?.month ? parseMonthFilter(filters.month) : null);
+  const companyId = filters?.companyId?.trim() || null;
+  const jobsiteIdRaw = filters?.jobsiteId?.trim() || null;
+  /** Jobsite filter only with company to avoid mixing all-company SOR with a single jobsite’s incidents. */
+  const jobsiteId = companyId && jobsiteIdRaw ? jobsiteIdRaw : null;
+
   let sorQuery = admin
     .from("company_sor_records")
     .select("trade, category, severity, created_at, status")
@@ -684,6 +719,17 @@ async function fetchLiveSignals(
     .select(
       "category, severity, created_at, injury_month, injury_season, injury_day_of_week, injury_time_of_day, injury_type, exposure_event_type"
     );
+
+  if (companyId) {
+    sorQuery = sorQuery.eq("company_id", companyId);
+    actionQuery = actionQuery.eq("company_id", companyId);
+    incidentQuery = incidentQuery.eq("company_id", companyId);
+  }
+  if (jobsiteId) {
+    actionQuery = actionQuery.eq("jobsite_id", jobsiteId);
+    incidentQuery = incidentQuery.eq("jobsite_id", jobsiteId);
+  }
+
   if (range) {
     const start = range.start.toISOString();
     const end = range.end.toISOString();

@@ -33,6 +33,8 @@ const loadCachedDashboard = unstable_cache(
       stateCode: string | null;
       behaviorSignals: Partial<BehaviorSignals> | null;
       workSchedule: Partial<WorkScheduleInputs> | null;
+      companyId: string | null;
+      jobsiteId: string | null;
     };
     return getInjuryWeatherDashboardData({
       month: filters.month ?? undefined,
@@ -43,6 +45,8 @@ const loadCachedDashboard = unstable_cache(
       stateCode: filters.stateCode ?? undefined,
       behaviorSignals: filters.behaviorSignals ?? undefined,
       workSchedule: filters.workSchedule ?? undefined,
+      companyId: filters.companyId ?? undefined,
+      jobsiteId: filters.jobsiteId ?? undefined,
     });
   },
   ["injury-weather-dashboard"],
@@ -92,6 +96,9 @@ export async function GET(request: Request) {
   const stateCode = searchParams.get("state")?.trim() || undefined;
   const behaviorSignals = parseBehaviorSignalsFromSearchParams(searchParams);
   const workSchedule = workScheduleFromUrlSearchParams(searchParams);
+  const companyId = searchParams.get("companyId")?.trim() || undefined;
+  const jobsiteIdParam = searchParams.get("jobsiteId")?.trim() || undefined;
+  const jobsiteId = companyId && jobsiteIdParam ? jobsiteIdParam : undefined;
   const includeAi = searchParams.get("includeAi") === "true";
   const bypassCache = wantsCacheBypass(searchParams);
   const filterKey = JSON.stringify({
@@ -103,6 +110,8 @@ export async function GET(request: Request) {
     stateCode: stateCode ?? null,
     behaviorSignals: behaviorSignals ?? null,
     workSchedule: workSchedule ?? null,
+    companyId: companyId ?? null,
+    jobsiteId: jobsiteId ?? null,
   });
 
   const filters = {
@@ -114,6 +123,8 @@ export async function GET(request: Request) {
     stateCode,
     behaviorSignals,
     workSchedule,
+    companyId,
+    jobsiteId,
   };
 
   if (bypassCache) {

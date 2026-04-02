@@ -318,6 +318,24 @@ export function InjuryWeatherDashboard() {
   const [numberBreakdownOpen, setNumberBreakdownOpen] = useState<TradeForecast | null>(null);
   const [fieldAttestation, setFieldAttestation] = useState(false);
 
+  const [scopeCompanies, setScopeCompanies] = useState<{ id: string; name: string | null }[]>([]);
+  const [scopeJobsites, setScopeJobsites] = useState<{ id: string; name: string | null }[]>([]);
+  const [scopeCompanyId, setScopeCompanyId] = useState("");
+  const [scopeJobsiteId, setScopeJobsiteId] = useState("");
+  const [appliedScopeCompanyId, setAppliedScopeCompanyId] = useState("");
+  const [appliedScopeJobsiteId, setAppliedScopeJobsiteId] = useState("");
+
+  const [miTitle, setMiTitle] = useState("");
+  const [miDescription, setMiDescription] = useState("");
+  const [miEventType, setMiEventType] = useState("fall_same_level");
+  const [miSource, setMiSource] = useState("other");
+  const [miInjuryType, setMiInjuryType] = useState("sprain");
+  const [miBodyPart, setMiBodyPart] = useState("foot");
+  const [miOccurredAt, setMiOccurredAt] = useState("");
+  const [miSignalCreatedAt, setMiSignalCreatedAt] = useState("");
+  const [miSubmitting, setMiSubmitting] = useState(false);
+  const [miMessage, setMiMessage] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -359,6 +377,10 @@ export function InjuryWeatherDashboard() {
           if (appliedWorkSevenDaysPerWeek) qs.set("workSevenDaysPerWeek", "1");
           if (appliedHoursPerDaySchedule.trim()) qs.set("hoursPerDay", appliedHoursPerDaySchedule.trim());
           if (appliedStateCode.trim()) qs.set("state", appliedStateCode.trim());
+          if (appliedScopeCompanyId.trim()) qs.set("companyId", appliedScopeCompanyId.trim());
+          if (appliedScopeCompanyId.trim() && appliedScopeJobsiteId.trim()) {
+            qs.set("jobsiteId", appliedScopeJobsiteId.trim());
+          }
           qs.set("includeAi", includeAi ? "true" : "false");
           if (bypassCacheOnce.current) {
             qs.set("refresh", "1");
@@ -435,10 +457,56 @@ export function InjuryWeatherDashboard() {
     appliedWorkSevenDaysPerWeek,
     appliedHoursPerDaySchedule,
     appliedStateCode,
+    appliedScopeCompanyId,
+    appliedScopeJobsiteId,
     month,
     reportRun,
     refreshTick,
   ]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) return;
+        const meRes = await fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } });
+        const meData = (await meRes.json().catch(() => null)) as { user?: { role?: string } } | null;
+        if (!meRes.ok || String(meData?.user?.role ?? "").toLowerCase() !== "super_admin") return;
+        const r = await fetch("/api/superadmin/injury-weather/scope", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        const j = (await r.json().catch(() => null)) as { companies?: { id: string; name: string | null }[] } | null;
+        if (r.ok && j?.companies) setScopeCompanies(j.companies);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      if (!scopeCompanyId.trim()) {
+        setScopeJobsites([]);
+        return;
+      }
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) return;
+        const r = await fetch(
+          `/api/superadmin/injury-weather/scope?companyId=${encodeURIComponent(scopeCompanyId.trim())}`,
+          { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
+        );
+        const j = (await r.json().catch(() => null)) as { jobsites?: { id: string; name: string | null }[] } | null;
+        if (r.ok && j?.jobsites) setScopeJobsites(j.jobsites);
+        else setScopeJobsites([]);
+      } catch {
+        setScopeJobsites([]);
+      }
+    })();
+  }, [scopeCompanyId]);
 
   const trades = useMemo(
     () => (data?.availableTrades?.length ? data.availableTrades : data?.tradeForecasts.map((t) => t.trade) ?? []),
@@ -466,6 +534,8 @@ export function InjuryWeatherDashboard() {
     setAppliedWorkSevenDaysPerWeek(workSevenDaysPerWeek);
     setAppliedHoursPerDaySchedule(hoursPerDaySchedule);
     setAppliedStateCode(stateCode);
+    setAppliedScopeCompanyId(scopeCompanyId.trim());
+    setAppliedScopeJobsiteId(scopeJobsiteId.trim());
     setReportRun((n) => n + 1);
   };
 
@@ -515,6 +585,8 @@ export function InjuryWeatherDashboard() {
         hoursWorked: appliedHoursWorked,
         workSevenDaysPerWeek: appliedWorkSevenDaysPerWeek,
         hoursPerDay: appliedHoursPerDaySchedule,
+        companyId: appliedScopeCompanyId || null,
+        jobsiteId: appliedScopeJobsiteId || null,
       },
       dashboard: data,
       aiInsights,
@@ -818,6 +890,257 @@ export function InjuryWeatherDashboard() {
             )}
             {" · "}
             Trades: {appliedTrades.length > 0 ? appliedTrades.join(", ") : "All"}
+            {appliedScopeCompanyId ? (
+              <>
+                {" "}
+                · Company{" "}
+                <span className="font-mono text-slate-200">
+                  {scopeCompanies.find((c) => c.id === appliedScopeCompanyId)?.name ?? appliedScopeCompanyId.slice(0, 8)}
+                </span>
+                {appliedScopeJobsiteId ? (
+                  <>
+                    {" "}
+                    · Jobsite{" "}
+                    <span className="font-mono text-slate-200">
+                      {appliedScopeCompanyId === scopeCompanyId.trim()
+                        ? scopeJobsites.find((j) => j.id === appliedScopeJobsiteId)?.name ??
+                          `${appliedScopeJobsiteId.slice(0, 8)}…`
+                        : `${appliedScopeJobsiteId.slice(0, 8)}…`}
+                    </span>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <> · Signals: platform-wide</>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-4 rounded-xl border border-violet-500/35 bg-violet-950/15 p-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300/90">Data scope</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              Limit SOR, corrective actions, and incidents to one company. With a jobsite selected, incidents and corrective
+              actions match that jobsite; SOR rows stay company-wide. Click <span className="text-emerald-300">Generate Report</span>{" "}
+              to apply.
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+                <span className="font-medium text-slate-400">Company</span>
+                <select
+                  value={scopeCompanyId}
+                  onChange={(e) => {
+                    setScopeCompanyId(e.target.value);
+                    setScopeJobsiteId("");
+                  }}
+                  className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100"
+                >
+                  <option value="">All companies (platform)</option>
+                  {scopeCompanies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name || c.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+                <span className="font-medium text-slate-400">Jobsite (optional)</span>
+                <select
+                  value={scopeJobsiteId}
+                  onChange={(e) => setScopeJobsiteId(e.target.value)}
+                  disabled={!scopeCompanyId.trim()}
+                  className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 disabled:opacity-50"
+                >
+                  <option value="">All jobsites for company</option>
+                  {scopeJobsites.map((j) => (
+                    <option key={j.id} value={j.id}>
+                      {j.name || j.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div className="border-t border-violet-500/25 pt-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300/90">Manual injury signal</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              Inserts a real <code className="rounded bg-slate-800 px-1">company_incidents</code> row (tagged in description) so
+              Injury Weather and the AI advisor reflect it. Set <span className="text-slate-300">Signal date</span> to the month
+              you want counted when using month filters (uses <code className="rounded bg-slate-800 px-1">created_at</code>).
+            </p>
+            {miMessage ? (
+              <p
+                className={`mt-2 rounded-lg px-3 py-2 text-xs ${
+                  miMessage.tone === "ok" ? "border border-emerald-600/50 bg-emerald-950/40 text-emerald-200" : "border border-red-600/50 bg-red-950/40 text-red-200"
+                }`}
+              >
+                {miMessage.text}
+              </p>
+            ) : null}
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-[11px] text-slate-500 sm:col-span-2">
+                <span className="font-medium text-slate-400">Title</span>
+                <input
+                  value={miTitle}
+                  onChange={(e) => setMiTitle(e.target.value)}
+                  className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                  placeholder="e.g. Slip / trip — poor housekeeping"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] text-slate-500 sm:col-span-2">
+                <span className="font-medium text-slate-400">Description (optional)</span>
+                <textarea
+                  value={miDescription}
+                  onChange={(e) => setMiDescription(e.target.value)}
+                  rows={2}
+                  className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                  placeholder="Narrative for the incident record…"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+                <span className="font-medium text-slate-400">Exposure (eventType)</span>
+                <select
+                  value={miEventType}
+                  onChange={(e) => setMiEventType(e.target.value)}
+                  className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                >
+                  <option value="fall_same_level">Fall same level</option>
+                  <option value="fall_to_lower_level">Fall to lower level</option>
+                  <option value="struck_by_object">Struck by object</option>
+                  <option value="caught_in_between">Caught in/between</option>
+                  <option value="overexertion">Overexertion</option>
+                  <option value="contact_with_equipment">Contact with equipment</option>
+                  <option value="exposure_harmful_substance">Exposure harmful substance</option>
+                  <option value="electrical">Electrical</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+                <span className="font-medium text-slate-400">Source (equipment/object)</span>
+                <select
+                  value={miSource}
+                  onChange={(e) => setMiSource(e.target.value)}
+                  className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                >
+                  <option value="ladder">Ladder</option>
+                  <option value="scaffold">Scaffold</option>
+                  <option value="hand_tools">Hand tools</option>
+                  <option value="heavy_equipment">Heavy equipment</option>
+                  <option value="material_handling">Material handling</option>
+                  <option value="electrical_system">Electrical system</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+                <span className="font-medium text-slate-400">Injury type</span>
+                <select
+                  value={miInjuryType}
+                  onChange={(e) => setMiInjuryType(e.target.value)}
+                  className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                >
+                  <option value="strain">Strain</option>
+                  <option value="sprain">Sprain</option>
+                  <option value="fracture">Fracture</option>
+                  <option value="laceration">Laceration</option>
+                  <option value="contusion">Contusion</option>
+                  <option value="burn">Burn</option>
+                  <option value="amputation">Amputation</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+                <span className="font-medium text-slate-400">Body part</span>
+                <select
+                  value={miBodyPart}
+                  onChange={(e) => setMiBodyPart(e.target.value)}
+                  className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                >
+                  <option value="back">Back</option>
+                  <option value="hand">Hand</option>
+                  <option value="fingers">Fingers</option>
+                  <option value="knee">Knee</option>
+                  <option value="shoulder">Shoulder</option>
+                  <option value="eye">Eye</option>
+                  <option value="foot">Foot</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+                <span className="font-medium text-slate-400">Occurred at (optional, ISO)</span>
+                <input
+                  value={miOccurredAt}
+                  onChange={(e) => setMiOccurredAt(e.target.value)}
+                  className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                  placeholder="2026-04-01T18:30:00.000Z"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+                <span className="font-medium text-slate-400">Signal date (created_at)</span>
+                <input
+                  value={miSignalCreatedAt}
+                  onChange={(e) => setMiSignalCreatedAt(e.target.value)}
+                  className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                  placeholder="Defaults to occurred at or now"
+                />
+              </label>
+            </div>
+            <button
+              type="button"
+              disabled={miSubmitting || !scopeCompanyId.trim() || !miTitle.trim()}
+              onClick={() => {
+                void (async () => {
+                  setMiMessage(null);
+                  if (!scopeCompanyId.trim()) {
+                    setMiMessage({ tone: "err", text: "Select a company first." });
+                    return;
+                  }
+                  setMiSubmitting(true);
+                  try {
+                    const { data: sessionData } = await supabase.auth.getSession();
+                    const token = sessionData.session?.access_token;
+                    if (!token) return;
+                    const res = await fetch("/api/superadmin/injury-weather/manual-incident", {
+                      method: "POST",
+                      headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        companyId: scopeCompanyId.trim(),
+                        jobsiteId: scopeJobsiteId.trim() || undefined,
+                        title: miTitle.trim(),
+                        description: miDescription.trim() || undefined,
+                        eventType: miEventType,
+                        source: miSource,
+                        injuryType: miInjuryType,
+                        bodyPart: miBodyPart,
+                        occurredAt: miOccurredAt.trim() || undefined,
+                        signalCreatedAt: miSignalCreatedAt.trim() || undefined,
+                      }),
+                    });
+                    const body = (await res.json().catch(() => null)) as { error?: string; hint?: string } | null;
+                    if (!res.ok) {
+                      setMiMessage({ tone: "err", text: body?.error || "Request failed." });
+                      return;
+                    }
+                    setMiMessage({
+                      tone: "ok",
+                      text: `Saved. ${body?.hint ?? "Click Refresh or Generate Report to reload the forecast."}`,
+                    });
+                    bypassCacheOnce.current = true;
+                    setRefreshTick((n) => n + 1);
+                  } catch {
+                    setMiMessage({ tone: "err", text: "Network error." });
+                  } finally {
+                    setMiSubmitting(false);
+                  }
+                })();
+              }}
+              className="mt-4 rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {miSubmitting ? "Saving…" : "Add injury to forecaster"}
+            </button>
           </div>
         </div>
 
