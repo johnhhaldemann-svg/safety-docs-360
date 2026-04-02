@@ -97,6 +97,18 @@ function statusClasses(status?: string | null) {
   return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
+function adminApiJsonErrorMessage(res: Response, rawText: string, parsed: unknown): string {
+  if (parsed && typeof parsed === "object" && parsed !== null) {
+    const err = (parsed as { error?: unknown }).error;
+    if (typeof err === "string" && err.trim()) return err.trim();
+  }
+  const t = rawText.trim();
+  if (t.length > 0 && !t.startsWith("<!") && !t.startsWith("<html")) {
+    return t.length > 500 ? `${t.slice(0, 500)}…` : t;
+  }
+  return `AI review failed (HTTP ${res.status}).`;
+}
+
 function StatCard({
   label,
   value,
@@ -387,7 +399,14 @@ export default function ReviewDocumentPage() {
         body: JSON.stringify({ additionalGcContext: gcAiContext }),
       });
 
-      const data = (await res.json().catch(() => null)) as
+      const rawText = await res.text();
+      let parsed: unknown = null;
+      try {
+        parsed = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        parsed = null;
+      }
+      const data = parsed as
         | {
             error?: string;
             review?: GcProgramAiReview;
@@ -402,7 +421,7 @@ export default function ReviewDocumentPage() {
         | null;
 
       if (!res.ok) {
-        setGcAiError(data?.error || "AI review failed.");
+        setGcAiError(adminApiJsonErrorMessage(res, rawText, parsed));
         return;
       }
 
@@ -441,7 +460,14 @@ export default function ReviewDocumentPage() {
         body: JSON.stringify({ additionalReviewerContext: builderAiContext }),
       });
 
-      const data = (await res.json().catch(() => null)) as
+      const rawText = await res.text();
+      let parsed: unknown = null;
+      try {
+        parsed = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        parsed = null;
+      }
+      const data = parsed as
         | {
             error?: string;
             review?: BuilderProgramAiReview;
@@ -457,7 +483,7 @@ export default function ReviewDocumentPage() {
         | null;
 
       if (!res.ok) {
-        setBuilderAiError(data?.error || "AI review failed.");
+        setBuilderAiError(adminApiJsonErrorMessage(res, rawText, parsed));
         return;
       }
 
@@ -1110,8 +1136,8 @@ export default function ReviewDocumentPage() {
 
           {showGcAiReview ? (
             <SectionCard
-              title="AI review (GC program)"
-              description="Compare the upload against typical OSHA-aligned expectations for the described work and against GC/site requirements. Optional: paste specifics the GC requires that are not fully in the file."
+              title="AI review"
+              description="For this GC-required program upload, compare the file against typical OSHA-aligned expectations for the described work and against GC/site requirements. Optional: paste specifics the GC requires that are not fully in the file."
             >
               <div className="space-y-4">
                 <label className="block text-sm font-semibold text-slate-800">
