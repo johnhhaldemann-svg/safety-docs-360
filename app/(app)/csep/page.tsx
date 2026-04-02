@@ -769,7 +769,11 @@ export default function CSEPPage() {
         />
 
         <div className="mt-6">
-          <GcRequiredProgramUpload permissionMap={permissionMap} authLoading={authLoading} />
+          <GcRequiredProgramUpload
+            permissionMap={permissionMap}
+            authLoading={authLoading}
+            projectName={form.project_name}
+          />
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">

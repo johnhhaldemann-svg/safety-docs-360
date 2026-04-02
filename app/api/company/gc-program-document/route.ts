@@ -106,6 +106,7 @@ export async function POST(request: Request) {
   const formData = await request.formData().catch(() => null);
   const file = formData?.get("file");
   const titleRaw = formData?.get("title");
+  const projectNameRaw = formData?.get("project_name");
 
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json({ error: "A non-empty file is required." }, { status: 400 });
@@ -122,6 +123,13 @@ export async function POST(request: Request) {
     typeof titleRaw === "string" && titleRaw.trim()
       ? titleRaw.trim().slice(0, 200)
       : "GC-required program document";
+
+  const projectNameFromForm =
+    typeof projectNameRaw === "string" && projectNameRaw.trim()
+      ? projectNameRaw.trim().slice(0, 200)
+      : "";
+  const projectName =
+    projectNameFromForm || documentTitle || "GC-required program";
 
   const { data: existingRows, error: listError } = await auth.supabase
     .from("documents")
@@ -172,7 +180,7 @@ export async function POST(request: Request) {
     .from("documents")
     .insert({
       user_id: auth.user.id,
-      project_name: null,
+      project_name: projectName,
       document_title: documentTitle,
       title: documentTitle,
       document_type: GC_REQUIRED_PROGRAM_DOCUMENT_TYPE,

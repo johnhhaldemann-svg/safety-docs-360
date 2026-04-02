@@ -30,9 +30,12 @@ type GcGetResponse = {
 export function GcRequiredProgramUpload({
   permissionMap,
   authLoading,
+  /** CSEP project name when filled; stored on the document row for NOT NULL project_name. */
+  projectName,
 }: {
   permissionMap: PermissionMap | null;
   authLoading: boolean;
+  projectName?: string;
 }) {
   const [doc, setDoc] = useState<GcDoc | null>(null);
   const [pendingReview, setPendingReview] = useState(false);
@@ -96,6 +99,9 @@ export function GcRequiredProgramUpload({
       formData.append("file", file);
       if (title.trim()) {
         formData.append("title", title.trim());
+      }
+      if (projectName?.trim()) {
+        formData.append("project_name", projectName.trim().slice(0, 200));
       }
       const res = await fetch("/api/company/gc-program-document", {
         method: "POST",
