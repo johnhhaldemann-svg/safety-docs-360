@@ -174,6 +174,7 @@ export async function POST(request: Request) {
       user_id: auth.user.id,
       project_name: null,
       document_title: documentTitle,
+      title: documentTitle,
       document_type: GC_REQUIRED_PROGRAM_DOCUMENT_TYPE,
       category: "GC Compliance",
       status: "submitted",
