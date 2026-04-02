@@ -232,7 +232,7 @@ export type DashboardSummary = {
    * @deprecated Use `structuralRiskScore`. Kept for short-term JSON compatibility.
    */
   overallRiskScore?: number;
-  /** Most likely injury nature from incident history / exposure priors in this scope. */
+  /** Likely injury nature from incident history / exposure priors (live: all dates in scope, trade-filtered when applicable). */
   likelyInjuryInsight: LikelyInjuryInsight;
 };
 

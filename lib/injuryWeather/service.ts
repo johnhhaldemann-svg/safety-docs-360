@@ -643,6 +643,9 @@ export async function getInjuryWeatherDashboardData(filters?: {
     ),
     forecastMode: forecastModeFromObservationCount(live.summary.riskSignalCount),
     forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(live.summary.riskSignalCount),
+    likelyInjuryInsight: likelyInjuryInsightFromSignals(
+      rowsMatchingTradeSelection(allRows, filters?.trade, filters?.trades)
+    ),
   };
   return { ...live, industryBenchmarkContext: benchmarkCtx };
 }
@@ -809,6 +812,16 @@ async function fetchLiveSignals(
     } satisfies NormalizedLiveSignalRow;
   });
   return [...sorRows, ...actionRows, ...incidentRows];
+}
+
+/** Same trade filter as `buildDashboardFromLiveSignals` — used for likely-injury mix from full-history `allRows`. */
+function rowsMatchingTradeSelection(
+  rows: NormalizedLiveSignalRow[],
+  trade?: string,
+  trades?: string[]
+): NormalizedLiveSignalRow[] {
+  const tradeFilterSet = tradeFilterStringsToIds([...(trades ?? []), ...(trade ? [trade] : [])]);
+  return tradeFilterSet.size > 0 ? rows.filter((r) => tradeFilterSet.has(r.tradeId)) : [...rows];
 }
 
 function buildDashboardFromLiveSignals(

@@ -11,7 +11,7 @@ function humanizeExposure(code: string): string {
 }
 
 /**
- * Rank likely injury types from incident rows in the current dashboard scope.
+ * Rank likely injury types from incident rows in the supplied signal set (often all dates in company/jobsite scope).
  * Order: empirical injury_type counts → exposure+injury blend → exposure-only priors.
  */
 export function likelyInjuryInsightFromSignals(rows: NormalizedLiveSignalRow[]): LikelyInjuryInsight {
@@ -31,8 +31,8 @@ export function likelyInjuryInsightFromSignals(rows: NormalizedLiveSignalRow[]):
     const pct = Math.round((n / total) * 100);
     const second = sorted[1];
     const detailNote = singleIncidentDrivesView
-      ? `This view has only that one incident (${INJURY_TYPE_LABELS[top]}). The likely-injury readout matches the fields you recorded; the headline case estimate is set to one event for this scope—not a multi-person rate.`
-      : `${total} incident(s) with injury type in this view—${pct}% ${INJURY_TYPE_LABELS[top]}. Historical mix in-window; not a calibrated forecast.`;
+      ? `This scope has only that one incident (${INJURY_TYPE_LABELS[top]}). The readout matches the fields you recorded; where the dashboard uses a single-event case index, that is separate from this mix.`
+      : `${total} incident(s) with injury type in this scope (all dates)—${pct}% ${INJURY_TYPE_LABELS[top]}. Empirical mix from recorded injury types.`;
     return {
       headline: INJURY_TYPE_LABELS[top],
       secondaryLine: second
@@ -77,7 +77,7 @@ export function likelyInjuryInsightFromSignals(rows: NormalizedLiveSignalRow[]):
     const best = ranked[0];
     const detailNote = singleIncidentDrivesView
       ? `Only one incident is in this scope (${humanizeExposure(dominantExp)}). Showing the reference injury mix for that exposure; add injury type on the record for a direct match to what was reported.`
-      : "No injury type on incidents yet—showing typical injury mix for the most common exposure type in this view (illustrative prior).";
+      : "No injury type on incidents yet—showing typical injury mix for the most common exposure type in this scope (illustrative prior).";
     return {
       headline: INJURY_TYPE_LABELS[best[0]],
       secondaryLine: `Reference pattern for ${humanizeExposure(dominantExp)} (${withExp.length} exposure${withExp.length === 1 ? "" : "s"} logged)`,

@@ -638,7 +638,7 @@ export function InjuryWeatherDashboard() {
             Outputs below reflect your current scope—adjust filters at the bottom to regenerate.
           </p>
         </div>
-        <div className="grid gap-2 border-b border-slate-600/40 bg-black/20 px-5 py-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 border-b border-slate-600/40 bg-black/20 px-5 py-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-xl border border-slate-500/40 bg-slate-900/70 p-3 text-center">
             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Estimated injury exposure</p>
             <p className="mt-0.5 text-[10px] text-slate-500">Projected case index · next ~30 days</p>
@@ -670,17 +670,6 @@ export function InjuryWeatherDashboard() {
               Forecast confidence {(data.summary.forecastConfidenceScore ?? 0.8).toFixed(1)} ·{" "}
               {forecastModeDisplayLabel(data.summary.forecastMode)}
             </p>
-          </div>
-          <div className="rounded-xl border border-teal-500/35 bg-slate-900/70 p-3 text-center lg:text-left">
-            <p className="text-xs uppercase tracking-[0.2em] text-teal-300/90">Most likely injury type</p>
-            <p className="mt-0.5 text-[10px] text-slate-500">From incident history / exposure in this view</p>
-            <p className="mt-2 text-xl font-black leading-tight text-teal-100 sm:text-2xl">
-              {data.summary.likelyInjuryInsight.headline}
-            </p>
-            {data.summary.likelyInjuryInsight.secondaryLine ? (
-              <p className="mt-1 text-[11px] text-slate-400">{data.summary.likelyInjuryInsight.secondaryLine}</p>
-            ) : null}
-            <p className="mt-2 text-[10px] leading-snug text-slate-500">{data.summary.likelyInjuryInsight.detailNote}</p>
           </div>
         </div>
         {(data.summary.forecastMode ?? "live_adjusted") === "baseline_only" ? (
