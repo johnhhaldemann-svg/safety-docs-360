@@ -16,6 +16,7 @@ function humanizeExposure(code: string): string {
  */
 export function likelyInjuryInsightFromSignals(rows: NormalizedLiveSignalRow[]): LikelyInjuryInsight {
   const incidents = rows.filter((r) => r.source === "incident");
+  const singleIncidentDrivesView = rows.length === 1 && incidents.length === 1;
   const withType = incidents.filter((r) => r.injuryType);
 
   if (withType.length >= 1) {
@@ -29,12 +30,15 @@ export function likelyInjuryInsightFromSignals(rows: NormalizedLiveSignalRow[]):
     const [top, n] = sorted[0];
     const pct = Math.round((n / total) * 100);
     const second = sorted[1];
+    const detailNote = singleIncidentDrivesView
+      ? `This view has only that one incident (${INJURY_TYPE_LABELS[top]}). The likely-injury readout matches the fields you recorded; the headline case estimate is set to one event for this scope—not a multi-person rate.`
+      : `${total} incident(s) with injury type in this view—${pct}% ${INJURY_TYPE_LABELS[top]}. Historical mix in-window; not a calibrated forecast.`;
     return {
       headline: INJURY_TYPE_LABELS[top],
       secondaryLine: second
         ? `Also common: ${INJURY_TYPE_LABELS[second[0]]} (${Math.round((second[1] / total) * 100)}%)`
         : null,
-      detailNote: `${total} incident(s) with injury type in this view—${pct}% ${INJURY_TYPE_LABELS[top]}. Historical mix in-window; not a calibrated forecast.`,
+      detailNote,
       hasData: true,
     };
   }
@@ -71,11 +75,13 @@ export function likelyInjuryInsightFromSignals(rows: NormalizedLiveSignalRow[]):
     const mix = priorInjuryMixForExposure(dominantExp);
     const ranked = (Object.entries(mix) as [InjuryType, number][]).sort((a, b) => b[1] - a[1]);
     const best = ranked[0];
+    const detailNote = singleIncidentDrivesView
+      ? `Only one incident is in this scope (${humanizeExposure(dominantExp)}). Showing the reference injury mix for that exposure; add injury type on the record for a direct match to what was reported.`
+      : "No injury type on incidents yet—showing typical injury mix for the most common exposure type in this view (illustrative prior).";
     return {
       headline: INJURY_TYPE_LABELS[best[0]],
       secondaryLine: `Reference pattern for ${humanizeExposure(dominantExp)} (${withExp.length} exposure${withExp.length === 1 ? "" : "s"} logged)`,
-      detailNote:
-        "No injury type on incidents yet—showing typical injury mix for the most common exposure type in this view (illustrative prior).",
+      detailNote,
       hasData: true,
     };
   }

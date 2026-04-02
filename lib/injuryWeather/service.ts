@@ -47,7 +47,7 @@ import {
   resolveTradeForRow,
   tradeFilterStringsToIds,
 } from "@/lib/injuryWeather/tradeNormalization";
-import { isExposureEventType } from "@/lib/incidents/exposureEventType";
+import { EXPOSURE_EVENT_TYPE_LABELS, isExposureEventType } from "@/lib/incidents/exposureEventType";
 import { normalizeInjuryType } from "@/lib/incidents/injuryType";
 import type {
   DashboardAlert,
@@ -772,9 +772,8 @@ async function fetchLiveSignals(
     } satisfies NormalizedLiveSignalRow;
   });
   const incidentRows = (incidentResult.error ? [] : incidentResult.data ?? []).map((r) => {
-    const categoryLabel = String(r.category ?? "Incident");
-    const resolved = resolveTradeForRow({ source: "incident", categoryLabel });
     const row = r as {
+      category?: string | null;
       injury_month?: number | null;
       injury_season?: string | null;
       injury_day_of_week?: string | null;
@@ -784,6 +783,12 @@ async function fetchLiveSignals(
     };
     const evRaw = row.exposure_event_type != null ? String(row.exposure_event_type).trim() : "";
     const exposureEventType = evRaw && isExposureEventType(evRaw) ? evRaw : null;
+    const categoryRaw = String(r.category ?? "Incident");
+    const categoryLabel =
+      categoryRaw.trim().toLowerCase() === "incident" && exposureEventType
+        ? EXPOSURE_EVENT_TYPE_LABELS[exposureEventType]
+        : categoryRaw;
+    const resolved = resolveTradeForRow({ source: "incident", categoryLabel });
     return {
       tradeId: resolved.tradeId,
       tradeLabel: resolved.tradeLabel,
@@ -916,12 +921,16 @@ function buildDashboardFromLiveSignals(
   const incidentLikelihoodIndexPct = computeIncidentLikelihoodIndexPct(v2Structural, weatherFactor, 1);
   const rawMonthFactor = selectedTrendPoint ? selectedTrendPoint.value / Math.max(1, projectedBase) : 1;
   const monthProjectionFactor = Math.min(INJURY_WEATHER_MODEL.MONTH_PROJECTION_CAP, rawMonthFactor);
-  const projectedCaseEstimate = computeProjectedCaseEstimate({
+  const projectedCaseEstimateRaw = computeProjectedCaseEstimate({
     incidentLikelihoodIndexPct,
     workforceCount: workforceForExposure,
     trendVolumeBase: projectedBase,
     monthProjectionFactor,
   });
+  /** One manual / lone incident in scope: headline case index tracks that single event, not a workforce-scaled rate. */
+  const singleIncidentOnly =
+    includedRows.length === 1 && includedRows[0]?.source === "incident";
+  const projectedCaseEstimate = singleIncidentOnly ? 1 : projectedCaseEstimateRaw;
   const roundedStructural = Math.round(v2Structural * 10) / 10;
   const requestedTrades = params.trades ?? [];
   const normalizedTradeForecasts =
