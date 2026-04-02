@@ -5,6 +5,7 @@ import { injurySeverityScore } from "@/lib/incidents/injurySeverityScore";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
+import { isForecasterSyntheticIncident } from "@/lib/injuryWeather/excludeForecasterIncidents";
 
 export const runtime = "nodejs";
 
@@ -66,7 +67,7 @@ export async function GET(request: Request) {
     auth.supabase
       .from("company_incidents")
       .select(
-        "id, category, status, severity, sif_flag, escalation_level, created_at, jobsite_id, recordable"
+        "id, title, description, category, status, severity, sif_flag, escalation_level, created_at, jobsite_id, recordable"
       )
       .eq("company_id", companyScope.companyId)
       .gte("created_at", since),
@@ -104,7 +105,10 @@ export async function GET(request: Request) {
   if (jobsitesRes.error) return NextResponse.json({ error: jobsitesRes.error.message || "Failed to load jobsites." }, { status: 500 });
 
   const actions = actionsRes.data ?? [];
-  const incidents = incidentsRes.data ?? [];
+  const incidents = (incidentsRes.data ?? []).filter((row) => {
+    const r = row as { title?: string | null; description?: string | null };
+    return !isForecasterSyntheticIncident(r.title, r.description);
+  });
   const permits = permitsRes.data ?? [];
   const daps = dapsRes.data ?? [];
   const activities = activitiesRes.data ?? [];

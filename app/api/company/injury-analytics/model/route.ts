@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { getIndustryBenchmarkRates } from "@/lib/benchmarking/industryBenchmarkDataset";
 import { incidentRatePer200kHours } from "@/lib/benchmarking/incidentRate";
 import { eventToInjuryLikelihoodTable, type IncidentAnalyticsRow } from "@/lib/incidents/injuryHistoricalModel";
-import { likelyInjuryInsightFromIncidentAnalyticsRows } from "@/lib/injuryWeather/likelyInjuryFromSignals";
+import { isForecasterSyntheticIncident } from "@/lib/injuryWeather/excludeForecasterIncidents";
+import { likelyInjuryInsightFromSignals } from "@/lib/injuryWeather/likelyInjuryFromSignals";
+import { normalizedRowsFromFetchedLiveData } from "@/lib/injuryWeather/service";
 import { injurySeverityScore } from "@/lib/incidents/injurySeverityScore";
 import {
   SOR_HAZARD_CATEGORY_CODES,
@@ -31,7 +33,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       sorToExposureMap: [],
       eventToInjuryModel: [],
-      likelyInjuryInsight: likelyInjuryInsightFromIncidentAnalyticsRows([]),
+      likelyInjuryInsight: likelyInjuryInsightFromSignals([]),
       industryBenchmarkRates: getIndustryBenchmarkRates(null),
       incidentRate: null,
       hoursWorked: null,
@@ -46,10 +48,10 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const days = Math.min(730, Math.max(30, Number(searchParams.get("days") ?? "365")));
+  const days = Math.min(730, Math.max(1, Number(searchParams.get("days") ?? "365")));
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-  const [companyRes, incidentsRes, sorRes] = await Promise.all([
+  const [companyRes, incidentsRes, sorRes, capaRes] = await Promise.all([
     auth.supabase
       .from("companies")
       .select("industry_code, hours_worked")
@@ -58,16 +60,21 @@ export async function GET(request: Request) {
     auth.supabase
       .from("company_incidents")
       .select(
-        "category, recordable, exposure_event_type, injury_type, days_away_from_work, days_restricted, lost_time, fatality, created_at"
+        "title, description, category, severity, recordable, exposure_event_type, injury_type, injury_month, injury_season, injury_day_of_week, injury_time_of_day, days_away_from_work, days_restricted, lost_time, fatality, created_at"
       )
       .eq("company_id", companyScope.companyId)
       .gte("created_at", since),
     auth.supabase
       .from("company_sor_records")
-      .select("id, hazard_category_code, category, created_at, is_deleted, status")
+      .select("trade, category, severity, created_at, status, hazard_category_code, is_deleted")
       .eq("company_id", companyScope.companyId)
       .gte("created_at", since)
       .eq("is_deleted", false),
+    auth.supabase
+      .from("company_corrective_actions")
+      .select("category, severity, created_at, status")
+      .eq("company_id", companyScope.companyId)
+      .gte("created_at", since),
   ]);
 
   if (incidentsRes.error) {
@@ -82,9 +89,21 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
+  if (capaRes.error) {
+    return NextResponse.json(
+      { error: capaRes.error.message || "Failed to load corrective actions for injury model." },
+      { status: 500 }
+    );
+  }
 
-  const incidents = incidentsRes.data ?? [];
+  const incidents = (incidentsRes.data ?? []).filter((row) => {
+    const r = row as { title?: string | null; description?: string | null };
+    return !isForecasterSyntheticIncident(r.title, r.description);
+  });
   const sorRows = sorRes.data ?? [];
+  const capaRows = capaRes.data ?? [];
+
+  const insightRows = normalizedRowsFromFetchedLiveData(sorRows, capaRows, incidents);
   const companyRow =
     !companyRes.error && companyRes.data
       ? (companyRes.data as { industry_code?: string | null; hours_worked?: number | null })
@@ -135,7 +154,7 @@ export async function GET(request: Request) {
     since,
     sorToExposureMap,
     eventToInjuryModel,
-    likelyInjuryInsight: likelyInjuryInsightFromIncidentAnalyticsRows(incidents as IncidentAnalyticsRow[]),
+    likelyInjuryInsight: likelyInjuryInsightFromSignals(insightRows),
     industryBenchmarkRates: getIndustryBenchmarkRates(industryCode),
     industryCode,
     hoursWorked,

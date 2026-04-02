@@ -41,6 +41,7 @@ import {
   normalizeSeverity,
   scoreRowsForForecast,
 } from "@/lib/injuryWeather/riskEngineV2";
+import { isForecasterSyntheticIncident } from "@/lib/injuryWeather/excludeForecasterIncidents";
 import { DEMO_LIKELY_INJURY_INSIGHT, likelyInjuryInsightFromSignals } from "@/lib/injuryWeather/likelyInjuryFromSignals";
 import {
   categoryToId,
@@ -50,6 +51,7 @@ import {
 } from "@/lib/injuryWeather/tradeNormalization";
 import { EXPOSURE_EVENT_TYPE_LABELS, isExposureEventType } from "@/lib/incidents/exposureEventType";
 import { normalizeInjuryType } from "@/lib/incidents/injuryType";
+import { resolveSorHazardCategoryCode } from "@/lib/incidents/sorHazardCategory";
 import type {
   DashboardAlert,
   BehaviorSignals,
@@ -195,6 +197,106 @@ function mapCorrectiveStatusToOpenClosed(raw: string | null | undefined): "open"
   const s = String(raw ?? "open").toLowerCase();
   if (s === "verified_closed" || s === "closed" || s === "corrected") return "closed";
   return "open";
+}
+
+/**
+ * Maps raw `company_sor_records`, `company_corrective_actions`, and `company_incidents` rows to the
+ * normalized signal shape (same as admin `fetchLiveSignals`). Excludes forecaster-tagged incidents.
+ */
+export function normalizedRowsFromFetchedLiveData(
+  sorData: unknown[],
+  actionData: unknown[],
+  incidentData: unknown[]
+): NormalizedLiveSignalRow[] {
+  const sorRows = sorData.map((raw) => {
+    const r = raw as {
+      trade?: string | null;
+      category?: string | null;
+      severity?: string | null;
+      created_at?: string | null;
+      hazard_category_code?: string | null;
+    };
+    const categoryLabel = String(r.category ?? "General Observation");
+    const resolved = resolveTradeForRow({
+      source: "sor",
+      sorTradeRaw: r.trade,
+      categoryLabel,
+    });
+    const sorHazardCategoryCode = resolveSorHazardCategoryCode({
+      hazardCategoryCode: r.hazard_category_code,
+      category: categoryLabel,
+    });
+    return {
+      tradeId: resolved.tradeId,
+      tradeLabel: resolved.tradeLabel,
+      categoryId: categoryToId(categoryLabel),
+      categoryLabel,
+      severity: normalizeSeverity(String(r.severity ?? "medium")),
+      created_at: String(r.created_at ?? ""),
+      source: "sor" as const,
+      usedCategoryInference: resolved.usedCategoryInference,
+      sorHazardCategoryCode,
+    } satisfies NormalizedLiveSignalRow;
+  });
+  const actionRows = actionData.map((raw) => {
+    const r = raw as { category?: string | null; severity?: string | null; created_at?: string | null; status?: string | null };
+    const categoryLabel = String(r.category ?? "Corrective Action");
+    const resolved = resolveTradeForRow({ source: "corrective_action", categoryLabel });
+    return {
+      tradeId: resolved.tradeId,
+      tradeLabel: resolved.tradeLabel,
+      categoryId: categoryToId(categoryLabel),
+      categoryLabel,
+      severity: normalizeSeverity(String(r.severity ?? "medium")),
+      created_at: String(r.created_at ?? ""),
+      source: "corrective_action" as const,
+      status: mapCorrectiveStatusToOpenClosed(r.status),
+      usedCategoryInference: resolved.usedCategoryInference,
+    } satisfies NormalizedLiveSignalRow;
+  });
+  const incidentRows = incidentData
+    .filter((raw) => {
+      const r = raw as { title?: string | null; description?: string | null };
+      return !isForecasterSyntheticIncident(r.title, r.description);
+    })
+    .map((raw) => {
+      const r = raw as {
+        category?: string | null;
+        injury_month?: number | null;
+        injury_season?: string | null;
+        injury_day_of_week?: string | null;
+        injury_time_of_day?: string | null;
+        injury_type?: string | null;
+        exposure_event_type?: string | null;
+        severity?: string | null;
+        created_at?: string | null;
+      };
+      const evRaw = r.exposure_event_type != null ? String(r.exposure_event_type).trim() : "";
+      const exposureEventType = evRaw && isExposureEventType(evRaw) ? evRaw : null;
+      const categoryRaw = String(r.category ?? "Incident");
+      const categoryLabel =
+        categoryRaw.trim().toLowerCase() === "incident" && exposureEventType
+          ? EXPOSURE_EVENT_TYPE_LABELS[exposureEventType]
+          : categoryRaw;
+      const resolved = resolveTradeForRow({ source: "incident", categoryLabel });
+      return {
+        tradeId: resolved.tradeId,
+        tradeLabel: resolved.tradeLabel,
+        categoryId: categoryToId(categoryLabel),
+        categoryLabel,
+        severity: normalizeSeverity(String(r.severity ?? "high")),
+        created_at: String(r.created_at ?? ""),
+        source: "incident" as const,
+        usedCategoryInference: resolved.usedCategoryInference,
+        injuryMonth: r.injury_month ?? null,
+        injurySeason: r.injury_season ?? null,
+        injuryDayOfWeek: r.injury_day_of_week ?? null,
+        injuryTimeOfDay: r.injury_time_of_day ?? null,
+        injuryType: normalizeInjuryType(r.injury_type),
+        exposureEventType,
+      } satisfies NormalizedLiveSignalRow;
+    });
+  return [...sorRows, ...actionRows, ...incidentRows];
 }
 
 function countSignalSources(rows: NormalizedLiveSignalRow[]): Pick<
@@ -714,7 +816,7 @@ async function fetchLiveSignals(
 
   let sorQuery = admin
     .from("company_sor_records")
-    .select("trade, category, severity, created_at, status")
+    .select("trade, category, severity, created_at, status, hazard_category_code")
     .eq("is_deleted", false);
   let actionQuery = admin
     .from("company_corrective_actions")
@@ -722,7 +824,7 @@ async function fetchLiveSignals(
   let incidentQuery = admin
     .from("company_incidents")
     .select(
-      "category, severity, created_at, injury_month, injury_season, injury_day_of_week, injury_time_of_day, injury_type, exposure_event_type"
+      "title, description, category, severity, created_at, injury_month, injury_season, injury_day_of_week, injury_time_of_day, injury_type, exposure_event_type"
     );
 
   if (companyId) {
@@ -743,75 +845,11 @@ async function fetchLiveSignals(
     incidentQuery = incidentQuery.gte("created_at", start).lt("created_at", end);
   }
   const [sorResult, actionResult, incidentResult] = await Promise.all([sorQuery, actionQuery, incidentQuery]);
-  const sorRows = (sorResult.error ? [] : sorResult.data ?? []).map((r) => {
-    const categoryLabel = String(r.category ?? "General Observation");
-    const resolved = resolveTradeForRow({
-      source: "sor",
-      sorTradeRaw: r.trade,
-      categoryLabel,
-    });
-    return {
-      tradeId: resolved.tradeId,
-      tradeLabel: resolved.tradeLabel,
-      categoryId: categoryToId(categoryLabel),
-      categoryLabel,
-      severity: normalizeSeverity(String(r.severity ?? "medium")),
-      created_at: String(r.created_at ?? ""),
-      source: "sor" as const,
-      usedCategoryInference: resolved.usedCategoryInference,
-    } satisfies NormalizedLiveSignalRow;
-  });
-  const actionRows = (actionResult.error ? [] : actionResult.data ?? []).map((r) => {
-    const categoryLabel = String(r.category ?? "Corrective Action");
-    const resolved = resolveTradeForRow({ source: "corrective_action", categoryLabel });
-    return {
-      tradeId: resolved.tradeId,
-      tradeLabel: resolved.tradeLabel,
-      categoryId: categoryToId(categoryLabel),
-      categoryLabel,
-      severity: normalizeSeverity(String(r.severity ?? "medium")),
-      created_at: String(r.created_at ?? ""),
-      source: "corrective_action" as const,
-      status: mapCorrectiveStatusToOpenClosed((r as { status?: string }).status),
-      usedCategoryInference: resolved.usedCategoryInference,
-    } satisfies NormalizedLiveSignalRow;
-  });
-  const incidentRows = (incidentResult.error ? [] : incidentResult.data ?? []).map((r) => {
-    const row = r as {
-      category?: string | null;
-      injury_month?: number | null;
-      injury_season?: string | null;
-      injury_day_of_week?: string | null;
-      injury_time_of_day?: string | null;
-      injury_type?: string | null;
-      exposure_event_type?: string | null;
-    };
-    const evRaw = row.exposure_event_type != null ? String(row.exposure_event_type).trim() : "";
-    const exposureEventType = evRaw && isExposureEventType(evRaw) ? evRaw : null;
-    const categoryRaw = String(r.category ?? "Incident");
-    const categoryLabel =
-      categoryRaw.trim().toLowerCase() === "incident" && exposureEventType
-        ? EXPOSURE_EVENT_TYPE_LABELS[exposureEventType]
-        : categoryRaw;
-    const resolved = resolveTradeForRow({ source: "incident", categoryLabel });
-    return {
-      tradeId: resolved.tradeId,
-      tradeLabel: resolved.tradeLabel,
-      categoryId: categoryToId(categoryLabel),
-      categoryLabel,
-      severity: normalizeSeverity(String(r.severity ?? "high")),
-      created_at: String(r.created_at ?? ""),
-      source: "incident" as const,
-      usedCategoryInference: resolved.usedCategoryInference,
-      injuryMonth: row.injury_month ?? null,
-      injurySeason: row.injury_season ?? null,
-      injuryDayOfWeek: row.injury_day_of_week ?? null,
-      injuryTimeOfDay: row.injury_time_of_day ?? null,
-      injuryType: normalizeInjuryType(row.injury_type),
-      exposureEventType,
-    } satisfies NormalizedLiveSignalRow;
-  });
-  return [...sorRows, ...actionRows, ...incidentRows];
+  return normalizedRowsFromFetchedLiveData(
+    sorResult.error ? [] : sorResult.data ?? [],
+    actionResult.error ? [] : actionResult.data ?? [],
+    incidentResult.error ? [] : incidentResult.data ?? []
+  );
 }
 
 /** Same trade filter as `buildDashboardFromLiveSignals` — used for likely-injury mix from full-history `allRows`. */
@@ -1359,13 +1397,18 @@ async function fetchIncidentCreatedAtInRange(
   for (;;) {
     const { data, error } = await admin
       .from("company_incidents")
-      .select("created_at")
+      .select("created_at, title, description")
       .gte("created_at", start.toISOString())
       .lt("created_at", end.toISOString())
       .order("created_at", { ascending: true })
       .range(offset, offset + INCIDENT_CREATED_AT_PAGE - 1);
     if (error) throw new Error(error.message);
-    const batch = (data ?? []).map((r) => String((r as { created_at?: string }).created_at ?? ""));
+    const batch = (data ?? [])
+      .filter((r) => {
+        const row = r as { title?: string | null; description?: string | null };
+        return !isForecasterSyntheticIncident(row.title, row.description);
+      })
+      .map((r) => String((r as { created_at?: string }).created_at ?? ""));
     out.push(...batch);
     if (batch.length < INCIDENT_CREATED_AT_PAGE) break;
     offset += INCIDENT_CREATED_AT_PAGE;

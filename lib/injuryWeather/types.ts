@@ -1,9 +1,10 @@
 import type { InjuryType } from "@/lib/incidents/injuryType";
+import type { SorHazardCategoryCode } from "@/lib/incidents/sorHazardCategory";
 import type { OshaNationalConstructionReference } from "@/lib/benchmarking/oshaConstructionNationalReference";
 
 export type RiskLevel = "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
 
-/** Derived from incident injury/exposure fields in the current signal window. */
+/** Blended injury-type headline + explanation (incidents + leading-indicator hazards). */
 export type LikelyInjuryInsight = {
   headline: string;
   secondaryLine: string | null;
@@ -120,6 +121,8 @@ export type NormalizedLiveSignalRow = {
   severity: "low" | "medium" | "high" | "critical";
   created_at: string;
   source: "sor" | "corrective_action" | "incident";
+  /** SOR: resolved hazard class for leading-indicator → exposure mapping. */
+  sorHazardCategoryCode?: SorHazardCategoryCode | null;
   status?: "open" | "closed";
   usedCategoryInference?: boolean;
   /** Incident rows: derived from `occurred_at` UTC when present. */
@@ -232,7 +235,7 @@ export type DashboardSummary = {
    * @deprecated Use `structuralRiskScore`. Kept for short-term JSON compatibility.
    */
   overallRiskScore?: number;
-  /** Likely injury nature from incident history / exposure priors (live: all dates in scope, trade-filtered when applicable). */
+  /** Blended injury-type readout: incidents + SOR/CAPA hazard→exposure priors (live: all dates in scope, trade-filtered when applicable). */
   likelyInjuryInsight: LikelyInjuryInsight;
 };
 

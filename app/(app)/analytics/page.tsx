@@ -100,6 +100,13 @@ type AnalyticsSummary = {
   };
 };
 
+type LikelyInjuryInsightPayload = {
+  headline: string;
+  secondaryLine: string | null;
+  detailNote: string;
+  hasData: boolean;
+};
+
 type TabId = "overview" | "near_misses" | "hazards" | "inspections";
 
 const FALLBACK_HAZARD_TILES = ["Trips & Falls", "Fire Risks", "PPE Violations", "Electrical"];
@@ -175,6 +182,7 @@ function heatColor(t: number) {
 
 export default function AnalyticsPage() {
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [injuryLikelihood, setInjuryLikelihood] = useState<LikelyInjuryInsightPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
   const [message, setMessage] = useState("");
@@ -186,17 +194,22 @@ export default function AnalyticsPage() {
     setMessage("");
     try {
       const headers = await getAuthHeaders();
-      const response = await fetchWithTimeout(
-        `/api/company/analytics/summary?days=${windowDays}`,
-        { headers },
-        15000
-      );
+      const [response, injRes] = await Promise.all([
+        fetchWithTimeout(`/api/company/analytics/summary?days=${windowDays}`, { headers }, 15000),
+        fetchWithTimeout(`/api/company/injury-analytics/model?days=${windowDays}`, { headers }, 15000),
+      ]);
       const data = (await response.json().catch(() => null)) as {
         summary?: AnalyticsSummary;
         error?: string;
       } | null;
       if (!response.ok) throw new Error(data?.error || "Failed to load analytics summary.");
       setSummary(data?.summary ?? null);
+      if (injRes.ok) {
+        const inj = (await injRes.json().catch(() => null)) as { likelyInjuryInsight?: LikelyInjuryInsightPayload } | null;
+        setInjuryLikelihood(inj?.likelyInjuryInsight ?? null);
+      } else {
+        setInjuryLikelihood(null);
+      }
       setLastLoadedAt(Date.now());
     } catch (error) {
       setMessage(
@@ -207,6 +220,7 @@ export default function AnalyticsPage() {
             : "Failed to load analytics summary."
       );
       setSummary(null);
+      setInjuryLikelihood(null);
     }
     setLoading(false);
   }, []);
@@ -350,6 +364,27 @@ export default function AnalyticsPage() {
               : "The page is ready. Choose a time range or click Refresh view to load current figures."}
           </div>
         )}
+
+        {!loading && summary && injuryLikelihood ? (
+          <div className="rounded-xl border border-teal-500/40 bg-gradient-to-br from-teal-950/55 via-[#0a1218] to-slate-950/90 px-5 py-4 text-teal-50 shadow-[0_0_40px_rgba(20,184,166,0.12)]">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-300/95">
+              Predicted likely injury
+            </p>
+            <p className="mt-1 text-[11px] leading-snug text-teal-200/80">
+              Blended model using incidents, SOR observations, and corrective actions in your selected window (
+              {days} days). Same logic as Injury Weather; not a calibrated medical probability.
+            </p>
+            <p
+              className={`mt-4 font-black tracking-tight text-white ${injuryLikelihood.hasData ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl"}`}
+            >
+              {injuryLikelihood.headline}
+            </p>
+            {injuryLikelihood.secondaryLine ? (
+              <p className="mt-2 text-sm font-medium text-teal-100/90">{injuryLikelihood.secondaryLine}</p>
+            ) : null}
+            <p className="mt-3 text-xs leading-relaxed text-slate-400">{injuryLikelihood.detailNote}</p>
+          </div>
+        ) : null}
 
         {summary?.benchmarking &&
         (summary.benchmarking.industryCode ||

@@ -4,93 +4,135 @@ import { isExposureEventType } from "@/lib/incidents/exposureEventType";
 import { eventToInjuryLikelihoodTable, type IncidentAnalyticsRow } from "@/lib/incidents/injuryHistoricalModel";
 import type { InjuryType } from "@/lib/incidents/injuryType";
 import { INJURY_TYPE_LABELS, normalizeInjuryType } from "@/lib/incidents/injuryType";
+import {
+  SOR_HAZARD_TO_EXPOSURE_EVENTS,
+  inferSorHazardCategoryFromLabel,
+  type SorHazardCategoryCode,
+} from "@/lib/incidents/sorHazardCategory";
 import type { LikelyInjuryInsight, NormalizedLiveSignalRow } from "@/lib/injuryWeather/types";
 
-function humanizeExposure(code: string): string {
-  return code.replace(/_/g, " ");
+const WEIGHT_TYPED_INCIDENT_ORPHAN = 5;
+const WEIGHT_INCIDENT_EXPOSURE_PRIOR = 2.2;
+const LEADING_SIGNAL_BASE = 0.38;
+const EMPIRICAL_BUCKET_BASE = 1.35;
+const EMPIRICAL_BUCKET_PER_CASE = 0.32;
+
+function severityMass(sev: NormalizedLiveSignalRow["severity"]): number {
+  if (sev === "critical") return 3;
+  if (sev === "high") return 2;
+  if (sev === "medium") return 1.25;
+  return 1;
+}
+
+function addMixScaled(scores: Map<InjuryType, number>, exposure: ExposureEventType, scale: number): void {
+  if (scale <= 0) return;
+  const mix = priorInjuryMixForExposure(exposure);
+  for (const t of Object.keys(mix) as InjuryType[]) {
+    const p = mix[t];
+    if (p > 0) scores.set(t, (scores.get(t) ?? 0) + p * scale);
+  }
+}
+
+function resolveLeadingHazardCode(row: NormalizedLiveSignalRow): SorHazardCategoryCode | null {
+  if (row.source === "sor") {
+    return row.sorHazardCategoryCode ?? inferSorHazardCategoryFromLabel(row.categoryLabel);
+  }
+  if (row.source === "corrective_action") {
+    return inferSorHazardCategoryFromLabel(row.categoryLabel);
+  }
+  return null;
+}
+
+function incidentAnalyticsFromRows(rows: NormalizedLiveSignalRow[]): IncidentAnalyticsRow[] {
+  return rows
+    .filter((r) => r.source === "incident")
+    .map((r) => ({
+      category: "incident",
+      exposure_event_type: r.exposureEventType ?? null,
+      injury_type: r.injuryType ?? null,
+    }));
 }
 
 /**
- * Rank likely injury types from incident rows in the supplied signal set (often all dates in company/jobsite scope).
- * Order: empirical injury_type counts → exposure+injury blend → exposure-only priors.
+ * Rank likely injury types from the full signal set: empirical exposure→injury (when both are recorded),
+ * typed incidents, exposure-only priors, and SOR / corrective-action hazards mapped to exposure priors.
  */
 export function likelyInjuryInsightFromSignals(rows: NormalizedLiveSignalRow[]): LikelyInjuryInsight {
+  const scores = new Map<InjuryType, number>();
   const incidents = rows.filter((r) => r.source === "incident");
-  const singleIncidentDrivesView = rows.length === 1 && incidents.length === 1;
-  const withType = incidents.filter((r) => r.injuryType);
+  let typedOrphan = 0;
+  let exposureOnly = 0;
+  let leadingSignalCount = 0;
 
-  if (withType.length >= 1) {
-    const counts = new Map<InjuryType, number>();
-    for (const r of withType) {
-      const k = r.injuryType!;
-      counts.set(k, (counts.get(k) ?? 0) + 1);
+  for (const row of incidents) {
+    const hasType = Boolean(row.injuryType);
+    const hasExp = Boolean(row.exposureEventType && isExposureEventType(row.exposureEventType));
+    if (hasType && hasExp) {
+      continue;
     }
-    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-    const total = withType.length;
-    const [top, n] = sorted[0];
-    const pct = Math.round((n / total) * 100);
-    const second = sorted[1];
-    const detailNote = singleIncidentDrivesView
-      ? `This scope has only that one incident (${INJURY_TYPE_LABELS[top]}). The readout matches the fields you recorded; where the dashboard uses a single-event case index, that is separate from this mix.`
-      : `${total} incident(s) with injury type in this scope (all dates)—${pct}% ${INJURY_TYPE_LABELS[top]}. Empirical mix from recorded injury types.`;
-    return {
-      headline: INJURY_TYPE_LABELS[top],
-      secondaryLine: second
-        ? `Also common: ${INJURY_TYPE_LABELS[second[0]]} (${Math.round((second[1] / total) * 100)}%)`
-        : null,
-      detailNote,
-      hasData: true,
-    };
+    if (hasType && row.injuryType) {
+      const k = row.injuryType;
+      scores.set(k, (scores.get(k) ?? 0) + WEIGHT_TYPED_INCIDENT_ORPHAN);
+      typedOrphan += 1;
+    } else if (hasExp && row.exposureEventType && isExposureEventType(row.exposureEventType)) {
+      addMixScaled(scores, row.exposureEventType as ExposureEventType, WEIGHT_INCIDENT_EXPOSURE_PRIOR);
+      exposureOnly += 1;
+    }
   }
 
-  const analytics: IncidentAnalyticsRow[] = incidents.map((r) => ({
-    category: "incident",
-    exposure_event_type: r.exposureEventType ?? null,
-    injury_type: r.injuryType ?? null,
-  }));
+  const analytics = incidentAnalyticsFromRows(rows);
   const table = eventToInjuryLikelihoodTable(analytics, 4);
-  if (table.length > 0) {
-    const row = table[0];
-    const top = row.topInjuryPredictions[0];
-    if (top) {
-      const pct = Math.round(top.probability * 100);
-      return {
-        headline: INJURY_TYPE_LABELS[top.injuryType],
-        secondaryLine: `${pct}% blended for ${humanizeExposure(row.exposureEventType)} (${row.totalCases} case${row.totalCases === 1 ? "" : "s"})`,
-        detailNote:
-          "From exposure-linked incidents blended with reference priors—strengthen by recording injury type on each incident.",
-        hasData: true,
-      };
+  for (const row of table) {
+    const bucketW = EMPIRICAL_BUCKET_BASE + Math.min(5, row.totalCases) * EMPIRICAL_BUCKET_PER_CASE;
+    for (const pred of row.topInjuryPredictions.slice(0, 4)) {
+      scores.set(
+        pred.injuryType,
+        (scores.get(pred.injuryType) ?? 0) + pred.probability * bucketW
+      );
     }
   }
 
-  const withExp = incidents.filter((r) => r.exposureEventType && isExposureEventType(r.exposureEventType));
-  if (withExp.length >= 1) {
-    const expCounts = new Map<string, number>();
-    for (const r of withExp) {
-      const e = r.exposureEventType!;
-      expCounts.set(e, (expCounts.get(e) ?? 0) + 1);
+  for (const row of rows) {
+    if (row.source !== "sor" && row.source !== "corrective_action") continue;
+    const code = resolveLeadingHazardCode(row);
+    if (!code) continue;
+    const exposures = SOR_HAZARD_TO_EXPOSURE_EVENTS[code];
+    if (!exposures.length) continue;
+    const w = (LEADING_SIGNAL_BASE * severityMass(row.severity)) / exposures.length;
+    leadingSignalCount += 1;
+    for (const exp of exposures) {
+      addMixScaled(scores, exp, w);
     }
-    const dominantExp = [...expCounts.entries()].sort((a, b) => b[1] - a[1])[0][0] as ExposureEventType;
-    const mix = priorInjuryMixForExposure(dominantExp);
-    const ranked = (Object.entries(mix) as [InjuryType, number][]).sort((a, b) => b[1] - a[1]);
-    const best = ranked[0];
-    const detailNote = singleIncidentDrivesView
-      ? `Only one incident is in this scope (${humanizeExposure(dominantExp)}). Showing the reference injury mix for that exposure; add injury type on the record for a direct match to what was reported.`
-      : "No injury type on incidents yet—showing typical injury mix for the most common exposure type in this scope (illustrative prior).";
+  }
+
+  const total = [...scores.values()].reduce((a, v) => a + v, 0);
+  if (total <= 0) {
     return {
-      headline: INJURY_TYPE_LABELS[best[0]],
-      secondaryLine: `Reference pattern for ${humanizeExposure(dominantExp)} (${withExp.length} exposure${withExp.length === 1 ? "" : "s"} logged)`,
-      detailNote,
-      hasData: true,
+      headline: "Not enough data",
+      secondaryLine: null,
+      detailNote:
+        "Log SOR observations, corrective actions, or incidents (injury type and/or exposure) to estimate likely injury patterns for this scope.",
+      hasData: false,
     };
   }
+
+  const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]);
+  const [topT, topS] = ranked[0];
+  const second = ranked[1];
+  const parts: string[] = [];
+  if (table.length > 0) parts.push("incident exposure history");
+  if (typedOrphan > 0) parts.push(`${typedOrphan} typed incident(s)`);
+  if (exposureOnly > 0) parts.push(`${exposureOnly} exposure-only incident(s)`);
+  if (leadingSignalCount > 0) parts.push(`${leadingSignalCount} SOR/CAPA hazard signal(s)`);
+  const basis = parts.length > 0 ? parts.join(" · ") : "Blended signals";
 
   return {
-    headline: "Not enough data",
-    secondaryLine: null,
-    detailNote: "Record injury type and exposure event type on incidents to rank likely injury patterns for this scope.",
-    hasData: false,
+    headline: INJURY_TYPE_LABELS[topT],
+    secondaryLine: second
+      ? `Also weighted: ${INJURY_TYPE_LABELS[second[0]]} (${Math.round((second[1] / total) * 100)}%)`
+      : null,
+    detailNote: `${basis}. Relative blend—not a calibrated clinical or legal forecast.`,
+    hasData: true,
   };
 }
 
