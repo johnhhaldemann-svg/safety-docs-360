@@ -324,14 +324,15 @@ export function InjuryWeatherDashboard() {
   const [reportRun, setReportRun] = useState(0);
   const [refreshTick, setRefreshTick] = useState(0);
   const bypassCacheOnce = useRef(false);
-  /** Trade-chip toggles set this so the first request skips OpenAI and the UI can render immediately. */
-  const deferAiAfterTradeToggleRef = useRef(false);
+  /** When primary fetch uses `refresh=1`, AI follow-up must too or cached AI can lag fresh data. */
+  const refreshAiFollowUpRef = useRef(false);
   /** Drop stale background AI responses when the user changes filters again. */
   const dashboardFetchSeqRef = useRef(0);
   const [project, setProject] = useState("All Projects");
   const [data, setData] = useState<InjuryWeatherDashboardData | null>(null);
   const [error, setError] = useState("");
   const [aiInsights, setAiInsights] = useState<InjuryWeatherAiInsights | null>(null);
+  const [aiAdvisorLoading, setAiAdvisorLoading] = useState(false);
   const [controlsOpen, setControlsOpen] = useState<TradeForecast | null>(null);
   const [numberBreakdownOpen, setNumberBreakdownOpen] = useState<TradeForecast | null>(null);
   const [fieldAttestation, setFieldAttestation] = useState(false);
@@ -392,7 +393,7 @@ export function InjuryWeatherDashboard() {
           return;
         }
 
-        const buildQs = (includeAi: boolean) => {
+        const buildQs = (includeAi: boolean, options?: { forceRefresh?: boolean }) => {
           const qs = new URLSearchParams();
           if (appliedMonth) qs.set("month", appliedMonth);
           if (appliedTrades.length > 0) qs.set("trades", appliedTrades.join(","));
@@ -406,17 +407,18 @@ export function InjuryWeatherDashboard() {
             qs.set("jobsiteId", appliedScopeJobsiteId.trim());
           }
           qs.set("includeAi", includeAi ? "true" : "false");
-          if (bypassCacheOnce.current) {
+          if (options?.forceRefresh) {
+            qs.set("refresh", "1");
+          } else if (bypassCacheOnce.current) {
             qs.set("refresh", "1");
             bypassCacheOnce.current = false;
           }
           return qs;
         };
 
-        const deferAiForSpeed = deferAiAfterTradeToggleRef.current;
-        deferAiAfterTradeToggleRef.current = false;
-
-        const res = await fetch(`/api/superadmin/injury-weather?${buildQs(!deferAiForSpeed).toString()}`, {
+        // Primary fetch never waits on OpenAI — render numbers/charts first, then load AI in the background.
+        refreshAiFollowUpRef.current = bypassCacheOnce.current;
+        const res = await fetch(`/api/superadmin/injury-weather?${buildQs(false).toString()}`, {
           headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
         });
@@ -428,14 +430,12 @@ export function InjuryWeatherDashboard() {
 
         if (!res.ok || !payload || "error" in payload) {
           setError((payload as { error?: string } | null)?.error || "Failed to load Injury Weather dashboard.");
+          refreshAiFollowUpRef.current = false;
         } else {
           const typed = payload as InjuryWeatherDashboardData & { aiInsights?: InjuryWeatherAiInsights };
           setData(typed);
-          if (deferAiForSpeed) {
-            setAiInsights(null);
-          } else {
-            setAiInsights(typed.aiInsights ?? null);
-          }
+          setAiInsights(null);
+          setAiAdvisorLoading(true);
           if (!month) {
             const months = typed.availableMonths;
             const latest = months.length > 0 ? months[months.length - 1] : typed.summary.month;
@@ -443,26 +443,27 @@ export function InjuryWeatherDashboard() {
             setAppliedMonth(latest);
           } else if (!appliedMonth) setAppliedMonth(month);
 
-          if (deferAiForSpeed) {
-            const qsAi = buildQs(true);
-            void (async () => {
-              try {
-                const r = await fetch(`/api/superadmin/injury-weather?${qsAi.toString()}`, {
-                  headers: { Authorization: `Bearer ${token}` },
-                  cache: "no-store",
-                });
-                const body = (await r.json().catch(() => null)) as
-                  | (InjuryWeatherDashboardData & { aiInsights?: InjuryWeatherAiInsights })
-                  | null;
-                if (fetchSeq !== dashboardFetchSeqRef.current) return;
-                if (r.ok && body && !("error" in body)) {
-                  setAiInsights((body as { aiInsights?: InjuryWeatherAiInsights }).aiInsights ?? null);
-                }
-              } catch {
-                if (fetchSeq === dashboardFetchSeqRef.current) setAiInsights(null);
+          const qsAi = buildQs(true, { forceRefresh: refreshAiFollowUpRef.current });
+          refreshAiFollowUpRef.current = false;
+          void (async () => {
+            try {
+              const r = await fetch(`/api/superadmin/injury-weather?${qsAi.toString()}`, {
+                headers: { Authorization: `Bearer ${token}` },
+                cache: "no-store",
+              });
+              const body = (await r.json().catch(() => null)) as
+                | (InjuryWeatherDashboardData & { aiInsights?: InjuryWeatherAiInsights })
+                | null;
+              if (fetchSeq !== dashboardFetchSeqRef.current) return;
+              if (r.ok && body && !("error" in body)) {
+                setAiInsights((body as { aiInsights?: InjuryWeatherAiInsights }).aiInsights ?? null);
               }
-            })();
-          }
+            } catch {
+              if (fetchSeq === dashboardFetchSeqRef.current) setAiInsights(null);
+            } finally {
+              if (fetchSeq === dashboardFetchSeqRef.current) setAiAdvisorLoading(false);
+            }
+          })();
         }
       } catch {
         setError("Failed to load Injury Weather dashboard.");
@@ -570,7 +571,6 @@ export function InjuryWeatherDashboard() {
     [data]
   );
   const toggleTrade = (tradeName: string) => {
-    deferAiAfterTradeToggleRef.current = true;
     setSelectedTrades((prev) => {
       const next = prev.includes(tradeName) ? prev.filter((t) => t !== tradeName) : [...prev, tradeName];
       // Keep API in sync with chips. OpenAI is loaded in a second request so the page does not sit on
@@ -584,7 +584,6 @@ export function InjuryWeatherDashboard() {
   const allTradesSelected =
     trades.length > 0 && trades.every((t) => selectedTrades.includes(t));
   const selectAllTrades = () => {
-    deferAiAfterTradeToggleRef.current = true;
     const next = [...trades];
     setSelectedTrades(next);
     setAppliedTrades(next);
@@ -592,7 +591,6 @@ export function InjuryWeatherDashboard() {
     setRefreshTick((n) => n + 1);
   };
   const clearTradeSelection = () => {
-    deferAiAfterTradeToggleRef.current = true;
     setSelectedTrades([]);
     setAppliedTrades([]);
     setLoading(true);
@@ -760,42 +758,53 @@ export function InjuryWeatherDashboard() {
         ) : null}
       </section>
 
-      {aiInsights ? (
+      {aiInsights || aiAdvisorLoading ? (
         <section className="rounded-2xl border border-sky-700/40 bg-slate-900/80 p-5">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-sky-200">AI Safety Advisor</h3>
-            <div className="text-right">
-              <span className="rounded-full border border-sky-500/50 bg-sky-500/20 px-2.5 py-1 text-xs font-bold text-sky-200">
-                Data confidence {aiInsights.confidence}
-              </span>
-              <p className="mt-1 max-w-xs text-[11px] font-normal leading-snug text-slate-500">
-                {riskBandMeaningForDataConfidence(aiInsights.confidence)}
-              </p>
-            </div>
+            {aiInsights ? (
+              <div className="text-right">
+                <span className="rounded-full border border-sky-500/50 bg-sky-500/20 px-2.5 py-1 text-xs font-bold text-sky-200">
+                  Data confidence {aiInsights.confidence}
+                </span>
+                <p className="mt-1 max-w-xs text-[11px] font-normal leading-snug text-slate-500">
+                  {riskBandMeaningForDataConfidence(aiInsights.confidence)}
+                </p>
+              </div>
+            ) : null}
           </div>
-          <p className="mt-2 text-sm text-slate-200">{aiInsights.headline}</p>
-          <div className="mt-3 grid gap-3 lg:grid-cols-2">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Likely Injury Drivers</p>
-              <ul className="mt-2 space-y-1.5 text-sm text-slate-200">
-                {aiInsights.likelyInjuryDrivers.map((d) => (
-                  <li key={d} className="rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2">
-                    {d}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Priority Actions</p>
-              <ul className="mt-2 space-y-1.5 text-sm text-slate-200">
-                {aiInsights.priorityActions.map((a) => (
-                  <li key={a} className="rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2">
-                    {a}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+          {aiAdvisorLoading && !aiInsights ? (
+            <p className="mt-3 text-sm text-slate-400">
+              Generating insights… structured metrics and trade cards above are already loaded.
+            </p>
+          ) : null}
+          {aiInsights ? (
+            <>
+              <p className="mt-2 text-sm text-slate-200">{aiInsights.headline}</p>
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Likely Injury Drivers</p>
+                  <ul className="mt-2 space-y-1.5 text-sm text-slate-200">
+                    {aiInsights.likelyInjuryDrivers.map((d) => (
+                      <li key={d} className="rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2">
+                        {d}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Priority Actions</p>
+                  <ul className="mt-2 space-y-1.5 text-sm text-slate-200">
+                    {aiInsights.priorityActions.map((a) => (
+                      <li key={a} className="rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2">
+                        {a}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </>
+          ) : null}
         </section>
       ) : null}
 
