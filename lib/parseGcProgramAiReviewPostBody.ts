@@ -7,10 +7,22 @@ export type GcProgramAiReviewPostParsed = {
   siteDocument: { buffer: Buffer; fileName: string } | null;
 };
 
-export async function parseGcProgramAiReviewPostBody(
-  request: Request
+export type BuilderProgramAiReviewPostParsed = {
+  additionalReviewerContext: string;
+  siteDocument: { buffer: Buffer; fileName: string } | null;
+};
+
+type ParseContextOpts = {
+  contextFormField: string;
+  jsonContextKey: string;
+};
+
+async function parseContextAndOptionalSiteFile(
+  request: Request,
+  opts: ParseContextOpts
 ): Promise<
-  { ok: true; data: GcProgramAiReviewPostParsed } | { ok: false; response: NextResponse }
+  | { ok: true; data: { contextText: string; siteDocument: { buffer: Buffer; fileName: string } | null } }
+  | { ok: false; response: NextResponse }
 > {
   const ct = request.headers.get("content-type") ?? "";
 
@@ -25,8 +37,8 @@ export async function parseGcProgramAiReviewPostBody(
       };
     }
 
-    const ctx = form.get("additionalGcContext");
-    const additionalGcContext = typeof ctx === "string" ? ctx : "";
+    const ctx = form.get(opts.contextFormField);
+    const contextText = typeof ctx === "string" ? ctx : "";
 
     const raw = form.get("siteDocument");
     let siteDocument: { buffer: Buffer; fileName: string } | null = null;
@@ -47,11 +59,49 @@ export async function parseGcProgramAiReviewPostBody(
       };
     }
 
-    return { ok: true, data: { additionalGcContext, siteDocument } };
+    return { ok: true, data: { contextText, siteDocument } };
   }
 
-  const body = (await request.json().catch(() => null)) as { additionalGcContext?: unknown } | null;
-  const additionalGcContext =
-    typeof body?.additionalGcContext === "string" ? body.additionalGcContext : "";
-  return { ok: true, data: { additionalGcContext, siteDocument: null } };
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const rawCtx = body?.[opts.jsonContextKey];
+  const contextText = typeof rawCtx === "string" ? rawCtx : "";
+  return { ok: true, data: { contextText, siteDocument: null } };
+}
+
+export async function parseGcProgramAiReviewPostBody(
+  request: Request
+): Promise<
+  { ok: true; data: GcProgramAiReviewPostParsed } | { ok: false; response: NextResponse }
+> {
+  const r = await parseContextAndOptionalSiteFile(request, {
+    contextFormField: "additionalGcContext",
+    jsonContextKey: "additionalGcContext",
+  });
+  if (!r.ok) return r;
+  return {
+    ok: true,
+    data: {
+      additionalGcContext: r.data.contextText,
+      siteDocument: r.data.siteDocument,
+    },
+  };
+}
+
+export async function parseBuilderProgramAiReviewPostBody(
+  request: Request
+): Promise<
+  { ok: true; data: BuilderProgramAiReviewPostParsed } | { ok: false; response: NextResponse }
+> {
+  const r = await parseContextAndOptionalSiteFile(request, {
+    contextFormField: "additionalReviewerContext",
+    jsonContextKey: "additionalReviewerContext",
+  });
+  if (!r.ok) return r;
+  return {
+    ok: true,
+    data: {
+      additionalReviewerContext: r.data.contextText,
+      siteDocument: r.data.siteDocument,
+    },
+  };
 }

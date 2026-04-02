@@ -4,6 +4,7 @@ import {
   DOCUMENT_AI_REVIEW_ROLE_FORBIDDEN_ERROR,
   isDocumentAiReviewerRole,
 } from "@/lib/documentAiReviewAuth";
+import { parseBuilderProgramAiReviewPostBody } from "@/lib/parseGcProgramAiReviewPostBody";
 import { runBuilderProgramDocumentAiReview } from "@/lib/runBuilderProgramAiReview";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
@@ -45,16 +46,18 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Document id is required." }, { status: 400 });
   }
 
-  const body = (await request.json().catch(() => null)) as
-    | { additionalReviewerContext?: string | null }
-    | null;
-  const additionalReviewerContext =
-    typeof body?.additionalReviewerContext === "string" ? body.additionalReviewerContext : "";
+  const parsedBody = await parseBuilderProgramAiReviewPostBody(request);
+  if (!parsedBody.ok) {
+    return parsedBody.response;
+  }
+
+  const { additionalReviewerContext, siteDocument } = parsedBody.data;
 
   const result = await runBuilderProgramDocumentAiReview(
     admin,
     documentId,
-    additionalReviewerContext
+    additionalReviewerContext,
+    siteDocument
   );
 
   if (!result.ok) {
@@ -65,6 +68,7 @@ export async function POST(request: Request, context: RouteContext) {
     review: result.review,
     disclaimer: result.disclaimer,
     extraction: result.extraction,
+    siteReferenceExtraction: result.siteReferenceExtraction,
     documentId: result.documentId,
     programLabel: result.programLabel,
   });

@@ -174,6 +174,7 @@ export default function ReviewDocumentPage() {
   } | null>(null);
   const [gcAiError, setGcAiError] = useState("");
   const [builderAiContext, setBuilderAiContext] = useState("");
+  const [builderSiteReferenceFile, setBuilderSiteReferenceFile] = useState<File | null>(null);
   const [builderAiLoading, setBuilderAiLoading] = useState(false);
   const [builderAiResult, setBuilderAiResult] = useState<BuilderProgramAiReview | null>(null);
   const [builderAiDisclaimer, setBuilderAiDisclaimer] = useState("");
@@ -182,6 +183,12 @@ export default function ReviewDocumentPage() {
     method?: string;
     truncated?: boolean;
     error?: string;
+  } | null>(null);
+  const [builderAiSiteExtraction, setBuilderAiSiteExtraction] = useState<{
+    fileName: string;
+    ok: true;
+    method: string;
+    truncated: boolean;
   } | null>(null);
   const [builderAiError, setBuilderAiError] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -469,16 +476,22 @@ export default function ReviewDocumentPage() {
     setBuilderAiResult(null);
     setBuilderAiDisclaimer("");
     setBuilderAiExtraction(null);
+    setBuilderAiSiteExtraction(null);
 
     try {
       const token = await getAccessToken();
+      const form = new FormData();
+      form.append("additionalReviewerContext", builderAiContext);
+      if (builderSiteReferenceFile) {
+        form.append("siteDocument", builderSiteReferenceFile);
+      }
+
       const res = await fetch(`/api/admin/documents/${documentItem.id}/ai-review`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ additionalReviewerContext: builderAiContext }),
+        body: form,
       });
 
       const rawText = await res.text();
@@ -500,6 +513,12 @@ export default function ReviewDocumentPage() {
               truncated?: boolean;
               error?: string;
             };
+            siteReferenceExtraction?: {
+              fileName: string;
+              ok: true;
+              method: string;
+              truncated: boolean;
+            } | null;
           }
         | null;
 
@@ -513,6 +532,9 @@ export default function ReviewDocumentPage() {
       }
       setBuilderAiDisclaimer(data?.disclaimer ?? "");
       setBuilderAiExtraction(data?.extraction ?? null);
+      setBuilderAiSiteExtraction(
+        data?.siteReferenceExtraction?.ok === true ? data.siteReferenceExtraction : null
+      );
     } catch (error) {
       console.error(error);
       setBuilderAiError(error instanceof Error ? error.message : "AI review failed.");

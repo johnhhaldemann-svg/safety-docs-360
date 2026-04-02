@@ -3,6 +3,7 @@ import {
   extractBuilderReviewDocumentText,
   generateBuilderProgramAiReview,
 } from "@/lib/builderDocumentAiReview";
+import type { GcSiteReferenceExtractionMeta } from "@/lib/runGcProgramAiReview";
 
 const BUILDER_TYPES = new Set(["CSEP", "PSHSEP", "PESHEP", "PESHEPS"]);
 
@@ -14,7 +15,8 @@ function normalizeBuilderProgramType(documentType: string | null | undefined): s
 export async function runBuilderProgramDocumentAiReview(
   admin: SupabaseClient,
   documentId: string,
-  additionalReviewerContext: string
+  additionalReviewerContext: string,
+  siteReference?: { buffer: Buffer; fileName: string } | null
 ): Promise<
   | {
       ok: true;
@@ -23,6 +25,7 @@ export async function runBuilderProgramDocumentAiReview(
       extraction:
         | { ok: true; method: string; truncated: boolean }
         | { ok: false; error: string };
+      siteReferenceExtraction: GcSiteReferenceExtractionMeta;
       documentId: string;
       programLabel: string;
     }
@@ -61,7 +64,8 @@ export async function runBuilderProgramDocumentAiReview(
     return {
       ok: false,
       status: 400,
-      error: "AI review for this program type is only available for CSEP and PSHSEP submissions.",
+      error:
+        "AI review for this program type is only available for CSEP, PSHSEP, PESHEP, and PESHEPS submissions.",
     };
   }
 
@@ -103,6 +107,30 @@ export async function runBuilderProgramDocumentAiReview(
       ? { ok: true as const, method: extracted.method, truncated: extracted.truncated }
       : { ok: false as const, error: extracted.error };
 
+    let siteReferenceExtraction: GcSiteReferenceExtractionMeta = null;
+    let siteReferenceText: string | null = null;
+    let siteReferenceFileName: string | null = null;
+
+    if (siteReference?.buffer?.length) {
+      const refName = siteReference.fileName?.trim() || "site-reference.pdf";
+      const siteExtracted = await extractBuilderReviewDocumentText(siteReference.buffer, refName);
+      if (!siteExtracted.ok) {
+        return {
+          ok: false,
+          status: 400,
+          error: `Site reference file: ${siteExtracted.error}`,
+        };
+      }
+      siteReferenceExtraction = {
+        fileName: refName,
+        ok: true,
+        method: siteExtracted.method,
+        truncated: siteExtracted.truncated,
+      };
+      siteReferenceText = siteExtracted.text;
+      siteReferenceFileName = refName;
+    }
+
     const { review, disclaimer } = await generateBuilderProgramAiReview({
       documentText,
       programLabel,
@@ -111,6 +139,8 @@ export async function runBuilderProgramDocumentAiReview(
       companyName,
       recordNotes: doc.notes ?? null,
       additionalReviewerContext: additionalReviewerContext.trim() || null,
+      siteReferenceText,
+      siteReferenceFileName,
     });
 
     return {
@@ -118,6 +148,7 @@ export async function runBuilderProgramDocumentAiReview(
       review,
       disclaimer,
       extraction: extractionMeta,
+      siteReferenceExtraction,
       documentId: doc.id,
       programLabel,
     };

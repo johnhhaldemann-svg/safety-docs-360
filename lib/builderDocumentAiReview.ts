@@ -43,13 +43,16 @@ export { extractGcProgramDocumentText as extractBuilderReviewDocumentText };
 
 export async function generateBuilderProgramAiReview(params: {
   documentText: string;
-  /** e.g. CSEP or PSHSEP */
+  /** e.g. CSEP, PSHSEP, PESHEP */
   programLabel: string;
   projectName: string;
   documentTitle?: string | null;
   companyName?: string | null;
   recordNotes?: string | null;
   additionalReviewerContext?: string | null;
+  /** Optional site/owner/GC reference (PDF/DOCX) to compare against the draft */
+  siteReferenceText?: string | null;
+  siteReferenceFileName?: string | null;
 }): Promise<{ review: BuilderProgramAiReview; disclaimer: string }> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
@@ -58,8 +61,12 @@ export async function generateBuilderProgramAiReview(params: {
 
   const label = params.programLabel.trim().toUpperCase();
   const hasBody = params.documentText.trim().length >= 80;
+  const siteName = params.siteReferenceFileName?.trim() || null;
+  const siteText = params.siteReferenceText?.trim() ?? "";
+  const hasSiteRef = Boolean(siteName && siteText.length >= 20);
+
   const contextBlock = [
-    `Program type: ${label} (CSEP = contractor site environmental/safety style plan; PSHSEP = project/site HSE-style program in this product).`,
+    `Program type: ${label} (CSEP / PSHSEP / PESHEP-style builder safety-environmental plans in this product).`,
     `Project name: ${params.projectName || "(none)"}`,
     params.documentTitle?.trim() ? `Title: ${params.documentTitle.trim()}` : null,
     params.companyName?.trim() ? `Company: ${params.companyName.trim()}` : null,
@@ -67,21 +74,27 @@ export async function generateBuilderProgramAiReview(params: {
     params.additionalReviewerContext?.trim()
       ? `Reviewer-provided context (site rules, owner requirements, gaps to check): ${params.additionalReviewerContext.trim()}`
       : null,
+    siteName
+      ? hasSiteRef
+        ? `--- Site / owner / GC reference document (${siteName}) ---\n${params.siteReferenceText}`
+        : `--- Site / owner / GC reference document (${siteName}) ---\n(Uploaded file has little or no extractable text; rely on pasted context and draft below.)`
+      : null,
     hasBody
-      ? `--- Document text ---\n${params.documentText}`
-      : `--- Document text ---\n(No extractable text or too short; rely on metadata and reviewer context.)`,
+      ? `--- Builder draft under review ---\n${params.documentText}`
+      : `--- Builder draft under review ---\n(No extractable text or too short; rely on metadata and reviewer context.)`,
   ]
     .filter(Boolean)
     .join("\n");
 
   const prompt = [
     "You are an expert reviewer of U.S. construction safety documentation (OSHA 29 CFR Part 1926 where relevant) and practical field readiness of safety/environmental plans.",
-    "The file is a draft produced from the product's builder workflow (CSEP or PSHSEP). It is not yet final until a human reviewer approves.",
+    "The primary file is a draft from the product's builder workflow (CSEP, PSHSEP, PESHEP, etc.). It is not final until a human reviewer approves.",
     "Tasks:",
     "1) Summarize what the draft appears to cover (scope, trades, hazards, controls, PPE, permits, emergency info, environmental notes if any).",
     "2) Identify strengths relative to typical expectations for a site-specific or project safety/environmental plan.",
-    "3) Identify gaps, ambiguities, or risks a reviewer should address before approving (missing sections, vague controls, inconsistent PPE, etc.).",
-    "4) Recommend concrete edits or follow-up questions for the reviewer.",
+    "3) When a site/owner/GC reference document is provided, compare the draft to that reference: note matches, omissions, and conflicts, in addition to OSHA-oriented gaps.",
+    "4) Identify gaps, ambiguities, or risks a reviewer should address before approving (missing sections, vague controls, inconsistent PPE, etc.).",
+    "5) Recommend concrete edits or follow-up questions for the reviewer.",
     "Do NOT invent citations, inspections, or compliance determinations. If text is unreadable or too thin, set overallAssessment to insufficient_context.",
     "Output strict JSON matching the schema.",
     contextBlock,
