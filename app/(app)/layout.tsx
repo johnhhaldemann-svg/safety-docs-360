@@ -16,6 +16,7 @@ import {
 } from "@/lib/appNavigation";
 import { getDefaultAgreementConfig, type AgreementConfig } from "@/lib/legal";
 import type { PermissionMap } from "@/lib/rbac";
+import { getCsepNavSectionsForRole, type WorkspaceProduct } from "@/lib/workspaceProduct";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -218,6 +219,7 @@ export default function AppLayout({
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState("");
+  const [workspaceProduct, setWorkspaceProduct] = useState<WorkspaceProduct>("full");
   const [profileComplete, setProfileComplete] = useState(false);
   const [profileSummary, setProfileSummary] = useState<ProfileSummary | null>(null);
   const [agreementConfig, setAgreementConfig] = useState<AgreementConfig>(
@@ -251,6 +253,9 @@ export default function AppLayout({
     if (needsCompanySetup) {
       return accountSetupSideSections;
     }
+    if (!isAdminArea && isCompanyScopedUser && workspaceProduct === "csep") {
+      return getCsepNavSectionsForRole(userRole);
+    }
     if (!isAdminArea && isCompanyAdminUser) {
       return companyAdminSideSections;
     }
@@ -262,10 +267,7 @@ export default function AppLayout({
     }
     const base = isAdminArea ? adminSideSections : userSideSections;
     if (!isAdminArea && canAccessInternalAdmin) {
-      return [
-        ...base,
-        internalAdminAppendedSection,
-      ];
+      return [...base, internalAdminAppendedSection];
     }
     return base;
   }, [
@@ -273,8 +275,11 @@ export default function AppLayout({
     isAdminArea,
     isCompanyAdminUser,
     isCompanyManagerUser,
+    isCompanyScopedUser,
     isCompanyUser,
     needsCompanySetup,
+    userRole,
+    workspaceProduct,
   ]);
 
   const currentNavItem = useMemo(() => {
@@ -356,6 +361,7 @@ export default function AppLayout({
                 acceptedTerms?: boolean;
                 companyId?: string | null;
                 companyName?: string | null;
+                workspaceProduct?: WorkspaceProduct;
                 profileComplete?: boolean;
                 profile?: ProfileSummary | null;
                 pendingCompanySignupRequest?: { id?: string; companyName?: string } | null;
@@ -378,6 +384,7 @@ export default function AppLayout({
         setPermissionMap(data?.user?.permissionMap ?? null);
         setCompanyId(data?.user?.companyId ?? null);
         setCompanyName(data?.user?.companyName ?? "");
+        setWorkspaceProduct(data?.user?.workspaceProduct === "csep" ? "csep" : "full");
         setProfileComplete(Boolean(data?.user?.profileComplete));
         setProfileSummary(data?.user?.profile ?? null);
         setAccountStatus(nextAccountStatus);
@@ -395,6 +402,7 @@ export default function AppLayout({
         setPermissionMap(null);
         setCompanyId(null);
         setCompanyName("");
+        setWorkspaceProduct("full");
         setProfileComplete(false);
         setProfileSummary(null);
         setAccountStatus("active");
@@ -473,11 +481,39 @@ export default function AppLayout({
 
     if (isCompanyScopedUser) {
       if (userRole === "read_only") {
+        if (workspaceProduct === "csep") {
+          const readOnlyCsepRoutes = ["/dashboard", "/profile"];
+          const inReadOnlyCsep = readOnlyCsepRoutes.some(
+            (route) => pathname === route || pathname.startsWith(`${route}/`)
+          );
+          if (!inReadOnlyCsep) {
+            router.replace("/dashboard");
+          }
+          return;
+        }
         const readOnlyAllowedRoutes = ["/dashboard", "/reports"];
         const inReadOnlyRoute = readOnlyAllowedRoutes.some(
           (route) => pathname === route || pathname.startsWith(`${route}/`)
         );
         if (!inReadOnlyRoute) {
+          router.replace("/dashboard");
+        }
+        return;
+      }
+
+      if (workspaceProduct === "csep") {
+        const csepRoutes = ["/dashboard", "/profile"];
+        const canOpenCsep =
+          Boolean(permissionMap?.can_create_documents) ||
+          Boolean(permissionMap?.can_edit_documents) ||
+          Boolean(permissionMap?.can_submit_documents);
+        if (canOpenCsep) {
+          csepRoutes.push("/csep");
+        }
+        const inCsepRoute = csepRoutes.some(
+          (route) => pathname === route || pathname.startsWith(`${route}/`)
+        );
+        if (!inCsepRoute) {
           router.replace("/dashboard");
         }
         return;
@@ -561,6 +597,7 @@ export default function AppLayout({
     permissionMap,
     router,
     userRole,
+    workspaceProduct,
   ]);
 
   useEffect(() => {

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { sendCompanyInviteEmail } from "@/lib/inviteEmail";
 import { authorizeRequest } from "@/lib/rbac";
+import { normalizeApprovalPlanName } from "@/lib/workspaceProduct";
 
 export const runtime = "nodejs";
 
@@ -73,6 +74,8 @@ type CompanyActionPayload = {
   companyId?: string;
   action?: string;
   notes?: string;
+  /** Stored on `company_subscriptions.plan_name` (e.g. `CSEP` for CSEP-only tier). */
+  planName?: string;
 };
 
 type SupabaseWriteClient = {
@@ -366,6 +369,7 @@ export async function PATCH(request: Request) {
   const companyId = body?.companyId?.trim() ?? "";
   const action = body?.action?.trim().toLowerCase() ?? "";
   const notes = body?.notes?.trim() ?? null;
+  const approvalPlanName = normalizeApprovalPlanName(body?.planName ?? null);
 
   if (action === "archive" || action === "restore") {
     if (!companyId) {
@@ -588,6 +592,28 @@ export async function PATCH(request: Request) {
       {
         error:
           "Failed to activate the company workspace. Confirm the companies table allows internal admin inserts.",
+      },
+      { status: 500 }
+    );
+  }
+
+  const subscriptionUpsert = await supabase.from("company_subscriptions").upsert(
+    {
+      company_id: companyData.id,
+      status: "active",
+      plan_name: approvalPlanName,
+      created_by: auth.user.id,
+      updated_by: auth.user.id,
+    },
+    { onConflict: "company_id" }
+  );
+
+  if (subscriptionUpsert.error) {
+    return NextResponse.json(
+      {
+        error:
+          subscriptionUpsert.error.message ||
+          "The company workspace was created, but the subscription record could not be saved.",
       },
       { status: 500 }
     );

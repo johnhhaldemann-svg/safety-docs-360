@@ -11,11 +11,16 @@ import {
   SectionCard,
   StartChecklist,
 } from "@/components/WorkspacePrimitives";
-import type { PermissionMap } from "@/lib/rbac";
+import { normalizeAppRole, type PermissionMap } from "@/lib/rbac";
 import {
   getDocumentCreditCost,
   isMarketplaceEnabled,
 } from "@/lib/marketplace";
+import {
+  GC_REQUIRED_PROGRAM_DOCUMENT_TYPE,
+  canReviewGcProgramDocumentRole,
+} from "@/lib/gcRequiredProgram";
+import type { GcProgramAiReview } from "@/lib/gcProgramAiReview";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,6 +31,8 @@ type DocumentItem = {
   id: string;
   project_name: string;
   document_type?: string | null;
+  document_title?: string | null;
+  file_name?: string | null;
   status: string;
   created_at?: string | null;
   approved_at?: string | null;
@@ -38,6 +45,7 @@ type DocumentItem = {
   marketplace_updated_by_email?: string | null;
   notes?: string | null;
   draft_file_path: string | null;
+  file_path?: string | null;
   final_file_path: string | null;
   reviewer_email: string | null;
   review_notes: string | null;
@@ -116,6 +124,7 @@ export default function ReviewDocumentPage() {
   const id = Array.isArray(rawId) ? rawId[0] : rawId;
 
   const [documentItem, setDocumentItem] = useState<DocumentItem | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [reviewerEmail, setReviewerEmail] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
@@ -129,6 +138,20 @@ export default function ReviewDocumentPage() {
   const [lifecycleLoading, setLifecycleLoading] = useState<
     "archive" | "restore" | "delete" | ""
   >("");
+  const [gcReviewLoading, setGcReviewLoading] = useState<"approve" | "reject" | "">(
+    ""
+  );
+  const [gcAiContext, setGcAiContext] = useState("");
+  const [gcAiLoading, setGcAiLoading] = useState(false);
+  const [gcAiResult, setGcAiResult] = useState<GcProgramAiReview | null>(null);
+  const [gcAiDisclaimer, setGcAiDisclaimer] = useState("");
+  const [gcAiExtraction, setGcAiExtraction] = useState<{
+    ok: boolean;
+    method?: string;
+    truncated?: boolean;
+    error?: string;
+  } | null>(null);
+  const [gcAiError, setGcAiError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [feedbackTone, setFeedbackTone] = useState<FeedbackTone>("neutral");
@@ -207,11 +230,12 @@ export default function ReviewDocumentPage() {
         },
       });
       const meData = (await meResponse.json().catch(() => null)) as
-        | { user?: { permissionMap?: PermissionMap } }
+        | { user?: { permissionMap?: PermissionMap; role?: string } }
         | null;
 
       if (meResponse.ok) {
         setPermissionMap(meData?.user?.permissionMap ?? null);
+        setUserRole(meData?.user?.role ?? null);
       }
     })();
   }, []);
@@ -254,6 +278,136 @@ export default function ReviewDocumentPage() {
       setOpeningDraft(false);
     }
   }, [documentItem?.id, getAccessToken, setFeedbackMessage]);
+
+  const openGcUploadedFile = useCallback(async () => {
+    if (!documentItem?.file_path) {
+      return;
+    }
+
+    setOpeningDraft(true);
+
+    try {
+      const { data, error } = await supabase.storage
+        .from("documents")
+        .createSignedUrl(documentItem.file_path, 120);
+
+      if (error || !data?.signedUrl) {
+        throw new Error(error?.message || "Could not open uploaded file.");
+      }
+
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      setFeedbackMessage("Opened company upload in a new tab.", "success");
+    } catch (error) {
+      setFeedbackMessage(
+        error instanceof Error ? error.message : "Failed to open uploaded file.",
+        "error"
+      );
+    } finally {
+      setOpeningDraft(false);
+    }
+  }, [documentItem?.file_path, setFeedbackMessage]);
+
+  async function runGcReview(action: "approve" | "reject") {
+    if (!documentItem?.id) {
+      return;
+    }
+
+    setGcReviewLoading(action === "approve" ? "approve" : "reject");
+    setFeedback("");
+
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`/api/admin/gc-program-document/${documentItem.id}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action }),
+      });
+
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+
+      if (!res.ok) {
+        setFeedbackMessage(data?.error || "GC review action failed.", "error");
+        return;
+      }
+
+      if (action === "reject") {
+        router.push("/admin/review-documents");
+        router.refresh();
+        setFeedbackMessage("GC submission rejected and removed.", "success");
+        return;
+      }
+
+      await loadDocument();
+      setFeedbackMessage("GC program document approved for the company workspace.", "success");
+    } catch (error) {
+      console.error(error);
+      setFeedbackMessage("GC review action failed.", "error");
+    } finally {
+      setGcReviewLoading("");
+    }
+  }
+
+  async function runGcAiReview() {
+    if (!documentItem?.id) {
+      return;
+    }
+
+    setGcAiLoading(true);
+    setGcAiError("");
+    setGcAiResult(null);
+    setGcAiDisclaimer("");
+    setGcAiExtraction(null);
+
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(
+        `/api/superadmin/gc-program-document/${documentItem.id}/ai-review`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ additionalGcContext: gcAiContext }),
+        }
+      );
+
+      const data = (await res.json().catch(() => null)) as
+        | {
+            error?: string;
+            review?: GcProgramAiReview;
+            disclaimer?: string;
+            extraction?: {
+              ok: boolean;
+              method?: string;
+              truncated?: boolean;
+              error?: string;
+            };
+          }
+        | null;
+
+      if (!res.ok) {
+        setGcAiError(data?.error || "AI review failed.");
+        return;
+      }
+
+      if (data?.review) {
+        setGcAiResult(data.review);
+      }
+      setGcAiDisclaimer(data?.disclaimer ?? "");
+      setGcAiExtraction(data?.extraction ?? null);
+    } catch (error) {
+      console.error(error);
+      setGcAiError(error instanceof Error ? error.message : "AI review failed.");
+    } finally {
+      setGcAiLoading(false);
+    }
+  }
 
   async function uploadFinalDoc() {
     if (!file || !documentItem) {
@@ -498,8 +652,24 @@ export default function ReviewDocumentPage() {
     );
   }, [documentItem]);
 
-  const checklistItems = useMemo(
-    () => [
+  const checklistItems = useMemo(() => {
+    const isGc =
+      documentItem?.document_type?.trim() === GC_REQUIRED_PROGRAM_DOCUMENT_TYPE;
+
+    if (isGc) {
+      return [
+        {
+          label: "Company upload received",
+          done: Boolean(documentItem?.file_path),
+        },
+        {
+          label: "Approved for workspace",
+          done: Boolean(documentItem?.final_file_path),
+        },
+      ];
+    }
+
+    return [
       {
         label: "Draft document available",
         done: Boolean(documentItem?.draft_file_path),
@@ -510,15 +680,16 @@ export default function ReviewDocumentPage() {
         label: "Final file uploaded",
         done: Boolean(file || documentItem?.final_file_path),
       },
-    ],
-    [
-      documentItem?.draft_file_path,
-      documentItem?.final_file_path,
-      file,
-      reviewNotes,
-      reviewerEmail,
-    ]
-  );
+    ];
+  }, [
+    documentItem?.document_type,
+    documentItem?.draft_file_path,
+    documentItem?.file_path,
+    documentItem?.final_file_path,
+    file,
+    reviewNotes,
+    reviewerEmail,
+  ]);
 
   if (loading) {
     return (
@@ -560,28 +731,54 @@ export default function ReviewDocumentPage() {
   }
 
   const titleText =
-    documentItem.project_name || documentItem.document_type || "Untitled document";
+    documentItem.project_name ||
+    documentItem.document_title ||
+    documentItem.document_type ||
+    "Untitled document";
   const normalizedStatus = documentItem.status?.trim().toLowerCase() || "unknown";
   const canReviewDocuments = Boolean(permissionMap?.can_review_documents);
   const canApproveDocuments = Boolean(permissionMap?.can_approve_documents);
+  const isGcProgramDoc =
+    documentItem.document_type?.trim() === GC_REQUIRED_PROGRAM_DOCUMENT_TYPE;
+  const canActOnGcProgram = canReviewGcProgramDocumentRole(userRole);
+  const gcPendingApproval =
+    isGcProgramDoc &&
+    normalizedStatus === "submitted" &&
+    !documentItem.final_file_path;
+  const isSuperAdmin = normalizeAppRole(userRole ?? "") === "super_admin";
+  const showGcAiReview =
+    isGcProgramDoc && isSuperAdmin && Boolean(documentItem.file_path);
+  const canOpenPrimaryReviewFile = isGcProgramDoc
+    ? Boolean(documentItem.file_path)
+    : Boolean(documentItem.draft_file_path);
 
   return (
     <div className="space-y-8">
       <PageHero
         eyebrow="Construction Safety Hub"
         title={titleText}
-        description="Review the submitted draft, capture reviewer notes, approve the final document, and manage lifecycle settings from one workspace."
+        description={
+          isGcProgramDoc
+            ? "Review the company’s GC-required program upload. Approve to release it to their workspace, or reject to remove it."
+            : "Review the submitted draft, capture reviewer notes, approve the final document, and manage lifecycle settings from one workspace."
+        }
         actions={
           <>
-            <button
-              type="button"
-              onClick={() => {
-                void openDraftDocument();
-              }}
-              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              {openingDraft ? "Opening Draft..." : "Open Draft DOCX"}
-            </button>
+            {canOpenPrimaryReviewFile ? (
+              <button
+                type="button"
+                onClick={() => {
+                  void (isGcProgramDoc ? openGcUploadedFile() : openDraftDocument());
+                }}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                {openingDraft
+                  ? "Opening..."
+                  : isGcProgramDoc
+                    ? "Open company upload"
+                    : "Open Draft DOCX"}
+              </button>
+            ) : null}
             <Link
               href="/admin/review-documents"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
@@ -684,20 +881,38 @@ export default function ReviewDocumentPage() {
 
             <div className="mt-6 grid gap-4 lg:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 p-4">
-                <p className="text-sm font-semibold text-slate-900">Draft source</p>
+                <p className="text-sm font-semibold text-slate-900">
+                  {isGcProgramDoc ? "Company upload" : "Draft source"}
+                </p>
                 <p className="mt-2 text-sm text-slate-600">
-                  Download the submitted draft to complete edits in Word before uploading the approved version.
+                  {isGcProgramDoc
+                    ? "Open the file the company uploaded. It stays hidden from their workspace until you approve it."
+                    : "Download the submitted draft to complete edits in Word before uploading the approved version."}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void openDraftDocument();
-                    }}
-                    className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    {openingDraft ? "Opening..." : "Open Draft DOCX"}
-                  </button>
+                  {isGcProgramDoc ? (
+                    documentItem.file_path ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void openGcUploadedFile();
+                        }}
+                        className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        {openingDraft ? "Opening..." : "Open company upload"}
+                      </button>
+                    ) : null
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void openDraftDocument();
+                      }}
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      {openingDraft ? "Opening..." : "Open Draft DOCX"}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -712,76 +927,239 @@ export default function ReviewDocumentPage() {
             </div>
           </SectionCard>
 
-          <SectionCard
-            title="Approval Workspace"
-            description="Upload the final DOCX, confirm reviewer details, and send the approved version back into the workspace."
-          >
-            <div className="space-y-5">
-              <div className="grid gap-5 lg:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-800">
-                    Final DOCX
-                  </label>
-                  <input
-                    type="file"
-                    accept=".docx"
-                    onChange={(event) => setFile(event.target.files?.[0] || null)}
-                    className="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-sky-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-sky-500"
-                  />
-                  <p className="mt-2 text-xs text-slate-500">
-                    {file ? `Selected: ${file.name}` : "Upload the final approved DOCX file."}
+          {gcPendingApproval ? (
+            <SectionCard
+              title="GC program document"
+              description="Approve to release this file to the company workspace, or reject to delete the submission and storage copy."
+            >
+              <div className="space-y-4">
+                <p className="text-sm text-slate-600">
+                  {documentItem.file_name ? (
+                    <>
+                      Uploaded file:{" "}
+                      <span className="font-semibold text-slate-900">{documentItem.file_name}</span>
+                    </>
+                  ) : (
+                    "A file is attached to this record."
+                  )}
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void runGcReview("approve")}
+                    disabled={
+                      Boolean(gcReviewLoading) ||
+                      !canActOnGcProgram ||
+                      !canApproveDocuments
+                    }
+                    className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {gcReviewLoading === "approve"
+                      ? "Approving…"
+                      : canActOnGcProgram
+                        ? "Approve for workspace"
+                        : "Approval restricted"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void runGcReview("reject")}
+                    disabled={
+                      Boolean(gcReviewLoading) ||
+                      !canActOnGcProgram ||
+                      !canApproveDocuments
+                    }
+                    className="rounded-xl border border-red-300 bg-red-50 px-5 py-3 text-sm font-semibold text-red-800 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {gcReviewLoading === "reject" ? "Rejecting…" : "Reject and remove"}
+                  </button>
+                </div>
+                {!canActOnGcProgram ? (
+                  <p className="text-xs text-slate-500">
+                    Only platform administrators and internal reviewers can approve or reject GC program
+                    uploads.
                   </p>
+                ) : null}
+              </div>
+            </SectionCard>
+          ) : !isGcProgramDoc ? (
+            <SectionCard
+              title="Approval Workspace"
+              description="Upload the final DOCX, confirm reviewer details, and send the approved version back into the workspace."
+            >
+              <div className="space-y-5">
+                <div className="grid gap-5 lg:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-800">
+                      Final DOCX
+                    </label>
+                    <input
+                      type="file"
+                      accept=".docx"
+                      onChange={(event) => setFile(event.target.files?.[0] || null)}
+                      className="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-sky-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-sky-500"
+                    />
+                    <p className="mt-2 text-xs text-slate-500">
+                      {file ? `Selected: ${file.name}` : "Upload the final approved DOCX file."}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-800">
+                      Reviewer Email
+                    </label>
+                    <input
+                      type="email"
+                      value={reviewerEmail}
+                      onChange={(event) => setReviewerEmail(event.target.value)}
+                      placeholder="reviewer@company.com"
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-800">
-                    Reviewer Email
+                    Review Notes
                   </label>
-                  <input
-                    type="email"
-                    value={reviewerEmail}
-                    onChange={(event) => setReviewerEmail(event.target.value)}
-                    placeholder="reviewer@company.com"
+                  <textarea
+                    rows={5}
+                    value={reviewNotes}
+                    onChange={(event) => setReviewNotes(event.target.value)}
+                    placeholder="Summarize corrections, approvals, or handoff notes for the user."
                     className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-800">
-                  Review Notes
-                </label>
-                <textarea
-                  rows={5}
-                  value={reviewNotes}
-                  onChange={(event) => setReviewNotes(event.target.value)}
-                  placeholder="Summarize corrections, approvals, or handoff notes for the user."
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                />
-              </div>
-
-              <div className="sticky bottom-4 z-10 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      Ready to send the final document?
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      This will save the final DOCX, mark the document as approved, and notify the workspace record.
-                    </p>
+                <div className="sticky bottom-4 z-10 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        Ready to send the final document?
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        This will save the final DOCX, mark the document as approved, and notify the workspace record.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={uploadFinalDoc}
+                      disabled={saving || !canApproveDocuments}
+                      className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {saving ? "Approving..." : canApproveDocuments ? "Approve and Send Final" : "Approval Restricted"}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={uploadFinalDoc}
-                    disabled={saving || !canApproveDocuments}
-                    className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {saving ? "Approving..." : canApproveDocuments ? "Approve and Send Final" : "Approval Restricted"}
-                  </button>
                 </div>
               </div>
-            </div>
-          </SectionCard>
+            </SectionCard>
+          ) : null}
+
+          {showGcAiReview ? (
+            <SectionCard
+              title="AI review (super admin)"
+              description="Compare the upload against typical OSHA-aligned expectations for the described work and against GC/site requirements. Optional: paste specifics the GC requires that are not fully in the file."
+            >
+              <div className="space-y-4">
+                <label className="block text-sm font-semibold text-slate-800">
+                  Additional GC / site requirements (optional)
+                </label>
+                <textarea
+                  rows={4}
+                  value={gcAiContext}
+                  onChange={(e) => setGcAiContext(e.target.value)}
+                  placeholder="e.g. Site-specific safety plan elements, exhibit references, hot work rules, crane mat requirements…"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void runGcAiReview()}
+                    disabled={gcAiLoading}
+                    className="rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {gcAiLoading ? "Analyzing…" : "Run AI review (OSHA + GC)"}
+                  </button>
+                </div>
+                {gcAiError ? (
+                  <InlineMessage tone="error">{gcAiError}</InlineMessage>
+                ) : null}
+                {gcAiExtraction ? (
+                  <p className="text-xs text-slate-500">
+                    {gcAiExtraction.ok
+                      ? `Text extracted (${gcAiExtraction.method}${gcAiExtraction.truncated ? ", truncated" : ""}).`
+                      : `Text extraction: ${gcAiExtraction.error ?? "failed"} — review may be limited.`}
+                  </p>
+                ) : null}
+                {gcAiDisclaimer ? (
+                  <p className="text-xs text-slate-500">{gcAiDisclaimer}</p>
+                ) : null}
+                {gcAiResult ? (
+                  <div className="space-y-4 rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-violet-900">
+                        Overall
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        {gcAiResult.overallAssessment === "sufficient"
+                          ? "Appears broadly sufficient (verify in field)"
+                          : gcAiResult.overallAssessment === "needs_work"
+                            ? "Needs follow-up / strengthening"
+                            : "Insufficient context or unreadable text"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                        Summary
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-800">
+                        {gcAiResult.executiveSummary}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                        GC / site alignment
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-800">
+                        {gcAiResult.alignmentWithGcSiteRequirements}
+                      </p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">
+                          OSHA-related strengths
+                        </p>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                          {gcAiResult.oshaRelatedStrengths.map((s, i) => (
+                            <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-amber-900">
+                          Gaps / risks (OSHA-oriented)
+                        </p>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                          {gcAiResult.oshaRelatedGapsOrRisks.map((s, i) => (
+                            <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                        Recommended follow-ups
+                      </p>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                        {gcAiResult.recommendedFollowUps.map((s, i) => (
+                          <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </SectionCard>
+          ) : null}
 
           <SectionCard
             title="Marketplace Settings"
@@ -913,18 +1291,31 @@ export default function ReviewDocumentPage() {
             description="Use the same workflow every time so documents stay consistent for admins and field teams."
           >
             <div className="space-y-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                1. Open the draft DOCX and complete edits in Word.
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                2. Capture reviewer email and approval notes before sending.
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                3. Upload the final DOCX and approve the document.
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                4. Decide whether the completed file should appear in the marketplace.
-              </div>
+              {isGcProgramDoc ? (
+                <>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    1. Open the company upload and verify it matches what the GC requires.
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    2. Approve to release it to the company workspace, or reject to remove it.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    1. Open the draft DOCX and complete edits in Word.
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    2. Capture reviewer email and approval notes before sending.
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    3. Upload the final DOCX and approve the document.
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    4. Decide whether the completed file should appear in the marketplace.
+                  </div>
+                </>
+              )}
             </div>
           </SectionCard>
 
@@ -943,10 +1334,14 @@ export default function ReviewDocumentPage() {
                 }
               >
                 {documentItem.final_file_path
-                  ? "A final file is attached to this record and the document can be opened from the user library."
+                  ? isGcProgramDoc
+                    ? "This GC program file is approved and visible in the company workspace."
+                    : "A final file is attached to this record and the document can be opened from the user library."
                   : isArchivedStatus(documentItem.status)
                     ? "This document is archived and hidden from active workspace views until restored."
-                    : "This record is still waiting for final approval and delivery."}
+                    : isGcProgramDoc
+                      ? "This GC upload is waiting for approve or reject."
+                      : "This record is still waiting for final approval and delivery."}
               </InlineMessage>
             </div>
           </SectionCard>

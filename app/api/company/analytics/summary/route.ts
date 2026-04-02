@@ -4,6 +4,7 @@ import { incidentRatePer200kHours } from "@/lib/benchmarking/incidentRate";
 import { injurySeverityScore } from "@/lib/incidents/injurySeverityScore";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,9 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error;
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ snapshots: [] });
+  if (await companyHasCsepPlanName(auth.supabase, companyScope.companyId)) {
+    return csepWorkspaceForbiddenResponse();
+  }
   const { searchParams } = new URL(request.url);
   const days = Number(searchParams.get("days") ?? "30");
   const since = new Date(Date.now() - Math.max(1, days) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);

@@ -18,6 +18,7 @@ import type {
   ModuleSummaryItem,
 } from "@/components/company-workspace/useCompanyWorkspaceData";
 import type { PermissionMap } from "@/lib/rbac";
+import type { WorkspaceProduct } from "@/lib/workspaceProduct";
 import {
   getDocumentStatusLabel,
   isApprovedDocumentStatus,
@@ -231,6 +232,7 @@ export default function DashboardPage() {
   const [companyWorkspaceLoaded, setCompanyWorkspaceLoaded] = useState(false);
   const [companyWorkspaceLoading, setCompanyWorkspaceLoading] = useState(false);
   const [companyWorkspaceError, setCompanyWorkspaceError] = useState<string | null>(null);
+  const [workspaceProduct, setWorkspaceProduct] = useState<WorkspaceProduct>("full");
 
   useEffect(() => {
     void (async () => {
@@ -253,19 +255,43 @@ export default function DashboardPage() {
                 companyId?: string | null;
                 permissionMap?: PermissionMap;
                 companyProfile?: CompanyProfile | null;
+                workspaceProduct?: WorkspaceProduct;
               };
             }
           | null;
+
+        const nextWorkspaceProduct: WorkspaceProduct =
+          meData?.user?.workspaceProduct === "csep" ? "csep" : "full";
 
         if (meResponse.ok) {
           setUserRole(meData?.user?.role ?? "viewer");
           setUserTeam(meData?.user?.team ?? "General");
           setPermissionMap(meData?.user?.permissionMap ?? null);
           setCompanyProfile(meData?.user?.companyProfile ?? null);
+          setWorkspaceProduct(nextWorkspaceProduct);
         }
 
         const isCompanyAdmin = meData?.user?.role === "company_admin";
         if (isCompanyAdmin) {
+          if (nextWorkspaceProduct === "csep") {
+            const [documentsResponse, creditResponse] = await Promise.all([
+              fetchWithTimeout("/api/workspace/documents", { headers: authHeaders }, 15000),
+              fetchWithTimeout("/api/library/credits", { headers: authHeaders }, 15000),
+            ]);
+            const documentsData = (await documentsResponse.json().catch(() => null)) as
+              | { documents?: DocumentRow[] }
+              | null;
+            const creditData = (await creditResponse.json().catch(() => null)) as
+              | { creditBalance?: number }
+              | null;
+            if (documentsResponse.ok) {
+              setDocuments(documentsData?.documents ?? []);
+            }
+            if (creditResponse.ok) {
+              setCreditBalance(Number(creditData?.creditBalance ?? 0));
+            }
+            setCompanyWorkspaceLoaded(true);
+          }
           setLoading(false);
           return;
         }
@@ -292,6 +318,7 @@ export default function DashboardPage() {
         }
 
         const canLoadCompanyWorkspace =
+          nextWorkspaceProduct !== "csep" &&
           Boolean(meData?.user?.companyId) &&
           Boolean(
             meData?.user?.permissionMap?.can_manage_company_users ||
@@ -463,6 +490,26 @@ export default function DashboardPage() {
       }
 
       const authHeaders = { Authorization: `Bearer ${accessToken}` };
+
+      if (workspaceProduct === "csep") {
+        const [documentsResponse, creditResponse] = await Promise.all([
+          fetch("/api/workspace/documents", { headers: authHeaders }),
+          fetch("/api/library/credits", { headers: authHeaders }),
+        ]);
+        const documentsData = (await documentsResponse.json().catch(() => null)) as
+          | { documents?: DocumentRow[] }
+          | null;
+        const creditData = (await creditResponse.json().catch(() => null)) as
+          | { creditBalance?: number }
+          | null;
+        if (documentsResponse.ok) {
+          setDocuments(documentsData?.documents ?? []);
+        }
+        if (creditResponse.ok) {
+          setCreditBalance(Number(creditData?.creditBalance ?? 0));
+        }
+        setCompanyWorkspaceLoaded(true);
+      } else {
       const [documentsResponse, creditResponse, companyResponse, workspaceSummaryResponse, analyticsResponse] =
         await Promise.all([
           fetch("/api/workspace/documents", { headers: authHeaders }),
@@ -610,6 +657,7 @@ export default function DashboardPage() {
       }
 
       setCompanyWorkspaceLoaded(true);
+      }
     } catch (error) {
       console.error("Company workspace load error:", error);
       setCompanyWorkspaceError("Unable to load the company workspace right now. Please try Refresh Workspace again.");
@@ -1308,7 +1356,63 @@ export default function DashboardPage() {
         moduleSummaries={moduleSummaries}
         highRiskAlerts={highRiskAlerts}
         companyDashboardMetrics={companyDashboardMetrics}
+        workspaceProduct={workspaceProduct}
       />
+    );
+  }
+
+  if (workspaceProduct === "csep") {
+    const csepDocs = activeDocuments.filter((d) => /csep/i.test(d.document_type ?? ""));
+    const csepPending = csepDocs.filter((d) =>
+      isSubmittedDocumentStatus(d.status, Boolean(d.final_file_path))
+    ).length;
+    const csepApproved = csepDocs.filter((d) => isApprovedDocumentStatus(d.status, Boolean(d.final_file_path)))
+      .length;
+
+    return (
+      <div className="space-y-6">
+        <section className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-6 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
+          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">
+            CSEP workspace
+          </p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Your CSEP program</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+            This account is limited to the Construction Safety &amp; Environmental Plan builder. Build and submit CSEP
+            records for admin review from one place.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link
+              href="/csep"
+              className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)]"
+            >
+              Open CSEP builder
+            </Link>
+            <Link
+              href="/profile"
+              className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
+            >
+              Profile
+            </Link>
+          </div>
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-3">
+          {[
+            { label: "CSEP records", value: String(csepDocs.length), note: "All CSEP drafts and submissions" },
+            { label: "Pending review", value: String(csepPending), note: "Waiting on admin review" },
+            { label: "Approved", value: String(csepApproved), note: "Completed CSEP files" },
+          ].map((card) => (
+            <div
+              key={card.label}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            >
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">{card.label}</div>
+              <div className="mt-2 text-3xl font-black text-slate-950">{loading ? "-" : card.value}</div>
+              <p className="mt-2 text-sm text-slate-500">{card.note}</p>
+            </div>
+          ))}
+        </section>
+      </div>
     );
   }
 

@@ -12,6 +12,7 @@ import {
 } from "@/lib/incidents/sorHazardCategory";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
 
 export const runtime = "nodejs";
 
@@ -38,6 +39,10 @@ export async function GET(request: Request) {
       severity: { averageScore: 0, sampleSize: 0 },
       conversion: { sorToInjuryRatio: null, sorCount: 0, injuryIncidentCount: 0 },
     });
+  }
+
+  if (await companyHasCsepPlanName(auth.supabase, companyScope.companyId)) {
+    return csepWorkspaceForbiddenResponse();
   }
 
   const { searchParams } = new URL(request.url);

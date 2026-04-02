@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient, getSupabaseServerEnvStatus } from "@/lib/supabaseAdmin";
 import { authorizeRequest, formatAccountStatus, formatAppRole } from "@/lib/rbac";
+import { normalizeApprovalPlanName } from "@/lib/workspaceProduct";
 
 type ServiceSupabase = NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
 
@@ -577,6 +578,59 @@ export async function GET(request: Request, context: RouteContext) {
 type DeleteCompanyBody = {
   confirmName?: string;
 };
+
+/** Upsert `company_subscriptions` (e.g. set `plan_name` to `CSEP` for backfill). */
+export async function PATCH(request: Request, context: RouteContext) {
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_view_all_company_data",
+  });
+
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const adminClient = createSupabaseAdminClient() ?? auth.supabase;
+  const { id } = await context.params;
+  const companyId = id.trim();
+
+  if (!companyId) {
+    return NextResponse.json({ error: "Company id is required." }, { status: 400 });
+  }
+
+  const body = (await request.json().catch(() => null)) as { planName?: string } | null;
+  const planName = normalizeApprovalPlanName(body?.planName ?? null);
+
+  const companyLookup = await adminClient.from("companies").select("id").eq("id", companyId).maybeSingle();
+  if (companyLookup.error) {
+    return NextResponse.json(
+      { error: companyLookup.error.message || "Failed to load company workspace." },
+      { status: 500 }
+    );
+  }
+  if (!(companyLookup.data as { id?: string } | null)?.id) {
+    return NextResponse.json({ error: "Company workspace not found." }, { status: 404 });
+  }
+
+  const upsert = await adminClient.from("company_subscriptions").upsert(
+    {
+      company_id: companyId,
+      status: "active",
+      plan_name: planName,
+      created_by: auth.user.id,
+      updated_by: auth.user.id,
+    },
+    { onConflict: "company_id" }
+  );
+
+  if (upsert.error) {
+    return NextResponse.json(
+      { error: upsert.error.message || "Failed to update company subscription." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ success: true, planName });
+}
 
 export async function DELETE(request: Request, context: RouteContext) {
   const auth = await authorizeRequest(request, {

@@ -331,7 +331,9 @@ function LoginPageContent() {
                     <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-slate-300 shadow-inner transition focus-within:border-amber-400/35 focus-within:bg-[#0d1521]">
                       <IconMail />
                       <input
-                        type="email"
+                        type="text"
+                        inputMode="email"
+                        autoComplete="username"
                         placeholder="name@company.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}

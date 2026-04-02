@@ -19,6 +19,7 @@ import type {
   LiveMatrixRow,
   ModuleSummaryItem,
 } from "@/components/company-workspace/useCompanyWorkspaceData";
+import type { WorkspaceProduct } from "@/lib/workspaceProduct";
 
 type DocumentRow = {
   id: string;
@@ -125,12 +126,14 @@ export function CompanyAdminDashboard({
   moduleSummaries,
   highRiskAlerts,
   companyDashboardMetrics,
+  workspaceProduct = "full",
 }: {
   loading: boolean;
   workspaceLoaded: boolean;
   workspaceError?: string | null;
   onRefreshWorkspace: () => void;
   documents: DocumentRow[];
+  workspaceProduct?: WorkspaceProduct;
   companyUsers: CompanyUser[];
   companyInvites: CompanyInvite[];
   companyProfile: CompanyProfile | null;
@@ -153,6 +156,57 @@ export function CompanyAdminDashboard({
   const [selectedJobsite, setSelectedJobsite] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [referenceTime] = useState(() => Date.now());
+
+  if (workspaceProduct === "csep") {
+    const csepDocs = documents.filter((d) => /csep/i.test(d.document_type ?? ""));
+    const pendingCsep = csepDocs.filter((d) =>
+      isSubmittedDocumentStatus(d.status, Boolean(d.final_file_path))
+    ).length;
+    const approvedCsep = csepDocs.filter((d) => isApprovedDocument(d)).length;
+
+    return (
+      <div className="space-y-6">
+        <section className="rounded-[1.9rem] border border-[#dbe9ff] bg-white p-6 shadow-[0_16px_36px_rgba(148,163,184,0.12)]">
+          <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">CSEP workspace</div>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+            {companyProfile?.name?.trim() || "Company Workspace"}
+          </h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+            This account is limited to the CSEP builder. Create and submit Construction Safety &amp; Environmental Plans
+            for admin review—without the full company operations suite.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link
+              href="/csep"
+              className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(79,124,255,0.24)]"
+            >
+              Open CSEP builder
+            </Link>
+            <Link
+              href="/profile"
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-700"
+            >
+              Profile
+            </Link>
+          </div>
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-3">
+          {[
+            { label: "CSEP records", value: String(csepDocs.length), note: "Drafts and submissions" },
+            { label: "Pending review", value: String(pendingCsep), note: "Awaiting admin review" },
+            { label: "Approved", value: String(approvedCsep), note: "Completed CSEP files" },
+          ].map((card) => (
+            <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">{card.label}</div>
+              <div className="mt-2 text-3xl font-black text-slate-950">{loading ? "-" : card.value}</div>
+              <p className="mt-2 text-sm text-slate-500">{card.note}</p>
+            </div>
+          ))}
+        </section>
+      </div>
+    );
+  }
 
   const companyName = companyProfile?.name?.trim() || "Company Workspace";
   const companyLocation =

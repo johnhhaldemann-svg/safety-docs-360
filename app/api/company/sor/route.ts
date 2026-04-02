@@ -6,6 +6,7 @@ import {
 } from "@/lib/incidents/sorHazardCategory";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
 import { computeSorHash } from "@/lib/sor/hash";
 import { COMPANY_SOR_RECORD_SELECT } from "@/lib/sor/recordSelect";
 
@@ -41,6 +42,10 @@ export async function GET(request: Request) {
   });
   if (!scope.companyId) return NextResponse.json({ records: [] });
 
+  if (await companyHasCsepPlanName(auth.supabase, scope.companyId)) {
+    return csepWorkspaceForbiddenResponse();
+  }
+
   const { searchParams } = new URL(request.url);
   const includeDeleted = searchParams.get("includeDeleted") === "true";
   const status = (searchParams.get("status") ?? "").trim().toLowerCase();
@@ -72,6 +77,10 @@ export async function POST(request: Request) {
   });
   if (!scope.companyId) {
     return NextResponse.json({ error: "No company scope found." }, { status: 400 });
+  }
+
+  if (await companyHasCsepPlanName(auth.supabase, scope.companyId)) {
+    return csepWorkspaceForbiddenResponse();
   }
 
   const body = (await request.json().catch(() => null)) as SorCreatePayload | null;

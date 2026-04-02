@@ -20,6 +20,7 @@ import {
   getSupabaseAnonKey,
   getSupabaseServerUrl,
 } from "@/lib/supabaseAdmin";
+import { planNameToWorkspaceProduct, type WorkspaceProduct } from "@/lib/workspaceProduct";
 
 export const runtime = "nodejs";
 
@@ -585,6 +586,20 @@ export async function GET(request: Request) {
       (agreementResult.data?.terms_version ?? "") === agreementConfig.version
   );
 
+  let workspaceProduct: WorkspaceProduct = "full";
+  if (companyScope.companyId) {
+    const subscriptionResult = await auth.supabase
+      .from("company_subscriptions")
+      .select("plan_name")
+      .eq("company_id", companyScope.companyId)
+      .maybeSingle();
+    const planName =
+      !subscriptionResult.error && subscriptionResult.data
+        ? (subscriptionResult.data as { plan_name?: string | null }).plan_name
+        : null;
+    workspaceProduct = planNameToWorkspaceProduct(planName);
+  }
+
   return NextResponse.json(
     {
     user: {
@@ -595,6 +610,7 @@ export async function GET(request: Request) {
       team: refreshedRoleContext.team,
       companyId: companyScope.companyId,
       companyName: effectiveCompanyName,
+      workspaceProduct,
       profile: {
         userId: auth.user.id,
         fullName: userProfile?.full_name?.trim() || fallbackFullName,

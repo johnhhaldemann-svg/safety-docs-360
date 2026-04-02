@@ -1,0 +1,278 @@
+import { PDFParse } from "pdf-parse";
+import mammoth from "mammoth";
+
+const MAX_CHARS = 90_000;
+
+export type GcProgramAiReview = {
+  executiveSummary: string;
+  /** How well the submission reflects what the GC / site requires the sub to follow on site */
+  alignmentWithGcSiteRequirements: string;
+  /** Construction-relevant OSHA themes (e.g. fall protection, electrical, PPE, training) — strengths */
+  oshaRelatedStrengths: string[];
+  /** Gaps, missing elements, or risks relative to typical OSHA expectations for the described work */
+  oshaRelatedGapsOrRisks: string[];
+  recommendedFollowUps: string[];
+  overallAssessment: "sufficient" | "needs_work" | "insufficient_context";
+};
+
+function truncateText(text: string, max = MAX_CHARS): { text: string; truncated: boolean } {
+  const t = text.replace(/\0/g, "").trim();
+  if (t.length <= max) return { text: t, truncated: false };
+  return { text: `${t.slice(0, max)}\n\n[…truncated for analysis]`, truncated: true };
+}
+
+/** Detect PDF / Office Open XML (docx) when the filename omits or misstates the extension. */
+export function sniffGcDocumentKind(buffer: Buffer): "pdf" | "docx" | null {
+  if (!buffer || buffer.length < 5) return null;
+  // PDF starts with %PDF
+  if (
+    buffer[0] === 0x25 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x44 &&
+    buffer[3] === 0x46
+  ) {
+    return "pdf";
+  }
+  // DOCX / XLSX / other OOXML are ZIP archives (PK…)
+  if (buffer[0] === 0x50 && buffer[1] === 0x4b) {
+    return "docx";
+  }
+  return null;
+}
+
+async function extractPdfToResult(buffer: Buffer): Promise<{
+  ok: true;
+  text: string;
+  truncated: boolean;
+  method: "pdf";
+}> {
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const result = await parser.getText();
+    const raw = result.text?.trim() ?? "";
+    const { text, truncated } = truncateText(raw);
+    return { ok: true, text, truncated, method: "pdf" };
+  } finally {
+    await parser.destroy();
+  }
+}
+
+async function extractDocxToResult(buffer: Buffer): Promise<{
+  ok: true;
+  text: string;
+  truncated: boolean;
+  method: "docx";
+}> {
+  const result = await mammoth.extractRawText({ buffer });
+  const raw = (result.value ?? "").trim();
+  const { text, truncated } = truncateText(raw);
+  return { ok: true, text, truncated, method: "docx" };
+}
+
+/** Extract plain text from uploaded GC program files (PDF, DOCX). */
+export async function extractGcProgramDocumentText(
+  buffer: Buffer,
+  fileName: string
+): Promise<
+  | { ok: true; text: string; truncated: boolean; method: "pdf" | "docx" }
+  | { ok: false; error: string }
+> {
+  const lower = fileName.toLowerCase();
+
+  try {
+    if (lower.endsWith(".doc")) {
+      return {
+        ok: false,
+        error: "Legacy .doc format is not supported. Upload PDF or DOCX for AI review.",
+      };
+    }
+
+    let kind: "pdf" | "docx" | null = null;
+    if (lower.endsWith(".pdf")) kind = "pdf";
+    else if (lower.endsWith(".docx")) kind = "docx";
+    else kind = sniffGcDocumentKind(buffer);
+
+    if (kind === "pdf") {
+      return await extractPdfToResult(buffer);
+    }
+
+    if (kind === "docx") {
+      return await extractDocxToResult(buffer);
+    }
+
+    return {
+      ok: false,
+      error: "Unsupported file type for text extraction. Use PDF or DOCX.",
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Could not read document text.",
+    };
+  }
+}
+
+function extractResponsesApiOutputText(json: unknown): string | null {
+  if (!json || typeof json !== "object") return null;
+  const o = json as Record<string, unknown>;
+  if (typeof o.output_text === "string" && o.output_text.trim()) return o.output_text.trim();
+
+  const output = o.output;
+  if (!Array.isArray(output)) return null;
+  const chunks: string[] = [];
+  for (const item of output) {
+    if (!item || typeof item !== "object") continue;
+    const itemObj = item as Record<string, unknown>;
+    const content = itemObj.content;
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (!part || typeof part !== "object") continue;
+      const p = part as Record<string, unknown>;
+      if (p.type === "output_text" && typeof p.text === "string") chunks.push(p.text);
+    }
+  }
+  const joined = chunks.join("").trim();
+  return joined || null;
+}
+
+const DISCLAIMER =
+  "This AI review is for internal triage only. It is not legal advice, does not replace a competent safety professional or the AHJ, and may omit or misread content. Verify against current OSHA / state rules and the contract documents.";
+
+export async function generateGcProgramAiReview(params: {
+  documentText: string;
+  documentTitle: string;
+  fileName: string;
+  companyName?: string | null;
+  recordNotes?: string | null;
+  /** Pasted GC / site requirements when not fully captured in the file */
+  additionalGcContext?: string | null;
+}): Promise<{ review: GcProgramAiReview; disclaimer: string }> {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured.");
+  }
+
+  const hasBody = params.documentText.trim().length >= 80;
+  const contextBlock = [
+    `File name: ${params.fileName}`,
+    `Title / label: ${params.documentTitle || "(none)"}`,
+    params.companyName ? `Company: ${params.companyName}` : null,
+    params.recordNotes ? `Record notes: ${params.recordNotes}` : null,
+    params.additionalGcContext?.trim()
+      ? `Additional GC / site requirements (admin-provided): ${params.additionalGcContext.trim()}`
+      : null,
+    hasBody
+      ? `--- Document text ---\n${params.documentText}`
+      : `--- Document text ---\n(No extractable text or too short; rely on metadata and any additional context above.)`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const prompt = [
+    "You are an expert in U.S. OSHA construction safety (29 CFR Part 1926 where relevant) and general industry concepts where they apply to described work.",
+    "The input is a program, plan, or submission that a subcontractor uploaded because a General Contractor (GC) or site requires them to follow it on site, in addition to regulatory baselines.",
+    "Tasks:",
+    "1) Assess how well the document addresses typical OSHA-aligned expectations for the scope implied in the text (hazards, controls, training, PPE, emergency response, competent persons, inspections, etc.) — without inventing citations or claiming the document is filed with OSHA.",
+    "2) Assess alignment with what the GC/site expects the sub to follow: use BOTH the document text AND any 'Additional GC / site requirements' section if present.",
+    "3) Be specific and practical. If the text is thin or unreadable, set overallAssessment to insufficient_context and explain limitations.",
+    "Do NOT invent incidents, citations, or OSHA inspection outcomes. Do not claim to verify regulatory compliance.",
+    "Output strict JSON matching the schema.",
+    contextBlock,
+  ].join("\n\n");
+
+  const res = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "gpt-4.1",
+      input: prompt,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "gc_program_ai_review",
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              executiveSummary: { type: "string" },
+              alignmentWithGcSiteRequirements: { type: "string" },
+              oshaRelatedStrengths: {
+                type: "array",
+                items: { type: "string" },
+                minItems: 2,
+                maxItems: 6,
+              },
+              oshaRelatedGapsOrRisks: {
+                type: "array",
+                items: { type: "string" },
+                minItems: 2,
+                maxItems: 8,
+              },
+              recommendedFollowUps: {
+                type: "array",
+                items: { type: "string" },
+                minItems: 2,
+                maxItems: 6,
+              },
+              overallAssessment: {
+                type: "string",
+                enum: ["sufficient", "needs_work", "insufficient_context"],
+              },
+            },
+            required: [
+              "executiveSummary",
+              "alignmentWithGcSiteRequirements",
+              "oshaRelatedStrengths",
+              "oshaRelatedGapsOrRisks",
+              "recommendedFollowUps",
+              "overallAssessment",
+            ],
+          },
+        },
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`OpenAI request failed (${res.status}): ${errText.slice(0, 500)}`);
+  }
+
+  const json: unknown = await res.json();
+  const rawText = extractResponsesApiOutputText(json);
+  if (!rawText) {
+    throw new Error("Empty model output.");
+  }
+
+  let parsed: Partial<GcProgramAiReview>;
+  try {
+    parsed = JSON.parse(rawText) as Partial<GcProgramAiReview>;
+  } catch {
+    throw new Error("Could not parse model JSON.");
+  }
+
+  const review: GcProgramAiReview = {
+    executiveSummary: String(parsed.executiveSummary ?? "").trim() || "No summary returned.",
+    alignmentWithGcSiteRequirements: String(parsed.alignmentWithGcSiteRequirements ?? "").trim() || "—",
+    oshaRelatedStrengths: Array.isArray(parsed.oshaRelatedStrengths)
+      ? parsed.oshaRelatedStrengths.filter((x) => typeof x === "string" && x.trim())
+      : [],
+    oshaRelatedGapsOrRisks: Array.isArray(parsed.oshaRelatedGapsOrRisks)
+      ? parsed.oshaRelatedGapsOrRisks.filter((x) => typeof x === "string" && x.trim())
+      : [],
+    recommendedFollowUps: Array.isArray(parsed.recommendedFollowUps)
+      ? parsed.recommendedFollowUps.filter((x) => typeof x === "string" && x.trim())
+      : [],
+    overallAssessment:
+      parsed.overallAssessment === "sufficient" ||
+      parsed.overallAssessment === "needs_work" ||
+      parsed.overallAssessment === "insufficient_context"
+        ? parsed.overallAssessment
+        : "insufficient_context",
+  };
+
+  return { review, disclaimer: DISCLAIMER };
+}

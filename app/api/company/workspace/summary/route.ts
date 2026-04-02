@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope } from "@/lib/jobsiteAccess";
+import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
 
 export const runtime = "nodejs";
 
@@ -35,6 +36,10 @@ export async function GET(request: Request) {
       incidents: [],
       reports: [],
     });
+  }
+
+  if (await companyHasCsepPlanName(auth.supabase, companyScope.companyId)) {
+    return csepWorkspaceForbiddenResponse();
   }
 
   const jobsiteScope = await getJobsiteAccessScope({

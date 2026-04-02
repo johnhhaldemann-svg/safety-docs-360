@@ -85,6 +85,8 @@ export default function AdminCompaniesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [processingRequestId, setProcessingRequestId] = useState("");
   const [processingCompanyId, setProcessingCompanyId] = useState("");
+  /** Per-request workspace plan sent on approve (`CSEP` = CSEP-only UI). */
+  const [approvalPlanByRequestId, setApprovalPlanByRequestId] = useState<Record<string, string>>({});
 
   const loadCompanies = useCallback(async () => {
     setLoading(true);
@@ -138,7 +140,7 @@ export default function AdminCompaniesPage() {
   }, []);
 
   const handleSignupRequestAction = useCallback(
-    async (requestId: string, action: "approve" | "reject") => {
+    async (requestId: string, action: "approve" | "reject", planName?: string) => {
       setProcessingRequestId(requestId);
       setMessage("");
 
@@ -161,7 +163,11 @@ export default function AdminCompaniesPage() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ requestId, action }),
+          body: JSON.stringify(
+            action === "approve"
+              ? { requestId, action, planName: planName ?? "Pro" }
+              : { requestId, action }
+          ),
         });
 
         const data = (await res.json().catch(() => null)) as
@@ -432,10 +438,34 @@ export default function AdminCompaniesPage() {
                     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                       Approve this request to activate the workspace. After approval, the owner signs in again with the same email and the company workspace opens on that account.
                     </div>
+                    <div className="space-y-2">
+                      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Workspace product
+                      </label>
+                      <select
+                        value={approvalPlanByRequestId[request.id] ?? "Pro"}
+                        onChange={(event) =>
+                          setApprovalPlanByRequestId((prev) => ({
+                            ...prev,
+                            [request.id]: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+                      >
+                        <option value="Pro">Full workspace (Pro)</option>
+                        <option value="CSEP">CSEP-only (comped / limited UI)</option>
+                      </select>
+                    </div>
                     <div className="flex flex-wrap gap-3">
                       <button
                         type="button"
-                        onClick={() => void handleSignupRequestAction(request.id, "approve")}
+                        onClick={() =>
+                          void handleSignupRequestAction(
+                            request.id,
+                            "approve",
+                            approvalPlanByRequestId[request.id] ?? "Pro"
+                          )
+                        }
                         disabled={processingRequestId === request.id}
                         className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
                       >

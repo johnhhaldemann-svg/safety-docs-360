@@ -10,6 +10,7 @@ import {
   StatusBadge,
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
+import { GcRequiredProgramUpload } from "@/components/csep/GcRequiredProgramUpload";
 import type { PermissionMap } from "@/lib/rbac";
 
 type RiskLevel = "Low" | "Medium" | "High";
@@ -750,6 +751,10 @@ export default function CSEPPage() {
             </>
           }
         />
+
+        <div className="mt-6">
+          <GcRequiredProgramUpload permissionMap={permissionMap} authLoading={authLoading} />
+        </div>
 
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
