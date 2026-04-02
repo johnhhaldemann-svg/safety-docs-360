@@ -3,6 +3,7 @@ import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { canManageObservations } from "@/lib/companyPermissions";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 
 export const runtime = "nodejs";
 
@@ -39,6 +40,8 @@ export async function GET(request: Request) {
     authUser: auth.user,
   });
   if (!companyScope.companyId) return NextResponse.json({ observations: [] });
+  const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlock) return csepBlock;
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
     userId: auth.user.id,
@@ -83,6 +86,8 @@ export async function POST(request: Request) {
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "No company scope found." }, { status: 400 });
   }
+  const csepBlockPost = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockPost) return csepBlockPost;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const title = String(body?.title ?? "").trim();
   if (!title) return NextResponse.json({ error: "title is required." }, { status: 400 });

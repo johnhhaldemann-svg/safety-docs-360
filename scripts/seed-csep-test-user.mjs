@@ -3,7 +3,7 @@
  * Uses the same credentials as the app: load .env.local (or .env) for NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
  * Copy those from Supabase Dashboard → Project Settings → API (must match Vercel if you use production).
  *
- * Optional: CSEP_TEST_EMAIL, CSEP_TEST_PASSWORD, CSEP_TEST_ROLE
+ * Optional: CSEP_TEST_EMAIL, CSEP_TEST_PASSWORD, CSEP_TEST_ROLE (default company_user = CSEP-only, no admin APIs)
  *
  * Usage: npm run seed:csep-test
  */
@@ -47,7 +47,7 @@ const email =
 const password = process.env.CSEP_TEST_PASSWORD?.trim() || "CsepLocalTest2026!";
 const teamKey = "csep-local-test";
 const companyName = "CSEP Local Test Company";
-const testRole = process.env.CSEP_TEST_ROLE?.trim() || "company_admin";
+const testRole = process.env.CSEP_TEST_ROLE?.trim() || "company_user";
 
 function looksLikePlaceholder(u, key) {
   if (!u || !key) return true;
@@ -199,7 +199,12 @@ async function upsertRoleAndMembership(userId, companyId) {
     {
       user_id: userId,
       company_id: companyId,
-      role: testRole === "company_admin" ? "company_admin" : "company_user",
+      role:
+        testRole === "company_admin"
+          ? "company_admin"
+          : testRole === "manager" || testRole === "safety_manager"
+            ? testRole
+            : "company_user",
       status: "active",
       updated_at: new Date().toISOString(),
     },

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -46,6 +47,8 @@ export async function POST(
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "No company scope found." }, { status: 400 });
   }
+  const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlock) return csepBlock;
 
   const { id } = await params;
   const actionResult = await auth.supabase

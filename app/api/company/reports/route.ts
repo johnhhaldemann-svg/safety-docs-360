@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -269,6 +270,8 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error;
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ reports: [] });
+  const csepBlockGet = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockGet) return csepBlockGet;
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status")?.trim().toLowerCase();
   let query = auth.supabase
@@ -300,6 +303,8 @@ export async function POST(request: Request) {
   if (!canManage(auth.role)) return NextResponse.json({ error: "Only company admins and managers can create reports." }, { status: 403 });
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
+  const csepBlockPost = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockPost) return csepBlockPost;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const reportType = String(body?.reportType ?? "").trim().toLowerCase();
   const reportTypeFinal = reportType || "daily_report";
@@ -484,6 +489,8 @@ export async function PATCH(request: Request) {
   if (!canManage(auth.role)) return NextResponse.json({ error: "Only company admins and managers can update reports." }, { status: 403 });
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
+  const csepBlockPatch = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockPatch) return csepBlockPatch;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const id = String(body?.id ?? "").trim();
   if (!id) return NextResponse.json({ error: "Report id is required." }, { status: 400 });

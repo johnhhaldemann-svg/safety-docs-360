@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 
 export const runtime = "nodejs";
 
@@ -47,6 +48,8 @@ export async function GET(request: Request) {
     authUser: auth.user,
   });
   if (!companyScope.companyId) return NextResponse.json({ daps: [] });
+  const csepBlockGet = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockGet) return csepBlockGet;
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
     userId: auth.user.id,
@@ -116,6 +119,8 @@ export async function POST(request: Request) {
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
   }
+  const csepBlockPost = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockPost) return csepBlockPost;
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const title = String(body?.title ?? "").trim();
@@ -176,6 +181,8 @@ export async function PATCH(request: Request) {
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
   }
+  const csepBlockPatch = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockPatch) return csepBlockPatch;
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const id = String(body?.id ?? "").trim();

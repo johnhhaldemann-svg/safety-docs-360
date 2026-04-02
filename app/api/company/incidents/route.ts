@@ -9,6 +9,7 @@ import { readObjectiveFlag } from "@/lib/incidents/objectiveSeverity";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 
 export const runtime = "nodejs";
 
@@ -88,6 +89,8 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error;
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ incidents: [] });
+  const csepBlockGet = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockGet) return csepBlockGet;
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
     userId: auth.user.id,
@@ -133,6 +136,8 @@ export async function POST(request: Request) {
   if (!canManage(auth.role)) return NextResponse.json({ error: "Only company admins and managers can create incidents." }, { status: 403 });
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
+  const csepBlockPost = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockPost) return csepBlockPost;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const title = String(body?.title ?? "").trim();
   if (!title) return NextResponse.json({ error: "Title is required." }, { status: 400 });

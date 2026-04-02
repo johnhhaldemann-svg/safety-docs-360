@@ -71,6 +71,7 @@ const tradeOptions = [
   "Landscaping",
   "Asphalt / Paving",
   "Traffic Control",
+  "Other",
 ];
 
 const ppeOptions = [
@@ -239,6 +240,8 @@ const TRADE_SUMMARIES: Record<string, string> = {
     "Asphalt and paving work involves heavy equipment, haul routes, compaction, hot materials, live traffic interface, and manual handling exposure.",
   "Traffic Control":
     "Traffic control work involves active vehicle exposure, barricade installation, lane closures, signage work, and struck-by risk around public and site traffic.",
+  Other:
+    "When the contractor’s trade is not listed, identify exposures through scope of work, site walkthrough, equipment and materials on site, and coordination with the GC safety team. Supplement with site-specific notes and applicable permit requirements.",
 };
 
 const TRADE_OSHA_REFS: Record<string, string[]> = {
@@ -316,6 +319,12 @@ const TRADE_OSHA_REFS: Record<string, string[]> = {
     "OSHA 1926 Subpart E – PPE",
     "OSHA 1926 Subpart M – Fall Protection",
     "OSHA 1926 Subpart K – Electrical",
+  ],
+  Other: [
+    "OSHA 1926 Subpart E – PPE",
+    "OSHA 1926 Subpart M – Fall Protection",
+    "OSHA 1926 Subpart K – Electrical",
+    "OSHA 1926 Subpart C – General Safety and Health Provisions",
   ],
 };
 
@@ -405,6 +414,13 @@ const TRADE_PPE: Record<string, string[]> = {
     "Steel Toe Boots",
   ],
   "Traffic Control": [
+    "Hard Hat",
+    "Safety Glasses",
+    "High Visibility Vest",
+    "Gloves",
+    "Steel Toe Boots",
+  ],
+  Other: [
     "Hard Hat",
     "Safety Glasses",
     "High Visibility Vest",

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 
 export const runtime = "nodejs";
 
@@ -96,6 +97,8 @@ export async function GET(request: Request) {
   if (!companyScope.companyId) {
     return NextResponse.json({ submissions: [] });
   }
+  const csepBlockGet = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockGet) return csepBlockGet;
 
   const { searchParams } = new URL(request.url);
   const status = (searchParams.get("status") ?? "pending").trim().toLowerCase();
@@ -158,6 +161,8 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  const csepBlockPost = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockPost) return csepBlockPost;
 
   const body = (await request.json().catch(() => null)) as SafetySubmissionPayload | null;
   const title = body?.title?.trim() ?? "";

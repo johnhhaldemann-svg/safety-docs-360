@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import {
   canMutateCompanyTrainingRequirements,
   canViewCompanyTrainingMatrix,
@@ -77,6 +78,8 @@ async function getTrainingMatrix(request: Request) {
       capabilities: { canMutate: canMutateCompanyTrainingRequirements(auth.role) },
     });
   }
+  const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlock) return csepBlock;
 
   const adminClient = createSupabaseAdminClient();
 

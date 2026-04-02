@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 
 export const runtime = "nodejs";
 
@@ -62,6 +63,8 @@ export async function POST(
       { status: 400 }
     );
   }
+  const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlock) return csepBlock;
 
   const actionResult = await auth.supabase
     .from("company_corrective_actions")

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 
 export const runtime = "nodejs";
 
@@ -136,6 +137,8 @@ export async function GET(request: Request) {
   if (!companyScope.companyId) {
     return NextResponse.json({ actions: [] });
   }
+  const csepBlockGet = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockGet) return csepBlockGet;
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
     userId: auth.user.id,
@@ -336,6 +339,8 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  const csepBlockPost = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockPost) return csepBlockPost;
 
   if (!canManageCorrectiveActions(auth.role)) {
     return NextResponse.json(

@@ -7,6 +7,7 @@ import {
 import { getIndustryBenchmarkRates } from "@/lib/benchmarking/industryBenchmarkDataset";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -52,6 +53,8 @@ export async function GET(request: Request) {
       })
     );
   }
+  const csepBlockGet = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockGet) return csepBlockGet;
   const result = await auth.supabase
     .from("companies")
     .select("industry_code, industry_injury_rate, trade_injury_rate, hours_worked")
@@ -80,6 +83,8 @@ export async function PATCH(request: Request) {
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
   }
+  const csepBlockPatch = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockPatch) return csepBlockPatch;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
 
   const patch: {

@@ -8,6 +8,7 @@ import { normalizeInjuryType } from "@/lib/incidents/injuryType";
 import { readObjectiveFlag } from "@/lib/incidents/objectiveSeverity";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 
 export const runtime = "nodejs";
@@ -177,6 +178,8 @@ export async function PATCH(
       { status: 400 }
     );
   }
+  const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlock) return csepBlock;
 
   const existingResult = await auth.supabase
     .from("company_corrective_actions")

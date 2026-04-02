@@ -43,3 +43,20 @@ export async function companyHasCsepPlanName(
 
   return ((data as SubscriptionRow).plan_name ?? "").trim() === CSEP_PLAN_NAME;
 }
+
+/**
+ * Block full-product company module APIs for CSEP-only workspaces (plan_name = CSEP).
+ * Do not use on routes that must stay available for CSEP (e.g. gc-program-document).
+ */
+export async function blockIfCsepOnlyCompany(
+  supabase: unknown,
+  companyId: string | null | undefined
+): Promise<NextResponse | null> {
+  if (!companyId) {
+    return null;
+  }
+  if (await companyHasCsepPlanName(supabase, companyId)) {
+    return csepWorkspaceForbiddenResponse();
+  }
+  return null;
+}

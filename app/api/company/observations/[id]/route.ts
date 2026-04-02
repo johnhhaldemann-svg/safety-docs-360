@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { canManageIncidents, canManageObservations } from "@/lib/companyPermissions";
 
@@ -44,6 +45,8 @@ async function loadScopedObservation({
     authUser: auth.user,
   });
   if (!companyScope.companyId) return { ...auth, companyId: null, row: null };
+  const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlock) return { error: csepBlock };
   const row = await auth.supabase
     .from("company_corrective_actions")
     .select("*")

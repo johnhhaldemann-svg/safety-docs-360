@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 
 export const runtime = "nodejs";
 
@@ -43,6 +44,8 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlock) return csepBlock;
 
   const nowIso = new Date().toISOString();
   const lookbackIso = new Date(Date.now() - REMINDER_LOOKBACK_HOURS * 60 * 60 * 1000).toISOString();

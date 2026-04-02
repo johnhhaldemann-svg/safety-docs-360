@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { injuryTimePatternFromOccurredAt } from "@/lib/incidents/injuryTimePatterns";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 
 export const runtime = "nodejs";
 
@@ -125,6 +126,8 @@ export async function PATCH(
       { status: 400 }
     );
   }
+  const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlock) return csepBlock;
 
   const submissionResult = await auth.supabase
     .from("company_safety_submissions")

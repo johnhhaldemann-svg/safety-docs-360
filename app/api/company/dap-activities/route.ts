@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope } from "@/lib/jobsiteAccess";
+import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 
 export const runtime = "nodejs";
 
@@ -92,6 +93,8 @@ export async function POST(request: Request) {
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
   }
+  const csepBlockPost = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockPost) return csepBlockPost;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const dapId = String(body?.dapId ?? "").trim();
   const activityName = String(body?.activityName ?? "").trim();
@@ -145,6 +148,8 @@ export async function PATCH(request: Request) {
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
   }
+  const csepBlockPatch = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  if (csepBlockPatch) return csepBlockPatch;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const id = String(body?.id ?? "").trim();
   if (!id) return NextResponse.json({ error: "id is required." }, { status: 400 });
