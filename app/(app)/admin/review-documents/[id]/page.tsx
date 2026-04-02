@@ -11,7 +11,9 @@ import {
   SectionCard,
   StartChecklist,
 } from "@/components/WorkspacePrimitives";
-import { normalizeAppRole, type PermissionMap } from "@/lib/rbac";
+import type { BuilderProgramAiReview } from "@/lib/builderDocumentAiReview";
+import { isDocumentAiReviewerRole } from "@/lib/documentAiReviewAuth";
+import type { PermissionMap } from "@/lib/rbac";
 import {
   getDocumentCreditCost,
   isMarketplaceEnabled,
@@ -152,6 +154,17 @@ export default function ReviewDocumentPage() {
     error?: string;
   } | null>(null);
   const [gcAiError, setGcAiError] = useState("");
+  const [builderAiContext, setBuilderAiContext] = useState("");
+  const [builderAiLoading, setBuilderAiLoading] = useState(false);
+  const [builderAiResult, setBuilderAiResult] = useState<BuilderProgramAiReview | null>(null);
+  const [builderAiDisclaimer, setBuilderAiDisclaimer] = useState("");
+  const [builderAiExtraction, setBuilderAiExtraction] = useState<{
+    ok: boolean;
+    method?: string;
+    truncated?: boolean;
+    error?: string;
+  } | null>(null);
+  const [builderAiError, setBuilderAiError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [feedbackTone, setFeedbackTone] = useState<FeedbackTone>("neutral");
@@ -365,17 +378,14 @@ export default function ReviewDocumentPage() {
 
     try {
       const token = await getAccessToken();
-      const res = await fetch(
-        `/api/superadmin/gc-program-document/${documentItem.id}/ai-review`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ additionalGcContext: gcAiContext }),
-        }
-      );
+      const res = await fetch(`/api/admin/gc-program-document/${documentItem.id}/ai-review`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ additionalGcContext: gcAiContext }),
+      });
 
       const data = (await res.json().catch(() => null)) as
         | {
@@ -406,6 +416,61 @@ export default function ReviewDocumentPage() {
       setGcAiError(error instanceof Error ? error.message : "AI review failed.");
     } finally {
       setGcAiLoading(false);
+    }
+  }
+
+  async function runBuilderAiReview() {
+    if (!documentItem?.id) {
+      return;
+    }
+
+    setBuilderAiLoading(true);
+    setBuilderAiError("");
+    setBuilderAiResult(null);
+    setBuilderAiDisclaimer("");
+    setBuilderAiExtraction(null);
+
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`/api/admin/documents/${documentItem.id}/ai-review`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ additionalReviewerContext: builderAiContext }),
+      });
+
+      const data = (await res.json().catch(() => null)) as
+        | {
+            error?: string;
+            review?: BuilderProgramAiReview;
+            disclaimer?: string;
+            programLabel?: string;
+            extraction?: {
+              ok: boolean;
+              method?: string;
+              truncated?: boolean;
+              error?: string;
+            };
+          }
+        | null;
+
+      if (!res.ok) {
+        setBuilderAiError(data?.error || "AI review failed.");
+        return;
+      }
+
+      if (data?.review) {
+        setBuilderAiResult(data.review);
+      }
+      setBuilderAiDisclaimer(data?.disclaimer ?? "");
+      setBuilderAiExtraction(data?.extraction ?? null);
+    } catch (error) {
+      console.error(error);
+      setBuilderAiError(error instanceof Error ? error.message : "AI review failed.");
+    } finally {
+      setBuilderAiLoading(false);
     }
   }
 
@@ -745,9 +810,18 @@ export default function ReviewDocumentPage() {
     isGcProgramDoc &&
     normalizedStatus === "submitted" &&
     !documentItem.final_file_path;
-  const isSuperAdmin = normalizeAppRole(userRole ?? "") === "super_admin";
-  const showGcAiReview =
-    isGcProgramDoc && isSuperAdmin && Boolean(documentItem.file_path);
+  const canRunDocumentAiReview = isDocumentAiReviewerRole(userRole);
+  const showGcAiReview = isGcProgramDoc && canRunDocumentAiReview && Boolean(documentItem.file_path);
+  const builderProgramType = (() => {
+    const t = (documentItem.document_type ?? "").trim().toUpperCase();
+    if (t === "CSEP" || t === "PSHSEP" || t === "PESHEP" || t === "PESHEPS") return t;
+    return null;
+  })();
+  const showBuilderAiReview =
+    !isGcProgramDoc &&
+    Boolean(builderProgramType) &&
+    canRunDocumentAiReview &&
+    Boolean(documentItem.draft_file_path || documentItem.final_file_path);
   const canOpenPrimaryReviewFile = isGcProgramDoc
     ? Boolean(documentItem.file_path)
     : Boolean(documentItem.draft_file_path);
@@ -927,6 +1001,220 @@ export default function ReviewDocumentPage() {
             </div>
           </SectionCard>
 
+          {showBuilderAiReview ? (
+            <SectionCard
+              title={`AI review (${builderProgramType})`}
+              description="Internal triage on the submitted builder draft: OSHA-aligned construction expectations, scope/hazard coverage, and clarity before you approve the final file. Optional: paste owner/GC/site rules not fully reflected in the draft."
+            >
+              <div className="space-y-4">
+                <label className="block text-sm font-semibold text-slate-800">
+                  Reviewer context (optional)
+                </label>
+                <textarea
+                  rows={4}
+                  value={builderAiContext}
+                  onChange={(e) => setBuilderAiContext(e.target.value)}
+                  placeholder="e.g. Contract exhibit references, site-specific controls, environmental requirements, client redlines to verify…"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void runBuilderAiReview()}
+                    disabled={builderAiLoading}
+                    className="rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {builderAiLoading ? "Analyzing…" : `Run AI review (${builderProgramType})`}
+                  </button>
+                </div>
+                {builderAiError ? (
+                  <InlineMessage tone="error">{builderAiError}</InlineMessage>
+                ) : null}
+                {builderAiExtraction ? (
+                  <p className="text-xs text-slate-500">
+                    {builderAiExtraction.ok
+                      ? `Text extracted (${builderAiExtraction.method}${builderAiExtraction.truncated ? ", truncated" : ""}).`
+                      : `Text extraction: ${builderAiExtraction.error ?? "failed"} — review may be limited.`}
+                  </p>
+                ) : null}
+                {builderAiDisclaimer ? (
+                  <p className="text-xs text-slate-500">{builderAiDisclaimer}</p>
+                ) : null}
+                {builderAiResult ? (
+                  <div className="space-y-4 rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-violet-900">
+                        Overall
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        {builderAiResult.overallAssessment === "sufficient"
+                          ? "Appears broadly ready (verify before approval)"
+                          : builderAiResult.overallAssessment === "needs_work"
+                            ? "Needs follow-up / strengthening"
+                            : "Insufficient context or unreadable text"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                        Summary
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-800">
+                        {builderAiResult.executiveSummary}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                        Scope, trades &amp; hazard coverage
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-800">
+                        {builderAiResult.scopeTradeAndHazardCoverage}
+                      </p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">
+                          Strengths
+                        </p>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                          {builderAiResult.regulatoryAndProgramStrengths.map((s, i) => (
+                            <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-amber-900">
+                          Gaps / risks
+                        </p>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                          {builderAiResult.gapsRisksOrClarifications.map((s, i) => (
+                            <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                        Recommended edits before approval
+                      </p>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                        {builderAiResult.recommendedEditsBeforeApproval.map((s, i) => (
+                          <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {showGcAiReview ? (
+            <SectionCard
+              title="AI review (GC program)"
+              description="Compare the upload against typical OSHA-aligned expectations for the described work and against GC/site requirements. Optional: paste specifics the GC requires that are not fully in the file."
+            >
+              <div className="space-y-4">
+                <label className="block text-sm font-semibold text-slate-800">
+                  Additional GC / site requirements (optional)
+                </label>
+                <textarea
+                  rows={4}
+                  value={gcAiContext}
+                  onChange={(e) => setGcAiContext(e.target.value)}
+                  placeholder="e.g. Site-specific safety plan elements, exhibit references, hot work rules, crane mat requirements…"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void runGcAiReview()}
+                    disabled={gcAiLoading}
+                    className="rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {gcAiLoading ? "Analyzing…" : "Run AI review (OSHA + GC)"}
+                  </button>
+                </div>
+                {gcAiError ? (
+                  <InlineMessage tone="error">{gcAiError}</InlineMessage>
+                ) : null}
+                {gcAiExtraction ? (
+                  <p className="text-xs text-slate-500">
+                    {gcAiExtraction.ok
+                      ? `Text extracted (${gcAiExtraction.method}${gcAiExtraction.truncated ? ", truncated" : ""}).`
+                      : `Text extraction: ${gcAiExtraction.error ?? "failed"} — review may be limited.`}
+                  </p>
+                ) : null}
+                {gcAiDisclaimer ? (
+                  <p className="text-xs text-slate-500">{gcAiDisclaimer}</p>
+                ) : null}
+                {gcAiResult ? (
+                  <div className="space-y-4 rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-violet-900">
+                        Overall
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        {gcAiResult.overallAssessment === "sufficient"
+                          ? "Appears broadly sufficient (verify in field)"
+                          : gcAiResult.overallAssessment === "needs_work"
+                            ? "Needs follow-up / strengthening"
+                            : "Insufficient context or unreadable text"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                        Summary
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-800">
+                        {gcAiResult.executiveSummary}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                        GC / site alignment
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-800">
+                        {gcAiResult.alignmentWithGcSiteRequirements}
+                      </p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">
+                          OSHA-related strengths
+                        </p>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                          {gcAiResult.oshaRelatedStrengths.map((s, i) => (
+                            <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-amber-900">
+                          Gaps / risks (OSHA-oriented)
+                        </p>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                          {gcAiResult.oshaRelatedGapsOrRisks.map((s, i) => (
+                            <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                        Recommended follow-ups
+                      </p>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                        {gcAiResult.recommendedFollowUps.map((s, i) => (
+                          <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </SectionCard>
+          ) : null}
+
           {gcPendingApproval ? (
             <SectionCard
               title="GC program document"
@@ -1050,113 +1338,6 @@ export default function ReviewDocumentPage() {
                     </button>
                   </div>
                 </div>
-              </div>
-            </SectionCard>
-          ) : null}
-
-          {showGcAiReview ? (
-            <SectionCard
-              title="AI review (super admin)"
-              description="Compare the upload against typical OSHA-aligned expectations for the described work and against GC/site requirements. Optional: paste specifics the GC requires that are not fully in the file."
-            >
-              <div className="space-y-4">
-                <label className="block text-sm font-semibold text-slate-800">
-                  Additional GC / site requirements (optional)
-                </label>
-                <textarea
-                  rows={4}
-                  value={gcAiContext}
-                  onChange={(e) => setGcAiContext(e.target.value)}
-                  placeholder="e.g. Site-specific safety plan elements, exhibit references, hot work rules, crane mat requirements…"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                />
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void runGcAiReview()}
-                    disabled={gcAiLoading}
-                    className="rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {gcAiLoading ? "Analyzing…" : "Run AI review (OSHA + GC)"}
-                  </button>
-                </div>
-                {gcAiError ? (
-                  <InlineMessage tone="error">{gcAiError}</InlineMessage>
-                ) : null}
-                {gcAiExtraction ? (
-                  <p className="text-xs text-slate-500">
-                    {gcAiExtraction.ok
-                      ? `Text extracted (${gcAiExtraction.method}${gcAiExtraction.truncated ? ", truncated" : ""}).`
-                      : `Text extraction: ${gcAiExtraction.error ?? "failed"} — review may be limited.`}
-                  </p>
-                ) : null}
-                {gcAiDisclaimer ? (
-                  <p className="text-xs text-slate-500">{gcAiDisclaimer}</p>
-                ) : null}
-                {gcAiResult ? (
-                  <div className="space-y-4 rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-violet-900">
-                        Overall
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">
-                        {gcAiResult.overallAssessment === "sufficient"
-                          ? "Appears broadly sufficient (verify in field)"
-                          : gcAiResult.overallAssessment === "needs_work"
-                            ? "Needs follow-up / strengthening"
-                            : "Insufficient context or unreadable text"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
-                        Summary
-                      </p>
-                      <p className="mt-1 text-sm leading-relaxed text-slate-800">
-                        {gcAiResult.executiveSummary}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
-                        GC / site alignment
-                      </p>
-                      <p className="mt-1 text-sm leading-relaxed text-slate-800">
-                        {gcAiResult.alignmentWithGcSiteRequirements}
-                      </p>
-                    </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">
-                          OSHA-related strengths
-                        </p>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
-                          {gcAiResult.oshaRelatedStrengths.map((s, i) => (
-                            <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-amber-900">
-                          Gaps / risks (OSHA-oriented)
-                        </p>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
-                          {gcAiResult.oshaRelatedGapsOrRisks.map((s, i) => (
-                            <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
-                        Recommended follow-ups
-                      </p>
-                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
-                        {gcAiResult.recommendedFollowUps.map((s, i) => (
-                          <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                ) : null}
               </div>
             </SectionCard>
           ) : null}

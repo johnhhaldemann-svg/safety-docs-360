@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { isDocumentAiReviewerRole } from "@/lib/documentAiReviewAuth";
-import { runGcProgramDocumentAiReview } from "@/lib/runGcProgramAiReview";
+import { runBuilderProgramDocumentAiReview } from "@/lib/runBuilderProgramAiReview";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ type RouteContext = {
 
 export async function POST(request: Request, context: RouteContext) {
   const auth = await authorizeRequest(request, {
-    requireAnyPermission: ["can_access_internal_admin", "can_approve_documents"],
+    requirePermission: "can_approve_documents",
   });
 
   if ("error" in auth) {
@@ -46,11 +46,16 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const body = (await request.json().catch(() => null)) as
-    | { additionalGcContext?: string | null }
+    | { additionalReviewerContext?: string | null }
     | null;
-  const additionalGcContext = typeof body?.additionalGcContext === "string" ? body.additionalGcContext : "";
+  const additionalReviewerContext =
+    typeof body?.additionalReviewerContext === "string" ? body.additionalReviewerContext : "";
 
-  const result = await runGcProgramDocumentAiReview(admin, documentId, additionalGcContext);
+  const result = await runBuilderProgramDocumentAiReview(
+    admin,
+    documentId,
+    additionalReviewerContext
+  );
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
@@ -61,5 +66,6 @@ export async function POST(request: Request, context: RouteContext) {
     disclaimer: result.disclaimer,
     extraction: result.extraction,
     documentId: result.documentId,
+    programLabel: result.programLabel,
   });
 }

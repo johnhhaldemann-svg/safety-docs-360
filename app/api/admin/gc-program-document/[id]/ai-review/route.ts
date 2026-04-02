@@ -13,7 +13,7 @@ type RouteContext = {
 
 export async function POST(request: Request, context: RouteContext) {
   const auth = await authorizeRequest(request, {
-    requireAnyPermission: ["can_access_internal_admin", "can_approve_documents"],
+    requirePermission: "can_approve_documents",
   });
 
   if ("error" in auth) {
