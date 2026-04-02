@@ -31,6 +31,7 @@ describe("workspaceProduct", () => {
     const flat = readOnly.flatMap((s) => s.items.map((i) => i.href));
     expect(flat).not.toContain("/csep");
     expect(flat).toContain("/dashboard");
+    expect(flat).toContain("/library");
   });
 
   it("CSEP-only nav hrefs resolve to real pages", () => {

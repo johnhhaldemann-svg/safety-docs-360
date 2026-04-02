@@ -1366,8 +1366,10 @@ export default function DashboardPage() {
     const csepPending = csepDocs.filter((d) =>
       isSubmittedDocumentStatus(d.status, Boolean(d.final_file_path))
     ).length;
-    const csepApproved = csepDocs.filter((d) => isApprovedDocumentStatus(d.status, Boolean(d.final_file_path)))
-      .length;
+    const csepApprovedDocs = csepDocs.filter((d) =>
+      isApprovedDocumentStatus(d.status, Boolean(d.final_file_path))
+    );
+    const csepApproved = csepApprovedDocs.length;
 
     return (
       <div className="space-y-6">
@@ -1393,6 +1395,12 @@ export default function DashboardPage() {
             >
               Profile
             </Link>
+            <Link
+              href="/library"
+              className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
+            >
+              Completed documents
+            </Link>
           </div>
         </section>
 
@@ -1411,6 +1419,47 @@ export default function DashboardPage() {
               <p className="mt-2 text-sm text-slate-500">{card.note}</p>
             </div>
           ))}
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-900">Completed CSEP documents</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Finished files after admin review. Open them here or from the library (sidebar: Completed documents).
+          </p>
+          {loading ? (
+            <p className="mt-4 text-sm text-slate-500">Loading…</p>
+          ) : csepApprovedDocs.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-500">
+              No approved CSEP yet. Submit from the builder; your file will show here once an administrator finalizes it.
+            </p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {csepApprovedDocs.map((doc) => (
+                <li
+                  key={doc.id}
+                  className="flex flex-col gap-2 rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-slate-900">{getDocumentLabel(doc)}</div>
+                    <div className="text-xs text-slate-500">
+                      {(doc.project_name || "Project").trim() || "Project"} · {formatRelative(doc.created_at)}
+                    </div>
+                  </div>
+                  <Link
+                    href="/library"
+                    className="shrink-0 rounded-lg bg-sky-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-sky-500"
+                  >
+                    Open in library
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <Link href="/library" className="text-sm font-semibold text-sky-700 hover:text-sky-900">
+              Browse all completed documents →
+            </Link>
+          </div>
         </section>
       </div>
     );

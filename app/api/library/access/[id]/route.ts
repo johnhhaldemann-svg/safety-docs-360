@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { authorizeRequest, isAdminRole } from "@/lib/rbac";
+import { getCompanyScope } from "@/lib/companyScope";
+import { authorizeRequest, isAdminRole, isCompanyRole } from "@/lib/rbac";
+import { isApprovedDocumentStatus } from "@/lib/documentStatus";
 import { normalizePurchasedIds } from "@/lib/marketplace";
 import {
   getClientIpAddress,
@@ -57,7 +59,7 @@ export async function GET(
 
   const { data: document, error: documentError } = await supabase
     .from("documents")
-    .select("id, user_id, project_name, status, final_file_path")
+    .select("id, user_id, company_id, project_name, status, final_file_path")
     .eq("id", id)
     .single();
 
@@ -83,10 +85,31 @@ export async function GET(
   const purchasedDocumentIds = !transactionResult.error
     ? purchasedDocumentIdsFromTransactions(transactionResult.data)
     : normalizePurchasedIds(user.user_metadata?.purchased_document_ids);
+
+  const companyScope = await getCompanyScope({
+    supabase,
+    userId: user.id,
+    fallbackTeam: null,
+    authUser: user,
+  });
+  const docCompanyId =
+    typeof document.company_id === "string" ? document.company_id : null;
+  const approved = isApprovedDocumentStatus(
+    document.status,
+    Boolean(document.final_file_path)
+  );
+  const sameCompanyApproved =
+    approved &&
+    Boolean(companyScope.companyId) &&
+    Boolean(docCompanyId) &&
+    companyScope.companyId === docCompanyId &&
+    isCompanyRole(role);
+
   const canAccess =
     document.user_id === user.id ||
     purchasedDocumentIds.includes(document.id) ||
-    isAdminRole(role);
+    isAdminRole(role) ||
+    sameCompanyApproved;
 
   if (!canAccess) {
     return NextResponse.json(

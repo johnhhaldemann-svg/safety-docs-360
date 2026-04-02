@@ -482,7 +482,7 @@ export default function AppLayout({
     if (isCompanyScopedUser) {
       if (userRole === "read_only") {
         if (workspaceProduct === "csep") {
-          const readOnlyCsepRoutes = ["/dashboard", "/profile"];
+          const readOnlyCsepRoutes = ["/dashboard", "/profile", "/library"];
           const inReadOnlyCsep = readOnlyCsepRoutes.some(
             (route) => pathname === route || pathname.startsWith(`${route}/`)
           );
@@ -502,7 +502,7 @@ export default function AppLayout({
       }
 
       if (workspaceProduct === "csep") {
-        const csepRoutes = ["/dashboard", "/profile"];
+        const csepRoutes = ["/dashboard", "/profile", "/library"];
         const canOpenCsep =
           Boolean(permissionMap?.can_create_documents) ||
           Boolean(permissionMap?.can_edit_documents) ||
