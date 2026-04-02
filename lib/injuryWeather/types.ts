@@ -1,4 +1,5 @@
 import type { InjuryType } from "@/lib/incidents/injuryType";
+import type { OshaNationalConstructionReference } from "@/lib/benchmarking/oshaConstructionNationalReference";
 
 export type RiskLevel = "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
 
@@ -312,6 +313,11 @@ export type InjuryWeatherIndustryBenchmarkContext = {
   recordableCasesPer200kHours: number | null;
   /** Short explanation for the dashboard (data availability + link hint). */
   benchmarkSummary: string;
+  /**
+   * National U.S. construction counts (BLS SOII/CFOI-style exports) for context vs your signals.
+   * Not your employer’s record.
+   */
+  oshaNationalConstruction: OshaNationalConstructionReference;
 };
 
 export type InjuryWeatherSignalProvenance = {

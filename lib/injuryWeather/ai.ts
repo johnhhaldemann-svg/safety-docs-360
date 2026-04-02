@@ -313,6 +313,7 @@ function computeAiContext(data: InjuryWeatherDashboardData) {
         "When riskEngineV2Explainability is non-null, totals.finalRiskScoreV2 and riskBandLabelV2 are authoritative for the weighted model—explain and interpret them; do not substitute a different numeric score.",
         "Do not treat UI alert titles or generic control lines as confirmed open items, violations, or real triggers—they are not in this JSON as verified findings.",
         "oshaPriorYearsCrossReference is sector baseline context only, not this employer’s record or an enforcement outcome.",
+        "nationalConstructionOshaReference is national U.S. construction BLS SOII/CFOI-style counts—not this employer’s record. Cite those numbers only as given in that object.",
         "If locationContext.stateCode is null, do not claim a regional weather story beyond general language.",
         "totals.likelyInjuryInsight is derived from incident injury/exposure fields in-window only—do not invent a different top injury type.",
       ],
@@ -375,6 +376,7 @@ function computeAiContext(data: InjuryWeatherDashboardData) {
       generatedAt: data.summary.lastUpdatedAt,
     },
     oshaPriorYearsCrossReference: oshaHistory,
+    nationalConstructionOshaReference: data.industryBenchmarkContext.oshaNationalConstruction,
     signalProvenance: data.signalProvenance,
     confidenceRubricHint: computeConfidenceRubric(data),
   };
@@ -448,7 +450,7 @@ export async function generateInjuryWeatherAiInsights(
   const prompt = [
     "You are a construction safety analyst helping with a MONTHLY RISK ASSESSMENT for monthlyRiskAssessment.forecastMonth.",
     "The user needs grounded support for that month’s assessment—not invented incidents or fake triggers.",
-    "Evidence you may use: totals (including finalRiskScoreV2, riskBandLabelV2, riskSignalCount), riskEngineV2Explainability when present (weighted drivers, recurrence, trend slope—do not contradict these numbers), trendSignals, tradeSignals (including topTrades with categories), locationContext, dataCoverage, oshaPriorYearsCrossReference (sector baseline only). genericUiSuggestions.controlThemes are legacy layout hints only—do NOT copy them verbatim; you author fresh priorityThemes, monthlyTrainingRecommendations, and recommendedControls from the structured signals.",
+    "Evidence you may use: totals (including finalRiskScoreV2, riskBandLabelV2, riskSignalCount), riskEngineV2Explainability when present (weighted drivers, recurrence, trend slope—do not contradict these numbers), trendSignals, tradeSignals (including topTrades with categories), locationContext, dataCoverage, oshaPriorYearsCrossReference (sector baseline only), nationalConstructionOshaReference (national construction counts only). genericUiSuggestions.controlThemes are legacy layout hints only—do NOT copy them verbatim; you author fresh priorityThemes, monthlyTrainingRecommendations, and recommendedControls from the structured signals.",
     "Do NOT: invent injuries, near-misses, equipment failures, OSHA visits, citations, or people; do not claim specific due dates or overdue CAPA items; do not mention trades or hazard categories not in grounding.allowedTradeNames / allowedCategoryNames or tradeSignals.",
     "Output strict JSON with fields:",
     "headline (string, 1 sentence tied to the month and real signals), likelyInjuryDrivers (exactly 3 strings), priorityActions (exactly 3 strings), confidence (LOW|MEDIUM|HIGH),",

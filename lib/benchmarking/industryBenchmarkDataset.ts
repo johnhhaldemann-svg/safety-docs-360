@@ -1,4 +1,5 @@
 import type { InjuryWeatherIndustryBenchmarkContext } from "@/lib/injuryWeather/types";
+import { getOshaNationalConstructionReference } from "@/lib/benchmarking/oshaConstructionNationalReference";
 
 /**
  * Industry reference rates for exposure normalization and AI/analytics context.
@@ -124,5 +125,6 @@ export function offlineInjuryWeatherBenchmarkContext(): InjuryWeatherIndustryBen
     recordableCasesPer200kHours: null,
     benchmarkSummary:
       "Craft/trade chips are not the same as NSC Industry Profiles (NAICS industries). Set company industry codes for in-app benchmark alignment; confirm rates on Injury Facts.",
+    oshaNationalConstruction: getOshaNationalConstructionReference(),
   };
 }

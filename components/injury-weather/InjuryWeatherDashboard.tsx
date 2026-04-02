@@ -1486,6 +1486,62 @@ export function InjuryWeatherDashboard() {
               ) : null}
             </p>
           ) : null}
+          {data.industryBenchmarkContext.oshaNationalConstruction ? (
+            <div className="mt-3 rounded-xl border border-slate-700/70 bg-slate-950/55 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                National construction — injury &amp; fatality context (U.S.)
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                {data.industryBenchmarkContext.oshaNationalConstruction.citation} Compare your signals to these published
+                construction totals—not your company’s OSHA file.{" "}
+                <a
+                  href="https://www.bls.gov/iif/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sky-400 underline decoration-sky-500/50 hover:text-sky-300"
+                >
+                  BLS IIF
+                </a>
+                .
+              </p>
+              {(() => {
+                const o = data.industryBenchmarkContext.oshaNationalConstruction;
+                const n = o.nonfatalDaysAwayFromWork;
+                const f = o.fatalitiesInConstruction;
+                return (
+                  <ul className="mt-2 space-y-1.5 text-[11px] text-slate-400">
+                    <li>
+                      <span className="text-slate-300">Nonfatal DAFW</span> ({n.periodLabel}):{" "}
+                      <span className="font-mono text-slate-200">{n.constructionCases.toLocaleString()}</span> cases in
+                      construction vs{" "}
+                      <span className="font-mono text-slate-200">{n.allPrivateIndustryCases.toLocaleString()}</span>{" "}
+                      private industry (days away from work).
+                      {n.medianDaysAwayConstruction != null ? (
+                        <>
+                          {" "}
+                          Median days away (construction):{" "}
+                          <span className="font-mono text-slate-200">{n.medianDaysAwayConstruction}</span>.
+                        </>
+                      ) : null}
+                    </li>
+                    <li>
+                      <span className="text-slate-300">Fatal injuries (construction)</span>:{" "}
+                      <span className="font-mono text-slate-200">{f.year2023.toLocaleString()}</span> in 2023 ·{" "}
+                      <span className="font-mono text-slate-200">{f.year2024.toLocaleString()}</span> in 2024.
+                    </li>
+                    <li>
+                      <span className="text-slate-300">Top DAFW mechanisms (construction, counts)</span>:{" "}
+                      {o.nonfatalEventHighlights.map((h) => `${h.label}: ${h.constructionCases.toLocaleString()}`).join(" · ")}.
+                    </li>
+                    <li>
+                      <span className="text-slate-300">Top fatal events (construction, 2023)</span>:{" "}
+                      {o.fatalEventHighlights2023.map((h) => `${h.label}: ${h.count2023.toLocaleString()}`).join(" · ")}.
+                    </li>
+                  </ul>
+                );
+              })()}
+            </div>
+          ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
             {trades.map((t) => {
               const selected = selectedTrades.includes(t);

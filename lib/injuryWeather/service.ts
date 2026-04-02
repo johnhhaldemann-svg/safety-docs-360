@@ -3,6 +3,7 @@ import {
   naicsPrefixFromCode,
   offlineInjuryWeatherBenchmarkContext,
 } from "@/lib/benchmarking/industryBenchmarkDataset";
+import { getOshaNationalConstructionReference } from "@/lib/benchmarking/oshaConstructionNationalReference";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { inferCalibrationTrend, computeBacktestCorrelations } from "@/lib/injuryWeather/backtest";
 import { computeDataConfidenceFromMetrics } from "@/lib/injuryWeather/dataConfidence";
@@ -299,6 +300,7 @@ async function resolvePlatformIndustryBenchmarkContext(
     exampleIndustryCode: exampleCode,
     recordableCasesPer200kHours: rates.recordableCasesPer200kHours,
     benchmarkSummary: `Among companies with an industry code on this platform, the most common 2-digit NAICS prefix is ${dominant}. Illustrative in-app rate: about ${rates.recordableCasesPer200kHours} recordable cases per 200k hours—confirm your NAICS on NSC Industry Profiles.`,
+    oshaNationalConstruction: getOshaNationalConstructionReference(),
   };
 }
 
