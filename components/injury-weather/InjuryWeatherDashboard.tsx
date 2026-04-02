@@ -20,6 +20,24 @@ import type {
   TrendPoint,
 } from "@/lib/injuryWeather/types";
 
+/** Compare incident timestamp to a month picker value (e.g. "Jun 2026") in local calendar terms. */
+function calendarMonthMatches(isoTimestamp: string, monthPickerLabel: string): boolean {
+  const d = new Date(isoTimestamp);
+  const m = new Date(monthPickerLabel);
+  if (Number.isNaN(d.getTime()) || Number.isNaN(m.getTime())) return false;
+  return d.getFullYear() === m.getFullYear() && d.getMonth() === m.getMonth();
+}
+
+function resolveMonthLabelForIncident(isoTimestamp: string, availableMonths: string[]): string {
+  const d = new Date(isoTimestamp);
+  if (Number.isNaN(d.getTime())) {
+    return availableMonths.length > 0 ? availableMonths[availableMonths.length - 1]! : "";
+  }
+  const hit = availableMonths.find((label) => calendarMonthMatches(isoTimestamp, label));
+  if (hit) return hit;
+  return d.toLocaleString("en-US", { month: "short", year: "numeric" });
+}
+
 function controlsForCategory(trade: string, categoryName: string, risk: RiskLevel): string[] {
   const hay = `${trade} ${categoryName}`.toLowerCase();
   const bullets: string[] = [];
@@ -1116,7 +1134,10 @@ export function InjuryWeatherDashboard() {
                   try {
                     const { data: sessionData } = await supabase.auth.getSession();
                     const token = sessionData.session?.access_token;
-                    if (!token) return;
+                    if (!token) {
+                      setMiMessage({ tone: "err", text: "Session expired — sign in again." });
+                      return;
+                    }
                     const res = await fetch("/api/superadmin/injury-weather/manual-incident", {
                       method: "POST",
                       headers: {
@@ -1136,16 +1157,32 @@ export function InjuryWeatherDashboard() {
                         signalCreatedAt: miSignalCreatedAt.trim() || undefined,
                       }),
                     });
-                    const body = (await res.json().catch(() => null)) as { error?: string; hint?: string } | null;
+                    const body = (await res.json().catch(() => null)) as
+                      | { error?: string; hint?: string; incident?: { created_at?: string } }
+                      | null;
                     if (!res.ok) {
                       setMiMessage({ tone: "err", text: body?.error || "Request failed." });
                       return;
                     }
+                    // Forecast GET uses applied* filters; without this, the injury saves to the company but the chart stays platform-wide / wrong month.
+                    setAppliedScopeCompanyId(scopeCompanyId.trim());
+                    setAppliedScopeJobsiteId(scopeJobsiteId.trim());
+                    const createdAt = body?.incident?.created_at;
+                    let monthNote = "";
+                    if (createdAt && appliedMonth && !calendarMonthMatches(createdAt, appliedMonth)) {
+                      const nextMonth = resolveMonthLabelForIncident(createdAt, data.availableMonths);
+                      if (nextMonth) {
+                        setMonth(nextMonth);
+                        setAppliedMonth(nextMonth);
+                        monthNote = ` Month filter set to ${nextMonth} so this signal is included.`;
+                      }
+                    }
                     setMiMessage({
                       tone: "ok",
-                      text: `Saved. ${body?.hint ?? "Click Refresh or Generate Report to reload the forecast."}`,
+                      text: `Saved. Applied this company to the forecast and refreshed.${monthNote}`,
                     });
                     bypassCacheOnce.current = true;
+                    setLoading(true);
                     setRefreshTick((n) => n + 1);
                   } catch {
                     setMiMessage({ tone: "err", text: "Network error." });
