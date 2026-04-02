@@ -146,6 +146,9 @@ export async function generateGcProgramAiReview(params: {
   recordNotes?: string | null;
   /** Pasted GC / site requirements when not fully captured in the file */
   additionalGcContext?: string | null;
+  /** Optional uploaded site/GC reference (PDF/DOCX text) to compare against the submission */
+  siteReferenceText?: string | null;
+  siteReferenceFileName?: string | null;
 }): Promise<{ review: GcProgramAiReview; disclaimer: string }> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
@@ -153,6 +156,10 @@ export async function generateGcProgramAiReview(params: {
   }
 
   const hasBody = params.documentText.trim().length >= 80;
+  const siteName = params.siteReferenceFileName?.trim() || null;
+  const siteText = params.siteReferenceText?.trim() ?? "";
+  const hasSiteRef = Boolean(siteName && siteText.length >= 20);
+
   const contextBlock = [
     `File name: ${params.fileName}`,
     `Title / label: ${params.documentTitle || "(none)"}`,
@@ -161,20 +168,26 @@ export async function generateGcProgramAiReview(params: {
     params.additionalGcContext?.trim()
       ? `Additional GC / site requirements (admin-provided): ${params.additionalGcContext.trim()}`
       : null,
+    siteName
+      ? hasSiteRef
+        ? `--- Site / GC reference document (${siteName}) ---\n${params.siteReferenceText}`
+        : `--- Site / GC reference document (${siteName}) ---\n(File uploaded but extractable text is missing or very short; rely on pasted requirements and submission text.)`
+      : null,
     hasBody
-      ? `--- Document text ---\n${params.documentText}`
-      : `--- Document text ---\n(No extractable text or too short; rely on metadata and any additional context above.)`,
+      ? `--- Subcontractor submission (document under review) ---\n${params.documentText}`
+      : `--- Subcontractor submission (document under review) ---\n(No extractable text or too short; rely on metadata and any additional context above.)`,
   ]
     .filter(Boolean)
     .join("\n");
 
   const prompt = [
     "You are an expert in U.S. OSHA construction safety (29 CFR Part 1926 where relevant) and general industry concepts where they apply to described work.",
-    "The input is a program, plan, or submission that a subcontractor uploaded because a General Contractor (GC) or site requires them to follow it on site, in addition to regulatory baselines.",
+    "The primary input is a program, plan, or submission that a subcontractor uploaded because a General Contractor (GC) or site requires them to follow it on site, in addition to regulatory baselines.",
     "Tasks:",
-    "1) Assess how well the document addresses typical OSHA-aligned expectations for the scope implied in the text (hazards, controls, training, PPE, emergency response, competent persons, inspections, etc.) — without inventing citations or claiming the document is filed with OSHA.",
-    "2) Assess alignment with what the GC/site expects the sub to follow: use BOTH the document text AND any 'Additional GC / site requirements' section if present.",
-    "3) Be specific and practical. If the text is thin or unreadable, set overallAssessment to insufficient_context and explain limitations.",
+    "1) Assess how well the submission addresses typical OSHA-aligned expectations for the scope implied in the text (hazards, controls, training, PPE, emergency response, competent persons, inspections, etc.) — without inventing citations or claiming the document is filed with OSHA.",
+    "2) Assess alignment with what the GC/site expects the sub to follow: use the submission text, any pasted 'Additional GC / site requirements', AND (when present) the 'Site / GC reference document' section as the authoritative site/GC expectations to compare against.",
+    "3) When a site/GC reference document is provided, explicitly call out where the submission matches, omits, or conflicts with that reference, in addition to OSHA-oriented gaps.",
+    "4) Be specific and practical. If the text is thin or unreadable, set overallAssessment to insufficient_context and explain limitations.",
     "Do NOT invent incidents, citations, or OSHA inspection outcomes. Do not claim to verify regulatory compliance.",
     "Output strict JSON matching the schema.",
     contextBlock,

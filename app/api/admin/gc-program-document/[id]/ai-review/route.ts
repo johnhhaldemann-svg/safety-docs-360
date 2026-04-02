@@ -4,6 +4,7 @@ import {
   DOCUMENT_AI_REVIEW_ROLE_FORBIDDEN_ERROR,
   isDocumentAiReviewerRole,
 } from "@/lib/documentAiReviewAuth";
+import { parseGcProgramAiReviewPostBody } from "@/lib/parseGcProgramAiReviewPostBody";
 import { runGcProgramDocumentAiReview } from "@/lib/runGcProgramAiReview";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
@@ -45,12 +46,19 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Document id is required." }, { status: 400 });
   }
 
-  const body = (await request.json().catch(() => null)) as
-    | { additionalGcContext?: string | null }
-    | null;
-  const additionalGcContext = typeof body?.additionalGcContext === "string" ? body.additionalGcContext : "";
+  const parsedBody = await parseGcProgramAiReviewPostBody(request);
+  if (!parsedBody.ok) {
+    return parsedBody.response;
+  }
 
-  const result = await runGcProgramDocumentAiReview(admin, documentId, additionalGcContext);
+  const { additionalGcContext, siteDocument } = parsedBody.data;
+
+  const result = await runGcProgramDocumentAiReview(
+    admin,
+    documentId,
+    additionalGcContext,
+    siteDocument
+  );
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
@@ -60,6 +68,7 @@ export async function POST(request: Request, context: RouteContext) {
     review: result.review,
     disclaimer: result.disclaimer,
     extraction: result.extraction,
+    siteReferenceExtraction: result.siteReferenceExtraction,
     documentId: result.documentId,
   });
 }

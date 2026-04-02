@@ -5,10 +5,25 @@ import {
   generateGcProgramAiReview,
 } from "@/lib/gcProgramAiReview";
 
+export type GcSiteReferenceExtractionMeta =
+  | null
+  | {
+      fileName: string;
+      ok: true;
+      method: string;
+      truncated: boolean;
+    }
+  | {
+      fileName: string;
+      ok: false;
+      error: string;
+    };
+
 export async function runGcProgramDocumentAiReview(
   admin: SupabaseClient,
   documentId: string,
-  additionalGcContext: string
+  additionalGcContext: string,
+  siteReference?: { buffer: Buffer; fileName: string } | null
 ): Promise<
   | {
       ok: true;
@@ -17,6 +32,7 @@ export async function runGcProgramDocumentAiReview(
       extraction:
         | { ok: true; method: string; truncated: boolean }
         | { ok: false; error: string };
+      siteReferenceExtraction: GcSiteReferenceExtractionMeta;
       documentId: string;
     }
   | { ok: false; status: number; error: string }
@@ -81,6 +97,30 @@ export async function runGcProgramDocumentAiReview(
       ? { ok: true as const, method: extracted.method, truncated: extracted.truncated }
       : { ok: false as const, error: extracted.error };
 
+    let siteReferenceExtraction: GcSiteReferenceExtractionMeta = null;
+    let siteReferenceText: string | null = null;
+    let siteReferenceFileName: string | null = null;
+
+    if (siteReference?.buffer?.length) {
+      const refName = siteReference.fileName?.trim() || "site-reference.pdf";
+      const siteExtracted = await extractGcProgramDocumentText(siteReference.buffer, refName);
+      if (!siteExtracted.ok) {
+        return {
+          ok: false,
+          status: 400,
+          error: `Site reference file: ${siteExtracted.error}`,
+        };
+      }
+      siteReferenceExtraction = {
+        fileName: refName,
+        ok: true,
+        method: siteExtracted.method,
+        truncated: siteExtracted.truncated,
+      };
+      siteReferenceText = siteExtracted.text;
+      siteReferenceFileName = refName;
+    }
+
     const { review, disclaimer } = await generateGcProgramAiReview({
       documentText,
       documentTitle: doc.document_title ?? "",
@@ -88,6 +128,8 @@ export async function runGcProgramDocumentAiReview(
       companyName,
       recordNotes: doc.notes ?? null,
       additionalGcContext: additionalGcContext.trim() || null,
+      siteReferenceText,
+      siteReferenceFileName,
     });
 
     return {
@@ -95,6 +137,7 @@ export async function runGcProgramDocumentAiReview(
       review,
       disclaimer,
       extraction: extractionMeta,
+      siteReferenceExtraction,
       documentId: doc.id,
     };
   } catch (e) {

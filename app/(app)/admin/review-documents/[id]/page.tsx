@@ -156,6 +156,7 @@ export default function ReviewDocumentPage() {
     ""
   );
   const [gcAiContext, setGcAiContext] = useState("");
+  const [gcSiteReferenceFile, setGcSiteReferenceFile] = useState<File | null>(null);
   const [gcAiLoading, setGcAiLoading] = useState(false);
   const [gcAiResult, setGcAiResult] = useState<GcProgramAiReview | null>(null);
   const [gcAiDisclaimer, setGcAiDisclaimer] = useState("");
@@ -164,6 +165,12 @@ export default function ReviewDocumentPage() {
     method?: string;
     truncated?: boolean;
     error?: string;
+  } | null>(null);
+  const [gcAiSiteExtraction, setGcAiSiteExtraction] = useState<{
+    fileName: string;
+    ok: true;
+    method: string;
+    truncated: boolean;
   } | null>(null);
   const [gcAiError, setGcAiError] = useState("");
   const [builderAiContext, setBuilderAiContext] = useState("");
@@ -387,16 +394,22 @@ export default function ReviewDocumentPage() {
     setGcAiResult(null);
     setGcAiDisclaimer("");
     setGcAiExtraction(null);
+    setGcAiSiteExtraction(null);
 
     try {
       const token = await getAccessToken();
+      const form = new FormData();
+      form.append("additionalGcContext", gcAiContext);
+      if (gcSiteReferenceFile) {
+        form.append("siteDocument", gcSiteReferenceFile);
+      }
+
       const res = await fetch(`/api/admin/gc-program-document/${documentItem.id}/ai-review`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ additionalGcContext: gcAiContext }),
+        body: form,
       });
 
       const rawText = await res.text();
@@ -417,6 +430,12 @@ export default function ReviewDocumentPage() {
               truncated?: boolean;
               error?: string;
             };
+            siteReferenceExtraction?: {
+              fileName: string;
+              ok: true;
+              method: string;
+              truncated: boolean;
+            } | null;
           }
         | null;
 
@@ -430,6 +449,8 @@ export default function ReviewDocumentPage() {
       }
       setGcAiDisclaimer(data?.disclaimer ?? "");
       setGcAiExtraction(data?.extraction ?? null);
+      const siteEx = data?.siteReferenceExtraction;
+      setGcAiSiteExtraction(siteEx?.ok === true ? siteEx : null);
     } catch (error) {
       console.error(error);
       setGcAiError(error instanceof Error ? error.message : "AI review failed.");
@@ -1137,7 +1158,7 @@ export default function ReviewDocumentPage() {
           {showGcAiReview ? (
             <SectionCard
               title="AI review"
-              description="For this GC-required program upload, compare the file against typical OSHA-aligned expectations for the described work and against GC/site requirements. Optional: paste specifics the GC requires that are not fully in the file."
+              description="Compare the company upload to typical OSHA-aligned expectations and to GC/site rules. Optionally add pasted requirements, and/or upload a site or GC reference document (PDF or DOCX) so the model can cross-check the submission against that file and OSHA."
             >
               <div className="space-y-4">
                 <label className="block text-sm font-semibold text-slate-800">
@@ -1150,6 +1171,34 @@ export default function ReviewDocumentPage() {
                   placeholder="e.g. Site-specific safety plan elements, exhibit references, hot work rules, crane mat requirements…"
                   className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                 />
+                <div>
+                  <label className="block text-sm font-semibold text-slate-800">
+                    Site / GC reference document (optional)
+                  </label>
+                  <p className="mt-1 text-xs text-slate-500">
+                    PDF or DOCX (max 12 MB). The AI compares the submission to this file alongside OSHA expectations.
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      className="block w-full max-w-md text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-800 hover:file:bg-slate-200"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        setGcSiteReferenceFile(f);
+                      }}
+                    />
+                    {gcSiteReferenceFile ? (
+                      <button
+                        type="button"
+                        onClick={() => setGcSiteReferenceFile(null)}
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                      >
+                        Clear file
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
@@ -1165,9 +1214,17 @@ export default function ReviewDocumentPage() {
                 ) : null}
                 {gcAiExtraction ? (
                   <p className="text-xs text-slate-500">
+                    Submission:{" "}
                     {gcAiExtraction.ok
-                      ? `Text extracted (${gcAiExtraction.method}${gcAiExtraction.truncated ? ", truncated" : ""}).`
-                      : `Text extraction: ${gcAiExtraction.error ?? "failed"} — review may be limited.`}
+                      ? `text extracted (${gcAiExtraction.method}${gcAiExtraction.truncated ? ", truncated" : ""}).`
+                      : `extraction ${gcAiExtraction.error ?? "failed"} — review may be limited.`}
+                  </p>
+                ) : null}
+                {gcAiSiteExtraction ? (
+                  <p className="text-xs text-slate-500">
+                    Site reference ({gcAiSiteExtraction.fileName}): text extracted (
+                    {gcAiSiteExtraction.method}
+                    {gcAiSiteExtraction.truncated ? ", truncated" : ""}).
                   </p>
                 ) : null}
                 {gcAiDisclaimer ? (
