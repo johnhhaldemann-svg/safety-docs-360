@@ -8,10 +8,9 @@ import { injuryTimePatternFromOccurredAt } from "@/lib/incidents/injuryTimePatte
 import { readObjectiveFlag } from "@/lib/incidents/objectiveSeverity";
 import { authorizeRequest, normalizeAppRole } from "@/lib/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { buildManualForecasterIncidentDescription } from "@/lib/injuryWeather/manualForecasterIncident";
 
 export const runtime = "nodejs";
-
-const MANUAL_PREFIX = "[Injury forecaster — superadmin manual entry]\n";
 
 function isSuperAdminRole(role: string) {
   return normalizeAppRole(role) === "super_admin";
@@ -123,7 +122,7 @@ export async function POST(request: Request) {
   const injuryTimePatterns = injuryTimePatternFromOccurredAt(occurredAt);
 
   const userDescription = String(body?.description ?? "").trim();
-  const description = userDescription ? `${MANUAL_PREFIX}${userDescription}` : MANUAL_PREFIX.trim();
+  const description = buildManualForecasterIncidentDescription(userDescription);
 
   const insertRow = {
     company_id: companyId,

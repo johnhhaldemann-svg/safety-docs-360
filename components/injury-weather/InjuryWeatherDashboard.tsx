@@ -353,6 +353,12 @@ export function InjuryWeatherDashboard() {
   const [miSignalCreatedAt, setMiSignalCreatedAt] = useState("");
   const [miSubmitting, setMiSubmitting] = useState(false);
   const [miMessage, setMiMessage] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+  const [manualForecastRows, setManualForecastRows] = useState<
+    { id: string; title: string; created_at: string; jobsite_id: string | null }[]
+  >([]);
+  const [manualForecastLoading, setManualForecastLoading] = useState(false);
+  const [manualForecastDeleteId, setManualForecastDeleteId] = useState<string | null>(null);
+  const [manualListRev, setManualListRev] = useState(0);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -525,6 +531,39 @@ export function InjuryWeatherDashboard() {
       }
     })();
   }, [scopeCompanyId]);
+
+  useEffect(() => {
+    if (!scopeCompanyId.trim()) {
+      setManualForecastRows([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      setManualForecastLoading(true);
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) return;
+        const r = await fetch(
+          `/api/superadmin/injury-weather/manual-incidents?companyId=${encodeURIComponent(scopeCompanyId.trim())}`,
+          { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
+        );
+        const j = (await r.json().catch(() => null)) as
+          | { incidents?: { id: string; title: string; created_at: string; jobsite_id: string | null }[]; error?: string }
+          | null;
+        if (cancelled) return;
+        if (r.ok && j?.incidents) setManualForecastRows(j.incidents);
+        else setManualForecastRows([]);
+      } catch {
+        if (!cancelled) setManualForecastRows([]);
+      } finally {
+        if (!cancelled) setManualForecastLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [scopeCompanyId, manualListRev]);
 
   const trades = useMemo(
     () => (data?.availableTrades?.length ? data.availableTrades : data?.tradeForecasts.map((t) => t.trade) ?? []),
@@ -1181,6 +1220,7 @@ export function InjuryWeatherDashboard() {
                       tone: "ok",
                       text: `Saved. Applied this company to the forecast and refreshed.${monthNote}`,
                     });
+                    setManualListRev((n) => n + 1);
                     bypassCacheOnce.current = true;
                     setLoading(true);
                     setRefreshTick((n) => n + 1);
@@ -1195,6 +1235,86 @@ export function InjuryWeatherDashboard() {
             >
               {miSubmitting ? "Saving…" : "Add injury to forecaster"}
             </button>
+            {scopeCompanyId.trim() ? (
+              <div className="mt-4 rounded-lg border border-slate-700/80 bg-slate-950/50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Manual test injuries (this company)
+                </p>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Rows created via this form only. Delete removes the incident from the database and the forecaster after refresh.
+                </p>
+                {manualForecastLoading ? (
+                  <p className="mt-2 text-xs text-slate-500">Loading list…</p>
+                ) : manualForecastRows.length === 0 ? (
+                  <p className="mt-2 text-xs text-slate-500">None on file for this company.</p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {manualForecastRows.map((row) => (
+                      <li
+                        key={row.id}
+                        className="flex flex-col gap-2 rounded-md border border-slate-700/60 bg-slate-900/60 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-slate-200">{row.title}</p>
+                          <p className="text-[11px] text-slate-500">
+                            {new Date(row.created_at).toLocaleString()}
+                            {row.jobsite_id
+                              ? ` · jobsite ${scopeJobsites.find((j) => j.id === row.jobsite_id)?.name ?? row.jobsite_id.slice(0, 8)}`
+                              : ""}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={manualForecastDeleteId === row.id}
+                          onClick={() => {
+                            if (
+                              !window.confirm(
+                                `Remove “${row.title}” from the database? This cannot be undone.`
+                              )
+                            ) {
+                              return;
+                            }
+                            void (async () => {
+                              setManualForecastDeleteId(row.id);
+                              setMiMessage(null);
+                              try {
+                                const { data: sessionData } = await supabase.auth.getSession();
+                                const token = sessionData.session?.access_token;
+                                if (!token) {
+                                  setMiMessage({ tone: "err", text: "Session expired — sign in again." });
+                                  return;
+                                }
+                                const r = await fetch(`/api/superadmin/injury-weather/manual-incident/${row.id}`, {
+                                  method: "DELETE",
+                                  headers: { Authorization: `Bearer ${token}` },
+                                });
+                                const j = (await r.json().catch(() => null)) as { error?: string } | null;
+                                if (!r.ok) {
+                                  setMiMessage({ tone: "err", text: j?.error || "Delete failed." });
+                                  return;
+                                }
+                                setMiMessage({ tone: "ok", text: "Removed. Refreshing forecast…" });
+                                setManualListRev((n) => n + 1);
+                                bypassCacheOnce.current = true;
+                                setLoading(true);
+                                setRefreshTick((n) => n + 1);
+                              } catch {
+                                setMiMessage({ tone: "err", text: "Network error." });
+                              } finally {
+                                setManualForecastDeleteId(null);
+                              }
+                            })();
+                          }}
+                          className="shrink-0 rounded-lg border border-red-500/50 bg-red-950/30 px-3 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-950/50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {manualForecastDeleteId === row.id ? "Removing…" : "Delete"}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
 
