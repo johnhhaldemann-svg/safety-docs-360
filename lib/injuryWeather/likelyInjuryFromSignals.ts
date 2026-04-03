@@ -1,6 +1,6 @@
 import { priorInjuryMixForExposure } from "@/lib/incidents/exposureInjuryCorrelations";
 import type { ExposureEventType } from "@/lib/incidents/exposureEventType";
-import { isExposureEventType } from "@/lib/incidents/exposureEventType";
+import { isExposureEventType, normalizeExposureEventType } from "@/lib/incidents/exposureEventType";
 import { eventToInjuryLikelihoodTable, type IncidentAnalyticsRow } from "@/lib/incidents/injuryHistoricalModel";
 import type { InjuryType } from "@/lib/incidents/injuryType";
 import { INJURY_TYPE_LABELS, normalizeInjuryType } from "@/lib/incidents/injuryType";
@@ -149,7 +149,6 @@ export function likelyInjuryInsightFromIncidentAnalyticsRows(rows: IncidentAnaly
   const pseudo: NormalizedLiveSignalRow[] = rows
     .filter((r) => String(r.category ?? "").toLowerCase() === "incident")
     .map((r) => {
-      const evRaw = r.exposure_event_type != null ? String(r.exposure_event_type).trim() : "";
       return {
         tradeId: "_",
         tradeLabel: "_",
@@ -159,7 +158,7 @@ export function likelyInjuryInsightFromIncidentAnalyticsRows(rows: IncidentAnaly
         created_at: "",
         source: "incident" as const,
         injuryType: normalizeInjuryType(r.injury_type),
-        exposureEventType: evRaw && isExposureEventType(evRaw) ? evRaw : null,
+        exposureEventType: normalizeExposureEventType(r.exposure_event_type),
       };
     });
   return likelyInjuryInsightFromSignals(pseudo);

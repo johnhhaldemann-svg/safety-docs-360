@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { type ChangeEvent, useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   InlineMessage,
   PageHero,
@@ -334,26 +335,34 @@ export default function ProfilePage() {
       tradeSelect === OTHER_SELECT ? tradeOther.trim() : tradeSelect.trim();
 
     if (!positionSelect) {
+      const msg = "Select your site position.";
       setMessageTone("error");
-      setMessage("Select your site position.");
+      setMessage(msg);
+      toast.error(msg);
       setSaving(false);
       return;
     }
     if (positionSelect === OTHER_SELECT && !jobTitle) {
+      const msg = "Enter your site position when using Other.";
       setMessageTone("error");
-      setMessage("Enter your site position when using Other.");
+      setMessage(msg);
+      toast.error(msg);
       setSaving(false);
       return;
     }
     if (!tradeSelect) {
+      const msg = "Select your primary trade.";
       setMessageTone("error");
-      setMessage("Select your primary trade.");
+      setMessage(msg);
+      toast.error(msg);
       setSaving(false);
       return;
     }
     if (tradeSelect === OTHER_SELECT && !tradeSpecialty) {
+      const msg = "Enter your trade when using Other.";
       setMessageTone("error");
-      setMessage("Enter your trade when using Other.");
+      setMessage(msg);
+      toast.error(msg);
       setSaving(false);
       return;
     }
@@ -432,12 +441,17 @@ export default function ProfilePage() {
       setInitialProfileComplete(profileComplete || initialProfileComplete);
       setPhotoFile(null);
       setMessageTone(profileComplete ? "success" : "warning");
-      setMessage(
+      const successMsg =
         data?.message ||
-          (profileComplete
-            ? "Construction profile saved."
-            : "Profile saved. Add the remaining required details to continue.")
-      );
+        (profileComplete
+          ? "Construction profile saved."
+          : "Profile saved. Add the remaining required details to continue.");
+      setMessage(successMsg);
+      if (profileComplete) {
+        toast.success(successMsg);
+      } else {
+        toast.warning(successMsg);
+      }
 
       if (profileComplete && !initialProfileComplete && !managedProfile) {
         const nextHref = canAccessInternalAdmin
@@ -449,10 +463,11 @@ export default function ProfilePage() {
         return;
       }
     } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : "Failed to save your construction profile.";
       setMessageTone("error");
-      setMessage(
-        error instanceof Error ? error.message : "Failed to save your construction profile."
-      );
+      setMessage(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }

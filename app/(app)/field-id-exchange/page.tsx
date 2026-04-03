@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   ActivityFeed,
   EmptyState,
@@ -595,18 +596,24 @@ export default function FieldIdExchangePage() {
 
   async function createAction() {
     if (!composer.title.trim()) {
-      setMessage("Issue title is required.");
+      const msg = "Issue title is required.";
+      setMessage(msg);
       setMessageTone("error");
+      toast.error(msg);
       return;
     }
     if (composer.observationType === "negative" && !composer.sifPotential) {
-      setMessage("SIF evaluation is required for negative observations.");
+      const msg = "SIF evaluation is required for negative observations.";
+      setMessage(msg);
       setMessageTone("error");
+      toast.error(msg);
       return;
     }
     if (composer.observationType === "negative" && composer.sifPotential === "yes" && !composer.sifCategory) {
-      setMessage("Select a SIF category.");
+      const msg = "Select a SIF category.";
+      setMessage(msg);
       setMessageTone("error");
+      toast.error(msg);
       return;
     }
 
@@ -641,26 +648,33 @@ export default function FieldIdExchangePage() {
         | null;
       if (!response.ok) {
         if (response.status === 429) {
-          setMessage("Request limit reached. Wait a few seconds and try Save again.");
+          const msg = "Request limit reached. Wait a few seconds and try Save again.";
+          setMessage(msg);
           setMessageTone("warning");
+          toast.warning(msg);
           return;
         }
-        setMessage(payload?.error || "Failed to create corrective action.");
+        const msg = payload?.error || "Failed to create corrective action.";
+        setMessage(msg);
         setMessageTone("error");
+        toast.error(msg);
         return;
       }
       setComposer(EMPTY_CREATE_ACTION);
-      setMessage(payload?.message || "Corrective action created.");
+      const okMsg = payload?.message || "Corrective action created.";
+      setMessage(okMsg);
       setMessageTone("success");
+      toast.success(okMsg);
       await reloadActions();
     } catch (error) {
       console.error("Failed to create corrective action:", error);
-      setMessage(
+      const msg =
         error instanceof Error && error.name === "AbortError"
           ? "Save timed out. Please try again."
-          : "Failed to create corrective action right now."
-      );
+          : "Failed to create corrective action right now.";
+      setMessage(msg);
       setMessageTone("error");
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -945,19 +959,20 @@ export default function FieldIdExchangePage() {
             <button
               type="button"
               onClick={() => void reloadActions()}
-              className="rounded-xl border border-sky-500/35 bg-sky-950/35 px-5 py-3 text-sm font-semibold text-sky-300 transition hover:bg-sky-100"
+              aria-busy={loadingActions}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-500/35 bg-sky-950/35 px-5 py-3 text-sm font-semibold text-sky-300 transition hover:bg-sky-100"
             >
               {loadingActions ? "Refreshing..." : hasLoaded ? "Refresh Board" : "Load Board"}
             </button>
             <Link
               href="/safety-submit"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Individual Safety Submission
             </Link>
             <Link
               href="/upload"
-              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Upload Field Photo
             </Link>
@@ -1012,10 +1027,14 @@ export default function FieldIdExchangePage() {
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              <label
+                htmlFor="fie-observation-title"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
+              >
                 Observation title
               </label>
               <input
+                id="fie-observation-title"
                 type="text"
                 value={composer.title}
                 onChange={(event) => setComposer((current) => ({ ...current, title: event.target.value }))}
@@ -1024,10 +1043,14 @@ export default function FieldIdExchangePage() {
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              <label
+                htmlFor="fie-observation-description"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
+              >
                 Description
               </label>
               <textarea
+                id="fie-observation-description"
                 value={composer.description}
                 onChange={(event) =>
                   setComposer((current) => ({ ...current, description: event.target.value }))
@@ -1236,12 +1259,12 @@ export default function FieldIdExchangePage() {
               <InlineMessage tone={messageTone}>{message}</InlineMessage>
             </div>
           ) : null}
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap gap-3 max-lg:sticky max-lg:bottom-0 max-lg:z-[5] max-lg:-mx-1 max-lg:rounded-t-xl max-lg:border-t max-lg:border-slate-700 max-lg:bg-slate-900/95 max-lg:px-3 max-lg:py-3 max-lg:backdrop-blur-md max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <button
               type="button"
               onClick={() => void createAction()}
               disabled={saving}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="min-h-11 rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {saving ? "Saving..." : "Create Observation"}
             </button>
@@ -1251,7 +1274,7 @@ export default function FieldIdExchangePage() {
                 setComposer(EMPTY_CREATE_ACTION);
                 setShowAdvancedComposer(false);
               }}
-              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+              className="min-h-11 rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Clear
             </button>
@@ -1264,11 +1287,12 @@ export default function FieldIdExchangePage() {
         >
           <div className="mb-4 grid gap-3 lg:grid-cols-4">
             <input
-              type="text"
+              type="search"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search issue, assignee, or severity..."
-              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              aria-label="Search observations by issue, assignee, or severity"
+              className="min-h-11 rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
             />
             <select
               value={jobsiteFilter}

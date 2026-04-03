@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import {
   ActivityFeed,
@@ -103,7 +105,10 @@ function getSubscriptionTone(status: string) {
     : "bg-slate-200 text-slate-300";
 }
 
-export default function LibraryPage() {
+function LibraryPageContent() {
+  const searchParams = useSearchParams();
+  const highlightDocId = searchParams.get("doc");
+
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -312,7 +317,9 @@ export default function LibraryPage() {
           | null;
 
         if (!res.ok) {
-          setMessage(data?.error || "Purchase failed.");
+          const msg = data?.error || "Purchase failed.";
+          setMessage(msg);
+          toast.error(msg);
           setActionLoadingId("");
           return;
         }
@@ -327,9 +334,12 @@ export default function LibraryPage() {
             : prev.purchasedDocumentIds,
         }));
         setMessage("Document unlocked successfully.");
+        toast.success("Document unlocked successfully.");
         await loadCredits();
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Purchase failed.");
+        const msg = error instanceof Error ? error.message : "Purchase failed.";
+        setMessage(msg);
+        toast.error(msg);
       }
 
       setActionLoadingId("");
@@ -343,6 +353,19 @@ export default function LibraryPage() {
       await loadCredits();
     })();
   }, [loadCredits, loadDocuments]);
+
+  useEffect(() => {
+    if (!highlightDocId || loading) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      document.getElementById(`library-doc-${highlightDocId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [highlightDocId, loading, documents.length]);
 
   const categories = useMemo(() => {
     const values = Array.from(
@@ -846,6 +869,7 @@ export default function LibraryPage() {
         emptyMessage="Completed documents you own or unlock with credits will show up here first."
         onOpen={(doc) => setPendingDownload({ mode: "completed", documentId: doc.id })}
         actionLabel="Open document"
+        highlightDocumentId={highlightDocId}
       />
 
       {!isManagerView ? (
@@ -855,6 +879,7 @@ export default function LibraryPage() {
           creditBalance={creditState.creditBalance}
           actionLoadingId={actionLoadingId}
           onPurchase={handlePurchaseDocument}
+          highlightDocumentId={highlightDocId}
         />
       ) : null}
 
@@ -870,6 +895,7 @@ export default function LibraryPage() {
             handleOpenFile(doc.file_path ?? doc.draft_file_path ?? doc.final_file_path)
           }
           actionLabel="Preview file"
+          highlightDocumentId={highlightDocId}
         />
       ) : null}
 
@@ -888,6 +914,20 @@ export default function LibraryPage() {
   );
 }
 
+export default function LibraryPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[40vh] items-center justify-center text-sm font-semibold text-slate-400">
+          Loading library…
+        </div>
+      }
+    >
+      <LibraryPageContent />
+    </Suspense>
+  );
+}
+
 function DocumentSection({
   title,
   description,
@@ -897,6 +937,7 @@ function DocumentSection({
   emptyTitle,
   emptyMessage,
   actionLabel,
+  highlightDocumentId,
 }: {
   title: string;
   description: string;
@@ -906,6 +947,7 @@ function DocumentSection({
   emptyTitle: string;
   emptyMessage: string;
   actionLabel: string;
+  highlightDocumentId?: string | null;
 }) {
   return (
     <section className="rounded-[1.75rem] border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
@@ -941,6 +983,7 @@ function DocumentSection({
               document={doc}
               actionLabel={actionLabel}
               onOpen={() => onOpen(doc)}
+              highlighted={highlightDocumentId === doc.id}
             />
           ))}
         </div>
@@ -953,15 +996,25 @@ function DocumentCard({
   document,
   actionLabel,
   onOpen,
+  highlighted = false,
 }: {
   document: DocumentRow;
   actionLabel: string;
   onOpen: () => void;
+  highlighted?: boolean;
 }) {
   const status = getDocumentStatus(document);
 
   return (
-    <article className="flex h-full flex-col rounded-3xl border border-slate-700/80 bg-slate-900/80 p-5 shadow-sm">
+    <article
+      id={`library-doc-${document.id}`}
+      className={[
+        "flex h-full flex-col rounded-3xl border bg-slate-900/80 p-5 shadow-sm",
+        highlighted
+          ? "border-teal-400/70 ring-2 ring-teal-400/50 ring-offset-2 ring-offset-slate-950"
+          : "border-slate-700/80",
+      ].join(" ")}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-lg font-bold leading-6 text-white">
@@ -997,8 +1050,9 @@ function DocumentCard({
       </div>
 
       <button
+        type="button"
         onClick={onOpen}
-        className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+        className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
       >
         {actionLabel}
       </button>
@@ -1012,12 +1066,14 @@ function MarketplaceSection({
   creditBalance,
   actionLoadingId,
   onPurchase,
+  highlightDocumentId,
 }: {
   documents: DocumentRow[];
   loading: boolean;
   creditBalance: number;
   actionLoadingId: string;
   onPurchase: (documentId: string) => void;
+  highlightDocumentId?: string | null;
 }) {
   return (
     <section className="rounded-[1.75rem] border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
@@ -1060,10 +1116,17 @@ function MarketplaceSection({
             const cost = getDocumentCreditCost(doc.notes);
             const canAfford = creditBalance >= cost;
 
+            const highlighted = highlightDocumentId === doc.id;
             return (
               <article
                 key={doc.id}
-                className="flex h-full flex-col rounded-3xl border border-slate-700/80 bg-slate-900/80 p-5 shadow-sm"
+                id={`library-doc-${doc.id}`}
+                className={[
+                  "flex h-full flex-col rounded-3xl border bg-slate-900/80 p-5 shadow-sm",
+                  highlighted
+                    ? "border-teal-400/70 ring-2 ring-teal-400/50 ring-offset-2 ring-offset-slate-950"
+                    : "border-slate-700/80",
+                ].join(" ")}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>

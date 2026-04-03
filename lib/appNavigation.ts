@@ -16,6 +16,24 @@ export type NavSection = {
   items: NavItem[];
 };
 
+/** Dedupe by href (first occurrence wins) for command palette and quick pickers. */
+export function flattenNavItemsFromSections(
+  sections: ReadonlyArray<{ items: readonly NavItem[] }>
+): NavItem[] {
+  const seen = new Set<string>();
+  const out: NavItem[] = [];
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (seen.has(item.href)) {
+        continue;
+      }
+      seen.add(item.href);
+      out.push(item);
+    }
+  }
+  return out;
+}
+
 export const userQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/library", label: "Library", short: "LB" },
@@ -37,6 +55,7 @@ export const companyAdminQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/jobsites", label: "Jobsites", short: "JS" },
   { href: "/library", label: "Documents", short: "DC" },
+  { href: "/search", label: "Search", short: "SR" },
   { href: "/company-users", label: "Team", short: "TM" },
   { href: "/training-matrix", label: "Training", short: "TR" },
   { href: "/field-id-exchange", label: "Corrective actions", short: "CA" },
@@ -48,6 +67,7 @@ export const companyManagerQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/jobsites", label: "Jobsites", short: "JS" },
   { href: "/library", label: "Documents", short: "DC" },
+  { href: "/search", label: "Search", short: "SR" },
   { href: "/training-matrix", label: "Training", short: "TR" },
   { href: "/field-id-exchange", label: "Corrective actions", short: "CA" },
   { href: "/analytics", label: "Analytics", short: "AN" },
@@ -57,6 +77,7 @@ export const companyManagerQuickLinks: NavItem[] = [
 export const companyUserQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/library", label: "Documents", short: "DC" },
+  { href: "/search", label: "Search", short: "SR" },
   { href: "/submit", label: "Submit", short: "SB" },
   { href: "/upload", label: "Upload", short: "UP" },
   { href: "/profile", label: "Profile", short: "CP" },
@@ -129,6 +150,7 @@ export const companyAdminSideSections: NavSection[] = [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
+      { href: "/search", label: "Search documents", short: "SR" },
       { href: "/company-users", label: "Team & users", short: "US" },
       { href: "/training-matrix", label: "Training matrix", short: "TM" },
     ],
@@ -171,6 +193,7 @@ export const companyManagerSideSections: NavSection[] = [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
+      { href: "/search", label: "Search documents", short: "SR" },
       { href: "/training-matrix", label: "Training matrix", short: "TM" },
     ],
   },
@@ -211,6 +234,7 @@ export const companyUserSideSections: NavSection[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/library", label: "Documents", short: "DC" },
+      { href: "/search", label: "Search documents", short: "SR" },
       { href: "/training-matrix", label: "Training matrix", short: "TM" },
     ],
   },

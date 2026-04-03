@@ -40,6 +40,7 @@ export const csepOnlyCompanySideSections: NavSectionLike[] = [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/csep", label: "CSEP builder", short: "CS" },
       { href: "/library", label: "Completed documents", short: "LB" },
+      { href: "/search", label: "Search documents", short: "SR" },
     ],
   },
   {
@@ -54,6 +55,7 @@ const csepReadOnlySideSections: NavSectionLike[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/library", label: "Completed documents", short: "LB" },
+      { href: "/search", label: "Search documents", short: "SR" },
     ],
   },
   {

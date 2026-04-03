@@ -350,11 +350,11 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
                       <StatusBadge label={activity.status} tone={activity.status === "completed" ? "success" : "info"} />
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <button className="rounded border px-2 py-1" onClick={() => void runAction(() => patchActivityStatus(activity.id, "active"))}>Set Active</button>
-                      <button className="rounded border px-2 py-1" onClick={() => void runAction(() => patchActivityStatus(activity.id, "paused"))}>Pause</button>
-                      <button className="rounded border px-2 py-1" onClick={() => void runAction(() => patchActivityStatus(activity.id, "completed"))}>Complete</button>
-                      <button className="rounded border px-2 py-1" onClick={() => void runAction(() => createObservationFromActivity(activity))}>Create Observation</button>
-                      <Link className="rounded border px-2 py-1" href={`/field-id-exchange?dapActivityId=${encodeURIComponent(activity.id)}`}>
+                      <button type="button" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-xs font-semibold text-slate-200" onClick={() => void runAction(() => patchActivityStatus(activity.id, "active"))}>Set Active</button>
+                      <button type="button" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-xs font-semibold text-slate-200" onClick={() => void runAction(() => patchActivityStatus(activity.id, "paused"))}>Pause</button>
+                      <button type="button" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-xs font-semibold text-slate-200" onClick={() => void runAction(() => patchActivityStatus(activity.id, "completed"))}>Complete</button>
+                      <button type="button" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-xs font-semibold text-slate-200" onClick={() => void runAction(() => createObservationFromActivity(activity))}>Create Observation</button>
+                      <Link className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-xs font-semibold text-slate-200" href={`/field-id-exchange?dapActivityId=${encodeURIComponent(activity.id)}`}>
                         Open Prefilled Form
                       </Link>
                     </div>
@@ -375,9 +375,9 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
                   <StatusBadge label={row.status} tone={row.status === "verified_closed" ? "success" : "info"} />
                 </div>
                 <div className="mt-2 text-xs text-slate-500">{row.description ?? "-"}</div>
-                <div className="mt-2 flex gap-2">
-                  <button className="rounded border px-2 py-1 text-xs" onClick={() => setSelectedId(row.id)}>Details</button>
-                  <button className="rounded border px-2 py-1 text-xs" onClick={() => void runAction(() => patchObservation(row.id, { status: "corrected" }))}>Corrected</button>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-xs font-semibold text-slate-200" onClick={() => setSelectedId(row.id)}>Details</button>
+                  <button type="button" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-xs font-semibold text-slate-200" onClick={() => void runAction(() => patchObservation(row.id, { status: "corrected" }))}>Corrected</button>
                 </div>
               </div>
             ))}
@@ -439,9 +439,10 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
                       <td className="px-2 py-2">{durationSince(row.created_at)}</td>
                       <td className="px-2 py-2">
                         <div className="flex flex-wrap gap-1">
-                          <button className="rounded border px-2 py-1" onClick={() => setSelectedId(row.id)}>View details</button>
+                          <button type="button" className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-2 py-2 text-[11px] font-semibold text-slate-200" onClick={() => setSelectedId(row.id)}>View details</button>
                           <button
-                            className="rounded border px-2 py-1"
+                            type="button"
+                            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-2 py-2 text-[11px] font-semibold text-slate-200"
                             onClick={() =>
                               void runAction(async () => {
                                 const text = window.prompt("Edit description", row.description ?? "");
@@ -453,7 +454,8 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
                             Edit
                           </button>
                           <button
-                            className="rounded border px-2 py-1"
+                            type="button"
+                            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-2 py-2 text-[11px] font-semibold text-slate-200"
                             onClick={() =>
                               void runAction(async () => {
                                 const userId = window.prompt("Assign user id");
@@ -464,16 +466,17 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
                           >
                             Assign
                           </button>
-                          <Link className="rounded border px-2 py-1" href="/field-id-exchange">
+                          <Link className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-2 py-2 text-[11px] font-semibold text-slate-200" href="/field-id-exchange">
                             Add photo
                           </Link>
-                          <button className="rounded border px-2 py-1" onClick={() => void runAction(() => patchObservation(row.id, { status: "corrected" }))}>Mark corrected</button>
-                          <button className="rounded border px-2 py-1" onClick={() => void runAction(() => closeObservation(row.id))}>Verify closure</button>
-                          <button className="rounded border px-2 py-1" onClick={() => void runAction(() => patchObservation(row.id, { status: "escalated" }))}>Escalate</button>
-                          <button className="rounded border px-2 py-1" onClick={() => void runAction(() => patchObservation(row.id, { convertToIncident: true, incidentType: "incident", status: "escalated" }))}>Convert to incident</button>
-                          <Link className="rounded border px-2 py-1" href={`/permits?observationId=${encodeURIComponent(row.id)}`}>Link permit</Link>
+                          <button type="button" className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-2 py-2 text-[11px] font-semibold text-slate-200" onClick={() => void runAction(() => patchObservation(row.id, { status: "corrected" }))}>Mark corrected</button>
+                          <button type="button" className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-2 py-2 text-[11px] font-semibold text-slate-200" onClick={() => void runAction(() => closeObservation(row.id))}>Verify closure</button>
+                          <button type="button" className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-2 py-2 text-[11px] font-semibold text-slate-200" onClick={() => void runAction(() => patchObservation(row.id, { status: "escalated" }))}>Escalate</button>
+                          <button type="button" className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-2 py-2 text-[11px] font-semibold text-slate-200" onClick={() => void runAction(() => patchObservation(row.id, { convertToIncident: true, incidentType: "incident", status: "escalated" }))}>Convert to incident</button>
+                          <Link className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-2 py-2 text-[11px] font-semibold text-slate-200" href={`/permits?observationId=${encodeURIComponent(row.id)}`}>Link permit</Link>
                           <button
-                            className="rounded border px-2 py-1"
+                            type="button"
+                            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-2 py-2 text-[11px] font-semibold text-slate-200"
                             onClick={() =>
                               void runAction(async () => {
                                 const dapActivityId = window.prompt("DAP activity id");
@@ -563,14 +566,14 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
 
       {selectedId ? (
         <>
-          <button className="fixed inset-0 z-40 bg-slate-950/30" onClick={() => setSelectedId(null)} aria-label="Close details panel" />
+          <button type="button" className="fixed inset-0 z-40 bg-slate-950/30" onClick={() => setSelectedId(null)} aria-label="Close details panel" />
           <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md border-l border-slate-700/80 bg-slate-900/90 p-4 shadow-2xl">
             <div className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Observation Details</div>
             <div className="mb-3 text-sm text-slate-300">{selectedId}</div>
             <pre className="h-[70vh] overflow-auto rounded-xl border border-slate-700/80 bg-slate-950/50 p-3 text-xs">
               {JSON.stringify(rows.find((row) => row.id === selectedId) ?? {}, null, 2)}
             </pre>
-            <button className="mt-3 rounded border px-3 py-1.5 text-sm" onClick={() => setSelectedId(null)}>
+            <button type="button" className="mt-3 inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200" onClick={() => setSelectedId(null)}>
               Close
             </button>
           </aside>
@@ -588,7 +591,7 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
 
       {quickAddOpen ? (
         <>
-          <button className="fixed inset-0 z-40 bg-slate-950/30" onClick={() => setQuickAddOpen(false)} aria-label="Close quick add panel" />
+          <button type="button" className="fixed inset-0 z-40 bg-slate-950/30" onClick={() => setQuickAddOpen(false)} aria-label="Close quick add panel" />
           <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md border-l border-slate-700/80 bg-slate-900/90 p-4 shadow-2xl">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Quick Add</div>
             <div className="mt-1 text-lg font-bold text-slate-100">New Observation</div>
@@ -606,11 +609,11 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
                 <option value="near_miss">Near Miss</option>
                 <option value="unsafe_condition">Unsafe Condition</option>
               </select>
-              <div className="flex gap-2">
-                <button className="rounded bg-sky-600 px-4 py-2 text-sm font-semibold text-white" onClick={() => void runAction(createQuickObservation)}>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white" onClick={() => void runAction(createQuickObservation)}>
                   Save Observation
                 </button>
-                <button className="rounded border px-4 py-2 text-sm" onClick={() => setQuickAddOpen(false)}>
+                <button type="button" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200" onClick={() => setQuickAddOpen(false)}>
                   Cancel
                 </button>
               </div>

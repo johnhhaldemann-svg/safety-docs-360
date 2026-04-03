@@ -5,12 +5,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Toaster } from "sonner";
+import { AppCommandPalette } from "@/components/AppCommandPalette";
 import {
   accountSetupSideSections,
   adminSideSections,
   companyAdminSideSections,
   companyManagerSideSections,
   companyUserSideSections,
+  flattenNavItemsFromSections,
   internalAdminAppendedSection,
   userSideSections,
 } from "@/lib/appNavigation";
@@ -226,6 +229,7 @@ export default function AppLayout({
     getDefaultAgreementConfig()
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [bootError, setBootError] = useState("");
   const isAdminArea = pathname.startsWith("/admin");
   const isCompanyAdminUser = userRole === "company_admin";
@@ -281,6 +285,11 @@ export default function AppLayout({
     userRole,
     workspaceProduct,
   ]);
+
+  const commandPaletteItems = useMemo(
+    () => flattenNavItemsFromSections(sideSections),
+    [sideSections]
+  );
 
   const currentNavItem = useMemo(() => {
     for (const section of sideSections) {
@@ -482,7 +491,7 @@ export default function AppLayout({
     if (isCompanyScopedUser) {
       if (userRole === "read_only") {
         if (workspaceProduct === "csep") {
-          const readOnlyCsepRoutes = ["/dashboard", "/profile", "/library"];
+          const readOnlyCsepRoutes = ["/dashboard", "/profile", "/library", "/search"];
           const inReadOnlyCsep = readOnlyCsepRoutes.some(
             (route) => pathname === route || pathname.startsWith(`${route}/`)
           );
@@ -508,7 +517,7 @@ export default function AppLayout({
       }
 
       if (workspaceProduct === "csep") {
-        const csepRoutes = ["/dashboard", "/profile", "/library"];
+        const csepRoutes = ["/dashboard", "/profile", "/library", "/search"];
         const canOpenCsep =
           Boolean(permissionMap?.can_create_documents) ||
           Boolean(permissionMap?.can_edit_documents) ||
@@ -525,7 +534,7 @@ export default function AppLayout({
         return;
       }
 
-      const companyAllowedRoutes = ["/dashboard", "/library", "/profile"];
+      const companyAllowedRoutes = ["/dashboard", "/library", "/search", "/profile"];
 
       if (
         userRole === "project_manager" ||
@@ -623,6 +632,23 @@ export default function AppLayout({
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  const workspaceChromeReady =
+    !loading && accountStatus === "active" && acceptedTerms;
+
+  useEffect(() => {
+    if (!workspaceChromeReady) {
+      return;
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setCommandPaletteOpen((open) => !open);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [workspaceChromeReady]);
 
   const workspaceLabel = isAdminArea
     ? "Admin Workspace"
@@ -992,9 +1018,21 @@ export default function AppLayout({
                     <button
                       type="button"
                       onClick={() => setMobileMenuOpen(true)}
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-600 bg-slate-800/90 text-slate-200 shadow-sm lg:hidden"
+                      aria-label="Open navigation menu"
+                      className="inline-flex h-11 min-h-11 w-11 min-w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-600 bg-slate-800/90 text-slate-200 shadow-sm lg:hidden"
                     >
                       <MobileMenuIcon />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCommandPaletteOpen(true)}
+                      aria-label="Open go to page menu"
+                      className="inline-flex h-11 min-h-11 shrink-0 items-center gap-2 rounded-2xl border border-slate-600 bg-slate-800/90 px-3 text-xs font-semibold text-slate-200 shadow-sm sm:px-4 sm:text-sm"
+                    >
+                      <span className="hidden sm:inline">Go to</span>
+                      <span className="rounded-md bg-slate-950/60 px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
+                        Ctrl/⌘K
+                      </span>
                     </button>
                     <div className="min-w-0 flex-1">
                       <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">
@@ -1088,6 +1126,12 @@ export default function AppLayout({
           </main>
         </div>
       </div>
+      <Toaster richColors theme="dark" position="top-center" closeButton />
+      <AppCommandPalette
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+        items={commandPaletteItems}
+      />
     </div>
   );
 }

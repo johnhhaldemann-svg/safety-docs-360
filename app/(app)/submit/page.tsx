@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
   ActivityFeed,
@@ -139,14 +140,18 @@ export default function SubmitPage() {
     setMessageTone("neutral");
 
     if (!permissionMap?.can_submit_documents) {
-      setMessage("Your current role cannot submit documents into review.");
+      const msg = "Your current role cannot submit documents into review.";
+      setMessage(msg);
       setMessageTone("warning");
+      toast.warning(msg);
       return;
     }
 
     if (!title.trim()) {
-      setMessage("Please enter a request title.");
+      const msg = "Please enter a request title.";
+      setMessage(msg);
       setMessageTone("warning");
+      toast.warning(msg);
       return;
     }
 
@@ -156,22 +161,27 @@ export default function SubmitPage() {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      setMessage("You must be logged in.");
+      const msg = "You must be logged in.";
+      setMessage(msg);
       setMessageTone("error");
+      toast.error(msg);
       return;
     }
 
     if (subscriptionStatus !== "active") {
-      setMessage("An active subscription is required before submitting documents.");
+      const msg = "An active subscription is required before submitting documents.";
+      setMessage(msg);
       setMessageTone("warning");
+      toast.warning(msg);
       return;
     }
 
     if (!agreedToSubmissionTerms) {
-      setMessage(
-        "You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before submitting a document."
-      );
+      const msg =
+        "You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before submitting a document.";
+      setMessage(msg);
       setMessageTone("warning");
+      toast.warning(msg);
       return;
     }
 
@@ -191,8 +201,10 @@ export default function SubmitPage() {
       .single();
 
     if (submissionError || !submission) {
-      setMessage(`Submission creation failed: ${submissionError?.message ?? "Unknown error"}`);
+      const msg = `Submission creation failed: ${submissionError?.message ?? "Unknown error"}`;
+      setMessage(msg);
       setMessageTone("error");
+      toast.error(msg);
       setSubmitting(false);
       return;
     }
@@ -207,8 +219,10 @@ export default function SubmitPage() {
           .upload(filePath, file, { upsert: false });
 
         if (storageError) {
-          setMessage(`File upload failed: ${storageError.message}`);
+          const msg = `File upload failed: ${storageError.message}`;
+          setMessage(msg);
           setMessageTone("error");
+          toast.error(msg);
           setSubmitting(false);
           return;
         }
@@ -230,8 +244,10 @@ export default function SubmitPage() {
         });
 
         if (docError) {
-          setMessage(`Document record save failed: ${docError.message}`);
+          const msg = `Document record save failed: ${docError.message}`;
+          setMessage(msg);
           setMessageTone("error");
+          toast.error(msg);
           setSubmitting(false);
           return;
         }
@@ -245,6 +261,7 @@ export default function SubmitPage() {
     setRecentSubmissions((prev) => [submission, ...prev].slice(0, 4));
     setMessage("Submission created successfully.");
     setMessageTone("success");
+    toast.success("Submission created successfully.");
     setSubmitting(false);
   }
 

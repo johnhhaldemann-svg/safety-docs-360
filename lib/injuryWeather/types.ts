@@ -348,6 +348,24 @@ export type InjuryWeatherSignalProvenance = {
 export const INJURY_WEATHER_ASSUMPTIONS =
   "Forecasts for the month you select use historical safety signals when that month has no or sparse data in the latest daily snapshot, and future months use past patterns until new snapshot data exists. The model blends SOR, corrective actions, and incidents with optional workforce or hours normalization and trade- and state-aware weather exposure (not live weather station feeds). Signal inputs refresh on a schedule (e.g. daily), not in real time. Outputs are not validated injury predictions until compared to your incident history. Use for prioritization and discussion, not as a compliance guarantee.";
 
+/** Provenance tag for deterministic monthly focus rows (AI must cite these, not invent parallel “facts”). */
+export type InjuryWeatherMonthlyFocusSource = "workspace" | "benchmark" | "sector_reference";
+
+export type InjuryWeatherMonthlyFocusItem = {
+  rank: number;
+  title: string;
+  rationale: string;
+  sources: InjuryWeatherMonthlyFocusSource[];
+};
+
+/** Superadmin diagnostics: why the dashboard may look empty or seed-only. */
+export type InjuryWeatherEngineDiagnostics = {
+  /** True when the service-role Supabase client is missing — no live SOR/CAPA/incidents. */
+  seedOnlyMode: boolean;
+  /** Count of normalized live rows loaded (all dates) before month scoping for cards; null when seed-only. */
+  liveSignalRowCount: number | null;
+};
+
 export type InjuryWeatherDashboardData = {
   summary: DashboardSummary;
   tradeForecasts: TradeForecast[];
@@ -367,6 +385,10 @@ export type InjuryWeatherDashboardData = {
   behaviorSignals: BehaviorSignals;
   /** Echo of schedule inputs used for `scheduleExposureFactor` (defaults when omitted). */
   workSchedule: WorkScheduleInputs;
+  /** Deterministic “where to focus this month” — merged from workspace signals, benchmarks, and sector reference. */
+  monthlyFocus: InjuryWeatherMonthlyFocusItem[];
+  /** Runtime signal path diagnostics for superadmin troubleshooting. */
+  engineDiagnostics: InjuryWeatherEngineDiagnostics;
 };
 
 /** AI Safety Advisor: priority theme row (not verified open items). */

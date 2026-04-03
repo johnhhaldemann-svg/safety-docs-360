@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
@@ -146,28 +147,35 @@ export default function UploadPage() {
     setMessageTone("neutral");
 
     if (!permissionMap?.can_create_documents || !permissionMap?.can_edit_documents) {
-      setMessage("Your current role cannot create or edit upload records.");
+      const msg = "Your current role cannot create or edit upload records.";
+      setMessage(msg);
       setMessageTone("warning");
+      toast.warning(msg);
       return;
     }
 
     if (!selectedFile) {
-      setMessage("Please choose a file first.");
+      const msg = "Please choose a file first.";
+      setMessage(msg);
       setMessageTone("warning");
+      toast.warning(msg);
       return;
     }
 
     if (!documentTitle.trim()) {
-      setMessage("Please enter a document title.");
+      const msg = "Please enter a document title.";
+      setMessage(msg);
       setMessageTone("warning");
+      toast.warning(msg);
       return;
     }
 
     if (!agreedToUploadTerms) {
-      setMessage(
-        "You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before uploading a document."
-      );
+      const msg =
+        "You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before uploading a document.";
+      setMessage(msg);
       setMessageTone("warning");
+      toast.warning(msg);
       return;
     }
 
@@ -179,15 +187,19 @@ export default function UploadPage() {
     } = await supabase.auth.getUser();
 
     if (userError) {
-      setMessage(`User error: ${userError.message}`);
+      const msg = `User error: ${userError.message}`;
+      setMessage(msg);
       setMessageTone("error");
+      toast.error(msg);
       setUploading(false);
       return;
     }
 
     if (!user) {
-      setMessage("You must be logged in to upload files.");
+      const msg = "You must be logged in to upload files.";
+      setMessage(msg);
       setMessageTone("error");
+      toast.error(msg);
       setUploading(false);
       return;
     }
@@ -201,8 +213,10 @@ export default function UploadPage() {
       .upload(filePath, selectedFile, { upsert: false });
 
     if (storageError) {
-      setMessage(`Storage upload failed: ${storageError.message}`);
+      const msg = `Storage upload failed: ${storageError.message}`;
+      setMessage(msg);
       setMessageTone("error");
+      toast.error(msg);
       setUploading(false);
       return;
     }
@@ -222,8 +236,10 @@ export default function UploadPage() {
     });
 
     if (insertError) {
-      setMessage(`Database save failed: ${insertError.message}`);
+      const msg = `Database save failed: ${insertError.message}`;
+      setMessage(msg);
       setMessageTone("error");
+      toast.error(msg);
       setUploading(false);
       return;
     }
@@ -236,6 +252,7 @@ export default function UploadPage() {
     setSelectedFile(null);
     setMessage("File uploaded successfully.");
     setMessageTone("success");
+    toast.success("File uploaded successfully.");
     setUploading(false);
 
     await loadDocuments();
@@ -247,8 +264,10 @@ async function handleOpenFile(path?: string | null) {
 
 async function confirmOpenFile() {
   if (!downloadPath) {
-    setMessage("Open file failed: missing file path.");
+    const msg = "Open file failed: missing file path.";
+    setMessage(msg);
     setMessageTone("error");
+    toast.error(msg);
     return;
   }
 
@@ -259,15 +278,19 @@ async function confirmOpenFile() {
     .createSignedUrl(downloadPath, 60);
 
   if (error) {
-    setMessage(`Open file failed: ${error.message}`);
+    const msg = `Open file failed: ${error.message}`;
+    setMessage(msg);
     setMessageTone("error");
+    toast.error(msg);
     setDownloadLoading(false);
     return;
   }
 
   if (!data?.signedUrl) {
-    setMessage("Open file failed: no signed URL returned.");
+    const msg = "Open file failed: no signed URL returned.";
+    setMessage(msg);
     setMessageTone("error");
+    toast.error(msg);
     setDownloadLoading(false);
     return;
   }

@@ -94,7 +94,7 @@ export async function GET(request: Request) {
           archived_at: row.status === "archived" ? row.updated_at : null,
         })),
         error: null,
-      };
+      } as unknown as typeof tableResult;
     }
   }
   const jobsiteScope = await getJobsiteAccessScope({

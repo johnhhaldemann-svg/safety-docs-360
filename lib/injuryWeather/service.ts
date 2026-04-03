@@ -40,6 +40,7 @@ import {
 } from "@/lib/injuryWeather/riskEngineV2";
 import { isForecasterSyntheticIncident } from "@/lib/injuryWeather/excludeForecasterIncidents";
 import { DEMO_LIKELY_INJURY_INSIGHT, likelyInjuryInsightFromSignals } from "@/lib/injuryWeather/likelyInjuryFromSignals";
+import { buildMonthlyFocusItems } from "@/lib/injuryWeather/monthlyFocus";
 import { injuryWeatherScopeNote } from "@/lib/injuryWeather/scopeMessaging";
 import {
   categoryToId,
@@ -47,7 +48,10 @@ import {
   resolveTradeForRow,
   tradeFilterStringsToIds,
 } from "@/lib/injuryWeather/tradeNormalization";
-import { EXPOSURE_EVENT_TYPE_LABELS, isExposureEventType } from "@/lib/incidents/exposureEventType";
+import {
+  EXPOSURE_EVENT_TYPE_LABELS,
+  normalizeExposureEventType,
+} from "@/lib/incidents/exposureEventType";
 import { normalizeInjuryType } from "@/lib/incidents/injuryType";
 import { resolveSorHazardCategoryCode } from "@/lib/incidents/sorHazardCategory";
 import type {
@@ -59,6 +63,7 @@ import type {
   InjuryWeatherBacktestRow,
   InjuryWeatherBacktestRunSnapshot,
   InjuryWeatherDashboardData,
+  InjuryWeatherEngineDiagnostics,
   InjuryWeatherIndustryBenchmarkContext,
   InjuryWeatherSignalProvenance,
   NormalizedLiveSignalRow,
@@ -268,8 +273,7 @@ export function normalizedRowsFromFetchedLiveData(
         severity?: string | null;
         created_at?: string | null;
       };
-      const evRaw = r.exposure_event_type != null ? String(r.exposure_event_type).trim() : "";
-      const exposureEventType = evRaw && isExposureEventType(evRaw) ? evRaw : null;
+      const exposureEventType = normalizeExposureEventType(r.exposure_event_type);
       const categoryRaw = String(r.category ?? "Incident");
       const categoryLabel =
         categoryRaw.trim().toLowerCase() === "incident" && exposureEventType
@@ -631,6 +635,22 @@ export type InjuryWeatherLiveSignalScope = {
   jobsiteId?: string | null;
 };
 
+const PLACEHOLDER_FOCUS_DIAG: Pick<InjuryWeatherDashboardData, "monthlyFocus" | "engineDiagnostics"> = {
+  monthlyFocus: [],
+  engineDiagnostics: { seedOnlyMode: true, liveSignalRowCount: null },
+};
+
+function withFinalInjuryDashboardFields(
+  data: InjuryWeatherDashboardData,
+  diagnostics: InjuryWeatherEngineDiagnostics
+): InjuryWeatherDashboardData {
+  return {
+    ...data,
+    monthlyFocus: buildMonthlyFocusItems(data),
+    engineDiagnostics: diagnostics,
+  };
+}
+
 export async function getInjuryWeatherDashboardData(filters?: {
   month?: string;
   trade?: string;
@@ -673,31 +693,35 @@ export async function getInjuryWeatherDashboardData(filters?: {
     );
     const fallback = computeFromSeed(workbookRows, filters);
     const availableMonths = build90DayOutlookMonths(trendFromSeed.availableMonths);
-    return {
-      summary: {
-        ...fallback.summary,
-        month: monthLabel,
-        dataConfidence: computeDataConfidenceFromMetrics(
-          fallback.summary.riskSignalCount,
-          trendFromSeed.trend.length,
-          availableMonths.length
-        ),
-        forecastMode: forecastModeFromObservationCount(fallback.summary.riskSignalCount),
-        forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(fallback.summary.riskSignalCount),
+    return withFinalInjuryDashboardFields(
+      {
+        summary: {
+          ...fallback.summary,
+          month: monthLabel,
+          dataConfidence: computeDataConfidenceFromMetrics(
+            fallback.summary.riskSignalCount,
+            trendFromSeed.trend.length,
+            availableMonths.length
+          ),
+          forecastMode: forecastModeFromObservationCount(fallback.summary.riskSignalCount),
+          forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(fallback.summary.riskSignalCount),
+        },
+        tradeForecasts: fallback.tradeForecasts,
+        alerts: fallback.alerts,
+        trend: trendFromSeed.trend,
+        recommendedControls: fallback.recommendedControls,
+        monthlyTrainingRecommendations: fallback.monthlyTrainingRecommendations,
+        availableMonths,
+        availableTrades: availableTradesFromData(fallback.availableTrades, workbookRows),
+        industryBenchmarkContext: benchmarkCtx,
+        location: fallback.location,
+        signalProvenance: fallback.signalProvenance,
+        behaviorSignals: fallback.behaviorSignals,
+        workSchedule: fallback.workSchedule,
+        ...PLACEHOLDER_FOCUS_DIAG,
       },
-      tradeForecasts: fallback.tradeForecasts,
-      alerts: fallback.alerts,
-      trend: trendFromSeed.trend,
-      recommendedControls: fallback.recommendedControls,
-      monthlyTrainingRecommendations: fallback.monthlyTrainingRecommendations,
-      availableMonths,
-      availableTrades: availableTradesFromData(fallback.availableTrades, workbookRows),
-      industryBenchmarkContext: benchmarkCtx,
-      location: fallback.location,
-      signalProvenance: fallback.signalProvenance,
-      behaviorSignals: fallback.behaviorSignals,
-      workSchedule: fallback.workSchedule,
-    };
+      { seedOnlyMode: true, liveSignalRowCount: null }
+    );
   }
 
   const shouldFilterSignalsByMonth = filters?.month ? !isFutureMonth(filters.month) : false;
@@ -748,7 +772,10 @@ export async function getInjuryWeatherDashboardData(filters?: {
     forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(live.summary.riskSignalCount),
     likelyInjuryInsight: likelyInjuryInsightFromSignals(likelyRowsForInsight),
   };
-  return { ...live, industryBenchmarkContext: benchmarkCtx };
+  return withFinalInjuryDashboardFields(
+    { ...live, industryBenchmarkContext: benchmarkCtx, ...PLACEHOLDER_FOCUS_DIAG },
+    { seedOnlyMode: false, liveSignalRowCount: allRows.length }
+  );
 }
 
 export async function refreshInjuryWeatherDailySnapshot() {
@@ -778,7 +805,10 @@ export async function refreshInjuryWeatherDailySnapshot() {
     forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(payload.summary.riskSignalCount),
   };
   const snapshotDate = new Date().toISOString().slice(0, 10);
-  const payloadWithBenchmark: InjuryWeatherDashboardData = { ...payload, industryBenchmarkContext: benchmarkCtx };
+  const payloadWithBenchmark = withFinalInjuryDashboardFields(
+    { ...payload, industryBenchmarkContext: benchmarkCtx, ...PLACEHOLDER_FOCUS_DIAG },
+    { seedOnlyMode: false, liveSignalRowCount: liveRows.length }
+  );
   const upsert = await admin.from("injury_weather_daily_snapshots").upsert(
     {
       snapshot_date: snapshotDate,
@@ -798,6 +828,7 @@ export async function refreshInjuryWeatherDailySnapshot() {
   return { ok: true, snapshotDate };
 }
 
+/** Phase 4 (optional): cited BLS/OSHA/weather fetchers could augment `industryBenchmarkContext` — not LLM browsing. */
 async function fetchLiveSignals(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
   filters?: {
@@ -1065,6 +1096,7 @@ function buildDashboardFromLiveSignals(
     behaviorSignals: resolvedBehavior,
     workSchedule: resolvedWorkSchedule,
     industryBenchmarkContext: offlineInjuryWeatherBenchmarkContext(),
+    ...PLACEHOLDER_FOCUS_DIAG,
   };
 }
 
@@ -1147,6 +1179,7 @@ function computeFromSeed(
       behaviorSignals: normalizeBehaviorSignals(filters?.behaviorSignals),
       workSchedule: demoWorkSchedule,
       industryBenchmarkContext: offlineInjuryWeatherBenchmarkContext(),
+      ...PLACEHOLDER_FOCUS_DIAG,
     };
   }
 
@@ -1344,6 +1377,7 @@ function computeFromSeed(
     behaviorSignals: normalizeBehaviorSignals(filters?.behaviorSignals),
     workSchedule: seedWorkSchedule,
     industryBenchmarkContext: offlineInjuryWeatherBenchmarkContext(),
+    ...PLACEHOLDER_FOCUS_DIAG,
   };
 }
 

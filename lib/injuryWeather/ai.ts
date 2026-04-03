@@ -11,6 +11,7 @@ import type {
   InjuryWeatherDashboardData,
   RiskLevel,
 } from "@/lib/injuryWeather/types";
+import { buildMonthlyFocusItems } from "@/lib/injuryWeather/monthlyFocus";
 import { buildOshaCrossReference } from "@/lib/injuryWeather/oshaHistory";
 
 const RISK_LEVELS: RiskLevel[] = ["LOW", "MODERATE", "HIGH", "CRITICAL"];
@@ -120,6 +121,7 @@ export function applyAiForecastOverride(
       if (cat) cat.riskLevel = cp.riskLevel;
     }
   }
+  merged.monthlyFocus = buildMonthlyFocusItems(merged);
   return merged;
 }
 
@@ -336,6 +338,9 @@ export function validateAiInsightsAgainstData(
   const allowed = new Set(
     data.tradeForecasts.flatMap((t) => [t.trade, ...t.categories.map((c) => c.name)]).map((s) => s.toLowerCase())
   );
+  for (const row of data.monthlyFocus) {
+    allowed.add(row.title.toLowerCase());
+  }
   const TRADE_HINTS = [
     "roofing",
     "electrical",
@@ -421,6 +426,7 @@ function computeAiContext(data: InjuryWeatherDashboardData) {
         "nationalConstructionOshaReference is national U.S. construction BLS SOII/CFOI-style counts—not this employer’s record. Cite those numbers only as given in that object.",
         "If locationContext.stateCode is null, do not claim a regional weather story beyond general language.",
         "totals.likelyInjuryInsight blends incident injury/exposure history with SOR and corrective-action hazard patterns (mapped to exposure priors) using the same safety-signal record window as totals.riskSignalCount and the dashboard trade cards (month rules in signalProvenance.recordWindowLabel; company/jobsite and trade filters when applied)—do not invent a different top injury type.",
+        "monthlyFocus is a deterministic priority list (sources: workspace, benchmark, sector_reference). Each priorityThemes[].title must clearly reflect at least one monthlyFocus.title or a trade/category named there; do not contradict monthlyFocus.rationale.",
       ],
     },
     month: data.summary.month,
@@ -483,6 +489,12 @@ function computeAiContext(data: InjuryWeatherDashboardData) {
     oshaPriorYearsCrossReference: oshaHistory,
     nationalConstructionOshaReference: data.industryBenchmarkContext.oshaNationalConstruction,
     signalProvenance: data.signalProvenance,
+    monthlyFocus: data.monthlyFocus.map((f) => ({
+      rank: f.rank,
+      title: f.title,
+      rationale: f.rationale,
+      sources: f.sources,
+    })),
     confidenceRubricHint: computeConfidenceRubric(data),
   };
 }
@@ -669,7 +681,7 @@ function buildAiPrompt(data: InjuryWeatherDashboardData, requestForecastOverride
   return [
     "You are a construction safety analyst helping with a MONTHLY RISK ASSESSMENT for monthlyRiskAssessment.forecastMonth.",
     "The user needs grounded support for that month’s assessment—not invented incidents or fake triggers.",
-    "Evidence you may use: totals (including finalRiskScoreV2, riskBandLabelV2, riskSignalCount), riskEngineV2Explainability when present (weighted drivers, recurrence, trend slope—do not contradict these numbers), trendSignals, tradeSignals (including topTrades with categories), locationContext, dataCoverage, oshaPriorYearsCrossReference (sector baseline only), nationalConstructionOshaReference (national construction counts only). genericUiSuggestions.controlThemes are legacy layout hints only—do NOT copy them verbatim; you author fresh priorityThemes, monthlyTrainingRecommendations, and recommendedControls from the structured signals.",
+    "Evidence you may use: totals (including finalRiskScoreV2, riskBandLabelV2, riskSignalCount), riskEngineV2Explainability when present (weighted drivers, recurrence, trend slope—do not contradict these numbers), trendSignals, tradeSignals (including topTrades with categories), monthlyFocus (deterministic monthly priorities with source tags), locationContext, dataCoverage, oshaPriorYearsCrossReference (sector baseline only), nationalConstructionOshaReference (national construction counts only). genericUiSuggestions.controlThemes are legacy layout hints only—do NOT copy them verbatim; you author fresh priorityThemes, monthlyTrainingRecommendations, and recommendedControls from the structured signals.",
     "Do NOT: invent injuries, near-misses, equipment failures, OSHA visits, citations, or people; do not claim specific due dates or overdue CAPA items; do not mention trades or hazard categories not in grounding.allowedTradeNames / allowedCategoryNames or tradeSignals.",
     "Output strict JSON with fields:",
     "headline (string, 1 sentence tied to the month and real signals), likelyInjuryDrivers (exactly 3 strings), priorityActions (exactly 3 strings), confidence (LOW|MEDIUM|HIGH),",
@@ -690,7 +702,7 @@ function buildAiPrompt(data: InjuryWeatherDashboardData, requestForecastOverride
     "- In one priority action, state clearly that executing controls improves conditions over time and reduces future signal severity/volume—the headline exposure estimate is a leading-indicator model output and does not drop instantly when reading the AI text.",
     "- Set confidence to confidenceRubricHint unless you have a strong reason from sparse data to use LOW.",
     "- Data confidence is about evidence density (baseline vs latest daily snapshot of signals), NOT hazard level: LOW confidence does not mean “low risk”; HIGH means the estimate is supported by enough structured safety signal data (SOR / actions / incidents). Do not imply real-time or streaming data.",
-    "- priorityThemes: titles must reference real trade/category patterns from tradeSignals (not generic demo card titles). The 3 titles must NOT reuse the same action phrase or trailing clause (e.g. do not end all three with “strengthen verification and pre-task focus”); vary verification vs walkdown vs corrective closeout vs permit/toolbox focus. Prefer different trades across themes when tradeSignals lists multiple trades. dueLabel must differ across themes where possible. dueLabel must be a planning horizon—never “Due tomorrow” or fake deadlines.",
+    "- priorityThemes: titles must align with monthlyFocus and tradeSignals—each title should echo a monthlyFocus.title theme or name trades/categories from allowed lists (not generic demo card titles). The 3 titles must NOT reuse the same action phrase or trailing clause (e.g. do not end all three with “strengthen verification and pre-task focus”); vary verification vs walkdown vs corrective closeout vs permit/toolbox focus. Prefer different trades across themes when tradeSignals lists multiple trades. dueLabel must differ across themes where possible. dueLabel must be a planning horizon—never “Due tomorrow” or fake deadlines.",
     "- monthlyTrainingRecommendations: concrete training topics aligned to top hazard categories and severity mix.",
     "- recommendedControls: specific, verifiable field actions; at least two should name a trade or hazard family from allowed lists.",
     JSON.stringify(aiContext),

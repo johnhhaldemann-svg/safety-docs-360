@@ -68,6 +68,8 @@ function minimalData(overrides: Partial<InjuryWeatherDashboardData> = {}): Injur
     },
     workSchedule: { workSevenDaysPerWeek: false, hoursPerDay: null },
     industryBenchmarkContext: offlineInjuryWeatherBenchmarkContext(),
+    monthlyFocus: [{ rank: 1, title: "Test", rationale: "Test rationale", sources: ["workspace"] }],
+    engineDiagnostics: { seedOnlyMode: false, liveSignalRowCount: 20 },
   };
   return { ...base, ...overrides };
 }

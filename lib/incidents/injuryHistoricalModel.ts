@@ -1,7 +1,7 @@
 import type { ExposureEventType } from "@/lib/incidents/exposureEventType";
-import { isExposureEventType } from "@/lib/incidents/exposureEventType";
+import { normalizeExposureEventType } from "@/lib/incidents/exposureEventType";
 import type { InjuryType } from "@/lib/incidents/injuryType";
-import { isInjuryType } from "@/lib/incidents/injuryType";
+import { normalizeInjuryType } from "@/lib/incidents/injuryType";
 import { blendInjuryDistribution } from "@/lib/incidents/exposureInjuryCorrelations";
 
 export type IncidentAnalyticsRow = {
@@ -15,14 +15,11 @@ export function buildEventToInjuryCounts(rows: IncidentAnalyticsRow[]): Map<Expo
   const out = new Map<ExposureEventType, Map<InjuryType, number>>();
   for (const row of rows) {
     if (String(row.category ?? "").toLowerCase() !== "incident") continue;
-    const evRaw = row.exposure_event_type;
-    const injRaw = row.injury_type;
-    if (!evRaw || !injRaw) continue;
-    const ev = String(evRaw);
-    const inj = String(injRaw);
-    if (!isExposureEventType(ev) || !isInjuryType(inj)) continue;
-    const eventKey = ev as ExposureEventType;
-    const injKey = inj as InjuryType;
+    const ev = normalizeExposureEventType(row.exposure_event_type);
+    const inj = normalizeInjuryType(row.injury_type);
+    if (!ev || !inj) continue;
+    const eventKey = ev;
+    const injKey = inj;
     if (!out.has(eventKey)) out.set(eventKey, new Map());
     const m = out.get(eventKey)!;
     m.set(injKey, (m.get(injKey) ?? 0) + 1);

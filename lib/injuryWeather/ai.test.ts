@@ -92,6 +92,10 @@ function minimalDashboard(overrides: Partial<InjuryWeatherDashboardData> = {}): 
       hoursPerDay: null,
     },
     industryBenchmarkContext: offlineInjuryWeatherBenchmarkContext(),
+    monthlyFocus: [
+      { rank: 1, title: "Roofing: Fall Protection", rationale: "HIGH risk in window.", sources: ["workspace"] },
+    ],
+    engineDiagnostics: { seedOnlyMode: false, liveSignalRowCount: 40 },
   };
   return { ...base, ...overrides };
 }

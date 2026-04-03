@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import { InjuryWeatherDiagnosticsPanel, MonthlyFocusPanel } from "@/components/injury-weather/MonthlyFocusPanel";
 import { LeadingIndicatorsPanel } from "@/components/injury-weather/LeadingIndicatorsPanel";
 import { InjuryRiskTreePanel } from "@/components/injury-weather/InjuryRiskTreePanel";
 import { US_STATE_OPTIONS } from "@/lib/injuryWeather/locationWeather";
@@ -1197,6 +1198,8 @@ export function InjuryWeatherDashboard() {
             Last updated: {new Date(data.summary.lastUpdatedAt).toLocaleString()}
           </p>
         </section>
+        <MonthlyFocusPanel data={data} />
+        <InjuryWeatherDiagnosticsPanel data={data} />
         <LeadingIndicatorsPanel data={data} />
       </div>
 
