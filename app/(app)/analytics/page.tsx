@@ -215,7 +215,7 @@ export default function AnalyticsPage() {
       if (!response.ok) {
         setSummary(null);
         setInjuryLikelihood(parsedInjury);
-        const errText = data?.error?.trim() || "";
+        const errText = typeof data?.error === "string" ? data.error.trim() : "";
         const warnText = typeof data?.warning === "string" ? data.warning.trim() : "";
         setMessage(errText || warnText || "Failed to load analytics summary.");
         setMessageTone(errText ? "error" : warnText ? "warning" : "error");
@@ -376,7 +376,7 @@ export default function AnalyticsPage() {
 
       <div className="space-y-6 px-5 py-6 sm:px-8 sm:py-8">
         {message ? (
-          <InlineMessage tone="error">{message}</InlineMessage>
+          <InlineMessage tone={messageTone}>{message}</InlineMessage>
         ) : (
           <div className="rounded-xl border border-sky-500/25 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
             {lastLoadedAt

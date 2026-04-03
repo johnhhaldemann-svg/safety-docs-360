@@ -601,7 +601,7 @@ export function CompanyAdminDashboard({
             <select
               value={selectedJobsite}
               onChange={(event) => setSelectedJobsite(event.target.value)}
-              className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-400"
+              className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm font-semibold text-slate-300 [color-scheme:dark] outline-none focus:border-sky-400"
             >
               {jobsiteOptions.map((option) => (
                 <option key={option} value={option}>

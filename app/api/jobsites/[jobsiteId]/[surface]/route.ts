@@ -112,6 +112,12 @@ export async function GET(
   if (surface === "documents") return NextResponse.json({ jobsite, documents: docsRows });
   if (surface === "team") return NextResponse.json({ jobsite, users: usersRows });
   if (surface === "analytics") {
+    if (!analytics.ok) {
+      return NextResponse.json(
+        analytics.json ?? { error: "Failed to load analytics summary." },
+        { status: analytics.status }
+      );
+    }
     const summary = (analytics.json?.summary as Record<string, unknown> | undefined) ?? {};
     const riskRows = ((summary.jobsiteRiskScore as unknown[]) ?? []) as Array<{ jobsiteId?: string }>;
     return NextResponse.json({

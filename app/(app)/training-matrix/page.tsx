@@ -439,8 +439,13 @@ function PickTradesAndPositions({
 }) {
   const selectClass =
     variant === "compact"
-      ? "mt-1 w-full rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm text-slate-100 outline-none focus:ring-2 focus:ring-sky-500"
-      : "mt-2 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm text-slate-100 outline-none focus:ring-2 focus:ring-sky-500";
+      ? "mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 [color-scheme:dark] outline-none focus:ring-2 focus:ring-sky-500"
+      : "mt-2 w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-2.5 text-sm text-slate-100 [color-scheme:dark] outline-none focus:ring-2 focus:ring-sky-500";
+
+  const selectAllBtnClass =
+    variant === "compact"
+      ? "rounded-lg px-2 py-1 text-xs font-semibold text-sky-400 transition hover:text-sky-300 disabled:cursor-default disabled:text-slate-500 disabled:hover:text-slate-500"
+      : "rounded-lg px-2 py-1.5 text-sm font-semibold text-sky-400 transition hover:text-sky-300 disabled:cursor-default disabled:text-slate-500 disabled:hover:text-slate-500";
 
   const chipClass =
     variant === "compact"
@@ -449,6 +454,15 @@ function PickTradesAndPositions({
 
   const availableTrades = CONSTRUCTION_TRADES.filter((t) => !trades.includes(t));
   const availablePositions = CONSTRUCTION_POSITIONS.filter((p) => !positions.includes(p));
+
+  const allTradesSelected =
+    CONSTRUCTION_TRADES.length > 0 &&
+    trades.length === CONSTRUCTION_TRADES.length &&
+    CONSTRUCTION_TRADES.every((t) => trades.includes(t));
+  const allPositionsSelected =
+    CONSTRUCTION_POSITIONS.length > 0 &&
+    positions.length === CONSTRUCTION_POSITIONS.length &&
+    CONSTRUCTION_POSITIONS.every((p) => positions.includes(p));
 
   const headingClass =
     variant === "compact"
@@ -467,6 +481,16 @@ function PickTradesAndPositions({
             dropdown; add several if needed.
           </p>
         ) : null}
+        <div className={variant === "compact" ? "mt-1" : "mt-1.5"}>
+          <button
+            type="button"
+            className={selectAllBtnClass}
+            disabled={allTradesSelected}
+            onClick={() => onTradesChange([...CONSTRUCTION_TRADES])}
+          >
+            {allTradesSelected ? "All trades selected" : "Select all trades"}
+          </button>
+        </div>
         <select
           key={`trade-dd-${trades.join("|")}`}
           className={selectClass}
@@ -491,7 +515,7 @@ function PickTradesAndPositions({
                 <span className="truncate">{t}</span>
                 <button
                   type="button"
-                  className="shrink-0 rounded px-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-100"
+                  className="shrink-0 rounded px-0.5 text-slate-500 hover:bg-slate-800 hover:text-slate-100"
                   aria-label={`Remove ${t}`}
                   onClick={() => onTradesChange(trades.filter((x) => x !== t))}
                 >
@@ -514,6 +538,16 @@ function PickTradesAndPositions({
             included in the saved title after your training name.
           </p>
         ) : null}
+        <div className={variant === "compact" ? "mt-1" : "mt-1.5"}>
+          <button
+            type="button"
+            className={selectAllBtnClass}
+            disabled={allPositionsSelected}
+            onClick={() => onPositionsChange([...CONSTRUCTION_POSITIONS])}
+          >
+            {allPositionsSelected ? "All positions selected" : "Select all positions"}
+          </button>
+        </div>
         <select
           key={`position-dd-${positions.join("|")}`}
           className={selectClass}
@@ -538,7 +572,7 @@ function PickTradesAndPositions({
                 <span className="truncate">{p}</span>
                 <button
                   type="button"
-                  className="shrink-0 rounded px-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-100"
+                  className="shrink-0 rounded px-0.5 text-slate-500 hover:bg-slate-800 hover:text-slate-100"
                   aria-label={`Remove ${p}`}
                   onClick={() => onPositionsChange(positions.filter((x) => x !== p))}
                 >

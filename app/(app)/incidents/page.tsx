@@ -282,7 +282,7 @@ export default function IncidentsPage() {
         description="Classify event/exposure, equipment source, injury details when applicable, and DART outcomes—so hazards tie to outcomes across the program."
       >
         <div className="grid gap-3 md:grid-cols-3">
-          <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Incident title" className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm" />
+          <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Incident title" className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]" />
           <select
             value={form.category}
             onChange={(event) =>
@@ -293,13 +293,13 @@ export default function IncidentsPage() {
                 bodyPart: event.target.value === "incident" ? prev.bodyPart : "",
               }))
             }
-            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
           >
             <option value="incident">Incident</option>
             <option value="near_miss">Near Miss</option>
             <option value="hazard">Hazard</option>
           </select>
-          <select value={form.severity} onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))} className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm">
+          <select value={form.severity} onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))} className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]">
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
@@ -311,7 +311,7 @@ export default function IncidentsPage() {
               type="datetime-local"
               value={form.occurredAt}
               onChange={(e) => setForm((prev) => ({ ...prev, occurredAt: e.target.value }))}
-              className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
+              className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
             />
             <span className="leading-snug text-slate-500">
               Drives injury month, season, weekday, and time-of-day (stored in UTC).
@@ -322,7 +322,7 @@ export default function IncidentsPage() {
             onChange={(event) =>
               setForm((prev) => ({ ...prev, eventType: event.target.value as ExposureEventType | "" }))
             }
-            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
             aria-label="Event or exposure type"
           >
             <option value="">Select event / exposure type…</option>
@@ -337,7 +337,7 @@ export default function IncidentsPage() {
             onChange={(event) =>
               setForm((prev) => ({ ...prev, source: event.target.value as IncidentSource | "" }))
             }
-            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
             aria-label="Injury source (equipment or object)"
           >
             <option value="">Select equipment / object source…</option>
@@ -353,7 +353,7 @@ export default function IncidentsPage() {
               setForm((prev) => ({ ...prev, injuryType: event.target.value as InjuryType | "" }))
             }
             disabled={form.category !== "incident"}
-            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-800/70 disabled:text-slate-400"
+            className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark] disabled:cursor-not-allowed disabled:bg-slate-800/70 disabled:text-slate-400"
             aria-label="Injury type"
           >
             <option value="">{form.category === "incident" ? "Select injury type…" : "N/A (not an injury incident)"}</option>
@@ -369,7 +369,7 @@ export default function IncidentsPage() {
               setForm((prev) => ({ ...prev, bodyPart: event.target.value as BodyPart | "" }))
             }
             disabled={form.category !== "incident"}
-            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-800/70 disabled:text-slate-400"
+            className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark] disabled:cursor-not-allowed disabled:bg-slate-800/70 disabled:text-slate-400"
             aria-label="Body part affected"
           >
             <option value="">{form.category === "incident" ? "Select body part…" : "N/A (not an injury incident)"}</option>
@@ -393,7 +393,7 @@ export default function IncidentsPage() {
                   daysAwayFromWork: Number.isFinite(n) && n >= 0 ? n : 0,
                 }));
               }}
-              className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
+              className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
             />
           </label>
           <label className="flex flex-col gap-1 text-xs text-slate-400">
@@ -410,7 +410,7 @@ export default function IncidentsPage() {
                   daysRestricted: Number.isFinite(n) && n >= 0 ? n : 0,
                 }));
               }}
-              className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
+              className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
             />
           </label>
           <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2.5 text-sm text-slate-300">
@@ -456,13 +456,13 @@ export default function IncidentsPage() {
             value={form.observationId}
             onChange={(event) => setForm((prev) => ({ ...prev, observationId: event.target.value }))}
             placeholder="Observation ID (optional)"
-            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
           />
           <input
             value={form.dapActivityId}
             onChange={(event) => setForm((prev) => ({ ...prev, dapActivityId: event.target.value }))}
             placeholder="DAP Activity ID (optional)"
-            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
           />
         </div>
         <div className="mt-4">
@@ -484,7 +484,7 @@ export default function IncidentsPage() {
 
       <SectionCard title="Incident Operations" description="Manage lifecycle and high-risk controls.">
         <div className="mb-4">
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm">
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]">
             <option value="all">All statuses</option>
             <option value="open">Open</option>
             <option value="in_progress">In Progress</option>
@@ -581,7 +581,7 @@ export default function IncidentsPage() {
                           eventType: e.target.value || null,
                         })
                       }
-                      className="rounded-lg border border-slate-600 px-2 py-1 text-xs max-w-[14rem]"
+                      className="max-w-[14rem] rounded-lg border border-slate-600 bg-slate-950 px-2 py-1 text-xs text-slate-200 [color-scheme:dark]"
                       title="OSHA/BLS-style event or exposure classification"
                     >
                       <option value="">Unset</option>
@@ -601,7 +601,7 @@ export default function IncidentsPage() {
                           source: e.target.value || null,
                         })
                       }
-                      className="rounded-lg border border-slate-600 px-2 py-1 text-xs max-w-[11rem]"
+                      className="max-w-[11rem] rounded-lg border border-slate-600 bg-slate-950 px-2 py-1 text-xs text-slate-200 [color-scheme:dark]"
                       title="Equipment or object involved (SOR / hazard linkage)"
                     >
                       <option value="">Unset</option>
@@ -621,7 +621,7 @@ export default function IncidentsPage() {
                           injuryType: e.target.value || null,
                         })
                       }
-                      className="rounded-lg border border-slate-600 px-2 py-1 text-xs"
+                      className="rounded-lg border border-slate-600 bg-slate-950 px-2 py-1 text-xs text-slate-200 [color-scheme:dark]"
                       disabled={item.category !== "incident"}
                       title={
                         item.category === "incident"
@@ -646,7 +646,7 @@ export default function IncidentsPage() {
                           bodyPart: e.target.value || null,
                         })
                       }
-                      className="rounded-lg border border-slate-600 px-2 py-1 text-xs max-w-[9rem]"
+                      className="max-w-[9rem] rounded-lg border border-slate-600 bg-slate-950 px-2 py-1 text-xs text-slate-200 [color-scheme:dark]"
                       disabled={item.category !== "incident"}
                       title={
                         item.category === "incident"

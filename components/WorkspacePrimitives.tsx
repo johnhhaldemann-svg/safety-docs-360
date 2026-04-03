@@ -1,5 +1,13 @@
 import Link from "next/link";
 
+/**
+ * Use on native `<select>` elements in the authenticated app so the closed control and
+ * (where the OS allows) the dropdown list stay dark-on-light-text. Complements
+ * `html { color-scheme: dark }` in globals.css.
+ */
+export const appNativeSelectClassName =
+  "rounded-xl border border-slate-600/90 bg-slate-950 px-4 py-2.5 text-sm text-slate-200 [color-scheme:dark] outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500/35";
+
 export function PageHero({
   eyebrow,
   title,

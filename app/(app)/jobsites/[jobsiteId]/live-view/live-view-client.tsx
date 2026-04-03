@@ -515,7 +515,7 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
 
             <div>
               <div className="mb-1 text-xs font-semibold text-slate-500">By trade</div>
-              <select className="w-full rounded border px-2 py-1.5" value={tradeFilter} onChange={(e) => setTradeFilter(e.target.value)}>
+              <select className="w-full rounded border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm text-slate-200 [color-scheme:dark]" value={tradeFilter} onChange={(e) => setTradeFilter(e.target.value)}>
                 <option value="all">All</option>
                 {tradeOptions.map((option) => (
                   <option key={option} value={option}>
@@ -526,7 +526,7 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
             </div>
             <div>
               <div className="mb-1 text-xs font-semibold text-slate-500">By area</div>
-              <select className="w-full rounded border px-2 py-1.5" value={areaFilter} onChange={(e) => setAreaFilter(e.target.value)}>
+              <select className="w-full rounded border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm text-slate-200 [color-scheme:dark]" value={areaFilter} onChange={(e) => setAreaFilter(e.target.value)}>
                 <option value="all">All</option>
                 {areaOptions.map((option) => (
                   <option key={option} value={option}>
@@ -537,7 +537,7 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
             </div>
             <div>
               <div className="mb-1 text-xs font-semibold text-slate-500">By responsible party</div>
-              <select className="w-full rounded border px-2 py-1.5" value={responsibleFilter} onChange={(e) => setResponsibleFilter(e.target.value)}>
+              <select className="w-full rounded border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm text-slate-200 [color-scheme:dark]" value={responsibleFilter} onChange={(e) => setResponsibleFilter(e.target.value)}>
                 <option value="all">All</option>
                 {responsibleOptions.map((option) => (
                   <option key={option} value={option}>
@@ -548,7 +548,7 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
             </div>
             <div>
               <div className="mb-1 text-xs font-semibold text-slate-500">By permit type</div>
-              <select className="w-full rounded border px-2 py-1.5" value={permitTypeFilter} onChange={(e) => setPermitTypeFilter(e.target.value)}>
+              <select className="w-full rounded border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm text-slate-200 [color-scheme:dark]" value={permitTypeFilter} onChange={(e) => setPermitTypeFilter(e.target.value)}>
                 <option value="all">All</option>
                 {permitTypeOptions.map((option) => (
                   <option key={option} value={option}>
@@ -595,13 +595,13 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
             <div className="mt-4 space-y-3">
               <input value={quickAddTitle} onChange={(e) => setQuickAddTitle(e.target.value)} placeholder="Title" className="w-full rounded border px-3 py-2 text-sm" />
               <textarea value={quickAddDescription} onChange={(e) => setQuickAddDescription(e.target.value)} rows={4} placeholder="Description" className="w-full rounded border px-3 py-2 text-sm" />
-              <select value={quickAddSeverity} onChange={(e) => setQuickAddSeverity(e.target.value)} className="w-full rounded border px-3 py-2 text-sm">
+              <select value={quickAddSeverity} onChange={(e) => setQuickAddSeverity(e.target.value)} className="w-full rounded border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200 [color-scheme:dark]">
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
                 <option value="critical">Critical</option>
               </select>
-              <select value={quickAddCategory} onChange={(e) => setQuickAddCategory(e.target.value)} className="w-full rounded border px-3 py-2 text-sm">
+              <select value={quickAddCategory} onChange={(e) => setQuickAddCategory(e.target.value)} className="w-full rounded border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200 [color-scheme:dark]">
                 <option value="hazard">Hazard</option>
                 <option value="near_miss">Near Miss</option>
                 <option value="unsafe_condition">Unsafe Condition</option>

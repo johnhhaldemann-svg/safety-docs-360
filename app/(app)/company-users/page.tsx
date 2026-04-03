@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityFeed,
+  appNativeSelectClassName,
   EmptyState,
   InlineMessage,
   PageHero,
@@ -647,7 +648,7 @@ export default function CompanyUsersPage() {
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
-              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
+              className={appNativeSelectClassName}
             >
               {roleOptions.map((role) => (
                 <option key={role}>{role}</option>
@@ -995,8 +996,8 @@ export default function CompanyUsersPage() {
       ) : null}
 
       {editingUser ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-3xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 [color-scheme:dark]">
+          <div className="w-full max-w-lg rounded-3xl border border-slate-700/80 bg-slate-900/95 p-6 shadow-2xl [color-scheme:dark]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
@@ -1020,7 +1021,7 @@ export default function CompanyUsersPage() {
               <select
                 value={editRole}
                 onChange={(e) => setEditRole(e.target.value)}
-                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
+                className={`w-full ${appNativeSelectClassName} py-3`}
               >
                 {roleOptions.map((role) => (
                   <option key={role}>{role}</option>
@@ -1029,7 +1030,7 @@ export default function CompanyUsersPage() {
               <select
                 value={editStatus}
                 onChange={(e) => setEditStatus(e.target.value)}
-                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
+                className={`w-full ${appNativeSelectClassName} py-3`}
               >
                 <option>Pending</option>
                 <option>Active</option>

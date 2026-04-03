@@ -1,6 +1,14 @@
 @import "../node_modules/tailwindcss/index.css";
 
 /* Safety Forecast–aligned dark theme (see InjuryWeatherDashboard) */
+/*
+ * Dark color scheme for the whole app so native <select> popups (especially Windows +
+ * Chrome/Edge) render with dark surfaces and readable text, not a white system menu.
+ */
+html {
+  color-scheme: dark;
+}
+
 :root {
   --background: #121926;
   --foreground: #f1f5f9;
@@ -69,14 +77,24 @@ textarea {
 }
 
 /*
- * Native <select> in the dark app shell: [color-scheme:dark] on .app-shell-dark fixes
- * Windows/Chrome opening a light dropdown. option/optgroup colors help Firefox and
- * some browsers that honor per-option styling.
+ * Native <select> in the app shell: reinforce dark surfaces on the control + options.
+ * Pairs with html { color-scheme: dark } for OS-level dropdown rendering.
  */
+.app-shell-dark select {
+  color-scheme: dark;
+  background-color: rgb(2 6 23);
+  color: rgb(241 245 249);
+}
+
+.app-shell-dark select:disabled {
+  opacity: 0.65;
+  color: rgb(148 163 184);
+}
+
 .app-shell-dark select option,
 .app-shell-dark select optgroup {
-  background-color: #0f172a;
-  color: #e2e8f0;
+  background-color: rgb(2 6 23);
+  color: rgb(241 245 249);
 }
 
 .auth-input:-webkit-autofill,

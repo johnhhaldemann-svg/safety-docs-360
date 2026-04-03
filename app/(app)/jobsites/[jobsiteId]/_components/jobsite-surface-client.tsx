@@ -31,6 +31,7 @@ export function JobsiteSurfaceClient({
 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [errorTone, setErrorTone] = useState<"error" | "warning">("error");
   const [payload, setPayload] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export function JobsiteSurfaceClient({
     async function load() {
       setLoading(true);
       setError("");
+      setErrorTone("error");
       try {
         const {
           data: { session },
@@ -65,7 +67,7 @@ export function JobsiteSurfaceClient({
   return (
     <SectionCard title={title} description={description}>
       {loading ? <InlineMessage>Loading...</InlineMessage> : null}
-      {!loading && error ? <InlineMessage tone="error">{error}</InlineMessage> : null}
+      {!loading && error ? <InlineMessage tone={errorTone}>{error}</InlineMessage> : null}
       {!loading && !error && surface === "overview" ? (
         <OverviewWidgets payload={payload} />
       ) : null}

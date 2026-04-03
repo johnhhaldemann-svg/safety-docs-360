@@ -491,7 +491,7 @@ export default function AdminJobsiteAuditsPage() {
             <select
               value={selectedTrade}
               onChange={(e) => setSelectedTrade(e.target.value as (typeof tradeOptions)[number])}
-              className="mt-1.5 w-full rounded-xl border border-slate-600/80 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-50 shadow-sm"
+              className="mt-1.5 w-full rounded-xl border border-slate-600/80 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-50 shadow-sm [color-scheme:dark]"
             >
               {tradeOptions.map((trade) => (
                 <option key={trade} value={trade}>

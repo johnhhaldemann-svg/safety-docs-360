@@ -172,14 +172,14 @@ export default function PermitsPage() {
 
       <SectionCard title="Create Permit" description="Start with permit basics, then escalate/stop-work as needed.">
         <div className="grid gap-3 md:grid-cols-3">
-          <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Permit title" className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm" />
-          <select value={form.permitType} onChange={(event) => setForm((prev) => ({ ...prev, permitType: event.target.value }))} className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm">
+          <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Permit title" className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]" />
+          <select value={form.permitType} onChange={(event) => setForm((prev) => ({ ...prev, permitType: event.target.value }))} className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]">
             <option value="hot_work">Hot Work</option>
             <option value="confined_space">Confined Space</option>
             <option value="electrical">Electrical</option>
             <option value="excavation">Excavation</option>
           </select>
-          <select value={form.severity} onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))} className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm">
+          <select value={form.severity} onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))} className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]">
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
@@ -189,13 +189,13 @@ export default function PermitsPage() {
             value={form.dapActivityId}
             onChange={(event) => setForm((prev) => ({ ...prev, dapActivityId: event.target.value }))}
             placeholder="DAP Activity ID (optional)"
-            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
           />
           <input
             value={form.observationId}
             onChange={(event) => setForm((prev) => ({ ...prev, observationId: event.target.value }))}
             placeholder="Observation ID (optional)"
-            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
           />
         </div>
         <div className="mt-4">
@@ -207,7 +207,7 @@ export default function PermitsPage() {
 
       <SectionCard title="Permit Operations" description="Track permit status and high-risk controls.">
         <div className="mb-4">
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm">
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]">
             <option value="all">All statuses</option>
             <option value="draft">Draft</option>
             <option value="active">Active</option>

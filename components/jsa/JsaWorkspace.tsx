@@ -596,7 +596,7 @@ export function JsaWorkspace() {
   }
 
   const inputClass =
-    "w-full rounded-xl border border-slate-600/90 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 shadow-inner outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/30";
+    "w-full rounded-xl border border-slate-600/90 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 [color-scheme:dark] placeholder:text-slate-500 shadow-inner outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/30";
 
   const tabTriggerClass =
     "relative whitespace-nowrap px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-400 transition-colors hover:text-slate-200 data-[state=active]:text-white sm:px-4 sm:text-[13px] sm:tracking-[0.12em] after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-emerald-400 after:opacity-0 after:shadow-[0_0_14px_rgba(52,211,153,0.85)] data-[state=active]:after:opacity-100";
