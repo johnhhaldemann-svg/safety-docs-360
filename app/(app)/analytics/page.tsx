@@ -176,7 +176,7 @@ function heatColor(t: number) {
   if (t >= 0.75) return "bg-rose-600/90";
   if (t >= 0.5) return "bg-orange-500/85";
   if (t >= 0.25) return "bg-amber-400/70";
-  if (t > 0) return "bg-emerald-500/50";
+  if (t > 0) return "bg-emerald-950/30";
   return "bg-slate-800/60";
 }
 
@@ -335,7 +335,7 @@ export default function AnalyticsPage() {
                 className={[
                   "rounded-full px-3 py-1.5 text-xs font-semibold transition",
                   days === d
-                    ? "bg-cyan-500 text-slate-950"
+                    ? "bg-cyan-500 text-white"
                     : "bg-slate-800/80 text-slate-300 hover:bg-slate-700",
                 ].join(" ")}
               >
@@ -346,7 +346,7 @@ export default function AnalyticsPage() {
               type="button"
               onClick={() => void loadSummary(days)}
               disabled={loading}
-              className="rounded-full bg-cyan-400 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.25)] transition hover:bg-cyan-300 disabled:opacity-50"
+              className="rounded-full bg-cyan-400 px-4 py-2 text-xs font-black uppercase tracking-wide text-white shadow-[0_0_24px_rgba(34,211,238,0.25)] transition hover:bg-cyan-300 disabled:opacity-50"
             >
               {loading ? "Refreshing…" : "Refresh view"}
             </button>
@@ -526,7 +526,7 @@ export default function AnalyticsPage() {
                   {loading ? "—" : openIssues}
                 </p>
               </div>
-              <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4">
+              <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/30 p-4">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-200/80">
                   Resolution rate
                 </p>
@@ -540,7 +540,7 @@ export default function AnalyticsPage() {
                 Trend
               </p>
               <TrendSparkline points={trends} />
-              <div className="flex justify-between px-1 pb-1 text-[10px] text-slate-600">
+              <div className="flex justify-between px-1 pb-1 text-[10px] text-slate-400">
                 <span>Earlier</span>
                 <span>Recent</span>
               </div>
@@ -572,7 +572,7 @@ export default function AnalyticsPage() {
                   <p className="mt-1 text-xs text-slate-500">Moderate severity in the selected window.</p>
                 </div>
               </li>
-              <li className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <li className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-950/30 p-4">
                 <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400" />
                 <div>
                   <p className="font-bold text-emerald-100">Low</p>
@@ -703,7 +703,7 @@ export default function AnalyticsPage() {
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Risk heatmap
               </p>
-              <p className="mt-1 text-[10px] text-slate-600">
+              <p className="mt-1 text-[10px] text-slate-400">
                 Severity × priority (corrective actions in window)
               </p>
               <div className="mt-3 overflow-x-auto">
@@ -839,7 +839,7 @@ export default function AnalyticsPage() {
             </Link>
             <Link
               href="/reports"
-              className="rounded-xl bg-cyan-400 px-4 py-2.5 text-xs font-black uppercase tracking-wide text-slate-950 shadow-[0_0_20px_rgba(34,211,238,0.2)] transition hover:bg-cyan-300"
+              className="rounded-xl bg-cyan-400 px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white shadow-[0_0_20px_rgba(34,211,238,0.2)] transition hover:bg-cyan-300"
             >
               Open reports
             </Link>
