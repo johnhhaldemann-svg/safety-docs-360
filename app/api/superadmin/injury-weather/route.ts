@@ -21,7 +21,7 @@ function parseBehaviorSignalsFromSearchParams(searchParams: URLSearchParams): Pa
   };
 }
 
-/** Cache dashboard + AI per filter set for 2h to reduce repeated OpenAI calls. */
+/** Cache dashboard per filter set (short TTL so new SOR/incidents show up without always using refresh=1). */
 const loadCachedDashboard = unstable_cache(
   async (key: string) => {
     const filters = JSON.parse(key) as {
@@ -50,7 +50,7 @@ const loadCachedDashboard = unstable_cache(
     });
   },
   ["injury-weather-dashboard"],
-  { revalidate: 7200 }
+  { revalidate: 300 }
 );
 
 const loadCachedDashboardWithAi = unstable_cache(
@@ -60,7 +60,7 @@ const loadCachedDashboardWithAi = unstable_cache(
     return { data, aiInsights };
   },
   ["injury-weather-with-ai"],
-  { revalidate: 7200 }
+  { revalidate: 1800 }
 );
 
 function isSuperAdminRole(role: string) {

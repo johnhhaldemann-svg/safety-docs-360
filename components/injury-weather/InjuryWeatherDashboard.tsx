@@ -11,6 +11,7 @@ import {
   riskBandMeaningForDataConfidence,
 } from "@/lib/injuryWeather/dataConfidence";
 import { fallbackDashboardBlocksFromData } from "@/lib/injuryWeather/ai";
+import { injuryWeatherJobsiteSorScopeBanner } from "@/lib/injuryWeather/scopeMessaging";
 import { INJURY_WEATHER_ASSUMPTIONS } from "@/lib/injuryWeather/types";
 import type {
   InjuryWeatherAiInsights,
@@ -466,6 +467,8 @@ export function InjuryWeatherDashboard() {
   const [reportRun, setReportRun] = useState(0);
   const [refreshTick, setRefreshTick] = useState(0);
   const bypassCacheOnce = useRef(false);
+  /** First successful dashboard load per mount bypasses CDN/model cache once for fresher numbers. */
+  const preferInitialFreshDataRef = useRef(true);
   /** When primary fetch uses `refresh=1`, AI follow-up must too or cached AI can lag fresh data. */
   const refreshAiFollowUpRef = useRef(false);
   /** Drop stale background AI responses when the user changes filters again. */
@@ -537,12 +540,14 @@ export function InjuryWeatherDashboard() {
           } else if (bypassCacheOnce.current) {
             qs.set("refresh", "1");
             bypassCacheOnce.current = false;
+          } else if (!includeAi && preferInitialFreshDataRef.current) {
+            qs.set("refresh", "1");
           }
           return qs;
         };
 
         // Primary fetch never waits on OpenAI — render numbers/charts first, then load AI in the background.
-        refreshAiFollowUpRef.current = bypassCacheOnce.current;
+        refreshAiFollowUpRef.current = bypassCacheOnce.current || preferInitialFreshDataRef.current;
         const res = await fetch(`/api/superadmin/injury-weather?${buildQs(false).toString()}`, {
           headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
@@ -559,6 +564,7 @@ export function InjuryWeatherDashboard() {
         } else {
           const typed = payload as InjuryWeatherDashboardData & { aiInsights?: InjuryWeatherAiInsights };
           setData(typed);
+          preferInitialFreshDataRef.current = false;
           setAiInsights(null);
           setAiAdvisorLoading(true);
           if (!month) {
@@ -810,6 +816,14 @@ export function InjuryWeatherDashboard() {
           <span className="font-semibold text-emerald-200/90">Generate Report</span> to refresh.
         </div>
       ) : null}
+      {appliedScopeJobsiteId.trim() ? (
+        <div
+          className="rounded-2xl border border-sky-600/40 bg-sky-950/40 px-4 py-3 text-sm leading-snug text-sky-100/95"
+          role="note"
+        >
+          <span className="font-semibold text-sky-200">Signal scope note.</span> {injuryWeatherJobsiteSorScopeBanner()}
+        </div>
+      ) : null}
       <section className="overflow-hidden rounded-3xl border border-slate-700/80 bg-[radial-gradient(circle_at_top,_#1f3b75_0%,_#0c1730_42%,_#090f1f_100%)] shadow-2xl">
         <div className="border-b border-slate-500/40 bg-slate-900/25 px-6 py-5 text-center">
           <p className="text-sm font-black uppercase tracking-[0.25em] text-slate-200">Injury Weather System™</p>
@@ -881,55 +895,59 @@ export function InjuryWeatherDashboard() {
         ) : null}
       </section>
 
-      {aiInsights || aiAdvisorLoading ? (
-        <section className="rounded-2xl border border-sky-700/40 bg-slate-900/80 p-5">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-sky-200">AI Safety Advisor</h3>
-            {aiInsights ? (
-              <div className="text-right">
-                <span className="rounded-full border border-sky-500/50 bg-sky-500/20 px-2.5 py-1 text-xs font-bold text-sky-200">
-                  Data confidence {aiInsights.confidence}
-                </span>
-                <p className="mt-1 max-w-xs text-[11px] font-normal leading-snug text-slate-500">
-                  {riskBandMeaningForDataConfidence(aiInsights.confidence)}
-                </p>
-              </div>
-            ) : null}
-          </div>
-          {aiAdvisorLoading && !aiInsights ? (
-            <p className="mt-3 text-sm text-slate-400">
-              Generating insights… structured metrics and trade cards above are already loaded.
-            </p>
-          ) : null}
+      <section className="rounded-2xl border border-sky-700/40 bg-slate-900/80 p-5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-sky-200">AI Safety Advisor</h3>
           {aiInsights ? (
-            <>
-              <p className="mt-2 text-sm text-slate-200">{aiInsights.headline}</p>
-              <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Likely Injury Drivers</p>
-                  <ul className="mt-2 space-y-1.5 text-sm text-slate-200">
-                    {aiInsights.likelyInjuryDrivers.map((d) => (
-                      <li key={d} className="rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2">
-                        {d}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Priority Actions</p>
-                  <ul className="mt-2 space-y-1.5 text-sm text-slate-200">
-                    {aiInsights.priorityActions.map((a) => (
-                      <li key={a} className="rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2">
-                        {a}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </>
+            <div className="text-right">
+              <span className="rounded-full border border-sky-500/50 bg-sky-500/20 px-2.5 py-1 text-xs font-bold text-sky-200">
+                Data confidence {aiInsights.confidence}
+              </span>
+              <p className="mt-1 max-w-xs text-[11px] font-normal leading-snug text-slate-500">
+                {riskBandMeaningForDataConfidence(aiInsights.confidence)}
+              </p>
+            </div>
           ) : null}
-        </section>
-      ) : null}
+        </div>
+        {aiAdvisorLoading && !aiInsights ? (
+          <p className="mt-3 text-sm text-slate-400">
+            Generating insights… structured metrics and trade cards above are already loaded.
+          </p>
+        ) : null}
+        {aiInsights ? (
+          <>
+            <p className="mt-2 text-sm text-slate-200">{aiInsights.headline}</p>
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Likely Injury Drivers</p>
+                <ul className="mt-2 space-y-1.5 text-sm text-slate-200">
+                  {aiInsights.likelyInjuryDrivers.map((d) => (
+                    <li key={d} className="rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2">
+                      {d}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Priority Actions</p>
+                <ul className="mt-2 space-y-1.5 text-sm text-slate-200">
+                  {aiInsights.priorityActions.map((a) => (
+                    <li key={a} className="rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2">
+                      {a}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </>
+        ) : !aiAdvisorLoading ? (
+          <p className="mt-3 text-sm leading-relaxed text-slate-400">
+            AI insights did not load (network, API key, or model error). Headline metrics and trade cards use the deterministic
+            engine only. Use <span className="font-semibold text-slate-300">Refresh from server</span> in Forecast parameters to
+            retry.
+          </p>
+        ) : null}
+      </section>
 
       <section className="grid gap-3 xl:grid-cols-4">
         {displayTrades.length === 0 ? (

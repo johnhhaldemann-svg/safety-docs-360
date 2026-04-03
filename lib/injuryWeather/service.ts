@@ -40,6 +40,7 @@ import {
 } from "@/lib/injuryWeather/riskEngineV2";
 import { isForecasterSyntheticIncident } from "@/lib/injuryWeather/excludeForecasterIncidents";
 import { DEMO_LIKELY_INJURY_INSIGHT, likelyInjuryInsightFromSignals } from "@/lib/injuryWeather/likelyInjuryFromSignals";
+import { injuryWeatherScopeNote } from "@/lib/injuryWeather/scopeMessaging";
 import {
   categoryToId,
   curatedConstructionTradeLabels,
@@ -615,16 +616,6 @@ function seedRows(): SeedRow[] {
   return firstSheet ? sheets[firstSheet] ?? [] : [];
 }
 
-function injuryWeatherScopeNote(companyId?: string | null, jobsiteId?: string | null): string {
-  const c = companyId?.trim();
-  const j = jobsiteId?.trim();
-  if (!c) return "";
-  if (j) {
-    return " · Scoped: this company; incidents & corrective actions limited to the selected jobsite; SOR observations remain company-wide (no jobsite on SOR rows).";
-  }
-  return " · Scoped: this company’s SOR, corrective actions, and incidents only.";
-}
-
 function injuryWeatherLocationWithBlsTradeBlend(
   stateCode: string | undefined,
   byTrade: Map<string, Map<string, number>>,
@@ -677,6 +668,9 @@ export async function getInjuryWeatherDashboardData(filters?: {
   const scopeNote = injuryWeatherScopeNote(liveScope.companyId ?? null, liveScope.jobsiteId ?? null);
 
   if (!admin) {
+    console.warn(
+      "[injury-weather] Supabase service role client is not configured; Injury Weather is using seed/offline data only."
+    );
     const fallback = computeFromSeed(workbookRows, filters);
     const availableMonths = build90DayOutlookMonths(trendFromSeed.availableMonths);
     return {
@@ -850,6 +844,15 @@ async function fetchLiveSignals(
     incidentQuery = incidentQuery.gte("created_at", start).lt("created_at", end);
   }
   const [sorResult, actionResult, incidentResult] = await Promise.all([sorQuery, actionQuery, incidentQuery]);
+  if (sorResult.error) {
+    console.warn("[injury-weather] company_sor_records query failed:", sorResult.error.message);
+  }
+  if (actionResult.error) {
+    console.warn("[injury-weather] company_corrective_actions query failed:", actionResult.error.message);
+  }
+  if (incidentResult.error) {
+    console.warn("[injury-weather] company_incidents query failed:", incidentResult.error.message);
+  }
   return normalizedRowsFromFetchedLiveData(
     sorResult.error ? [] : sorResult.data ?? [],
     actionResult.error ? [] : actionResult.data ?? [],

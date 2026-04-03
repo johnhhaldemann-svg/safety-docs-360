@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope, normalizeWorkspaceUuid } from "@/lib/companyScope";
-import { appendDebugSessionLog } from "@/lib/debugSessionLog";
 
 export const runtime = "nodejs";
 
@@ -13,6 +12,7 @@ async function fetchFromSameOrigin(request: Request, path: string) {
   const origin = new URL(request.url).origin;
   const response = await fetch(`${origin}${path}`, {
     headers: request.headers,
+    cache: "no-store",
   });
   const json = (await response.json().catch(() => null)) as Record<string, unknown> | null;
   return { ok: response.ok, status: response.status, json };
@@ -32,15 +32,6 @@ export async function GET(
     ],
   });
   if ("error" in auth) {
-    // #region agent log
-    appendDebugSessionLog({
-      hypothesisId: "H-company-surface-auth",
-      location: "api/companies/[companyId]/[surface]/GET",
-      message: "authorizeRequest failed",
-      data: {},
-      runId: "file-log",
-    });
-    // #endregion
     return auth.error;
   }
 
@@ -56,29 +47,10 @@ export async function GET(
     authUser: auth.user,
   });
   if (!scope.companyId) {
-    // #region agent log
-    appendDebugSessionLog({
-      hypothesisId: "H-company-surface-scope",
-      location: "api/companies/[companyId]/[surface]/GET",
-      message: "no company scope",
-      data: { surface },
-      runId: "file-log",
-    });
-    // #endregion
     return NextResponse.json({ error: "No company scope found for user." }, { status: 400 });
   }
-  const scopeMatchesRaw = scope.companyId === companyId;
   const scopeMatchesNorm =
     normalizeWorkspaceUuid(scope.companyId) === normalizeWorkspaceUuid(companyId);
-  // #region agent log
-  appendDebugSessionLog({
-    hypothesisId: "H-company-scope-compare",
-    location: "api/companies/[companyId]/[surface]/GET",
-    message: "company id compare",
-    data: { surface, scopeMatchesRaw, scopeMatchesNorm },
-    runId: "file-log",
-  });
-  // #endregion
   if (!scopeMatchesNorm) {
     return NextResponse.json({ error: "Forbidden for requested company." }, { status: 403 });
   }

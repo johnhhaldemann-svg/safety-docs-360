@@ -43,21 +43,6 @@ export function CompanySurfaceClient({
         });
         const data = (await response.json().catch(() => null)) as Record<string, unknown> | null;
         if (!response.ok) {
-          // #region agent log
-          fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "1be144" },
-            body: JSON.stringify({
-              sessionId: "1be144",
-              runId: "surface-client",
-              hypothesisId: "H-company-surface-fetch",
-              location: "company-surface-client.tsx:load",
-              message: "company surface API not ok",
-              data: { status: response.status, surface },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {});
-          // #endregion
           const err = typeof data?.error === "string" ? data.error.trim() : "";
           const warn = typeof data?.warning === "string" ? data.warning.trim() : "";
           if (!cancelled) {

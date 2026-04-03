@@ -1,11 +1,56 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope, normalizeWorkspaceUuid } from "@/lib/companyScope";
-import { appendDebugSessionLog } from "@/lib/debugSessionLog";
 
 export const runtime = "nodejs";
 
 type Params = { jobsiteId: string; surface: string };
+
+function isMissingCompatJobsitesView(message?: string | null) {
+  return (message ?? "").toLowerCase().includes("compat_company_jobsites");
+}
+
+type SupabaseLike = {
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (column: string, value: string) => {
+        maybeSingle: () => PromiseLike<{
+          data: {
+            id: string;
+            company_id: string;
+            name: string | null;
+            status: string | null;
+            project_number: string | null;
+            location: string | null;
+          } | null;
+          error: { message?: string | null } | null;
+        }>;
+      };
+    };
+  };
+};
+
+/** Match `/api/company/jobsites`: prefer compat view, fall back to base table. */
+async function resolveJobsiteById(supabase: SupabaseLike, jobsiteId: string) {
+  const compat = await supabase
+    .from("compat_company_jobsites")
+    .select("id, company_id, name, status, project_number, location")
+    .eq("id", jobsiteId)
+    .maybeSingle();
+
+  if (compat.error && !isMissingCompatJobsitesView(compat.error.message)) {
+    return compat;
+  }
+  if (!compat.error && compat.data) {
+    return compat;
+  }
+
+  return supabase
+    .from("company_jobsites")
+    .select("id, company_id, name, status, project_number, location")
+    .eq("id", jobsiteId)
+    .maybeSingle();
+}
 
 const SURFACES = new Set([
   "overview",
@@ -23,13 +68,15 @@ async function fetchFromSameOrigin(request: Request, path: string) {
   const origin = new URL(request.url).origin;
   const response = await fetch(`${origin}${path}`, {
     headers: request.headers,
+    cache: "no-store",
   });
   const json = (await response.json().catch(() => null)) as Record<string, unknown> | null;
   return { ok: response.ok, status: response.status, json };
 }
 
 function filterByJobsiteId<T extends { jobsite_id?: string | null }>(rows: T[], jobsiteId: string) {
-  return rows.filter((row) => row.jobsite_id === jobsiteId);
+  const target = normalizeWorkspaceUuid(jobsiteId);
+  return rows.filter((row) => normalizeWorkspaceUuid(row.jobsite_id ?? "") === target);
 }
 
 export async function GET(
@@ -46,15 +93,6 @@ export async function GET(
     ],
   });
   if ("error" in auth) {
-    // #region agent log
-    appendDebugSessionLog({
-      hypothesisId: "H-jobsite-surface-auth",
-      location: "api/jobsites/[jobsiteId]/[surface]/GET",
-      message: "authorizeRequest failed",
-      data: {},
-      runId: "file-log",
-    });
-    // #endregion
     return auth.error;
   }
 
@@ -73,11 +111,10 @@ export async function GET(
     return NextResponse.json({ error: "No company scope found for user." }, { status: 400 });
   }
 
-  const jobsitesResult = await auth.supabase
-    .from("company_jobsites")
-    .select("id, company_id, name, status, project_number, location")
-    .eq("id", jobsiteId)
-    .maybeSingle();
+  const jobsitesResult = await resolveJobsiteById(
+    auth.supabase as unknown as SupabaseLike,
+    jobsiteId
+  );
   if (jobsitesResult.error) {
     return NextResponse.json(
       { error: jobsitesResult.error.message || "Failed to load jobsite." },
@@ -85,20 +122,10 @@ export async function GET(
     );
   }
   const row = jobsitesResult.data;
-  const jobsiteCompanyRaw = row && row.company_id === scope.companyId;
   const jobsiteCompanyNorm =
     row &&
     scope.companyId &&
     normalizeWorkspaceUuid(row.company_id) === normalizeWorkspaceUuid(scope.companyId);
-  // #region agent log
-  appendDebugSessionLog({
-    hypothesisId: "H-jobsite-company-compare",
-    location: "api/jobsites/[jobsiteId]/[surface]/GET",
-    message: "jobsite company id compare",
-    data: { surface, jobsiteCompanyRaw, jobsiteCompanyNorm },
-    runId: "file-log",
-  });
-  // #endregion
   if (!row || !jobsiteCompanyNorm) {
     return NextResponse.json({ error: "Jobsite not found in your company scope." }, { status: 404 });
   }
@@ -148,11 +175,14 @@ export async function GET(
     }
     const summary = (analytics.json?.summary as Record<string, unknown> | undefined) ?? {};
     const riskRows = ((summary.jobsiteRiskScore as unknown[]) ?? []) as Array<{ jobsiteId?: string }>;
+    const jid = normalizeWorkspaceUuid(jobsiteId);
     return NextResponse.json({
       jobsite,
       analytics: {
         ...summary,
-        jobsiteRiskScore: riskRows.filter((row) => row.jobsiteId === jobsiteId),
+        jobsiteRiskScore: riskRows.filter(
+          (row) => normalizeWorkspaceUuid(String(row.jobsiteId ?? "")) === jid
+        ),
       },
     });
   }

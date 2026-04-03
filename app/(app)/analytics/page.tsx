@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage } from "@/components/WorkspacePrimitives";
+import { userVisibleInjuryModelMessage } from "@/lib/analytics/injuryModelMessage";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 
 const supabase = createClient(
@@ -176,11 +177,16 @@ export default function AnalyticsPage() {
   const [messageTone, setMessageTone] = useState<"error" | "warning">("error");
   const [tab, setTab] = useState<TabId>("overview");
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
+  const [injuryModelIssue, setInjuryModelIssue] = useState<{
+    message: string;
+    tone: "error" | "warning";
+  } | null>(null);
 
   const loadSummary = useCallback(async (windowDays: number) => {
     setLoading(true);
     setMessage("");
     setMessageTone("error");
+    setInjuryModelIssue(null);
     try {
       const headers = await getAuthHeaders();
       const [response, injRes] = await Promise.all([
@@ -197,10 +203,19 @@ export default function AnalyticsPage() {
           "Injury model"
         ),
       ]);
+      const injJson = (await injRes.json().catch(() => null)) as
+        | { likelyInjuryInsight?: LikelyInjuryInsightPayload; error?: string }
+        | null;
       let parsedInjury: LikelyInjuryInsightPayload | null = null;
       if (injRes.ok) {
-        const inj = (await injRes.json().catch(() => null)) as { likelyInjuryInsight?: LikelyInjuryInsightPayload } | null;
-        parsedInjury = inj?.likelyInjuryInsight ?? null;
+        parsedInjury = injJson?.likelyInjuryInsight ?? null;
+        setInjuryModelIssue(null);
+      } else {
+        const tone = injRes.status === 403 || injRes.status === 503 ? "warning" : "error";
+        setInjuryModelIssue({
+          message: userVisibleInjuryModelMessage(injRes.status, injJson),
+          tone,
+        });
       }
 
       const data = (await response.json().catch(() => null)) as {
@@ -240,6 +255,7 @@ export default function AnalyticsPage() {
       );
       setSummary(null);
       setInjuryLikelihood(null);
+      setInjuryModelIssue(null);
     }
     setLoading(false);
   }, []);
@@ -383,6 +399,10 @@ export default function AnalyticsPage() {
               : "The page is ready. Choose a time range or click Refresh view to load current figures."}
           </div>
         )}
+
+        {!loading && injuryModelIssue ? (
+          <InlineMessage tone={injuryModelIssue.tone}>{injuryModelIssue.message}</InlineMessage>
+        ) : null}
 
         {!loading && injuryLikelihood ? (
           <div className="rounded-xl border border-teal-500/40 bg-gradient-to-br from-teal-950/55 via-[#0a1218] to-slate-950/90 px-5 py-4 text-teal-50 shadow-[0_0_40px_rgba(20,184,166,0.12)]">

@@ -267,22 +267,6 @@ export async function GET(request: Request) {
     ],
   });
 
-  // #region agent log
-  fetch("http://127.0.0.1:7613/ingest/cee4d426-76d4-454a-9d6d-950241152e62", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "1be144" },
-    body: JSON.stringify({
-      sessionId: "1be144",
-      runId: "nested-rbac",
-      hypothesisId: "H-nested-users",
-      location: "app/api/company/users/route.ts:GET",
-      message: "company users GET after authorize",
-      data: { authOk: !("error" in auth) },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
   if ("error" in auth) {
     return auth.error;
   }
