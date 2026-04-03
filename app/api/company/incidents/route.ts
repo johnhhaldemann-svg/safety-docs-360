@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { coerceNonNegativeInt, readJobTransfer } from "@/lib/incidents/dart";
 import { normalizeBodyPart } from "@/lib/incidents/bodyPart";
-import { normalizeExposureEventType } from "@/lib/incidents/exposureEventType";
+import { EXPOSURE_EVENT_TYPES, normalizeExposureEventType } from "@/lib/incidents/exposureEventType";
 import { normalizeIncidentSource } from "@/lib/incidents/incidentSource";
-import { normalizeInjuryType } from "@/lib/incidents/injuryType";
+import { INJURY_TYPES, normalizeInjuryType } from "@/lib/incidents/injuryType";
 import { injuryTimePatternFromOccurredAt } from "@/lib/incidents/injuryTimePatterns";
 import { readObjectiveFlag } from "@/lib/incidents/objectiveSeverity";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
@@ -146,8 +146,7 @@ export async function POST(request: Request) {
   if (!exposureEventType) {
     return NextResponse.json(
       {
-        error:
-          "eventType is required. Use one of: fall_same_level, fall_to_lower_level, struck_by_object, caught_in_between, overexertion, contact_with_equipment, exposure_harmful_substance, electrical, other.",
+        error: `eventType is required. Valid values: ${EXPOSURE_EVENT_TYPES.join(", ")}.`,
       },
       { status: 400 }
     );
@@ -166,8 +165,7 @@ export async function POST(request: Request) {
   if (category === "incident" && !injuryType) {
     return NextResponse.json(
       {
-        error:
-          "injuryType is required for injury incidents. Use one of: strain, sprain, fracture, laceration, contusion, burn, amputation, other.",
+        error: `injuryType is required for injury incidents. Valid values: ${INJURY_TYPES.join(", ")}.`,
       },
       { status: 400 }
     );

@@ -29,11 +29,6 @@ function isMissingJobsitesTable(message?: string | null) {
   return normalized.includes("company_jobsites");
 }
 
-function isMissingCompatJobsitesView(message?: string | null) {
-  const normalized = (message ?? "").toLowerCase();
-  return normalized.includes("compat_company_jobsites");
-}
-
 function isDuplicateNameViolation(code?: string | null, message?: string | null) {
   return code === "23505" && (message ?? "").toLowerCase().includes("company_jobsites");
 }
@@ -65,33 +60,43 @@ export async function GET(request: Request) {
     return NextResponse.json({ jobsites: [] });
   }
 
-  const compatJobsitesResult = await auth.supabase
-    .from("compat_company_jobsites")
+  /**
+   * Reads must use `company_jobsites` first — that is what POST inserts into.
+   * `compat_company_jobsites` projects legacy `public.jobsites`; if that view exists and returns
+   * rows, we previously preferred it and hid every managed jobsite created via this API (empty list
+   * after “success”).
+   */
+  const tableResult = await auth.supabase
+    .from("company_jobsites")
     .select(
-      "id, company_id, name, project_number, location, status, start_date, end_date, notes, created_at, updated_at"
+      "id, company_id, name, project_number, location, status, project_manager, safety_lead, start_date, end_date, notes, created_at, updated_at, archived_at"
     )
     .eq("company_id", companyScope.companyId)
     .order("updated_at", { ascending: false });
-  const jobsitesResult =
-    compatJobsitesResult.error && !isMissingCompatJobsitesView(compatJobsitesResult.error.message)
-      ? compatJobsitesResult
-      : compatJobsitesResult.error
-        ? await auth.supabase
-            .from("company_jobsites")
-            .select(
-              "id, company_id, name, project_number, location, status, project_manager, safety_lead, start_date, end_date, notes, created_at, updated_at, archived_at"
-            )
-            .eq("company_id", companyScope.companyId)
-            .order("updated_at", { ascending: false })
-        : {
-            data: (compatJobsitesResult.data ?? []).map((row) => ({
-              ...row,
-              project_manager: null,
-              safety_lead: null,
-              archived_at: row.status === "archived" ? row.updated_at : null,
-            })),
-            error: null,
-          };
+
+  let jobsitesResult = tableResult;
+
+  if (tableResult.error && isMissingJobsitesTable(tableResult.error.message)) {
+    const compatJobsitesResult = await auth.supabase
+      .from("compat_company_jobsites")
+      .select(
+        "id, company_id, name, project_number, location, status, start_date, end_date, notes, created_at, updated_at"
+      )
+      .eq("company_id", companyScope.companyId)
+      .order("updated_at", { ascending: false });
+
+    if (!compatJobsitesResult.error) {
+      jobsitesResult = {
+        data: (compatJobsitesResult.data ?? []).map((row) => ({
+          ...row,
+          project_manager: null,
+          safety_lead: null,
+          archived_at: row.status === "archived" ? row.updated_at : null,
+        })),
+        error: null,
+      };
+    }
+  }
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
     userId: auth.user.id,

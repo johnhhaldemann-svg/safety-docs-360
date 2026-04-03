@@ -17,7 +17,8 @@
     "test:e2e:ci": "npm run build && playwright test",
     "smoke:safetyops": "node ./scripts/smoke-safety-ops.mjs",
     "seed:csep-test": "node ./scripts/seed-csep-test-user.mjs",
-    "build:bls-rates": "node ./scripts/build-bls-state-construction-rates.mjs"
+    "build:bls-rates": "node ./scripts/build-bls-state-construction-rates.mjs",
+    "supabase": "supabase"
   },
   "dependencies": {
     "@radix-ui/react-tabs": "^1.1.13",
@@ -41,6 +42,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "^16.2.1",
+    "supabase": "^2.84.9",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.2"

@@ -39,17 +39,23 @@ export const SOR_HAZARD_CATEGORY_LABELS: Record<SorHazardCategoryCode, string> =
 
 /** Primary incident exposure types implied by each SOR hazard class. */
 export const SOR_HAZARD_TO_EXPOSURE_EVENTS: Record<SorHazardCategoryCode, readonly ExposureEventType[]> = {
-  falls_same_level: ["fall_same_level"],
+  falls_same_level: ["fall_same_level", "slip_trip_without_fall"],
   falls_elevation: ["fall_to_lower_level"],
-  struck_by: ["struck_by_object"],
-  caught_in_between: ["caught_in_between"],
-  overexertion: ["overexertion"],
-  contact_equipment: ["contact_with_equipment"],
+  struck_by: ["struck_by_object", "struck_by_vehicle"],
+  caught_in_between: ["caught_in_between", "caught_on_object"],
+  overexertion: ["overexertion", "repetitive_motion"],
+  contact_equipment: ["contact_with_equipment", "struck_against_object"],
   hazardous_substance: ["exposure_harmful_substance"],
   electrical: ["electrical"],
-  material_handling: ["overexertion", "contact_with_equipment"],
+  material_handling: ["overexertion", "contact_with_equipment", "repetitive_motion"],
   ppe_behavioral: ["other"],
-  environmental: ["exposure_harmful_substance", "other"],
+  environmental: [
+    "exposure_harmful_substance",
+    "noise_exposure",
+    "temperature_extreme",
+    "confined_space",
+    "other",
+  ],
   other: ["other"],
 };
 
