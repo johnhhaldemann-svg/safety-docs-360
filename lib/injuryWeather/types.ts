@@ -237,6 +237,11 @@ export type DashboardSummary = {
   overallRiskScore?: number;
   /** Blended injury-type readout: incidents + SOR/CAPA hazard→exposure priors (live: all dates in scope, trade-filtered when applicable). */
   likelyInjuryInsight: LikelyInjuryInsight;
+  /**
+   * When set, trade-card allocation uses a lower case-style budget than the headline `predictedInjuriesNextMonth`
+   * (sparse in-window rows on a single trade card). Explains why card numbers can sit below the headline index.
+   */
+  caseAllocationNote?: string | null;
 };
 
 export type TradeForecast = {

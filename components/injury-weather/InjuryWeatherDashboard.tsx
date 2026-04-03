@@ -94,6 +94,150 @@ function matchTradeForecastForChip(
   );
 }
 
+/** True when this card has no raw SOR/CAPA/incident rows in the current record window (placeholder or empty allocation). */
+function tradeForecastHasNoInWindowSignals(tf: TradeForecast): boolean {
+  if (tf.forecastProvenance === "demo") return false;
+  const cats = tf.categories ?? [];
+  if (cats.length === 0) return true;
+  if (tf.footerNote?.includes("No safety signals matched")) return true;
+  if (cats.length === 1 && cats[0]?.name === "No observations in selected window") return true;
+  /** Strict `=== 0` so demo/illustration cards without `sourceObservationCount` set are not treated as empty. */
+  return cats.every((c) => c.sourceObservationCount === 0);
+}
+
+function ExternalHistoricalSourcesPanel({
+  data,
+  variant,
+}: {
+  data: InjuryWeatherDashboardData;
+  variant: "compact" | "detailed";
+}) {
+  const ctx = data.industryBenchmarkContext;
+  const o = ctx.oshaNationalConstruction;
+  const n = o?.nonfatalDaysAwayFromWork;
+  const f = o?.fatalitiesInConstruction;
+  const loc = data.location;
+
+  if (variant === "compact") {
+    const bits: string[] = [];
+    if (ctx.recordableCasesPer200kHours != null) {
+      bits.push(`~${ctx.recordableCasesPer200kHours} recordables / 200k hrs (NAICS/NSC profile, illustrative)`);
+    }
+    if (n) {
+      bits.push(
+        `${n.constructionCases.toLocaleString()} construction nonfatal DAFW cases (${n.periodLabel}, national BLS-style totals in app)`
+      );
+    }
+    if (f) {
+      bits.push(`${f.year2023.toLocaleString()} / ${f.year2024.toLocaleString()} construction fatalities (2023–2024, in-app reference)`);
+    }
+    const summary =
+      bits.length > 0
+        ? bits.join(" · ")
+        : ctx.benchmarkSummary.trim() || "NSC Injury Facts and national construction context are loaded below.";
+    return (
+      <div className="mt-2 max-w-4xl text-left text-xs leading-relaxed text-amber-100/95">
+        <span className="font-semibold text-amber-200">Loaded external reference data: </span>
+        {summary}
+        <span className="text-amber-100/80">
+          {" "}
+          Open <strong className="font-semibold text-amber-100">Forecast parameters</strong> on this page for full tables, BLS
+          links, and state trade-rate notes.
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-teal-600/45 bg-teal-950/25 p-4 text-sm leading-relaxed text-slate-200">
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-300/95">Outside-source data (in this app)</p>
+      <p className="mt-2 text-xs text-slate-400">
+        These values are <strong className="text-slate-300">not</strong> your jobsite’s logged observations. They explain why the
+        model can still show risk when in-window signals are empty: sector and national context plus built-in priors (calendar
+        month, trade/climate weights) still feed the engine.
+      </p>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-xs text-slate-300">
+        {ctx.recordableCasesPer200kHours != null ? (
+          <li>
+            <span className="font-semibold text-slate-200">NAICS / NSC illustrative rate:</span> ≈{ctx.recordableCasesPer200kHours}{" "}
+            recordable cases per 200k hours (from company <code className="rounded bg-slate-800 px-1">industry_code</code> mix when
+            available). {ctx.dominantNaicsPrefix ? `Mode NAICS prefix: ${ctx.dominantNaicsPrefix}.` : null}
+          </li>
+        ) : (
+          <li>
+            <span className="font-semibold text-slate-200">NAICS / NSC:</span> {ctx.benchmarkSummary}
+          </li>
+        )}
+        {n ? (
+          <li>
+            <span className="font-semibold text-slate-200">National construction DAFW (BLS-style totals in app):</span>{" "}
+            {n.constructionCases.toLocaleString()} construction cases vs {n.allPrivateIndustryCases.toLocaleString()} private
+            industry ({n.periodLabel}).
+            {n.medianDaysAwayConstruction != null ? ` Median days away (construction): ${n.medianDaysAwayConstruction}.` : null}
+          </li>
+        ) : null}
+        {f ? (
+          <li>
+            <span className="font-semibold text-slate-200">National construction fatalities (in-app reference):</span>{" "}
+            {f.year2023.toLocaleString()} (2023) · {f.year2024.toLocaleString()} (2024).
+          </li>
+        ) : null}
+        {o?.nonfatalEventHighlights?.length ? (
+          <li>
+            <span className="font-semibold text-slate-200">Top DAFW mechanisms (construction, counts):</span>{" "}
+            {o.nonfatalEventHighlights
+              .slice(0, 4)
+              .map((h) => `${h.label}: ${h.constructionCases.toLocaleString()}`)
+              .join(" · ")}
+            .
+          </li>
+        ) : null}
+        <li>
+          <span className="font-semibold text-slate-200">Location / trade exposure (model inputs):</span>{" "}
+          {loc.displayName}
+          {loc.stateCode ? ` · state ${loc.stateCode}` : ""}
+          {loc.weatherRiskMultiplier != null ? ` · climate factor ×${loc.weatherRiskMultiplier.toFixed(2)}` : ""}
+          {loc.tradeWeatherWeight != null ? ` · trade blend ×${loc.tradeWeatherWeight.toFixed(2)}` : ""}
+          {loc.combinedWeatherFactor != null ? ` · combined ×${loc.combinedWeatherFactor.toFixed(2)}` : ""}.
+        </li>
+        {loc.blsTradeRateNote ? (
+          <li>
+            <span className="font-semibold text-slate-200">BLS state SOII construction (ingested workbook):</span>{" "}
+            {loc.blsTradeRateNote}
+          </li>
+        ) : null}
+      </ul>
+      <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
+        <a
+          href={ctx.injuryFactsIndustryProfilesUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-sky-400 underline decoration-sky-500/50 hover:text-sky-300"
+        >
+          NSC Industry Profiles
+        </a>
+        <a
+          href={ctx.injuryFactsIncidentTrendsUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-sky-400 underline decoration-sky-500/50 hover:text-sky-300"
+        >
+          Incident rate trends
+        </a>
+        <a
+          href="https://www.bls.gov/iif/"
+          target="_blank"
+          rel="noreferrer"
+          className="text-sky-400 underline decoration-sky-500/50 hover:text-sky-300"
+        >
+          BLS IIF
+        </a>
+      </p>
+      {o?.citation ? <p className="mt-2 text-[10px] text-slate-500">{o.citation}</p> : null}
+    </div>
+  );
+}
+
 function TrendChart({ points }: { points: TrendPoint[] }) {
   const [hover, setHover] = useState<number | null>(null);
   const chartUid = useId().replace(/:/g, "");
@@ -725,7 +869,14 @@ export function InjuryWeatherDashboard() {
         </div>
         {(data.summary.forecastMode ?? "live_adjusted") === "baseline_only" ? (
           <div className="border-b border-amber-500/45 bg-amber-950/50 px-5 py-3 text-center text-sm font-medium leading-snug text-amber-100/95">
-            No recent safety signals in window — forecast based on historical patterns and selected trades.
+            <p>No recent safety signals in window — the headline still blends calendar priors, trade/climate weights, and published sector context.</p>
+            <ExternalHistoricalSourcesPanel data={data} variant="compact" />
+          </div>
+        ) : null}
+        {data.summary.caseAllocationNote ? (
+          <div className="border-b border-sky-800/50 bg-sky-950/40 px-5 py-3 text-center text-xs leading-snug text-sky-100/90 sm:text-sm">
+            <span className="font-semibold text-sky-200/95">Trade card allocation: </span>
+            {data.summary.caseAllocationNote}
           </div>
         ) : null}
       </section>
@@ -807,6 +958,15 @@ export function InjuryWeatherDashboard() {
                 </div>
               ))}
             </div>
+            {tradeForecastHasNoInWindowSignals(tf) ? (
+              <p className="mt-3 rounded-lg border border-slate-600/70 bg-slate-950/50 px-3 py-2 text-[11px] leading-snug text-slate-400">
+                <span className="font-semibold text-slate-300">No in-window observations for this craft.</span> Card counts are zero
+                for your SOR/CAPA/incident window; overall risk colors can still reflect{" "}
+                <span className="text-slate-300">model priors plus external sector/national reference figures</span>. Use{" "}
+                <span className="font-semibold text-amber-200/90">Where do these numbers come from?</span> to read the actual loaded
+                reference values.
+              </p>
+            ) : null}
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -1392,16 +1552,35 @@ export function InjuryWeatherDashboard() {
                   Generate a report with real month/trade filters (and database access) to replace these with counts derived from your SOR,
                   corrective actions, and incidents.
                 </p>
+                <ExternalHistoricalSourcesPanel data={data} variant="detailed" />
               </div>
             ) : (
               <div className="mt-4 space-y-3 text-sm text-slate-300">
                 <p className="leading-relaxed">
                   The <strong className="text-slate-100">large numbers on each card</strong> are an{" "}
-                  <strong>allocated case-style index</strong>: the headline projected case estimate (
-                  <strong className="text-slate-100">{data.summary.predictedInjuriesNextMonth}</strong>) is split across trades using your
-                  signal mix and trade weather weights, then split across hazard categories by how many raw SOR/action/incident rows fell in each
-                  category.
+                  <strong>allocated case-style index</strong>
+                  {data.summary.caseAllocationNote ? (
+                    <>
+                      : when in-window evidence is thin on a <strong className="text-slate-100">single</strong> trade card, the app caps the
+                      card-level budget so one or two rows do not carry the full headline index (
+                      <strong className="text-slate-100">{data.summary.predictedInjuriesNextMonth}</strong>). Otherwise the headline estimate is
+                      split across trades using your signal mix and trade weather weights, then across hazard categories using smoothed shares of
+                      raw SOR/action/incident rows (category totals on the card sum to that trade’s budget).
+                    </>
+                  ) : (
+                    <>
+                      : the headline projected case estimate (
+                      <strong className="text-slate-100">{data.summary.predictedInjuriesNextMonth}</strong>) is split across trades using your
+                      signal mix and trade weather weights, then split across hazard categories using smoothed shares of how many raw rows fell in
+                      each category (card numbers sum to the trade budget).
+                    </>
+                  )}
                 </p>
+                {data.summary.caseAllocationNote ? (
+                  <p className="rounded-lg border border-sky-800/60 bg-sky-950/40 px-3 py-2 text-xs text-sky-100/90">
+                    {data.summary.caseAllocationNote}
+                  </p>
+                ) : null}
                 {numberBreakdownOpen.tradeCaseAllocation != null ? (
                   <p className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs text-slate-400">
                     This trade’s share of that estimate before category split:{" "}
@@ -1436,6 +1615,10 @@ export function InjuryWeatherDashboard() {
                   <strong>Raw hits</strong> = rows in your SOR, corrective actions, and incidents for this trade + category in the
                   record window shown in provenance. <strong>Display #</strong> = that allocation (not the same as raw hit count).
                 </p>
+                {(data.summary.forecastMode ?? "live_adjusted") === "baseline_only" ||
+                tradeForecastHasNoInWindowSignals(numberBreakdownOpen) ? (
+                  <ExternalHistoricalSourcesPanel data={data} variant="detailed" />
+                ) : null}
               </div>
             )}
           </div>

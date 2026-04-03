@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
-import { getCompanyScope } from "@/lib/companyScope";
+import { getCompanyScope, normalizeWorkspaceUuid } from "@/lib/companyScope";
+import { appendDebugSessionLog } from "@/lib/debugSessionLog";
 
 export const runtime = "nodejs";
 
@@ -39,11 +40,23 @@ export async function GET(
     requireAnyPermission: [
       "can_view_all_company_data",
       "can_view_analytics",
+      "can_view_dashboards",
       "can_manage_company_users",
       "can_create_documents",
     ],
   });
-  if ("error" in auth) return auth.error;
+  if ("error" in auth) {
+    // #region agent log
+    appendDebugSessionLog({
+      hypothesisId: "H-jobsite-surface-auth",
+      location: "api/jobsites/[jobsiteId]/[surface]/GET",
+      message: "authorizeRequest failed",
+      data: {},
+      runId: "file-log",
+    });
+    // #endregion
+    return auth.error;
+  }
 
   const { jobsiteId, surface } = await params;
   if (!SURFACES.has(surface)) {
@@ -71,10 +84,25 @@ export async function GET(
       { status: 500 }
     );
   }
-  if (!jobsitesResult.data || jobsitesResult.data.company_id !== scope.companyId) {
+  const row = jobsitesResult.data;
+  const jobsiteCompanyRaw = row && row.company_id === scope.companyId;
+  const jobsiteCompanyNorm =
+    row &&
+    scope.companyId &&
+    normalizeWorkspaceUuid(row.company_id) === normalizeWorkspaceUuid(scope.companyId);
+  // #region agent log
+  appendDebugSessionLog({
+    hypothesisId: "H-jobsite-company-compare",
+    location: "api/jobsites/[jobsiteId]/[surface]/GET",
+    message: "jobsite company id compare",
+    data: { surface, jobsiteCompanyRaw, jobsiteCompanyNorm },
+    runId: "file-log",
+  });
+  // #endregion
+  if (!row || !jobsiteCompanyNorm) {
     return NextResponse.json({ error: "Jobsite not found in your company scope." }, { status: 404 });
   }
-  const jobsite = jobsitesResult.data;
+  const jobsite = row;
 
   const [daps, permits, incidents, reports, actions, users, documents, analytics, activities] =
     await Promise.all([

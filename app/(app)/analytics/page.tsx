@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage } from "@/components/WorkspacePrimitives";
+import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -121,46 +122,6 @@ async function getAuthHeaders() {
   } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error("Missing auth token.");
   return { Authorization: `Bearer ${session.access_token}` };
-}
-
-async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init: RequestInit,
-  timeoutMs = 15000
-) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(input, { ...init, signal: controller.signal });
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
-function syntheticJsonResponse(payload: Record<string, unknown>, status: number): Response {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-async function fetchWithTimeoutSafe(
-  input: RequestInfo | URL,
-  init: RequestInit,
-  timeoutMs: number,
-  errorPrefix: string
-): Promise<Response> {
-  try {
-    return await fetchWithTimeout(input, init, timeoutMs);
-  } catch (e) {
-    const timedOut = e instanceof Error && e.name === "AbortError";
-    return syntheticJsonResponse(
-      {
-        error: timedOut ? `${errorPrefix} timed out.` : `${errorPrefix} could not be reached.`,
-      },
-      503
-    );
-  }
 }
 
 function TrendSparkline({ points }: { points: Array<{ date: string; count: number }> }) {

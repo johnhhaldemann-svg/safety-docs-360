@@ -51,10 +51,22 @@ export function JobsiteSurfaceClient({
           },
         });
         const data = (await response.json().catch(() => null)) as Record<string, unknown> | null;
-        if (!response.ok) throw new Error(String(data?.error ?? "Failed to load jobsite surface."));
-        if (!cancelled) setPayload(data ?? {});
+        if (!response.ok) {
+          const err = typeof data?.error === "string" ? data.error.trim() : "";
+          const warn = typeof data?.warning === "string" ? data.warning.trim() : "";
+          if (!cancelled) {
+            setError(err || warn || "Failed to load jobsite surface.");
+            setErrorTone(err ? "error" : "warning");
+            setPayload(null);
+          }
+        } else if (!cancelled) {
+          setPayload(data ?? {});
+        }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load.");
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load.");
+          setErrorTone("error");
+        }
       }
       if (!cancelled) setLoading(false);
     }

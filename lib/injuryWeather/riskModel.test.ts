@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  allocateIntegerShares,
   behavioralLikelihoodAdjustmentFromMonthLabel,
+  buildTradeCategoryForecasts,
   computeAvgInjuryRateByMonth,
   computeAvgInjuryRateByTrade,
   computeAvgSeverityWeight,
   computeBaselineRisk,
   computeBaseRiskScore,
+  computeCaseAllocationBudget,
   computeTrendSignalValidationMultiplier,
   computeMinimumRiskFloor,
   computePredictedRiskProduct,
@@ -18,6 +21,7 @@ import {
   scheduleExposureLikelihoodMultiplier,
   seasonalFactorFromMonthLabel,
 } from "./riskModel";
+import type { TradeForecast } from "./types";
 
 describe("forecast mode + confidence (liveSignals.length)", () => {
   it("uses baseline_only and 0.4 when there are no observations", () => {
@@ -252,5 +256,91 @@ describe("behavioralLikelihoodAdjustmentFromMonthLabel", () => {
       workSevenDaysPerWeek: true,
     });
     expect(withSeven).toBeGreaterThan(without);
+  });
+});
+
+const MINIMAL_DEFAULT_FORECASTS: TradeForecast[] = [
+  {
+    trade: "Placeholder",
+    categories: [{ name: "—", predictedCount: 0, riskLevel: "LOW" }],
+    forecastProvenance: "demo",
+  },
+];
+
+describe("allocateIntegerShares", () => {
+  it("allocates integers that sum exactly to budget", () => {
+    expect(allocateIntegerShares(5, [1, 1]).reduce((a, b) => a + b, 0)).toBe(5);
+    expect(allocateIntegerShares(1, [2, 8]).reduce((a, b) => a + b, 0)).toBe(1);
+    expect(allocateIntegerShares(10, [3, 7]).reduce((a, b) => a + b, 0)).toBe(10);
+  });
+});
+
+describe("computeCaseAllocationBudget", () => {
+  it("caps single-trade display when row count is below threshold", () => {
+    expect(computeCaseAllocationBudget(10, 1, 1)).toEqual({
+      budget: 1,
+      capped: true,
+      threshold: INJURY_WEATHER_MODEL.CASE_ALLOCATION_SPARSE_EVIDENCE_THRESHOLD,
+    });
+    expect(computeCaseAllocationBudget(10, 2, 1)).toEqual({
+      budget: 2,
+      capped: true,
+      threshold: INJURY_WEATHER_MODEL.CASE_ALLOCATION_SPARSE_EVIDENCE_THRESHOLD,
+    });
+  });
+
+  it("does not cap when row count reaches threshold or multiple trades", () => {
+    expect(computeCaseAllocationBudget(10, 3, 1).capped).toBe(false);
+    expect(computeCaseAllocationBudget(10, 3, 1).budget).toBe(10);
+    expect(computeCaseAllocationBudget(10, 1, 2).capped).toBe(false);
+    expect(computeCaseAllocationBudget(10, 1, 2).budget).toBe(10);
+  });
+});
+
+describe("buildTradeCategoryForecasts", () => {
+  it("caps trade/category display on sparse single-trade evidence", () => {
+    const raw: [string, Map<string, number>][] = [["General Contractor", new Map([["hazard", 1]])]];
+    const out = buildTradeCategoryForecasts({
+      tradeForecastsRaw: raw,
+      projectedCaseEstimate: 8,
+      totalSignalRows: 1,
+      incidentLikelihoodIndexPct: 10,
+      defaultForecasts: MINIMAL_DEFAULT_FORECASTS,
+    });
+    expect(out[0]!.tradeCaseAllocation).toBe(1);
+    expect(out[0]!.categories.reduce((s, c) => s + c.predictedCount, 0)).toBe(1);
+  });
+
+  it("uses full projected budget when single trade has enough in-window rows", () => {
+    const raw: [string, Map<string, number>][] = [["GC", new Map([["a", 2], ["b", 1]])]];
+    const out = buildTradeCategoryForecasts({
+      tradeForecastsRaw: raw,
+      projectedCaseEstimate: 6,
+      totalSignalRows: 3,
+      incidentLikelihoodIndexPct: 50,
+      defaultForecasts: MINIMAL_DEFAULT_FORECASTS,
+    });
+    expect(out[0]!.tradeCaseAllocation).toBe(6);
+    expect(out[0]!.categories.reduce((s, c) => s + c.predictedCount, 0)).toBe(6);
+  });
+
+  it("keeps multi-trade totals equal to headline budget", () => {
+    const raw: [string, Map<string, number>][] = [
+      ["A", new Map([["x", 1]])],
+      ["B", new Map([["y", 1]])],
+    ];
+    const out = buildTradeCategoryForecasts({
+      tradeForecastsRaw: raw,
+      projectedCaseEstimate: 10,
+      totalSignalRows: 2,
+      incidentLikelihoodIndexPct: 20,
+      defaultForecasts: MINIMAL_DEFAULT_FORECASTS,
+    });
+    const sumTrades = out.reduce((s, t) => s + (t.tradeCaseAllocation ?? 0), 0);
+    expect(sumTrades).toBe(10);
+    for (const tf of out) {
+      const sumCats = tf.categories.reduce((s, c) => s + c.predictedCount, 0);
+      expect(sumCats).toBe(tf.tradeCaseAllocation ?? 0);
+    }
   });
 });

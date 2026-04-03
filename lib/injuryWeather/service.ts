@@ -13,6 +13,7 @@ import {
   INJURY_WEATHER_MODEL,
   behavioralLikelihoodAdjustmentFromMonthLabel,
   buildTradeCategoryForecasts,
+  computeCaseAllocationBudget,
   tradeForecastsWhenNoSignals,
   computeBaseRiskScore,
   computeIncidentLikelihoodIndexPct,
@@ -989,12 +990,18 @@ function buildDashboardFromLiveSignals(
   const projectedCaseEstimate = singleIncidentOnly ? 1 : projectedCaseEstimateRaw;
   const roundedStructural = Math.round(v2Structural * 10) / 10;
   const requestedTrades = params.trades ?? [];
+  const caseAllocLive = computeCaseAllocationBudget(
+    projectedCaseEstimate,
+    includedRows.length,
+    tradeForecasts.length
+  );
   const normalizedTradeForecasts =
     tradeForecasts.length === 0 && requestedTrades.length > 0
       ? tradeForecastsWhenNoSignals(requestedTrades)
       : buildTradeCategoryForecasts({
           tradeForecastsRaw: tradeForecasts,
           projectedCaseEstimate,
+          totalSignalRows: includedRows.length,
           incidentLikelihoodIndexPct,
           defaultForecasts: DEFAULT_TRADE_FORECASTS,
         });
@@ -1029,6 +1036,9 @@ function buildDashboardFromLiveSignals(
       forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(includedRows.length),
       lastUpdatedAt: new Date().toISOString(),
       likelyInjuryInsight: likelyInjuryInsightFromSignals(includedRows),
+      caseAllocationNote: caseAllocLive.capped
+        ? `Trade cards use a capped case-style budget (${caseAllocLive.budget}) while only ${includedRows.length} in-window signal row(s) roll up to a single trade (below ${caseAllocLive.threshold}); the headline projected case index (${projectedCaseEstimate}) still reflects the full model.`
+        : undefined,
     },
     tradeForecasts: normalizedTradeForecasts.length > 0 ? normalizedTradeForecasts : DEFAULT_TRADE_FORECASTS,
     alerts: DEFAULT_ALERTS,
@@ -1266,12 +1276,14 @@ function computeFromSeed(
   });
   const roundedSeedStructural = Math.round(seedStructural * 10) / 10;
   const requestedTradesSeed = filters?.trades ?? [];
+  const caseAllocSeed = computeCaseAllocationBudget(seedCases, filtered.length, tradeForecastsRaw.length);
   const tradeForecasts =
     tradeForecastsRaw.length === 0 && requestedTradesSeed.length > 0
       ? tradeForecastsWhenNoSignals(requestedTradesSeed)
       : buildTradeCategoryForecasts({
           tradeForecastsRaw,
           projectedCaseEstimate: seedCases,
+          totalSignalRows: filtered.length,
           incidentLikelihoodIndexPct: seedLikelihood,
           defaultForecasts: DEFAULT_TRADE_FORECASTS,
         });
@@ -1299,6 +1311,9 @@ function computeFromSeed(
     forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(filtered.length),
     lastUpdatedAt: new Date().toISOString(),
     likelyInjuryInsight: likelyInjuryInsightFromSignals([]),
+    caseAllocationNote: caseAllocSeed.capped
+      ? `Trade cards use a capped case-style budget (${caseAllocSeed.budget}) while only ${filtered.length} in-window signal row(s) roll up to a single trade (below ${caseAllocSeed.threshold}); the headline projected case index (${seedCases}) still reflects the full model.`
+      : undefined,
   };
 
   const alerts = DEFAULT_ALERTS;

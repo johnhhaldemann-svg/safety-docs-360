@@ -60,6 +60,8 @@ type JsaOverlay = {
   trade: string;
   supervisor: string;
   shiftPhase: string;
+  /** Company user ids selected as crew for this JSA (local overlay; not a separate DB column). */
+  crewUserIds: string[];
   crewAck: boolean;
   supervisorReview: boolean;
   signature: string;
@@ -71,6 +73,7 @@ const defaultOverlay = (): JsaOverlay => ({
   trade: "",
   supervisor: "",
   shiftPhase: "",
+  crewUserIds: [],
   crewAck: false,
   supervisorReview: false,
   signature: "",
@@ -117,11 +120,17 @@ function mergeOverlay(raw: unknown): JsaOverlay {
   const base = defaultOverlay();
   if (!raw || typeof raw !== "object") return base;
   const o = raw as Record<string, unknown>;
+  const rawCrew = o.crewUserIds;
+  let crewUserIds = base.crewUserIds;
+  if (Array.isArray(rawCrew)) {
+    crewUserIds = rawCrew.filter((id): id is string => typeof id === "string" && id.length > 0);
+  }
   return {
     workArea: typeof o.workArea === "string" ? o.workArea : base.workArea,
     trade: typeof o.trade === "string" ? o.trade : base.trade,
     supervisor: typeof o.supervisor === "string" ? o.supervisor : base.supervisor,
     shiftPhase: typeof o.shiftPhase === "string" ? o.shiftPhase : base.shiftPhase,
+    crewUserIds,
     crewAck: Boolean(o.crewAck),
     supervisorReview: Boolean(o.supervisorReview),
     signature: typeof o.signature === "string" ? o.signature : base.signature,
@@ -272,11 +281,26 @@ async function getAuthHeaders() {
   };
 }
 
+type JobsitePickRow = { id: string; name: string };
+type CompanyUserPickRow = { id: string; name: string; email: string };
+
+function formatUserPickLabel(u: CompanyUserPickRow) {
+  const n = (u.name ?? "").trim();
+  const em = (u.email ?? "").trim();
+  if (n && em) return `${n} (${em})`;
+  return n || em || `User ${u.id.slice(0, 8)}…`;
+}
+
 export function JsaWorkspace() {
   const [records, setRecords] = useState<JsaRecordRow[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [newTitle, setNewTitle] = useState("");
+  const [newJobsiteId, setNewJobsiteId] = useState("");
   const [jobSiteName, setJobSiteName] = useState("");
+  const [selectedJobsiteId, setSelectedJobsiteId] = useState("");
+  const [jobsites, setJobsites] = useState<JobsitePickRow[]>([]);
+  const [companyUsers, setCompanyUsers] = useState<CompanyUserPickRow[]>([]);
+  const [directoryHint, setDirectoryHint] = useState("");
   const [auditDate, setAuditDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [overlay, setOverlay] = useState<JsaOverlay>(defaultOverlay);
   const [steps, setSteps] = useState<StepForm[]>([]);
@@ -343,13 +367,65 @@ export function JsaWorkspace() {
     void loadRecords();
   }, [loadRecords]);
 
+  const loadDirectoryLists = useCallback(async () => {
+    setDirectoryHint("");
+    try {
+      const headers = await getAuthHeaders();
+      const [jr, ur] = await Promise.all([
+        fetch("/api/company/jobsites", { headers }),
+        fetch("/api/company/users", { headers }),
+      ]);
+      const jBody = (await jr.json().catch(() => null)) as { jobsites?: unknown[]; error?: string } | null;
+      const uBody = (await ur.json().catch(() => null)) as { users?: unknown[]; error?: string } | null;
+      if (jr.ok) {
+        const list = (jBody?.jobsites ?? []) as Record<string, unknown>[];
+        setJobsites(
+          list
+            .map((row) => ({
+              id: String(row.id ?? ""),
+              name: String(row.name ?? "Jobsite").trim() || "Jobsite",
+            }))
+            .filter((x) => x.id.length > 0)
+        );
+      } else {
+        setJobsites([]);
+        if (jBody?.error) setDirectoryHint((h) => (h ? `${h} ` : "") + `Jobsites: ${jBody.error}`);
+      }
+      if (ur.ok) {
+        const list = (uBody?.users ?? []) as Record<string, unknown>[];
+        setCompanyUsers(
+          list
+            .map((row) => ({
+              id: String(row.id ?? ""),
+              name: String(row.name ?? "").trim(),
+              email: String(row.email ?? "").trim(),
+            }))
+            .filter((x) => x.id.length > 0)
+        );
+      } else {
+        setCompanyUsers([]);
+        if (uBody?.error) setDirectoryHint((h) => (h ? `${h} ` : "") + `Team directory: ${uBody.error}`);
+      }
+    } catch {
+      setJobsites([]);
+      setCompanyUsers([]);
+      setDirectoryHint("Could not load jobsites or team list.");
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDirectoryLists();
+  }, [loadDirectoryLists]);
+
   useEffect(() => {
     const r = records.find((x) => x.id === selectedId);
     if (r) {
       setJobSiteName(r.title ?? "");
+      setSelectedJobsiteId(r.jobsite_id ? String(r.jobsite_id) : "");
       setAuditDate(r.work_date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
     } else {
       setJobSiteName("");
+      setSelectedJobsiteId("");
       setOverlay(defaultOverlay());
       setSteps([]);
     }
@@ -420,9 +496,10 @@ export function JsaWorkspace() {
   }, [steps, jobSiteName]);
 
   async function createJsa() {
-    const title = newTitle.trim();
+    const site = newJobsiteId ? jobsites.find((j) => j.id === newJobsiteId) : null;
+    const title = newTitle.trim() || site?.name?.trim() || "";
     if (!title) {
-      setMessage("Enter a job or site name in the field next to New JSA, then try again.");
+      setMessage("Select a jobsite from the list or enter a title next to New JSA, then try again.");
       return;
     }
     setSaving(true);
@@ -437,6 +514,7 @@ export function JsaWorkspace() {
           status: "draft",
           severity: "medium",
           category: "corrective_action",
+          ...(newJobsiteId.trim() ? { jobsiteId: newJobsiteId.trim() } : {}),
         }),
       });
       const data = (await response.json().catch(() => null)) as
@@ -445,6 +523,7 @@ export function JsaWorkspace() {
       if (!response.ok) throw new Error(data?.error || "Failed to create JSA.");
       const newId = typeof data?.dap?.id === "string" ? data.dap.id : "";
       setNewTitle("");
+      setNewJobsiteId("");
       await loadRecords();
       if (newId) {
         setSelectedId(newId);
@@ -521,7 +600,11 @@ export function JsaWorkspace() {
     await fetch("/api/company/daps", {
       method: "PATCH",
       headers,
-      body: JSON.stringify({ id: selectedId, title: jobSiteName.trim() || "Untitled JSA" }),
+      body: JSON.stringify({
+        id: selectedId,
+        title: jobSiteName.trim() || "Untitled JSA",
+        jobsiteId: selectedJobsiteId.trim(),
+      }),
     });
   }
 
@@ -1031,17 +1114,37 @@ export function JsaWorkspace() {
                 ))}
               </select>
             </label>
-            <div className="flex min-w-[200px] flex-1 flex-wrap gap-2">
+            <div className="flex min-w-[220px] flex-[1.2] flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+              <label className="min-w-[160px] flex-1 text-xs font-bold uppercase tracking-wide text-slate-400">
+                Jobsite (optional)
+                <select
+                  value={newJobsiteId}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setNewJobsiteId(v);
+                    const site = jobsites.find((j) => j.id === v);
+                    if (site) setNewTitle((t) => (t.trim() ? t : site.name));
+                  }}
+                  className={`${inputClass} mt-1`}
+                >
+                  <option value="">Select jobsite…</option>
+                  {jobsites.map((j) => (
+                    <option key={j.id} value={j.id}>
+                      {j.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="New job / site name"
+                placeholder="JSA title / job name"
                 className={`${inputClass} min-w-[160px] flex-1`}
               />
               <button
                 type="button"
                 onClick={() => void createJsa()}
-                disabled={saving || !newTitle.trim()}
+                disabled={saving || (!newTitle.trim() && !newJobsiteId.trim())}
                 className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-sm font-bold text-white shadow-md disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" aria-hidden />
@@ -1049,6 +1152,9 @@ export function JsaWorkspace() {
               </button>
             </div>
           </div>
+          {directoryHint ? (
+            <p className="text-xs text-amber-200/90 print:hidden">{directoryHint}</p>
+          ) : null}
           {selected ? (
             <div className="flex flex-wrap gap-2 border-t border-slate-700/80 pt-3 text-xs">
               <span className="rounded-full border border-slate-600/80 px-2 py-0.5 text-slate-300">
@@ -1106,8 +1212,32 @@ export function JsaWorkspace() {
                   <h2 className="text-lg font-bold text-slate-50">JSA header</h2>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
+                  <label className="md:col-span-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+                    Jobsite
+                    <select
+                      value={selectedJobsiteId}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setSelectedJobsiteId(v);
+                        if (!v) return;
+                        const site = jobsites.find((j) => j.id === v);
+                        if (site) setJobSiteName((t) => (t.trim() ? t : site.name));
+                      }}
+                      className={`${inputClass} mt-1`}
+                    >
+                      <option value="">None — custom title only</option>
+                      {jobsites.map((j) => (
+                        <option key={j.id} value={j.id}>
+                          {j.name}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="mt-1 block text-[11px] font-normal text-slate-500">
+                      Links this JSA to a company jobsite record. Saving updates the jobsite on the server.
+                    </span>
+                  </label>
                   <label className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                    Job / site name
+                    JSA title / job name
                     <input
                       value={jobSiteName}
                       onChange={(e) => setJobSiteName(e.target.value)}
@@ -1119,8 +1249,16 @@ export function JsaWorkspace() {
                     <input
                       value={overlay.supervisor}
                       onChange={(e) => setOverlay((o) => ({ ...o, supervisor: e.target.value }))}
+                      list="jsa-supervisor-datalist"
+                      autoComplete="off"
                       className={`${inputClass} mt-1`}
+                      placeholder="Type or pick from team list"
                     />
+                    <datalist id="jsa-supervisor-datalist">
+                      {companyUsers.map((u) => (
+                        <option key={u.id} value={formatUserPickLabel(u)} />
+                      ))}
+                    </datalist>
                   </label>
                   <label className="text-xs font-bold uppercase tracking-wide text-slate-400">
                     Trade
@@ -1156,6 +1294,63 @@ export function JsaWorkspace() {
                       className={`${inputClass} mt-1`}
                     />
                   </label>
+                  <div className="md:col-span-2 space-y-2 rounded-xl border border-slate-700/60 bg-slate-950/30 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Crew</p>
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!v) return;
+                        setOverlay((o) =>
+                          o.crewUserIds.includes(v) ? o : { ...o, crewUserIds: [...o.crewUserIds, v] }
+                        );
+                        e.target.value = "";
+                      }}
+                      className={inputClass}
+                      aria-label="Add crew member"
+                    >
+                      <option value="">Add crew member…</option>
+                      {companyUsers.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {formatUserPickLabel(u)}
+                        </option>
+                      ))}
+                    </select>
+                    {overlay.crewUserIds.length === 0 ? (
+                      <p className="text-[11px] text-slate-500">No crew members selected.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {overlay.crewUserIds.map((id) => {
+                          const u = companyUsers.find((x) => x.id === id);
+                          const label = u ? formatUserPickLabel(u) : `User ${id.slice(0, 8)}…`;
+                          return (
+                            <span
+                              key={id}
+                              className="inline-flex items-center gap-1 rounded-full border border-slate-600 bg-slate-950/80 px-2.5 py-1 text-xs text-slate-200"
+                            >
+                              {label}
+                              <button
+                                type="button"
+                                className="rounded p-0.5 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                                aria-label={`Remove ${label}`}
+                                onClick={() =>
+                                  setOverlay((o) => ({
+                                    ...o,
+                                    crewUserIds: o.crewUserIds.filter((x) => x !== id),
+                                  }))
+                                }
+                              >
+                                ×
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <p className="text-[11px] leading-relaxed text-slate-500">
+                      Picks come from your company user list. Crew is saved with this JSA when you use Save draft (header data is stored in your browser overlay until then).
+                    </p>
+                  </div>
                 </div>
               </section>
             </Tabs.Content>
@@ -1346,7 +1541,17 @@ export function JsaWorkspace() {
                   <ul className="mt-4 space-y-2 text-sm text-slate-300">
                     <li className="flex gap-2">
                       <span className={jobSiteName.trim() ? "text-emerald-400" : "text-slate-600"}>✓</span>
-                      Job / site name captured
+                      JSA title / job name captured
+                    </li>
+                    <li className="flex gap-2">
+                      <span
+                        className={
+                          overlay.crewUserIds.length > 0 ? "text-emerald-400" : "text-slate-600"
+                        }
+                      >
+                        ✓
+                      </span>
+                      Crew roster ({overlay.crewUserIds.length} selected on Header tab)
                     </li>
                     <li className="flex gap-2">
                       <span className={steps.length > 0 ? "text-emerald-400" : "text-slate-600"}>✓</span>

@@ -18,6 +18,7 @@ import type {
   LiveMatrixRow,
   ModuleSummaryItem,
 } from "@/components/company-workspace/useCompanyWorkspaceData";
+import { fetchWithTimeout, fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { getPermissionMap, isCompanyAdminRole, type PermissionMap } from "@/lib/rbac";
 import type { WorkspaceProduct } from "@/lib/workspaceProduct";
 import {
@@ -242,47 +243,6 @@ function getStatusTone(label: string): "neutral" | "success" | "warning" | "info
   }
 
   return "info";
-}
-
-async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init: RequestInit,
-  timeoutMs = 15000
-) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(input, { ...init, signal: controller.signal });
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
-function syntheticJsonResponse(payload: Record<string, unknown>, status: number): Response {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-/** Never throws: failed/timeout fetches become non-OK JSON responses so callers can still merge partial workspace state. */
-async function fetchWithTimeoutSafe(
-  input: RequestInfo | URL,
-  init: RequestInit,
-  timeoutMs: number,
-  errorPrefix: string
-): Promise<Response> {
-  try {
-    return await fetchWithTimeout(input, init, timeoutMs);
-  } catch (e) {
-    const timedOut = e instanceof Error && e.name === "AbortError";
-    return syntheticJsonResponse(
-      {
-        error: timedOut ? `${errorPrefix} timed out.` : `${errorPrefix} could not be reached.`,
-      },
-      503
-    );
-  }
 }
 
 export default function DashboardPage() {

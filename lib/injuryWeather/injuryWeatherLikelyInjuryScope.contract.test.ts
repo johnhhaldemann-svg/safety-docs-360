@@ -14,7 +14,7 @@ describe("injuryWeather likely-injury scope (source contract)", () => {
     expect(src).toContain("const likelyRowsForInsight = rowsMatchingTradeSelection(liveSourceRows");
     expect(src).toContain("likelyInjuryInsightFromSignals(likelyRowsForInsight)");
     expect(src).not.toMatch(
-      /likelyInjuryInsightFromSignals\(\s*rowsMatchingTradeSelection\(\s*allRows/s
+      /likelyInjuryInsightFromSignals\(\s*rowsMatchingTradeSelection\(\s*allRows/
     );
   });
 });

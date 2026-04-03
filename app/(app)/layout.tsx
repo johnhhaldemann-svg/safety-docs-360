@@ -491,7 +491,13 @@ export default function AppLayout({
           }
           return;
         }
-        const readOnlyAllowedRoutes = ["/dashboard", "/reports"];
+        const readOnlyAllowedRoutes = [
+          "/dashboard",
+          "/reports",
+          "/companies",
+          "/jobsites",
+          "/analytics",
+        ];
         const inReadOnlyRoute = readOnlyAllowedRoutes.some(
           (route) => pathname === route || pathname.startsWith(`${route}/`)
         );
@@ -570,6 +576,19 @@ export default function AppLayout({
 
       if (permissionMap?.can_manage_company_users) {
         companyAllowedRoutes.push("/company-users");
+      }
+
+      if (
+        permissionMap?.can_view_dashboards &&
+        userRole !== "company_admin" &&
+        userRole !== "manager" &&
+        userRole !== "safety_manager"
+      ) {
+        for (const route of ["/companies", "/analytics"] as const) {
+          if (!companyAllowedRoutes.includes(route)) {
+            companyAllowedRoutes.push(route);
+          }
+        }
       }
 
       const inAllowedRoute = companyAllowedRoutes.some(

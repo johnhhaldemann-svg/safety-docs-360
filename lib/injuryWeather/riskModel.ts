@@ -47,7 +47,7 @@ import type {
 export const INJURY_WEATHER_MODEL = {
   /** Bump when blend weights or likelihood mapping change materially. */
   /** Structural headline for live data uses `riskEngineV2` (weighted signals); likelihood / case paths still read these constants. */
-  VERSION: "3.0.0" as const,
+  VERSION: "3.1.0" as const,
 
   /** Forecast path confidence when no live rows match scope (`baseline_only`). */
   FORECAST_CONFIDENCE_BASELINE_ONLY: 0.4 as const,
@@ -119,6 +119,15 @@ export const INJURY_WEATHER_MODEL = {
 
   /** Cap month-on-month step-up for case estimate (reduces explosion on thin history). */
   MONTH_PROJECTION_CAP: 1.35,
+
+  /**
+   * When exactly one trade card is built from live rollups and in-window rows are below this count,
+   * trade/category display uses a capped case-style budget (see `computeCaseAllocationBudget`).
+   */
+  CASE_ALLOCATION_SPARSE_EVIDENCE_THRESHOLD: 3,
+
+  /** Small Dirichlet-style prior per top category when splitting across 2+ categories (softens 100% dominance on thin counts). */
+  CATEGORY_ALLOCATION_PRIOR: 0.4,
 
   /**
    * `scheduleExposureLikelihoodMultiplier`: maps weekly hours vs 5×8 reference; `(ratio - 1) * SCHEDULE_EXPOSURE_SENSITIVITY`, capped.
@@ -778,17 +787,79 @@ export function computeProjectedCaseEstimate(input: ProjectedCaseInput): number 
 export type TradeForecastBuildInput = {
   tradeForecastsRaw: [string, Map<string, number>][];
   projectedCaseEstimate: number;
+  /** In-window signal rows after filters — drives sparse single-trade allocation cap. */
+  totalSignalRows: number;
   incidentLikelihoodIndexPct: number;
   defaultForecasts: TradeForecast[];
 };
 
 /**
- * Trade/category **allocation** for UI: shares from signals, magnitudes scaled to `projectedCaseEstimate`.
+ * Case-style budget for trade/category **display** when one trade card is shown on sparse evidence.
+ */
+export function computeCaseAllocationBudget(
+  projectedCaseEstimate: number,
+  totalSignalRows: number,
+  tradeCardCount: number
+): { budget: number; capped: boolean; threshold: number } {
+  const threshold = INJURY_WEATHER_MODEL.CASE_ALLOCATION_SPARSE_EVIDENCE_THRESHOLD;
+  if (tradeCardCount === 1 && totalSignalRows > 0 && totalSignalRows < threshold) {
+    const budget = Math.min(projectedCaseEstimate, Math.max(1, totalSignalRows));
+    return { budget, capped: budget < projectedCaseEstimate, threshold };
+  }
+  return { budget: projectedCaseEstimate, capped: false, threshold };
+}
+
+/** Largest-remainder split: nonnegative integers proportional to weights, summing exactly to `budget`. */
+export function allocateIntegerShares(budget: number, weights: number[]): number[] {
+  const n = weights.length;
+  if (n === 0) return [];
+  if (budget <= 0) return Array.from({ length: n }, () => 0);
+
+  const safe = weights.map((w) => Math.max(0, w));
+  const sumW = safe.reduce((a, b) => a + b, 0);
+  if (sumW <= 0) {
+    const base = Math.floor(budget / n);
+    let rem = budget - base * n;
+    return safe.map((_, i) => base + (i < rem ? 1 : 0));
+  }
+
+  const ideal = safe.map((w) => (budget * w) / sumW);
+  const floors = ideal.map((x) => Math.floor(x + 1e-12));
+  let rem = budget - floors.reduce((a, b) => a + b, 0);
+  const order = safe
+    .map((_, i) => i)
+    .sort((i, j) => {
+      const fi = ideal[i]! - floors[i]!;
+      const fj = ideal[j]! - floors[j]!;
+      return fj - fi;
+    });
+  const out = [...floors];
+  for (let k = 0; k < rem; k += 1) {
+    out[order[k]!] += 1;
+  }
+  return out;
+}
+
+/**
+ * Trade/category **allocation** for UI: shares from signals, magnitudes scaled to a case-style budget
+ * (may be capped on sparse single-trade evidence; see `computeCaseAllocationBudget`).
  * Category “risk” bands use stress from raw counts × likelihood — **not** structural score.
  */
 export function buildTradeCategoryForecasts(input: TradeForecastBuildInput): TradeForecast[] {
-  const { tradeForecastsRaw, projectedCaseEstimate, incidentLikelihoodIndexPct, defaultForecasts } = input;
+  const {
+    tradeForecastsRaw,
+    projectedCaseEstimate,
+    totalSignalRows,
+    incidentLikelihoodIndexPct,
+    defaultForecasts,
+  } = input;
   if (tradeForecastsRaw.length === 0) return defaultForecasts;
+
+  const { budget: caseBudget } = computeCaseAllocationBudget(
+    projectedCaseEstimate,
+    totalSignalRows,
+    tradeForecastsRaw.length
+  );
 
   const tradeSignalTotal = Math.max(
     1,
@@ -800,28 +871,28 @@ export function buildTradeCategoryForecasts(input: TradeForecastBuildInput): Tra
     const tradeShare = tradeRawTotal / tradeSignalTotal;
     return tradeShare * getTradeWeatherWeight(trade);
   });
-  const tradeWeatherPartsSum = tradeWeatherParts.reduce((a, b) => a + b, 0) || 1;
+
+  const tradeAllocations = allocateIntegerShares(caseBudget, tradeWeatherParts);
 
   return tradeForecastsRaw.map(([trade, cats], idx) => {
-    const tradeRawTotal = [...cats.values()].reduce((n, v) => n + v, 0);
-    const tradeShare = tradeRawTotal / tradeSignalTotal;
-    const tradeProjectedCases = Math.max(
-      1,
-      Math.round(projectedCaseEstimate * (tradeWeatherParts[idx]! / tradeWeatherPartsSum))
-    );
+    const tradeProjectedCases = tradeAllocations[idx] ?? 0;
     const topCats = [...cats.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-    const topCatTotal = Math.max(1, topCats.reduce((n, [, v]) => n + v, 0));
+    const prior =
+      topCats.length > 1 ? INJURY_WEATHER_MODEL.CATEGORY_ALLOCATION_PRIOR : 0;
+    const catWeights = topCats.map(([, rawCount]) => rawCount + prior);
+    const catAllocations = allocateIntegerShares(tradeProjectedCases, catWeights);
+    const smoothedDen = catWeights.reduce((a, b) => a + b, 0) || 1;
+
     return {
       trade,
       forecastProvenance: "live" as const,
       tradeCaseAllocation: tradeProjectedCases,
       categories: topCats.map(([name, rawCount], catIdx) => {
-        const catShare = rawCount / topCatTotal;
-        const estimatedCount = Math.max(0, Math.round(tradeProjectedCases * catShare));
+        const catShare = catWeights[catIdx]! / smoothedDen;
         const stress = Math.max(1, Math.round(rawCount * (incidentLikelihoodIndexPct / 100)));
         return {
           name,
-          predictedCount: catIdx === 0 ? Math.max(1, estimatedCount) : estimatedCount,
+          predictedCount: catAllocations[catIdx] ?? 0,
           riskLevel: riskBandFromStressCount(stress),
           sourceObservationCount: rawCount,
           shareOfTradeTopCategoriesPct: Math.round(catShare * 1000) / 10,

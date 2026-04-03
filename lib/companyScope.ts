@@ -11,6 +11,11 @@ function normalizeTeamName(team?: string | null) {
   return team?.trim() || "General";
 }
 
+/** UUIDs are case-insensitive; normalize for comparisons with URL params. */
+export function normalizeWorkspaceUuid(value: string) {
+  return value.trim().toLowerCase();
+}
+
 /** When DB rows lag JWT (e.g. super-admin assigned company_id in metadata only). */
 function companyIdFromJwtMetadata(authUser?: AuthUserLike | null): string | null {
   if (!authUser) return null;
