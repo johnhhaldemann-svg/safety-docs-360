@@ -389,6 +389,52 @@ export type InjuryWeatherAiInsights = {
   recommendedControls: string[];
 };
 
+/** Validated model output for full AI forecast override (merged into dashboard after checks). */
+export type InjuryWeatherAiForecastLikelyInjuryPatch = {
+  headline: string;
+  secondaryLine: string | null;
+  detailNote: string;
+  hasData?: boolean;
+};
+
+export type InjuryWeatherAiForecastCategoryPatch = {
+  name: string;
+  riskLevel: RiskLevel;
+};
+
+export type InjuryWeatherAiForecastTradePatch = {
+  trade: string;
+  categories: InjuryWeatherAiForecastCategoryPatch[];
+};
+
+export type InjuryWeatherAiForecastOverride = {
+  overallRiskLevel: RiskLevel;
+  likelyInjury: InjuryWeatherAiForecastLikelyInjuryPatch;
+  /** Partial: only listed trades/categories are patched; omitted trades keep deterministic levels. */
+  trades?: InjuryWeatherAiForecastTradePatch[];
+};
+
+export type InjuryWeatherAiForecastMetaReason =
+  | "disabled"
+  | "no_api_key"
+  | "validation_failed"
+  | "parse_error"
+  | "api_error";
+
+export type InjuryWeatherAiForecastMeta = {
+  applied: boolean;
+  schemaVersion: string;
+  reason?: InjuryWeatherAiForecastMetaReason;
+};
+
+/** Superadmin Injury Weather GET when `includeAi=true` may include AI forecast metadata and baseline snapshot. */
+export type InjuryWeatherDashboardWithAiResponse = InjuryWeatherDashboardData & {
+  aiInsights: InjuryWeatherAiInsights;
+  /** Present when `INJURY_WEATHER_AI_FORECAST_OVERRIDE` was enabled for this request (pre-merge snapshot). */
+  deterministicBaseline?: InjuryWeatherDashboardData;
+  aiForecastMeta: InjuryWeatherAiForecastMeta;
+};
+
 /** One row of the month-ahead back-test: score from month M signals vs incidents recorded in M+1. */
 export type InjuryWeatherBacktestRow = {
   scoreMonth: string;

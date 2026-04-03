@@ -14,12 +14,27 @@ import { fallbackDashboardBlocksFromData } from "@/lib/injuryWeather/ai";
 import { injuryWeatherJobsiteSorScopeBanner } from "@/lib/injuryWeather/scopeMessaging";
 import { INJURY_WEATHER_ASSUMPTIONS } from "@/lib/injuryWeather/types";
 import type {
+  InjuryWeatherAiForecastMeta,
   InjuryWeatherAiInsights,
   InjuryWeatherDashboardData,
+  InjuryWeatherDashboardWithAiResponse,
   RiskLevel,
   TradeForecast,
   TrendPoint,
 } from "@/lib/injuryWeather/types";
+
+function isInjuryWeatherWithAiPayload(
+  body: unknown
+): body is InjuryWeatherDashboardWithAiResponse {
+  if (!body || typeof body !== "object") return false;
+  const o = body as Record<string, unknown>;
+  return typeof o.summary === "object" && o.summary != null && "aiInsights" in o && "aiForecastMeta" in o;
+}
+
+function dashboardFromAiPayload(body: InjuryWeatherDashboardWithAiResponse): InjuryWeatherDashboardData {
+  const { aiInsights: _a, deterministicBaseline: _d, aiForecastMeta: _m, ...rest } = body;
+  return rest as InjuryWeatherDashboardData;
+}
 
 function controlsForCategory(trade: string, categoryName: string, risk: RiskLevel): string[] {
   const hay = `${trade} ${categoryName}`.toLowerCase();
@@ -477,6 +492,9 @@ export function InjuryWeatherDashboard() {
   const [data, setData] = useState<InjuryWeatherDashboardData | null>(null);
   const [error, setError] = useState("");
   const [aiInsights, setAiInsights] = useState<InjuryWeatherAiInsights | null>(null);
+  const [aiForecastMeta, setAiForecastMeta] = useState<InjuryWeatherAiForecastMeta | null>(null);
+  const [deterministicBaseline, setDeterministicBaseline] = useState<InjuryWeatherDashboardData | null>(null);
+  const [modelBaselineOpen, setModelBaselineOpen] = useState(false);
   const [aiAdvisorLoading, setAiAdvisorLoading] = useState(false);
   const [controlsOpen, setControlsOpen] = useState<TradeForecast | null>(null);
   const [numberBreakdownOpen, setNumberBreakdownOpen] = useState<TradeForecast | null>(null);
@@ -566,6 +584,9 @@ export function InjuryWeatherDashboard() {
           setData(typed);
           preferInitialFreshDataRef.current = false;
           setAiInsights(null);
+          setAiForecastMeta(null);
+          setDeterministicBaseline(null);
+          setModelBaselineOpen(false);
           setAiAdvisorLoading(true);
           if (!month) {
             const months = typed.availableMonths;
@@ -582,15 +603,25 @@ export function InjuryWeatherDashboard() {
                 headers: { Authorization: `Bearer ${token}` },
                 cache: "no-store",
               });
-              const body = (await r.json().catch(() => null)) as
-                | (InjuryWeatherDashboardData & { aiInsights?: InjuryWeatherAiInsights })
-                | null;
+              const body = (await r.json().catch(() => null)) as InjuryWeatherDashboardWithAiResponse | null;
               if (fetchSeq !== dashboardFetchSeqRef.current) return;
               if (r.ok && body && !("error" in body)) {
-                setAiInsights((body as { aiInsights?: InjuryWeatherAiInsights }).aiInsights ?? null);
+                if (isInjuryWeatherWithAiPayload(body)) {
+                  setAiInsights(body.aiInsights);
+                  setAiForecastMeta(body.aiForecastMeta);
+                  setDeterministicBaseline(body.deterministicBaseline ?? null);
+                  setData(dashboardFromAiPayload(body));
+                } else {
+                  const legacy = body as InjuryWeatherDashboardData & { aiInsights?: InjuryWeatherAiInsights };
+                  setAiInsights(legacy.aiInsights ?? null);
+                }
               }
             } catch {
-              if (fetchSeq === dashboardFetchSeqRef.current) setAiInsights(null);
+              if (fetchSeq === dashboardFetchSeqRef.current) {
+                setAiInsights(null);
+                setAiForecastMeta(null);
+                setDeterministicBaseline(null);
+              }
             } finally {
               if (fetchSeq === dashboardFetchSeqRef.current) setAiAdvisorLoading(false);
             }
@@ -881,6 +912,79 @@ export function InjuryWeatherDashboard() {
             <p className="mt-2 text-[10px] leading-snug text-slate-500">{data.summary.likelyInjuryInsight.detailNote}</p>
           </div>
         </div>
+        {aiForecastMeta?.applied ? (
+          <div className="border-b border-violet-500/40 bg-violet-950/35 px-5 py-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-semibold text-violet-100">
+                <span className="rounded-md border border-violet-400/50 bg-violet-500/20 px-2 py-0.5 text-xs font-black uppercase tracking-wide text-violet-100">
+                  AI-adjusted forecast
+                </span>
+                <span className="ml-2 text-violet-200/90">
+                  Overall band, likely-injury readout, and category risk colors below may differ from the deterministic model.
+                  Weighted scores and counts in “Where do these numbers come from?” still reflect the original engine.
+                </span>
+              </p>
+            </div>
+            {deterministicBaseline ? (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => setModelBaselineOpen((v) => !v)}
+                  className="text-left text-xs font-bold text-violet-200 underline decoration-violet-400/60 underline-offset-2 hover:text-white"
+                >
+                  {modelBaselineOpen ? "Hide model baseline" : "Show model baseline (pre-AI)"}
+                </button>
+                {modelBaselineOpen ? (
+                  <div className="mt-3 rounded-xl border border-slate-600/80 bg-slate-950/80 p-4 text-sm text-slate-200">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Deterministic model snapshot</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="text-[10px] uppercase text-slate-500">Overall risk level</p>
+                        <span
+                          className={`mt-1 inline-flex rounded-md border px-3 py-1 text-lg font-black ${riskTone(deterministicBaseline.summary.overallRiskLevel)}`}
+                        >
+                          {deterministicBaseline.summary.overallRiskLevel}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase text-slate-500">Predicted likely injury (model)</p>
+                        <p className="mt-1 font-semibold text-teal-100/90">{deterministicBaseline.summary.likelyInjuryInsight.headline}</p>
+                        {deterministicBaseline.summary.likelyInjuryInsight.secondaryLine ? (
+                          <p className="mt-0.5 text-xs text-slate-400">{deterministicBaseline.summary.likelyInjuryInsight.secondaryLine}</p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <p className="mt-3 text-[10px] uppercase text-slate-500">Category bands (model)</p>
+                    <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-700/80">
+                      <table className="w-full text-left text-xs">
+                        <thead className="sticky top-0 bg-slate-900/95 text-slate-400">
+                          <tr>
+                            <th className="px-2 py-1.5 font-semibold">Trade</th>
+                            <th className="px-2 py-1.5 font-semibold">Category</th>
+                            <th className="px-2 py-1.5 font-semibold">Band</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {deterministicBaseline.tradeForecasts.flatMap((tf) =>
+                            tf.categories.map((c) => (
+                              <tr key={`${tf.trade}-${c.name}`} className="border-t border-slate-800/90">
+                                <td className="px-2 py-1.5 text-slate-300">{tf.trade}</td>
+                                <td className="px-2 py-1.5 text-slate-300">{c.name}</td>
+                                <td className="px-2 py-1.5">
+                                  <span className={`rounded px-1.5 py-0.5 font-bold ${riskTone(c.riskLevel)}`}>{c.riskLevel}</span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {(data.summary.forecastMode ?? "live_adjusted") === "baseline_only" ? (
           <div className="border-b border-amber-500/45 bg-amber-950/50 px-5 py-3 text-center text-sm font-medium leading-snug text-amber-100/95">
             <p>No recent safety signals in window — the headline still blends calendar priors, trade/climate weights, and published sector context.</p>

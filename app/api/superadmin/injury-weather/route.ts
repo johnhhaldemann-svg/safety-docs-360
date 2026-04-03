@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { authorizeRequest, normalizeAppRole } from "@/lib/rbac";
+import {
+  applyAiForecastOverride,
+  generateInjuryWeatherAiInsights,
+  isInjuryWeatherAiForecastOverrideEnabled,
+} from "@/lib/injuryWeather/ai";
 import { getInjuryWeatherDashboardData, workScheduleFromUrlSearchParams } from "@/lib/injuryWeather/service";
-import { generateInjuryWeatherAiInsights } from "@/lib/injuryWeather/ai";
-import type { BehaviorSignals, WorkScheduleInputs } from "@/lib/injuryWeather/types";
+import type { BehaviorSignals, InjuryWeatherAiForecastMeta, WorkScheduleInputs } from "@/lib/injuryWeather/types";
 
 export const runtime = "nodejs";
 
@@ -53,11 +57,75 @@ const loadCachedDashboard = unstable_cache(
   { revalidate: 300 }
 );
 
+type DashboardFilterKey = {
+  month: string | null;
+  trade: string | null;
+  trades: string[] | null;
+  workforceTotal: number | null;
+  hoursWorked: number | null;
+  stateCode: string | null;
+  behaviorSignals: Partial<BehaviorSignals> | null;
+  workSchedule: Partial<WorkScheduleInputs> | null;
+  companyId: string | null;
+  jobsiteId: string | null;
+};
+
+function dashboardKeyString(f: DashboardFilterKey): string {
+  return JSON.stringify(f);
+}
+
+async function buildInjuryWeatherAiResponse(
+  data: Awaited<ReturnType<typeof getInjuryWeatherDashboardData>>,
+  aiOverrideEnabled: boolean
+) {
+  const hasOpenAiKey = Boolean(process.env.OPENAI_API_KEY?.trim());
+  const { insights, forecastOverride } = await generateInjuryWeatherAiInsights(data, {
+    requestForecastOverride: aiOverrideEnabled,
+  });
+
+  const aiForecastMetaBase: InjuryWeatherAiForecastMeta = {
+    applied: false,
+    schemaVersion: "1",
+  };
+
+  if (!aiOverrideEnabled) {
+    return { ...data, aiInsights: insights, aiForecastMeta: { ...aiForecastMetaBase, reason: "disabled" as const } };
+  }
+
+  const deterministicBaseline = data;
+  if (!hasOpenAiKey) {
+    return {
+      ...data,
+      aiInsights: insights,
+      deterministicBaseline,
+      aiForecastMeta: { ...aiForecastMetaBase, reason: "no_api_key" as const },
+    };
+  }
+
+  if (forecastOverride) {
+    const merged = applyAiForecastOverride(data, forecastOverride);
+    return {
+      ...merged,
+      aiInsights: insights,
+      deterministicBaseline,
+      aiForecastMeta: { applied: true, schemaVersion: "1" },
+    };
+  }
+
+  return {
+    ...data,
+    aiInsights: insights,
+    deterministicBaseline,
+    aiForecastMeta: { ...aiForecastMetaBase, reason: "validation_failed" as const },
+  };
+}
+
 const loadCachedDashboardWithAi = unstable_cache(
-  async (key: string) => {
-    const data = await loadCachedDashboard(key);
-    const aiInsights = await generateInjuryWeatherAiInsights(data);
-    return { data, aiInsights };
+  async (fullKey: string) => {
+    const parsed = JSON.parse(fullKey) as DashboardFilterKey & { aiOverrideEnabled: boolean };
+    const { aiOverrideEnabled, ...filterRest } = parsed;
+    const data = await loadCachedDashboard(dashboardKeyString(filterRest));
+    return buildInjuryWeatherAiResponse(data, aiOverrideEnabled);
   },
   ["injury-weather-with-ai"],
   { revalidate: 1800 }
@@ -101,7 +169,8 @@ export async function GET(request: Request) {
   const jobsiteId = companyId && jobsiteIdParam ? jobsiteIdParam : undefined;
   const includeAi = searchParams.get("includeAi") === "true";
   const bypassCache = wantsCacheBypass(searchParams);
-  const filterKey = JSON.stringify({
+  const aiOverrideEnabled = isInjuryWeatherAiForecastOverrideEnabled();
+  const dashboardFilter: DashboardFilterKey = {
     month: month ?? null,
     trade: trade ?? null,
     trades: trades && trades.length > 0 ? [...trades].sort() : null,
@@ -112,7 +181,9 @@ export async function GET(request: Request) {
     workSchedule: workSchedule ?? null,
     companyId: companyId ?? null,
     jobsiteId: jobsiteId ?? null,
-  });
+  };
+  const filterKey = dashboardKeyString(dashboardFilter);
+  const fullAiCacheKey = JSON.stringify({ ...dashboardFilter, aiOverrideEnabled });
 
   const filters = {
     month,
@@ -130,15 +201,15 @@ export async function GET(request: Request) {
   if (bypassCache) {
     const data = await getInjuryWeatherDashboardData(filters);
     if (includeAi) {
-      const aiInsights = await generateInjuryWeatherAiInsights(data);
-      return NextResponse.json({ ...data, aiInsights });
+      const body = await buildInjuryWeatherAiResponse(data, aiOverrideEnabled);
+      return NextResponse.json(body);
     }
     return NextResponse.json(data);
   }
 
   if (includeAi) {
-    const { data, aiInsights } = await loadCachedDashboardWithAi(filterKey);
-    return NextResponse.json({ ...data, aiInsights });
+    const body = await loadCachedDashboardWithAi(fullAiCacheKey);
+    return NextResponse.json(body);
   }
   const data = await loadCachedDashboard(filterKey);
   return NextResponse.json(data);

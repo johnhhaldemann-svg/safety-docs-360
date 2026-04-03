@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  applyAiForecastOverride,
   computeConfidenceRubric,
   extractResponsesApiOutputText,
   fallbackDashboardBlocksFromData,
   generateInjuryWeatherAiInsights,
   validateAiInsightsAgainstData,
+  validateForecastOverride,
 } from "./ai";
 import { offlineInjuryWeatherBenchmarkContext } from "@/lib/benchmarking/industryBenchmarkDataset";
 import { DEMO_LIKELY_INJURY_INSIGHT } from "@/lib/injuryWeather/likelyInjuryFromSignals";
@@ -26,6 +28,8 @@ function minimalDashboard(overrides: Partial<InjuryWeatherDashboardData> = {}): 
       predictedInjuriesNextMonth: 12,
       increasedIncidentRiskPercent: 35,
       overallRiskLevel: "HIGH",
+      riskBandLabelV2: "High",
+      finalRiskScore: 48,
       structuralRiskScore: 48,
       riskModelVersion: "3.0.0",
       overallRiskScore: 48,
@@ -188,6 +192,58 @@ describe("extractResponsesApiOutputText", () => {
   });
 });
 
+describe("validateForecastOverride", () => {
+  it("rejects when overall band is more than one step from deterministic", () => {
+    const d = minimalDashboard({ summary: { ...minimalDashboard().summary, overallRiskLevel: "HIGH" } });
+    const bad = {
+      overallRiskLevel: "LOW",
+      likelyInjury: { headline: "h", secondaryLine: null, detailNote: "d" },
+    };
+    expect(validateForecastOverride(d, bad)).toBe(false);
+  });
+
+  it("rejects unknown trade in patches", () => {
+    const d = minimalDashboard();
+    const bad = {
+      overallRiskLevel: "HIGH",
+      likelyInjury: { headline: "h", secondaryLine: null, detailNote: "d" },
+      trades: [{ trade: "Plumbing", categories: [{ name: "Fall Protection", riskLevel: "LOW" as const }] }],
+    };
+    expect(validateForecastOverride(d, bad)).toBe(false);
+  });
+
+  it("accepts ±1 band and valid category patch", () => {
+    const d = minimalDashboard();
+    const ok = {
+      overallRiskLevel: "MODERATE",
+      likelyInjury: { headline: "Strains and falls", secondaryLine: null, detailNote: "Grounded note." },
+      trades: [{ trade: "Roofing", categories: [{ name: "Fall Protection", riskLevel: "CRITICAL" as const }] }],
+    };
+    expect(validateForecastOverride(d, ok)).toBe(true);
+  });
+});
+
+describe("applyAiForecastOverride", () => {
+  it("merges overall band, likely injury, and category risk levels", () => {
+    const d = minimalDashboard();
+    const merged = applyAiForecastOverride(d, {
+      overallRiskLevel: "CRITICAL",
+      likelyInjury: {
+        headline: "AI headline",
+        secondaryLine: "AI secondary",
+        detailNote: "AI detail",
+        hasData: true,
+      },
+      trades: [{ trade: "Roofing", categories: [{ name: "Fall Protection", riskLevel: "MODERATE" }] }],
+    });
+    expect(merged.summary.overallRiskLevel).toBe("CRITICAL");
+    expect(merged.summary.riskBandLabelV2).toBe("Severe");
+    expect(merged.summary.likelyInjuryInsight.headline).toBe("AI headline");
+    expect(merged.tradeForecasts[0].categories[0].riskLevel).toBe("MODERATE");
+    expect(d.summary.overallRiskLevel).toBe("HIGH");
+  });
+});
+
 describe("generateInjuryWeatherAiInsights", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -197,7 +253,8 @@ describe("generateInjuryWeatherAiInsights", () => {
   it("uses deterministic fallback when OPENAI_API_KEY is unset", async () => {
     vi.stubEnv("OPENAI_API_KEY", "");
     const d = minimalDashboard();
-    const out = await generateInjuryWeatherAiInsights(d);
+    const { insights: out, forecastOverride } = await generateInjuryWeatherAiInsights(d);
+    expect(forecastOverride).toBeNull();
     expect(out.likelyInjuryDrivers.length).toBe(3);
     expect(out.priorityActions.length).toBe(3);
     expect(validateAiInsightsAgainstData(out, d)).toBe(true);
@@ -254,7 +311,8 @@ describe("generateInjuryWeatherAiInsights", () => {
       })
     );
     const d = minimalDashboard();
-    const out = await generateInjuryWeatherAiInsights(d);
+    const { insights: out, forecastOverride } = await generateInjuryWeatherAiInsights(d);
+    expect(forecastOverride).toBeNull();
     expect(out.headline).toContain("Roofing");
     expect(out.likelyInjuryDrivers).toHaveLength(3);
     expect(out.priorityThemes).toHaveLength(3);
@@ -329,7 +387,8 @@ describe("generateInjuryWeatherAiInsights", () => {
       })
     );
     const d = minimalDashboard();
-    const out = await generateInjuryWeatherAiInsights(d);
+    const { insights: out, forecastOverride } = await generateInjuryWeatherAiInsights(d);
+    expect(forecastOverride).toBeNull();
     expect(out.headline).toContain("Roofing");
     expect(validateAiInsightsAgainstData(out, d)).toBe(true);
   });
@@ -338,9 +397,79 @@ describe("generateInjuryWeatherAiInsights", () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-mock-test");
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("error", { status: 500 }));
     const d = minimalDashboard();
-    const out = await generateInjuryWeatherAiInsights(d);
+    const { insights: out, forecastOverride } = await generateInjuryWeatherAiInsights(d);
+    expect(forecastOverride).toBeNull();
     expect(out.headline).toContain("Jan 2026");
     expect(out.likelyInjuryDrivers.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("returns validated forecastOverride when requestForecastOverride and model supplies valid patch", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-mock-test");
+    const apiPayload = {
+      headline: "Jan 2026 signals concentrate on Roofing with Fall Protection as the top hazard category.",
+      likelyInjuryDrivers: [
+        "High/critical-weight share is 20% across 40 risk signals in totals.",
+        "Trend series shows recent momentum in trendSignals for the forecast window.",
+        "Roofing appears in tradeSignals.topTrades with Fall Protection as a named category.",
+      ],
+      priorityActions: [
+        "Verify fall protection and anchorage for Roofing crews within 7–30 days using documented walkthroughs.",
+        "Tighten pre-task planning for the top Roofing hazard categories shown in tradeSignals.",
+        "Executing these controls improves conditions over time; the leading-indicator exposure estimate does not drop instantly.",
+      ],
+      confidence: "MEDIUM",
+      priorityThemes: [
+        {
+          title: "Roofing: Fall Protection — verify harness and anchor points",
+          dueLabel: "Emphasize over the next 7–14 days",
+          severity: "HIGH" as const,
+        },
+        {
+          title: "Roofing: Edge protection — strengthen guardrail coverage",
+          dueLabel: "Plan emphasis over the next 7–30 days",
+          severity: "MODERATE" as const,
+        },
+        {
+          title: "Roofing: Ladder use — inspection cadence",
+          dueLabel: "Plan emphasis over the next 7–30 days",
+          severity: "MODERATE" as const,
+        },
+      ],
+      monthlyTrainingRecommendations: [
+        "Fall protection refresher aligned to Roofing trade signals.",
+        "Ladder inspection competency for crews on elevated work.",
+        "Pre-task planning workshop for foremen covering top categories.",
+      ],
+      recommendedControls: [
+        "Roofing crews: daily harness and lanyard inspection before elevated work.",
+        "Fall protection: document anchorages and competent person signoff.",
+        "Roofing: increase ladder inspection frequency on site this month.",
+        "Trade-specific toolbox talk on Roofing fall hazards tied to observed categories.",
+      ],
+      forecastOverride: {
+        overallRiskLevel: "MODERATE",
+        likelyInjury: {
+          headline: "Override headline",
+          secondaryLine: null,
+          detailNote: "Override detail grounded in signals.",
+        },
+        trades: [{ trade: "Roofing", categories: [{ name: "Fall Protection", riskLevel: "CRITICAL" as const }] }],
+      },
+    };
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ output_text: JSON.stringify(apiPayload) }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    const d = minimalDashboard();
+    const { insights: out, forecastOverride } = await generateInjuryWeatherAiInsights(d, {
+      requestForecastOverride: true,
+    });
+    expect(validateAiInsightsAgainstData(out, d)).toBe(true);
+    expect(forecastOverride).not.toBeNull();
+    expect(forecastOverride?.overallRiskLevel).toBe("MODERATE");
+    expect(forecastOverride?.trades?.[0].categories[0].riskLevel).toBe("CRITICAL");
   });
 });
 
@@ -349,7 +478,7 @@ describe.skipIf(!process.env.OPENAI_API_KEY?.trim())("generateInjuryWeatherAiIns
     "returns grounded structured insights from the real API",
     async () => {
       const d = minimalDashboard();
-      const out = await generateInjuryWeatherAiInsights(d);
+      const { insights: out } = await generateInjuryWeatherAiInsights(d);
       expect(out.headline?.length ?? 0).toBeGreaterThan(15);
       expect(out.likelyInjuryDrivers).toHaveLength(3);
       expect(out.priorityActions).toHaveLength(3);

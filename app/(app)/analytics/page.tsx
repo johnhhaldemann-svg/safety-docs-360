@@ -168,6 +168,197 @@ function heatColor(t: number) {
   return "bg-slate-800/60";
 }
 
+type FocusTabId = Exclude<TabId, "overview">;
+
+function AnalyticsFocusedTab({
+  tab,
+  loading,
+  breakdown,
+  totals,
+  dash,
+  trends,
+  filteredRecent,
+  recent,
+  hazardTiles,
+  tagChip,
+  sif,
+  leadership,
+}: {
+  tab: FocusTabId;
+  loading: boolean;
+  breakdown: AnalyticsSummary["observationBreakdown"];
+  totals: AnalyticsSummary["totals"];
+  dash: AnalyticsSummary["companyDashboard"];
+  trends: Array<{ date: string; count: number }>;
+  filteredRecent: Array<{ id: string; title: string; tag: string }>;
+  recent: Array<{ id: string; title: string; tag: string }>;
+  hazardTiles: Array<{ label: string; count: number }>;
+  tagChip: (tag: string) => string;
+  sif: AnalyticsSummary["sifDashboard"];
+  leadership: AnalyticsSummary["safetyLeadership"];
+}) {
+  const rows = loading ? [] : filteredRecent.length > 0 ? filteredRecent : recent;
+  const title =
+    tab === "near_misses"
+      ? "Near miss lens"
+      : tab === "hazards"
+        ? "Hazard lens"
+        : "Inspections & field activity";
+  const subtitle =
+    tab === "near_misses"
+      ? "Observations tagged as near misses in your selected time range."
+      : tab === "hazards"
+        ? "Hazard and negative observations — prioritize corrective follow-up."
+        : "Permits, JSAs (DAPs), and recorded activity in the same window as your summary.";
+
+  const heroStat =
+    tab === "near_misses"
+      ? (breakdown?.nearMiss ?? 0)
+      : tab === "hazards"
+        ? (breakdown?.hazard ?? 0)
+        : (breakdown?.inspections ?? 0);
+  const heroLabel =
+    tab === "near_misses"
+      ? "Near misses in window"
+      : tab === "hazards"
+        ? "Hazard-tagged observations"
+        : "Permit + activity events (approx.)";
+
+  return (
+    <div className="space-y-6" id={`analytics-tabpanel-${tab}`} role="tabpanel">
+      <div className="rounded-2xl border border-teal-500/25 bg-gradient-to-br from-teal-950/40 to-[#0d1424] p-6">
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-300/90">{title}</p>
+        <h2 className="mt-2 text-3xl font-black text-white sm:text-4xl">{loading ? "—" : heroStat}</h2>
+        <p className="mt-1 text-sm text-slate-400">{heroLabel}</p>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-500">{subtitle}</p>
+        {tab === "inspections" ? (
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-center">
+              <p className="text-[10px] font-bold uppercase text-slate-500">Permits (window)</p>
+              <p className="mt-1 text-2xl font-black text-cyan-200">{loading ? "—" : totals?.permits ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-center">
+              <p className="text-[10px] font-bold uppercase text-slate-500">JSAs / DAPs</p>
+              <p className="mt-1 text-2xl font-black text-cyan-200">{loading ? "—" : totals?.daps ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-center">
+              <p className="text-[10px] font-bold uppercase text-slate-500">DAP activities</p>
+              <p className="mt-1 text-2xl font-black text-cyan-200">{loading ? "—" : totals?.dapActivities ?? 0}</p>
+            </div>
+          </div>
+        ) : null}
+        {tab === "inspections" ? (
+          <p className="mt-4 text-xs text-slate-500">
+            DAP completion today:{" "}
+            <span className="font-semibold text-slate-300">
+              {loading
+                ? "—"
+                : `${dash?.dapCompletionToday?.percent ?? 0}% (${dash?.dapCompletionToday?.completed ?? 0}/${dash?.dapCompletionToday?.total ?? 0})`}
+            </span>
+          </p>
+        ) : null}
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5 shadow-inner">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Observation trend</p>
+          <div className="mt-4 rounded-xl border border-white/6 bg-[#080d18] px-3 py-2">
+            <TrendSparkline points={trends} />
+          </div>
+        </div>
+        <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recent reports</p>
+          <ul className="mt-4 space-y-3">
+            {rows.map((row) => (
+              <li
+                key={row.id}
+                className="flex items-center justify-between gap-3 rounded-xl border border-white/6 bg-[#080d18] px-4 py-3"
+              >
+                <span className="min-w-0 truncate text-sm font-semibold text-slate-100">{row.title}</span>
+                <span
+                  className={[
+                    "shrink-0 rounded-lg border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide",
+                    tagChip(row.tag),
+                  ].join(" ")}
+                >
+                  {row.tag}
+                </span>
+              </li>
+            ))}
+            {!loading && filteredRecent.length === 0 && recent.length > 0 ? (
+              <li className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-slate-500">
+                No items for this tab in the selected range.
+              </li>
+            ) : null}
+            {!loading && recent.length === 0 ? (
+              <li className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
+                No observations in this range yet.
+              </li>
+            ) : null}
+          </ul>
+        </div>
+      </div>
+
+      {tab === "hazards" ? (
+        <div className="grid gap-5 lg:grid-cols-12">
+          <div className="lg:col-span-7">
+            <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Trending hazards</p>
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {hazardTiles.map((tile) => (
+                  <div
+                    key={tile.label}
+                    className="rounded-xl border border-white/6 bg-[#080d18] p-4 text-center"
+                  >
+                    <p className="text-[11px] font-semibold text-slate-300">{tile.label}</p>
+                    <p className="mt-2 text-2xl font-black text-cyan-300">{loading ? "—" : tile.count}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="lg:col-span-5">
+            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-5 text-center">
+              <p className="text-xs font-semibold uppercase tracking-wider text-rose-200/80">SIF potential</p>
+              <p className="mt-4 text-5xl font-black text-white">{loading ? "—" : sif?.potentialCount ?? 0}</p>
+              <p className="mt-2 text-xs text-slate-500">From observations in window</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {tab === "near_misses" && leadership ? (
+        <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Leadership mix</p>
+          <div className="mt-4 flex flex-wrap gap-6 text-sm text-slate-300">
+            <div>
+              <span className="text-slate-500">Positive observations</span>
+              <span className="ml-2 font-bold text-emerald-300">
+                {leadership.positiveNegativeObservationRatio?.positive ?? 0}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500">Negative / near miss</span>
+              <span className="ml-2 font-bold text-amber-200">
+                {leadership.positiveNegativeObservationRatio?.negative ?? 0}
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex justify-end">
+        <Link
+          href="/reports"
+          className="rounded-xl bg-cyan-400/90 px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white shadow-[0_0_20px_rgba(34,211,238,0.15)] transition hover:bg-cyan-300"
+        >
+          Open reports
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export default function AnalyticsPage() {
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [injuryLikelihood, setInjuryLikelihood] = useState<LikelyInjuryInsightPayload | null>(null);
@@ -333,7 +524,11 @@ export default function AnalyticsPage() {
               company workspace.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div
+            className="flex flex-wrap items-center gap-2"
+            role="tablist"
+            aria-label="Safety observation views"
+          >
             {(
               [
                 ["overview", "Overview"],
@@ -345,6 +540,10 @@ export default function AnalyticsPage() {
               <button
                 key={id}
                 type="button"
+                role="tab"
+                aria-selected={tab === id}
+                aria-controls={`analytics-tabpanel-${id}`}
+                id={`analytics-tab-${id}`}
                 onClick={() => setTab(id)}
                 className={[
                   "rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide transition",
@@ -545,6 +744,13 @@ export default function AnalyticsPage() {
           </div>
         ) : null}
 
+        {tab === "overview" ? (
+          <div
+            className="space-y-6"
+            id="analytics-tabpanel-overview"
+            role="tabpanel"
+            aria-labelledby="analytics-tab-overview"
+          >
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5 shadow-inner">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Overview</p>
@@ -853,6 +1059,23 @@ export default function AnalyticsPage() {
             </div>
           </div>
         </div>
+          </div>
+        ) : (
+          <AnalyticsFocusedTab
+            tab={tab}
+            loading={loading}
+            breakdown={breakdown}
+            totals={totals}
+            dash={dash}
+            trends={trends}
+            filteredRecent={filteredRecent}
+            recent={recent}
+            hazardTiles={hazardTiles}
+            tagChip={tagChip}
+            sif={sif}
+            leadership={leadership}
+          />
+        )}
 
         <div className="flex flex-col gap-4 rounded-2xl border border-white/8 bg-[#0a0f18] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-3 text-slate-500">

@@ -6,6 +6,7 @@ import {
 } from "@/lib/injuryWeather/dataConfidence";
 import type {
   AiPriorityTheme,
+  InjuryWeatherAiForecastOverride,
   InjuryWeatherAiInsights,
   InjuryWeatherDashboardData,
   RiskLevel,
@@ -16,6 +17,110 @@ const RISK_LEVELS: RiskLevel[] = ["LOW", "MODERATE", "HIGH", "CRITICAL"];
 
 function isRiskLevel(s: unknown): s is RiskLevel {
   return typeof s === "string" && RISK_LEVELS.includes(s as RiskLevel);
+}
+
+/** Env: set `INJURY_WEATHER_AI_FORECAST_OVERRIDE=1` to request structured forecast overrides from the model and merge when valid. */
+export function isInjuryWeatherAiForecastOverrideEnabled(): boolean {
+  return process.env.INJURY_WEATHER_AI_FORECAST_OVERRIDE?.trim() === "1";
+}
+
+function riskLevelRank(level: RiskLevel): number {
+  if (level === "CRITICAL") return 4;
+  if (level === "HIGH") return 3;
+  if (level === "MODERATE") return 2;
+  return 1;
+}
+
+function riskLevelsWithinOneStep(a: RiskLevel, b: RiskLevel): boolean {
+  return Math.abs(riskLevelRank(a) - riskLevelRank(b)) <= 1;
+}
+
+function riskLevelToV2BandLabel(level: RiskLevel): NonNullable<InjuryWeatherDashboardData["summary"]["riskBandLabelV2"]> {
+  if (level === "LOW") return "Low";
+  if (level === "MODERATE") return "Moderate";
+  if (level === "HIGH") return "High";
+  return "Severe";
+}
+
+/**
+ * Server-side validation for AI `forecastOverride` before merging into dashboard data.
+ * Enforces allowlisted trades/categories and ±1 risk band step vs deterministic `overallRiskLevel`.
+ */
+export function validateForecastOverride(
+  data: InjuryWeatherDashboardData,
+  o: unknown
+): o is InjuryWeatherAiForecastOverride {
+  if (!o || typeof o !== "object") return false;
+  const rec = o as Record<string, unknown>;
+  if (!isRiskLevel(rec.overallRiskLevel)) return false;
+  if (!riskLevelsWithinOneStep(rec.overallRiskLevel, data.summary.overallRiskLevel)) return false;
+
+  const li = rec.likelyInjury;
+  if (!li || typeof li !== "object") return false;
+  const lio = li as Record<string, unknown>;
+  if (typeof lio.headline !== "string" || !lio.headline.trim()) return false;
+  if (typeof lio.detailNote !== "string" || !lio.detailNote.trim()) return false;
+  if (lio.secondaryLine != null && typeof lio.secondaryLine !== "string") return false;
+  if (lio.hasData != null && typeof lio.hasData !== "boolean") return false;
+
+  const trades = rec.trades;
+  if (trades === undefined) return true;
+  if (!Array.isArray(trades)) return false;
+
+  const tradeNames = new Set(data.tradeForecasts.map((t) => t.trade));
+  const categoryByTrade = new Map<string, Set<string>>();
+  for (const tf of data.tradeForecasts) {
+    categoryByTrade.set(tf.trade, new Set(tf.categories.map((c) => c.name)));
+  }
+
+  for (const row of trades) {
+    if (!row || typeof row !== "object") return false;
+    const tr = row as Record<string, unknown>;
+    if (typeof tr.trade !== "string" || !tradeNames.has(tr.trade)) return false;
+    const cats = tr.categories;
+    if (!Array.isArray(cats)) return false;
+    const allowedNames = categoryByTrade.get(tr.trade);
+    if (!allowedNames) return false;
+    for (const c of cats) {
+      if (!c || typeof c !== "object") return false;
+      const co = c as Record<string, unknown>;
+      if (typeof co.name !== "string" || !allowedNames.has(co.name)) return false;
+      if (!isRiskLevel(co.riskLevel)) return false;
+    }
+  }
+  return true;
+}
+
+/** Deep-merge validated override into a copy of dashboard data (deterministic scores unchanged except summary band + likely injury copy + patched category bands). */
+export function applyAiForecastOverride(
+  data: InjuryWeatherDashboardData,
+  override: InjuryWeatherAiForecastOverride
+): InjuryWeatherDashboardData {
+  const merged = structuredClone(data) as InjuryWeatherDashboardData;
+  merged.summary.overallRiskLevel = override.overallRiskLevel;
+  merged.summary.riskBandLabelV2 = riskLevelToV2BandLabel(override.overallRiskLevel);
+  merged.summary.likelyInjuryInsight = {
+    headline: override.likelyInjury.headline.trim(),
+    secondaryLine:
+      override.likelyInjury.secondaryLine == null
+        ? null
+        : String(override.likelyInjury.secondaryLine).trim() || null,
+    detailNote: override.likelyInjury.detailNote.trim(),
+    hasData: override.likelyInjury.hasData ?? true,
+  };
+
+  const patches = override.trades;
+  if (!patches?.length) return merged;
+
+  for (const patch of patches) {
+    const tf = merged.tradeForecasts.find((t) => t.trade === patch.trade);
+    if (!tf) continue;
+    for (const cp of patch.categories) {
+      const cat = tf.categories.find((c) => c.name === cp.name);
+      if (cat) cat.riskLevel = cp.riskLevel;
+    }
+  }
+  return merged;
 }
 
 function validPriorityTheme(t: unknown): t is AiPriorityTheme {
@@ -440,14 +545,128 @@ export function extractResponsesApiOutputText(body: unknown): string | null {
   return joined || null;
 }
 
-export async function generateInjuryWeatherAiInsights(
-  data: InjuryWeatherDashboardData
-): Promise<InjuryWeatherAiInsights> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return fallbackInsights(data);
-  const aiContext = computeAiContext(data);
+export type GenerateInjuryWeatherAiInsightsOptions = {
+  /** When true, OpenAI must return `forecastOverride` (merged only after `validateForecastOverride`). */
+  requestForecastOverride?: boolean;
+};
 
-  const prompt = [
+export type InjuryWeatherAiInsightsResult = {
+  insights: InjuryWeatherAiInsights;
+  /** Raw override from the model when requested; always re-validate before merge. */
+  forecastOverride: InjuryWeatherAiForecastOverride | null;
+};
+
+const insightJsonSchemaProperties = {
+  headline: { type: "string" },
+  likelyInjuryDrivers: {
+    type: "array",
+    items: { type: "string" },
+    minItems: 3,
+    maxItems: 3,
+  },
+  priorityActions: {
+    type: "array",
+    items: { type: "string" },
+    minItems: 3,
+    maxItems: 3,
+  },
+  confidence: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] },
+  priorityThemes: {
+    type: "array",
+    minItems: 3,
+    maxItems: 3,
+    items: {
+      type: "object",
+      additionalProperties: false,
+      required: ["title", "dueLabel", "severity"],
+      properties: {
+        title: { type: "string" },
+        dueLabel: { type: "string" },
+        severity: { type: "string", enum: ["LOW", "MODERATE", "HIGH", "CRITICAL"] },
+      },
+    },
+  },
+  monthlyTrainingRecommendations: {
+    type: "array",
+    items: { type: "string" },
+    minItems: 3,
+    maxItems: 3,
+  },
+  recommendedControls: {
+    type: "array",
+    items: { type: "string" },
+    minItems: 4,
+    maxItems: 4,
+  },
+} as const;
+
+const insightJsonSchemaRequired = [
+  "headline",
+  "likelyInjuryDrivers",
+  "priorityActions",
+  "confidence",
+  "priorityThemes",
+  "monthlyTrainingRecommendations",
+  "recommendedControls",
+] as const;
+
+const forecastOverrideSchemaProperty = {
+  type: "object",
+  additionalProperties: false,
+  required: ["overallRiskLevel", "likelyInjury"],
+  properties: {
+    overallRiskLevel: { type: "string", enum: ["LOW", "MODERATE", "HIGH", "CRITICAL"] },
+    likelyInjury: {
+      type: "object",
+      additionalProperties: false,
+      required: ["headline", "secondaryLine", "detailNote"],
+      properties: {
+        headline: { type: "string" },
+        secondaryLine: {
+          anyOf: [{ type: "string" }, { type: "null" }],
+        },
+        detailNote: { type: "string" },
+        hasData: { type: "boolean" },
+      },
+    },
+    trades: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["trade", "categories"],
+        properties: {
+          trade: { type: "string" },
+          categories: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["name", "riskLevel"],
+              properties: {
+                name: { type: "string" },
+                riskLevel: { type: "string", enum: ["LOW", "MODERATE", "HIGH", "CRITICAL"] },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+function buildAiPrompt(data: InjuryWeatherDashboardData, requestForecastOverride: boolean): string {
+  const aiContext = computeAiContext(data);
+  const overrideLines = requestForecastOverride
+    ? [
+        "You MUST also output forecastOverride (required object) with:",
+        "- overallRiskLevel: LOW|MODERATE|HIGH|CRITICAL — must be the SAME as totals.overallRiskLevel OR exactly ONE step higher or lower on that scale (never two or more steps away).",
+        "- likelyInjury: { headline, secondaryLine (string or null), detailNote, optional hasData } — rewrite the predicted likely injury readout using ONLY patterns consistent with totals.likelyInjuryInsight and grounding; do not invent injury events.",
+        "- trades (optional array): objects { trade, categories: [{ name, riskLevel }] } — only use trade names from grounding.allowedTradeNames and category names that exist under that trade in tradeSignals; only patch riskLevel for listed categories; omit trades you do not adjust.",
+        "Do not output predicted counts or new categories; numeric counts on cards stay from the model.",
+      ]
+    : [];
+  return [
     "You are a construction safety analyst helping with a MONTHLY RISK ASSESSMENT for monthlyRiskAssessment.forecastMonth.",
     "The user needs grounded support for that month’s assessment—not invented incidents or fake triggers.",
     "Evidence you may use: totals (including finalRiskScoreV2, riskBandLabelV2, riskSignalCount), riskEngineV2Explainability when present (weighted drivers, recurrence, trend slope—do not contradict these numbers), trendSignals, tradeSignals (including topTrades with categories), locationContext, dataCoverage, oshaPriorYearsCrossReference (sector baseline only), nationalConstructionOshaReference (national construction counts only). genericUiSuggestions.controlThemes are legacy layout hints only—do NOT copy them verbatim; you author fresh priorityThemes, monthlyTrainingRecommendations, and recommendedControls from the structured signals.",
@@ -457,6 +676,7 @@ export async function generateInjuryWeatherAiInsights(
     "priorityThemes (exactly 3 objects: title, dueLabel, severity where severity is LOW|MODERATE|HIGH|CRITICAL),",
     "monthlyTrainingRecommendations (exactly 3 distinct training initiative strings for forecastMonth),",
     "recommendedControls (exactly 4 playbook-style control/action strings tied to trades/categories above).",
+    ...overrideLines,
     "Rules:",
     "- Each likelyInjuryDriver must tie to at least one of: severity mix (totals), trend momentum (trendSignals), or trade concentration (tradeSignals)—use the actual numbers when you state them.",
     "- Do not describe riskSignalCount as “observations”; call them weighted safety signals or structured inputs (SOR records, corrective actions, incidents)—not generic field observations.",
@@ -475,6 +695,39 @@ export async function generateInjuryWeatherAiInsights(
     "- recommendedControls: specific, verifiable field actions; at least two should name a trade or hazard family from allowed lists.",
     JSON.stringify(aiContext),
   ].join("\n");
+}
+
+export async function generateInjuryWeatherAiInsights(
+  data: InjuryWeatherDashboardData,
+  options?: GenerateInjuryWeatherAiInsightsOptions
+): Promise<InjuryWeatherAiInsightsResult> {
+  const requestForecastOverride = Boolean(options?.requestForecastOverride);
+  const empty = (): InjuryWeatherAiInsightsResult => ({
+    insights: fallbackInsights(data),
+    forecastOverride: null,
+  });
+
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) return empty();
+
+  const prompt = buildAiPrompt(data, requestForecastOverride);
+
+  const schema = requestForecastOverride
+    ? {
+        type: "object" as const,
+        additionalProperties: false,
+        properties: {
+          ...insightJsonSchemaProperties,
+          forecastOverride: forecastOverrideSchemaProperty,
+        },
+        required: [...insightJsonSchemaRequired, "forecastOverride"],
+      }
+    : {
+        type: "object" as const,
+        additionalProperties: false,
+        properties: { ...insightJsonSchemaProperties },
+        required: [...insightJsonSchemaRequired],
+      };
 
   try {
     const res = await fetch("https://api.openai.com/v1/responses", {
@@ -489,92 +742,64 @@ export async function generateInjuryWeatherAiInsights(
         text: {
           format: {
             type: "json_schema",
-            name: "injury_weather_ai_insights",
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                headline: { type: "string" },
-                likelyInjuryDrivers: {
-                  type: "array",
-                  items: { type: "string" },
-                  minItems: 3,
-                  maxItems: 3,
-                },
-                priorityActions: {
-                  type: "array",
-                  items: { type: "string" },
-                  minItems: 3,
-                  maxItems: 3,
-                },
-                confidence: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] },
-                priorityThemes: {
-                  type: "array",
-                  minItems: 3,
-                  maxItems: 3,
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    required: ["title", "dueLabel", "severity"],
-                    properties: {
-                      title: { type: "string" },
-                      dueLabel: { type: "string" },
-                      severity: { type: "string", enum: ["LOW", "MODERATE", "HIGH", "CRITICAL"] },
-                    },
-                  },
-                },
-                monthlyTrainingRecommendations: {
-                  type: "array",
-                  items: { type: "string" },
-                  minItems: 3,
-                  maxItems: 3,
-                },
-                recommendedControls: {
-                  type: "array",
-                  items: { type: "string" },
-                  minItems: 4,
-                  maxItems: 4,
-                },
-              },
-              required: [
-                "headline",
-                "likelyInjuryDrivers",
-                "priorityActions",
-                "confidence",
-                "priorityThemes",
-                "monthlyTrainingRecommendations",
-                "recommendedControls",
-              ],
-            },
+            name: requestForecastOverride ? "injury_weather_ai_insights_with_override" : "injury_weather_ai_insights",
+            schema,
           },
         },
       }),
     });
 
-    if (!res.ok) return fallbackInsights(data);
+    if (!res.ok) return empty();
     const json: unknown = await res.json();
     const rawText = extractResponsesApiOutputText(json);
-    if (!rawText) return fallbackInsights(data);
-    let parsed: Partial<InjuryWeatherAiInsights>;
+    if (!rawText) return empty();
+    let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(rawText) as Partial<InjuryWeatherAiInsights>;
+      parsed = JSON.parse(rawText) as Record<string, unknown>;
     } catch {
-      return fallbackInsights(data);
+      return empty();
     }
-    if (!parsed.headline || !parsed.likelyInjuryDrivers?.length || !parsed.priorityActions?.length) {
-      return fallbackInsights(data);
+    if (
+      typeof parsed.headline !== "string" ||
+      !Array.isArray(parsed.likelyInjuryDrivers) ||
+      !Array.isArray(parsed.priorityActions)
+    ) {
+      return empty();
     }
     const withConfidence: InjuryWeatherAiInsights = {
       headline: parsed.headline,
       likelyInjuryDrivers: parsed.likelyInjuryDrivers as string[],
       priorityActions: parsed.priorityActions as string[],
-      confidence: parsed.confidence === "LOW" || parsed.confidence === "MEDIUM" || parsed.confidence === "HIGH" ? parsed.confidence : "MEDIUM",
+      confidence:
+        parsed.confidence === "LOW" || parsed.confidence === "MEDIUM" || parsed.confidence === "HIGH"
+          ? parsed.confidence
+          : "MEDIUM",
       priorityThemes: (parsed.priorityThemes ?? []) as AiPriorityTheme[],
       monthlyTrainingRecommendations: (parsed.monthlyTrainingRecommendations ?? []) as string[],
       recommendedControls: (parsed.recommendedControls ?? []) as string[],
     };
-    return applyInsightGuards(data, withConfidence);
+    const insights = applyInsightGuards(data, withConfidence);
+
+    let forecastOverride: InjuryWeatherAiForecastOverride | null = null;
+    if (requestForecastOverride && parsed.forecastOverride != null) {
+      const rawOv = parsed.forecastOverride;
+      if (validateForecastOverride(data, rawOv)) {
+        const ov = rawOv as InjuryWeatherAiForecastOverride;
+        forecastOverride = {
+          overallRiskLevel: ov.overallRiskLevel,
+          likelyInjury: {
+            headline: ov.likelyInjury.headline,
+            secondaryLine: ov.likelyInjury.secondaryLine,
+            detailNote: ov.likelyInjury.detailNote,
+            hasData: ov.likelyInjury.hasData,
+          },
+          trades: ov.trades,
+        };
+      }
+    }
+
+    return { insights, forecastOverride };
   } catch {
-    return fallbackInsights(data);
+    return empty();
   }
 }
