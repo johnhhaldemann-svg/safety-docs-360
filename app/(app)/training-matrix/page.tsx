@@ -649,7 +649,8 @@ export default function TrainingMatrixPage() {
   const [directoryNoticeDismissed, setDirectoryNoticeDismissed] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
   const [directoryNotice, setDirectoryNotice] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  /** Start true: we auto-fetch on mount so the first paint shows loading, not an empty “not loaded” shell. */
+  const [loading, setLoading] = useState(true);
   const [workspaceDataLoaded, setWorkspaceDataLoaded] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">(
@@ -714,6 +715,7 @@ export default function TrainingMatrixPage() {
       const token = await getAccessToken();
       const res = await fetch("/api/company/training-matrix", {
         headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
       });
       const data = (await res.json().catch(() => null)) as
         | {
@@ -788,6 +790,10 @@ export default function TrainingMatrixPage() {
       setWorkspaceDataLoaded(true);
     }
   }, []);
+
+  useEffect(() => {
+    void loadMatrix();
+  }, [loadMatrix]);
 
   const handleCreate = useCallback(async () => {
     setSaving(true);
@@ -983,8 +989,8 @@ export default function TrainingMatrixPage() {
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-400">
               Requirements use the same certification list as the construction profile. Configure rules
-              below; the command center shows KPIs, charts, and the credential ledger. Load data on demand
-              — nothing refreshes in the background.
+              below; the command center shows KPIs, charts, and the credential ledger. Workspace data loads
+              when you open this page; use Refresh to pull the latest (no background polling).
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -998,9 +1004,7 @@ export default function TrainingMatrixPage() {
                 ? workspaceDataLoaded
                   ? "Refreshing…"
                   : "Loading…"
-                : workspaceDataLoaded
-                  ? "Refresh data"
-                  : "Load data"}
+                : "Refresh data"}
             </button>
             <Link
               href="/dashboard"
@@ -1239,7 +1243,7 @@ export default function TrainingMatrixPage() {
             <p className="mt-4 text-sm text-slate-500">
               {workspaceDataLoaded
                 ? "No requirements yet. Add at least one to populate matrix columns."
-                : "Load workspace data (header) to see existing requirements, or add one below — the list refreshes after save."}
+                : "Loading requirements…"}
             </p>
           )}
         </SectionCard>

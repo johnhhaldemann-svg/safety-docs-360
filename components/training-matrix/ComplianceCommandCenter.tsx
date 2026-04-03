@@ -170,8 +170,8 @@ export function ComplianceCommandCenter({
               Training & credentials
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
-              Snapshot of requirement checks and profile credentials. Refresh to pull the latest workspace
-              data — no chart scripts and no background polling.
+              Snapshot of requirement checks and profile credentials. Opens with a fresh fetch; use Refresh
+              for the latest — no background polling.
             </p>
           </div>
           <button
@@ -198,9 +198,8 @@ export function ComplianceCommandCenter({
         <div className="mx-auto max-w-lg rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/40 p-10 text-center">
           <p className="text-lg font-semibold text-white">Compliance data not loaded</p>
           <p className="mt-2 text-sm text-zinc-400">
-            Use <span className="font-semibold text-cyan-400">Load data</span> in the page header or{" "}
-            <span className="font-semibold text-fuchsia-400">Refresh data</span> above after you open this
-            workspace.
+            Use <span className="font-semibold text-fuchsia-400">Refresh data</span> in the page header or
+            above — the page normally loads workspace data automatically when you open it.
           </p>
         </div>
       </div>
