@@ -59,7 +59,7 @@ export default function SorDetailPage() {
         description="Immutable submission metadata, cryptographic hash values, version links, and audit timeline."
       />
 
-      {error ? <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+      {error ? <p className="rounded-xl border border-red-500/35 bg-red-950/40 p-3 text-sm text-red-200">{error}</p> : null}
 
       {record ? (
         <>

@@ -262,7 +262,7 @@ export default function IncidentsPage() {
         title="Incidents"
         description="Track incidents and near misses with SIF, escalation, and stop-work controls."
         actions={
-          <Link href="/dashboard" className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">
+          <Link href="/dashboard" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300">
             Back to Dashboard
           </Link>
         }
@@ -271,10 +271,10 @@ export default function IncidentsPage() {
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 
       <section className="grid gap-4 sm:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="text-xs text-slate-500">Total</div><div className="mt-2 text-3xl font-black">{counts.total}</div></div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="text-xs text-slate-500">Open</div><div className="mt-2 text-3xl font-black">{counts.open}</div></div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="text-xs text-slate-500">SIF</div><div className="mt-2 text-3xl font-black">{counts.sif}</div></div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="text-xs text-slate-500">Stop Work</div><div className="mt-2 text-3xl font-black">{counts.stopWork}</div></div>
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"><div className="text-xs text-slate-500">Total</div><div className="mt-2 text-3xl font-black">{counts.total}</div></div>
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"><div className="text-xs text-slate-500">Open</div><div className="mt-2 text-3xl font-black">{counts.open}</div></div>
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"><div className="text-xs text-slate-500">SIF</div><div className="mt-2 text-3xl font-black">{counts.sif}</div></div>
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"><div className="text-xs text-slate-500">Stop Work</div><div className="mt-2 text-3xl font-black">{counts.stopWork}</div></div>
       </section>
 
       <SectionCard
@@ -282,7 +282,7 @@ export default function IncidentsPage() {
         description="Classify event/exposure, equipment source, injury details when applicable, and DART outcomes—so hazards tie to outcomes across the program."
       >
         <div className="grid gap-3 md:grid-cols-3">
-          <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Incident title" className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
+          <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Incident title" className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm" />
           <select
             value={form.category}
             onChange={(event) =>
@@ -293,25 +293,25 @@ export default function IncidentsPage() {
                 bodyPart: event.target.value === "incident" ? prev.bodyPart : "",
               }))
             }
-            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
           >
             <option value="incident">Incident</option>
             <option value="near_miss">Near Miss</option>
             <option value="hazard">Hazard</option>
           </select>
-          <select value={form.severity} onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))} className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+          <select value={form.severity} onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))} className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm">
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
             <option value="critical">Critical</option>
           </select>
-          <label className="flex flex-col gap-1 text-xs text-slate-600 md:col-span-1">
-            <span className="font-semibold text-slate-700">When it occurred (optional)</span>
+          <label className="flex flex-col gap-1 text-xs text-slate-400 md:col-span-1">
+            <span className="font-semibold text-slate-300">When it occurred (optional)</span>
             <input
               type="datetime-local"
               value={form.occurredAt}
               onChange={(e) => setForm((prev) => ({ ...prev, occurredAt: e.target.value }))}
-              className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+              className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
             />
             <span className="leading-snug text-slate-500">
               Drives injury month, season, weekday, and time-of-day (stored in UTC).
@@ -322,7 +322,7 @@ export default function IncidentsPage() {
             onChange={(event) =>
               setForm((prev) => ({ ...prev, eventType: event.target.value as ExposureEventType | "" }))
             }
-            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
             aria-label="Event or exposure type"
           >
             <option value="">Select event / exposure type…</option>
@@ -337,7 +337,7 @@ export default function IncidentsPage() {
             onChange={(event) =>
               setForm((prev) => ({ ...prev, source: event.target.value as IncidentSource | "" }))
             }
-            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
             aria-label="Injury source (equipment or object)"
           >
             <option value="">Select equipment / object source…</option>
@@ -353,7 +353,7 @@ export default function IncidentsPage() {
               setForm((prev) => ({ ...prev, injuryType: event.target.value as InjuryType | "" }))
             }
             disabled={form.category !== "incident"}
-            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-800/70 disabled:text-slate-400"
             aria-label="Injury type"
           >
             <option value="">{form.category === "incident" ? "Select injury type…" : "N/A (not an injury incident)"}</option>
@@ -369,7 +369,7 @@ export default function IncidentsPage() {
               setForm((prev) => ({ ...prev, bodyPart: event.target.value as BodyPart | "" }))
             }
             disabled={form.category !== "incident"}
-            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-800/70 disabled:text-slate-400"
             aria-label="Body part affected"
           >
             <option value="">{form.category === "incident" ? "Select body part…" : "N/A (not an injury incident)"}</option>
@@ -379,8 +379,8 @@ export default function IncidentsPage() {
               </option>
             ))}
           </select>
-          <label className="flex flex-col gap-1 text-xs text-slate-600">
-            <span className="font-semibold text-slate-700">Days away from work</span>
+          <label className="flex flex-col gap-1 text-xs text-slate-400">
+            <span className="font-semibold text-slate-300">Days away from work</span>
             <input
               type="number"
               min={0}
@@ -393,11 +393,11 @@ export default function IncidentsPage() {
                   daysAwayFromWork: Number.isFinite(n) && n >= 0 ? n : 0,
                 }));
               }}
-              className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+              className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs text-slate-600">
-            <span className="font-semibold text-slate-700">Days restricted duty</span>
+          <label className="flex flex-col gap-1 text-xs text-slate-400">
+            <span className="font-semibold text-slate-300">Days restricted duty</span>
             <input
               type="number"
               min={0}
@@ -410,26 +410,26 @@ export default function IncidentsPage() {
                   daysRestricted: Number.isFinite(n) && n >= 0 ? n : 0,
                 }));
               }}
-              className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+              className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
             />
           </label>
-          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700">
+          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2.5 text-sm text-slate-300">
             <input
               type="checkbox"
               checked={form.jobTransfer}
               onChange={(event) => setForm((prev) => ({ ...prev, jobTransfer: event.target.checked }))}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-slate-600"
             />
             Job transfer (DART)
           </label>
-          <div className="col-span-full flex flex-wrap gap-4 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-3 text-sm text-slate-700">
+          <div className="col-span-full flex flex-wrap gap-4 rounded-xl border border-slate-700/80 bg-slate-950/50 px-3 py-3 text-sm text-slate-300">
             <span className="w-full text-xs font-semibold text-slate-500">Objective severity (OSHA-style)</span>
             <label className="flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
                 checked={form.recordable}
                 onChange={(e) => setForm((prev) => ({ ...prev, recordable: e.target.checked }))}
-                className="h-4 w-4 rounded border-slate-300"
+                className="h-4 w-4 rounded border-slate-600"
               />
               Recordable
             </label>
@@ -438,7 +438,7 @@ export default function IncidentsPage() {
                 type="checkbox"
                 checked={form.lostTime}
                 onChange={(e) => setForm((prev) => ({ ...prev, lostTime: e.target.checked }))}
-                className="h-4 w-4 rounded border-slate-300"
+                className="h-4 w-4 rounded border-slate-600"
               />
               Lost time
             </label>
@@ -447,7 +447,7 @@ export default function IncidentsPage() {
                 type="checkbox"
                 checked={form.fatality}
                 onChange={(e) => setForm((prev) => ({ ...prev, fatality: e.target.checked }))}
-                className="h-4 w-4 rounded border-slate-300"
+                className="h-4 w-4 rounded border-slate-600"
               />
               Fatality
             </label>
@@ -456,13 +456,13 @@ export default function IncidentsPage() {
             value={form.observationId}
             onChange={(event) => setForm((prev) => ({ ...prev, observationId: event.target.value }))}
             placeholder="Observation ID (optional)"
-            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
           />
           <input
             value={form.dapActivityId}
             onChange={(event) => setForm((prev) => ({ ...prev, dapActivityId: event.target.value }))}
             placeholder="DAP Activity ID (optional)"
-            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
           />
         </div>
         <div className="mt-4">
@@ -484,7 +484,7 @@ export default function IncidentsPage() {
 
       <SectionCard title="Incident Operations" description="Manage lifecycle and high-risk controls.">
         <div className="mb-4">
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm">
             <option value="all">All statuses</option>
             <option value="open">Open</option>
             <option value="in_progress">In Progress</option>
@@ -498,10 +498,10 @@ export default function IncidentsPage() {
         ) : (
           <div className="space-y-3">
             {incidents.map((item) => (
-              <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div key={item.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">{item.title}</div>
+                    <div className="text-sm font-semibold text-slate-100">{item.title}</div>
                     <div className="mt-1 text-xs text-slate-500">
                       {item.category} · {item.severity}
                       {item.exposure_event_type ? (
@@ -556,7 +556,7 @@ export default function IncidentsPage() {
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <label className="flex shrink-0 flex-col gap-1 text-xs text-slate-600">
+                  <label className="flex shrink-0 flex-col gap-1 text-xs text-slate-400">
                     <span className="font-semibold">Occurred (local)</span>
                     <input
                       key={`${item.id}-occ-${item.occurred_at ?? ""}-${String(item.injury_month ?? "")}`}
@@ -568,11 +568,11 @@ export default function IncidentsPage() {
                         const prev = item.occurred_at ?? null;
                         if (nextIso !== prev) void updateIncident(item, { occurredAt: nextIso });
                       }}
-                      className="w-[11.5rem] rounded-lg border border-slate-300 px-2 py-1 text-xs"
+                      className="w-[11.5rem] rounded-lg border border-slate-600 px-2 py-1 text-xs"
                       title="Sets occurred_at; month, season, weekday, and time-of-day follow in UTC."
                     />
                   </label>
-                  <label className="flex items-center gap-2 text-xs text-slate-600">
+                  <label className="flex items-center gap-2 text-xs text-slate-400">
                     <span className="font-semibold">Event / exposure</span>
                     <select
                       value={item.exposure_event_type ?? ""}
@@ -581,7 +581,7 @@ export default function IncidentsPage() {
                           eventType: e.target.value || null,
                         })
                       }
-                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs max-w-[14rem]"
+                      className="rounded-lg border border-slate-600 px-2 py-1 text-xs max-w-[14rem]"
                       title="OSHA/BLS-style event or exposure classification"
                     >
                       <option value="">Unset</option>
@@ -592,7 +592,7 @@ export default function IncidentsPage() {
                       ))}
                     </select>
                   </label>
-                  <label className="flex items-center gap-2 text-xs text-slate-600">
+                  <label className="flex items-center gap-2 text-xs text-slate-400">
                     <span className="font-semibold">Source</span>
                     <select
                       value={item.injury_source ?? ""}
@@ -601,7 +601,7 @@ export default function IncidentsPage() {
                           source: e.target.value || null,
                         })
                       }
-                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs max-w-[11rem]"
+                      className="rounded-lg border border-slate-600 px-2 py-1 text-xs max-w-[11rem]"
                       title="Equipment or object involved (SOR / hazard linkage)"
                     >
                       <option value="">Unset</option>
@@ -612,7 +612,7 @@ export default function IncidentsPage() {
                       ))}
                     </select>
                   </label>
-                  <label className="flex items-center gap-2 text-xs text-slate-600">
+                  <label className="flex items-center gap-2 text-xs text-slate-400">
                     <span className="font-semibold">Injury type</span>
                     <select
                       value={item.injury_type ?? ""}
@@ -621,7 +621,7 @@ export default function IncidentsPage() {
                           injuryType: e.target.value || null,
                         })
                       }
-                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs"
+                      className="rounded-lg border border-slate-600 px-2 py-1 text-xs"
                       disabled={item.category !== "incident"}
                       title={
                         item.category === "incident"
@@ -637,7 +637,7 @@ export default function IncidentsPage() {
                       ))}
                     </select>
                   </label>
-                  <label className="flex items-center gap-2 text-xs text-slate-600">
+                  <label className="flex items-center gap-2 text-xs text-slate-400">
                     <span className="font-semibold">Body part</span>
                     <select
                       value={item.body_part ?? ""}
@@ -646,7 +646,7 @@ export default function IncidentsPage() {
                           bodyPart: e.target.value || null,
                         })
                       }
-                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs max-w-[9rem]"
+                      className="rounded-lg border border-slate-600 px-2 py-1 text-xs max-w-[9rem]"
                       disabled={item.category !== "incident"}
                       title={
                         item.category === "incident"
@@ -662,7 +662,7 @@ export default function IncidentsPage() {
                       ))}
                     </select>
                   </label>
-                  <label className="flex items-center gap-1 text-xs text-slate-600">
+                  <label className="flex items-center gap-1 text-xs text-slate-400">
                     <span className="font-semibold">Away</span>
                     <input
                       key={`${item.id}-away-${(item.days_away_from_work ?? 0).toString()}`}
@@ -677,11 +677,11 @@ export default function IncidentsPage() {
                           void updateIncident(item, { daysAwayFromWork: v });
                         }
                       }}
-                      className="w-14 rounded-lg border border-slate-300 px-1 py-1 text-xs"
+                      className="w-14 rounded-lg border border-slate-600 px-1 py-1 text-xs"
                       title="Days away from work"
                     />
                   </label>
-                  <label className="flex items-center gap-1 text-xs text-slate-600">
+                  <label className="flex items-center gap-1 text-xs text-slate-400">
                     <span className="font-semibold">Restr.</span>
                     <input
                       key={`${item.id}-rest-${(item.days_restricted ?? 0).toString()}`}
@@ -696,53 +696,53 @@ export default function IncidentsPage() {
                           void updateIncident(item, { daysRestricted: v });
                         }
                       }}
-                      className="w-14 rounded-lg border border-slate-300 px-1 py-1 text-xs"
+                      className="w-14 rounded-lg border border-slate-600 px-1 py-1 text-xs"
                       title="Days restricted duty"
                     />
                   </label>
-                  <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-600">
+                  <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-400">
                     <input
                       type="checkbox"
                       checked={Boolean(item.job_transfer)}
                       onChange={(e) => void updateIncident(item, { jobTransfer: e.target.checked })}
-                      className="h-3.5 w-3.5 rounded border-slate-300"
+                      className="h-3.5 w-3.5 rounded border-slate-600"
                     />
                     <span className="font-semibold">Transfer</span>
                   </label>
-                  <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-600">
+                  <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-400">
                     <input
                       type="checkbox"
                       checked={Boolean(item.recordable)}
                       onChange={(e) => void updateIncident(item, { recordable: e.target.checked })}
-                      className="h-3.5 w-3.5 rounded border-slate-300"
+                      className="h-3.5 w-3.5 rounded border-slate-600"
                     />
                     <span className="font-semibold">Rec.</span>
                   </label>
-                  <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-600">
+                  <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-400">
                     <input
                       type="checkbox"
                       checked={Boolean(item.lost_time)}
                       onChange={(e) => void updateIncident(item, { lostTime: e.target.checked })}
-                      className="h-3.5 w-3.5 rounded border-slate-300"
+                      className="h-3.5 w-3.5 rounded border-slate-600"
                     />
                     <span className="font-semibold">LT</span>
                   </label>
-                  <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-600">
+                  <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-400">
                     <input
                       type="checkbox"
                       checked={Boolean(item.fatality)}
                       onChange={(e) => void updateIncident(item, { fatality: e.target.checked })}
-                      className="h-3.5 w-3.5 rounded border-slate-300"
+                      className="h-3.5 w-3.5 rounded border-slate-600"
                     />
                     <span className="font-semibold">Fatality</span>
                   </label>
-                  <button onClick={() => void updateIncident(item, { status: item.status === "open" ? "in_progress" : item.status === "in_progress" ? "closed" : "open" })} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                  <button onClick={() => void updateIncident(item, { status: item.status === "open" ? "in_progress" : item.status === "in_progress" ? "closed" : "open" })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
                     Cycle Status
                   </button>
-                  <button onClick={() => void updateIncident(item, { sifFlag: !item.sif_flag })} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                  <button onClick={() => void updateIncident(item, { sifFlag: !item.sif_flag })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
                     {item.sif_flag ? "Unset SIF" : "Set SIF"}
                   </button>
-                  <button onClick={() => void updateIncident(item, { escalationLevel: item.escalation_level === "none" ? "critical" : "none" })} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                  <button onClick={() => void updateIncident(item, { escalationLevel: item.escalation_level === "none" ? "critical" : "none" })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
                     {item.escalation_level === "none" ? "Escalate" : "Clear Escalation"}
                   </button>
                   <button

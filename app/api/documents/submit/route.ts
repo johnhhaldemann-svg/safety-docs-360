@@ -5,6 +5,7 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { getDefaultAgreementConfig, getUserAgreementRecord } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 import { authorizeRequest } from "@/lib/rbac";
+import { serverLog } from "@/lib/serverLog";
 
 export const runtime = "nodejs";
 
@@ -120,6 +121,10 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError || !insertedDoc) {
+      serverLog("error", "document_submit_insert_failed", {
+        userId: user.id,
+        hasInsertError: Boolean(insertError),
+      });
       return NextResponse.json(
         { error: insertError?.message || "Failed to create document row." },
         { status: 500 }
@@ -135,6 +140,10 @@ export async function POST(request: Request) {
       });
 
     if (uploadError) {
+      serverLog("error", "document_submit_storage_upload_failed", {
+        userId: user.id,
+        documentId: insertedDoc.id,
+      });
       await supabase.from("documents").delete().eq("id", insertedDoc.id);
 
       return NextResponse.json(
@@ -149,7 +158,9 @@ export async function POST(request: Request) {
       draft_file_path: filePath,
     });
   } catch (error) {
-    console.error("Submit route error:", error);
+    serverLog("error", "document_submit_unexpected_error", {
+      errorKind: error instanceof Error ? error.name : "unknown",
+    });
 
     return NextResponse.json(
       { error: "Unexpected server error." },

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks -- Playwright fixture `use()` is not React */
 import { test as base, expect } from "@playwright/test";
 
 export type NetworkFailure =

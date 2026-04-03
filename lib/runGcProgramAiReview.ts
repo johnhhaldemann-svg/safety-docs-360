@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { GC_REQUIRED_PROGRAM_DOCUMENT_TYPE } from "@/lib/gcRequiredProgram";
+import { serverLog } from "@/lib/serverLog";
 import {
   extractGcProgramDocumentText,
   generateGcProgramAiReview,
@@ -143,6 +144,11 @@ export async function runGcProgramDocumentAiReview(
   } catch (e) {
     const message = e instanceof Error ? e.message : "AI review failed.";
     const isConfig = message.includes("OPENAI_API_KEY");
+    serverLog("error", "gc_program_ai_review_failed", {
+      documentId,
+      status: isConfig ? 503 : 502,
+      errorKind: e instanceof Error ? e.name : "unknown",
+    });
     return { ok: false, status: isConfig ? 503 : 502, error: message };
   }
 }

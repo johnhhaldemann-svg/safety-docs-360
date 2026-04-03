@@ -207,20 +207,20 @@ export default function AdminSettingsPage() {
               type="button"
               onClick={handleSave}
               disabled={saving || loading}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
             >
               {saving ? "Saving..." : "Save Agreement Settings"}
             </button>
             <button
               type="button"
               onClick={() => setConfig(cloneConfig(getDefaultAgreementConfig()))}
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Reset to Defaults
             </button>
             <Link
               href="/admin/agreements"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Open Agreement Audit
             </Link>
@@ -244,7 +244,7 @@ export default function AdminSettingsPage() {
             description="Bump the version whenever the legal text changes and users should be required to re-accept."
           >
             <div className="mt-6">
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Active Agreement Version
               </label>
               <input
@@ -256,11 +256,11 @@ export default function AdminSettingsPage() {
                     version: event.target.value,
                   }))
                 }
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               />
             </div>
 
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            <div className="mt-6 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 text-sm text-slate-400">
               Saving a new version immediately makes that version the required agreement. Users with older accepted versions will be marked outdated and prompted to accept again.
             </div>
           </SectionCard>
@@ -325,45 +325,45 @@ function AgreementGroupEditor({
   onSectionChange: (index: number, field: "heading" | "body", value: string) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-xl font-bold text-slate-900">{title}</h2>
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
+      <h2 className="text-xl font-bold text-slate-100">{title}</h2>
       <p className="mt-1 text-sm text-slate-500">
         Edit the live text shown in the agreement gate and legal pages.
       </p>
 
       <div className="mt-6">
-        <label className="mb-2 block text-sm font-semibold text-slate-700">
+        <label className="mb-2 block text-sm font-semibold text-slate-300">
           Section Group Title
         </label>
         <input
           type="text"
           value={value.title}
           onChange={(event) => onTitleChange(event.target.value)}
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+          className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
         />
       </div>
 
       <div className="mt-6 space-y-6">
         {value.sections.map((section, index) => (
-          <div key={`${title}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <label className="mb-2 block text-sm font-semibold text-slate-700">
+          <div key={`${title}-${index}`} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <label className="mb-2 block text-sm font-semibold text-slate-300">
               Heading {index + 1}
             </label>
             <input
               type="text"
               value={section.heading}
               onChange={(event) => onSectionChange(index, "heading", event.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+              className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
             />
 
-            <label className="mb-2 mt-4 block text-sm font-semibold text-slate-700">
+            <label className="mb-2 mt-4 block text-sm font-semibold text-slate-300">
               Body {index + 1}
             </label>
             <textarea
               value={section.body}
               onChange={(event) => onSectionChange(index, "body", event.target.value)}
               rows={5}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+              className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
             />
           </div>
         ))}
@@ -382,9 +382,9 @@ function StatCard({
   note: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{title}</p>
-      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">{value}</p>
+      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">{value}</p>
       <p className="mt-2 text-sm text-slate-500">{note}</p>
     </div>
   );
@@ -404,11 +404,11 @@ function StatusRow({
       ? "bg-emerald-100 text-emerald-700"
       : tone === "amber"
         ? "bg-amber-100 text-amber-700"
-        : "bg-red-100 text-red-700";
+        : "bg-red-100 text-red-200";
 
   return (
-    <div className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+    <div className="flex items-center justify-between rounded-2xl border border-slate-700/80 px-4 py-4">
+      <span className="text-sm font-medium text-slate-300">{label}</span>
       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${toneClass}`}>
         {value}
       </span>

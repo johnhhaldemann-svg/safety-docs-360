@@ -448,11 +448,11 @@ function buildTradeLibraryItem(trade: string): CSEPTradeLibraryItem {
 }
 
 function inputClassName() {
-  return "w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-500";
+  return "w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-500";
 }
 
 function textareaClassName() {
-  return "min-h-[120px] w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-500";
+  return "min-h-[120px] w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-500";
 }
 
 const supabase = createClient(
@@ -752,7 +752,7 @@ export default function CSEPPage() {
               <button
                 type="button"
                 onClick={() => setForm(initialForm)}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
               >
                 Reset Form
               </button>
@@ -785,8 +785,8 @@ export default function CSEPPage() {
             ) : null}
             {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
             <fieldset disabled={authLoading || !canUseBuilder} className="space-y-6 disabled:opacity-60">
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-900">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="mb-4 text-xl font-semibold text-slate-100">
                 Project Information
               </h2>
               <div className="grid gap-4 md:grid-cols-2">
@@ -823,8 +823,8 @@ export default function CSEPPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-900">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="mb-4 text-xl font-semibold text-slate-100">
                 Contractor Information
               </h2>
               <div className="grid gap-4 md:grid-cols-2">
@@ -863,13 +863,13 @@ export default function CSEPPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold text-slate-900">
+                  <h2 className="text-xl font-semibold text-slate-100">
                     Trade Selection
                   </h2>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-sm text-slate-400">
                     Selecting a trade loads that trade’s default hazards,
                     activities, controls, and permit triggers.
                   </p>
@@ -879,7 +879,7 @@ export default function CSEPPage() {
                   type="button"
                   onClick={applyTradeDefaults}
                   disabled={!selectedTrade}
-                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Apply Trade PPE / Permits / Hazards
                 </button>
@@ -906,26 +906,26 @@ export default function CSEPPage() {
               </select>
 
               {selectedTrade && (
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
+                <div className="mt-4 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
                     Auto-loaded Trade Summary
                   </h3>
-                  <p className="mt-2 text-sm text-slate-700">
+                  <p className="mt-2 text-sm text-slate-300">
                     {selectedTrade.summary}
                   </p>
                 </div>
               )}
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-900">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="mb-4 text-xl font-semibold text-slate-100">
                 CSEP Sections to Include
               </h2>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {csepSectionOptions.map((item) => (
                   <label
                     key={item}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700"
+                    className="flex items-center gap-3 rounded-2xl border border-slate-700/80 px-4 py-3 text-sm text-slate-300"
                   >
                     <input
                       type="checkbox"
@@ -940,8 +940,8 @@ export default function CSEPPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-900">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="mb-4 text-xl font-semibold text-slate-100">
                 Scope and Site Content
               </h2>
               <div className="grid gap-4">
@@ -970,15 +970,15 @@ export default function CSEPPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-900">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="mb-4 text-xl font-semibold text-slate-100">
                 Required PPE
               </h2>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {ppeOptions.map((item) => (
                   <label
                     key={item}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700"
+                    className="flex items-center gap-3 rounded-2xl border border-slate-700/80 px-4 py-3 text-sm text-slate-300"
                   >
                     <input
                       type="checkbox"
@@ -991,15 +991,15 @@ export default function CSEPPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-900">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="mb-4 text-xl font-semibold text-slate-100">
                 Additional Permits
               </h2>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {permitOptions.map((item) => (
                   <label
                     key={item}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700"
+                    className="flex items-center gap-3 rounded-2xl border border-slate-700/80 px-4 py-3 text-sm text-slate-300"
                   >
                     <input
                       type="checkbox"
@@ -1014,8 +1014,8 @@ export default function CSEPPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-900">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="mb-4 text-xl font-semibold text-slate-100">
                 Hazards to Include in the CSEP
               </h2>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
@@ -1023,7 +1023,7 @@ export default function CSEPPage() {
                   derivedHazards.map((hazard) => (
                     <label
                       key={hazard}
-                      className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700"
+                      className="flex items-center gap-3 rounded-2xl border border-slate-700/80 px-4 py-3 text-sm text-slate-300"
                     >
                       <input
                         type="checkbox"
@@ -1043,11 +1043,11 @@ export default function CSEPPage() {
               </div>
             </section>
 
-            <div className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-900">
+            <div className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="text-xl font-semibold text-slate-100">
                 Submit for Review
               </h2>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-2 text-sm text-slate-400">
                 Submit this CSEP to the admin review queue. The completed document will only be available after admin review is finished.
               </p>
 
@@ -1063,7 +1063,7 @@ export default function CSEPPage() {
                 type="button"
                 onClick={handleSubmitForReview}
                 disabled={submitLoading || !agreedToSubmissionTerms || authLoading || !canSubmitDocuments}
-                className="rounded-xl bg-sky-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
+                className="rounded-xl bg-sky-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-50"
               >
                 {submitLoading ? "Submitting..." : "Submit for Review"}
               </button>
@@ -1071,7 +1071,7 @@ export default function CSEPPage() {
               <button
                 type="button"
                 onClick={() => setForm(initialForm)}
-                className="rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-xl border border-slate-600 bg-slate-900/90 px-6 py-3 text-sm font-semibold text-slate-300 hover:bg-slate-950/50"
               >
                 Reset Form
               </button>
@@ -1121,8 +1121,8 @@ export default function CSEPPage() {
               </div>
             </SectionCard>
 
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-900">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="text-xl font-semibold text-slate-100">
                 Included CSEP Sections
               </h2>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -1130,7 +1130,7 @@ export default function CSEPPage() {
                   form.included_sections.map((section) => (
                     <span
                       key={section}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
+                      className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-medium text-slate-300"
                     >
                       {section}
                     </span>
@@ -1141,8 +1141,8 @@ export default function CSEPPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-900">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="text-xl font-semibold text-slate-100">
                 OSHA References
               </h2>
               <div className="mt-4 space-y-2">
@@ -1150,7 +1150,7 @@ export default function CSEPPage() {
                   selectedTrade.oshaRefs.map((ref) => (
                     <div
                       key={ref}
-                      className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700"
+                      className="rounded-2xl border border-slate-700/80 px-4 py-3 text-sm text-slate-300"
                     >
                       {ref}
                     </div>
@@ -1163,8 +1163,8 @@ export default function CSEPPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-900">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="text-xl font-semibold text-slate-100">
                 Selected Hazards for CSEP
               </h2>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -1172,7 +1172,7 @@ export default function CSEPPage() {
                   form.selected_hazards.map((hazard) => (
                     <span
                       key={hazard}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
+                      className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-medium text-slate-300"
                     >
                       {hazard}
                     </span>
@@ -1185,8 +1185,8 @@ export default function CSEPPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-900">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="text-xl font-semibold text-slate-100">
                 Auto-Generated Safety Programs
               </h2>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -1194,7 +1194,7 @@ export default function CSEPPage() {
                   autoPrograms.map((program) => (
                     <span
                       key={program}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
+                      className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-medium text-slate-300"
                     >
                       {program}
                     </span>
@@ -1207,8 +1207,8 @@ export default function CSEPPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-900">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="text-xl font-semibold text-slate-100">
                 Auto-Detected Permits
               </h2>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -1216,7 +1216,7 @@ export default function CSEPPage() {
                   derivedPermits.map((permit) => (
                     <span
                       key={permit}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
+                      className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-medium text-slate-300"
                     >
                       {permit}
                     </span>
@@ -1229,8 +1229,8 @@ export default function CSEPPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-900">
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="text-xl font-semibold text-slate-100">
                 Selected Activity / Hazard Matrix
               </h2>
               <div className="mt-4 space-y-3">
@@ -1240,23 +1240,23 @@ export default function CSEPPage() {
                     .map((item, index) => (
                       <div
                         key={`${item.activity}-${item.hazard}-${index}`}
-                        className="rounded-2xl border border-slate-200 p-4"
+                        className="rounded-2xl border border-slate-700/80 p-4"
                       >
-                        <div className="text-sm font-semibold text-slate-900">
+                        <div className="text-sm font-semibold text-slate-100">
                           {item.activity}
                         </div>
-                        <div className="mt-2 text-sm text-slate-700">
+                        <div className="mt-2 text-sm text-slate-300">
                           <span className="font-semibold">Hazard:</span>{" "}
                           {item.hazard}
                         </div>
-                        <div className="text-sm text-slate-700">
+                        <div className="text-sm text-slate-300">
                           <span className="font-semibold">Risk:</span> {item.risk}
                         </div>
-                        <div className="text-sm text-slate-700">
+                        <div className="text-sm text-slate-300">
                           <span className="font-semibold">Controls:</span>{" "}
                           {item.controls.join(", ")}
                         </div>
-                        <div className="text-sm text-slate-700">
+                        <div className="text-sm text-slate-300">
                           <span className="font-semibold">Permit:</span>{" "}
                           {item.permit}
                         </div>
@@ -1273,10 +1273,10 @@ export default function CSEPPage() {
         </div>
 
         <div className="sticky bottom-4 z-10 mt-6">
-          <div className="rounded-[1.5rem] border border-slate-200 bg-white/95 p-4 shadow-[0_18px_36px_rgba(148,163,184,0.18)] backdrop-blur">
+          <div className="rounded-[1.5rem] border border-slate-700/80 bg-slate-900/92 p-4 shadow-[0_18px_36px_rgba(0,0,0,0.35)] backdrop-blur">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="text-sm font-semibold text-slate-900">
+                <div className="text-sm font-semibold text-slate-100">
                   Submission Handoff
                 </div>
                 <div className="mt-1 text-sm text-slate-500">
@@ -1313,9 +1313,9 @@ export default function CSEPPage() {
 
 function SnapshotRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
       <span className="text-sm text-slate-500">{label}</span>
-      <span className="text-sm font-semibold text-slate-900">{value}</span>
+      <span className="text-sm font-semibold text-slate-100">{value}</span>
     </div>
   );
 }

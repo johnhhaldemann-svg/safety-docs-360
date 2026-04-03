@@ -433,46 +433,46 @@ export default function AdminJobsiteAuditsPage() {
           <button
             type="button"
             onClick={clearDraft}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-950/50"
           >
             Clear all saved data
           </button>
         }
       >
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="block text-sm font-semibold text-slate-700">
+          <label className="block text-sm font-semibold text-slate-300">
             Job / site name
             <input
               value={jobsite}
               onChange={(e) => setJobsite(e.target.value)}
               placeholder="e.g. Downtown Plaza Redevelopment"
-              className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm"
+              className="mt-1.5 w-full rounded-xl border border-slate-700/80 px-3 py-2 text-sm text-slate-100 shadow-sm"
             />
           </label>
-          <label className="block text-sm font-semibold text-slate-700">
+          <label className="block text-sm font-semibold text-slate-300">
             Auditor(s)
             <input
               value={auditors}
               onChange={(e) => setAuditors(e.target.value)}
               placeholder="Names, comma-separated"
-              className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm"
+              className="mt-1.5 w-full rounded-xl border border-slate-700/80 px-3 py-2 text-sm text-slate-100 shadow-sm"
             />
           </label>
-          <label className="block text-sm font-semibold text-slate-700">
+          <label className="block text-sm font-semibold text-slate-300">
             Audit date
             <input
               type="date"
               value={auditDate}
               onChange={(e) => setAuditDate(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm"
+              className="mt-1.5 w-full rounded-xl border border-slate-700/80 px-3 py-2 text-sm text-slate-100 shadow-sm"
             />
           </label>
-          <label className="block text-sm font-semibold text-slate-700">
+          <label className="block text-sm font-semibold text-slate-300">
             Trade scope being audited
             <select
               value={selectedTrade}
               onChange={(e) => setSelectedTrade(e.target.value as (typeof tradeOptions)[number])}
-              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm"
+              className="mt-1.5 w-full rounded-xl border border-slate-700/80 bg-slate-900/90 px-3 py-2 text-sm text-slate-100 shadow-sm"
             >
               {tradeOptions.map((trade) => (
                 <option key={trade} value={trade}>
@@ -492,7 +492,7 @@ export default function AdminJobsiteAuditsPage() {
             <button
               type="button"
               onClick={downloadJson}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-950/50"
             >
               Download JSON
             </button>
@@ -508,23 +508,23 @@ export default function AdminJobsiteAuditsPage() {
         }
       >
         {submitError ? (
-          <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{submitError}</p>
+          <p className="mb-3 rounded-xl border border-red-500/35 bg-red-950/40 px-3 py-2 text-sm text-red-100">{submitError}</p>
         ) : null}
         {submitMessage ? (
-          <p className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          <p className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-950/35 px-3 py-2 text-sm text-emerald-900">
             {submitMessage}
           </p>
         ) : null}
-        <p className="text-sm text-slate-600">
-          Submit stores one row in <code className="rounded bg-slate-100 px-1">internal_jobsite_audits</code> with a
-          JSON payload mirroring your workbook lines (keys <code className="rounded bg-slate-100 px-1">hs-*</code>,{" "}
-          <code className="rounded bg-slate-100 px-1">env-*</code>, <code className="rounded bg-slate-100 px-1">field-*</code>
+        <p className="text-sm text-slate-400">
+          Submit stores one row in <code className="rounded bg-slate-800/70 px-1">internal_jobsite_audits</code> with a
+          JSON payload mirroring your workbook lines (keys <code className="rounded bg-slate-800/70 px-1">hs-*</code>,{" "}
+          <code className="rounded bg-slate-800/70 px-1">env-*</code>, <code className="rounded bg-slate-800/70 px-1">field-*</code>
           ) and monthly trend history. Report prompts are filtered by the selected trade so non-applicable trade items
           are excluded.
         </p>
-        <div className="mt-4 max-h-48 overflow-y-auto rounded-xl border border-slate-100">
+        <div className="mt-4 max-h-48 overflow-y-auto rounded-xl border border-slate-700/60">
           <table className="w-full text-left text-xs">
-            <thead className="sticky top-0 bg-slate-50 text-[10px] font-bold uppercase text-slate-500">
+            <thead className="sticky top-0 bg-slate-950/50 text-[10px] font-bold uppercase text-slate-500">
               <tr>
                 <th className="px-3 py-2">When</th>
                 <th className="px-3 py-2">Job</th>
@@ -540,12 +540,12 @@ export default function AdminJobsiteAuditsPage() {
                 </tr>
               ) : (
                 submissions.map((s) => (
-                  <tr key={s.id} className="border-t border-slate-100">
-                    <td className="px-3 py-2 text-slate-600">
+                  <tr key={s.id} className="border-t border-slate-700/60">
+                    <td className="px-3 py-2 text-slate-400">
                       {new Date(s.created_at).toLocaleString()}
                     </td>
-                    <td className="px-3 py-2 font-medium text-slate-900">{s.jobsite_name || "—"}</td>
-                    <td className="px-3 py-2 text-slate-600">{s.auditors || "—"}</td>
+                    <td className="px-3 py-2 font-medium text-slate-100">{s.jobsite_name || "—"}</td>
+                    <td className="px-3 py-2 text-slate-400">{s.auditors || "—"}</td>
                   </tr>
                 ))
               )}
@@ -555,7 +555,7 @@ export default function AdminJobsiteAuditsPage() {
       </SectionCard>
 
       <Tabs.Root defaultValue="dashboard" className="w-full">
-        <Tabs.List className="flex flex-wrap gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-2">
+        <Tabs.List className="flex flex-wrap gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-950/50 p-2">
           {[
             { id: "dashboard", label: "Dashboard" },
             { id: "field", label: "Field audit" },
@@ -565,7 +565,7 @@ export default function AdminJobsiteAuditsPage() {
             <Tabs.Trigger
               key={t.id}
               value={t.id}
-              className="rounded-xl px-4 py-2.5 text-sm font-bold text-emerald-900 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=inactive]:opacity-70"
+              className="rounded-xl px-4 py-2.5 text-sm font-bold text-emerald-900 data-[state=active]:bg-slate-900/90 data-[state=active]:shadow-md data-[state=inactive]:opacity-70"
             >
               {t.label}
             </Tabs.Trigger>
@@ -603,7 +603,7 @@ export default function AdminJobsiteAuditsPage() {
             title="Audit system blueprint"
             description="Master hierarchy for the Audit tab, including header fields, universal sections, trade profiles, observation entries, report logic, and templates."
           >
-            <pre className="max-h-[70vh] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-700">
+            <pre className="max-h-[70vh] overflow-auto rounded-xl border border-slate-700/80 bg-slate-950/50 p-4 text-xs leading-5 text-slate-300">
               {AUDIT_SYSTEM_BLUEPRINT_TEXT}
             </pre>
           </SectionCard>
@@ -614,32 +614,32 @@ export default function AdminJobsiteAuditsPage() {
             title="Quick Audit Tool (Excel)"
             description="Original dual-column worksheets from your spreadsheets."
           >
-            <label className="mb-4 block text-sm font-semibold text-slate-700">
+            <label className="mb-4 block text-sm font-semibold text-slate-300">
               Filter
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search categories, permits, programs…"
-                className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm"
+                className="mt-1.5 w-full rounded-xl border border-slate-700/80 px-3 py-2 text-sm text-slate-100 shadow-sm"
               />
             </label>
             <Tabs.Root defaultValue="hs" className="w-full">
-              <Tabs.List className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+              <Tabs.List className="flex flex-wrap gap-2 border-b border-slate-700/80 pb-3">
                 <Tabs.Trigger
                   value="hs"
-                  className="rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-slate-600 data-[state=active]:border-emerald-200 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-900"
+                  className="rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-slate-400 data-[state=active]:border-emerald-500/30 data-[state=active]:bg-emerald-950/35 data-[state=active]:text-emerald-900"
                 >
                   Health & safety (V2)
                 </Tabs.Trigger>
                 <Tabs.Trigger
                   value="env"
-                  className="rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-slate-600 data-[state=active]:border-emerald-200 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-900"
+                  className="rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-slate-400 data-[state=active]:border-emerald-500/30 data-[state=active]:bg-emerald-950/35 data-[state=active]:text-emerald-900"
                 >
                   Environmental
                 </Tabs.Trigger>
               </Tabs.List>
               <Tabs.Content value="hs" className="mt-6 outline-none">
-                <p className="mb-4 text-sm text-slate-600">
+                <p className="mb-4 text-sm text-slate-400">
                   From <em>Quick Audit Tool V2 H&amp;S.xlsx</em>. Pick a block in the category list; use Prev
                   / Next to move between blocks.
                 </p>
@@ -654,7 +654,7 @@ export default function AdminJobsiteAuditsPage() {
                 />
               </Tabs.Content>
               <Tabs.Content value="env" className="mt-6 outline-none">
-                <p className="mb-4 text-sm text-slate-600">
+                <p className="mb-4 text-sm text-slate-400">
                   From <em>Quick Audit Tool Env.xlsx</em> — full Sheet1 export (all rows and columns from the
                   workbook JSON).
                 </p>

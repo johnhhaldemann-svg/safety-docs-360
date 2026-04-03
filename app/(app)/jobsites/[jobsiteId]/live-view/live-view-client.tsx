@@ -316,9 +316,9 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
           { label: "Active permits", value: activePermits },
           { label: "Closed today", value: closedToday },
         ].map((card) => (
-          <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div key={card.label} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
             <div className="text-xs text-slate-500">{card.label}</div>
-            <div className="mt-2 text-3xl font-black text-slate-950">{loading ? "-" : card.value}</div>
+            <div className="mt-2 text-3xl font-black text-white">{loading ? "-" : card.value}</div>
           </div>
         ))}
       </section>
@@ -336,11 +336,11 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
                 {activityCards.map((activity) => (
                   <div
                     key={activity.id}
-                    className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+                    className="rounded-xl border border-slate-700/80 bg-slate-950/50 p-3"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <div className="text-sm font-semibold text-slate-900">{activity.activity_name}</div>
+                        <div className="text-sm font-semibold text-slate-100">{activity.activity_name}</div>
                         <div className="text-xs text-slate-500">
                           {activity.trade || "trade n/a"} - {activity.area || "area n/a"} -{" "}
                           {activity.hazard_category || "hazard n/a"} - Permit{" "}
@@ -366,10 +366,10 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
           <SectionCard title="Main Observation Matrix" description="Live observations, controls, and response workflow.">
           <div className="mb-3 md:hidden space-y-2">
             {filtered.map((row) => (
-              <div key={`mobile-${row.id}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div key={`mobile-${row.id}`} className="rounded-xl border border-slate-700/80 bg-slate-950/50 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">{row.title}</div>
+                    <div className="text-sm font-semibold text-slate-100">{row.title}</div>
                     <div className="text-xs text-slate-500">{row.category} · {row.severity}</div>
                   </div>
                   <StatusBadge label={row.status} tone={row.status === "verified_closed" ? "success" : "info"} />
@@ -385,7 +385,7 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
           <div className="overflow-auto">
             <table className="min-w-[1500px] text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-200 text-slate-500">
+                <tr className="border-b border-slate-700/80 text-slate-500">
                   <th className="px-2 py-2">Time</th>
                   <th className="px-2 py-2">Area</th>
                   <th className="px-2 py-2">Trade</th>
@@ -414,8 +414,8 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
                   return (
                     <tr
                       key={row.id}
-                      className={`border-b border-slate-100 align-top ${
-                        row.status === "stop_work" ? "bg-amber-50" : ""
+                      className={`border-b border-slate-700/60 align-top ${
+                        row.status === "stop_work" ? "bg-amber-950/40" : ""
                       }`}
                     >
                       <td className="px-2 py-2">{new Date(row.created_at).toLocaleTimeString()}</td>
@@ -564,10 +564,10 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
       {selectedId ? (
         <>
           <button className="fixed inset-0 z-40 bg-slate-950/30" onClick={() => setSelectedId(null)} aria-label="Close details panel" />
-          <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md border-l border-slate-200 bg-white p-4 shadow-2xl">
+          <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md border-l border-slate-700/80 bg-slate-900/90 p-4 shadow-2xl">
             <div className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Observation Details</div>
-            <div className="mb-3 text-sm text-slate-700">{selectedId}</div>
-            <pre className="h-[70vh] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+            <div className="mb-3 text-sm text-slate-300">{selectedId}</div>
+            <pre className="h-[70vh] overflow-auto rounded-xl border border-slate-700/80 bg-slate-950/50 p-3 text-xs">
               {JSON.stringify(rows.find((row) => row.id === selectedId) ?? {}, null, 2)}
             </pre>
             <button className="mt-3 rounded border px-3 py-1.5 text-sm" onClick={() => setSelectedId(null)}>
@@ -589,9 +589,9 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
       {quickAddOpen ? (
         <>
           <button className="fixed inset-0 z-40 bg-slate-950/30" onClick={() => setQuickAddOpen(false)} aria-label="Close quick add panel" />
-          <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md border-l border-slate-200 bg-white p-4 shadow-2xl">
+          <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md border-l border-slate-700/80 bg-slate-900/90 p-4 shadow-2xl">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Quick Add</div>
-            <div className="mt-1 text-lg font-bold text-slate-900">New Observation</div>
+            <div className="mt-1 text-lg font-bold text-slate-100">New Observation</div>
             <div className="mt-4 space-y-3">
               <input value={quickAddTitle} onChange={(e) => setQuickAddTitle(e.target.value)} placeholder="Title" className="w-full rounded border px-3 py-2 text-sm" />
               <textarea value={quickAddDescription} onChange={(e) => setQuickAddDescription(e.target.value)} rows={4} placeholder="Description" className="w-full rounded border px-3 py-2 text-sm" />

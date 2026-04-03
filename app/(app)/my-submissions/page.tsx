@@ -98,13 +98,13 @@ export default function MySubmissionsPage() {
           <>
             <Link
               href="/submit"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               New Submission
             </Link>
             <Link
               href="/library"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Open Library
             </Link>
@@ -138,15 +138,15 @@ export default function MySubmissionsPage() {
             {submissions.map((item) => (
               <div
                 key={item.id}
-                className="rounded-2xl border border-slate-200 bg-white p-5"
+                className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
-                    <div className="text-lg font-semibold text-slate-900">
+                    <div className="text-lg font-semibold text-slate-100">
                       {item.title || "Untitled submission"}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                      <span className="rounded-full bg-sky-950/35 px-3 py-1 text-xs font-semibold text-sky-300">
                         {item.service_type || "General"}
                       </span>
                       <span
@@ -160,7 +160,7 @@ export default function MySubmissionsPage() {
                     {formatRelative(item.created_at)}
                   </div>
                 </div>
-                <div className="mt-4 text-sm leading-6 text-slate-600">
+                <div className="mt-4 text-sm leading-6 text-slate-400">
                   {item.customer_notes || "No notes were added to this request."}
                 </div>
               </div>
@@ -182,9 +182,9 @@ function StatCard({
   note: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{title}</p>
-      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">{value}</p>
+      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">{value}</p>
       <p className="mt-2 text-sm text-slate-500">{note}</p>
     </div>
   );

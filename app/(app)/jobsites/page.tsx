@@ -317,7 +317,7 @@ export default function JobsitesPage() {
             <button
               type="button"
               onClick={() => void reload()}
-              className="rounded-xl border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+              className="rounded-xl border border-sky-500/35 bg-sky-950/35 px-5 py-3 text-sm font-semibold text-sky-300 transition hover:bg-sky-100"
             >
               {loading ? "Refreshing..." : "Refresh Jobsites"}
             </button>
@@ -328,13 +328,13 @@ export default function JobsitesPage() {
                 resetComposer();
                 setMessage(null);
               }}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Add Jobsite
             </button>
             <Link
               href="/submit"
-              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Submit Document
             </Link>
@@ -376,11 +376,11 @@ export default function JobsitesPage() {
             note: "Live company documents waiting on next action",
           },
         ].map((card) => (
-          <div key={card.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div key={card.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
             <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
               {card.title}
             </div>
-            <div className="mt-3 text-4xl font-black tracking-tight text-slate-950">
+            <div className="mt-3 text-4xl font-black tracking-tight text-white">
               {loading ? "-" : card.value}
             </div>
             <div className="mt-2 text-sm leading-6 text-slate-500">{card.note}</div>
@@ -403,7 +403,7 @@ export default function JobsitesPage() {
                 value={composer.name}
                 onChange={(event) => updateComposer("name", event.target.value)}
                 placeholder="North Tower Expansion"
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
             <div>
@@ -415,7 +415,7 @@ export default function JobsitesPage() {
                 value={composer.projectNumber}
                 onChange={(event) => updateComposer("projectNumber", event.target.value)}
                 placeholder="PRJ-2026-014"
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
             <div>
@@ -427,7 +427,7 @@ export default function JobsitesPage() {
                 value={composer.location}
                 onChange={(event) => updateComposer("location", event.target.value)}
                 placeholder={companyLocation}
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
             <div>
@@ -439,7 +439,7 @@ export default function JobsitesPage() {
                 onChange={(event) =>
                   updateComposer("status", event.target.value as ComposerState["status"])
                 }
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
               >
                 <option value="planned">Planned</option>
                 <option value="active">Active</option>
@@ -456,7 +456,7 @@ export default function JobsitesPage() {
                 value={composer.projectManager}
                 onChange={(event) => updateComposer("projectManager", event.target.value)}
                 placeholder="Project lead"
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
             <div>
@@ -468,7 +468,7 @@ export default function JobsitesPage() {
                 value={composer.safetyLead}
                 onChange={(event) => updateComposer("safetyLead", event.target.value)}
                 placeholder="Safety lead"
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
             <div>
@@ -479,7 +479,7 @@ export default function JobsitesPage() {
                 type="date"
                 value={composer.startDate}
                 onChange={(event) => updateComposer("startDate", event.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
               />
             </div>
             <div>
@@ -490,7 +490,7 @@ export default function JobsitesPage() {
                 type="date"
                 value={composer.endDate}
                 onChange={(event) => updateComposer("endDate", event.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
               />
             </div>
             <div className="sm:col-span-2">
@@ -502,7 +502,7 @@ export default function JobsitesPage() {
                 onChange={(event) => updateComposer("notes", event.target.value)}
                 rows={4}
                 placeholder="Site-specific access notes, startup requirements, or special concerns."
-                className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="mt-2 w-full rounded-2xl border border-slate-600 px-4 py-3 text-sm leading-6 text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
           </div>
@@ -518,7 +518,7 @@ export default function JobsitesPage() {
               type="button"
               onClick={() => void handleCreateOrConvertJobsite()}
               disabled={saving}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {saving ? "Saving..." : "Save Jobsite"}
             </button>
@@ -538,7 +538,7 @@ export default function JobsitesPage() {
                 }
               }}
               disabled={!selectedJobsite}
-              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
             >
               Load Selected Site
             </button>
@@ -548,7 +548,7 @@ export default function JobsitesPage() {
                 resetComposer();
                 setMessage(null);
               }}
-              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Clear Form
             </button>
@@ -571,12 +571,12 @@ export default function JobsitesPage() {
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search jobsites, project numbers, or site leads..."
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
             />
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+              className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
             >
               <option value="all">All statuses</option>
               <option value="active">Active</option>
@@ -612,8 +612,8 @@ export default function JobsitesPage() {
                     key={jobsite.id}
                     className={`rounded-2xl border p-5 transition ${
                       selected
-                        ? "border-sky-300 bg-sky-50/60"
-                        : "border-slate-200 bg-slate-50"
+                        ? "border-sky-500/40 bg-sky-950/40"
+                        : "border-slate-700/80 bg-slate-950/50"
                     }`}
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -622,7 +622,7 @@ export default function JobsitesPage() {
                           <button
                             type="button"
                             onClick={() => setSelectedJobsiteId(jobsite.id)}
-                            className="text-left text-lg font-bold text-slate-950 transition hover:text-sky-700"
+                            className="text-left text-lg font-bold text-white transition hover:text-sky-300"
                           >
                             {jobsite.name}
                           </button>
@@ -635,7 +635,7 @@ export default function JobsitesPage() {
                           />
                         </div>
 
-                        <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                        <div className="grid gap-2 text-sm text-slate-400 sm:grid-cols-2">
                           <div>Location: {jobsite.location || companyLocation}</div>
                           <div>Project #: {jobsite.projectNumber || "Not assigned"}</div>
                           <div>Project Manager: {jobsite.projectManager || "Not set"}</div>
@@ -657,7 +657,7 @@ export default function JobsitesPage() {
                             resetComposer(jobsite);
                             setMessage(null);
                           }}
-                          className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                          className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
                         >
                           View Site
                         </button>
@@ -673,7 +673,7 @@ export default function JobsitesPage() {
                               );
                               setMessageTone("warning");
                             }}
-                            className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500"
+                            className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
                           >
                             Convert to Managed Site
                           </button>
@@ -683,7 +683,7 @@ export default function JobsitesPage() {
                               type="button"
                               onClick={() => void handleJobsiteStatusChange(jobsite, "active")}
                               disabled={updatingJobsiteId === jobsite.id}
-                              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                              className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
                             >
                               Mark Active
                             </button>
@@ -691,7 +691,7 @@ export default function JobsitesPage() {
                               type="button"
                               onClick={() => void handleJobsiteStatusChange(jobsite, "completed")}
                               disabled={updatingJobsiteId === jobsite.id}
-                              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                              className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
                             >
                               Complete Site
                             </button>
@@ -704,14 +704,14 @@ export default function JobsitesPage() {
                                 )
                               }
                               disabled={updatingJobsiteId === jobsite.id}
-                              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                              className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
                             >
                               {jobsite.rawStatus === "archived" ? "Reactivate" : "Archive"}
                             </button>
                           </>
                         )}
 
-                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                        <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
                           {siteInviteCount} open invite{siteInviteCount === 1 ? "" : "s"}
                         </div>
                       </div>
@@ -772,12 +772,12 @@ export default function JobsitesPage() {
                 ].map((card) => (
                   <div
                     key={card.title}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+                    className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
                   >
                     <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
                       {card.title}
                     </div>
-                    <div className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+                    <div className="mt-3 text-3xl font-black tracking-tight text-white">
                       {loading ? "-" : card.value}
                     </div>
                     <div className="mt-2 text-sm leading-6 text-slate-500">{card.note}</div>
@@ -785,11 +785,11 @@ export default function JobsitesPage() {
                 ))}
               </div>
 
-              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+              <div className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-2xl font-black tracking-tight text-slate-950">
+                      <h2 className="text-2xl font-black tracking-tight text-white">
                         {selectedJobsite.name}
                       </h2>
                       <StatusBadge
@@ -798,7 +798,7 @@ export default function JobsitesPage() {
                       />
                       <StatusBadge label={selectedJobsite.projectNumber} tone="info" />
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
                       {selectedJobsite.location || companyLocation}
                     </p>
                   </div>
@@ -806,13 +806,13 @@ export default function JobsitesPage() {
                   <div className="flex flex-wrap gap-3">
                     <Link
                       href="/submit"
-                      className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500"
+                      className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
                     >
                       Submit Site Document
                     </Link>
                     <Link
                       href="/upload"
-                      className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
                     >
                       Upload Existing File
                     </Link>
@@ -820,55 +820,55 @@ export default function JobsitesPage() {
                 </div>
 
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
                     <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                       Project Manager
                     </div>
-                    <div className="mt-2 text-sm font-semibold text-slate-900">
+                    <div className="mt-2 text-sm font-semibold text-slate-100">
                       {selectedJobsite.projectManager || "Not assigned yet"}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
                     <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                       Safety Lead
                     </div>
-                    <div className="mt-2 text-sm font-semibold text-slate-900">
+                    <div className="mt-2 text-sm font-semibold text-slate-100">
                       {selectedJobsite.safetyLead || "Not assigned yet"}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
                     <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                       Start Date
                     </div>
-                    <div className="mt-2 text-sm font-semibold text-slate-900">
+                    <div className="mt-2 text-sm font-semibold text-slate-100">
                       {selectedJobsite.startDate || "Not set"}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
                     <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                       End Date
                     </div>
-                    <div className="mt-2 text-sm font-semibold text-slate-900">
+                    <div className="mt-2 text-sm font-semibold text-slate-100">
                       {selectedJobsite.endDate || "Not set"}
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5">
+                <div className="mt-5 rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
                   <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                     Site Notes
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-600">
+                  <p className="mt-3 text-sm leading-6 text-slate-400">
                     {selectedJobsite.notes ||
                       "No site notes yet. Use the jobsite form to capture startup conditions, risk notes, and coordination details."}
                   </p>
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-slate-200 bg-white p-6">
+              <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h3 className="text-lg font-bold text-slate-900">Site Documents</h3>
+                    <h3 className="text-lg font-bold text-slate-100">Site Documents</h3>
                     <p className="mt-1 text-sm text-slate-500">
                       Live documents connected to this jobsite.
                     </p>
@@ -891,8 +891,8 @@ export default function JobsitesPage() {
                     />
                   </div>
                 ) : (
-                  <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-                    <div className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.7fr_0.7fr] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                  <div className="mt-5 overflow-hidden rounded-2xl border border-slate-700/80">
+                    <div className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.7fr_0.7fr] gap-4 border-b border-slate-700/80 bg-slate-950/50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                       <div>Document</div>
                       <div>Type</div>
                       <div>Status</div>
@@ -902,17 +902,17 @@ export default function JobsitesPage() {
                     {selectedJobsiteDocuments.map((document) => (
                       <div
                         key={document.id}
-                        className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.7fr_0.7fr] gap-4 border-b border-slate-200 px-4 py-4 text-sm last:border-b-0"
+                        className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.7fr_0.7fr] gap-4 border-b border-slate-700/80 px-4 py-4 text-sm last:border-b-0"
                       >
                         <div className="min-w-0">
-                          <div className="truncate font-semibold text-slate-900">
+                          <div className="truncate font-semibold text-slate-100">
                             {getDocumentLabel(document)}
                           </div>
                           <div className="mt-1 truncate text-slate-500">
                             {document.file_name || selectedJobsite.name}
                           </div>
                         </div>
-                        <div className="text-slate-600">
+                        <div className="text-slate-400">
                           {document.document_type || "Document"}
                         </div>
                         <div>
@@ -926,13 +926,13 @@ export default function JobsitesPage() {
                             }
                           />
                         </div>
-                        <div className="text-slate-600">
+                        <div className="text-slate-400">
                           {formatRelative(document.created_at, referenceTime)}
                         </div>
                         <div>
                           <Link
                             href="/library"
-                            className="text-sm font-semibold text-sky-700 transition hover:text-sky-600"
+                            className="text-sm font-semibold text-sky-300 transition hover:text-sky-600"
                           >
                             Open
                           </Link>
@@ -988,16 +988,16 @@ export default function JobsitesPage() {
               ].map((item) => (
                 <div
                   key={item.title}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <h3 className="text-base font-semibold text-slate-900">{item.title}</h3>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">{item.detail}</p>
+                      <h3 className="text-base font-semibold text-slate-100">{item.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">{item.detail}</p>
                     </div>
                     <Link
                       href={item.href}
-                      className="inline-flex rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
+                      className="inline-flex rounded-xl bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 ring-1 ring-slate-200 transition hover:bg-slate-800/70"
                     >
                       {item.label}
                     </Link>

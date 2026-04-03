@@ -372,13 +372,13 @@ export default function PurchasesPage() {
           <>
             <Link
               href="/library"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Browse Marketplace
             </Link>
             <Link
               href="/search"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Search Records
             </Link>
@@ -417,7 +417,7 @@ export default function PurchasesPage() {
         title="Buy Test Credits"
         description="Use these in-app packs to simulate credit purchases without real payment processing."
         aside={
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm font-semibold text-slate-300">
             {billingLabel}: {creditState.creditBalance}
           </div>
         }
@@ -431,16 +431,16 @@ export default function PurchasesPage() {
             {TEST_CREDIT_PACKS.map((pack) => (
               <div
                 key={pack.id}
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+                className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-base font-semibold text-slate-900">
+                    <h3 className="text-base font-semibold text-slate-100">
                       {pack.label}
                     </h3>
-                    <p className="mt-2 text-sm text-slate-600">{pack.note}</p>
+                    <p className="mt-2 text-sm text-slate-400">{pack.note}</p>
                   </div>
-                  <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
+                  <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-300">
                     {pack.credits} credits
                   </span>
                 </div>
@@ -449,7 +449,7 @@ export default function PurchasesPage() {
                   type="button"
                   onClick={() => void handleBuyTestCredits(pack.id)}
                   disabled={creditPackLoadingId === pack.id}
-                  className="mt-5 inline-flex rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-5 inline-flex rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {creditPackLoadingId === pack.id ? "Adding..." : "Add Test Credits"}
                 </button>
@@ -469,7 +469,7 @@ export default function PurchasesPage() {
         title="Unlocked Completed Documents"
         description="Final deliverables you can open right now."
         aside={
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm font-semibold text-slate-300">
             Subscription: {creditState.subscriptionStatus} ({billingLabel})
           </div>
         }
@@ -491,25 +491,25 @@ export default function PurchasesPage() {
               return (
                 <div
                   key={doc.id}
-                  className="flex flex-col gap-4 rounded-2xl border border-slate-200 p-5 lg:flex-row lg:items-center lg:justify-between"
+                  className="flex flex-col gap-4 rounded-2xl border border-slate-700/80 p-5 lg:flex-row lg:items-center lg:justify-between"
                 >
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-lg font-semibold text-slate-900">
+                      <h3 className="text-lg font-semibold text-slate-100">
                         {formatDocumentTitle(doc)}
                       </h3>
                       <span
                         className={[
                           "rounded-full px-3 py-1 text-xs font-semibold",
                           ownedByUser
-                            ? "bg-sky-100 text-sky-700"
+                            ? "bg-sky-100 text-sky-300"
                             : "bg-emerald-100 text-emerald-700",
                         ].join(" ")}
                       >
                         {ownedByUser ? "Your Approved File" : "Purchased"}
                       </span>
                     </div>
-                    <p className="mt-2 text-sm text-slate-600">
+                    <p className="mt-2 text-sm text-slate-400">
                       {doc.document_type ?? "Completed document"}
                       {doc.project_name ? ` • ${doc.project_name}` : ""}
                     </p>
@@ -548,10 +548,10 @@ export default function PurchasesPage() {
               {purchaseTransactions.slice(0, 8).map((tx) => (
                 <div
                   key={tx.id}
-                  className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4"
+                  className="flex items-center justify-between rounded-2xl border border-slate-700/80 px-4 py-4"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">
+                    <p className="text-sm font-semibold text-slate-100">
                       {tx.documentTitle}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
@@ -584,7 +584,7 @@ export default function PurchasesPage() {
         aside={
           <Link
             href="/library"
-            className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
           >
             Open Library
           </Link>
@@ -604,11 +604,11 @@ export default function PurchasesPage() {
               return (
                 <div
                   key={tx.id}
-                  className="rounded-2xl border border-slate-200 p-4"
+                  className="rounded-2xl border border-slate-700/80 p-4"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">
+                      <p className="text-sm font-semibold text-slate-100">
                         {tx.description || tx.transaction_type}
                       </p>
                       <p className="mt-1 text-xs text-slate-500">
@@ -627,7 +627,7 @@ export default function PurchasesPage() {
                     </span>
                   </div>
                   {doc && (
-                    <p className="mt-3 text-sm text-slate-600">
+                    <p className="mt-3 text-sm text-slate-400">
                       {formatDocumentTitle(doc)}
                       {tx.amount < 0 ? ` • ${purchaseCost} credit unlock` : ""}
                     </p>
@@ -667,9 +667,9 @@ function StatCard({
   note: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{title}</p>
-      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">{value}</p>
+      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">{value}</p>
       <p className="mt-2 text-sm text-slate-500">{note}</p>
     </div>
   );

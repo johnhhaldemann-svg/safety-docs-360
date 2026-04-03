@@ -187,7 +187,7 @@ export default function CompanySignupPage() {
                   className="rounded-3xl border border-white/10 bg-white/5 p-5"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-500/16 text-sm font-black text-sky-200">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-500/20 text-sm font-black text-sky-200">
                       {item.step}
                     </div>
                     <div>
@@ -221,11 +221,11 @@ export default function CompanySignupPage() {
             </div>
           </section>
 
-          <section className="rounded-[1.75rem] border border-white/8 bg-white p-6 shadow-sm">
+          <section className="rounded-[1.75rem] border border-white/8 bg-slate-900/90 p-6 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-[0.26em] text-slate-500">
               Company Owner Signup
             </div>
-            <div className="mt-2 text-3xl font-black tracking-tight text-slate-950">
+            <div className="mt-2 text-3xl font-black tracking-tight text-white">
               Create your company account
             </div>
             <p className="mt-3 text-sm leading-6 text-slate-500">
@@ -238,67 +238,67 @@ export default function CompanySignupPage() {
                 placeholder="Company name"
                 value={companyName}
                 onChange={(event) => setCompanyName(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
               <input
                 type="text"
                 placeholder="Industry"
                 value={industry}
                 onChange={(event) => setIndustry(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
               <input
                 type="tel"
                 placeholder="Company phone"
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
               <input
                 type="url"
                 placeholder="Website (optional)"
                 value={website}
                 onChange={(event) => setWebsite(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
               <input
                 type="text"
                 placeholder="Address line 1"
                 value={addressLine1}
                 onChange={(event) => setAddressLine1(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500 md:col-span-2"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500 md:col-span-2"
               />
               <input
                 type="text"
                 placeholder="City"
                 value={city}
                 onChange={(event) => setCity(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
               <input
                 type="text"
                 placeholder="State / Region"
                 value={stateRegion}
                 onChange={(event) => setStateRegion(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
               <input
                 type="text"
                 placeholder="Postal code"
                 value={postalCode}
                 onChange={(event) => setPostalCode(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
               <input
                 type="text"
                 placeholder="Country"
                 value={country}
                 onChange={(event) => setCountry(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
 
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="mt-6 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
                 Owner account
               </div>
@@ -308,33 +308,33 @@ export default function CompanySignupPage() {
                   placeholder="Owner full name"
                   value={fullName}
                   onChange={(event) => setFullName(event.target.value)}
-                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
                 />
                 <input
                   type="email"
                   placeholder="Owner email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
                 />
                 <input
                   type="password"
                   placeholder="Password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
                 />
                 <input
                   type="password"
                   placeholder="Confirm password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
-                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
                 />
               </div>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="mt-6 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
                 Plan
               </div>
@@ -349,11 +349,11 @@ export default function CompanySignupPage() {
                       className={[
                         "w-full rounded-2xl border px-4 py-4 text-left transition",
                         active
-                          ? "border-sky-300 bg-sky-50 shadow-sm"
-                          : "border-slate-200 bg-white hover:border-sky-200 hover:bg-sky-50/60",
+                          ? "border-sky-300 bg-sky-950/35 shadow-sm"
+                          : "border-slate-700/80 bg-slate-900/90 hover:border-sky-500/35 hover:bg-sky-800/50",
                       ].join(" ")}
                     >
-                      <div className="text-sm font-semibold text-slate-900">{option.title}</div>
+                      <div className="text-sm font-semibold text-slate-100">{option.title}</div>
                       <div className="mt-1 text-sm text-slate-500">{option.detail}</div>
                     </button>
                   );
@@ -361,7 +361,7 @@ export default function CompanySignupPage() {
               </div>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="mt-6 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
               <LegalAcceptanceBlock checked={agreed} onChange={setAgreed} compact />
             </div>
 
@@ -370,10 +370,10 @@ export default function CompanySignupPage() {
                 className={[
                   "mt-6 rounded-2xl border px-4 py-3 text-sm",
                   messageTone === "error"
-                    ? "border-red-200 bg-red-50 text-red-700"
+                    ? "border-red-500/35 bg-red-950/40 text-red-700"
                     : messageTone === "warning"
-                      ? "border-amber-200 bg-amber-50 text-amber-800"
-                      : "border-emerald-200 bg-emerald-50 text-emerald-700",
+                      ? "border-amber-500/35 bg-amber-950/40 text-amber-100"
+                      : "border-emerald-500/30 bg-emerald-950/35 text-emerald-700",
                 ].join(" ")}
               >
                 {message}
@@ -385,13 +385,13 @@ export default function CompanySignupPage() {
                 type="button"
                 onClick={() => void handleSubmit()}
                 disabled={loading || (completed && messageTone !== "error")}
-                className="inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitLabel}
               </button>
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex items-center justify-center rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
               >
                 Go to Login
               </Link>

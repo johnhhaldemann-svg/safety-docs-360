@@ -173,13 +173,13 @@ export default function SafetySubmitPage() {
           <>
             <Link
               href="/field-id-exchange"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Open Field iD Exchange
             </Link>
             <Link
               href="/submit"
-              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Normal Review Request
             </Link>
@@ -204,7 +204,7 @@ export default function SafetySubmitPage() {
                   setSubmission((current) => ({ ...current, title: event.target.value }))
                 }
                 placeholder="Forklift path blocked near north exit"
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
 
@@ -219,7 +219,7 @@ export default function SafetySubmitPage() {
                   setSubmission((current) => ({ ...current, description: event.target.value }))
                 }
                 placeholder="Describe what was observed, where, and any immediate risk."
-                className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="mt-2 w-full rounded-2xl border border-slate-600 px-4 py-3 text-sm leading-6 text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
 
@@ -235,7 +235,7 @@ export default function SafetySubmitPage() {
                     severity: event.target.value as SubmissionState["severity"],
                   }))
                 }
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -256,7 +256,7 @@ export default function SafetySubmitPage() {
                     category: event.target.value as SubmissionState["category"],
                   }))
                 }
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
               >
                 <option value="hazard">Hazard</option>
                 <option value="near_miss">Near Miss</option>
@@ -282,7 +282,7 @@ export default function SafetySubmitPage() {
                 onChange={(event) =>
                   setSubmission((current) => ({ ...current, jobsiteId: event.target.value }))
                 }
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
               >
                 <option value="">General Workspace</option>
                 {jobsites.map((jobsite) => (
@@ -306,7 +306,7 @@ export default function SafetySubmitPage() {
                     photo: event.target.files?.[0] ?? null,
                   }))
                 }
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
               />
               {submission.photo ? (
                 <div className="mt-2 text-xs text-slate-500">Selected: {submission.photo.name}</div>
@@ -325,7 +325,7 @@ export default function SafetySubmitPage() {
               type="button"
               onClick={() => void handleSubmit()}
               disabled={submitting}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {submitting ? "Submitting..." : "Submit Safety Issue"}
             </button>
@@ -335,7 +335,7 @@ export default function SafetySubmitPage() {
                 setSubmission(EMPTY_SUBMISSION);
                 setMessage(null);
               }}
-              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Clear
             </button>

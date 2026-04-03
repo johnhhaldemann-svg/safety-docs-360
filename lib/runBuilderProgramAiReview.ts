@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { serverLog } from "@/lib/serverLog";
 import {
   extractBuilderReviewDocumentText,
   generateBuilderProgramAiReview,
@@ -155,6 +156,11 @@ export async function runBuilderProgramDocumentAiReview(
   } catch (e) {
     const message = e instanceof Error ? e.message : "AI review failed.";
     const isConfig = message.includes("OPENAI_API_KEY");
+    serverLog("error", "builder_program_ai_review_failed", {
+      documentId,
+      status: isConfig ? 503 : 502,
+      errorKind: e instanceof Error ? e.name : "unknown",
+    });
     return { ok: false, status: isConfig ? 503 : 502, error: message };
   }
 }

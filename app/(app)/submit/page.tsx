@@ -306,13 +306,13 @@ export default function SubmitPage() {
           <>
             <Link
               href="/my-submissions"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               My Submissions
             </Link>
             <Link
               href="/library"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Library
             </Link>
@@ -335,7 +335,7 @@ export default function SubmitPage() {
           ) : null}
           <fieldset disabled={permissionsLoading || !canSubmitDocuments} className="grid gap-5 disabled:opacity-60">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Request Title
               </label>
               <input
@@ -343,18 +343,18 @@ export default function SubmitPage() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Example: Lilly Area B Safety Plan Review"
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Service Type
               </label>
               <select
                 value={serviceType}
                 onChange={(e) => setServiceType(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               >
                 <option value="document_review">Document Review</option>
                 <option value="peshep_review">PESHEP Review</option>
@@ -364,7 +364,7 @@ export default function SubmitPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Notes for Our Team
               </label>
               <textarea
@@ -372,22 +372,22 @@ export default function SubmitPage() {
                 onChange={(e) => setCustomerNotes(e.target.value)}
                 rows={5}
                 placeholder="Tell us what you need completed, reviewed, or returned."
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Upload Source Files
               </label>
               <input
                 type="file"
                 multiple
                 onChange={(e) => setSelectedFiles(e.target.files)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm"
               />
               {selectedFiles && selectedFiles.length > 0 && (
-                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                <div className="mt-3 rounded-xl border border-slate-700/80 bg-slate-950/50 p-4 text-sm text-slate-300">
                   {Array.from(selectedFiles).map((file) => (
                     <div key={file.name}>{file.name}</div>
                   ))}
@@ -401,17 +401,17 @@ export default function SubmitPage() {
             />
           </fieldset>
 
-          <div className="sticky bottom-3 mt-6 flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+          <div className="sticky bottom-3 mt-6 flex flex-wrap gap-3 rounded-2xl border border-slate-700/80 bg-slate-900/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-slate-900/85">
             <button
               onClick={handleSubmit}
               disabled={submitDisabled}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-50"
             >
               {submitting ? "Submitting..." : "Submit Request"}
             </button>
             <Link
               href="/upload"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Upload Instead
             </Link>

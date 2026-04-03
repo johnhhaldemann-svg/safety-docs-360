@@ -209,14 +209,14 @@ function PositionScopeSummary({
       className={
         d
           ? "mt-3 space-y-2 rounded-xl border border-zinc-700 bg-zinc-900/70 p-2.5"
-          : "mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50/90 p-2.5"
+          : "mt-3 space-y-2 rounded-xl border border-slate-700/80 bg-slate-950/50/90 p-2.5"
       }
     >
       <p
         className={
           d
             ? "text-[10px] font-bold uppercase tracking-wide text-zinc-500"
-            : "text-[10px] font-bold uppercase tracking-wide text-slate-600"
+            : "text-[10px] font-bold uppercase tracking-wide text-slate-400"
         }
       >
         For this position & trade
@@ -241,11 +241,11 @@ function PositionScopeSummary({
           </ul>
         </div>
       ) : scopedCount === 0 ? (
-        <p className={`text-[11px] ${d ? "text-zinc-400" : "text-slate-600"}`}>
+        <p className={`text-[11px] ${d ? "text-zinc-400" : "text-slate-400"}`}>
           No rules apply to this trade/position combination yet.
         </p>
       ) : (
-        <p className={`text-[11px] font-semibold ${d ? "text-emerald-400" : "text-emerald-800"}`}>
+        <p className={`text-[11px] font-semibold ${d ? "text-emerald-400" : "text-emerald-100"}`}>
           Every in-scope training rule satisfied ({rollup.met.length}).
         </p>
       )}
@@ -268,7 +268,7 @@ function PositionScopeSummary({
             ))}
           </ul>
           {rollup.met.length > 8 ? (
-            <p className={`mt-0.5 text-[10px] ${d ? "text-emerald-300" : "text-emerald-800"}`}>
+            <p className={`mt-0.5 text-[10px] ${d ? "text-emerald-300" : "text-emerald-100"}`}>
               +{rollup.met.length - 8} more
             </p>
           ) : null}
@@ -311,7 +311,7 @@ function PositionScopeSummary({
               <li key={c.name} className={`border-l-2 pl-1.5 ${d ? "border-rose-500" : "border-red-400"}`}>
                 <span className="font-medium">{c.name}</span>
                 {c.expiresOn ? (
-                  <span className={d ? "text-rose-200/90" : "text-red-800/90"}> · ended {c.expiresOn}</span>
+                  <span className={d ? "text-rose-200/90" : "text-red-100/90"}> · ended {c.expiresOn}</span>
                 ) : null}
               </li>
             ))}
@@ -343,7 +343,7 @@ function PositionScopeSummary({
 
       {rollup.notRequired.length > 0 ? (
         <p className={`text-[10px] ${d ? "text-zinc-500" : "text-slate-500"}`}>
-          <span className={`font-semibold ${d ? "text-zinc-400" : "text-slate-600"}`}>
+          <span className={`font-semibold ${d ? "text-zinc-400" : "text-slate-400"}`}>
             {rollup.notRequired.length}
           </span>{" "}
           other company rule{rollup.notRequired.length === 1 ? "" : "s"} do not apply to this position/trade
@@ -439,21 +439,21 @@ function PickTradesAndPositions({
 }) {
   const selectClass =
     variant === "compact"
-      ? "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
-      : "mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500";
+      ? "mt-1 w-full rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm text-slate-100 outline-none focus:ring-2 focus:ring-sky-500"
+      : "mt-2 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm text-slate-100 outline-none focus:ring-2 focus:ring-sky-500";
 
   const chipClass =
     variant === "compact"
-      ? "inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-800"
-      : "inline-flex max-w-full items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-sm font-medium text-slate-800";
+      ? "inline-flex items-center gap-1 rounded-md border border-slate-700/80 bg-slate-950/50 px-2 py-0.5 text-xs font-medium text-slate-200"
+      : "inline-flex max-w-full items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-950/50 px-2.5 py-1 text-sm font-medium text-slate-200";
 
   const availableTrades = CONSTRUCTION_TRADES.filter((t) => !trades.includes(t));
   const availablePositions = CONSTRUCTION_POSITIONS.filter((p) => !positions.includes(p));
 
   const headingClass =
     variant === "compact"
-      ? "text-xs font-semibold text-slate-600"
-      : "text-sm font-medium text-slate-700";
+      ? "text-xs font-semibold text-slate-400"
+      : "text-sm font-medium text-slate-300";
 
   return (
     <div className={variant === "compact" ? "grid gap-3 sm:grid-cols-2" : "mt-4 grid gap-5 md:grid-cols-2"}>
@@ -491,7 +491,7 @@ function PickTradesAndPositions({
                 <span className="truncate">{t}</span>
                 <button
                   type="button"
-                  className="shrink-0 rounded px-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-900"
+                  className="shrink-0 rounded px-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-100"
                   aria-label={`Remove ${t}`}
                   onClick={() => onTradesChange(trades.filter((x) => x !== t))}
                 >
@@ -538,7 +538,7 @@ function PickTradesAndPositions({
                 <span className="truncate">{p}</span>
                 <button
                   type="button"
-                  className="shrink-0 rounded px-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-900"
+                  className="shrink-0 rounded px-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-100"
                   aria-label={`Remove ${p}`}
                   onClick={() => onPositionsChange(positions.filter((x) => x !== p))}
                 >
@@ -569,7 +569,7 @@ function SchemaMigrationBanner({ onDismiss }: { onDismiss: () => void }) {
   };
 
   return (
-    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+    <div className="rounded-2xl border border-amber-500/35 bg-amber-950/40 p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-amber-950">Database: enable trade and position rules</p>
@@ -582,16 +582,16 @@ function SchemaMigrationBanner({ onDismiss }: { onDismiss: () => void }) {
         <button
           type="button"
           onClick={onDismiss}
-          className="shrink-0 rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950 transition hover:bg-amber-100"
+          className="shrink-0 rounded-xl border border-amber-500/40 bg-amber-950/40 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-950/60"
         >
           Dismiss
         </button>
       </div>
-      <details className="mt-3 rounded-xl border border-amber-200/80 bg-white/60 p-3">
-        <summary className="cursor-pointer text-sm font-semibold text-amber-950">
+      <details className="mt-3 rounded-xl border border-amber-500/40 bg-amber-950/25 p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-amber-100">
           Show SQL to copy
         </summary>
-        <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-slate-900/5 p-3 font-mono text-xs leading-relaxed text-slate-800">
+        <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-slate-900/5 p-3 font-mono text-xs leading-relaxed text-slate-200">
           {TRAINING_REQUIREMENTS_MIGRATION_SQL}
         </pre>
         <button
@@ -989,7 +989,7 @@ export default function TrainingMatrixPage() {
           <button
             type="button"
             onClick={dismissDirectoryNotice}
-            className="shrink-0 self-end rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-100 sm:mt-2 sm:self-start"
+            className="shrink-0 self-end rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-2 text-xs font-semibold text-slate-300 shadow-sm hover:bg-slate-800/70 sm:mt-2 sm:self-start"
           >
             Dismiss
           </button>
@@ -1003,7 +1003,7 @@ export default function TrainingMatrixPage() {
           title="Required trainings"
           description="Pick a certification from the same list workers use on their construction profile, then choose trades and positions. The saved title adds positions in parentheses."
         >
-          <label className="block text-sm font-medium text-slate-700">
+          <label className="block text-sm font-medium text-slate-300">
             Training requirement
             <select
               value={newProfileCertSelect}
@@ -1012,7 +1012,7 @@ export default function TrainingMatrixPage() {
                 setNewProfileCertSelect(v);
                 if (v !== CUSTOM_PROFILE_CERT_VALUE) setNewProfileCertCustom("");
               }}
-              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              className="mt-1 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm text-slate-100 outline-none focus:ring-2 focus:ring-sky-500"
             >
               <option value="">Select from profile certifications…</option>
               {PROFILE_CERTIFICATION_GROUPS.map((group) => (
@@ -1030,7 +1030,7 @@ export default function TrainingMatrixPage() {
               <input
                 value={newProfileCertCustom}
                 onChange={(e) => setNewProfileCertCustom(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-100 outline-none focus:ring-2 focus:ring-sky-500"
                 placeholder="Custom name — should match text on profiles"
               />
             ) : null}
@@ -1046,7 +1046,7 @@ export default function TrainingMatrixPage() {
             onPositionsChange={setNewApplyPositions}
             variant="default"
           />
-          <label className="mt-4 block text-sm font-medium text-slate-700">
+          <label className="mt-4 block text-sm font-medium text-slate-300">
             Typical renewal (months, optional)
             <input
               type="number"
@@ -1055,7 +1055,7 @@ export default function TrainingMatrixPage() {
               value={newRenewalMonths}
               onChange={(e) => setNewRenewalMonths(e.target.value)}
               placeholder="e.g. 36"
-              className="mt-1 w-full max-w-[200px] rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500"
+              className="mt-1 w-full max-w-[200px] rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm text-slate-100 outline-none focus:ring-2 focus:ring-sky-500"
             />
             <span className="mt-1 block text-xs font-normal text-slate-500">
               Policy hint for your team. Actual compliance still uses each worker’s expiration dates on their
@@ -1079,15 +1079,15 @@ export default function TrainingMatrixPage() {
           </div>
 
           {requirements.length > 0 ? (
-            <ul className="mt-6 space-y-3 border-t border-slate-200 pt-6">
+            <ul className="mt-6 space-y-3 border-t border-slate-700/80 pt-6">
               {requirements.map((r) => (
                 <li
                   key={r.id}
-                  className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4"
+                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4"
                 >
                   {editingId === r.id ? (
                     <div className="grid gap-3">
-                      <label className="block text-xs font-semibold text-slate-600">
+                      <label className="block text-xs font-semibold text-slate-400">
                         Training requirement
                         <select
                           value={editProfileCertSelect}
@@ -1096,7 +1096,7 @@ export default function TrainingMatrixPage() {
                             setEditProfileCertSelect(v);
                             if (v !== CUSTOM_PROFILE_CERT_VALUE) setEditProfileCertCustom("");
                           }}
-                          className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                          className="mt-1 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm font-normal text-slate-100"
                         >
                           <option value="">Select from profile certifications…</option>
                           {PROFILE_CERTIFICATION_GROUPS.map((group) => (
@@ -1114,7 +1114,7 @@ export default function TrainingMatrixPage() {
                           <input
                             value={editProfileCertCustom}
                             onChange={(e) => setEditProfileCertCustom(e.target.value)}
-                            className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-normal"
+                            className="mt-2 w-full rounded-xl border border-slate-600 px-3 py-2 text-sm font-normal"
                             placeholder="Custom certification name"
                           />
                         ) : null}
@@ -1126,7 +1126,7 @@ export default function TrainingMatrixPage() {
                         onPositionsChange={setEditApplyPositions}
                         variant="compact"
                       />
-                      <label className="block text-xs font-semibold text-slate-600">
+                      <label className="block text-xs font-semibold text-slate-400">
                         Typical renewal (months, optional)
                         <input
                           type="number"
@@ -1135,7 +1135,7 @@ export default function TrainingMatrixPage() {
                           value={editRenewalMonths}
                           onChange={(e) => setEditRenewalMonths(e.target.value)}
                           placeholder="Clear to remove"
-                          className="mt-1 w-full max-w-[180px] rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                          className="mt-1 w-full max-w-[180px] rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm font-normal text-slate-100"
                         />
                       </label>
                       <div className="flex flex-wrap gap-2">
@@ -1158,7 +1158,7 @@ export default function TrainingMatrixPage() {
                         <button
                           type="button"
                           onClick={cancelEdit}
-                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
+                          className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm font-semibold text-slate-300"
                         >
                           Cancel
                         </button>
@@ -1167,16 +1167,16 @@ export default function TrainingMatrixPage() {
                   ) : (
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <div className="font-semibold text-slate-900">{r.title}</div>
+                        <div className="font-semibold text-slate-100">{r.title}</div>
                         <div className="mt-1 text-xs text-slate-500">
                           Trades: {(r.applyTrades ?? []).join(", ") || "—"}
                         </div>
                         {r.renewalMonths != null && r.renewalMonths > 0 ? (
-                          <div className="mt-1 text-xs font-medium text-sky-800">
+                          <div className="mt-1 text-xs font-medium text-sky-100">
                             Typical renewal: {r.renewalMonths} mo
                           </div>
                         ) : null}
-                        <div className="mt-1 text-sm text-slate-600">
+                        <div className="mt-1 text-sm text-slate-400">
                           {r.matchKeywords.join(" · ")}
                         </div>
                       </div>
@@ -1184,14 +1184,14 @@ export default function TrainingMatrixPage() {
                         <button
                           type="button"
                           onClick={() => startEdit(r)}
-                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-white"
+                          className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm font-semibold text-slate-300 hover:bg-slate-900/90"
                         >
                           Edit
                         </button>
                         <button
                           type="button"
                           onClick={() => void handleDelete(r.id)}
-                          className="rounded-lg border border-red-200 px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-50"
+                          className="rounded-lg border border-red-500/35 px-3 py-1.5 text-sm font-semibold text-red-200 hover:bg-red-950/40"
                         >
                           Delete
                         </button>

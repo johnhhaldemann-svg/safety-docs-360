@@ -15,11 +15,11 @@ export function LegalAcceptanceBlock({
   return (
     <div
       className={[
-        "rounded-2xl border border-slate-200 bg-slate-50",
+        "rounded-2xl border border-slate-700/80 bg-slate-950/50",
         compact ? "p-4" : "p-5",
       ].join(" ")}
     >
-      <label className="flex items-start gap-3 text-sm font-medium text-slate-700">
+      <label className="flex items-start gap-3 text-sm font-medium text-slate-300">
         <input
           type="checkbox"
           checked={checked}
@@ -32,13 +32,13 @@ export function LegalAcceptanceBlock({
       <div className="mt-4 flex flex-wrap gap-3">
         <Link
           href="/terms"
-          className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white"
+          className="rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
         >
           View Terms
         </Link>
         <Link
           href="/liability-waiver"
-          className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white"
+          className="rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
         >
           View Liability Waiver
         </Link>

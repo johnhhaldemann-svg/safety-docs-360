@@ -266,13 +266,13 @@ export default function AdminArchivePage() {
           <>
             <Link
               href="/admin/review-documents"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Open Review Queue
             </Link>
             <Link
               href="/admin"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Back to Admin
             </Link>
@@ -308,7 +308,7 @@ export default function AdminArchivePage() {
               type="button"
               onClick={() => void runBulkAction("restore")}
               disabled={selectedIds.length === 0 || Boolean(bulkLoading)}
-              className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold !text-sky-900 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-sky-500/35 bg-sky-950/35 px-4 py-3 text-sm font-semibold !text-sky-900 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {bulkLoading === "restore" ? "Restoring..." : "Restore Selected"}
             </button>
@@ -316,7 +316,7 @@ export default function AdminArchivePage() {
               type="button"
               onClick={() => void runBulkAction("delete")}
               disabled={selectedIds.length === 0 || Boolean(bulkLoading)}
-              className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-red-300 bg-red-950/40 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {bulkLoading === "delete" ? "Deleting..." : "Delete Selected"}
             </button>
@@ -324,7 +324,7 @@ export default function AdminArchivePage() {
               type="button"
               onClick={() => setSelectedIds([])}
               disabled={selectedIds.length === 0 || Boolean(bulkLoading)}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Clear Selection
             </button>
@@ -336,7 +336,7 @@ export default function AdminArchivePage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid flex-1 gap-4 md:grid-cols-[1.5fr_1fr_1fr]">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Search Archived Documents
               </label>
               <input
@@ -344,18 +344,18 @@ export default function AdminArchivePage() {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search project, type, or file..."
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Document Type
               </label>
               <select
                 value={typeFilter}
                 onChange={(event) => setTypeFilter(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               >
                 {documentTypes.map((type) => (
                   <option key={type}>{type}</option>
@@ -364,13 +364,13 @@ export default function AdminArchivePage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 File State
               </label>
               <select
                 value={fileFilter}
                 onChange={(event) => setFileFilter(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               >
                 <option value="all">All Archived</option>
                 <option value="final">Has Final File</option>
@@ -386,7 +386,7 @@ export default function AdminArchivePage() {
               setTypeFilter("All Types");
               setFileFilter("all");
             }}
-            className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
           >
             Clear Filters
           </button>
@@ -400,7 +400,7 @@ export default function AdminArchivePage() {
         description={`${filteredDocuments.length} archived document${filteredDocuments.length === 1 ? "" : "s"} in this view.`}
         aside={
           filteredDocuments.length > 0 ? (
-            <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-300">
               <input
                 type="checkbox"
                 checked={filteredDocuments.every((doc) => selectedIds.includes(doc.id))}
@@ -437,11 +437,11 @@ export default function AdminArchivePage() {
               return (
                 <div
                   key={doc.id}
-                  className="rounded-2xl border border-slate-200 p-5"
+                  className="rounded-2xl border border-slate-700/80 p-5"
                 >
                   <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 flex-1">
-                      <label className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <label className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-300">
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(doc.id)}
@@ -457,10 +457,10 @@ export default function AdminArchivePage() {
                         Select
                       </label>
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-semibold text-slate-900">
+                        <h3 className="text-lg font-semibold text-slate-100">
                           {formatDocumentTitle(doc)}
                         </h3>
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                        <span className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-semibold text-slate-300">
                           Archived
                         </span>
                         {doc.final_file_path ? (
@@ -474,16 +474,16 @@ export default function AdminArchivePage() {
                         )}
                       </div>
 
-                      <p className="mt-2 text-sm text-slate-600">
+                      <p className="mt-2 text-sm text-slate-400">
                         {doc.document_type ?? "Document"}
                         {doc.file_name ? ` - ${doc.file_name}` : ""}
                       </p>
                       <div className="mt-3 grid gap-3 text-xs text-slate-500 sm:grid-cols-2">
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                        <div className="rounded-xl border border-slate-700/80 bg-slate-950/50 px-3 py-3">
                           <p className="font-semibold uppercase tracking-[0.18em] text-slate-400">
                             Archived
                           </p>
-                          <p className="mt-2 text-sm font-medium text-slate-700">
+                          <p className="mt-2 text-sm font-medium text-slate-300">
                             {formatRelative(doc.archived_at ?? doc.created_at)}
                           </p>
                           <p className="mt-1">
@@ -492,13 +492,13 @@ export default function AdminArchivePage() {
                           </p>
                         </div>
 
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                        <div className="rounded-xl border border-slate-700/80 bg-slate-950/50 px-3 py-3">
                           <p className="font-semibold uppercase tracking-[0.18em] text-slate-400">
                             Last Restore
                           </p>
                           {doc.restored_at ? (
                             <>
-                              <p className="mt-2 text-sm font-medium text-slate-700">
+                              <p className="mt-2 text-sm font-medium text-slate-300">
                                 {formatRelative(doc.restored_at)}
                               </p>
                               <p className="mt-1">
@@ -508,7 +508,7 @@ export default function AdminArchivePage() {
                             </>
                           ) : (
                             <>
-                              <p className="mt-2 text-sm font-medium text-slate-700">
+                              <p className="mt-2 text-sm font-medium text-slate-300">
                                 Never restored
                               </p>
                               <p className="mt-1">
@@ -523,7 +523,7 @@ export default function AdminArchivePage() {
                     <div className="flex w-full flex-wrap gap-3 xl:w-auto xl:justify-end">
                       <Link
                         href={`/admin/review-documents/${doc.id}`}
-                        className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                        className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
                       >
                         Open Review
                       </Link>
@@ -532,7 +532,7 @@ export default function AdminArchivePage() {
                         type="button"
                         onClick={() => void runLifecycleAction(doc.id, "restore")}
                         disabled={Boolean(actionLoadingId)}
-                        className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold !text-sky-900 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-xl border border-sky-500/35 bg-sky-950/35 px-4 py-3 text-sm font-semibold !text-sky-900 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {restoreLoading ? "Restoring..." : "Restore"}
                       </button>
@@ -541,7 +541,7 @@ export default function AdminArchivePage() {
                         type="button"
                         onClick={() => void runLifecycleAction(doc.id, "delete")}
                         disabled={Boolean(actionLoadingId)}
-                        className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-xl border border-red-300 bg-red-950/40 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {deleteLoading ? "Deleting..." : "Delete"}
                       </button>
@@ -567,9 +567,9 @@ function StatCard({
   note: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{title}</p>
-      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">{value}</p>
+      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">{value}</p>
       <p className="mt-2 text-sm text-slate-500">{note}</p>
     </div>
   );

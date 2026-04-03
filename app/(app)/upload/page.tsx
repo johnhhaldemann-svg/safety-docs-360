@@ -341,13 +341,13 @@ async function confirmOpenFile() {
           <>
             <Link
               href="/library"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Open Library
             </Link>
             <Link
               href="/search"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Search Records
             </Link>
@@ -396,7 +396,7 @@ async function confirmOpenFile() {
             className="grid gap-5 md:grid-cols-2 disabled:opacity-60"
           >
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Project Name
               </label>
               <input
@@ -404,12 +404,12 @@ async function confirmOpenFile() {
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
                 placeholder="Enter project name"
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Document Title
               </label>
               <input
@@ -417,18 +417,18 @@ async function confirmOpenFile() {
                 value={documentTitle}
                 onChange={(e) => setDocumentTitle(e.target.value)}
                 placeholder="Enter document title"
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Document Type
               </label>
               <select
                 value={documentType}
                 onChange={(e) => setDocumentType(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               >
                 <option>Template</option>
                 <option>Form</option>
@@ -439,13 +439,13 @@ async function confirmOpenFile() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Category
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               >
                 <option>PESHEP</option>
                 <option>Inspections</option>
@@ -457,7 +457,7 @@ async function confirmOpenFile() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Notes
               </label>
               <textarea
@@ -465,21 +465,21 @@ async function confirmOpenFile() {
                 onChange={(e) => setNotes(e.target.value)}
                 rows={4}
                 placeholder="Add notes..."
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Select File
               </label>
               <input
                 type="file"
                 onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm"
               />
               {selectedFile && (
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm text-slate-400">
                   Selected: {selectedFile.name}
                 </p>
               )}
@@ -493,11 +493,11 @@ async function confirmOpenFile() {
             </div>
           </fieldset>
 
-          <div className="sticky bottom-3 mt-6 flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+          <div className="sticky bottom-3 mt-6 flex flex-wrap gap-3 rounded-2xl border border-slate-700/80 bg-slate-900/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-slate-900/85">
             <button
               onClick={handleUpload}
               disabled={uploadDisabled}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-50"
             >
               {uploading ? "Uploading..." : "Start Upload"}
             </button>
@@ -544,18 +544,18 @@ async function confirmOpenFile() {
                 {recentSubmissions.map((item) => (
                   <div
                     key={item.id}
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4"
+                    className="rounded-xl border border-slate-700/80 bg-slate-950/50 px-4 py-4"
                   >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <div className="text-sm font-semibold text-slate-900">
+                        <div className="text-sm font-semibold text-slate-100">
                           {item.title || "Untitled request"}
                         </div>
                         <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
                           {new Date(item.created_at).toLocaleString()}
                         </div>
                       </div>
-                      <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
+                      <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-300">
                         {getDocumentStatusLabel(item.status)}
                       </span>
                     </div>
@@ -605,22 +605,22 @@ async function confirmOpenFile() {
               <tbody>
                 {documents.map((doc) => (
                   <tr key={doc.id}>
-                    <td className="rounded-l-2xl border-y border-l border-slate-200 bg-slate-50 px-4 py-4 text-sm font-semibold text-slate-900">
+                    <td className="rounded-l-2xl border-y border-l border-slate-700/80 bg-slate-950/50 px-4 py-4 text-sm font-semibold text-slate-100">
                       {doc.document_title}
                     </td>
-                    <td className="border-y border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
+                    <td className="border-y border-slate-700/80 bg-slate-950/50 px-4 py-4 text-sm text-slate-300">
                       {doc.document_type}
                     </td>
-                    <td className="border-y border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
+                    <td className="border-y border-slate-700/80 bg-slate-950/50 px-4 py-4 text-sm text-slate-300">
                       {doc.category}
                     </td>
-                    <td className="border-y border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                    <td className="border-y border-slate-700/80 bg-slate-950/50 px-4 py-4 text-sm text-slate-500">
                       {doc.file_name}
                     </td>
-                    <td className="rounded-r-2xl border-y border-r border-slate-200 bg-slate-50 px-4 py-4 text-right">
+                    <td className="rounded-r-2xl border-y border-r border-slate-700/80 bg-slate-950/50 px-4 py-4 text-right">
                       <button
                         onClick={() => handleOpenFile(doc.file_path)}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white"
+                        className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-900/90"
                       >
                         Open
                       </button>
@@ -633,8 +633,8 @@ async function confirmOpenFile() {
 
             <div className="mt-6 grid gap-4 md:hidden">
               {documents.map((doc) => (
-                <div key={doc.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-base font-semibold text-slate-900">{doc.document_title}</div>
+                <div key={doc.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                  <div className="text-base font-semibold text-slate-100">{doc.document_title}</div>
                   <div className="mt-2 grid gap-3 sm:grid-cols-2">
                     <InfoBox label="Type" value={doc.document_type || "Not set"} />
                     <InfoBox label="Category" value={doc.category || "Not set"} />
@@ -643,7 +643,7 @@ async function confirmOpenFile() {
                   </div>
                   <button
                     onClick={() => handleOpenFile(doc.file_path)}
-                    className="mt-4 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    className="mt-4 rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-800/70"
                   >
                     Open File
                   </button>
@@ -671,11 +671,11 @@ async function confirmOpenFile() {
 
 function InfoBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+    <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-3 py-3">
       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
         {label}
       </div>
-      <div className="mt-1 text-sm font-medium text-slate-700">{value}</div>
+      <div className="mt-1 text-sm font-medium text-slate-300">{value}</div>
     </div>
   );
 }
@@ -690,9 +690,9 @@ function StatCard({
   note: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{title}</p>
-      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">
+      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">
         {value}
       </p>
       <p className="mt-2 text-sm text-slate-500">{note}</p>

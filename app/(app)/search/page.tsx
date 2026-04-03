@@ -68,7 +68,7 @@ function statusClasses(status: string) {
   }
 
   if (status === "Archived") {
-    return "bg-slate-200 text-slate-700";
+    return "bg-slate-200 text-slate-300";
   }
 
   return "bg-emerald-100 text-emerald-700";
@@ -94,16 +94,16 @@ export default function SearchPage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+      <section className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-8 shadow-sm">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
               Document Search
             </p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-900">
+            <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-100">
               Search
             </h1>
-            <p className="mt-3 max-w-2xl text-sm text-slate-600">
+            <p className="mt-3 max-w-2xl text-sm text-slate-400">
               Search across templates, forms, reports, permits, and reference
               documents in one place.
             </p>
@@ -112,13 +112,13 @@ export default function SearchPage() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/library"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Open Library
             </Link>
             <Link
               href="/upload"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Upload File
             </Link>
@@ -126,10 +126,10 @@ export default function SearchPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
         <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
           <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-700">
+            <label className="mb-2 block text-sm font-semibold text-slate-300">
               Search portal
             </label>
             <input
@@ -137,18 +137,18 @@ export default function SearchPage() {
               placeholder="Search by document title, category, or type..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-400 focus:border-sky-500"
             />
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-700">
+            <label className="mb-2 block text-sm font-semibold text-slate-300">
               Filter by type
             </label>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+              className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
             >
               <option>All Types</option>
               <option>Template</option>
@@ -166,12 +166,12 @@ export default function SearchPage() {
               setQuery("");
               setTypeFilter("All Types");
             }}
-            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            className="rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
           >
             Clear Filters
           </button>
 
-          <span className="rounded-xl bg-slate-100 px-4 py-2 text-sm text-slate-600">
+          <span className="rounded-xl bg-slate-800/70 px-4 py-2 text-sm text-slate-400">
             {filteredResults.length} result
             {filteredResults.length === 1 ? "" : "s"} found
           </span>
@@ -179,10 +179,10 @@ export default function SearchPage() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Results</h2>
+              <h2 className="text-xl font-bold text-slate-100">Results</h2>
               <p className="mt-1 text-sm text-slate-500">
                 Matching records across the portal.
               </p>
@@ -191,8 +191,8 @@ export default function SearchPage() {
 
           <div className="mt-6 space-y-4">
             {filteredResults.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center">
-                <p className="text-sm font-semibold text-slate-700">
+              <div className="rounded-2xl border border-dashed border-slate-600 p-8 text-center">
+                <p className="text-sm font-semibold text-slate-300">
                   No matching records found
                 </p>
                 <p className="mt-2 text-sm text-slate-500">
@@ -203,18 +203,18 @@ export default function SearchPage() {
               filteredResults.map((item) => (
                 <div
                   key={item.title}
-                  className="rounded-2xl border border-slate-200 p-5"
+                  className="rounded-2xl border border-slate-700/80 p-5"
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
-                      <h3 className="text-base font-semibold text-slate-900">
+                      <h3 className="text-base font-semibold text-slate-100">
                         {item.title}
                       </h3>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
+                        <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-300">
                           {item.type}
                         </span>
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                        <span className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-semibold text-slate-300">
                           {item.category}
                         </span>
                         <span
@@ -230,7 +230,7 @@ export default function SearchPage() {
                       </p>
                     </div>
 
-                    <button className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                    <button className="rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50">
                       Open
                     </button>
                   </div>
@@ -241,8 +241,8 @@ export default function SearchPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Popular Searches</h2>
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-100">Popular Searches</h2>
             <p className="mt-1 text-sm text-slate-500">
               Quick terms commonly used in the portal.
             </p>
@@ -259,7 +259,7 @@ export default function SearchPage() {
                 <button
                   key={term}
                   onClick={() => setQuery(term)}
-                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  className="rounded-full border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
                 >
                   {term}
                 </button>
@@ -267,8 +267,8 @@ export default function SearchPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Search Actions</h2>
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-100">Search Actions</h2>
             <p className="mt-1 text-sm text-slate-500">
               Quick navigation from search.
             </p>
@@ -276,7 +276,7 @@ export default function SearchPage() {
             <div className="mt-6 space-y-3">
               <Link
                 href="/library"
-                className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="flex items-center justify-between rounded-2xl border border-slate-700/80 px-4 py-4 text-sm font-medium text-slate-300 transition hover:bg-slate-950/50"
               >
                 <span>Browse full library</span>
                 <span>→</span>
@@ -284,7 +284,7 @@ export default function SearchPage() {
 
               <Link
                 href="/upload"
-                className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="flex items-center justify-between rounded-2xl border border-slate-700/80 px-4 py-4 text-sm font-medium text-slate-300 transition hover:bg-slate-950/50"
               >
                 <span>Upload a document</span>
                 <span>→</span>
@@ -292,7 +292,7 @@ export default function SearchPage() {
 
               <Link
                 href="/admin"
-                className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="flex items-center justify-between rounded-2xl border border-slate-700/80 px-4 py-4 text-sm font-medium text-slate-300 transition hover:bg-slate-950/50"
               >
                 <span>Open admin panel</span>
                 <span>→</span>
@@ -300,7 +300,7 @@ export default function SearchPage() {
 
               <Link
                 href="/dashboard"
-                className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="flex items-center justify-between rounded-2xl border border-slate-700/80 px-4 py-4 text-sm font-medium text-slate-300 transition hover:bg-slate-950/50"
               >
                 <span>Return to dashboard</span>
                 <span>→</span>

@@ -58,9 +58,9 @@ const proofTiles = [
 
 export default function MarketingPage() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.08),_transparent_22%),linear-gradient(180deg,_#f7fbff_0%,_#ecf4ff_100%)] text-slate-900">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(13,148,136,0.12),_transparent_35%),linear-gradient(180deg,_#121926_0%,_#0c1730_100%)] text-slate-100">
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white/92 px-6 py-4 shadow-sm backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-slate-700/80 bg-slate-900/85 px-6 py-4 shadow-lg backdrop-blur">
           <div>
             <div className="text-2xl font-black tracking-tight">Safety360Docs</div>
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
@@ -70,19 +70,19 @@ export default function MarketingPage() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/#platform"
-              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
+              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300"
             >
               Platform
             </Link>
             <Link
               href="/#workflow"
-              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
+              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300"
             >
               Workflow
             </Link>
             <Link
               href="/login"
-              className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white"
+              className="rounded-xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(13,148,136,0.25)]"
             >
               Login
             </Link>
@@ -94,14 +94,14 @@ export default function MarketingPage() {
         id="platform"
         className="mx-auto grid max-w-7xl gap-8 px-6 pb-10 pt-6 xl:grid-cols-[1.05fr_0.95fr]"
       >
-        <div className="rounded-[2.2rem] border border-slate-200 bg-white p-8 shadow-[0_20px_40px_rgba(148,163,184,0.14)] sm:p-10">
-          <div className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-sky-700">
+        <div className="rounded-[2.2rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-[0_20px_40px_rgba(148,163,184,0.14)] sm:p-10">
+          <div className="inline-flex rounded-full border border-sky-500/35 bg-sky-950/35 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-sky-300">
             Secure Safety Operations
           </div>
-          <h1 className="mt-5 max-w-4xl text-4xl font-black tracking-tight text-slate-950 sm:text-6xl">
+          <h1 className="mt-5 max-w-4xl text-4xl font-black tracking-tight text-white sm:text-6xl">
             Turn safety documents into a managed workflow, not a folder problem.
           </h1>
-          <p className="mt-6 max-w-3xl text-base leading-8 text-slate-600">
+          <p className="mt-6 max-w-3xl text-base leading-8 text-slate-400">
             Safety360Docs brings uploads, reviews, approvals, builders, compliance
             records, admin oversight, and completed deliverables into one clean
             workspace built for active projects and growing teams.
@@ -110,13 +110,13 @@ export default function MarketingPage() {
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href="/login"
-              className="rounded-xl bg-[linear-gradient(135deg,_#0ea5e9_0%,_#2563eb_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(37,99,235,0.2)]"
+              className="rounded-xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(13,148,136,0.28)]"
             >
               Open Workspace
             </Link>
             <Link
               href="mailto:john.h.haldemann@gmail.com"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300"
             >
               Book a Demo
             </Link>
@@ -128,8 +128,8 @@ export default function MarketingPage() {
               ["Review", "Route work through controlled approvals"],
               ["Library", "Open completed documents from one place"],
             ].map(([title, body]) => (
-              <div key={title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-lg font-bold text-slate-900">{title}</div>
+              <div key={title} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                <div className="text-lg font-bold text-slate-100">{title}</div>
                 <div className="mt-2 text-sm leading-6 text-slate-500">{body}</div>
               </div>
             ))}
@@ -146,7 +146,7 @@ export default function MarketingPage() {
                 Professional control for safety documentation at scale.
               </div>
             </div>
-            <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
+            <div className="rounded-full border border-emerald-400/25 bg-emerald-950/30 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
               Systems Live
             </div>
           </div>
@@ -174,7 +174,7 @@ export default function MarketingPage() {
             <div className="mt-5 rounded-2xl border border-white/10 bg-[#0d1830] p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold text-white">Admin Queues</div>
-                <div className="text-xs text-slate-400">Review and access</div>
+                <div className="text-xs text-slate-300">Review and access</div>
               </div>
               <div className="mt-4 space-y-3">
                 {proofTiles.map((tile, index) => (
@@ -195,14 +195,14 @@ export default function MarketingPage() {
       </section>
 
       <section id="workflow" className="mx-auto max-w-7xl px-6 py-8">
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
+        <div className="rounded-[2rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-sm">
+          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
             Core Workflow
           </div>
-          <div className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+          <div className="mt-3 text-3xl font-black tracking-tight text-white">
             One clear route from source file to approved document.
           </div>
-          <div className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
+          <div className="mt-4 max-w-3xl text-sm leading-7 text-slate-400">
             The strongest part of the product story is the workflow itself. Show teams
             exactly how documents move, who approves them, and where completed files
             live when the job is done.
@@ -210,12 +210,12 @@ export default function MarketingPage() {
 
           <div className="mt-8 grid gap-5 lg:grid-cols-4">
             {workflowSteps.map((step, index) => (
-              <div key={step.title} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+              <div key={step.title} className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-5">
                 <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
                   Step {index + 1}
                 </div>
-                <div className="mt-3 text-xl font-bold text-slate-900">{step.title}</div>
-                <div className="mt-3 text-sm leading-7 text-slate-600">{step.body}</div>
+                <div className="mt-3 text-xl font-bold text-slate-100">{step.title}</div>
+                <div className="mt-3 text-sm leading-7 text-slate-400">{step.body}</div>
               </div>
             ))}
           </div>
@@ -227,10 +227,10 @@ export default function MarketingPage() {
           {featureCards.map((feature) => (
             <div
               key={feature.title}
-              className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+              className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm"
             >
-              <div className="text-xl font-bold text-slate-900">{feature.title}</div>
-              <p className="mt-3 text-sm leading-7 text-slate-600">{feature.body}</p>
+              <div className="text-xl font-bold text-slate-100">{feature.title}</div>
+              <p className="mt-3 text-sm leading-7 text-slate-400">{feature.body}</p>
             </div>
           ))}
         </div>
@@ -238,31 +238,31 @@ export default function MarketingPage() {
 
       <section className="mx-auto max-w-7xl px-6 py-8">
         <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
+          <div className="rounded-[2rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
               Benefits By Role
             </div>
-            <div className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+            <div className="mt-3 text-3xl font-black tracking-tight text-white">
               One platform, clearer outcomes for every team touching the process.
             </div>
             <div className="mt-8 grid gap-5 lg:grid-cols-3">
               {roleBenefits.map((item) => (
                 <div
                   key={item.role}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
                 >
-                  <div className="text-lg font-bold text-slate-900">{item.role}</div>
-                  <div className="mt-3 text-sm leading-7 text-slate-600">{item.text}</div>
+                  <div className="text-lg font-bold text-slate-100">{item.role}</div>
+                  <div className="mt-3 text-sm leading-7 text-slate-400">{item.text}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#f7fbff_100%)] p-8 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
+          <div className="rounded-[2rem] border border-slate-700/80 bg-slate-950/60 p-8 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-300">
               Why It Wins
             </div>
-            <div className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+            <div className="mt-3 text-3xl font-black tracking-tight text-white">
               Better than shared drives, disconnected builders, and scattered approvals.
             </div>
             <div className="mt-6 space-y-4">
@@ -274,7 +274,7 @@ export default function MarketingPage() {
               ].map((line) => (
                 <div
                   key={line}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm leading-7 text-slate-600"
+                  className="rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-4 text-sm leading-7 text-slate-400"
                 >
                   {line}
                 </div>
@@ -285,7 +285,7 @@ export default function MarketingPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-6 py-8 pb-12">
-        <div className="rounded-[2rem] bg-[linear-gradient(135deg,_#0f172a_0%,_#1d4ed8_100%)] px-8 py-10 text-white shadow-[0_20px_40px_rgba(15,23,42,0.24)]">
+        <div className="rounded-[2rem] bg-[linear-gradient(135deg,_#10213f_0%,_#0d9488_55%,_#059669_100%)] px-8 py-10 text-white shadow-[0_20px_40px_rgba(15,23,42,0.35)]">
           <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
             <div>
               <div className="text-3xl font-black tracking-tight">
@@ -300,7 +300,7 @@ export default function MarketingPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <Link
                 href="/login"
-                className="rounded-xl bg-white px-5 py-3 text-center text-sm font-semibold text-slate-900"
+                className="rounded-xl bg-slate-900/90 px-5 py-3 text-center text-sm font-semibold text-slate-100"
               >
                 Open Workspace
               </Link>

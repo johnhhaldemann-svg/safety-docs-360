@@ -521,7 +521,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 shadow-sm">
+      <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-8 text-center text-sm font-semibold text-slate-500 shadow-sm">
         Loading construction profile...
       </div>
     );
@@ -545,7 +545,7 @@ export default function ProfilePage() {
           managedProfile ? (
             <Link
               href={returnTo}
-              className="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="inline-flex items-center justify-center rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Back to Team Access
             </Link>
@@ -581,14 +581,14 @@ export default function ProfilePage() {
         ].map((item, index) => (
           <div
             key={item.label}
-            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+            className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm"
           >
             <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sm font-black text-sky-700">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sm font-black text-sky-300">
                 0{index + 1}
               </div>
               <div>
-                <div className="text-base font-bold text-slate-950">{item.label}</div>
+                <div className="text-base font-bold text-white">{item.label}</div>
                 <p className="mt-1 text-sm leading-6 text-slate-500">{item.detail}</p>
               </div>
             </div>
@@ -603,7 +603,7 @@ export default function ProfilePage() {
             description="Set the name, crew role, and photo that should represent you across company access and project records."
           >
             <div className="grid gap-5 lg:grid-cols-[0.78fr_1.22fr]">
-              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+              <div className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-5">
                 <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
                   Profile Picture
                 </div>
@@ -614,14 +614,14 @@ export default function ProfilePage() {
                       alt={displayName}
                       width={144}
                       height={144}
-                      className="h-36 w-36 rounded-[2rem] border border-slate-200 object-cover shadow-sm"
+                      className="h-36 w-36 rounded-[2rem] border border-slate-700/80 object-cover shadow-sm"
                     />
                   ) : (
-                    <div className="flex h-36 w-36 items-center justify-center rounded-[2rem] bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-4xl font-black text-sky-700 shadow-sm">
+                    <div className="flex h-36 w-36 items-center justify-center rounded-[2rem] bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-4xl font-black text-sky-300 shadow-sm">
                       {getInitials(displayName)}
                     </div>
                   )}
-                  <label className="mt-5 inline-flex cursor-pointer rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500">
+                  <label className="mt-5 inline-flex cursor-pointer rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">
                     Upload Photo
                     <input
                       type="file"
@@ -643,10 +643,10 @@ export default function ProfilePage() {
                     placeholder="Full name"
                     value={fullName}
                     onChange={(event) => setFullName(event.target.value)}
-                    className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                    className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
                   />
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-600">
+                    <label className="block text-xs font-semibold text-slate-400">
                       Site position <span className="text-red-600">*</span>
                     </label>
                     <select
@@ -656,7 +656,7 @@ export default function ProfilePage() {
                         setPositionSelect(v);
                         if (v !== OTHER_SELECT) setPositionOther("");
                       }}
-                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                      className="w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
                     >
                       <option value="">Select position…</option>
                       {CONSTRUCTION_POSITIONS.map((p) => (
@@ -672,7 +672,7 @@ export default function ProfilePage() {
                         placeholder="Describe your position"
                         value={positionOther}
                         onChange={(e) => setPositionOther(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                        className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
                       />
                     ) : null}
                   </div>
@@ -680,7 +680,7 @@ export default function ProfilePage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-600">
+                    <label className="block text-xs font-semibold text-slate-400">
                       Primary trade <span className="text-red-600">*</span>
                     </label>
                     <select
@@ -690,7 +690,7 @@ export default function ProfilePage() {
                         setTradeSelect(v);
                         if (v !== OTHER_SELECT) setTradeOther("");
                       }}
-                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                      className="w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
                     >
                       <option value="">Select trade…</option>
                       {CONSTRUCTION_TRADES.map((t) => (
@@ -706,7 +706,7 @@ export default function ProfilePage() {
                         placeholder="Describe your trade"
                         value={tradeOther}
                         onChange={(e) => setTradeOther(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                        className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
                       />
                     ) : null}
                   </div>
@@ -716,7 +716,7 @@ export default function ProfilePage() {
                     placeholder="Years in the field"
                     value={yearsExperience}
                     onChange={(event) => setYearsExperience(event.target.value)}
-                    className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                    className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
                   />
                 </div>
 
@@ -726,14 +726,14 @@ export default function ProfilePage() {
                     placeholder="Work mobile"
                     value={phone}
                     onChange={(event) => setPhone(event.target.value)}
-                    className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                    className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
                   />
                   <input
                     type="text"
                     placeholder="Primary work city"
                     value={city}
                     onChange={(event) => setCity(event.target.value)}
-                    className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                    className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
                   />
                 </div>
 
@@ -742,7 +742,7 @@ export default function ProfilePage() {
                   placeholder="State / region"
                   value={stateRegion}
                   onChange={(event) => setStateRegion(event.target.value)}
-                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
                 />
               </div>
             </div>
@@ -763,12 +763,12 @@ export default function ProfilePage() {
                     className={[
                       "rounded-2xl border px-4 py-4 text-left transition",
                       active
-                        ? "border-sky-300 bg-sky-50 shadow-sm"
-                        : "border-slate-200 bg-white hover:border-sky-200 hover:bg-sky-50/60",
+                        ? "border-sky-300 bg-sky-950/35 shadow-sm"
+                        : "border-slate-700/80 bg-slate-900/90 hover:border-sky-500/35 hover:bg-sky-800/50",
                     ].join(" ")}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-slate-900">{option.label}</div>
+                      <div className="text-sm font-semibold text-slate-100">{option.label}</div>
                       <StatusBadge
                         label={option.label}
                         tone={
@@ -792,10 +792,10 @@ export default function ProfilePage() {
             description="Select the certifications that apply, then add jobsite strengths and equipment experience that define this person's construction capability."
           >
             <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">
+                    <div className="text-sm font-semibold text-slate-100">
                       Certification library
                     </div>
                     <p className="mt-1 text-sm leading-6 text-slate-500">
@@ -814,13 +814,13 @@ export default function ProfilePage() {
                     {allCertifications.slice(0, 12).map((item) => (
                       <span
                         key={item}
-                        className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                        className="rounded-full border border-slate-700/80 bg-slate-900/90 px-3 py-1.5 text-xs font-semibold text-slate-300"
                       >
                         {item}
                       </span>
                     ))}
                     {allCertifications.length > 12 ? (
-                      <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700">
+                      <span className="rounded-full border border-sky-500/35 bg-sky-950/35 px-3 py-1.5 text-xs font-semibold text-sky-300">
                         +{allCertifications.length - 12} more
                       </span>
                     ) : null}
@@ -837,11 +837,11 @@ export default function ProfilePage() {
                   return (
                     <div
                       key={group.title}
-                      className="rounded-2xl border border-slate-200 bg-white p-4"
+                      className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-sm font-semibold text-slate-900">{group.title}</div>
+                          <div className="text-sm font-semibold text-slate-100">{group.title}</div>
                           <p className="mt-1 text-xs leading-5 text-slate-500">
                             Select all that apply. When checked, you can record an expiration date (YYYY-MM-DD).
                           </p>
@@ -864,9 +864,9 @@ export default function ProfilePage() {
                                 "rounded-xl border px-3 py-3 text-sm transition",
                                 checked
                                   ? expired
-                                    ? "border-amber-300 bg-amber-50"
-                                    : "border-sky-200 bg-sky-50"
-                                  : "border-slate-200 bg-slate-50",
+                                    ? "border-amber-300 bg-amber-950/40"
+                                    : "border-sky-500/35 bg-sky-950/35"
+                                  : "border-slate-700/80 bg-slate-950/50",
                               ].join(" ")}
                             >
                               <label className="flex cursor-pointer items-start gap-3">
@@ -874,23 +874,23 @@ export default function ProfilePage() {
                                   type="checkbox"
                                   checked={checked}
                                   onChange={() => toggleCertification(item)}
-                                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                                  className="mt-0.5 h-4 w-4 rounded border-slate-600 text-sky-600 focus:ring-sky-500"
                                 />
-                                <span className="flex-1 leading-6 text-slate-700">{item}</span>
+                                <span className="flex-1 leading-6 text-slate-300">{item}</span>
                               </label>
                               {checked ? (
                                 <div className="mt-2 flex flex-col gap-1 pl-7 sm:flex-row sm:items-center sm:gap-3">
-                                  <label className="text-xs font-medium text-slate-600">
+                                  <label className="text-xs font-medium text-slate-400">
                                     Expires
                                     <input
                                       type="date"
                                       value={exp}
                                       onChange={(e) => setExpirationForCert(item, e.target.value)}
-                                      className="ml-2 mt-1 block w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 sm:mt-0 sm:inline-block sm:w-auto"
+                                      className="ml-2 mt-1 block w-full rounded-lg border border-slate-600 bg-slate-900/90 px-2 py-1.5 text-xs text-slate-200 sm:mt-0 sm:inline-block sm:w-auto"
                                     />
                                   </label>
                                   {expired ? (
-                                    <span className="text-xs font-semibold text-amber-800">
+                                    <span className="text-xs font-semibold text-amber-100">
                                       Expired — renew to count toward training requirements
                                     </span>
                                   ) : exp ? (
@@ -916,7 +916,7 @@ export default function ProfilePage() {
                 placeholder="Other certifications not listed above (comma separated)"
                 value={customCertificationsText}
                 onChange={(event) => setCustomCertificationsText(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm leading-6 text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
               <p className="text-xs text-slate-500">
                 Expiration dates apply to items selected from the certification library above. Custom entries here are
@@ -927,14 +927,14 @@ export default function ProfilePage() {
                 placeholder="Site specialties (comma separated) - excavation, confined space, crane planning, scaffold oversight..."
                 value={specialtiesText}
                 onChange={(event) => setSpecialtiesText(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm leading-6 text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
               <textarea
                 rows={3}
                 placeholder="Equipment and systems (comma separated) - skid steer, telehandler, trench box systems, aerial lift..."
                 value={equipmentText}
                 onChange={(event) => setEquipmentText(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm leading-6 text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
           </SectionCard>
@@ -948,7 +948,7 @@ export default function ProfilePage() {
               placeholder="Summarize project types, safety leadership, crew responsibility, and the site work this person is trusted to handle."
               value={bio}
               onChange={(event) => setBio(event.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm leading-6 text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
             />
           </SectionCard>
 
@@ -959,7 +959,7 @@ export default function ProfilePage() {
               type="button"
               onClick={() => void handleSaveProfile()}
               disabled={saving}
-              className="rounded-2xl bg-sky-600 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
+              className="rounded-2xl bg-sky-600 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
             >
               {saving
                 ? "Saving profile..."
@@ -1051,9 +1051,9 @@ export default function ProfilePage() {
               {profileChecklist.map((item) => (
                 <div
                   key={item.label}
-                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                  className="flex items-center justify-between rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3"
                 >
-                  <span className="text-sm font-medium text-slate-700">{item.label}</span>
+                  <span className="text-sm font-medium text-slate-300">{item.label}</span>
                   <StatusBadge label={item.done ? "Ready" : "Missing"} tone={item.done ? "success" : "warning"} />
                 </div>
               ))}
@@ -1080,10 +1080,10 @@ export default function ProfilePage() {
                           className={[
                             "inline-flex max-w-full flex-col rounded-full border px-3 py-1.5 text-xs font-semibold sm:max-w-none sm:inline-flex sm:flex-row sm:items-center sm:gap-2",
                             expired
-                              ? "border-amber-300 bg-amber-50 text-amber-900"
+                              ? "border-amber-300 bg-amber-950/40 text-amber-900"
                               : exp
-                                ? "border-sky-200 bg-sky-50 text-sky-900"
-                                : "border-slate-200 bg-slate-50 text-slate-700",
+                                ? "border-sky-500/35 bg-sky-950/35 text-sky-900"
+                                : "border-slate-700/80 bg-slate-950/50 text-slate-300",
                           ].join(" ")}
                         >
                           <span className="truncate">{item}</span>
@@ -1111,7 +1111,7 @@ export default function ProfilePage() {
                     previewTags.map((item) => (
                       <span
                         key={item}
-                        className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700"
+                        className="rounded-full border border-sky-500/35 bg-sky-950/35 px-3 py-1.5 text-xs font-semibold text-sky-300"
                       >
                         {item}
                       </span>
@@ -1131,7 +1131,7 @@ export default function ProfilePage() {
                     previewEquipment.map((item) => (
                       <span
                         key={item}
-                        className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700"
+                        className="rounded-full border border-amber-500/35 bg-amber-950/40 px-3 py-1.5 text-xs font-semibold text-amber-700"
                       >
                         {item}
                       </span>

@@ -166,9 +166,9 @@ export function CompanyAdminDashboard({
 
     return (
       <div className="space-y-6">
-        <section className="rounded-[1.9rem] border border-[#dbe9ff] bg-white p-6 shadow-[0_16px_36px_rgba(148,163,184,0.12)]">
+        <section className="rounded-[1.9rem] border border-[#dbe9ff] bg-slate-900/90 p-6 shadow-[0_16px_36px_rgba(148,163,184,0.12)]">
           <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">CSEP workspace</div>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
             {companyProfile?.name?.trim() || "Company Workspace"}
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
@@ -184,7 +184,7 @@ export function CompanyAdminDashboard({
             </Link>
             <Link
               href="/profile"
-              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-700"
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-700/80 bg-slate-950/50 px-5 py-3 text-sm font-semibold text-slate-300"
             >
               Profile
             </Link>
@@ -197,9 +197,9 @@ export function CompanyAdminDashboard({
             { label: "Pending review", value: String(pendingCsep), note: "Awaiting admin review" },
             { label: "Approved", value: String(approvedCsep), note: "Completed CSEP files" },
           ].map((card) => (
-            <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div key={card.label} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm">
               <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">{card.label}</div>
-              <div className="mt-2 text-3xl font-black text-slate-950">{loading ? "-" : card.value}</div>
+              <div className="mt-2 text-3xl font-black text-white">{loading ? "-" : card.value}</div>
               <p className="mt-2 text-sm text-slate-500">{card.note}</p>
             </div>
           ))}
@@ -524,18 +524,18 @@ export function CompanyAdminDashboard({
 
   return (
     <div className="space-y-8">
-      <section className="rounded-[1.9rem] border border-[#dbe9ff] bg-white p-6 shadow-[0_16px_36px_rgba(148,163,184,0.12)]">
+      <section className="rounded-[1.9rem] border border-[#dbe9ff] bg-slate-900/90 p-6 shadow-[0_16px_36px_rgba(148,163,184,0.12)]">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="flex items-start gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.6rem] bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-xl font-black text-sky-700">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.6rem] bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-xl font-black text-sky-300">
                 {companyInitials || "CO"}
               </div>
               <div>
                 <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">
                   Company Workspace
                 </div>
-                <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
                   {companyName}
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
@@ -553,20 +553,20 @@ export function CompanyAdminDashboard({
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px]">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
                 <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
                   Notifications
                 </div>
-                <div className="mt-2 text-xl font-black text-slate-950">{notificationCount}</div>
+                <div className="mt-2 text-xl font-black text-white">{notificationCount}</div>
                 <div className="mt-1 text-xs text-slate-500">
                   Pending approvals, invites, and review items
                 </div>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
                 <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
                   Workspace Lead
                 </div>
-                <div className="mt-2 text-sm font-semibold text-slate-900">
+                <div className="mt-2 text-sm font-semibold text-slate-100">
                   Manage company operations
                 </div>
                 <div className="mt-1 text-xs text-slate-500">
@@ -580,8 +580,8 @@ export function CompanyAdminDashboard({
             <div
               className={`rounded-2xl border px-4 py-3 text-sm ${
                 workspaceError
-                  ? "border-amber-200 bg-amber-50 text-amber-800"
-                  : "border-sky-200 bg-sky-50 text-sky-800"
+                  ? "border-amber-500/35 bg-amber-950/40 text-amber-100"
+                  : "border-sky-500/35 bg-sky-950/35 text-sky-100"
               }`}
             >
               {workspaceError
@@ -596,12 +596,12 @@ export function CompanyAdminDashboard({
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search jobsites, documents, or employees..."
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-400"
+              className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-400"
             />
             <select
               value={selectedJobsite}
               onChange={(event) => setSelectedJobsite(event.target.value)}
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-400"
+              className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-400"
             >
               {jobsiteOptions.map((option) => (
                 <option key={option} value={option}>
@@ -613,13 +613,13 @@ export function CompanyAdminDashboard({
               type="button"
               onClick={onRefreshWorkspace}
               disabled={loading}
-              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {loading ? "Loading..." : workspaceLoaded ? "Refresh Workspace" : "Load Workspace"}
             </button>
             <Link
               href="/company-users"
-              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white"
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
             >
               {pendingUsers.length} pending approvals
             </Link>
@@ -627,7 +627,7 @@ export function CompanyAdminDashboard({
               <summary className="flex cursor-pointer list-none items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(79,124,255,0.24)]">
                 Add New
               </summary>
-              <div className="absolute right-0 top-[calc(100%+0.75rem)] z-10 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
+              <div className="absolute right-0 top-[calc(100%+0.75rem)] z-10 w-64 rounded-2xl border border-slate-700/80 bg-slate-900/90 p-2 shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
                 {[
                   { href: "/jobsites", label: "Add Jobsite", note: "Set up the next active project." },
                   { href: "/company-users", label: "Add User", note: "Invite and approve employees." },
@@ -638,9 +638,9 @@ export function CompanyAdminDashboard({
                   <Link
                     key={item.label}
                     href={item.href}
-                    className="block rounded-xl px-3 py-3 transition hover:bg-slate-50"
+                    className="block rounded-xl px-3 py-3 transition hover:bg-slate-950/50"
                   >
-                    <div className="text-sm font-semibold text-slate-900">{item.label}</div>
+                    <div className="text-sm font-semibold text-slate-100">{item.label}</div>
                     <div className="mt-1 text-xs text-slate-500">{item.note}</div>
                   </Link>
                 ))}
@@ -655,13 +655,13 @@ export function CompanyAdminDashboard({
           <Link
             key={card.title}
             href={card.href}
-            className="rounded-[1.35rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-200 hover:shadow-md"
+            className="rounded-[1.35rem] border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm transition hover:border-sky-500/35 hover:shadow-md"
           >
             <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
               {card.title}
             </div>
             <div className="mt-3 flex items-center justify-between gap-3">
-              <div className="text-4xl font-black tracking-tight text-slate-950">
+              <div className="text-4xl font-black tracking-tight text-white">
                 {loading ? "-" : card.value}
               </div>
               <StatusBadge label={card.title.split(" ")[0]} tone={card.tone} />
@@ -685,7 +685,7 @@ export function CompanyAdminDashboard({
               </a>
               <a
                 href="/jobsites"
-                className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300"
               >
                 Archive Jobsite
               </a>
@@ -700,10 +700,10 @@ export function CompanyAdminDashboard({
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
               {filteredJobsites.map((jobsite) => (
-                <div key={jobsite.name} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div key={jobsite.name} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-lg font-bold text-slate-950">{jobsite.name}</div>
+                      <div className="text-lg font-bold text-white">{jobsite.name}</div>
                       <div className="mt-1 text-sm text-slate-500">{jobsite.location}</div>
                     </div>
                     <StatusBadge
@@ -718,42 +718,42 @@ export function CompanyAdminDashboard({
                     />
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
                       <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
                         Project number
                       </div>
-                      <div className="mt-2 text-sm font-semibold text-slate-900">
+                      <div className="mt-2 text-sm font-semibold text-slate-100">
                         {jobsite.projectNumber}
                       </div>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
                       <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
                         Team users
                       </div>
-                      <div className="mt-2 text-sm font-semibold text-slate-900">
+                      <div className="mt-2 text-sm font-semibold text-slate-100">
                         {companyUsers.length} workspace users
                       </div>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
                       <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
                         Pending docs
                       </div>
-                      <div className="mt-2 text-sm font-semibold text-slate-900">
+                      <div className="mt-2 text-sm font-semibold text-slate-100">
                         {jobsite.pendingDocuments}
                       </div>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
                       <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
                         Last activity
                       </div>
-                      <div className="mt-2 text-sm font-semibold text-slate-900">
+                      <div className="mt-2 text-sm font-semibold text-slate-100">
                         {formatRelative(jobsite.lastActivity)}
                       </div>
                     </div>
                   </div>
                   <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
                     <span>{jobsite.totalDocuments} tracked document{jobsite.totalDocuments === 1 ? "" : "s"}</span>
-                    <Link href="/jobsites" className="font-semibold text-sky-700">
+                    <Link href="/jobsites" className="font-semibold text-sky-300">
                       View Site
                     </Link>
                   </div>
@@ -775,10 +775,10 @@ export function CompanyAdminDashboard({
           ) : (
             <div className="space-y-3">
               {pendingDocuments.slice(0, 5).map((document) => (
-                <div key={document.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div key={document.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-semibold text-slate-900">
+                      <div className="text-sm font-semibold text-slate-100">
                         {getDocumentLabel(document)}
                       </div>
                       <div className="mt-1 text-sm text-slate-500">
@@ -811,7 +811,7 @@ export function CompanyAdminDashboard({
               </Link>
               <Link
                 href="/upload"
-                className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300"
               >
                 Upload Existing Document
               </Link>
@@ -820,12 +820,12 @@ export function CompanyAdminDashboard({
         >
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {documentSnapshotCards.map((card) => (
-              <div key={card.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div key={card.title} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                   {card.title}
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="text-3xl font-black text-slate-950">{card.value}</div>
+                  <div className="text-3xl font-black text-white">{card.value}</div>
                   <StatusBadge label={card.title.split(" ")[0]} tone={card.tone} />
                 </div>
                 <div className="mt-3 text-sm text-slate-500">{card.note}</div>
@@ -833,8 +833,8 @@ export function CompanyAdminDashboard({
             ))}
           </div>
 
-          <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
-            <div className="grid grid-cols-[minmax(0,1.7fr)_0.9fr_1fr_0.9fr_0.9fr_1fr] gap-3 bg-slate-50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+          <div className="mt-6 overflow-hidden rounded-2xl border border-slate-700/80">
+            <div className="grid grid-cols-[minmax(0,1.7fr)_0.9fr_1fr_0.9fr_0.9fr_1fr] gap-3 bg-slate-950/50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
               <div>Document</div>
               <div>Type</div>
               <div>Jobsite</div>
@@ -842,14 +842,14 @@ export function CompanyAdminDashboard({
               <div>Submitted</div>
               <div>Action</div>
             </div>
-            <div className="divide-y divide-slate-200 bg-white">
+            <div className="divide-y divide-slate-200 bg-slate-900/90">
               {filteredDocuments.slice(0, 8).map((document) => (
                 <div
                   key={document.id}
-                  className="grid grid-cols-[minmax(0,1.7fr)_0.9fr_1fr_0.9fr_0.9fr_1fr] gap-3 px-4 py-4 text-sm text-slate-700"
+                  className="grid grid-cols-[minmax(0,1.7fr)_0.9fr_1fr_0.9fr_0.9fr_1fr] gap-3 px-4 py-4 text-sm text-slate-300"
                 >
                   <div className="min-w-0">
-                    <div className="truncate font-semibold text-slate-900">{getDocumentLabel(document)}</div>
+                    <div className="truncate font-semibold text-slate-100">{getDocumentLabel(document)}</div>
                     <div className="mt-1 truncate text-xs text-slate-500">
                       {document.file_name || "Company workspace record"}
                     </div>
@@ -870,7 +870,7 @@ export function CompanyAdminDashboard({
                   </div>
                   <div className="text-slate-500">{formatRelative(document.created_at)}</div>
                   <div>
-                    <Link href="/library" className="font-semibold text-sky-700">
+                    <Link href="/library" className="font-semibold text-sky-300">
                       View
                     </Link>
                   </div>
@@ -894,7 +894,7 @@ export function CompanyAdminDashboard({
           aside={
             <Link
               href="/company-users"
-              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
+              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300"
             >
               Manage Users
             </Link>
@@ -902,11 +902,11 @@ export function CompanyAdminDashboard({
         >
           <div className="grid gap-3 sm:grid-cols-2">
             {userSnapshotCards.map((card) => (
-              <div key={card.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div key={card.title} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                   {card.title}
                 </div>
-                <div className="mt-3 text-3xl font-black text-slate-950">{card.value}</div>
+                <div className="mt-3 text-3xl font-black text-white">{card.value}</div>
                 <div className="mt-2 text-sm text-slate-500">{card.note}</div>
               </div>
             ))}
@@ -914,10 +914,10 @@ export function CompanyAdminDashboard({
 
           <div className="mt-6 space-y-3">
             {filteredUsers.slice(0, 6).map((user) => (
-              <div key={user.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+              <div key={user.id} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">{user.name}</div>
+                    <div className="text-sm font-semibold text-slate-100">{user.name}</div>
                     <div className="mt-1 text-sm text-slate-500">{user.email}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <StatusBadge label={user.role} tone="info" />
@@ -932,7 +932,7 @@ export function CompanyAdminDashboard({
                     <div className="mt-1">Certifications managed in profile</div>
                     <Link
                       href="/company-users"
-                      className="mt-2 inline-flex font-semibold text-sky-700"
+                      className="mt-2 inline-flex font-semibold text-sky-300"
                     >
                       Open user access
                     </Link>
@@ -964,7 +964,7 @@ export function CompanyAdminDashboard({
               </Link>
               <Link
                 href="/safety-submit"
-                className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300"
               >
                 Individual Safety Submission
               </Link>
@@ -977,21 +977,21 @@ export function CompanyAdminDashboard({
               description="As corrective actions are created and reviewed, matrix rows will appear here by category."
             />
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-slate-200">
-              <div className="grid grid-cols-[minmax(0,1.3fr)_0.8fr_0.8fr_0.8fr_0.8fr] gap-3 bg-slate-50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+            <div className="overflow-hidden rounded-2xl border border-slate-700/80">
+              <div className="grid grid-cols-[minmax(0,1.3fr)_0.8fr_0.8fr_0.8fr_0.8fr] gap-3 bg-slate-950/50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                 <div>Category</div>
                 <div>Open</div>
                 <div>In Progress</div>
                 <div>Closed</div>
                 <div>Overdue</div>
               </div>
-              <div className="divide-y divide-slate-200 bg-white">
+              <div className="divide-y divide-slate-200 bg-slate-900/90">
                 {liveMatrixSummary.map((row) => (
                   <div
                     key={row.category}
-                    className="grid grid-cols-[minmax(0,1.3fr)_0.8fr_0.8fr_0.8fr_0.8fr] gap-3 px-4 py-3 text-sm text-slate-700"
+                    className="grid grid-cols-[minmax(0,1.3fr)_0.8fr_0.8fr_0.8fr_0.8fr] gap-3 px-4 py-3 text-sm text-slate-300"
                   >
-                    <div className="font-semibold text-slate-900">{row.category.replace(/_/g, " ")}</div>
+                    <div className="font-semibold text-slate-100">{row.category.replace(/_/g, " ")}</div>
                     <div>{row.open}</div>
                     <div>{row.inProgress}</div>
                     <div>{row.closed}</div>
@@ -1036,10 +1036,10 @@ export function CompanyAdminDashboard({
             ) : (
               <div className="space-y-3">
                 {correctiveActions.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <div key={item.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-sm font-semibold text-slate-900">{item.title}</div>
+                        <div className="text-sm font-semibold text-slate-100">{item.title}</div>
                         <div className="mt-1 text-sm text-slate-500">{item.detail}</div>
                       </div>
                       <StatusBadge label={item.meta} tone={item.tone} />
@@ -1056,11 +1056,11 @@ export function CompanyAdminDashboard({
           >
             <div className="grid gap-3">
               {moduleSummaries.map((module) => (
-                <div key={module.key} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div key={module.key} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
                   <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
                     {module.label}
                   </div>
-                  <div className="mt-2 text-sm font-semibold text-slate-900">
+                  <div className="mt-2 text-sm font-semibold text-slate-100">
                     {module.total} total · {module.open} open · {module.inProgress} active · {module.closed} closed
                   </div>
                 </div>
@@ -1080,10 +1080,10 @@ export function CompanyAdminDashboard({
             ) : (
               <div className="space-y-3">
                 {highRiskAlerts.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <div key={item.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-sm font-semibold text-slate-900">{item.title}</div>
+                        <div className="text-sm font-semibold text-slate-100">{item.title}</div>
                         <div className="mt-1 text-sm text-slate-500">{item.detail}</div>
                       </div>
                       <StatusBadge label="High Risk" tone={item.tone} />
@@ -1103,7 +1103,7 @@ export function CompanyAdminDashboard({
           aside={
             <Link
               href="/reports"
-              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
+              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300"
             >
               Open Reports
             </Link>
@@ -1113,9 +1113,9 @@ export function CompanyAdminDashboard({
             {reportWidgets.map((widget) => (
               <div
                 key={widget.title}
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4"
               >
-                <div className="text-sm font-semibold text-slate-900">{widget.title}</div>
+                <div className="text-sm font-semibold text-slate-100">{widget.title}</div>
                 <div className="mt-2 text-sm leading-6 text-slate-500">{widget.note}</div>
               </div>
             ))}
@@ -1147,12 +1147,12 @@ export function CompanyAdminDashboard({
             ].map((alert) => (
               <div
                 key={alert.label}
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4"
               >
                 <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
                   {alert.label}
                 </div>
-                <div className="mt-2 text-sm font-semibold text-slate-900">{alert.value}</div>
+                <div className="mt-2 text-sm font-semibold text-slate-100">{alert.value}</div>
               </div>
             ))}
           </div>

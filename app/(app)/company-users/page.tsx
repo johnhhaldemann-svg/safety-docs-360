@@ -86,11 +86,11 @@ function roleClasses(role: string) {
   if (role === "Project Manager") return "bg-indigo-100 text-indigo-700";
   if (role === "Foreman") return "bg-cyan-100 text-cyan-700";
   if (role === "Field User") return "bg-lime-100 text-lime-700";
-  if (role === "Read Only") return "bg-slate-200 text-slate-700";
+  if (role === "Read Only") return "bg-slate-200 text-slate-300";
   if (role === "Company Admin") return "bg-violet-100 text-violet-700";
-  if (role === "Operations Manager") return "bg-sky-100 text-sky-700";
+  if (role === "Operations Manager") return "bg-sky-100 text-sky-300";
   if (role === "Company User") return "bg-amber-100 text-amber-700";
-  return "bg-slate-100 text-slate-700";
+  return "bg-slate-800/70 text-slate-300";
 }
 
 function formatRelative(timestamp?: string | null) {
@@ -551,14 +551,14 @@ export default function CompanyUsersPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/training-matrix"
-              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-950/50"
             >
               Training matrix
             </Link>
             <button
               onClick={handleInvite}
               disabled={inviteLoading || !inviteEmail.trim()}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
             >
               {inviteLoading ? "Sending Invite..." : "Invite Employee"}
             </button>
@@ -568,9 +568,9 @@ export default function CompanyUsersPage() {
 
       <section className="grid gap-5 sm:grid-cols-3">
         {stats.map((item) => (
-          <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div key={item.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
             <p className="text-sm font-medium text-slate-500">{item.title}</p>
-            <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">
+            <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">
               {loading ? "-" : item.value}
             </p>
             <p className="mt-2 text-sm text-slate-500">{item.note}</p>
@@ -579,19 +579,19 @@ export default function CompanyUsersPage() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <Link href="/jobsites" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-200">
+        <Link href="/jobsites" className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm transition hover:border-sky-500/35">
           <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">Jobsites</div>
-          <div className="mt-2 text-lg font-bold text-slate-900">Assignment Readiness</div>
+          <div className="mt-2 text-lg font-bold text-slate-100">Assignment Readiness</div>
           <div className="mt-2 text-sm text-slate-500">Coordinate workforce coverage and field ownership by active jobsite.</div>
         </Link>
-        <Link href="/field-id-exchange" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-200">
+        <Link href="/field-id-exchange" className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm transition hover:border-sky-500/35">
           <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">Corrective Actions</div>
-          <div className="mt-2 text-lg font-bold text-slate-900">Ownership Queue</div>
+          <div className="mt-2 text-lg font-bold text-slate-100">Ownership Queue</div>
           <div className="mt-2 text-sm text-slate-500">Track who is accountable for open and overdue corrective actions.</div>
         </Link>
-        <Link href="/field-id-exchange" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-200">
+        <Link href="/field-id-exchange" className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm transition hover:border-sky-500/35">
           <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">Safety Review</div>
-          <div className="mt-2 text-lg font-bold text-slate-900">Submission Review Queue</div>
+          <div className="mt-2 text-lg font-bold text-slate-100">Submission Review Queue</div>
           <div className="mt-2 text-sm text-slate-500">Review pending individual safety submissions and keep actions moving.</div>
         </Link>
       </section>
@@ -616,14 +616,14 @@ export default function CompanyUsersPage() {
         ].map((item) => (
           <div
             key={item.step}
-            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+            className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm"
           >
             <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sm font-black text-sky-700">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sm font-black text-sky-300">
                 {item.step}
               </div>
               <div>
-                <div className="text-base font-bold text-slate-950">{item.title}</div>
+                <div className="text-base font-bold text-white">{item.title}</div>
                 <p className="mt-1 text-sm leading-6 text-slate-500">{item.body}</p>
               </div>
             </div>
@@ -642,12 +642,12 @@ export default function CompanyUsersPage() {
               placeholder="Employee email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
             />
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
             >
               {roleOptions.map((role) => (
                 <option key={role}>{role}</option>
@@ -655,8 +655,8 @@ export default function CompanyUsersPage() {
             </select>
           </div>
 
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            Company workspace: <span className="font-semibold text-slate-900">{scopeCompanyName}</span>
+          <div className="mt-4 rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm text-slate-400">
+            Company workspace: <span className="font-semibold text-slate-100">{scopeCompanyName}</span>
           </div>
 
           {message ? (
@@ -687,10 +687,10 @@ export default function CompanyUsersPage() {
         ) : (
           <div className="grid gap-4">
             {invites.map((invite) => (
-              <div key={invite.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div key={invite.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">{invite.email}</p>
+                    <p className="text-sm font-semibold text-slate-100">{invite.email}</p>
                     <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
                       <span>Role: {invite.role}</span>
                       <span>Status: {invite.status}</span>
@@ -719,11 +719,11 @@ export default function CompanyUsersPage() {
         ) : (
           <div className="grid gap-4">
             {pendingUsers.map((user) => (
-              <div key={user.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div key={user.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-900">{user.name}</p>
+                      <p className="text-sm font-semibold text-slate-100">{user.name}</p>
                       <StatusBadge label={user.status} tone="warning" />
                     </div>
                     <p className="mt-1 text-sm text-slate-500">{user.email}</p>
@@ -736,14 +736,14 @@ export default function CompanyUsersPage() {
                   <div className="flex flex-wrap gap-2">
                     <Link
                       href={getProfileHref(user.id)}
-                      className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                      className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
                     >
                       View Profile
                     </Link>
                     <button
                       onClick={() => void handleQuickStatus(user, "Active")}
                       disabled={saveLoading}
-                      className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-60"
+                      className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
                     >
                       Approve
                     </button>
@@ -754,14 +754,14 @@ export default function CompanyUsersPage() {
                         setEditAssignments(assignmentMap[user.id] ?? []);
                         setEditStatus("Pending");
                       }}
-                      className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                      className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
                     >
                       Review
                     </button>
                     <button
                       onClick={() => void handleQuickStatus(user, "Suspended")}
                       disabled={saveLoading}
-                      className="rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                      className="rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-200 transition hover:bg-red-950/40 disabled:opacity-60"
                     >
                       Suspend
                     </button>
@@ -783,7 +783,7 @@ export default function CompanyUsersPage() {
             placeholder="Search active employees..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+            className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
           />
         </div>
 
@@ -797,11 +797,11 @@ export default function CompanyUsersPage() {
         ) : (
           <div className="grid gap-4">
             {filteredActiveUsers.map((user) => (
-              <div key={user.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div key={user.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-900">{user.name}</p>
+                      <p className="text-sm font-semibold text-slate-100">{user.name}</p>
                       <span
                         className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${roleClasses(
                           user.role
@@ -831,13 +831,13 @@ export default function CompanyUsersPage() {
                             : "Active"
                       );
                     }}
-                    className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                    className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
                   >
                     Manage
                   </button>
                   <Link
                     href={getProfileHref(user.id)}
-                    className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                    className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
                   >
                     View Profile
                   </Link>
@@ -862,13 +862,13 @@ export default function CompanyUsersPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50">
+              <thead className="bg-slate-950/50">
                 <tr>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700">User</th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700">Role</th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700">Status</th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-700">Assigned Jobsites</th>
-                  <th className="px-3 py-2 text-right font-semibold text-slate-700">Manage</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-300">User</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-300">Role</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-300">Status</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-300">Assigned Jobsites</th>
+                  <th className="px-3 py-2 text-right font-semibold text-slate-300">Manage</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -879,9 +879,9 @@ export default function CompanyUsersPage() {
                     .slice(0, 3);
                   const overflowCount = Math.max(0, assignedIds.length - assignedNames.length);
                   return (
-                    <tr key={`assignment-${user.id}`} className="bg-white">
+                    <tr key={`assignment-${user.id}`} className="bg-slate-900/90">
                       <td className="px-3 py-3">
-                        <div className="font-semibold text-slate-900">{user.name}</div>
+                        <div className="font-semibold text-slate-100">{user.name}</div>
                         <div className="text-xs text-slate-500">{user.email}</div>
                       </td>
                       <td className="px-3 py-3">
@@ -899,7 +899,7 @@ export default function CompanyUsersPage() {
                       <td className="px-3 py-3">
                         {roleNeedsAssignments(user.role) ? (
                           assignedIds.length > 0 ? (
-                            <div className="text-xs text-slate-700">
+                            <div className="text-xs text-slate-300">
                               {assignedNames.join(", ")}
                               {overflowCount > 0 ? ` +${overflowCount} more` : ""}
                             </div>
@@ -924,7 +924,7 @@ export default function CompanyUsersPage() {
                                   : "Active"
                             );
                           }}
-                          className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                          className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-950/50"
                         >
                           Manage
                         </button>
@@ -948,11 +948,11 @@ export default function CompanyUsersPage() {
           ) : (
             <div className="grid gap-4">
               {filteredSuspendedUsers.map((user) => (
-                <div key={user.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div key={user.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-900">{user.name}</p>
+                        <p className="text-sm font-semibold text-slate-100">{user.name}</p>
                         <span
                           className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${roleClasses(
                             user.role
@@ -976,13 +976,13 @@ export default function CompanyUsersPage() {
                         setEditAssignments(assignmentMap[user.id] ?? []);
                         setEditStatus("Suspended");
                       }}
-                      className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                      className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
                     >
                       Manage
                     </button>
                     <Link
                       href={getProfileHref(user.id)}
-                      className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                      className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
                     >
                       View Profile
                     </Link>
@@ -996,31 +996,31 @@ export default function CompanyUsersPage() {
 
       {editingUser ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-lg rounded-3xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
                   Manage Team Member
                 </p>
-                <h3 className="mt-2 text-2xl font-bold text-slate-900">{editingUser.name}</h3>
+                <h3 className="mt-2 text-2xl font-bold text-slate-100">{editingUser.name}</h3>
                 <p className="mt-1 text-sm text-slate-500">{editingUser.email}</p>
               </div>
               <button
                 onClick={() => setEditingUser(null)}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="rounded-xl border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
               >
                 Close
               </button>
             </div>
 
             <div className="mt-6 grid gap-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                Company scope: <span className="font-semibold text-slate-900">{scopeCompanyName}</span>
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm text-slate-400">
+                Company scope: <span className="font-semibold text-slate-100">{scopeCompanyName}</span>
               </div>
               <select
                 value={editRole}
                 onChange={(e) => setEditRole(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
               >
                 {roleOptions.map((role) => (
                   <option key={role}>{role}</option>
@@ -1029,15 +1029,15 @@ export default function CompanyUsersPage() {
               <select
                 value={editStatus}
                 onChange={(e) => setEditStatus(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
               >
                 <option>Pending</option>
                 <option>Active</option>
                 <option>Suspended</option>
               </select>
               {roleNeedsAssignments(editRole) ? (
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-900">
+                <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-100">
                     Assigned Jobsites
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
@@ -1052,7 +1052,7 @@ export default function CompanyUsersPage() {
                         return (
                           <label
                             key={jobsite.id}
-                            className="flex items-center gap-2 text-sm text-slate-700"
+                            className="flex items-center gap-2 text-sm text-slate-300"
                           >
                             <input
                               type="checkbox"
@@ -1078,21 +1078,21 @@ export default function CompanyUsersPage() {
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <Link
                 href={getProfileHref(editingUser.id)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
               >
                 Edit Profile
               </Link>
               <button
                 onClick={() => void handleRemoveUser()}
                 disabled={removeLoading}
-                className="rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                className="rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-950/40 disabled:opacity-60"
               >
                 {removeLoading ? "Removing..." : "Remove User"}
               </button>
               <button
                 onClick={() => void handleSaveUser()}
                 disabled={saveLoading}
-                className="rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
+                className="rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
               >
                 {saveLoading ? "Saving..." : "Save Changes"}
               </button>

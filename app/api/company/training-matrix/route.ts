@@ -181,7 +181,7 @@ async function getTrainingMatrix(request: Request) {
     ? null
     : "Names, emails, and last sign-in use limited Auth data until you add SUPABASE_SERVICE_ROLE_KEY to the server environment (for example in Vercel → Settings → Environment Variables). Never expose it to the browser.";
 
-  let warning: string | null =
+  const warning: string | null =
     profileError && !adminClient
       ? "Construction profiles could not be loaded for every row (permissions or configuration)."
       : null;

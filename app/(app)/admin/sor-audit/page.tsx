@@ -66,11 +66,11 @@ export default function AdminSorAuditPage() {
 
       <SectionCard title="Filters">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <input value={project} onChange={(e) => setProject(e.target.value)} placeholder="Project" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <input value={trade} onChange={(e) => setTrade(e.target.value)} placeholder="Trade" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="User ID" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <input value={status} onChange={(e) => setStatus(e.target.value)} placeholder="Status" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm">
+          <input value={project} onChange={(e) => setProject(e.target.value)} placeholder="Project" className="rounded-xl border border-slate-700/80 px-3 py-2 text-sm" />
+          <input value={trade} onChange={(e) => setTrade(e.target.value)} placeholder="Trade" className="rounded-xl border border-slate-700/80 px-3 py-2 text-sm" />
+          <input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="User ID" className="rounded-xl border border-slate-700/80 px-3 py-2 text-sm" />
+          <input value={status} onChange={(e) => setStatus(e.target.value)} placeholder="Status" className="rounded-xl border border-slate-700/80 px-3 py-2 text-sm" />
+          <label className="flex items-center gap-2 rounded-xl border border-slate-700/80 px-3 py-2 text-sm">
             <input type="checkbox" checked={includeDeleted} onChange={(e) => setIncludeDeleted(e.target.checked)} />
             Include deleted
           </label>
@@ -80,18 +80,18 @@ export default function AdminSorAuditPage() {
       <SectionCard title="SOR Records">
         <div className="space-y-3">
           {records.map((r) => (
-            <div key={r.id} className="rounded-xl border border-slate-200 p-3">
+            <div key={r.id} className="rounded-xl border border-slate-700/80 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <SorStatusBadge status={r.status} />
                   <SorVerificationBadge result={r.verification} />
-                  {r.is_deleted ? <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">Deleted</span> : null}
+                  {r.is_deleted ? <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-100">Deleted</span> : null}
                 </div>
-                <Link href={`/sor/${r.id}`} className="text-sm font-semibold text-sky-700 hover:underline">
+                <Link href={`/sor/${r.id}`} className="text-sm font-semibold text-sky-300 hover:underline">
                   Open detail
                 </Link>
               </div>
-              <p className="mt-2 text-sm text-slate-700">{r.project} · {r.trade} · v{r.version_number}</p>
+              <p className="mt-2 text-sm text-slate-300">{r.project} · {r.trade} · v{r.version_number}</p>
               <p className="text-xs text-slate-500">Created by {r.created_by ?? "—"} · Updated by {r.updated_by ?? "—"}</p>
               <p className="mt-1 break-all text-xs text-slate-500">Hash: {r.record_hash ?? "—"}</p>
               <p className="break-all text-xs text-slate-500">Previous hash: {r.previous_hash ?? "—"}</p>

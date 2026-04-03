@@ -244,13 +244,13 @@ export default function ReviewDocumentsPage() {
           <>
             <Link
               href="/admin/archive"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Open Archive
             </Link>
             <Link
               href="/admin"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Admin Dashboard
             </Link>
@@ -275,7 +275,7 @@ export default function ReviewDocumentsPage() {
               type="button"
               onClick={() => void runBulkAction("archive")}
               disabled={selectedCount === 0 || Boolean(bulkLoading) || !canReviewDocuments}
-              className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-amber-300 bg-amber-950/40 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {bulkLoading === "archive" ? "Archiving..." : "Archive Selected"}
             </button>
@@ -283,7 +283,7 @@ export default function ReviewDocumentsPage() {
               type="button"
               onClick={() => void runBulkAction("delete")}
               disabled={selectedCount === 0 || Boolean(bulkLoading) || !canReviewDocuments}
-              className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-red-300 bg-red-950/40 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {bulkLoading === "delete" ? "Deleting..." : "Delete Selected"}
             </button>
@@ -291,7 +291,7 @@ export default function ReviewDocumentsPage() {
               type="button"
               onClick={() => setSelectedIds([])}
               disabled={selectedCount === 0 || Boolean(bulkLoading) || !canReviewDocuments}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Clear Selection
             </button>
@@ -365,7 +365,7 @@ function ReviewSection({
           description={`${documents.length} item${documents.length === 1 ? "" : "s"} in this queue.`}
           aside={
             documents.length > 0 ? (
-              <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-300">
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -397,7 +397,7 @@ function ReviewSection({
             return (
               <div
                 key={doc.id}
-                className="rounded-2xl border border-slate-200 p-4 shadow-sm transition hover:bg-slate-50"
+                className="rounded-2xl border border-slate-700/80 p-4 shadow-sm transition hover:bg-slate-950/50"
               >
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <label className="flex items-start gap-3">
@@ -420,7 +420,7 @@ function ReviewSection({
                     className="block flex-1 cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
-                      <h3 className="text-lg font-semibold text-slate-900">
+                      <h3 className="text-lg font-semibold text-slate-100">
                         {titleText}
                       </h3>
                       <span
@@ -432,17 +432,17 @@ function ReviewSection({
                         {getDocumentStatusLabel(doc.status, Boolean(doc.final_file_path))}
                       </span>
                     </div>
-                    <p className="mt-2 text-sm text-slate-700">
+                    <p className="mt-2 text-sm text-slate-300">
                       Type: {doc.document_type || "-"}
                     </p>
-                    <p className="text-sm text-slate-700">
+                    <p className="text-sm text-slate-300">
                       User ID: {doc.user_id}
                     </p>
-                    <p className="text-sm text-slate-700">
+                    <p className="text-sm text-slate-300">
                       Submitted: {new Date(doc.created_at).toLocaleString()}
                     </p>
                     {doc.review_notes ? (
-                      <p className="mt-1 text-sm text-slate-600">
+                      <p className="mt-1 text-sm text-slate-400">
                         Notes: {doc.review_notes}
                       </p>
                     ) : null}
@@ -455,7 +455,7 @@ function ReviewSection({
                         void onOpenDraft(doc.id);
                       }}
                       disabled={!canReviewDocuments}
-                      className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-extrabold text-slate-900 hover:bg-slate-100"
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-600 bg-slate-900/90 px-4 text-sm font-extrabold text-slate-100 hover:bg-slate-800/70"
                     >
                       Open Draft DOCX
                     </button>
@@ -464,8 +464,8 @@ function ReviewSection({
                       href={`/admin/review-documents/${doc.id}`}
                       className={`inline-flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-extrabold ${
                         canApproveDocuments
-                          ? "border-sky-200 bg-sky-50 !text-sky-900 hover:border-sky-300 hover:bg-sky-100"
-                          : "border-slate-200 bg-slate-100 !text-slate-500"
+                          ? "border-sky-500/35 bg-sky-950/35 !text-sky-900 hover:border-sky-300 hover:bg-sky-100"
+                          : "border-slate-700/80 bg-slate-800/70 !text-slate-500"
                       }`}
                     >
                       {canApproveDocuments ? actionLabel : "View"}
@@ -483,9 +483,9 @@ function ReviewSection({
 
 function SummaryCard({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{title}</p>
-      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">
+      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">
         {value}
       </p>
     </div>

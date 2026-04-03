@@ -76,18 +76,18 @@ const companyAssignableRoles = new Set([
 function statusClasses(status: string) {
   if (status === "Active") return "bg-emerald-100 text-emerald-700";
   if (status === "Pending") return "bg-amber-100 text-amber-700";
-  if (status === "Suspended") return "bg-red-100 text-red-700";
-  return "bg-slate-200 text-slate-700";
+  if (status === "Suspended") return "bg-red-100 text-red-200";
+  return "bg-slate-200 text-slate-300";
 }
 
 function roleClasses(role: string) {
-  if (role === "Super Admin") return "bg-red-100 text-red-700";
-  if (role === "Admin") return "bg-sky-100 text-sky-700";
+  if (role === "Super Admin") return "bg-red-100 text-red-200";
+  if (role === "Admin") return "bg-sky-100 text-sky-300";
   if (role === "Operations Manager") return "bg-violet-100 text-violet-700";
   if (role === "Company Admin") return "bg-indigo-100 text-indigo-700";
   if (role === "Company User") return "bg-amber-100 text-amber-700";
   if (role === "Editor") return "bg-amber-100 text-amber-700";
-  return "bg-slate-100 text-slate-700";
+  return "bg-slate-800/70 text-slate-300";
 }
 
 function formatRelative(timestamp?: string | null) {
@@ -196,6 +196,7 @@ export default function AdminUsersPage() {
   }, []);
 
   /** Keep company dropdown state aligned with loaded companies (fixes save sending null while UI showed a workspace). */
+  /* eslint-disable react-hooks/set-state-in-effect -- sync dropdown when companies load after modal opens */
   useEffect(() => {
     if (!editingUser || companiesLoading || companies.length === 0) return;
     setEditCompanyId((prev) => {
@@ -207,6 +208,7 @@ export default function AdminUsersPage() {
       );
     });
   }, [editingUser, companies, companiesLoading]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const loadUsers = useCallback(async (options?: { preserveMessage?: boolean }) => {
     setLoading(true);
@@ -689,20 +691,20 @@ export default function AdminUsersPage() {
           <>
             <Link
               href="/admin/companies"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Manage Companies
             </Link>
             <button
               onClick={handleInviteUser}
               disabled={inviteLoading || !inviteEmail.trim()}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
             >
               {inviteLoading ? "Inviting..." : "Invite Platform Staff"}
             </button>
             <Link
               href="/admin"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Back to Admin
             </Link>
@@ -712,9 +714,9 @@ export default function AdminUsersPage() {
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {userStats.map((item) => (
-          <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div key={item.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
             <p className="text-sm font-medium text-slate-500">{item.title}</p>
-            <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">
+            <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">
               {loading ? "-" : item.value}
             </p>
             <p className="mt-2 text-sm text-slate-500">{item.note}</p>
@@ -731,29 +733,29 @@ export default function AdminUsersPage() {
         }
       >
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-900">Platform Staff</p>
-            <p className="mt-2 text-sm text-slate-600">
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <p className="text-sm font-semibold text-slate-100">Platform Staff</p>
+            <p className="mt-2 text-sm text-slate-400">
               Super Admin, Admin, Editor, and Viewer accounts for your internal employees
               are managed here.
             </p>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-900">Companies</p>
-            <p className="mt-2 text-sm text-slate-600">
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <p className="text-sm font-semibold text-slate-100">Companies</p>
+            <p className="mt-2 text-sm text-slate-400">
               New customer company workspaces are reviewed and approved from the company oversight
               screen.
             </p>
             <Link
               href="/admin/companies"
-              className="mt-3 inline-flex text-sm font-semibold text-sky-700 transition hover:text-sky-600"
+              className="mt-3 inline-flex text-sm font-semibold text-sky-300 transition hover:text-sky-600"
             >
               Open Company Oversight
             </Link>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-900">Company Employees</p>
-            <p className="mt-2 text-sm text-slate-600">
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <p className="text-sm font-semibold text-slate-100">Company Employees</p>
+            <p className="mt-2 text-sm text-slate-400">
               {capabilities.canViewAllUsers
                 ? "Super Admin can see company-scoped accounts here too. Company admins still manage their own employees from inside the company workspace."
                 : "Company admins invite, approve, and manage Company Admin, Operations Manager, and Company User roles from inside their own company workspace."}
@@ -772,26 +774,26 @@ export default function AdminUsersPage() {
             placeholder="Invite staff by email..."
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
-            className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+            className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
           />
           <input
             type="text"
             placeholder="Internal team"
             value={inviteTeam}
             onChange={(e) => setInviteTeam(e.target.value)}
-            className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+            className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
           />
           <input
             type="text"
             placeholder="Search platform staff..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+            className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
           />
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
-              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-sky-500"
+              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-sky-500"
             >
             {inviteRoleOptions.map((role) => (
               <option key={role}>{role}</option>
@@ -804,7 +806,7 @@ export default function AdminUsersPage() {
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-sky-500"
+              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-sky-500"
             >
               {roleOptions.map((role) => (
                 <option key={role}>{role}</option>
@@ -815,7 +817,7 @@ export default function AdminUsersPage() {
                 setSearchTerm("");
                 setRoleFilter("All Roles");
               }}
-              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Clear Filters
             </button>
@@ -839,11 +841,11 @@ export default function AdminUsersPage() {
           ) : (
             <div className="space-y-4">
               {pendingApprovals.slice(0, 6).map((user) => (
-                <div key={user.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div key={user.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-900">{user.name}</p>
+                        <p className="text-sm font-semibold text-slate-100">{user.name}</p>
                         <StatusBadge label={user.status} tone="warning" />
                       </div>
                       <p className="mt-1 text-sm text-slate-500">{user.email}</p>
@@ -857,7 +859,7 @@ export default function AdminUsersPage() {
                       <button
                         onClick={() => void handleQuickStatus(user, "Active")}
                         disabled={actionLoading === `${user.id}:Active`}
-                        className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-60"
+                        className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
                       >
                         {actionLoading === `${user.id}:Active` ? "Approving..." : "Approve"}
                       </button>
@@ -871,14 +873,14 @@ export default function AdminUsersPage() {
                         setModalMessage("");
                         setModalMessageTone("neutral");
                       }}
-                        className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                        className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
                       >
                         Review Details
                       </button>
                       <button
                         onClick={() => void handleQuickStatus(user, "Suspended")}
                         disabled={actionLoading === `${user.id}:Suspended`}
-                        className="rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                        className="rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-200 transition hover:bg-red-950/40 disabled:opacity-60"
                       >
                         {actionLoading === `${user.id}:Suspended` ? "Blocking..." : "Suspend"}
                       </button>
@@ -935,12 +937,12 @@ export default function AdminUsersPage() {
             {filteredUsers.map((user) => (
               <div
                 key={user.id}
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4"
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-900">{user.name}</p>
+                      <p className="text-sm font-semibold text-slate-100">{user.name}</p>
                       <span
                         className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${roleClasses(
                           user.role
@@ -983,7 +985,7 @@ export default function AdminUsersPage() {
                       setModalMessage("");
                       setModalMessageTone("neutral");
                     }}
-                    className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                    className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
                   >
                     Manage
                   </button>
@@ -996,13 +998,13 @@ export default function AdminUsersPage() {
 
       {editingUser ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-lg rounded-3xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
                   Manage User
                 </p>
-                <h3 className="mt-2 text-2xl font-bold text-slate-900">{editingUser.name}</h3>
+                <h3 className="mt-2 text-2xl font-bold text-slate-100">{editingUser.name}</h3>
                 <p className="mt-1 text-sm text-slate-500">{editingUser.email}</p>
               </div>
               <button
@@ -1011,7 +1013,7 @@ export default function AdminUsersPage() {
                   setModalMessage("");
                   setModalMessageTone("neutral");
                 }}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="rounded-xl border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
               >
                 Close
               </button>
@@ -1021,7 +1023,7 @@ export default function AdminUsersPage() {
               <select
                 value={editRole}
                 onChange={(e) => setEditRole(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
               >
                 {(capabilities.canViewAllUsers ? roleOptions : inviteRoleOptions).filter(
                   (role) => role !== "All Roles"
@@ -1037,7 +1039,7 @@ export default function AdminUsersPage() {
                   <select
                     value={editCompanyId}
                     onChange={(e) => setEditCompanyId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                    className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
                   >
                     <option value="">
                       {companiesLoading
@@ -1055,7 +1057,7 @@ export default function AdminUsersPage() {
                   <p className="text-xs text-slate-500">
                     Super Admin / Platform Admin: required when the role is company-scoped (e.g. Company Admin,
                     Field User). Links the user in{" "}
-                    <code className="rounded bg-slate-100 px-1">company_memberships</code> and profile metadata.
+                    <code className="rounded bg-slate-800/70 px-1">company_memberships</code> and profile metadata.
                   </p>
                 </div>
               ) : null}
@@ -1067,14 +1069,14 @@ export default function AdminUsersPage() {
                   type="text"
                   value={editTeam}
                   onChange={(e) => setEditTeam(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                  className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
                   placeholder="Display label (synced with workspace name when company is set)"
                 />
               </div>
               <select
                 value={editStatus}
                 onChange={(e) => setEditStatus(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
               >
                 <option>Pending</option>
                 <option>Active</option>
@@ -1092,7 +1094,7 @@ export default function AdminUsersPage() {
               <button
                 onClick={() => void handleDeactivateUser()}
                 disabled={removeLoading}
-                className="rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                className="rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-950/40 disabled:opacity-60"
               >
                 {removeLoading ? "Deactivating..." : "Deactivate User"}
               </button>
@@ -1100,7 +1102,7 @@ export default function AdminUsersPage() {
                 <button
                   onClick={() => void handleDeleteUser()}
                   disabled={removeLoading}
-                  className="rounded-xl border border-red-500 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                  className="rounded-xl border border-red-500 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-950/40 disabled:opacity-60"
                 >
                   {removeLoading ? "Deleting..." : "Delete User"}
                 </button>
@@ -1109,7 +1111,7 @@ export default function AdminUsersPage() {
                 <button
                   onClick={() => void handleUserAction("resend_invite")}
                   disabled={actionLoading === "resend_invite"}
-                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:opacity-60"
                 >
                   {actionLoading === "resend_invite" ? "Sending..." : "Resend Invite"}
                 </button>
@@ -1118,7 +1120,7 @@ export default function AdminUsersPage() {
                 <button
                   onClick={() => void handleUserAction("password_reset")}
                   disabled={actionLoading === "password_reset"}
-                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:opacity-60"
                 >
                   {actionLoading === "password_reset" ? "Sending..." : "Send Password Reset"}
                 </button>
@@ -1129,7 +1131,7 @@ export default function AdminUsersPage() {
                 <button
                   onClick={() => void handleUserAction("force_sign_out")}
                   disabled={actionLoading === "force_sign_out"}
-                  className="rounded-xl border border-amber-300 px-4 py-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-60"
+                  className="rounded-xl border border-amber-300 px-4 py-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-950/40 disabled:opacity-60"
                 >
                   {actionLoading === "force_sign_out" ? "Forcing..." : "Force Sign Out"}
                 </button>
@@ -1137,7 +1139,7 @@ export default function AdminUsersPage() {
               <button
                 onClick={handleSaveUser}
                 disabled={saveLoading}
-                className="rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
+                className="rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
               >
                 {saveLoading ? "Saving..." : "Save Changes"}
               </button>

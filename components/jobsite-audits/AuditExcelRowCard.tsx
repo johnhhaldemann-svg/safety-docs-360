@@ -30,13 +30,13 @@ export function AuditExcelRowCard({
   if (entries.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1 space-y-2">
           {entries.map(([k, v]) => (
             <div key={`${rowKey}-${k}`} className="text-sm">
-              <span className="font-semibold text-slate-700">{humanizeFieldKey(k)}: </span>
-              <span className="text-slate-600">{String(v).trim()}</span>
+              <span className="font-semibold text-slate-300">{humanizeFieldKey(k)}: </span>
+              <span className="text-slate-400">{String(v).trim()}</span>
             </div>
           ))}
         </div>
@@ -49,7 +49,7 @@ export function AuditExcelRowCard({
               className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
                 status === value
                   ? "border-emerald-600 bg-emerald-600 text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  : "border-slate-700/80 bg-slate-900/90 text-slate-400 hover:border-slate-600"
               }`}
             >
               {label}

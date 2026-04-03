@@ -945,19 +945,19 @@ export default function FieldIdExchangePage() {
             <button
               type="button"
               onClick={() => void reloadActions()}
-              className="rounded-xl border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+              className="rounded-xl border border-sky-500/35 bg-sky-950/35 px-5 py-3 text-sm font-semibold text-sky-300 transition hover:bg-sky-100"
             >
               {loadingActions ? "Refreshing..." : hasLoaded ? "Refresh Board" : "Load Board"}
             </button>
             <Link
               href="/safety-submit"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Individual Safety Submission
             </Link>
             <Link
               href="/upload"
-              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Upload Field Photo
             </Link>
@@ -993,11 +993,11 @@ export default function FieldIdExchangePage() {
             note: companyLocation,
           },
         ].map((card) => (
-          <div key={card.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div key={card.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
             <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
               {card.title}
             </div>
-            <div className="mt-3 text-4xl font-black tracking-tight text-slate-950">
+            <div className="mt-3 text-4xl font-black tracking-tight text-white">
               {card.value}
             </div>
             <div className="mt-2 text-sm leading-6 text-slate-500">{card.note}</div>
@@ -1020,7 +1020,7 @@ export default function FieldIdExchangePage() {
                 value={composer.title}
                 onChange={(event) => setComposer((current) => ({ ...current, title: event.target.value }))}
                 placeholder="Unsecured ladder access on west elevation"
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
             <div className="sm:col-span-2">
@@ -1033,7 +1033,7 @@ export default function FieldIdExchangePage() {
                   setComposer((current) => ({ ...current, description: event.target.value }))
                 }
                 rows={3}
-                className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="mt-2 w-full rounded-2xl border border-slate-600 px-4 py-3 text-sm leading-6 text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
             <div>
@@ -1048,7 +1048,7 @@ export default function FieldIdExchangePage() {
                     severity: event.target.value as CreateActionState["severity"],
                   }))
                 }
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -1068,7 +1068,7 @@ export default function FieldIdExchangePage() {
                     observationType: event.target.value as CreateActionState["observationType"],
                   }))
                 }
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
               >
                 <option value="negative">Negative</option>
                 <option value="near_miss">Near Miss</option>
@@ -1089,7 +1089,7 @@ export default function FieldIdExchangePage() {
                         sifPotential: event.target.value as CreateActionState["sifPotential"],
                       }))
                     }
-                    className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+                    className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
                   >
                     <option value="">Select</option>
                     <option value="yes">Yes</option>
@@ -1109,7 +1109,7 @@ export default function FieldIdExchangePage() {
                       }))
                     }
                     disabled={composer.sifPotential !== "yes"}
-                    className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500 disabled:bg-slate-100"
+                    className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500 disabled:bg-slate-800/70"
                   >
                     <option value="">Select category</option>
                     <option value="fall_from_height">fall from height</option>
@@ -1129,7 +1129,7 @@ export default function FieldIdExchangePage() {
               <button
                 type="button"
                 onClick={() => setShowAdvancedComposer((current) => !current)}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-slate-50"
+                className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-slate-950/50"
               >
                 {showAdvancedComposer ? "Hide Advanced Fields" : "Show Advanced Fields"}
               </button>
@@ -1143,7 +1143,7 @@ export default function FieldIdExchangePage() {
               <select
                 value={composer.jobsiteId}
                 onChange={(event) => setComposer((current) => ({ ...current, jobsiteId: event.target.value }))}
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
               >
                 <option value="">General Workspace</option>
                 {jobsites.map((jobsite) => (
@@ -1162,7 +1162,7 @@ export default function FieldIdExchangePage() {
                 onChange={(event) =>
                   setComposer((current) => ({ ...current, assignedUserId: event.target.value }))
                 }
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
               >
                 <option value="">Unassigned</option>
                 {companyUsers.map((user) => (
@@ -1180,7 +1180,7 @@ export default function FieldIdExchangePage() {
                 type="date"
                 value={composer.dueAt}
                 onChange={(event) => setComposer((current) => ({ ...current, dueAt: event.target.value }))}
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
               />
             </div>
             <div>
@@ -1192,7 +1192,7 @@ export default function FieldIdExchangePage() {
                 onChange={(event) =>
                   setComposer((current) => ({ ...current, dapActivityId: event.target.value }))
                 }
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
               >
                 <option value="">Ad-hoc observation (not from DAP)</option>
                 {dapActivities.map((activity) => (
@@ -1217,7 +1217,7 @@ export default function FieldIdExchangePage() {
                     workflowStatus: event.target.value as CreateActionState["workflowStatus"],
                   }))
                 }
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
               >
                 <option value="open">Open</option>
                 <option value="assigned">Assigned</option>
@@ -1241,7 +1241,7 @@ export default function FieldIdExchangePage() {
               type="button"
               onClick={() => void createAction()}
               disabled={saving}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {saving ? "Saving..." : "Create Observation"}
             </button>
@@ -1251,7 +1251,7 @@ export default function FieldIdExchangePage() {
                 setComposer(EMPTY_CREATE_ACTION);
                 setShowAdvancedComposer(false);
               }}
-              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Clear
             </button>
@@ -1268,12 +1268,12 @@ export default function FieldIdExchangePage() {
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search issue, assignee, or severity..."
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
             />
             <select
               value={jobsiteFilter}
               onChange={(event) => setJobsiteFilter(event.target.value)}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
             >
               <option value="all">All jobsites</option>
               {[...jobsites.map((jobsite) => jobsite.name)].map((name) => (
@@ -1285,7 +1285,7 @@ export default function FieldIdExchangePage() {
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
             >
               <option value="all">All statuses</option>
               <option value="Open">Open</option>
@@ -1299,7 +1299,7 @@ export default function FieldIdExchangePage() {
             <select
               value={categoryFilter}
               onChange={(event) => setCategoryFilter(event.target.value)}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
             >
               <option value="all">All categories</option>
               {categoryCounts.map((category) => (
@@ -1329,14 +1329,14 @@ export default function FieldIdExchangePage() {
                   key={item.id}
                   className={`rounded-2xl border px-4 py-4 ${
                     item.status === "stop_work"
-                      ? "border-amber-400 bg-amber-50"
-                      : "border-slate-200 bg-slate-50"
+                      ? "border-amber-400 bg-amber-950/40"
+                      : "border-slate-700/80 bg-slate-950/50"
                   }`}
                 >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-sm font-semibold text-slate-900">{item.title}</div>
+                        <div className="text-sm font-semibold text-slate-100">{item.title}</div>
                         <StatusBadge label={getCategoryLabel(item.category)} tone="info" />
                         <StatusBadge label={getSeverityLabel(item.severity)} tone={getSeverityTone(item.severity)} />
                         <StatusBadge label={getStatusLabel(item.status)} tone={getStatusTone(item.status)} />
@@ -1350,7 +1350,7 @@ export default function FieldIdExchangePage() {
                           ? (assigneeLabelById.get(item.assigned_user_id) ?? "Assigned user")
                           : "Unassigned"}
                       </div>
-                      <div className="mt-2 text-sm leading-6 text-slate-600">
+                      <div className="mt-2 text-sm leading-6 text-slate-400">
                         {item.description || "No description provided."}
                       </div>
                       <div className="mt-2 text-xs text-slate-500">
@@ -1375,7 +1375,7 @@ export default function FieldIdExchangePage() {
                             type="button"
                             onClick={() => void updateStatus(item, "assigned")}
                             disabled={updatingActionId === item.id}
-                            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                            className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
                           >
                             Assign
                           </button>
@@ -1385,7 +1385,7 @@ export default function FieldIdExchangePage() {
                             type="button"
                             onClick={() => void updateStatus(item, "in_progress")}
                             disabled={updatingActionId === item.id}
-                            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                            className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
                           >
                             Start Work
                           </button>
@@ -1395,7 +1395,7 @@ export default function FieldIdExchangePage() {
                             type="button"
                             onClick={() => void updateStatus(item, "corrected")}
                             disabled={updatingActionId === item.id}
-                            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                            className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
                           >
                             Mark Corrected
                           </button>
@@ -1408,7 +1408,7 @@ export default function FieldIdExchangePage() {
                             type="button"
                             onClick={() => void updateStatus(item, "stop_work")}
                             disabled={updatingActionId === item.id}
-                            className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:text-amber-400"
+                            className="rounded-xl border border-amber-300 bg-amber-950/40 px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:text-amber-400"
                           >
                             Stop Work
                           </button>
@@ -1421,7 +1421,7 @@ export default function FieldIdExchangePage() {
                             type="button"
                             onClick={() => void updateStatus(item, "open")}
                             disabled={updatingActionId === item.id}
-                            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                            className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
                           >
                             Reopen Open
                           </button>
@@ -1436,7 +1436,7 @@ export default function FieldIdExchangePage() {
                               setEvidenceComposer(EMPTY_EVIDENCE_COMPOSER);
                             }}
                             disabled={updatingActionId === item.id}
-                            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                            className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
                           >
                             Add Proof
                           </button>
@@ -1446,7 +1446,7 @@ export default function FieldIdExchangePage() {
                             type="button"
                             onClick={() => void openLatestProof(item)}
                             disabled={openingProofActionId === item.id}
-                            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                            className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
                           >
                             {openingProofActionId === item.id ? "Opening..." : "View Latest Proof"}
                           </button>
@@ -1456,7 +1456,7 @@ export default function FieldIdExchangePage() {
                             type="button"
                             onClick={() => void toggleProofHistory(item.id)}
                             disabled={loadingProofHistoryActionId === item.id}
-                            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                            className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
                           >
                             {openProofHistoryActionId === item.id
                               ? "Hide Proof History"
@@ -1483,14 +1483,14 @@ export default function FieldIdExchangePage() {
                             type="button"
                             onClick={() => void convertToIncident(item)}
                             disabled={updatingActionId === item.id}
-                            className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:text-amber-400"
+                            className="rounded-xl border border-amber-300 bg-amber-950/40 px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:text-amber-400"
                           >
                             Convert to Incident
                           </button>
                         ) : null}
                       </div>
                       {openEvidenceComposerId === item.id ? (
-                        <div className="mt-3 space-y-2 rounded-xl border border-slate-200 bg-white p-3 text-left">
+                        <div className="mt-3 space-y-2 rounded-xl border border-slate-700/80 bg-slate-900/90 p-3 text-left">
                           <input
                             type="file"
                             accept="image/*"
@@ -1500,7 +1500,7 @@ export default function FieldIdExchangePage() {
                                 file: event.target.files?.[0] ?? null,
                               }))
                             }
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700 outline-none focus:border-sky-500"
+                            className="w-full rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300 outline-none focus:border-sky-500"
                           />
                           {evidenceComposer.file ? (
                             <div className="text-xs text-slate-500">
@@ -1511,14 +1511,14 @@ export default function FieldIdExchangePage() {
                             type="button"
                             onClick={() => void attachProof(item.id)}
                             disabled={updatingActionId === item.id}
-                            className="w-full rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+                            className="w-full rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                           >
                             Save Proof
                           </button>
                         </div>
                       ) : null}
                       {openProofHistoryActionId === item.id ? (
-                        <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-left">
+                        <div className="mt-3 rounded-xl border border-slate-700/80 bg-slate-900/90 p-3 text-left">
                           {loadingProofHistoryActionId === item.id ? (
                             <div className="text-xs text-slate-500">Loading proof history...</div>
                           ) : (proofHistoryByActionId[item.id] ?? []).length === 0 ? (
@@ -1530,10 +1530,10 @@ export default function FieldIdExchangePage() {
                               {(proofHistoryByActionId[item.id] ?? []).map((proof) => (
                                 <div
                                   key={proof.id}
-                                  className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                                  className="flex items-center justify-between gap-2 rounded-lg border border-slate-700/80 bg-slate-950/50 px-3 py-2"
                                 >
                                   <div>
-                                    <div className="text-xs font-semibold text-slate-900">
+                                    <div className="text-xs font-semibold text-slate-100">
                                       {proof.file_name}
                                     </div>
                                     <div className="text-[11px] text-slate-500">
@@ -1543,7 +1543,7 @@ export default function FieldIdExchangePage() {
                                   <button
                                     type="button"
                                     onClick={() => void openProofFile(item.id, proof.file_path)}
-                                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                                    className="rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-800/70"
                                   >
                                     Open
                                   </button>
@@ -1576,11 +1576,11 @@ export default function FieldIdExchangePage() {
                 {pendingSubmissions.slice(0, 6).map((submission) => (
                   <div
                     key={submission.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                    className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4"
                   >
                     <div className="flex flex-col gap-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-sm font-semibold text-slate-900">{submission.title}</div>
+                        <div className="text-sm font-semibold text-slate-100">{submission.title}</div>
                         <StatusBadge label={getCategoryLabel(submission.category)} tone="info" />
                         <StatusBadge
                           label={getSeverityLabel(submission.severity)}
@@ -1597,7 +1597,7 @@ export default function FieldIdExchangePage() {
                             void reviewSubmission(submission, "approved", "open")
                           }
                           disabled={reviewingSubmissionId === submission.id}
-                          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                          className="rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:text-slate-400"
                         >
                           Approve as Open
                         </button>
@@ -1607,7 +1607,7 @@ export default function FieldIdExchangePage() {
                             void reviewSubmission(submission, "approved", "verified_closed")
                           }
                           disabled={reviewingSubmissionId === submission.id}
-                          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                          className="rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:text-slate-400"
                         >
                           Approve as Closed
                         </button>
@@ -1635,8 +1635,8 @@ export default function FieldIdExchangePage() {
           >
             <div className="grid gap-3 sm:grid-cols-2">
               {categoryCounts.map((category) => (
-                <div key={category.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <div className="text-sm font-semibold text-slate-900">{category.label}</div>
+                <div key={category.label} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
+                  <div className="text-sm font-semibold text-slate-100">{category.label}</div>
                   <div className="mt-1 text-xs text-slate-500">
                     {category.count} active issue{category.count === 1 ? "" : "s"}
                   </div>
@@ -1673,19 +1673,19 @@ export default function FieldIdExchangePage() {
                 <tbody>
                   {activeMatrix.map((row) => (
                     <tr key={row.category}>
-                      <td className="rounded-l-xl border-y border-l border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-900">
+                      <td className="rounded-l-xl border-y border-l border-slate-700/80 bg-slate-950/50 px-3 py-2 text-xs font-semibold text-slate-100">
                         {getCategoryLabel(row.category)}
                       </td>
-                      <td className="border-y border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs text-slate-700">
+                      <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">
                         {row.open}
                       </td>
-                      <td className="border-y border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs text-slate-700">
+                      <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">
                         {row.inProgress}
                       </td>
-                      <td className="border-y border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs text-slate-700">
+                      <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">
                         {row.closed}
                       </td>
-                      <td className="rounded-r-xl border-y border-r border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs font-semibold text-slate-900">
+                      <td className="rounded-r-xl border-y border-r border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs font-semibold text-slate-100">
                         {row.total}
                       </td>
                     </tr>

@@ -1373,11 +1373,11 @@ export default function DashboardPage() {
 
     return (
       <div className="space-y-6">
-        <section className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-6 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
+        <section className="rounded-[1.8rem] border border-[#d9e8ff] bg-slate-900/90 p-6 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
           <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">
             CSEP workspace
           </p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Your CSEP program</h1>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Your CSEP program</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
             This account is limited to the Construction Safety &amp; Environmental Plan builder. Build and submit CSEP
             records for admin review from one place.
@@ -1391,13 +1391,13 @@ export default function DashboardPage() {
             </Link>
             <Link
               href="/profile"
-              className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
+              className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300"
             >
               Profile
             </Link>
             <Link
               href="/library"
-              className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
+              className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300"
             >
               Completed documents
             </Link>
@@ -1412,18 +1412,18 @@ export default function DashboardPage() {
           ].map((card) => (
             <div
               key={card.label}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+              className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm"
             >
               <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">{card.label}</div>
-              <div className="mt-2 text-3xl font-black text-slate-950">{loading ? "-" : card.value}</div>
+              <div className="mt-2 text-3xl font-black text-white">{loading ? "-" : card.value}</div>
               <p className="mt-2 text-sm text-slate-500">{card.note}</p>
             </div>
           ))}
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-900">Completed CSEP documents</h2>
-          <p className="mt-1 text-sm text-slate-600">
+        <section className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-100">Completed CSEP documents</h2>
+          <p className="mt-1 text-sm text-slate-400">
             Finished files after admin review. Open them here or from the library (sidebar: Completed documents).
           </p>
           {loading ? (
@@ -1437,17 +1437,17 @@ export default function DashboardPage() {
               {csepApprovedDocs.map((doc) => (
                 <li
                   key={doc.id}
-                  className="flex flex-col gap-2 rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-2 rounded-xl border border-slate-700/60 bg-slate-950/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0">
-                    <div className="truncate font-semibold text-slate-900">{getDocumentLabel(doc)}</div>
+                    <div className="truncate font-semibold text-slate-100">{getDocumentLabel(doc)}</div>
                     <div className="text-xs text-slate-500">
                       {(doc.project_name || "Project").trim() || "Project"} · {formatRelative(doc.created_at)}
                     </div>
                   </div>
                   <Link
                     href="/library"
-                    className="shrink-0 rounded-lg bg-sky-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-sky-500"
+                    className="shrink-0 rounded-lg bg-sky-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-sky-700"
                   >
                     Open in library
                   </Link>
@@ -1455,8 +1455,8 @@ export default function DashboardPage() {
               ))}
             </ul>
           )}
-          <div className="mt-4 border-t border-slate-100 pt-4">
-            <Link href="/library" className="text-sm font-semibold text-sky-700 hover:text-sky-900">
+          <div className="mt-4 border-t border-slate-700/60 pt-4">
+            <Link href="/library" className="text-sm font-semibold text-sky-300 hover:text-sky-900">
               Browse all completed documents →
             </Link>
           </div>
@@ -1468,13 +1468,13 @@ export default function DashboardPage() {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px] xl:gap-5">
       <div className="space-y-4 xl:space-y-5">
-        <section className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-6 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
+        <section className="rounded-[1.8rem] border border-[#d9e8ff] bg-slate-900/90 p-6 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">
                 {isManagerView ? "Company Workspace" : "Construction Safety Hub"}
               </p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
                 {isManagerView ? `${userTeam} Company Workspace` : "Safety360Docs"}
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
@@ -1493,7 +1493,7 @@ export default function DashboardPage() {
               </Link>
               <Link
                 href={isManagerView ? companyManagementHref : "/upload"}
-                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
+                className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300"
               >
                 {isManagerView ? (canManageCompanyUsers ? "Manage Company Users" : "Completed Library") : "Upload Documents"}
               </Link>
@@ -1504,13 +1504,13 @@ export default function DashboardPage() {
             {countCards.map((card) => (
               <div
                 key={card.title}
-                className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm"
+                className="rounded-[1.4rem] border border-slate-700/80 bg-slate-900/90 p-4 shadow-sm"
               >
                 <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
                   {card.title}
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="text-4xl font-black tracking-tight text-slate-950">
+                  <div className="text-4xl font-black tracking-tight text-white">
                     {loading ? "-" : card.value}
                   </div>
                   <DashboardIcon kind={card.icon} />
@@ -1528,18 +1528,18 @@ export default function DashboardPage() {
               <Link
                 key={card.title}
                 href={card.href}
-                className="rounded-[1.4rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-200 hover:shadow-md"
+                className="rounded-[1.4rem] border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm transition hover:border-sky-500/35 hover:shadow-md"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50 text-[11px] font-black text-sky-700">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-sky-950/35 text-[11px] font-black text-sky-300">
                       D
                     </span>
-                    <span className="text-lg font-bold text-slate-900">{card.title}</span>
+                    <span className="text-lg font-bold text-slate-100">{card.title}</span>
                   </div>
                   <span className="text-sm font-medium text-slate-500">Open</span>
                 </div>
-                <div className="mt-5 text-4xl font-black tracking-tight text-slate-950">
+                <div className="mt-5 text-4xl font-black tracking-tight text-white">
                   {loading ? "-" : card.value}
                 </div>
                 <p className="mt-2 text-sm leading-6 text-slate-500">{card.description}</p>
@@ -1570,12 +1570,12 @@ export default function DashboardPage() {
                   <Link
                     key={step.title}
                     href={step.href}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-sky-200 hover:bg-sky-50"
+                    className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 transition hover:border-sky-500/35 hover:bg-sky-950/35"
                   >
                     <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                       Step {index + 1}
                     </div>
-                    <div className="mt-2 text-lg font-bold text-slate-900">{step.title}</div>
+                    <div className="mt-2 text-lg font-bold text-slate-100">{step.title}</div>
                     <div className="mt-2 text-sm leading-6 text-slate-500">{step.note}</div>
                   </Link>
                 ))}
@@ -1587,18 +1587,18 @@ export default function DashboardPage() {
         ) : null}
 
         <section className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr] xl:gap-5">
-          <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
+          <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-slate-900/90 p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
             <div className="grid gap-4 sm:grid-cols-2">
               {actionCards.map((action) => (
                 <div
                   key={action.title}
-                  className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm"
+                  className="rounded-[1.4rem] border border-slate-700/80 bg-slate-900/90 p-4 shadow-sm"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50 text-[11px] font-black text-sky-700">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-sky-950/35 text-[11px] font-black text-sky-300">
                       A
                     </span>
-                    <span className="text-lg font-bold text-slate-900">{action.title}</span>
+                    <span className="text-lg font-bold text-slate-100">{action.title}</span>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate-500">{action.description}</p>
                   <Link
@@ -1612,13 +1612,13 @@ export default function DashboardPage() {
             </div>
 
             {isManagerView && companyProfile ? (
-              <div className="mt-5 rounded-[1.4rem] border border-slate-200 bg-slate-50 p-4">
+              <div className="mt-5 rounded-[1.4rem] border border-slate-700/80 bg-slate-950/50 p-4">
                 <div className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">
                   Company Profile
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">
+                    <div className="text-sm font-semibold text-slate-100">
                       {companyProfile.name || userTeam}
                     </div>
                     <div className="mt-1 text-sm text-slate-500">
@@ -1668,8 +1668,8 @@ export default function DashboardPage() {
           />
 
           <div className="space-y-5">
-            <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
-              <h2 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
+            <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-slate-900/90 p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
+              <h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">
                 Workspace Status
               </h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -1680,17 +1680,17 @@ export default function DashboardPage() {
                 {systemStatus.map((item) => (
                   <div
                     key={item.label}
-                    className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-4"
+                    className="flex items-center justify-between rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-4"
                   >
-                    <span className="text-sm font-medium text-slate-800">{item.label}</span>
+                    <span className="text-sm font-medium text-slate-200">{item.label}</span>
                     <StatusBadge label={item.badge} tone={getStatusTone(item.badge)} />
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-white p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
-              <h2 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
+            <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-slate-900/90 p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
+              <h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">
                 Workspace Tools
               </h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -1702,9 +1702,9 @@ export default function DashboardPage() {
                   <Link
                     key={tool.title}
                     href={tool.href}
-                    className="block rounded-2xl border border-slate-200 bg-white px-4 py-4 transition hover:border-sky-200 hover:shadow-sm"
+                    className="block rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-4 transition hover:border-sky-500/35 hover:shadow-sm"
                   >
-                    <div className="text-sm font-semibold text-slate-900">{tool.title}</div>
+                    <div className="text-sm font-semibold text-slate-100">{tool.title}</div>
                     <div className="mt-1 text-sm text-slate-500">{tool.note}</div>
                   </Link>
                 ))}
@@ -1777,7 +1777,7 @@ export default function DashboardPage() {
           aside={
             <Link
               href={isManagerView ? "/library" : "/upload"}
-              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               {isManagerView ? "Open Library" : "Open Uploads"}
             </Link>
@@ -1799,18 +1799,18 @@ export default function DashboardPage() {
               {latestUploaded.map((document) => (
                 <div
                   key={document.id}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-slate-900">
+                      <div className="truncate text-sm font-semibold text-slate-100">
                         {getDocumentLabel(document)}
                       </div>
                       <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
                         {document.document_type || "Document"}
                       </div>
                     </div>
-                    <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                    <span className="rounded-full bg-sky-950/35 px-3 py-1 text-xs font-semibold text-sky-300">
                       {getStatusLabel(document)}
                     </span>
                   </div>

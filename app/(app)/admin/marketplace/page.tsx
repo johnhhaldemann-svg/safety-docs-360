@@ -205,13 +205,13 @@ export default function AdminMarketplacePage() {
           <>
             <Link
               href="/admin/review-documents"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Open Review Queue
             </Link>
             <Link
               href="/library"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               View User Library
             </Link>
@@ -246,7 +246,7 @@ export default function AdminMarketplacePage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid flex-1 gap-4 md:grid-cols-[1.5fr_0.7fr]">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Search Marketplace Documents
               </label>
               <input
@@ -254,18 +254,18 @@ export default function AdminMarketplacePage() {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search project name or type..."
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Visibility
               </label>
               <select
                 value={visibilityFilter}
                 onChange={(event) => setVisibilityFilter(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               >
                 <option value="all">All Completed Docs</option>
                 <option value="listed">Listed Only</option>
@@ -280,7 +280,7 @@ export default function AdminMarketplacePage() {
               setSearchTerm("");
               setVisibilityFilter("all");
             }}
-            className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
           >
             Clear Filters
           </button>
@@ -333,11 +333,11 @@ function MarketplaceCard({
     .join(" - ");
 
   return (
-    <div className="rounded-2xl border border-slate-200 p-5">
+    <div className="rounded-2xl border border-slate-700/80 p-5">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-semibold text-slate-900">
+            <h3 className="text-lg font-semibold text-slate-100">
               {formatDocumentTitle(document)}
             </h3>
             <span
@@ -345,13 +345,13 @@ function MarketplaceCard({
                 "rounded-full px-3 py-1 text-xs font-semibold",
                 document.marketplaceEnabled
                   ? "bg-emerald-100 text-emerald-700"
-                  : "bg-slate-100 text-slate-700",
+                  : "bg-slate-800/70 text-slate-300",
               ].join(" ")}
             >
               {document.marketplaceEnabled ? "Listed" : "Hidden"}
             </span>
           </div>
-          <p className="mt-2 text-sm text-slate-600">{documentMeta}</p>
+          <p className="mt-2 text-sm text-slate-400">{documentMeta}</p>
           <p className="mt-1 text-xs text-slate-500">
             Approved {formatRelative(document.created_at)}
           </p>
@@ -363,9 +363,9 @@ function MarketplaceCard({
           </div>
         </div>
 
-        <div className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 xl:w-[320px]">
-          <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3">
-            <span className="text-sm font-semibold text-slate-800">Marketplace Listing</span>
+        <div className="w-full rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 xl:w-[320px]">
+          <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
+            <span className="text-sm font-semibold text-slate-200">Marketplace Listing</span>
             <input
               type="checkbox"
               checked={enabled}
@@ -375,7 +375,7 @@ function MarketplaceCard({
           </label>
 
           <div className="mt-4">
-            <label className="mb-2 block text-sm font-semibold text-slate-700">
+            <label className="mb-2 block text-sm font-semibold text-slate-300">
               Credit Cost
             </label>
             <input
@@ -383,7 +383,7 @@ function MarketplaceCard({
               min={1}
               value={creditCost}
               onChange={(event) => setCreditCost(event.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+              className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
             />
           </div>
 
@@ -394,14 +394,14 @@ function MarketplaceCard({
                 void onSave(document.id, enabled, Math.max(1, Number(creditCost) || 1))
               }
               disabled={saving}
-              className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold !text-sky-900 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-sky-500/35 bg-sky-950/35 px-4 py-3 text-sm font-semibold !text-sky-900 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? "Saving..." : "Save"}
             </button>
 
             <Link
               href={`/admin/review-documents/${document.id}`}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
             >
               Open Review
             </Link>
@@ -422,9 +422,9 @@ function StatCard({
   note: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{title}</p>
-      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">{value}</p>
+      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">{value}</p>
       <p className="mt-2 text-sm text-slate-500">{note}</p>
     </div>
   );
@@ -438,11 +438,11 @@ function MiniStat({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+    <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
         {label}
       </p>
-      <p className="mt-2 text-sm font-semibold text-slate-900">{value}</p>
+      <p className="mt-2 text-sm font-semibold text-slate-100">{value}</p>
     </div>
   );
 }

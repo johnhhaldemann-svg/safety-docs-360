@@ -77,7 +77,7 @@ export function ExcelTemplateByCategory({
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(200px,260px)_1fr]">
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 lg:max-h-[min(70vh,720px)] lg:overflow-y-auto">
+      <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-3 lg:max-h-[min(70vh,720px)] lg:overflow-y-auto">
         <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
           <List className="h-3.5 w-3.5" />
           {categoryLabel}
@@ -98,8 +98,8 @@ export function ExcelTemplateByCategory({
                 onClick={() => setBlockIdx(sIdx)}
                 className={`flex w-full flex-col gap-0.5 rounded-xl border px-3 py-2.5 text-left text-sm transition ${
                   active
-                    ? "border-emerald-500 bg-emerald-50 font-semibold text-emerald-950"
-                    : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-white"
+                    ? "border-emerald-500 bg-emerald-950/35 font-semibold text-emerald-950"
+                    : "border-transparent bg-slate-900/90 text-slate-300 hover:border-slate-700/80 hover:bg-slate-900/90"
                 }`}
               >
                 <span className="leading-snug">{titleAt(sIdx)}</span>
@@ -116,10 +116,10 @@ export function ExcelTemplateByCategory({
         </div>
       </div>
 
-      <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+      <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/60 pb-3">
           <div>
-            <h3 className="text-base font-bold text-slate-900">{titleAt(safeIdx)}</h3>
+            <h3 className="text-base font-bold text-slate-100">{titleAt(safeIdx)}</h3>
             <p className="text-xs font-semibold text-slate-500">
               {tabPrefix === "hs" ? "Health & safety" : "Environmental"} · Category {safeIdx + 1} of{" "}
               {sections.length}
@@ -134,7 +134,7 @@ export function ExcelTemplateByCategory({
               type="button"
               onClick={goPrev}
               disabled={safeIdx <= 0}
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-700/80 bg-slate-900/90 px-3 py-2 text-sm font-semibold text-slate-300 disabled:opacity-40"
             >
               <ChevronLeft className="h-4 w-4" />
               Prev
@@ -143,7 +143,7 @@ export function ExcelTemplateByCategory({
               type="button"
               onClick={goNext}
               disabled={safeIdx >= sections.length - 1}
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-700/80 bg-slate-900/90 px-3 py-2 text-sm font-semibold text-slate-300 disabled:opacity-40"
             >
               Next
               <ChevronRight className="h-4 w-4" />
@@ -153,7 +153,7 @@ export function ExcelTemplateByCategory({
 
         <div className="mt-4 space-y-3">
           {currentRows.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-10 text-center text-sm text-slate-500">
+            <p className="rounded-xl border border-dashed border-slate-700/80 bg-slate-950/50 py-10 text-center text-sm text-slate-500">
               No lines in this block match your filter. Clear the filter or choose another category.
             </p>
           ) : (

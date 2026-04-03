@@ -369,7 +369,7 @@ export default function AdminCompanyDetailPage({
           <div className="flex flex-wrap gap-3">
             <Link
               href="/admin/companies"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Back to Companies
             </Link>
@@ -386,8 +386,8 @@ export default function AdminCompanyDetailPage({
                 disabled={processingAction}
                 className={
                   company.status.trim().toLowerCase() === "archived"
-                    ? "rounded-xl border border-emerald-300 px-5 py-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    : "rounded-xl border border-amber-300 px-5 py-3 text-sm font-semibold text-amber-800 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    ? "rounded-xl border border-emerald-300 px-5 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-950/35 disabled:cursor-not-allowed disabled:opacity-60"
+                    : "rounded-xl border border-amber-300 px-5 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-950/40 disabled:cursor-not-allowed disabled:opacity-60"
                 }
               >
                 {processingAction
@@ -407,7 +407,7 @@ export default function AdminCompanyDetailPage({
                   setDeleteConfirmName("");
                 }}
                 disabled={processingAction || deletingCompany}
-                className="rounded-xl border border-red-300 px-5 py-3 text-sm font-semibold text-red-800 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-xl border border-red-300 px-5 py-3 text-sm font-semibold text-red-100 transition hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Delete from database
               </button>
@@ -419,32 +419,32 @@ export default function AdminCompanyDetailPage({
       {deleteConfirmOpen && company ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
           <div
-            className="max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+            className="max-w-lg rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-xl"
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-company-title"
           >
             <h2
               id="delete-company-title"
-              className="text-lg font-bold text-slate-900"
+              className="text-lg font-bold text-slate-100"
             >
               Permanently delete this workspace?
             </h2>
-            <p className="mt-3 text-sm text-slate-600">
+            <p className="mt-3 text-sm text-slate-400">
               This removes the company row and related workspace data (memberships, invites, jobsites,
               safety data, documents, and billing rows). Former members are reset to Viewer in{" "}
-              <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">user_roles</code> when their
+              <code className="rounded bg-slate-800/70 px-1 py-0.5 text-xs">user_roles</code> when their
               profile was tied to this company. This cannot be undone.
             </p>
-            <p className="mt-3 text-sm font-medium text-slate-800">
+            <p className="mt-3 text-sm font-medium text-slate-200">
               Type the workspace name to confirm:{" "}
-              <span className="font-bold text-slate-900">{company.name}</span>
+              <span className="font-bold text-slate-100">{company.name}</span>
             </p>
             <input
               type="text"
               value={deleteConfirmName}
               onChange={(e) => setDeleteConfirmName(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none ring-slate-400 focus:ring-2"
+              className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-100 outline-none ring-slate-400 focus:ring-2"
               placeholder="Workspace name"
               autoComplete="off"
             />
@@ -456,7 +456,7 @@ export default function AdminCompanyDetailPage({
                   setDeleteConfirmName("");
                 }}
                 disabled={deletingCompany}
-                className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -491,12 +491,12 @@ export default function AdminCompanyDetailPage({
               description="This workspace may have been removed or you may not have access."
             />
           ) : (
-            <div className="grid gap-4 text-sm text-slate-600 sm:grid-cols-2">
+            <div className="grid gap-4 text-sm text-slate-400 sm:grid-cols-2">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                   Workspace
                 </div>
-                <div className="mt-2 text-lg font-bold text-slate-900">{company.name}</div>
+                <div className="mt-2 text-lg font-bold text-slate-100">{company.name}</div>
                 <div className="mt-1">Key: {company.teamKey}</div>
                 <div className="mt-3">
                   <StatusBadge label={company.status} tone={statusTone(company.status)} />
@@ -506,7 +506,7 @@ export default function AdminCompanyDetailPage({
                 <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                   Primary Contact
                 </div>
-                <div className="mt-2 text-base font-semibold text-slate-900">
+                <div className="mt-2 text-base font-semibold text-slate-100">
                   {company.primaryContactName || "Not provided"}
                 </div>
                 <div className="mt-1">{company.primaryContactEmail || "Not provided"}</div>
@@ -554,9 +554,9 @@ export default function AdminCompanyDetailPage({
 
         <section className="grid gap-5 sm:grid-cols-3 lg:grid-cols-1">
           {statCards.map((card) => (
-            <div key={card.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div key={card.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
               <p className="text-sm font-medium text-slate-500">{card.title}</p>
-              <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">
+              <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">
                 {loading ? "-" : card.value}
               </p>
               <p className="mt-2 text-sm text-slate-500">{card.note}</p>
@@ -577,8 +577,8 @@ export default function AdminCompanyDetailPage({
             description="Company admins and employees will appear here once they are linked to the workspace."
           />
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-slate-200">
-            <div className="grid grid-cols-[1.4fr_0.9fr_0.9fr_1fr] gap-3 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <div className="overflow-hidden rounded-2xl border border-slate-700/80">
+            <div className="grid grid-cols-[1.4fr_0.9fr_0.9fr_1fr] gap-3 border-b border-slate-700/80 bg-slate-950/50 px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
               <div>User</div>
               <div>Role</div>
               <div>Status</div>
@@ -587,10 +587,10 @@ export default function AdminCompanyDetailPage({
             {users.map((user) => (
               <div
                 key={user.id}
-                className="grid grid-cols-[1.4fr_0.9fr_0.9fr_1fr] gap-3 border-t border-slate-100 px-5 py-4 text-sm text-slate-600 first:border-t-0"
+                className="grid grid-cols-[1.4fr_0.9fr_0.9fr_1fr] gap-3 border-t border-slate-700/60 px-5 py-4 text-sm text-slate-400 first:border-t-0"
               >
                 <div>
-                  <div className="font-semibold text-slate-900">{user.name}</div>
+                  <div className="font-semibold text-slate-100">{user.name}</div>
                   <div className="mt-1 text-slate-500">{user.email || user.id}</div>
                 </div>
                 <div>{user.role}</div>
@@ -652,8 +652,8 @@ export default function AdminCompanyDetailPage({
           ) : (
             <div className="space-y-3">
               {company.archivedAt ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                  <div className="font-semibold text-slate-900">Workspace archived</div>
+                <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
+                  <div className="font-semibold text-slate-100">Workspace archived</div>
                   <div className="mt-1 text-sm text-slate-500">
                     {formatRelative(company.archivedAt)}
                     {company.archivedByEmail ? ` by ${company.archivedByEmail}` : ""}
@@ -661,8 +661,8 @@ export default function AdminCompanyDetailPage({
                 </div>
               ) : null}
               {company.restoredAt ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                  <div className="font-semibold text-slate-900">Workspace restored</div>
+                <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
+                  <div className="font-semibold text-slate-100">Workspace restored</div>
                   <div className="mt-1 text-sm text-slate-500">
                     {formatRelative(company.restoredAt)}
                     {company.restoredByEmail ? ` by ${company.restoredByEmail}` : ""}
@@ -689,11 +689,11 @@ export default function AdminCompanyDetailPage({
               {invites.map((invite) => (
                 <div
                   key={invite.id}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="font-semibold text-slate-900">{invite.email}</div>
+                      <div className="font-semibold text-slate-100">{invite.email}</div>
                       <div className="mt-1 text-sm text-slate-500">
                         {invite.role} invited {formatRelative(invite.created_at)}
                       </div>
@@ -722,11 +722,11 @@ export default function AdminCompanyDetailPage({
               {documents.slice(0, 12).map((document) => (
                 <div
                   key={document.id}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <div className="font-semibold text-slate-900">{document.title}</div>
+                      <div className="font-semibold text-slate-100">{document.title}</div>
                       <div className="mt-1 text-sm text-slate-500">
                         {document.projectName || "No project"} · {document.type || "Document"} ·{" "}
                         {formatRelative(document.updatedAt ?? document.createdAt)}

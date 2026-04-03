@@ -155,7 +155,7 @@ export default function PermitsPage() {
         title="Permits"
         description="Manage permit lifecycle, SIF flags, escalation, and stop-work controls."
         actions={
-          <Link href="/dashboard" className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">
+          <Link href="/dashboard" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300">
             Back to Dashboard
           </Link>
         }
@@ -164,22 +164,22 @@ export default function PermitsPage() {
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 
       <section className="grid gap-4 sm:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="text-xs text-slate-500">Total</div><div className="mt-2 text-3xl font-black">{counts.total}</div></div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="text-xs text-slate-500">Active</div><div className="mt-2 text-3xl font-black">{counts.active}</div></div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="text-xs text-slate-500">SIF Flagged</div><div className="mt-2 text-3xl font-black">{counts.sif}</div></div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="text-xs text-slate-500">Stop Work</div><div className="mt-2 text-3xl font-black">{counts.stopWork}</div></div>
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"><div className="text-xs text-slate-500">Total</div><div className="mt-2 text-3xl font-black">{counts.total}</div></div>
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"><div className="text-xs text-slate-500">Active</div><div className="mt-2 text-3xl font-black">{counts.active}</div></div>
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"><div className="text-xs text-slate-500">SIF Flagged</div><div className="mt-2 text-3xl font-black">{counts.sif}</div></div>
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"><div className="text-xs text-slate-500">Stop Work</div><div className="mt-2 text-3xl font-black">{counts.stopWork}</div></div>
       </section>
 
       <SectionCard title="Create Permit" description="Start with permit basics, then escalate/stop-work as needed.">
         <div className="grid gap-3 md:grid-cols-3">
-          <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Permit title" className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
-          <select value={form.permitType} onChange={(event) => setForm((prev) => ({ ...prev, permitType: event.target.value }))} className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+          <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Permit title" className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm" />
+          <select value={form.permitType} onChange={(event) => setForm((prev) => ({ ...prev, permitType: event.target.value }))} className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm">
             <option value="hot_work">Hot Work</option>
             <option value="confined_space">Confined Space</option>
             <option value="electrical">Electrical</option>
             <option value="excavation">Excavation</option>
           </select>
-          <select value={form.severity} onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))} className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+          <select value={form.severity} onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))} className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm">
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
@@ -189,13 +189,13 @@ export default function PermitsPage() {
             value={form.dapActivityId}
             onChange={(event) => setForm((prev) => ({ ...prev, dapActivityId: event.target.value }))}
             placeholder="DAP Activity ID (optional)"
-            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
           />
           <input
             value={form.observationId}
             onChange={(event) => setForm((prev) => ({ ...prev, observationId: event.target.value }))}
             placeholder="Observation ID (optional)"
-            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+            className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm"
           />
         </div>
         <div className="mt-4">
@@ -207,7 +207,7 @@ export default function PermitsPage() {
 
       <SectionCard title="Permit Operations" description="Track permit status and high-risk controls.">
         <div className="mb-4">
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm">
             <option value="all">All statuses</option>
             <option value="draft">Draft</option>
             <option value="active">Active</option>
@@ -222,10 +222,10 @@ export default function PermitsPage() {
         ) : (
           <div className="space-y-3">
             {permits.map((permit) => (
-              <div key={permit.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div key={permit.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">{permit.title}</div>
+                    <div className="text-sm font-semibold text-slate-100">{permit.title}</div>
                     <div className="mt-1 text-xs text-slate-500">{permit.permit_type} · {permit.severity}</div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -235,13 +235,13 @@ export default function PermitsPage() {
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button onClick={() => void updateRiskState(permit, { status: permit.status === "active" ? "closed" : "active" })} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                  <button onClick={() => void updateRiskState(permit, { status: permit.status === "active" ? "closed" : "active" })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
                     {permit.status === "active" ? "Close" : "Activate"}
                   </button>
-                  <button onClick={() => void updateRiskState(permit, { sifFlag: !permit.sif_flag })} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                  <button onClick={() => void updateRiskState(permit, { sifFlag: !permit.sif_flag })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
                     {permit.sif_flag ? "Unset SIF" : "Set SIF"}
                   </button>
-                  <button onClick={() => void updateRiskState(permit, { escalationLevel: permit.escalation_level === "none" ? "urgent" : "none" })} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                  <button onClick={() => void updateRiskState(permit, { escalationLevel: permit.escalation_level === "none" ? "urgent" : "none" })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
                     {permit.escalation_level === "none" ? "Escalate" : "Clear Escalation"}
                   </button>
                   <button

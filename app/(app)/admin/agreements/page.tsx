@@ -219,13 +219,13 @@ export default function AdminAgreementsPage() {
           <>
             <Link
               href="/admin/users"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Open Users
             </Link>
             <Link
               href="/admin/transactions"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Open Transactions
             </Link>
@@ -265,7 +265,7 @@ export default function AdminAgreementsPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid flex-1 gap-4 md:grid-cols-3">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Search Audit
               </label>
               <input
@@ -273,18 +273,18 @@ export default function AdminAgreementsPage() {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search user, email, team, IP..."
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Acceptance Status
               </label>
               <select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               >
                 <option value="all">All Statuses</option>
                 <option value="accepted">Accepted</option>
@@ -295,13 +295,13 @@ export default function AdminAgreementsPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 User Role
               </label>
               <select
                 value={roleFilter}
                 onChange={(event) => setRoleFilter(event.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               >
                 <option value="all">All Roles</option>
                 {roleOptions.map((role) => (
@@ -321,7 +321,7 @@ export default function AdminAgreementsPage() {
                 setStatusFilter("all");
                 setRoleFilter("all");
               }}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Clear Filters
             </button>
@@ -329,7 +329,7 @@ export default function AdminAgreementsPage() {
               type="button"
               onClick={handleExportCsv}
               disabled={filteredAgreements.length === 0}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Export CSV
             </button>
@@ -343,7 +343,7 @@ export default function AdminAgreementsPage() {
         title="Acceptance Records"
         description={`${filteredAgreements.length} user${filteredAgreements.length === 1 ? "" : "s"} match the current filters.`}
         aside={
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm font-semibold text-slate-300">
             Current version: {audit.termsVersion}
           </div>
         }
@@ -358,11 +358,11 @@ export default function AdminAgreementsPage() {
         ) : (
           <div className="space-y-4">
             {filteredAgreements.map((row) => (
-              <div key={row.id} className="rounded-2xl border border-slate-200 p-5">
+              <div key={row.id} className="rounded-2xl border border-slate-700/80 p-5">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-lg font-semibold text-slate-900">
+                      <h3 className="text-lg font-semibold text-slate-100">
                         {row.name}
                       </h3>
                       <span
@@ -372,7 +372,7 @@ export default function AdminAgreementsPage() {
                             ? row.isCurrentVersion
                               ? "bg-emerald-100 text-emerald-700"
                               : "bg-amber-100 text-amber-700"
-                            : "bg-slate-200 text-slate-700",
+                            : "bg-slate-200 text-slate-300",
                         ].join(" ")}
                       >
                         {row.acceptedTerms
@@ -381,12 +381,12 @@ export default function AdminAgreementsPage() {
                             : "Outdated"
                           : "Pending"}
                       </span>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                      <span className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-semibold text-slate-300">
                         {row.role}
                       </span>
                     </div>
 
-                    <p className="mt-2 break-all text-sm text-slate-600">{row.email}</p>
+                    <p className="mt-2 break-all text-sm text-slate-400">{row.email}</p>
 
                     <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                       <MiniInfo label="Team" value={row.team} subvalue="Role context" />
@@ -433,9 +433,9 @@ function StatCard({
   note: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{title}</p>
-      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">{value}</p>
+      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">{value}</p>
       <p className="mt-2 text-sm text-slate-500">{note}</p>
     </div>
   );
@@ -451,11 +451,11 @@ function MiniInfo({
   subvalue: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+    <div className="rounded-xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
         {label}
       </p>
-      <p className="mt-2 break-all text-sm font-semibold text-slate-900">{value}</p>
+      <p className="mt-2 break-all text-sm font-semibold text-slate-100">{value}</p>
       <p className="mt-1 break-all text-xs text-slate-500">{subvalue}</p>
     </div>
   );

@@ -19,11 +19,11 @@ export default async function CompanyScopedLayout({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
           Company Workspace
         </div>
-        <div className="mt-2 text-xl font-black text-slate-900">
+        <div className="mt-2 text-xl font-black text-slate-100">
           Company {companyId}
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -31,7 +31,7 @@ export default async function CompanyScopedLayout({
             <Link
               key={tab.href}
               href={tab.href}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
+              className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm font-semibold text-slate-300"
             >
               {tab.label}
             </Link>

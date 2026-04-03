@@ -344,7 +344,7 @@ export default function AdminCompaniesPage() {
         actions={
           <Link
             href="/admin/users"
-            className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
           >
             Back to Platform Staff
           </Link>
@@ -353,9 +353,9 @@ export default function AdminCompaniesPage() {
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {stats.map((item) => (
-          <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div key={item.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
             <p className="text-sm font-medium text-slate-500">{item.title}</p>
-            <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">
+            <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">
               {loading ? "-" : item.value}
             </p>
             <p className="mt-2 text-sm text-slate-500">{item.note}</p>
@@ -383,14 +383,14 @@ export default function AdminCompaniesPage() {
         ].map((item) => (
           <div
             key={item.step}
-            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+            className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm"
           >
             <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sm font-black text-sky-700">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sm font-black text-sky-300">
                 {item.step}
               </div>
               <div>
-                <div className="text-base font-bold text-slate-950">{item.title}</div>
+                <div className="text-base font-bold text-white">{item.title}</div>
                 <p className="mt-1 text-sm leading-6 text-slate-500">{item.body}</p>
               </div>
             </div>
@@ -417,11 +417,11 @@ export default function AdminCompaniesPage() {
         ) : (
           <div className="grid gap-4">
             {signupRequests.map((request) => (
-              <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <div key={request.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="text-lg font-bold text-slate-900">{request.company_name}</h3>
+                      <h3 className="text-lg font-bold text-slate-100">{request.company_name}</h3>
                       <StatusBadge label={request.status} tone={statusTone(request.status)} />
                     </div>
                     <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-500">
@@ -435,7 +435,7 @@ export default function AdminCompaniesPage() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-3 lg:min-w-[360px]">
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <div className="rounded-xl border border-amber-500/35 bg-amber-950/40 px-4 py-3 text-sm text-amber-100">
                       Approve this request to activate the workspace. After approval, the owner signs in again with the same email and the company workspace opens on that account.
                     </div>
                     <div className="space-y-2">
@@ -450,7 +450,7 @@ export default function AdminCompaniesPage() {
                             [request.id]: event.target.value,
                           }))
                         }
-                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+                        className="w-full rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm text-slate-200"
                       >
                         <option value="Pro">Full workspace (Pro)</option>
                         <option value="CSEP">CSEP-only (comped / limited UI)</option>
@@ -467,7 +467,7 @@ export default function AdminCompaniesPage() {
                           )
                         }
                         disabled={processingRequestId === request.id}
-                        className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {processingRequestId === request.id ? "Approving..." : "Approve Workspace"}
                       </button>
@@ -475,7 +475,7 @@ export default function AdminCompaniesPage() {
                         type="button"
                         onClick={() => void handleSignupRequestAction(request.id, "reject")}
                         disabled={processingRequestId === request.id}
-                        className="rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-200 transition hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {processingRequestId === request.id ? "Working..." : "Reject"}
                       </button>
@@ -498,7 +498,7 @@ export default function AdminCompaniesPage() {
             placeholder="Search company workspaces..."
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+            className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
           />
         </div>
 
@@ -534,7 +534,7 @@ export default function AdminCompaniesPage() {
             ].map((section) => (
               <div key={section.key} className="space-y-4">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">{section.title}</h3>
+                  <h3 className="text-lg font-bold text-slate-100">{section.title}</h3>
                   <p className="mt-1 text-sm text-slate-500">{section.description}</p>
                 </div>
                 {section.companies.length === 0 ? (
@@ -551,12 +551,12 @@ export default function AdminCompaniesPage() {
                     {section.companies.map((company) => (
                       <div
                         key={company.id}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+                        className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
                       >
                         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                           <div>
                             <div className="flex flex-wrap items-center gap-3">
-                              <h3 className="text-lg font-bold text-slate-900">{company.name}</h3>
+                              <h3 className="text-lg font-bold text-slate-100">{company.name}</h3>
                               <StatusBadge label={company.status} tone={statusTone(company.status)} />
                             </div>
                             <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-500">
@@ -602,33 +602,33 @@ export default function AdminCompaniesPage() {
 
                           <div className="space-y-3 xl:min-w-[420px]">
                             <div className="grid gap-3 sm:grid-cols-3">
-                              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                              <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
                                 <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                                   Users
                                 </div>
-                                <div className="mt-2 text-2xl font-bold text-slate-900">
+                                <div className="mt-2 text-2xl font-bold text-slate-100">
                                   {company.totalUsers}
                                 </div>
                                 <div className="mt-1 text-xs text-slate-500">
                                   {company.companyAdmins} admin, {company.activeUsers} active
                                 </div>
                               </div>
-                              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                              <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
                                 <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                                   Invites
                                 </div>
-                                <div className="mt-2 text-2xl font-bold text-slate-900">
+                                <div className="mt-2 text-2xl font-bold text-slate-100">
                                   {company.pendingInvites}
                                 </div>
                                 <div className="mt-1 text-xs text-slate-500">
                                   {company.pendingUsers} pending approvals
                                 </div>
                               </div>
-                              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                              <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
                                 <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                                   Documents
                                 </div>
-                                <div className="mt-2 text-2xl font-bold text-slate-900">
+                                <div className="mt-2 text-2xl font-bold text-slate-100">
                                   {company.completedDocuments}
                                 </div>
                                 <div className="mt-1 text-xs text-slate-500">
@@ -639,7 +639,7 @@ export default function AdminCompaniesPage() {
                             <div className="flex flex-wrap justify-end gap-3">
                               <Link
                                 href={`/admin/companies/${company.id}`}
-                                className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
                               >
                                 View Company
                               </Link>
@@ -654,8 +654,8 @@ export default function AdminCompaniesPage() {
                                 disabled={processingCompanyId === company.id}
                                 className={
                                   section.key === "active"
-                                    ? "rounded-xl border border-amber-300 px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                    : "rounded-xl border border-emerald-300 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                    ? "rounded-xl border border-amber-300 px-4 py-2.5 text-sm font-semibold text-amber-100 transition hover:bg-amber-950/40 disabled:cursor-not-allowed disabled:opacity-60"
+                                    : "rounded-xl border border-emerald-300 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-950/35 disabled:cursor-not-allowed disabled:opacity-60"
                                 }
                               >
                                 {processingCompanyId === company.id

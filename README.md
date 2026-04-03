@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Safety360Docs
 
-## Getting Started
+Enterprise safety and compliance workspace: document control, company workspaces (jobsites, training, corrective actions), field workflows (observations, DAPs, permits, incidents), and admin tooling. Built with **Next.js** (App Router), **Supabase** (Postgres + Auth + RLS), deployed on **Vercel**.
 
-First, run the development server:
+## Requirements
+
+- Node.js 20+
+- npm (or compatible package manager)
+- A Supabase project with migrations applied from `supabase/migrations/`
+
+## Quick start
 
 ```bash
+npm install
+cp .env.example .env.local   # if you maintain an example; otherwise create .env.local manually
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes (local UI) | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes (local UI) | Supabase anon (public) key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server / scripts | Service role for admin API routes and seed scripts (never expose to the client) |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Optional | Server-side fallbacks read by [`lib/supabaseAdmin.ts`](lib/supabaseAdmin.ts) |
+| `OPENAI_API_KEY` | For AI features | Document / GC program AI review, injury-weather insights |
+| `CRON_SECRET` | Production cron | Bearer or `?secret=` for [`/api/cron/injury-weather-refresh`](app/api/cron/injury-weather-refresh/route.ts) |
+| `NEXT_PUBLIC_ADMIN_EMAILS` | Optional | Comma-separated admin emails ([`lib/rbac.ts`](lib/rbac.ts), [`lib/admin.ts`](lib/admin.ts)) |
+| `NEXT_PUBLIC_SITE_URL` / `NEXT_PUBLIC_APP_URL` | Optional | Absolute URLs for redirects (e.g. invite links) |
 
-## Learn More
+**E2E / smoke**
 
-To learn more about Next.js, take a look at the following resources:
+| Variable | Purpose |
+|----------|---------|
+| `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` | Playwright authenticated tests |
+| `PLAYWRIGHT_BASE_URL` | Override default `http://127.0.0.1:3000` |
+| `PLAYWRIGHT_SKIP_WEBSERVER` | Set to skip starting the dev server from Playwright |
+| `SMOKE_BASE_URL` / `SMOKE_BEARER_TOKEN` | [`scripts/smoke-safety-ops.mjs`](scripts/smoke-safety-ops.mjs) |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+See [`docs/dev-setup.md`](docs/dev-setup.md) for Supabase workflow, cron, and superadmin notes.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Next.js dev server |
+| `npm run build` / `npm run start` | Production build and serve |
+| `npm run lint` | ESLint |
+| `npm run test` | Vitest (`lib/**/*.test.ts`) |
+| `npm run test:navigation` | Navigation integrity tests |
+| `npm run test:links` | Broken link checker |
+| `npm run test:e2e` | Playwright (see [`playwright.config.ts`](playwright.config.ts)) |
+| `npx playwright test tests/a11y.spec.ts` | Accessibility (axe) on `/`, `/login`, `/submit` |
+| `npm run test:e2e:ci` | Build + production server + Playwright |
+| `npm run smoke:safetyops` | HTTP smoke script |
+| `npm run seed:csep-test` | Seed CSEP test user (needs service role) |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Database
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Apply migrations with the Supabase CLI (link your project, then):
+
+```bash
+supabase db push
+```
+
+RLS policies live in `supabase/migrations/`. API routes should align with [`docs/api-rbac-audit.md`](docs/api-rbac-audit.md).
+
+## Scheduled jobs (Vercel)
+
+[`vercel.json`](vercel.json) defines a daily cron hitting `/api/cron/injury-weather-refresh`. Set `CRON_SECRET` in Vercel and configure the same value for the cron `Authorization: Bearer …` header (Vercel cron supports this pattern when documented in your deployment).
+
+## License
+
+Private / unpublished (`"private": true` in `package.json`).

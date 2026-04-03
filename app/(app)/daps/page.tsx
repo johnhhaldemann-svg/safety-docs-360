@@ -160,7 +160,7 @@ export default function DapsPage() {
         title="Daily Action Plans"
         description="Manage DAP lifecycle by draft, active, and closed states."
         actions={
-          <Link href="/dashboard" className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">
+          <Link href="/dashboard" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300">
             Back to Dashboard
           </Link>
         }
@@ -174,7 +174,7 @@ export default function DapsPage() {
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder="DAP title"
-            className="min-w-[260px] rounded-xl border border-slate-300 px-3 py-2 text-sm"
+            className="min-w-[260px] rounded-xl border border-slate-600 px-3 py-2 text-sm"
           />
           <button
             onClick={() => void createDap()}
@@ -194,7 +194,7 @@ export default function DapsPage() {
           <select
             value={selectedDapId}
             onChange={(event) => setSelectedDapId(event.target.value)}
-            className="min-w-[260px] rounded-xl border border-slate-300 px-3 py-2 text-sm"
+            className="min-w-[260px] rounded-xl border border-slate-600 px-3 py-2 text-sm"
           >
             <option value="">Select DAP</option>
             {daps.map((dap) => (
@@ -207,7 +207,7 @@ export default function DapsPage() {
             value={activityName}
             onChange={(event) => setActivityName(event.target.value)}
             placeholder="Planned activity name"
-            className="min-w-[260px] rounded-xl border border-slate-300 px-3 py-2 text-sm"
+            className="min-w-[260px] rounded-xl border border-slate-600 px-3 py-2 text-sm"
           />
           <button
             onClick={() => void createActivity()}
@@ -224,19 +224,19 @@ export default function DapsPage() {
             .map((item) => (
               <div
                 key={item.id}
-                className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                className="flex items-center justify-between rounded-xl border border-slate-700/80 bg-slate-950/50 px-3 py-2"
               >
-                <div className="text-sm text-slate-900">{item.activity_name}</div>
+                <div className="text-sm text-slate-100">{item.activity_name}</div>
                 <div className="flex gap-2">
                   <Link
                     href={`/field-id-exchange?dapActivityId=${encodeURIComponent(item.id)}`}
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700"
+                    className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300"
                   >
                     Create Observation
                   </Link>
                   <Link
                     href={`/permits?dapActivityId=${encodeURIComponent(item.id)}`}
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700"
+                    className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300"
                   >
                     Link Permit
                   </Link>
@@ -254,19 +254,19 @@ export default function DapsPage() {
         ) : (
           <div className="space-y-3">
             {daps.map((item) => (
-              <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div key={item.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">{item.title}</div>
+                    <div className="text-sm font-semibold text-slate-100">{item.title}</div>
                     <div className="mt-1 text-xs text-slate-500">{item.category} · {item.severity}</div>
                   </div>
                   <StatusBadge label={item.status} tone={item.status === "active" ? "success" : item.status === "closed" ? "neutral" : "info"} />
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button onClick={() => void updateStatus(item, "submitted")} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">Submit DAP</button>
-                  <button onClick={() => void updateStatus(item, "active")} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">Set Active</button>
-                  <button onClick={() => void updateStatus(item, "closed")} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">Close</button>
-                  <button onClick={() => void updateStatus(item, "draft")} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">Reopen Draft</button>
+                  <button onClick={() => void updateStatus(item, "submitted")} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">Submit DAP</button>
+                  <button onClick={() => void updateStatus(item, "active")} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">Set Active</button>
+                  <button onClick={() => void updateStatus(item, "closed")} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">Close</button>
+                  <button onClick={() => void updateStatus(item, "draft")} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">Reopen Draft</button>
                 </div>
               </div>
             ))}

@@ -58,7 +58,7 @@ export function CompanySurfaceClient({
       {loading ? <InlineMessage>Loading...</InlineMessage> : null}
       {!loading && error ? <InlineMessage tone="error">{error}</InlineMessage> : null}
       {!loading && !error ? (
-        <pre className="overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">
+        <pre className="overflow-auto rounded-xl border border-slate-700/80 bg-slate-950/50 p-4 text-xs text-slate-300">
           {JSON.stringify(payload, null, 2)}
         </pre>
       ) : null}

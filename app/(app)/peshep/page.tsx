@@ -309,7 +309,7 @@ export default function PESHEPUniversalPage() {
             <button
               type="button"
               onClick={resetDraft}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Reset Draft
             </button>
@@ -346,8 +346,8 @@ export default function PESHEPUniversalPage() {
                   onClick={() => setStep(index)}
                   className={`min-w-[156px] rounded-2xl border px-4 py-3 text-left transition ${
                     index === step
-                      ? "border-sky-200 bg-sky-50 text-slate-950 shadow-sm"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      ? "border-sky-500/35 bg-sky-950/35 text-white shadow-sm"
+                      : "border-slate-700/80 bg-slate-900/90 text-slate-400 hover:bg-slate-950/50"
                   }`}
                 >
                   <div className="text-[11px] font-bold uppercase tracking-[0.2em]">
@@ -447,7 +447,7 @@ export default function PESHEPUniversalPage() {
                   </div>
                   <label className="block">
                     <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Emergency Map Upload</div>
-                    <input type="file" accept="image/*,.pdf" onChange={handleSiteMapUpload} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" />
+                    <input type="file" accept="image/*,.pdf" onChange={handleSiteMapUpload} className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm" />
                   </label>
                   {siteMap ? (
                     <Image
@@ -456,16 +456,16 @@ export default function PESHEPUniversalPage() {
                       width={1200}
                       height={900}
                       unoptimized
-                      className="max-h-96 w-auto rounded-2xl border border-slate-300"
+                      className="max-h-96 w-auto rounded-2xl border border-slate-600"
                     />
                   ) : null}
                 </>
               ) : null}
 
               {step === 6 ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                  <div className="text-base font-semibold text-slate-900">Ready to submit</div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5">
+                  <div className="text-base font-semibold text-slate-100">Ready to submit</div>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
                     Submit this PESHEP to the admin review queue. The final document becomes available after admin review is complete.
                   </p>
                   <div className="mt-4">
@@ -477,10 +477,10 @@ export default function PESHEPUniversalPage() {
           </SectionCard>
 
           <div className="sticky bottom-4 z-10">
-            <div className="rounded-[1.5rem] border border-slate-200 bg-white/95 p-4 shadow-[0_18px_36px_rgba(148,163,184,0.18)] backdrop-blur">
+            <div className="rounded-[1.5rem] border border-slate-700/80 bg-slate-900/92 p-4 shadow-[0_18px_36px_rgba(0,0,0,0.35)] backdrop-blur">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="text-sm font-semibold text-slate-900">{steps[step].title}</div>
+                  <div className="text-sm font-semibold text-slate-100">{steps[step].title}</div>
                   <div className="mt-1 text-sm text-slate-500">
                     {step === 6 ? "Final review and submission controls." : "Continue to the next builder section when you are ready."}
                   </div>
@@ -490,7 +490,7 @@ export default function PESHEPUniversalPage() {
                     type="button"
                     onClick={() => setStep((current) => Math.max(0, current - 1))}
                     disabled={step === 0}
-                    className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                    className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:opacity-50"
                   >
                     Back
                   </button>
@@ -544,9 +544,9 @@ export default function PESHEPUniversalPage() {
           <SectionCard title="Readiness Checklist" description="These items make the admin handoff much smoother.">
             <div className="space-y-3">
               {readinessItems.map((item) => (
-                <div key={item.label} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div key={item.label} className="flex items-center gap-3 rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
                   <StatusBadge label={item.done ? "Ready" : "Pending"} tone={item.done ? "success" : "warning"} />
-                  <div className="text-sm text-slate-700">{item.label}</div>
+                  <div className="text-sm text-slate-300">{item.label}</div>
                 </div>
               ))}
             </div>
@@ -561,7 +561,7 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
   return (
     <label className="block">
       <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900 outline-none transition focus:border-sky-500" />
+      <input value={value} onChange={(e) => onChange(e.target.value)} className="h-12 w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 text-sm font-semibold text-slate-100 outline-none transition focus:border-sky-500" />
     </label>
   );
 }
@@ -570,16 +570,16 @@ function TextArea({ label, value, onChange }: { label: string; value: string; on
   return (
     <label className="block">
       <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={5} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-sky-500" />
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={5} className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-slate-100 outline-none transition focus:border-sky-500" />
     </label>
   );
 }
 
 function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="text-sm font-semibold text-slate-900">{label}</div>
-      <button type="button" onClick={() => onChange(!value)} className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition sm:min-w-[96px] ${value ? "border-sky-600 bg-sky-600 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}>
+    <div className="flex flex-col gap-3 rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="text-sm font-semibold text-slate-100">{label}</div>
+      <button type="button" onClick={() => onChange(!value)} className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition sm:min-w-[96px] ${value ? "border-sky-600 bg-sky-600 text-white" : "border-slate-600 bg-slate-900/90 text-slate-300 hover:bg-slate-950/50"}`}>
         {value ? "Yes" : "No"}
       </button>
     </div>
@@ -600,7 +600,7 @@ function Select({
   return (
     <label className="block">
       <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900 outline-none transition focus:border-sky-500">
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="h-12 w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 text-sm font-semibold text-slate-100 outline-none transition focus:border-sky-500">
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -629,7 +629,7 @@ function SelectionGrid({
             key={option}
             type="button"
             onClick={() => onToggle(option)}
-            className={`flex items-center justify-between rounded-2xl border px-4 py-4 text-left transition ${checked ? "border-sky-200 bg-sky-50 text-slate-950" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
+            className={`flex items-center justify-between rounded-2xl border px-4 py-4 text-left transition ${checked ? "border-sky-500/35 bg-sky-950/35 text-white" : "border-slate-700/80 bg-slate-900/90 text-slate-300 hover:bg-slate-950/50"}`}
           >
             <div className="text-sm font-semibold">{option}</div>
             <StatusBadge label={checked ? "Selected" : "Add"} tone={checked ? "success" : "neutral"} />
@@ -642,9 +642,9 @@ function SelectionGrid({
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
       <span className="text-sm text-slate-500">{label}</span>
-      <span className="text-sm font-semibold text-slate-900">{value}</span>
+      <span className="text-sm font-semibold text-slate-100">{value}</span>
     </div>
   );
 }

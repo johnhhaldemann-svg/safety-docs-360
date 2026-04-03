@@ -243,19 +243,19 @@ export default function ReportsPage() {
             <button
               type="button"
               onClick={() => void loadReports()}
-              className="rounded-xl border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+              className="rounded-xl border border-sky-500/35 bg-sky-950/35 px-5 py-3 text-sm font-semibold text-sky-300 transition hover:bg-sky-100"
             >
               {loading ? "Refreshing..." : "Refresh Reports"}
             </button>
             <Link
               href="/analytics"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Open Analytics
             </Link>
             <Link
               href="/field-id-exchange"
-              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Open Corrective Actions
             </Link>
@@ -281,26 +281,26 @@ export default function ReportsPage() {
             <button
               onClick={() => void generateReport("weekly_summary")}
               disabled={generating !== null}
-              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-60"
+              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 disabled:opacity-60"
             >
               {generating === "weekly_summary" ? "Generating..." : "Generate Weekly Summary"}
             </button>
           </div>
-          <div className="mt-5 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-sm font-semibold text-slate-900">End-of-Day Jobsite Report Generator</div>
+          <div className="mt-5 space-y-3 rounded-xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-sm font-semibold text-slate-100">End-of-Day Jobsite Report Generator</div>
             <div className="grid gap-3 md:grid-cols-2">
               <input
                 type="text"
                 value={jobsiteId}
                 onChange={(event) => setJobsiteId(event.target.value)}
                 placeholder="Jobsite ID (optional for all jobsites)"
-                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm"
               />
               <input
                 type="date"
                 value={workDate}
                 onChange={(event) => setWorkDate(event.target.value)}
-                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm"
               />
             </div>
             <textarea
@@ -308,7 +308,7 @@ export default function ReportsPage() {
               onChange={(event) => setNarrative(event.target.value)}
               rows={3}
               placeholder="Optional safety summary narrative override"
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm"
             />
             <button
               onClick={() => void generateEndOfDayReport()}
@@ -323,7 +323,7 @@ export default function ReportsPage() {
           {!latestGenerated?.metrics ? (
             <InlineMessage tone="neutral">Generate a report to view metric output.</InlineMessage>
           ) : (
-            <div className="space-y-3 text-sm text-slate-700">
+            <div className="space-y-3 text-sm text-slate-300">
               <div>
                 <span className="font-semibold">Totals:</span>{" "}
                 {Object.entries(latestGenerated.metrics.totals ?? {})
@@ -355,10 +355,10 @@ export default function ReportsPage() {
         ) : (
           <div className="space-y-3">
             {reports.map((report) => (
-              <div key={report.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div key={report.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">{report.title}</div>
+                    <div className="text-sm font-semibold text-slate-100">{report.title}</div>
                     <div className="mt-1 text-xs text-slate-500">
                       {report.report_type} · {report.generated_at ? new Date(report.generated_at).toLocaleString() : "Not generated"}
                     </div>
@@ -370,7 +370,7 @@ export default function ReportsPage() {
                     <button
                       onClick={() => void openStoredFile(report.file_path as string)}
                       disabled={openingPath === report.file_path}
-                      className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-60"
+                      className="rounded-lg border border-emerald-300 bg-emerald-950/35 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-60"
                     >
                       {openingPath === report.file_path ? "Opening..." : "Open Export"}
                     </button>
@@ -383,7 +383,7 @@ export default function ReportsPage() {
                         [report.id]: event.target.files?.[0] ?? null,
                       }))
                     }
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs"
+                    className="rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-2 text-xs"
                   />
                   <button
                     onClick={() => void uploadReportAttachment(report)}
@@ -394,13 +394,13 @@ export default function ReportsPage() {
                   </button>
                   <button
                     onClick={() => void loadAttachments(report.id)}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                    className="rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-2 text-xs font-semibold text-slate-300"
                   >
                     Refresh Attachments
                   </button>
                 </div>
                 {(attachmentsByReport[report.id] ?? []).length > 0 ? (
-                  <div className="mt-3 space-y-1 text-xs text-slate-600">
+                  <div className="mt-3 space-y-1 text-xs text-slate-400">
                     {(attachmentsByReport[report.id] ?? []).slice(0, 3).map((attachment) => (
                       <div key={attachment.id}>
                         {attachment.file_name} · {new Date(attachment.created_at).toLocaleString()}

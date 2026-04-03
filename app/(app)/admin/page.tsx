@@ -351,21 +351,21 @@ export default function AdminPage() {
           <>
             <Link
               href="/admin/review-documents"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Open Review Queue
             </Link>
             {canAssignRoles ? (
               <Link
                 href="/admin/users"
-                className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
               >
                 Manage Users
               </Link>
             ) : null}
             <Link
               href="/admin/companies"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Track Companies
             </Link>
@@ -375,9 +375,9 @@ export default function AdminPage() {
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((item) => (
-          <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div key={item.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
             <p className="text-sm font-medium text-slate-500">{item.title}</p>
-            <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">
+            <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">
               {loading ? "-" : item.value}
             </p>
             <p className="mt-2 text-sm text-slate-500">{item.note}</p>
@@ -480,9 +480,9 @@ export default function AdminPage() {
           {canAssignRoles && userError ? <InlineMessage tone="warning">{userError}</InlineMessage> : null}
           <div className="space-y-3">
             {canAssignRoles ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-semibold text-slate-900">Pending user approvals</span>
+                  <span className="text-sm font-semibold text-slate-100">Pending user approvals</span>
                   <StatusBadge
                     label={pendingUsers.length ? `${pendingUsers.length} waiting` : "Clear"}
                     tone={pendingUsers.length ? "warning" : "success"}
@@ -490,18 +490,18 @@ export default function AdminPage() {
                 </div>
               </div>
             ) : null}
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-slate-900">Documents waiting review</span>
+                <span className="text-sm font-semibold text-slate-100">Documents waiting review</span>
                 <StatusBadge
                   label={pendingReview.length ? `${pendingReview.length} queued` : "Clear"}
                   tone={pendingReview.length ? "warning" : "success"}
                 />
               </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-slate-900">Users active today</span>
+                <span className="text-sm font-semibold text-slate-100">Users active today</span>
                 <StatusBadge
                   label={`${activeTodayUsers.length} active`}
                   tone={activeTodayUsers.length ? "info" : "neutral"}
@@ -517,7 +517,7 @@ export default function AdminPage() {
           aside={
             <Link
               href="/admin/archive"
-              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Open Archive
             </Link>
@@ -531,8 +531,8 @@ export default function AdminPage() {
           ) : (
             <div className="space-y-3">
               {recentlyArchived.map((doc) => (
-                <div key={doc.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                  <p className="text-sm font-semibold text-slate-900">{getDocumentTitle(doc)}</p>
+                <div key={doc.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
+                  <p className="text-sm font-semibold text-slate-100">{getDocumentTitle(doc)}</p>
                   <p className="mt-1 text-xs text-slate-500">
                     Archived {formatRelative(doc.archived_at ?? doc.created_at)} by{" "}
                     {doc.archived_by_email ?? "Unknown admin"}

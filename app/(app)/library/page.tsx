@@ -100,7 +100,7 @@ function getStatusTone(status: string) {
 function getSubscriptionTone(status: string) {
   return status.trim().toLowerCase() === "active"
     ? "bg-emerald-100 text-emerald-700"
-    : "bg-slate-200 text-slate-700";
+    : "bg-slate-200 text-slate-300";
 }
 
 export default function LibraryPage() {
@@ -557,16 +557,16 @@ export default function LibraryPage() {
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-[2rem] border border-slate-700/80 bg-slate-900/90 shadow-sm">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1.3fr)_360px]">
-          <div className="bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_45%),linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] p-8 sm:p-10">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
+          <div className="bg-[radial-gradient(circle_at_top_left,_rgba(13,148,136,0.2),_transparent_45%),linear-gradient(180deg,_#0f172a_0%,_#1e293b_100%)] p-8 sm:p-10">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-300">
               {isManagerView ? "Completed Document Center" : "Document Center"}
             </p>
-            <h1 className="mt-3 text-4xl font-black tracking-tight text-slate-950">
+            <h1 className="mt-3 text-4xl font-black tracking-tight text-white">
               {isManagerView ? "Open completed company documents" : "Find what you need faster"}
             </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400">
               {isManagerView
                 ? "Company accounts stay focused on completed files only, with no draft or in-review records mixed into the workspace."
                 : "Open completed documents, browse in-progress files, and use credits without digging through separate tools."}
@@ -575,13 +575,13 @@ export default function LibraryPage() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href={isManagerView ? companyPrimaryAction.href : "/upload"}
-                className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+                className="rounded-xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-95"
               >
                 {isManagerView ? companyPrimaryAction.label : "Upload a document"}
               </Link>
               <Link
                 href={isManagerView ? "/dashboard" : "/search"}
-                className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
               >
                 {isManagerView ? "Back to dashboard" : "Search all records"}
               </Link>
@@ -591,19 +591,19 @@ export default function LibraryPage() {
               {summaryCards.map((card) => (
                 <div
                   key={card.title}
-                  className="rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm backdrop-blur"
+                  className="rounded-2xl border border-slate-700/80 bg-slate-900/85 p-4 shadow-sm backdrop-blur"
                 >
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                     {card.title}
                   </p>
-                  <p className="mt-3 text-3xl font-black text-slate-950">{card.value}</p>
-                  <p className="mt-2 text-sm leading-5 text-slate-600">{card.note}</p>
+                  <p className="mt-3 text-3xl font-black text-white">{card.value}</p>
+                  <p className="mt-2 text-sm leading-5 text-slate-400">{card.note}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="border-t border-slate-200 bg-slate-950 p-8 text-white lg:border-l lg:border-t-0">
+          <div className="border-t border-slate-700/80 bg-slate-950 p-8 text-white lg:border-l lg:border-t-0">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-300">
@@ -701,11 +701,11 @@ export default function LibraryPage() {
         </div>
       </section>
 
-      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="rounded-[1.75rem] border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="grid flex-1 gap-4 md:grid-cols-3">
             <div className="md:col-span-1">
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Search library
               </label>
               <input
@@ -713,18 +713,18 @@ export default function LibraryPage() {
                 placeholder="Search title, project, file name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="w-full rounded-2xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Category
               </label>
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-2xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               >
                 {categories.map((category) => (
                   <option key={category}>{category}</option>
@@ -733,13 +733,13 @@ export default function LibraryPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">
                 Document type
               </label>
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-sky-500"
+                className="w-full rounded-2xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               >
                 {types.map((type) => (
                   <option key={type}>{type}</option>
@@ -751,7 +751,7 @@ export default function LibraryPage() {
           <div className="flex flex-col items-start gap-3 xl:items-end">
             <div className="text-sm text-slate-500">
               Showing{" "}
-              <span className="font-semibold text-slate-900">
+              <span className="font-semibold text-slate-100">
                 {filteredDocuments.length}
               </span>{" "}
               matching document{filteredDocuments.length === 1 ? "" : "s"}
@@ -766,7 +766,7 @@ export default function LibraryPage() {
                 setCategoryFilter("All Categories");
                 setTypeFilter("All Types");
               }}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Clear filters
             </button>
@@ -908,13 +908,13 @@ function DocumentSection({
   actionLabel: string;
 }) {
   return (
-    <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-[1.75rem] border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-950">{title}</h2>
+          <h2 className="text-2xl font-black tracking-tight text-white">{title}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm font-semibold text-slate-300">
           {documents.length} item{documents.length === 1 ? "" : "s"}
         </div>
       </div>
@@ -924,13 +924,13 @@ function DocumentSection({
           {Array.from({ length: 3 }).map((_, index) => (
             <div
               key={index}
-              className="h-56 animate-pulse rounded-3xl border border-slate-200 bg-slate-100"
+              className="h-56 animate-pulse rounded-3xl border border-slate-700/80 bg-slate-800/70"
             />
           ))}
         </div>
       ) : documents.length === 0 ? (
-        <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
-          <p className="text-base font-semibold text-slate-900">{emptyTitle}</p>
+        <div className="mt-6 rounded-3xl border border-dashed border-slate-600 bg-slate-950/50 p-10 text-center">
+          <p className="text-base font-semibold text-slate-100">{emptyTitle}</p>
           <p className="mt-2 text-sm leading-6 text-slate-500">{emptyMessage}</p>
         </div>
       ) : (
@@ -961,10 +961,10 @@ function DocumentCard({
   const status = getDocumentStatus(document);
 
   return (
-    <article className="flex h-full flex-col rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fafc_100%)] p-5 shadow-sm">
+    <article className="flex h-full flex-col rounded-3xl border border-slate-700/80 bg-slate-900/80 p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-lg font-bold leading-6 text-slate-950">
+          <p className="text-lg font-bold leading-6 text-white">
             {getDocumentTitle(document)}
           </p>
           <p className="mt-2 text-sm text-slate-500">{getDocumentSubtitle(document)}</p>
@@ -986,11 +986,11 @@ function DocumentCard({
         <InfoPair label="Created" value={formatCompactDate(document.created_at)} />
       </dl>
 
-      <div className="mt-5 rounded-2xl border border-slate-200 bg-white/80 p-4">
+      <div className="mt-5 rounded-2xl border border-slate-700/80 bg-slate-900/85 p-4">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
           File details
         </p>
-        <p className="mt-2 truncate text-sm font-medium text-slate-800">
+        <p className="mt-2 truncate text-sm font-medium text-slate-200">
           {document.file_name || "No file name available"}
         </p>
         <p className="mt-1 text-sm text-slate-500">{formatFileSize(document.file_size)}</p>
@@ -1020,10 +1020,10 @@ function MarketplaceSection({
   onPurchase: (documentId: string) => void;
 }) {
   return (
-    <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-[1.75rem] border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-950">
+          <h2 className="text-2xl font-black tracking-tight text-white">
             Marketplace unlocks
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-500">
@@ -1031,7 +1031,7 @@ function MarketplaceSection({
             list.
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm font-semibold text-slate-300">
           Balance: {creditBalance} credits
         </div>
       </div>
@@ -1041,13 +1041,13 @@ function MarketplaceSection({
           {Array.from({ length: 3 }).map((_, index) => (
             <div
               key={index}
-              className="h-56 animate-pulse rounded-3xl border border-slate-200 bg-slate-100"
+              className="h-56 animate-pulse rounded-3xl border border-slate-700/80 bg-slate-800/70"
             />
           ))}
         </div>
       ) : documents.length === 0 ? (
-        <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
-          <p className="text-base font-semibold text-slate-900">
+        <div className="mt-6 rounded-3xl border border-dashed border-slate-600 bg-slate-950/50 p-10 text-center">
+          <p className="text-base font-semibold text-slate-100">
             No marketplace documents available
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-500">
@@ -1063,18 +1063,18 @@ function MarketplaceSection({
             return (
               <article
                 key={doc.id}
-                className="flex h-full flex-col rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fafc_100%)] p-5 shadow-sm"
+                className="flex h-full flex-col rounded-3xl border border-slate-700/80 bg-slate-900/80 p-5 shadow-sm"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-lg font-bold leading-6 text-slate-950">
+                    <h3 className="text-lg font-bold leading-6 text-white">
                       {getDocumentTitle(doc)}
                     </h3>
                     <p className="mt-2 text-sm text-slate-500">
                       {doc.document_type || "Completed document"}
                     </p>
                   </div>
-                  <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
+                  <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-300">
                     {cost} credits
                   </span>
                 </div>
@@ -1086,12 +1086,12 @@ function MarketplaceSection({
                   <InfoPair label="Created" value={formatCompactDate(doc.created_at)} />
                 </dl>
 
-                <div className="mt-5 rounded-2xl border border-slate-200 bg-white/80 p-4">
-                  <p className="text-sm text-slate-600">
+                <div className="mt-5 rounded-2xl border border-slate-700/80 bg-slate-900/85 p-4">
+                  <p className="text-sm text-slate-400">
                     Unlock this completed file and add it to your ready-to-open
                     library.
                   </p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                  <p className="mt-2 text-sm font-semibold text-slate-100">
                     {canAfford
                       ? "You have enough credits for this unlock."
                       : `You need ${cost - creditBalance} more credit${cost - creditBalance === 1 ? "" : "s"}.`}
@@ -1101,7 +1101,7 @@ function MarketplaceSection({
                 <button
                   onClick={() => onPurchase(doc.id)}
                   disabled={actionLoadingId === doc.id || !canAfford}
-                  className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   {actionLoadingId === doc.id
                     ? "Unlocking..."
@@ -1128,9 +1128,9 @@ function StatCard({
   note: string;
 }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{title}</p>
-      <p className="mt-3 text-3xl font-black tracking-tight text-slate-950">{value}</p>
+      <p className="mt-3 text-3xl font-black tracking-tight text-white">{value}</p>
       <p className="mt-2 text-sm leading-6 text-slate-500">{note}</p>
     </div>
   );
@@ -1138,7 +1138,7 @@ function StatCard({
 
 function FilterChip({ label }: { label: string }) {
   return (
-    <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700">
+    <span className="rounded-full border border-sky-500/35 bg-sky-950/35 px-3 py-1.5 text-xs font-semibold text-sky-300">
       {label}
     </span>
   );
@@ -1146,11 +1146,11 @@ function FilterChip({ label }: { label: string }) {
 
 function InfoPair({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-100 px-3 py-3">
+    <div className="rounded-2xl bg-slate-800/70 px-3 py-3">
       <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
         {label}
       </dt>
-      <dd className="mt-1 line-clamp-2 text-sm font-medium text-slate-800">{value}</dd>
+      <dd className="mt-1 line-clamp-2 text-sm font-medium text-slate-200">{value}</dd>
     </div>
   );
 }

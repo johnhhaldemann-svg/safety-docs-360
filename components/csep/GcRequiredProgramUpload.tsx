@@ -188,7 +188,7 @@ export function GcRequiredProgramUpload({
       ) : null}
 
       <div className="space-y-4">
-        <label className="block text-sm font-medium text-slate-700">
+        <label className="block text-sm font-medium text-slate-300">
           Label (optional)
           <input
             type="text"
@@ -196,7 +196,7 @@ export function GcRequiredProgramUpload({
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Site safety plan addendum, exhibit A"
             disabled={authLoading || !canUpload || uploading}
-            className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-sky-500"
+            className="mt-1 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-sky-500"
           />
         </label>
 
@@ -213,14 +213,14 @@ export function GcRequiredProgramUpload({
           onDrop={onDrop}
           className={[
             "rounded-2xl border-2 border-dashed px-4 py-8 text-center transition",
-            dragActive ? "border-sky-400 bg-sky-50/80" : "border-slate-200 bg-slate-50/80",
+            dragActive ? "border-sky-400 bg-sky-500/15" : "border-slate-700/80 bg-slate-950/50",
             !canUpload || uploading ? "pointer-events-none opacity-50" : "",
           ].join(" ")}
         >
-          <p className="text-sm font-semibold text-slate-800">Drop a file here</p>
+          <p className="text-sm font-semibold text-slate-200">Drop a file here</p>
           <p className="mt-1 text-xs text-slate-500">or choose a file (max 40 MB)</p>
           <label className="mt-4 inline-block">
-            <span className="cursor-pointer rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500">
+            <span className="cursor-pointer rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">
               {uploading ? "Uploading…" : "Choose file"}
             </span>
             <input
@@ -240,17 +240,17 @@ export function GcRequiredProgramUpload({
         {loading ? (
           <p className="text-sm text-slate-500">Loading…</p>
         ) : pendingReview && !doc ? (
-          <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-xl border border-amber-500/35 bg-amber-950/40/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="text-xs font-bold uppercase tracking-wide text-amber-900">
                 Submitted — awaiting review
               </div>
-              <p className="mt-1 text-sm text-slate-700">
+              <p className="mt-1 text-sm text-slate-300">
                 Your upload is pending review by a platform administrator. The file is hidden from this workspace
                 until it is approved.
               </p>
               {submittedAt ? (
-                <div className="mt-2 text-xs text-slate-600">
+                <div className="mt-2 text-xs text-slate-400">
                   Submitted {new Date(submittedAt).toLocaleString()}
                 </div>
               ) : null}
@@ -260,20 +260,20 @@ export function GcRequiredProgramUpload({
                 type="button"
                 onClick={() => void removeDoc()}
                 disabled={uploading}
-                className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                className="shrink-0 rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-950/50 disabled:opacity-50"
               >
                 Withdraw submission
               </button>
             ) : null}
           </div>
         ) : doc ? (
-          <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-xl border border-emerald-500/30 bg-emerald-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="text-xs font-bold uppercase tracking-wide text-emerald-800">On file</div>
-              <div className="mt-1 text-sm font-semibold text-slate-900">
+              <div className="text-xs font-bold uppercase tracking-wide text-emerald-100">On file</div>
+              <div className="mt-1 text-sm font-semibold text-slate-100">
                 {doc.document_title || doc.file_name || "GC document"}
               </div>
-              <div className="text-xs text-slate-600">
+              <div className="text-xs text-slate-400">
                 {doc.file_name}
                 {doc.created_at ? ` · ${new Date(doc.created_at).toLocaleString()}` : ""}
               </div>
@@ -283,7 +283,7 @@ export function GcRequiredProgramUpload({
                 type="button"
                 onClick={() => void removeDoc()}
                 disabled={uploading}
-                className="shrink-0 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                className="shrink-0 rounded-lg border border-red-500/35 bg-slate-900/90 px-3 py-2 text-sm font-semibold text-red-200 hover:bg-red-950/40 disabled:opacity-50"
               >
                 Remove
               </button>

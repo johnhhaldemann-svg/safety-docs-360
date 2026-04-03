@@ -177,7 +177,7 @@ function ProfileAvatar({
 
   return (
     <span
-      className={`${sizeClass} inline-flex items-center justify-center rounded-2xl bg-sky-400/18 font-black text-sky-100 ${textClass}`}
+      className={`${sizeClass} inline-flex items-center justify-center rounded-2xl bg-teal-400/18 font-black text-teal-100 ${textClass}`}
     >
       {getAvatarInitials(displayName)}
     </span>
@@ -691,8 +691,8 @@ export default function AppLayout({
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f3f8ff] text-slate-700">
-        <div className="rounded-3xl border border-slate-200 bg-white px-8 py-6 text-sm font-semibold shadow-sm">
+      <div className="flex min-h-screen items-center justify-center bg-app-canvas text-slate-300">
+        <div className="rounded-3xl border border-slate-700/80 bg-slate-900/80 px-8 py-6 text-sm font-semibold text-slate-200 shadow-lg">
           Loading workspace...
         </div>
       </div>
@@ -701,25 +701,25 @@ export default function AppLayout({
 
   if (accountStatus === "pending") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f3f8ff] px-6 py-10">
-        <div className="w-full max-w-xl rounded-[1.9rem] border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-600">
+      <div className="flex min-h-screen items-center justify-center bg-app-canvas px-6 py-10">
+        <div className="w-full max-w-xl rounded-[1.9rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-lg">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-300">
             Approval Required
           </p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-white">
             Your account is waiting for administrator approval
           </h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
+          <p className="mt-3 text-sm leading-6 text-slate-400">
             Your account has been created successfully, but access to the workspace stays
             locked until an administrator reviews and activates it.
           </p>
-          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="mt-6 rounded-2xl border border-amber-500/35 bg-amber-950/50 px-4 py-3 text-sm text-amber-100/95">
             We&apos;ll open the full workspace as soon as your account status is changed
             from pending to active.
           </div>
           <button
             onClick={handleLogout}
-            className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
+            className="mt-6 rounded-xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(13,148,136,0.25)]"
           >
             Logout
           </button>
@@ -730,20 +730,20 @@ export default function AppLayout({
 
   if (accountStatus === "suspended") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f3f8ff] px-6 py-10">
-        <div className="w-full max-w-xl rounded-[1.9rem] border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-red-600">
+      <div className="flex min-h-screen items-center justify-center bg-app-canvas px-6 py-10">
+        <div className="w-full max-w-xl rounded-[1.9rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-lg">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-red-300">
             Account Suspended
           </p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-white">
             This account is currently suspended
           </h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
+          <p className="mt-3 text-sm leading-6 text-slate-400">
             Your access to the workspace has been temporarily disabled by an administrator.
           </p>
           <button
             onClick={handleLogout}
-            className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
+            className="mt-6 rounded-xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(13,148,136,0.25)]"
           >
             Logout
           </button>
@@ -754,41 +754,41 @@ export default function AppLayout({
 
   if (!acceptedTerms) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f3f8ff] px-6 py-10">
-        <div className="w-full max-w-5xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
+      <div className="flex min-h-screen items-center justify-center bg-app-canvas px-6 py-10">
+        <div className="w-full max-w-5xl rounded-[2rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-lg">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-300">
             Agreement Required
           </p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-white">
             Accept the platform agreement before continuing
           </h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
+          <p className="mt-3 text-sm leading-6 text-slate-400">
             You must accept the Terms of Service, Liability Waiver, and Licensing Agreement before using Safety360Docs. Version {agreementConfig.version}.
           </p>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-              <h2 className="text-lg font-bold text-slate-950">
+            <div className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-5">
+              <h2 className="text-lg font-bold text-slate-100">
                 {agreementConfig.termsOfService.title}
               </h2>
-              <div className="mt-3 max-h-64 space-y-4 overflow-y-auto pr-2 text-sm text-slate-600">
+              <div className="mt-3 max-h-64 space-y-4 overflow-y-auto pr-2 text-sm text-slate-400">
                 {agreementConfig.termsOfService.sections.map((section) => (
                   <div key={section.heading}>
-                    <div className="font-semibold text-slate-900">{section.heading}</div>
+                    <div className="font-semibold text-slate-200">{section.heading}</div>
                     <p className="mt-1 leading-6">{section.body}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-              <h2 className="text-lg font-bold text-slate-950">
+            <div className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-5">
+              <h2 className="text-lg font-bold text-slate-100">
                 {agreementConfig.liabilityWaiver.title}
               </h2>
-              <div className="mt-3 max-h-64 space-y-4 overflow-y-auto pr-2 text-sm text-slate-600">
+              <div className="mt-3 max-h-64 space-y-4 overflow-y-auto pr-2 text-sm text-slate-400">
                 {agreementConfig.liabilityWaiver.sections.map((section) => (
                   <div key={section.heading}>
-                    <div className="font-semibold text-slate-900">{section.heading}</div>
+                    <div className="font-semibold text-slate-200">{section.heading}</div>
                     <p className="mt-1 leading-6">{section.body}</p>
                   </div>
                 ))}
@@ -797,30 +797,30 @@ export default function AppLayout({
           </div>
 
           {termsError ? (
-            <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="mt-6 rounded-2xl border border-red-500/35 bg-red-950/40 px-4 py-3 text-sm text-red-200">
               {termsError}
             </div>
           ) : null}
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/terms" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+            <Link href="/terms" className="rounded-xl border border-slate-600 bg-slate-800/80 px-4 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800">
               View Terms
             </Link>
-            <Link href="/liability-waiver" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+            <Link href="/liability-waiver" className="rounded-xl border border-slate-600 bg-slate-800/80 px-4 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800">
               View Liability Waiver
             </Link>
             <button
               type="button"
               onClick={handleAcceptTerms}
               disabled={acceptingTerms}
-              className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+              className="rounded-xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(13,148,136,0.25)] disabled:opacity-60"
             >
               {acceptingTerms ? "Accepting..." : "Accept & Continue"}
             </button>
             <button
               type="button"
               onClick={handleLogout}
-              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
+              className="rounded-xl border border-slate-600 bg-slate-800/80 px-5 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800"
             >
               Logout
             </button>
@@ -831,7 +831,7 @@ export default function AppLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f8ff] text-slate-900">
+    <div className="min-h-screen bg-app-canvas text-slate-100">
       <div className="flex min-h-screen">
         {mobileMenuOpen ? (
           <button
@@ -851,7 +851,7 @@ export default function AppLayout({
             <div className="p-4">
               <div className="rounded-[1.6rem] border border-white/10 bg-white/5 p-4 shadow-[0_16px_30px_rgba(2,8,23,0.22)]">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-400/18 text-sm font-black text-sky-100">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-400/18 text-sm font-black text-teal-100">
                     S3
                   </div>
                   <div className="min-w-0 flex-1">
@@ -860,7 +860,7 @@ export default function AppLayout({
                       <br />
                       Docs
                     </div>
-                    <div className="mt-1 text-[9px] uppercase tracking-[0.24em] text-sky-200">
+                    <div className="mt-1 text-[9px] uppercase tracking-[0.24em] text-teal-200/90">
                       Safety Management Platform
                     </div>
                   </div>
@@ -901,7 +901,7 @@ export default function AppLayout({
                               className={cx(
                                 "flex items-center gap-3 rounded-2xl border px-3 py-3 transition",
                                 active
-                                  ? "border-sky-200 bg-[linear-gradient(135deg,_rgba(255,255,255,0.96)_0%,_rgba(232,243,255,0.96)_100%)] text-slate-950 shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
+                                  ? "border-teal-400/50 bg-[linear-gradient(135deg,_rgba(13,148,136,0.22)_0%,_rgba(5,150,105,0.14)_100%)] text-white shadow-[0_0_24px_rgba(45,212,191,0.12)]"
                                   : "border-transparent text-slate-200 hover:bg-white/8 hover:text-white"
                               )}
                             >
@@ -909,19 +909,14 @@ export default function AppLayout({
                                 className={cx(
                                   "inline-flex h-8 w-8 items-center justify-center rounded-xl text-[11px] font-black",
                                   active
-                                    ? "bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-sky-700"
-                                    : "bg-white/8 text-sky-200"
+                                    ? "bg-teal-500/30 text-teal-100 ring-1 ring-teal-400/40"
+                                    : "bg-white/8 text-teal-200"
                                 )}
                               >
                                 {item.short}
                               </span>
                               <div className="min-w-0">
-                                <div
-                                  className={cx(
-                                    "truncate text-sm font-semibold",
-                                    active ? "text-slate-950" : "text-white"
-                                  )}
-                                >
+                                <div className="truncate text-sm font-semibold text-white">
                                   {item.label}
                                 </div>
                               </div>
@@ -950,7 +945,7 @@ export default function AppLayout({
                     </div>
                   </div>
                 </div>
-                <div className="mt-3 text-xs uppercase tracking-[0.16em] text-sky-200">
+                <div className="mt-3 text-xs uppercase tracking-[0.16em] text-teal-200/90">
                   {profileSummary?.tradeSpecialty || formatRole(userRole)}
                 </div>
                 <div className="mt-4 flex items-center justify-between rounded-2xl bg-white/6 px-3 py-2 text-xs text-slate-200">
@@ -959,7 +954,7 @@ export default function AppLayout({
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="mt-4 w-full rounded-2xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_24px_rgba(79,124,255,0.28)]"
+                  className="mt-4 w-full rounded-2xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_24px_rgba(13,148,136,0.28)]"
                 >
                   Logout
                 </button>
@@ -969,7 +964,7 @@ export default function AppLayout({
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="border-b border-slate-200 bg-white/95 backdrop-blur">
+          <header className="border-b border-slate-700/80 bg-slate-950/90 backdrop-blur">
             <div className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6 xl:px-8">
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
@@ -977,23 +972,23 @@ export default function AppLayout({
                     <button
                       type="button"
                       onClick={() => setMobileMenuOpen(true)}
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm lg:hidden"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-600 bg-slate-800/90 text-slate-200 shadow-sm lg:hidden"
                     >
                       <MobileMenuIcon />
                     </button>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">
                         {workspaceLabel}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-3">
-                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-[11px] font-black text-slate-600">
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-teal-500/20 text-[11px] font-black text-teal-100 ring-1 ring-teal-400/30">
                           {currentNavItem.short}
                         </span>
                         <div>
-                          <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                          <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
                             {currentNavItem.label}
                           </h1>
-                          <p className="mt-1 text-sm text-slate-500">
+                          <p className="mt-1 text-sm text-slate-400">
                             {isAdminArea
                               ? "Administrative tools and audit controls"
                               : needsProfileSetup
@@ -1015,7 +1010,7 @@ export default function AppLayout({
                   </div>
 
                   <div className="hidden gap-3 sm:grid sm:grid-cols-2 xl:min-w-[420px]">
-                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/70 px-4 py-3 shadow-sm">
                       <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
                         Signed In
                       </div>
@@ -1027,21 +1022,21 @@ export default function AppLayout({
                           textClass="text-xs"
                         />
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-slate-900">
+                          <div className="truncate text-sm font-semibold text-slate-100">
                             {getDisplayName(profileSummary, userEmail)}
                           </div>
-                          <div className="mt-1 truncate text-xs text-slate-500">
+                          <div className="mt-1 truncate text-xs text-slate-400">
                             {profileSummary?.jobTitle || userEmail}
                           </div>
                         </div>
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
+                    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/60 px-4 py-3 shadow-sm">
                       <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
                         Workspace
                       </div>
-                      <div className="mt-1 text-sm font-semibold text-slate-900">{workspaceLabel}</div>
-                      <div className="mt-1 text-xs text-slate-500">
+                      <div className="mt-1 text-sm font-semibold text-slate-100">{workspaceLabel}</div>
+                      <div className="mt-1 text-xs text-slate-400">
                         {needsProfileSetup
                           ? "Construction profile required"
                           : needsCompanySetup
@@ -1059,11 +1054,11 @@ export default function AppLayout({
           <main className="flex-1 px-4 py-5 sm:px-6 xl:px-8">
             <div className="mx-auto w-full max-w-[1600px] space-y-5">
               {bootError ? (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
+                <div className="rounded-2xl border border-amber-500/35 bg-amber-950/40 px-4 py-3 text-sm text-amber-100/95 shadow-sm">
                   {bootError}
                 </div>
               ) : null}
-              <div className="rounded-[1.6rem] border border-[#dbe9ff] bg-[linear-gradient(180deg,_#f7fbff_0%,_#eef5ff_100%)] p-3 shadow-[0_18px_40px_rgba(148,163,184,0.14)] sm:rounded-[2rem] sm:p-4">
+              <div className="rounded-[1.6rem] border border-slate-700/60 bg-slate-950/30 p-3 shadow-[0_18px_40px_rgba(0,0,0,0.25)] sm:rounded-[2rem] sm:p-4">
                 {children}
               </div>
               <div className="rounded-[1.3rem] bg-[linear-gradient(135deg,_#10213f_0%,_#13284b_100%)] px-4 py-4 text-center text-xl font-black tracking-tight text-white shadow-[0_16px_30px_rgba(15,23,42,0.18)] sm:rounded-[1.6rem] sm:px-6 sm:py-5 sm:text-[1.85rem]">

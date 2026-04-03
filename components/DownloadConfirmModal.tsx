@@ -22,13 +22,13 @@ export function DownloadConfirmModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
-        <h2 className="text-xl font-bold text-slate-900">Confirm Download</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
+      <div className="w-full max-w-lg rounded-3xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-xl">
+        <h2 className="text-xl font-bold text-slate-100">Confirm Download</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-400">
           Before downloading this file, confirm that you accept responsibility for reviewing it and verifying compliance before use.
         </p>
 
-        <label className="mt-5 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-700">
+        <label className="mt-5 flex items-start gap-3 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 text-sm font-medium text-slate-300">
           <input
             type="checkbox"
             checked={checked}
@@ -45,7 +45,7 @@ export function DownloadConfirmModal({
               setChecked(false);
               onCancel();
             }}
-            className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
           >
             Cancel
           </button>

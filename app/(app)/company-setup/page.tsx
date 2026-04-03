@@ -227,14 +227,14 @@ export default function CompanySetupPage() {
         ].map((item) => (
           <div
             key={item.step}
-            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+            className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm"
           >
             <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sm font-black text-sky-700">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sm font-black text-sky-300">
                 {item.step}
               </div>
               <div>
-                <div className="text-base font-bold text-slate-950">{item.title}</div>
+                <div className="text-base font-bold text-white">{item.title}</div>
                 <p className="mt-1 text-sm leading-6 text-slate-500">{item.body}</p>
               </div>
             </div>
@@ -248,19 +248,19 @@ export default function CompanySetupPage() {
       >
         <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Company Owner
               </div>
-              <div className="mt-2 text-sm font-semibold text-slate-900">{contactName || "Account owner"}</div>
+              <div className="mt-2 text-sm font-semibold text-slate-100">{contactName || "Account owner"}</div>
               <div className="mt-1 text-sm text-slate-500">{contactEmail || "Signed-in account"}</div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Step 1
               </div>
-              <div className="mt-2 text-base font-bold text-slate-900">Company details</div>
+              <div className="mt-2 text-base font-bold text-slate-100">Company details</div>
               <p className="mt-1 text-sm text-slate-500">
                 These details will appear across the company workspace, internal admin views, and employee invites.
               </p>
@@ -271,35 +271,35 @@ export default function CompanySetupPage() {
               placeholder="Company name"
               value={companyName}
               onChange={(event) => setCompanyName(event.target.value)}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
             />
             <input
               type="text"
               placeholder="Industry"
               value={industry}
               onChange={(event) => setIndustry(event.target.value)}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
             />
             <input
               type="tel"
               placeholder="Company phone"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
             />
             <input
               type="url"
               placeholder="Website (optional)"
               value={website}
               onChange={(event) => setWebsite(event.target.value)}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
             />
             <input
               type="text"
               placeholder="Address line 1"
               value={addressLine1}
               onChange={(event) => setAddressLine1(event.target.value)}
-              className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
             />
             <div className="grid gap-4 sm:grid-cols-2">
               <input
@@ -307,14 +307,14 @@ export default function CompanySetupPage() {
                 placeholder="City"
                 value={city}
                 onChange={(event) => setCity(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
               <input
                 type="text"
                 placeholder="State / Region"
                 value={stateRegion}
                 onChange={(event) => setStateRegion(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -323,24 +323,24 @@ export default function CompanySetupPage() {
                 placeholder="Postal code"
                 value={postalCode}
                 onChange={(event) => setPostalCode(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
               <input
                 type="text"
                 placeholder="Country"
                 value={country}
                 onChange={(event) => setCountry(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
             </div>
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Step 2
               </div>
-              <div className="mt-2 text-base font-bold text-slate-900">Choose plan</div>
+              <div className="mt-2 text-base font-bold text-slate-100">Choose plan</div>
               <div className="mt-3 space-y-3">
                 {planOptions.map((option) => {
                   const active = planName === option.value;
@@ -352,11 +352,11 @@ export default function CompanySetupPage() {
                       className={[
                         "w-full rounded-2xl border px-4 py-4 text-left transition",
                         active
-                          ? "border-sky-300 bg-sky-50 shadow-sm"
-                          : "border-slate-200 bg-white hover:border-sky-200 hover:bg-sky-50/60",
+                          ? "border-sky-300 bg-sky-950/35 shadow-sm"
+                          : "border-slate-700/80 bg-slate-900/90 hover:border-sky-500/35 hover:bg-sky-800/50",
                       ].join(" ")}
                     >
-                      <div className="text-sm font-semibold text-slate-900">{option.title}</div>
+                      <div className="text-sm font-semibold text-slate-100">{option.title}</div>
                       <div className="mt-1 text-sm text-slate-500">{option.detail}</div>
                     </button>
                   );
@@ -364,11 +364,11 @@ export default function CompanySetupPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Step 3
               </div>
-              <div className="mt-2 text-base font-bold text-slate-900">Launch workspace</div>
+              <div className="mt-2 text-base font-bold text-slate-100">Launch workspace</div>
               <div className="mt-3 space-y-3 text-sm leading-6 text-slate-500">
                 <p>1. Your company workspace request is submitted under the signed-in account.</p>
                 <p>2. Internal admin approves the company and activates the workspace.</p>
@@ -382,7 +382,7 @@ export default function CompanySetupPage() {
             {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 
             {launchMode === "request" ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+              <div className="rounded-2xl border border-amber-500/35 bg-amber-950/40 px-4 py-4 text-sm text-amber-900">
                 <div className="font-semibold">What happens next</div>
                 <div className="mt-2 space-y-2 leading-6">
                   <p>1. Your company setup request is now waiting for internal approval.</p>
@@ -396,7 +396,7 @@ export default function CompanySetupPage() {
               type="button"
               onClick={() => void handleCreateWorkspace()}
               disabled={loading || launchMode === "request"}
-              className="w-full rounded-2xl bg-sky-600 px-5 py-4 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
+              className="w-full rounded-2xl bg-sky-600 px-5 py-4 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
             >
               {loading
                 ? "Submitting company workspace request..."

@@ -257,7 +257,7 @@ function TrendChart({ points }: { points: TrendPoint[] }) {
 
       <div
         className={`mt-2 rounded-lg border px-3 py-2 text-center text-xs transition-colors ${
-          hi ? "border-sky-500/30 bg-slate-950/90 text-slate-200" : "border-transparent bg-transparent text-slate-600"
+          hi ? "border-sky-500/30 bg-slate-950/90 text-slate-200" : "border-transparent bg-transparent text-slate-400"
         }`}
       >
         {hi ? (
@@ -609,7 +609,7 @@ export function InjuryWeatherDashboard() {
   }
 
   if (error || !data) {
-    return <div className="rounded-3xl border border-red-700 bg-red-950/40 p-6 text-red-200">{error || "No data available."}</div>;
+    return <div className="rounded-3xl border border-red-400/50 bg-red-950/40 p-6 text-red-200">{error || "No data available."}</div>;
   }
 
   const provenanceLine = (() => {
@@ -1277,7 +1277,7 @@ export function InjuryWeatherDashboard() {
               <button
                 type="button"
                 onClick={onGenerateReport}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-emerald-900/30 hover:bg-emerald-500"
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-emerald-900/30 hover:bg-emerald-700"
               >
                 Generate Report
               </button>

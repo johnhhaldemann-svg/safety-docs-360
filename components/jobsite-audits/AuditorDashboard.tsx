@@ -62,12 +62,12 @@ function PieChart({
       </svg>
       <ul className="mt-3 w-full max-w-xs space-y-1 text-xs">
         {slices.map((sl) => (
-          <li key={sl.label} className="flex items-center justify-between gap-2 text-slate-700">
+          <li key={sl.label} className="flex items-center justify-between gap-2 text-slate-300">
             <span className="flex min-w-0 items-center gap-2">
               <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: sl.color }} />
               <span className="truncate">{sl.label}</span>
             </span>
-            <span className="shrink-0 font-semibold tabular-nums text-slate-900">
+            <span className="shrink-0 font-semibold tabular-nums text-slate-100">
               {total > 0 ? Math.round((sl.value / total) * 100) : 0}%
             </span>
           </li>
@@ -232,7 +232,7 @@ export function AuditorDashboard({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-700 to-emerald-900 px-5 py-4 text-white shadow-md">
+      <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-700 to-emerald-900 px-5 py-4 text-white shadow-md">
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-200/90">
           Safety auditor dashboard
         </p>
@@ -243,8 +243,8 @@ export function AuditorDashboard({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-900">Audit compliance scores</h3>
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-100">Audit compliance scores</h3>
           <p className="text-xs text-slate-500">Last {trendPoints.length} data points (max 12 months)</p>
           {demoTrend ? (
             <p className="mt-1 text-[11px] font-medium text-amber-700">
@@ -256,8 +256,8 @@ export function AuditorDashboard({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-900">Findings by category</h3>
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-100">Findings by category</h3>
           <p className="text-xs text-slate-500">Failed items grouped by checklist section</p>
           <div className="mt-4">
             {fieldStats.findingSlices.length === 0 ? (
@@ -270,8 +270,8 @@ export function AuditorDashboard({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-900">Audit status</h3>
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-100">Audit status</h3>
           <p className="text-xs text-slate-500">All scored field audit items</p>
           <div className="mt-4">
             {fieldStats.pass + fieldStats.fail + fieldStats.na === 0 ? (
@@ -289,13 +289,13 @@ export function AuditorDashboard({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
-          <h3 className="text-sm font-bold text-slate-900">Open audit issues</h3>
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm lg:col-span-2">
+          <h3 className="text-sm font-bold text-slate-100">Open audit issues</h3>
           <p className="text-xs text-slate-500">Up to 10 failed line items from the current draft</p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[640px] border-collapse text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-slate-700/80 text-[11px] font-bold uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-3">Date</th>
                   <th className="py-2 pr-3">Job</th>
                   <th className="py-2 pr-3">Auditor</th>
@@ -313,17 +313,17 @@ export function AuditorDashboard({
                   </tr>
                 ) : (
                   fieldStats.issues.map((row) => (
-                    <tr key={row.id} className="border-b border-slate-100">
-                      <td className="py-2.5 pr-3 text-slate-600">{row.date}</td>
-                      <td className="py-2.5 pr-3 font-medium text-slate-900">{row.job}</td>
-                      <td className="py-2.5 pr-3 text-slate-600">{row.auditor}</td>
-                      <td className="py-2.5 pr-3 text-slate-800">{row.category}</td>
+                    <tr key={row.id} className="border-b border-slate-700/60">
+                      <td className="py-2.5 pr-3 text-slate-400">{row.date}</td>
+                      <td className="py-2.5 pr-3 font-medium text-slate-100">{row.job}</td>
+                      <td className="py-2.5 pr-3 text-slate-400">{row.auditor}</td>
+                      <td className="py-2.5 pr-3 text-slate-200">{row.category}</td>
                       <td className="py-2.5 pr-3">
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                             row.openFindings === "Critical"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-sky-100 text-sky-800"
+                              ? "bg-red-100 text-red-100"
+                              : "bg-sky-100 text-sky-100"
                           }`}
                         >
                           {row.openFindings}

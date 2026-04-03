@@ -83,18 +83,18 @@ function statusClasses(status?: string | null) {
   const normalized = status?.trim().toLowerCase();
 
   if (normalized === "approved") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "border-emerald-500/30 bg-emerald-950/35 text-emerald-700";
   }
 
   if (normalized === "submitted") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
+    return "border-amber-500/35 bg-amber-950/40 text-amber-700";
   }
 
   if (normalized === "archived") {
-    return "border-slate-300 bg-slate-100 text-slate-700";
+    return "border-slate-600 bg-slate-800/70 text-slate-300";
   }
 
-  return "border-slate-200 bg-slate-50 text-slate-700";
+  return "border-slate-700/80 bg-slate-950/50 text-slate-300";
 }
 
 function adminApiJsonErrorMessage(res: Response, rawText: string, parsed: unknown): string {
@@ -119,11 +119,11 @@ function StatCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
         {label}
       </p>
-      <p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
+      <p className="mt-3 text-3xl font-bold tracking-tight text-slate-100">
         {value}
       </p>
       <p className="mt-2 text-sm text-slate-500">{detail}</p>
@@ -848,7 +848,7 @@ export default function ReviewDocumentPage() {
           actions={
             <Link
               href="/admin/review-documents"
-              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Back to Review Queue
             </Link>
@@ -913,7 +913,7 @@ export default function ReviewDocumentPage() {
                 onClick={() => {
                   void (isGcProgramDoc ? openGcUploadedFile() : openDraftDocument());
                 }}
-                className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
               >
                 {openingDraft
                   ? "Opening..."
@@ -924,7 +924,7 @@ export default function ReviewDocumentPage() {
             ) : null}
             <Link
               href="/admin/review-documents"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Back to Review Queue
             </Link>
@@ -988,46 +988,46 @@ export default function ReviewDocumentPage() {
             }
           >
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
                   Project
                 </p>
-                <p className="mt-3 text-sm font-semibold text-slate-900">
+                <p className="mt-3 text-sm font-semibold text-slate-100">
                   {documentItem.project_name || "Untitled project"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
                   Submitted
                 </p>
-                <p className="mt-3 text-sm font-semibold text-slate-900">
+                <p className="mt-3 text-sm font-semibold text-slate-100">
                   {formatAbsolute(documentItem.created_at)}
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
                   Reviewer
                 </p>
-                <p className="mt-3 text-sm font-semibold text-slate-900">
+                <p className="mt-3 text-sm font-semibold text-slate-100">
                   {reviewerEmail || "Not assigned yet"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
                   Final File
                 </p>
-                <p className="mt-3 text-sm font-semibold text-slate-900">
+                <p className="mt-3 text-sm font-semibold text-slate-100">
                   {documentItem.final_file_path ? "Uploaded" : "Waiting for approval"}
                 </p>
               </div>
             </div>
 
             <div className="mt-6 grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 p-4">
-                <p className="text-sm font-semibold text-slate-900">
+              <div className="rounded-2xl border border-slate-700/80 p-4">
+                <p className="text-sm font-semibold text-slate-100">
                   {isGcProgramDoc ? "Company upload" : "Draft source"}
                 </p>
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm text-slate-400">
                   {isGcProgramDoc
                     ? "Open the file the company uploaded. It stays hidden from their workspace until you approve it."
                     : "Download the submitted draft to complete edits in Word before uploading the approved version."}
@@ -1040,7 +1040,7 @@ export default function ReviewDocumentPage() {
                         onClick={() => {
                           void openGcUploadedFile();
                         }}
-                        className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                        className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
                       >
                         {openingDraft ? "Opening..." : "Open company upload"}
                       </button>
@@ -1051,7 +1051,7 @@ export default function ReviewDocumentPage() {
                       onClick={() => {
                         void openDraftDocument();
                       }}
-                      className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
                     >
                       {openingDraft ? "Opening..." : "Open Draft DOCX"}
                     </button>
@@ -1059,9 +1059,9 @@ export default function ReviewDocumentPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 p-4">
-                <p className="text-sm font-semibold text-slate-900">Current review notes</p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
+              <div className="rounded-2xl border border-slate-700/80 p-4">
+                <p className="text-sm font-semibold text-slate-100">Current review notes</p>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
                   {reviewNotes.trim()
                     ? reviewNotes
                     : "No reviewer notes have been captured yet. Add any approval comments or required edits below."}
@@ -1076,7 +1076,7 @@ export default function ReviewDocumentPage() {
               description="Internal triage on the submitted builder draft: OSHA-aligned construction expectations, scope/hazard coverage, and clarity before you approve the final file. Optional: paste owner/GC/site rules not fully reflected in the draft."
             >
               <div className="space-y-4">
-                <label className="block text-sm font-semibold text-slate-800">
+                <label className="block text-sm font-semibold text-slate-200">
                   Reviewer context (optional)
                 </label>
                 <textarea
@@ -1084,7 +1084,7 @@ export default function ReviewDocumentPage() {
                   value={builderAiContext}
                   onChange={(e) => setBuilderAiContext(e.target.value)}
                   placeholder="e.g. Contract exhibit references, site-specific controls, environmental requirements, client redlines to verify…"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                  className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                 />
                 <div className="flex flex-wrap items-center gap-3">
                   <button
@@ -1115,7 +1115,7 @@ export default function ReviewDocumentPage() {
                       <p className="text-xs font-bold uppercase tracking-wide text-violet-900">
                         Overall
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                      <p className="mt-1 text-sm font-semibold text-slate-100">
                         {builderAiResult.overallAssessment === "sufficient"
                           ? "Appears broadly ready (verify before approval)"
                           : builderAiResult.overallAssessment === "needs_work"
@@ -1124,27 +1124,27 @@ export default function ReviewDocumentPage() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                         Summary
                       </p>
-                      <p className="mt-1 text-sm leading-relaxed text-slate-800">
+                      <p className="mt-1 text-sm leading-relaxed text-slate-200">
                         {builderAiResult.executiveSummary}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                         Scope, trades &amp; hazard coverage
                       </p>
-                      <p className="mt-1 text-sm leading-relaxed text-slate-800">
+                      <p className="mt-1 text-sm leading-relaxed text-slate-200">
                         {builderAiResult.scopeTradeAndHazardCoverage}
                       </p>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">
+                        <p className="text-xs font-bold uppercase tracking-wide text-emerald-100">
                           Strengths
                         </p>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200">
                           {builderAiResult.regulatoryAndProgramStrengths.map((s, i) => (
                             <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
                           ))}
@@ -1154,7 +1154,7 @@ export default function ReviewDocumentPage() {
                         <p className="text-xs font-bold uppercase tracking-wide text-amber-900">
                           Gaps / risks
                         </p>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200">
                           {builderAiResult.gapsRisksOrClarifications.map((s, i) => (
                             <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
                           ))}
@@ -1162,10 +1162,10 @@ export default function ReviewDocumentPage() {
                       </div>
                     </div>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                         Recommended edits before approval
                       </p>
-                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200">
                         {builderAiResult.recommendedEditsBeforeApproval.map((s, i) => (
                           <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
                         ))}
@@ -1183,7 +1183,7 @@ export default function ReviewDocumentPage() {
               description="Compare the company upload to typical OSHA-aligned expectations and to GC/site rules. Optionally add pasted requirements, and/or upload a site or GC reference document (PDF or DOCX) so the model can cross-check the submission against that file and OSHA."
             >
               <div className="space-y-4">
-                <label className="block text-sm font-semibold text-slate-800">
+                <label className="block text-sm font-semibold text-slate-200">
                   Additional GC / site requirements (optional)
                 </label>
                 <textarea
@@ -1191,10 +1191,10 @@ export default function ReviewDocumentPage() {
                   value={gcAiContext}
                   onChange={(e) => setGcAiContext(e.target.value)}
                   placeholder="e.g. Site-specific safety plan elements, exhibit references, hot work rules, crane mat requirements…"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                  className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                 />
                 <div>
-                  <label className="block text-sm font-semibold text-slate-800">
+                  <label className="block text-sm font-semibold text-slate-200">
                     Site / GC reference document (optional)
                   </label>
                   <p className="mt-1 text-xs text-slate-500">
@@ -1204,7 +1204,7 @@ export default function ReviewDocumentPage() {
                     <input
                       type="file"
                       accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                      className="block w-full max-w-md text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-800 hover:file:bg-slate-200"
+                      className="block w-full max-w-md text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800/70 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-200 hover:file:bg-slate-200"
                       onChange={(e) => {
                         const f = e.target.files?.[0] ?? null;
                         setGcSiteReferenceFile(f);
@@ -1214,7 +1214,7 @@ export default function ReviewDocumentPage() {
                       <button
                         type="button"
                         onClick={() => setGcSiteReferenceFile(null)}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                        className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-400 transition hover:bg-slate-950/50"
                       >
                         Clear file
                       </button>
@@ -1258,7 +1258,7 @@ export default function ReviewDocumentPage() {
                       <p className="text-xs font-bold uppercase tracking-wide text-violet-900">
                         Overall
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                      <p className="mt-1 text-sm font-semibold text-slate-100">
                         {gcAiResult.overallAssessment === "sufficient"
                           ? "Appears broadly sufficient (verify in field)"
                           : gcAiResult.overallAssessment === "needs_work"
@@ -1267,27 +1267,27 @@ export default function ReviewDocumentPage() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                         Summary
                       </p>
-                      <p className="mt-1 text-sm leading-relaxed text-slate-800">
+                      <p className="mt-1 text-sm leading-relaxed text-slate-200">
                         {gcAiResult.executiveSummary}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                         GC / site alignment
                       </p>
-                      <p className="mt-1 text-sm leading-relaxed text-slate-800">
+                      <p className="mt-1 text-sm leading-relaxed text-slate-200">
                         {gcAiResult.alignmentWithGcSiteRequirements}
                       </p>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">
+                        <p className="text-xs font-bold uppercase tracking-wide text-emerald-100">
                           OSHA-related strengths
                         </p>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200">
                           {gcAiResult.oshaRelatedStrengths.map((s, i) => (
                             <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
                           ))}
@@ -1297,7 +1297,7 @@ export default function ReviewDocumentPage() {
                         <p className="text-xs font-bold uppercase tracking-wide text-amber-900">
                           Gaps / risks (OSHA-oriented)
                         </p>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200">
                           {gcAiResult.oshaRelatedGapsOrRisks.map((s, i) => (
                             <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
                           ))}
@@ -1305,10 +1305,10 @@ export default function ReviewDocumentPage() {
                       </div>
                     </div>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                         Recommended follow-ups
                       </p>
-                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-800">
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200">
                         {gcAiResult.recommendedFollowUps.map((s, i) => (
                           <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
                         ))}
@@ -1326,11 +1326,11 @@ export default function ReviewDocumentPage() {
               description="Approve to release this file to the company workspace, or reject to delete the submission and storage copy."
             >
               <div className="space-y-4">
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-slate-400">
                   {documentItem.file_name ? (
                     <>
                       Uploaded file:{" "}
-                      <span className="font-semibold text-slate-900">{documentItem.file_name}</span>
+                      <span className="font-semibold text-slate-100">{documentItem.file_name}</span>
                     </>
                   ) : (
                     "A file is attached to this record."
@@ -1345,7 +1345,7 @@ export default function ReviewDocumentPage() {
                       !canActOnGcProgram ||
                       !canApproveDocuments
                     }
-                    className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {gcReviewLoading === "approve"
                       ? "Approving…"
@@ -1361,7 +1361,7 @@ export default function ReviewDocumentPage() {
                       !canActOnGcProgram ||
                       !canApproveDocuments
                     }
-                    className="rounded-xl border border-red-300 bg-red-50 px-5 py-3 text-sm font-semibold text-red-800 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-xl border border-red-300 bg-red-950/40 px-5 py-3 text-sm font-semibold text-red-100 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {gcReviewLoading === "reject" ? "Rejecting…" : "Reject and remove"}
                   </button>
@@ -1382,14 +1382,14 @@ export default function ReviewDocumentPage() {
               <div className="space-y-5">
                 <div className="grid gap-5 lg:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-800">
+                    <label className="mb-2 block text-sm font-semibold text-slate-200">
                       Final DOCX
                     </label>
                     <input
                       type="file"
                       accept=".docx"
                       onChange={(event) => setFile(event.target.files?.[0] || null)}
-                      className="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-sky-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-sky-500"
+                      className="block w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-xl file:border-0 file:bg-sky-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-sky-700"
                     />
                     <p className="mt-2 text-xs text-slate-500">
                       {file ? `Selected: ${file.name}` : "Upload the final approved DOCX file."}
@@ -1397,7 +1397,7 @@ export default function ReviewDocumentPage() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-800">
+                    <label className="mb-2 block text-sm font-semibold text-slate-200">
                       Reviewer Email
                     </label>
                     <input
@@ -1405,13 +1405,13 @@ export default function ReviewDocumentPage() {
                       value={reviewerEmail}
                       onChange={(event) => setReviewerEmail(event.target.value)}
                       placeholder="reviewer@company.com"
-                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                      className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-800">
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">
                     Review Notes
                   </label>
                   <textarea
@@ -1419,14 +1419,14 @@ export default function ReviewDocumentPage() {
                     value={reviewNotes}
                     onChange={(event) => setReviewNotes(event.target.value)}
                     placeholder="Summarize corrections, approvals, or handoff notes for the user."
-                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                    className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                   />
                 </div>
 
-                <div className="sticky bottom-4 z-10 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                <div className="sticky bottom-4 z-10 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 shadow-sm">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">
+                      <p className="text-sm font-semibold text-slate-100">
                         Ready to send the final document?
                       </p>
                       <p className="mt-1 text-sm text-slate-500">
@@ -1437,7 +1437,7 @@ export default function ReviewDocumentPage() {
                       type="button"
                       onClick={uploadFinalDoc}
                       disabled={saving || !canApproveDocuments}
-                      className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {saving ? "Approving..." : canApproveDocuments ? "Approve and Send Final" : "Approval Restricted"}
                     </button>
@@ -1452,9 +1452,9 @@ export default function ReviewDocumentPage() {
             description="Control whether this approved document appears in the credit marketplace and what it costs to unlock."
           >
             <div className="space-y-5">
-              <label className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <label className="flex items-center justify-between gap-4 rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">
+                  <p className="text-sm font-semibold text-slate-100">
                     List in marketplace
                   </p>
                   <p className="mt-1 text-sm text-slate-500">
@@ -1470,7 +1470,7 @@ export default function ReviewDocumentPage() {
               </label>
 
               <div className="max-w-xs">
-                <label className="mb-2 block text-sm font-semibold text-slate-800">
+                <label className="mb-2 block text-sm font-semibold text-slate-200">
                   Credit Cost
                 </label>
                 <input
@@ -1478,7 +1478,7 @@ export default function ReviewDocumentPage() {
                   min={1}
                   value={creditCost}
                   onChange={(event) => setCreditCost(event.target.value)}
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                  className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                 />
               </div>
 
@@ -1487,7 +1487,7 @@ export default function ReviewDocumentPage() {
                   type="button"
                   onClick={saveMarketplaceSettings}
                   disabled={savingMarketplace || !canApproveDocuments}
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {savingMarketplace ? "Saving..." : "Save Marketplace Settings"}
                 </button>
@@ -1509,19 +1509,19 @@ export default function ReviewDocumentPage() {
                 {timelineEvents.map((event, index) => (
                   <div
                     key={event.key}
-                    className="flex gap-4 rounded-2xl border border-slate-200 p-4"
+                    className="flex gap-4 rounded-2xl border border-slate-700/80 p-4"
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sm font-bold text-sky-700">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sm font-bold text-sky-300">
                       {index + 1}
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">
+                      <p className="text-sm font-semibold text-slate-100">
                         {event.title}
                       </p>
                       <p className="mt-1 text-xs text-slate-500">
                         {formatRelative(event.time)} at {formatAbsolute(event.time)}
                       </p>
-                      <p className="mt-2 text-sm text-slate-600">{event.detail}</p>
+                      <p className="mt-2 text-sm text-slate-400">{event.detail}</p>
                     </div>
                   </div>
                 ))}
@@ -1539,7 +1539,7 @@ export default function ReviewDocumentPage() {
                   type="button"
                   onClick={() => void runLifecycleAction("restore")}
                   disabled={Boolean(lifecycleLoading) || !canApproveDocuments}
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {lifecycleLoading === "restore" ? "Restoring..." : "Restore Document"}
                 </button>
@@ -1548,7 +1548,7 @@ export default function ReviewDocumentPage() {
                   type="button"
                   onClick={() => void runLifecycleAction("archive")}
                   disabled={Boolean(lifecycleLoading) || !canApproveDocuments}
-                  className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl border border-amber-300 bg-amber-950/40 px-4 py-2.5 text-sm font-semibold text-amber-100 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {lifecycleLoading === "archive" ? "Archiving..." : "Archive Document"}
                 </button>
@@ -1558,7 +1558,7 @@ export default function ReviewDocumentPage() {
                 type="button"
                 onClick={() => void runLifecycleAction("delete")}
                 disabled={Boolean(lifecycleLoading) || !canApproveDocuments}
-                className="rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-xl border border-red-300 bg-red-950/40 px-4 py-2.5 text-sm font-semibold text-red-200 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {lifecycleLoading === "delete" ? "Deleting..." : "Delete Document"}
               </button>
@@ -1579,25 +1579,25 @@ export default function ReviewDocumentPage() {
             <div className="space-y-3">
               {isGcProgramDoc ? (
                 <>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 text-sm text-slate-400">
                     1. Open the company upload and verify it matches what the GC requires.
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 text-sm text-slate-400">
                     2. Approve to release it to the company workspace, or reject to remove it.
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 text-sm text-slate-400">
                     1. Open the draft DOCX and complete edits in Word.
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 text-sm text-slate-400">
                     2. Capture reviewer email and approval notes before sending.
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 text-sm text-slate-400">
                     3. Upload the final DOCX and approve the document.
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 text-sm text-slate-400">
                     4. Decide whether the completed file should appear in the marketplace.
                   </div>
                 </>
