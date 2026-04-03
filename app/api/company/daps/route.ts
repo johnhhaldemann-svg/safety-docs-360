@@ -125,16 +125,25 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const title = String(body?.title ?? "").trim();
   if (!title) return NextResponse.json({ error: "Title is required." }, { status: 400 });
-  const jobsiteId = String(body?.jobsiteId ?? "").trim() || null;
+  let jobsiteId = String(body?.jobsiteId ?? "").trim() || null;
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
     userId: auth.user.id,
     companyId: companyScope.companyId,
     role: auth.role,
   });
+  /** JSA/DAP UI often omits jobsite; restricted users must still scope to an allowed jobsite. */
+  if (jobsiteScope.restricted && !jobsiteId && jobsiteScope.jobsiteIds.length > 0) {
+    jobsiteId = jobsiteScope.jobsiteIds[0] ?? null;
+  }
   if (!isJobsiteAllowed(jobsiteId, jobsiteScope)) {
     return NextResponse.json(
-      { error: "You can only create DAPs for assigned jobsites." },
+      {
+        error:
+          jobsiteScope.restricted && jobsiteScope.jobsiteIds.length < 1
+            ? "You need at least one jobsite assignment to create a JSA. Ask a company admin to assign you to a jobsite."
+            : "You can only create JSAs for assigned jobsites.",
+      },
       { status: 403 }
     );
   }

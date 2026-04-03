@@ -420,7 +420,11 @@ export function JsaWorkspace() {
   }, [steps, jobSiteName]);
 
   async function createJsa() {
-    if (!newTitle.trim()) return;
+    const title = newTitle.trim();
+    if (!title) {
+      setMessage("Enter a job or site name in the field next to New JSA, then try again.");
+      return;
+    }
     setSaving(true);
     setMessage("");
     try {
@@ -429,16 +433,22 @@ export function JsaWorkspace() {
         method: "POST",
         headers,
         body: JSON.stringify({
-          title: newTitle.trim(),
+          title,
           status: "draft",
           severity: "medium",
           category: "corrective_action",
         }),
       });
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string; dap?: { id?: string } }
+        | null;
       if (!response.ok) throw new Error(data?.error || "Failed to create JSA.");
+      const newId = typeof data?.dap?.id === "string" ? data.dap.id : "";
       setNewTitle("");
       await loadRecords();
+      if (newId) {
+        setSelectedId(newId);
+      }
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Failed to create JSA.");
     }
