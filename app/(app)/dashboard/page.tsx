@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityFeed,
   EmptyState,
+  InlineMessage,
   SectionCard,
   StartChecklist,
   StatusBadge,
@@ -17,7 +18,7 @@ import type {
   LiveMatrixRow,
   ModuleSummaryItem,
 } from "@/components/company-workspace/useCompanyWorkspaceData";
-import type { PermissionMap } from "@/lib/rbac";
+import { getPermissionMap, isCompanyAdminRole, type PermissionMap } from "@/lib/rbac";
 import type { WorkspaceProduct } from "@/lib/workspaceProduct";
 import {
   getDocumentStatusLabel,
@@ -143,6 +144,50 @@ type CompanyDashboardMetrics = {
   dapCompletionToday: { completed: number; total: number; percent: number };
 };
 
+type CompanyAnalyticsSummaryPayload = {
+  summary?: { companyDashboard?: CompanyDashboardMetrics };
+  error?: string;
+  warning?: string;
+} | null;
+
+function applyCompanyAnalyticsDashboardState(
+  setCompanyDashboardMetrics: (value: CompanyDashboardMetrics | null) => void,
+  setAnalyticsSummaryIssue: (
+    value: { message: string; tone: "error" | "warning" } | null
+  ) => void,
+  analyticsResponse: Response,
+  analyticsData: CompanyAnalyticsSummaryPayload
+) {
+  const ok = analyticsResponse.ok;
+
+  if (!ok) {
+    setCompanyDashboardMetrics(null);
+    const err = typeof analyticsData?.error === "string" ? analyticsData.error.trim() : "";
+    const warn = typeof analyticsData?.warning === "string" ? analyticsData.warning.trim() : "";
+    setAnalyticsSummaryIssue({
+      message: err || warn || "Company analytics summary could not be loaded.",
+      tone: err ? "error" : "warning",
+    });
+    return;
+  }
+
+  const dash = analyticsData?.summary?.companyDashboard ?? null;
+  setCompanyDashboardMetrics(dash);
+  const err = typeof analyticsData?.error === "string" ? analyticsData.error.trim() : "";
+  const warn = typeof analyticsData?.warning === "string" ? analyticsData.warning.trim() : "";
+  if (dash != null) {
+    setAnalyticsSummaryIssue(null);
+  } else {
+    setAnalyticsSummaryIssue({
+      message:
+        err ||
+        warn ||
+        "Company analytics summary is not available. Your account may not be linked to a company workspace yet.",
+      tone: err ? "error" : "warning",
+    });
+  }
+}
+
 function isApprovedDocument(document: DocumentRow) {
   return isApprovedDocumentStatus(document.status, Boolean(document.final_file_path));
 }
@@ -213,6 +258,33 @@ async function fetchWithTimeout(
   }
 }
 
+function syntheticJsonResponse(payload: Record<string, unknown>, status: number): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/** Never throws: failed/timeout fetches become non-OK JSON responses so callers can still merge partial workspace state. */
+async function fetchWithTimeoutSafe(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+  errorPrefix: string
+): Promise<Response> {
+  try {
+    return await fetchWithTimeout(input, init, timeoutMs);
+  } catch (e) {
+    const timedOut = e instanceof Error && e.name === "AbortError";
+    return syntheticJsonResponse(
+      {
+        error: timedOut ? `${errorPrefix} timed out.` : `${errorPrefix} could not be reached.`,
+      },
+      503
+    );
+  }
+}
+
 export default function DashboardPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,6 +301,10 @@ export default function DashboardPage() {
   const [moduleSummaries, setModuleSummaries] = useState<ModuleSummaryItem[]>([]);
   const [highRiskAlerts, setHighRiskAlerts] = useState<HighRiskAlert[]>([]);
   const [companyDashboardMetrics, setCompanyDashboardMetrics] = useState<CompanyDashboardMetrics | null>(null);
+  const [analyticsSummaryIssue, setAnalyticsSummaryIssue] = useState<{
+    message: string;
+    tone: "error" | "warning";
+  } | null>(null);
   const [companyWorkspaceLoaded, setCompanyWorkspaceLoaded] = useState(false);
   const [companyWorkspaceLoading, setCompanyWorkspaceLoading] = useState(false);
   const [companyWorkspaceError, setCompanyWorkspaceError] = useState<string | null>(null);
@@ -271,27 +347,25 @@ export default function DashboardPage() {
           setWorkspaceProduct(nextWorkspaceProduct);
         }
 
-        const isCompanyAdmin = meData?.user?.role === "company_admin";
-        if (isCompanyAdmin) {
-          if (nextWorkspaceProduct === "csep") {
-            const [documentsResponse, creditResponse] = await Promise.all([
-              fetchWithTimeout("/api/workspace/documents", { headers: authHeaders }, 15000),
-              fetchWithTimeout("/api/library/credits", { headers: authHeaders }, 15000),
-            ]);
-            const documentsData = (await documentsResponse.json().catch(() => null)) as
-              | { documents?: DocumentRow[] }
-              | null;
-            const creditData = (await creditResponse.json().catch(() => null)) as
-              | { creditBalance?: number }
-              | null;
-            if (documentsResponse.ok) {
-              setDocuments(documentsData?.documents ?? []);
-            }
-            if (creditResponse.ok) {
-              setCreditBalance(Number(creditData?.creditBalance ?? 0));
-            }
-            setCompanyWorkspaceLoaded(true);
+        const isCompanyAdmin = isCompanyAdminRole(meData?.user?.role);
+        if (isCompanyAdmin && nextWorkspaceProduct === "csep") {
+          const [documentsResponse, creditResponse] = await Promise.all([
+            fetchWithTimeout("/api/workspace/documents", { headers: authHeaders }, 15000),
+            fetchWithTimeout("/api/library/credits", { headers: authHeaders }, 15000),
+          ]);
+          const documentsData = (await documentsResponse.json().catch(() => null)) as
+            | { documents?: DocumentRow[] }
+            | null;
+          const creditData = (await creditResponse.json().catch(() => null)) as
+            | { creditBalance?: number }
+            | null;
+          if (documentsResponse.ok) {
+            setDocuments(documentsData?.documents ?? []);
           }
+          if (creditResponse.ok) {
+            setCreditBalance(Number(creditData?.creditBalance ?? 0));
+          }
+          setCompanyWorkspaceLoaded(true);
           setLoading(false);
           return;
         }
@@ -317,21 +391,25 @@ export default function DashboardPage() {
           setCreditBalance(Number(creditData?.creditBalance ?? 0));
         }
 
+        const perm: PermissionMap =
+          meData?.user?.permissionMap ?? getPermissionMap(meData?.user?.role);
         const canLoadCompanyWorkspace =
           nextWorkspaceProduct !== "csep" &&
-          Boolean(meData?.user?.companyId) &&
           Boolean(
-            meData?.user?.permissionMap?.can_manage_company_users ||
-              meData?.user?.permissionMap?.can_view_analytics
+            perm.can_manage_company_users ||
+              perm.can_manage_users ||
+              perm.can_view_analytics ||
+              perm.can_view_all_company_data ||
+              perm.can_view_dashboards
           );
 
         setLoading(false);
 
         if (canLoadCompanyWorkspace) {
           const [companyResponse, workspaceSummaryResponse, analyticsResponse] = await Promise.all([
-            fetchWithTimeout("/api/company/users", { headers: authHeaders }, 15000),
-            fetchWithTimeout("/api/company/workspace/summary", { headers: authHeaders }, 15000),
-            fetchWithTimeout("/api/company/analytics/summary?days=30", { headers: authHeaders }, 15000),
+            fetchWithTimeoutSafe("/api/company/users", { headers: authHeaders }, 15000, "Company directory"),
+            fetchWithTimeoutSafe("/api/company/workspace/summary", { headers: authHeaders }, 15000, "Workspace summary"),
+            fetchWithTimeoutSafe("/api/company/analytics/summary?days=30", { headers: authHeaders }, 15000, "Analytics summary"),
           ]);
 
           const companyData = (await companyResponse.json().catch(() => null)) as {
@@ -362,9 +440,7 @@ export default function DashboardPage() {
             }>;
             reports?: Array<{ status?: string | null }>;
           } | null;
-          const analyticsData = (await analyticsResponse.json().catch(() => null)) as {
-            summary?: { companyDashboard?: CompanyDashboardMetrics };
-          } | null;
+          const analyticsData = (await analyticsResponse.json().catch(() => null)) as CompanyAnalyticsSummaryPayload;
 
           if (companyResponse.ok) {
             setCompanyUsers(companyData?.users ?? []);
@@ -459,9 +535,12 @@ export default function DashboardPage() {
             }
           }
           setHighRiskAlerts(alerts.slice(0, 8));
-          if (analyticsResponse.ok) {
-            setCompanyDashboardMetrics(analyticsData?.summary?.companyDashboard ?? null);
-          }
+          applyCompanyAnalyticsDashboardState(
+            setCompanyDashboardMetrics,
+            setAnalyticsSummaryIssue,
+            analyticsResponse,
+            analyticsData
+          );
 
           setCompanyWorkspaceLoaded(true);
         }
@@ -508,6 +587,7 @@ export default function DashboardPage() {
         if (creditResponse.ok) {
           setCreditBalance(Number(creditData?.creditBalance ?? 0));
         }
+        setAnalyticsSummaryIssue(null);
         setCompanyWorkspaceLoaded(true);
       } else {
       const [documentsResponse, creditResponse, companyResponse, workspaceSummaryResponse, analyticsResponse] =
@@ -552,9 +632,7 @@ export default function DashboardPage() {
         }>;
         reports?: Array<{ status?: string | null }>;
       } | null;
-      const analyticsData = (await analyticsResponse.json().catch(() => null)) as {
-        summary?: { companyDashboard?: CompanyDashboardMetrics };
-      } | null;
+      const analyticsData = (await analyticsResponse.json().catch(() => null)) as CompanyAnalyticsSummaryPayload;
 
       if (documentsResponse.ok) {
         setDocuments(documentsData?.documents ?? []);
@@ -652,9 +730,12 @@ export default function DashboardPage() {
         }
       }
       setHighRiskAlerts(alerts.slice(0, 8));
-      if (analyticsResponse.ok) {
-        setCompanyDashboardMetrics(analyticsData?.summary?.companyDashboard ?? null);
-      }
+      applyCompanyAnalyticsDashboardState(
+        setCompanyDashboardMetrics,
+        setAnalyticsSummaryIssue,
+        analyticsResponse,
+        analyticsData
+      );
 
       setCompanyWorkspaceLoaded(true);
       }
@@ -1356,6 +1437,7 @@ export default function DashboardPage() {
         moduleSummaries={moduleSummaries}
         highRiskAlerts={highRiskAlerts}
         companyDashboardMetrics={companyDashboardMetrics}
+        analyticsSummaryIssue={analyticsSummaryIssue}
         workspaceProduct={workspaceProduct}
       />
     );
@@ -1547,6 +1629,10 @@ export default function DashboardPage() {
             ))}
           </div>
         </section>
+
+        {!isCompanyAdminDashboard && companyWorkspaceLoaded && analyticsSummaryIssue ? (
+          <InlineMessage tone={analyticsSummaryIssue.tone}>{analyticsSummaryIssue.message}</InlineMessage>
+        ) : null}
 
         {showWelcomeState ? (
           <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">

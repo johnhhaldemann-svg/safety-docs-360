@@ -181,7 +181,9 @@ export function StatusBadge({
             : "bg-slate-700 text-slate-200 ring-1 ring-slate-600";
 
   return (
-    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${toneClass}`}>
+    <span
+      className={`inline-flex min-h-[1.625rem] items-center justify-center rounded-full px-3.5 py-1.5 text-center text-xs font-semibold leading-none ${toneClass}`}
+    >
       {label}
     </span>
   );

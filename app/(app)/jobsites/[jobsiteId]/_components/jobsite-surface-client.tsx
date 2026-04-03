@@ -69,7 +69,12 @@ export function JobsiteSurfaceClient({
       {loading ? <InlineMessage>Loading...</InlineMessage> : null}
       {!loading && error ? <InlineMessage tone={errorTone}>{error}</InlineMessage> : null}
       {!loading && !error && surface === "overview" ? (
-        <OverviewWidgets payload={payload} />
+        <div className="space-y-4">
+          {typeof payload?.analyticsSummaryIssue === "string" && payload.analyticsSummaryIssue.trim() ? (
+            <InlineMessage tone="warning">{payload.analyticsSummaryIssue}</InlineMessage>
+          ) : null}
+          <OverviewWidgets payload={payload} />
+        </div>
       ) : null}
       {!loading && !error && surface !== "overview" ? (
         <pre className="overflow-auto rounded-xl border border-slate-700/80 bg-slate-950/50 p-4 text-xs text-slate-300">

@@ -448,11 +448,11 @@ function buildTradeLibraryItem(trade: string): CSEPTradeLibraryItem {
 }
 
 function inputClassName() {
-  return "w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-500";
+  return "w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-slate-500 focus:border-sky-500";
 }
 
 function textareaClassName() {
-  return "min-h-[120px] w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-500";
+  return "min-h-[120px] w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-slate-500 focus:border-sky-500";
 }
 
 const supabase = createClient(
@@ -604,6 +604,14 @@ export default function CSEPPage() {
         return;
       }
 
+      if (!form.trade?.trim() || form.selected_hazards.length === 0) {
+        setMessageTone("warning");
+        setMessage(
+          "Select a trade and at least one hazard before submitting for review."
+        );
+        return;
+      }
+
       setSubmitLoading(true);
       const {
         data: { session },
@@ -739,6 +747,8 @@ export default function CSEPPage() {
     permissionMap?.can_create_documents && permissionMap?.can_edit_documents
   );
   const canSubmitDocuments = Boolean(permissionMap?.can_submit_documents);
+  const csepHandoffReady =
+    Boolean(form.trade?.trim()) && form.selected_hazards.length > 0;
 
   return (
     <div className="space-y-6 px-1 py-2 sm:px-2 sm:py-4">
@@ -784,7 +794,7 @@ export default function CSEPPage() {
               </InlineMessage>
             ) : null}
             {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
-            <fieldset disabled={authLoading || !canUseBuilder} className="space-y-6 disabled:opacity-60">
+            <fieldset disabled={authLoading || !canUseBuilder} className="space-y-8 disabled:opacity-60">
             <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
               <h2 className="mb-4 text-xl font-semibold text-slate-100">
                 Project Information
@@ -1062,8 +1072,14 @@ export default function CSEPPage() {
               <button
                 type="button"
                 onClick={handleSubmitForReview}
-                disabled={submitLoading || !agreedToSubmissionTerms || authLoading || !canSubmitDocuments}
-                className="rounded-xl bg-sky-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-50"
+                disabled={
+                  submitLoading ||
+                  !agreedToSubmissionTerms ||
+                  authLoading ||
+                  !canSubmitDocuments ||
+                  !csepHandoffReady
+                }
+                className="rounded-xl bg-sky-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {submitLoading ? "Submitting..." : "Submit for Review"}
               </button>
@@ -1092,8 +1108,16 @@ export default function CSEPPage() {
               description="Quick visibility into what is ready inside this CSEP."
             >
               <div className="grid gap-3">
-                <SnapshotRow label="Project" value={form.project_name || "Not set yet"} />
-                <SnapshotRow label="Trade" value={form.trade || "No trade selected"} />
+                <SnapshotRow
+                  label="Project"
+                  value={form.project_name.trim() ? form.project_name : "Not set yet"}
+                  missing={!form.project_name.trim()}
+                />
+                <SnapshotRow
+                  label="Trade"
+                  value={form.trade || "No trade selected"}
+                  missing={!form.trade}
+                />
                 <SnapshotRow
                   label="Hazards"
                   value={
@@ -1101,6 +1125,7 @@ export default function CSEPPage() {
                       ? `${form.selected_hazards.length} selected`
                       : "None selected"
                   }
+                  missing={!form.selected_hazards.length}
                 />
                 <SnapshotRow
                   label="PPE"
@@ -1273,9 +1298,9 @@ export default function CSEPPage() {
         </div>
 
         <div className="sticky bottom-4 z-10 mt-6">
-          <div className="rounded-[1.5rem] border border-slate-700/80 bg-slate-900/92 p-4 shadow-[0_18px_36px_rgba(0,0,0,0.35)] backdrop-blur">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+          <div className="rounded-[1.5rem] border border-slate-700/80 bg-slate-900/92 p-5 shadow-[0_18px_36px_rgba(0,0,0,0.35)] backdrop-blur sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <div className="min-w-0">
                 <div className="text-sm font-semibold text-slate-100">
                   Submission Handoff
                 </div>
@@ -1283,7 +1308,7 @@ export default function CSEPPage() {
                   Review the snapshot on the right, then send the CSEP into admin review.
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 <StatusBadge
                   label={form.trade ? "Trade ready" : "Trade needed"}
                   tone={form.trade ? "success" : "warning"}
@@ -1297,8 +1322,14 @@ export default function CSEPPage() {
                 <button
                   type="button"
                   onClick={handleSubmitForReview}
-                  disabled={submitLoading || !agreedToSubmissionTerms || authLoading || !canSubmitDocuments}
-                  className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)] disabled:opacity-50"
+                  disabled={
+                    submitLoading ||
+                    !agreedToSubmissionTerms ||
+                    authLoading ||
+                    !canSubmitDocuments ||
+                    !csepHandoffReady
+                  }
+                  className="inline-flex min-h-[2.5rem] items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:brightness-100"
                 >
                   {submitLoading ? "Submitting..." : "Submit for Review"}
                 </button>
@@ -1311,11 +1342,25 @@ export default function CSEPPage() {
   );
 }
 
-function SnapshotRow({ label, value }: { label: string; value: string }) {
+function SnapshotRow({
+  label,
+  value,
+  missing,
+}: {
+  label: string;
+  value: string;
+  missing?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
       <span className="text-sm text-slate-500">{label}</span>
-      <span className="text-sm font-semibold text-slate-100">{value}</span>
+      <span
+        className={`text-right text-sm font-semibold ${
+          missing ? "text-amber-200/90" : "text-slate-100"
+        }`}
+      >
+        {value}
+      </span>
     </div>
   );
 }

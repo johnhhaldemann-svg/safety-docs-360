@@ -160,6 +160,12 @@ export async function GET(
     )
     .slice(0, 5);
 
+  const analyticsIssue = analytics.ok
+    ? null
+    : (typeof analytics.json?.error === "string" ? analytics.json.error.trim() : "") ||
+      (typeof analytics.json?.warning === "string" ? analytics.json.warning.trim() : "") ||
+      "Analytics summary could not be loaded.";
+
   return NextResponse.json({
     jobsite,
     overview: {
@@ -191,5 +197,6 @@ export async function GET(
       analytics: `/jobsites/${jobsiteId}/analytics`,
       team: `/jobsites/${jobsiteId}/team`,
     },
+    ...(analyticsIssue ? { analyticsSummaryIssue: analyticsIssue } : {}),
   });
 }

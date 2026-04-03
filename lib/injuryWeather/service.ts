@@ -51,6 +51,7 @@ import {
 import { EXPOSURE_EVENT_TYPE_LABELS, isExposureEventType } from "@/lib/incidents/exposureEventType";
 import { normalizeInjuryType } from "@/lib/incidents/injuryType";
 import { resolveSorHazardCategoryCode } from "@/lib/incidents/sorHazardCategory";
+import { appendAgentDebugNdjson } from "@/lib/agentDebugNdjsonFile";
 import type {
   DashboardAlert,
   BehaviorSignals,
@@ -671,6 +672,16 @@ export async function getInjuryWeatherDashboardData(filters?: {
   if (!admin) {
     const fallback = computeFromSeed(workbookRows, filters);
     const availableMonths = build90DayOutlookMonths(trendFromSeed.availableMonths);
+    appendAgentDebugNdjson({
+      hypothesisId: "IW-SEED",
+      location: "getInjuryWeatherDashboardData",
+      message: "no admin client — seed/offline dashboard",
+      data: {
+        riskSignalCount: fallback.summary.riskSignalCount,
+        forecastMode: forecastModeFromObservationCount(fallback.summary.riskSignalCount),
+        monthLabel,
+      },
+    });
     return {
       summary: {
         ...fallback.summary,
@@ -734,6 +745,7 @@ export async function getInjuryWeatherDashboardData(filters?: {
   });
   live.availableMonths = build90DayOutlookMonths(historyTrend.availableMonths);
   live.availableTrades = availableTradesFromData(historyTrend.availableTrades, workbookRows);
+  const likelyRowsForInsight = rowsMatchingTradeSelection(liveSourceRows, filters?.trade, filters?.trades);
   live.summary = {
     ...live.summary,
     dataConfidence: computeDataConfidenceFromMetrics(
@@ -743,10 +755,25 @@ export async function getInjuryWeatherDashboardData(filters?: {
     ),
     forecastMode: forecastModeFromObservationCount(live.summary.riskSignalCount),
     forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(live.summary.riskSignalCount),
-    likelyInjuryInsight: likelyInjuryInsightFromSignals(
-      rowsMatchingTradeSelection(allRows, filters?.trade, filters?.trades)
-    ),
+    likelyInjuryInsight: likelyInjuryInsightFromSignals(likelyRowsForInsight),
   };
+  appendAgentDebugNdjson({
+    hypothesisId: "IW-LIVE",
+    location: "getInjuryWeatherDashboardData",
+    message: "assembled live dashboard",
+    data: {
+      allRowsCount: allRows.length,
+      liveScopedRowCount: liveSourceRows.length,
+      likelyInputRowCount: likelyRowsForInsight.length,
+      riskSignalCount: live.summary.riskSignalCount,
+      forecastMode: live.summary.forecastMode,
+      likelyHasData: live.summary.likelyInjuryInsight.hasData,
+      likelyHeadline: live.summary.likelyInjuryInsight.headline,
+      monthFilter: filters?.month ?? null,
+      hasTradeFilter:
+        tradeFilterStringsToIds([...(filters?.trades ?? []), ...(filters?.trade ? [filters.trade] : [])]).size > 0,
+    },
+  });
   return { ...live, industryBenchmarkContext: benchmarkCtx };
 }
 

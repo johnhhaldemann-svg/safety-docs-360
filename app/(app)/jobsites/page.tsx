@@ -1,5 +1,6 @@
 "use client";
 
+import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
@@ -17,6 +18,11 @@ import {
   type CompanyJobsite,
 } from "@/components/company-workspace/useCompanyWorkspaceData";
 import { getDocumentStatusLabel } from "@/lib/documentStatus";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 type MessageTone = "neutral" | "success" | "warning" | "error";
 
@@ -210,9 +216,22 @@ export default function JobsitesPage() {
     setMessage(null);
 
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        setMessage("You need to be signed in to save a jobsite. Try refreshing the page.");
+        setMessageTone("error");
+        return;
+      }
+
       const response = await fetchWithTimeout("/api/company/jobsites", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           name: composer.name,
           projectNumber: composer.projectNumber,
@@ -271,9 +290,22 @@ export default function JobsitesPage() {
     setMessage(null);
 
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        setMessage("You need to be signed in to update a jobsite. Try refreshing the page.");
+        setMessageTone("error");
+        return;
+      }
+
       const response = await fetchWithTimeout(`/api/company/jobsites/${jobsite.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           status: nextStatus,
           archived: nextStatus === "archived",

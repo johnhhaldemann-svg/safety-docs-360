@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { authorizeRequest, normalizeAppRole } from "@/lib/rbac";
+import { appendAgentDebugNdjson } from "@/lib/agentDebugNdjsonFile";
 import { getInjuryWeatherDashboardData, workScheduleFromUrlSearchParams } from "@/lib/injuryWeather/service";
 import { generateInjuryWeatherAiInsights } from "@/lib/injuryWeather/ai";
-import type { BehaviorSignals, WorkScheduleInputs } from "@/lib/injuryWeather/types";
+import type { BehaviorSignals, InjuryWeatherDashboardData, WorkScheduleInputs } from "@/lib/injuryWeather/types";
 
 export const runtime = "nodejs";
 
@@ -72,6 +73,27 @@ function wantsCacheBypass(searchParams: URLSearchParams) {
   return v === "1" || v === "true" || v === "yes";
 }
 
+function logInjuryWeatherResponse(
+  data: InjuryWeatherDashboardData,
+  meta: { bypassCache: boolean; includeAi: boolean; cacheHit: boolean }
+) {
+  appendAgentDebugNdjson({
+    hypothesisId: "IW-ROUTE",
+    location: "injury-weather/route.ts:GET",
+    message: "response sent",
+    data: {
+      bypassCache: meta.bypassCache,
+      includeAi: meta.includeAi,
+      cacheHit: meta.cacheHit,
+      riskSignalCount: data.summary.riskSignalCount,
+      forecastMode: data.summary.forecastMode,
+      likelyHasData: data.summary.likelyInjuryInsight.hasData,
+      likelyHeadline: data.summary.likelyInjuryInsight.headline,
+      provenanceMode: data.signalProvenance.mode,
+    },
+  });
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: ["can_access_internal_admin", "can_view_analytics"],
@@ -129,6 +151,7 @@ export async function GET(request: Request) {
 
   if (bypassCache) {
     const data = await getInjuryWeatherDashboardData(filters);
+    logInjuryWeatherResponse(data, { bypassCache: true, includeAi, cacheHit: false });
     if (includeAi) {
       const aiInsights = await generateInjuryWeatherAiInsights(data);
       return NextResponse.json({ ...data, aiInsights });
@@ -138,8 +161,10 @@ export async function GET(request: Request) {
 
   if (includeAi) {
     const { data, aiInsights } = await loadCachedDashboardWithAi(filterKey);
+    logInjuryWeatherResponse(data, { bypassCache: false, includeAi: true, cacheHit: true });
     return NextResponse.json({ ...data, aiInsights });
   }
   const data = await loadCachedDashboard(filterKey);
+  logInjuryWeatherResponse(data, { bypassCache: false, includeAi: false, cacheHit: true });
   return NextResponse.json(data);
 }

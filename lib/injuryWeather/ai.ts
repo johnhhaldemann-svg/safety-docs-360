@@ -315,7 +315,7 @@ function computeAiContext(data: InjuryWeatherDashboardData) {
         "oshaPriorYearsCrossReference is sector baseline context only, not this employer’s record or an enforcement outcome.",
         "nationalConstructionOshaReference is national U.S. construction BLS SOII/CFOI-style counts—not this employer’s record. Cite those numbers only as given in that object.",
         "If locationContext.stateCode is null, do not claim a regional weather story beyond general language.",
-        "totals.likelyInjuryInsight blends incident injury/exposure history with SOR and corrective-action hazard patterns (mapped to exposure priors) across all dates in the current scope (company/jobsite, trades when filtered)—do not invent a different top injury type.",
+        "totals.likelyInjuryInsight blends incident injury/exposure history with SOR and corrective-action hazard patterns (mapped to exposure priors) using the same safety-signal record window as totals.riskSignalCount and the dashboard trade cards (month rules in signalProvenance.recordWindowLabel; company/jobsite and trade filters when applied)—do not invent a different top injury type.",
       ],
     },
     month: data.summary.month,

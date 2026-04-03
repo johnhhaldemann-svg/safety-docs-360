@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   ActivityFeed,
   EmptyState,
+  InlineMessage,
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
@@ -126,6 +127,7 @@ export function CompanyAdminDashboard({
   moduleSummaries,
   highRiskAlerts,
   companyDashboardMetrics,
+  analyticsSummaryIssue,
   workspaceProduct = "full",
 }: {
   loading: boolean;
@@ -152,6 +154,7 @@ export function CompanyAdminDashboard({
     openIncidents: number;
     dapCompletionToday: { completed: number; total: number; percent: number };
   } | null;
+  analyticsSummaryIssue?: { message: string; tone: "error" | "warning" } | null;
 }) {
   const [selectedJobsite, setSelectedJobsite] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -588,6 +591,10 @@ export function CompanyAdminDashboard({
                 ? workspaceError
                 : "This workspace loads on demand. Click Refresh Workspace to pull the latest company data."}
             </div>
+          ) : null}
+
+          {workspaceLoaded && analyticsSummaryIssue ? (
+            <InlineMessage tone={analyticsSummaryIssue.tone}>{analyticsSummaryIssue.message}</InlineMessage>
           ) : null}
 
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_170px_auto]">

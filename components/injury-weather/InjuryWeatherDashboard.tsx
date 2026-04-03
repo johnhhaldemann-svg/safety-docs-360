@@ -78,6 +78,22 @@ function strokeForRiskIndex(v: number): string {
   return "rgb(52 211 153)";
 }
 
+/** Prefer exact trade label match, then prefix, then substring (reduces wrong card when names overlap). */
+function matchTradeForecastForChip(
+  chip: string,
+  source: InjuryWeatherDashboardData["tradeForecasts"]
+): TradeForecast | undefined {
+  const c = chip.trim().toLowerCase();
+  if (!c) return undefined;
+  const tl = (t: string) => t.toLowerCase();
+  return (
+    source.find((t) => tl(t.trade) === c) ??
+    source.find((t) => tl(t.trade).startsWith(c)) ??
+    source.find((t) => c.startsWith(tl(t.trade)) && tl(t.trade).length >= 4) ??
+    source.find((t) => tl(t.trade).includes(c))
+  );
+}
+
 function TrendChart({ points }: { points: TrendPoint[] }) {
   const [hover, setHover] = useState<number | null>(null);
   const chartUid = useId().replace(/:/g, "");
@@ -551,12 +567,18 @@ export function InjuryWeatherDashboard() {
   const displayTrades = useMemo(() => {
     const source = data?.tradeForecasts ?? [];
     if (appliedTrades.length > 0) {
-      const selected = appliedTrades
-        .map((name) => source.find((t) => t.trade.toLowerCase().includes(name.toLowerCase())))
-        .filter(Boolean) as InjuryWeatherDashboardData["tradeForecasts"];
+      const seen = new Set<string>();
+      const selected: InjuryWeatherDashboardData["tradeForecasts"] = [];
+      for (const chip of appliedTrades) {
+        const tf = matchTradeForecastForChip(chip, source);
+        if (tf && !seen.has(tf.trade)) {
+          seen.add(tf.trade);
+          selected.push(tf);
+        }
+      }
       if (selected.length > 0) return selected.slice(0, 4);
       const matched = source.filter((t) =>
-        appliedTrades.some((a) => t.trade.toLowerCase().includes(a.toLowerCase()))
+        appliedTrades.some((chip) => matchTradeForecastForChip(chip, source)?.trade === t.trade)
       );
       if (matched.length > 0) return matched.slice(0, 4);
       return [];
@@ -591,6 +613,7 @@ export function InjuryWeatherDashboard() {
         hoursPerDay: appliedHoursPerDaySchedule,
         companyId: appliedScopeCompanyId || null,
         jobsiteId: appliedScopeJobsiteId || null,
+        reportLabel: project.trim() || null,
       },
       dashboard: data,
       aiInsights,
@@ -627,8 +650,22 @@ export function InjuryWeatherDashboard() {
     return `Seed / offline mode: ${p.seedWorkbookRows ?? 0} workbook rows · ${p.recordWindowLabel}.${blendNote}`;
   })();
 
+  const monthPickerDiffersFromApplied =
+    Boolean(month.trim()) && Boolean(appliedMonth.trim()) && month.trim() !== appliedMonth.trim();
+
   return (
     <div className="space-y-5 text-slate-100">
+      {monthPickerDiffersFromApplied ? (
+        <div
+          className="rounded-2xl border border-amber-500/45 bg-amber-950/35 px-4 py-3 text-sm leading-snug text-amber-100/95"
+          role="status"
+        >
+          <span className="font-semibold text-amber-200">Month not applied yet.</span> The picker shows{" "}
+          <span className="font-mono text-amber-50/95">{month}</span> but the forecast above is for{" "}
+          <span className="font-mono text-amber-50/95">{appliedMonth}</span>. Click{" "}
+          <span className="font-semibold text-emerald-200/90">Generate Report</span> to refresh.
+        </div>
+      ) : null}
       <section className="overflow-hidden rounded-3xl border border-slate-700/80 bg-[radial-gradient(circle_at_top,_#1f3b75_0%,_#0c1730_42%,_#090f1f_100%)] shadow-2xl">
         <div className="border-b border-slate-500/40 bg-slate-900/25 px-6 py-5 text-center">
           <p className="text-sm font-black uppercase tracking-[0.25em] text-slate-200">Injury Weather System™</p>
@@ -674,7 +711,8 @@ export function InjuryWeatherDashboard() {
           <div className="rounded-xl border border-teal-500/35 bg-slate-900/70 p-3 text-center lg:text-left">
             <p className="text-xs uppercase tracking-[0.2em] text-teal-300/90">Predicted likely injury</p>
             <p className="mt-0.5 text-[10px] text-slate-500">
-              Blended from incidents, SOR hazard class, and corrective actions in scope
+              Blended from incidents, SOR hazard class, and corrective actions—same record window and trade filter as the headline
+              metrics and trade cards.
             </p>
             <p className="mt-2 text-xl font-black leading-tight text-teal-100 sm:text-2xl">
               {data.summary.likelyInjuryInsight.headline}
@@ -892,7 +930,9 @@ export function InjuryWeatherDashboard() {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Forecast parameters</p>
             <h2 className="mt-1 text-xl font-bold text-white">Scope &amp; inputs</h2>
             <p className="mt-1 max-w-xl text-sm text-slate-400">
-              Change filters below, then <span className="text-emerald-300/90">Generate Report</span> to refresh the outputs above.
+              Change filters below, then <span className="text-emerald-300/90">Generate Report</span> to refresh month, location,
+              workforce, hours, and company/jobsite scope. <span className="text-slate-500">Trade chips</span> update the view
+              immediately.
             </p>
           </div>
           <div className="rounded-lg border border-slate-700 bg-slate-900/90 px-3 py-2 text-[11px] text-slate-400">
@@ -1012,13 +1052,18 @@ export function InjuryWeatherDashboard() {
             </select>
           </label>
           <label className="flex flex-col gap-1 text-[11px] text-slate-500">
-            <span className="font-medium text-slate-400">Project label</span>
+            <span className="font-medium text-slate-400">Report label (optional)</span>
             <input
               value={project}
               onChange={(e) => setProject(e.target.value)}
               className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100"
-              placeholder="All Projects"
+              placeholder="e.g. North campus phase 2"
+              title="Included in JSON export only; does not change forecast math"
+              aria-description="Included in JSON export only; does not change forecast math"
             />
+            <span className="text-[10px] leading-snug text-slate-600">
+              For exports and filenames—does not change model inputs.
+            </span>
           </label>
           <label className="flex flex-col gap-1 text-[11px] text-slate-500">
             <span className="font-medium text-slate-400">Workforce (optional)</span>

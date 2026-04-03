@@ -77,6 +77,11 @@ export async function GET(
   const jobsitesList = (jobsites.json?.jobsites as unknown[] | undefined) ?? [];
   const docsList = (documents.json?.documents as unknown[] | undefined) ?? [];
   const summary = (analytics.json?.summary as Record<string, unknown> | undefined) ?? {};
+  const analyticsIssue = analytics.ok
+    ? null
+    : (typeof analytics.json?.error === "string" ? analytics.json.error.trim() : "") ||
+      (typeof analytics.json?.warning === "string" ? analytics.json.warning.trim() : "") ||
+      "Analytics summary could not be loaded.";
 
   return NextResponse.json(
     {
@@ -86,6 +91,7 @@ export async function GET(
         jobsites: jobsitesList.length,
         documents: docsList.length,
         analyticsSummary: summary,
+        ...(analyticsIssue ? { analyticsSummaryIssue: analyticsIssue } : {}),
       },
       links: {
         users: `/companies/${companyId}/users`,
