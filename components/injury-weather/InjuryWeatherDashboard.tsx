@@ -13,6 +13,7 @@ import {
 } from "@/lib/injuryWeather/dataConfidence";
 import { fallbackDashboardBlocksFromData } from "@/lib/injuryWeather/ai";
 import { injuryWeatherJobsiteSorScopeBanner } from "@/lib/injuryWeather/scopeMessaging";
+import { buildHeadlineMetricsReasoning } from "@/lib/injuryWeather/headlineMetricsReasoning";
 import { INJURY_WEATHER_ASSUMPTIONS } from "@/lib/injuryWeather/types";
 import type {
   InjuryWeatherAiForecastMeta,
@@ -78,6 +79,19 @@ function riskTone(level: RiskLevel) {
   if (level === "HIGH") return "bg-orange-500/20 text-orange-200 border-orange-400/40";
   if (level === "MODERATE") return "bg-amber-500/20 text-amber-200 border-amber-400/40";
   return "bg-emerald-500/20 text-emerald-200 border-emerald-400/40";
+}
+
+function dynamicForecastBandToRiskLevel(band: string): RiskLevel {
+  if (band === "Critical") return "CRITICAL";
+  if (band === "High") return "HIGH";
+  if (band === "Moderate") return "MODERATE";
+  return "LOW";
+}
+
+function trendArrow(direction: string): string {
+  if (direction === "rising") return "↑ Rising";
+  if (direction === "falling") return "↓ Falling";
+  return "→ Stable";
 }
 
 function categoryTone(level: RiskLevel) {
@@ -780,6 +794,14 @@ export function InjuryWeatherDashboard() {
     return fallbackDashboardBlocksFromData(data).priorityThemes;
   }, [data, aiInsights]);
 
+  const headlineReasoningLines = useMemo(() => {
+    if (!data) return [];
+    return buildHeadlineMetricsReasoning(data, aiInsights, {
+      aiForecastApplied: Boolean(aiForecastMeta?.applied),
+      modelOverallRiskLevel: deterministicBaseline?.summary.overallRiskLevel ?? null,
+    });
+  }, [data, aiInsights, aiForecastMeta?.applied, deterministicBaseline?.summary.overallRiskLevel]);
+
   const exportReportJson = () => {
     if (!data) return;
     const payload = {
@@ -912,6 +934,131 @@ export function InjuryWeatherDashboard() {
             ) : null}
             <p className="mt-2 text-[10px] leading-snug text-slate-500">{data.summary.likelyInjuryInsight.detailNote}</p>
           </div>
+          <div className="col-span-full border-t border-slate-600/35 bg-slate-950/55 px-4 py-3 sm:px-5">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
+              How these headline numbers are computed
+            </p>
+            <ul className="mt-2 list-disc space-y-2 pl-5 text-left text-sm leading-relaxed text-slate-300">
+              {headlineReasoningLines.map((line, idx) => (
+                <li key={idx}>{line}</li>
+              ))}
+            </ul>
+          </div>
+          {data.dynamicInjuryForecast ? (
+            <div className="col-span-full border-t border-cyan-500/25 bg-slate-950/70 px-4 py-4 sm:px-5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-200/90">
+                Dynamic injury forecast engine
+              </p>
+              <p className="mt-1 text-[10px] leading-snug text-slate-500">
+                Layered Poisson model (v{data.dynamicInjuryForecast.modelVersion}) — interpretable λ with ML calibration hook
+                (placeholder). Legacy tiles above are unchanged for compatibility.
+              </p>
+              {(data.dynamicInjuryForecast.usedFallbackDefaults || data.dynamicInjuryForecast.forecastMode !== "FULL_DATA") && (
+                <div
+                  className="mt-3 rounded-xl border border-amber-500/40 bg-amber-950/35 px-3 py-2.5 text-sm leading-snug text-amber-50/95"
+                  role="status"
+                >
+                  <p className="font-semibold text-amber-200">
+                    Forecast mode:{" "}
+                    <span className="font-mono text-amber-100">
+                      {data.dynamicInjuryForecast.forecastMode.replace(/_/g, " ")}
+                    </span>
+                    {data.dynamicInjuryForecast.usedFallbackDefaults ? " · benchmark defaults used" : ""}
+                  </p>
+                  <p className="mt-1 text-[13px] text-amber-100/90">
+                    {data.dynamicInjuryForecast.forecastMode === "BENCHMARK_FALLBACK"
+                      ? "This forecast is benchmark-driven because little or no company-specific safety data matched the current scope. You still get a useful starting score from trade, season, and location priors."
+                      : "Your signals are blended with sector and trade benchmarks until volume and history grow."}
+                  </p>
+                  <p className="mt-1.5 text-[12px] text-amber-200/80">{data.dynamicInjuryForecast.fallbackReason}</p>
+                  <p className="mt-2 text-[11px] text-slate-400">
+                    Hybrid weight on full model: {(data.dynamicInjuryForecast.hybridBlendWeight * 100).toFixed(0)}% · Sources:{" "}
+                    {data.dynamicInjuryForecast.benchmarkSourcesUsed.join(", ")}
+                  </p>
+                </div>
+              )}
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg border border-slate-600/50 bg-slate-900/80 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">30-day probability</p>
+                  <p className="mt-1 text-3xl font-black text-cyan-200">
+                    {(data.dynamicInjuryForecast.probability30d * 100).toFixed(1)}%
+                  </p>
+                  <p className="mt-1 text-[10px] text-slate-500">1 − e<sup>−λ</sup> · uncalibrated</p>
+                </div>
+                <div className="rounded-lg border border-slate-600/50 bg-slate-900/80 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Risk score</p>
+                  <p className="mt-1 text-3xl font-black text-slate-100">{data.dynamicInjuryForecast.riskScore0_100}</p>
+                  <span
+                    className={`mt-2 inline-flex rounded-md border px-2 py-0.5 text-xs font-black ${riskTone(
+                      dynamicForecastBandToRiskLevel(data.dynamicInjuryForecast.riskBand)
+                    )}`}
+                  >
+                    {data.dynamicInjuryForecast.riskBand}
+                  </span>
+                </div>
+                <div className="rounded-lg border border-slate-600/50 bg-slate-900/80 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Data confidence</p>
+                  <p className="mt-1 text-3xl font-black text-sky-200">
+                    {Math.round(data.dynamicInjuryForecast.confidenceScore)}
+                  </p>
+                  <p className="mt-1 text-[10px] text-slate-500">Quality / completeness heuristic</p>
+                </div>
+                <div className="rounded-lg border border-slate-600/50 bg-slate-900/80 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Signal trend</p>
+                  <p className="mt-2 text-lg font-bold text-slate-100">{trendArrow(data.dynamicInjuryForecast.trendDirection)}</p>
+                  <p className="mt-1 text-[10px] text-slate-500">Recent vs prior window rate</p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <div className="rounded-lg border border-slate-600/40 bg-slate-900/60 p-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Top injury types</p>
+                  <ul className="mt-2 space-y-2 text-sm text-slate-200">
+                    {data.dynamicInjuryForecast.likelyInjuryTypes.map((t) => (
+                      <li key={t.category}>
+                        <span className="font-semibold text-cyan-100/90">{t.displayLabel}</span>
+                        <span className="text-slate-500"> · score {t.score.toFixed(2)} · conf {Math.round(t.confidence)}</span>
+                        <p className="text-[11px] text-slate-500">{t.explanation}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-lg border border-slate-600/40 bg-slate-900/60 p-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Top risk drivers</p>
+                  <ul className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-slate-200">
+                    {data.dynamicInjuryForecast.topRiskDrivers.map((d) => (
+                      <li key={d.id}>
+                        <span className="font-semibold">{d.label}</span> — {d.detail}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              {data.dynamicInjuryForecast.weakestControls.length > 0 ? (
+                <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-950/20 p-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-amber-200/90">Weakest control signals</p>
+                  <ul className="mt-2 flex flex-wrap gap-2 text-[11px] text-amber-100/90">
+                    {data.dynamicInjuryForecast.weakestControls.map((c) => (
+                      <li key={c.id} className="rounded border border-amber-500/35 bg-amber-950/40 px-2 py-1">
+                        {c.label}
+                        {c.assumed ? " (assumed)" : ""}: {(c.value * 100).toFixed(0)}%
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <p className="mt-3 text-sm leading-relaxed text-slate-300">{data.dynamicInjuryForecast.narrativeSummary}</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-emerald-100/90">
+                {data.dynamicInjuryForecast.recommendedActions.map((a, i) => (
+                  <li key={i}>{a}</li>
+                ))}
+              </ul>
+              {data.dynamicInjuryForecast.assumptions.length > 0 ? (
+                <p className="mt-3 text-[11px] text-amber-200/85">
+                  Assumptions: {data.dynamicInjuryForecast.assumptions.join(" ")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         {aiForecastMeta?.applied ? (
           <div className="border-b border-violet-500/40 bg-violet-950/35 px-5 py-3">
@@ -1044,6 +1191,46 @@ export function InjuryWeatherDashboard() {
                 </ul>
               </div>
             </div>
+            {aiInsights.webResearchSupplement ? (
+              <div className="mt-4 rounded-xl border border-fuchsia-500/35 bg-fuchsia-950/25 p-4 text-left">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-fuchsia-300/90">
+                  Public web fill-in (sparse workspace data)
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-fuchsia-100/80">
+                  {aiInsights.webResearchSupplement.querySummary}
+                  {aiInsights.webResearchSupplement.model ? (
+                    <span className="text-fuchsia-200/60"> · Model: {aiInsights.webResearchSupplement.model}</span>
+                  ) : null}
+                </p>
+                <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-fuchsia-50/95">
+                  {aiInsights.webResearchSupplement.bullets.map((b) => (
+                    <li key={b.slice(0, 80)}>{b}</li>
+                  ))}
+                </ul>
+                {aiInsights.webResearchSupplement.citations.length > 0 ? (
+                  <div className="mt-3 border-t border-fuchsia-800/40 pt-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-fuchsia-300/80">Sources</p>
+                    <ul className="mt-2 space-y-1.5 text-xs">
+                      {aiInsights.webResearchSupplement.citations.map((c) => (
+                        <li key={c.url}>
+                          <a
+                            href={c.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-fuchsia-200 underline decoration-fuchsia-500/40 underline-offset-2 hover:text-white"
+                          >
+                            {c.title}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                <p className="mt-3 text-[11px] leading-relaxed text-fuchsia-200/70">
+                  {aiInsights.webResearchSupplement.disclaimer}
+                </p>
+              </div>
+            ) : null}
           </>
         ) : !aiAdvisorLoading ? (
           <p className="mt-3 text-sm leading-relaxed text-slate-400">

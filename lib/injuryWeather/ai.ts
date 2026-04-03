@@ -9,10 +9,16 @@ import type {
   InjuryWeatherAiForecastOverride,
   InjuryWeatherAiInsights,
   InjuryWeatherDashboardData,
+  InjuryWeatherWebResearchSupplement,
   RiskLevel,
 } from "@/lib/injuryWeather/types";
 import { buildMonthlyFocusItems } from "@/lib/injuryWeather/monthlyFocus";
 import { buildOshaCrossReference } from "@/lib/injuryWeather/oshaHistory";
+import {
+  injuryWeatherNeedsWebResearchFill,
+  injuryWeatherWebResearchSupplement,
+  isInjuryWeatherSparseWebResearchEnabled,
+} from "@/lib/injuryWeather/sparseDataWebResearch";
 
 const RISK_LEVELS: RiskLevel[] = ["LOW", "MODERATE", "HIGH", "CRITICAL"];
 
@@ -356,10 +362,11 @@ export function validateAiInsightsAgainstData(
     "roadwork",
     "earthworks",
   ];
+  const relaxTradeHints = injuryWeatherNeedsWebResearchFill(data);
   for (const hint of TRADE_HINTS) {
     if (!text.includes(hint)) continue;
     const ok = [...allowed].some((a) => a.includes(hint) || hint.includes(a));
-    if (!ok) return false;
+    if (!ok && !relaxTradeHints) return false;
   }
   return true;
 }
@@ -667,8 +674,49 @@ const forecastOverrideSchemaProperty = {
   },
 } as const;
 
-function buildAiPrompt(data: InjuryWeatherDashboardData, requestForecastOverride: boolean): string {
+function buildAiPrompt(
+  data: InjuryWeatherDashboardData,
+  requestForecastOverride: boolean,
+  webResearch: InjuryWeatherWebResearchSupplement | null
+): string {
   const aiContext = computeAiContext(data);
+  const publicSourceInfluencePolicy =
+    webResearch != null
+      ? {
+          intent: "combine_static_osha_bls_with_live_web",
+          liveWebsiteWebSearchBullets: "primary_public_guidance",
+          oshaPriorYearsCrossReference_and_nationalConstruction: "secondary_public_guidance",
+          approximateEmphasis: "Favor retrieved web bullets for most public-guidance language; keep OSHA/BLS JSON to light supporting mentions (roughly ≤⅓ of public-source emphasis vs web bullets).",
+          rules: [
+            "sparseDataWebResearch.bulletsFromPublicWebSources should shape drivers, actions, themes, and controls more than oshaPriorYearsCrossReference or nationalConstructionOshaReference.",
+            "Cite OSHA/BLS structured fields sparingly—at most one short clause in the whole output unless a web bullet explicitly echoes the same fact.",
+            "Do not repeat long OSHA/BLS statistics if web bullets already cover the hazard theme.",
+          ],
+        }
+      : {
+          intent: "static_osha_bls_only_this_run",
+          liveWebsiteWebSearchBullets: "absent",
+          oshaPriorYearsCrossReference_and_nationalConstruction: "light_sector_context_only",
+          approximateEmphasis: "Use OSHA/BLS JSON briefly as background; workspace totals and tradeSignals stay primary.",
+          rules: [
+            "oshaPriorYearsCrossReference and nationalConstructionOshaReference are brief baselines—not the main narrative.",
+          ],
+        };
+
+  const contextForPrompt = {
+    ...aiContext,
+    publicSourceInfluencePolicy,
+    ...(webResearch != null
+      ? {
+          sparseDataWebResearch: {
+            querySummary: webResearch.querySummary,
+            bulletsFromPublicWebSources: webResearch.bullets,
+            citations: webResearch.citations,
+            disclaimer: webResearch.disclaimer,
+          },
+        }
+      : {}),
+  };
   const overrideLines = requestForecastOverride
     ? [
         "You MUST also output forecastOverride (required object) with:",
@@ -681,7 +729,7 @@ function buildAiPrompt(data: InjuryWeatherDashboardData, requestForecastOverride
   return [
     "You are a construction safety analyst helping with a MONTHLY RISK ASSESSMENT for monthlyRiskAssessment.forecastMonth.",
     "The user needs grounded support for that month’s assessment—not invented incidents or fake triggers.",
-    "Evidence you may use: totals (including finalRiskScoreV2, riskBandLabelV2, riskSignalCount), riskEngineV2Explainability when present (weighted drivers, recurrence, trend slope—do not contradict these numbers), trendSignals, tradeSignals (including topTrades with categories), monthlyFocus (deterministic monthly priorities with source tags), locationContext, dataCoverage, oshaPriorYearsCrossReference (sector baseline only), nationalConstructionOshaReference (national construction counts only). genericUiSuggestions.controlThemes are legacy layout hints only—do NOT copy them verbatim; you author fresh priorityThemes, monthlyTrainingRecommendations, and recommendedControls from the structured signals.",
+    "Evidence you may use: totals (including finalRiskScoreV2, riskBandLabelV2, riskSignalCount), riskEngineV2Explainability when present (weighted drivers, recurrence, trend slope—do not contradict these numbers), trendSignals, tradeSignals (including topTrades with categories), monthlyFocus (deterministic monthly priorities with source tags), publicSourceInfluencePolicy (how to weight sources), sparseDataWebResearch when present (live web-sourced guidance—see disclaimer), locationContext, dataCoverage, oshaPriorYearsCrossReference (static sector baseline only), nationalConstructionOshaReference (static national construction counts only). genericUiSuggestions.controlThemes are legacy layout hints only—do NOT copy them verbatim; you author fresh priorityThemes, monthlyTrainingRecommendations, and recommendedControls from the structured signals.",
     "Do NOT: invent injuries, near-misses, equipment failures, OSHA visits, citations, or people; do not claim specific due dates or overdue CAPA items; do not mention trades or hazard categories not in grounding.allowedTradeNames / allowedCategoryNames or tradeSignals.",
     "Output strict JSON with fields:",
     "headline (string, 1 sentence tied to the month and real signals), likelyInjuryDrivers (exactly 3 strings), priorityActions (exactly 3 strings), confidence (LOW|MEDIUM|HIGH),",
@@ -696,8 +744,8 @@ function buildAiPrompt(data: InjuryWeatherDashboardData, requestForecastOverride
     "- Mention specific trade/category drivers only from tradeSignals.topTrades / allowed lists.",
     "- If locationContext.stateCode is set, add one clause consistent with impactNote; if null, do not invent regional weather.",
     "- Include one behavior/process angle (e.g., pre-task planning, permit discipline, verification of high-severity items in the system) without claiming a specific incident.",
-    "- In one driver or action, contrast oshaPriorYearsCrossReference (sector baseline) with current tradeSignals—without implying this employer’s OSHA record.",
-    `- For national historical incidence trends by industry (BLS SOII/CFOI context, not this site’s record), you may point readers to NSC Injury Facts Industry Profiles (${INJURY_FACTS_REFERENCE.injuryFactsIndustryProfilesUrl}) and work-related incident rate trends (${INJURY_FACTS_REFERENCE.injuryFactsIncidentTrendsUrl}). Do not invent or quote specific national rates unless they appear explicitly in this JSON (e.g. oshaPriorYearsCrossReference).`,
+    "- Follow publicSourceInfluencePolicy: when sparseDataWebResearch is present, live web bullets lead public-guidance wording; OSHA/BLS JSON (oshaPriorYearsCrossReference, nationalConstructionOshaReference) is supporting only—short mentions, lower emphasis than web bullets. When web research is absent, you may briefly contrast oshaPriorYearsCrossReference with tradeSignals—without implying this employer’s OSHA record.",
+    `- For national historical incidence trends by industry (BLS SOII/CFOI context, not this site’s record), NSC Injury Facts links are optional and must stay secondary to sparseDataWebResearch when present: (${INJURY_FACTS_REFERENCE.injuryFactsIndustryProfilesUrl}), (${INJURY_FACTS_REFERENCE.injuryFactsIncidentTrendsUrl}). Do not invent or quote specific national rates unless they appear explicitly in this JSON (e.g. oshaPriorYearsCrossReference).`,
     "- Priority actions: operational for 7–30 days and verifiable; none may depend on imaginary triggers.",
     "- In one priority action, state clearly that executing controls improves conditions over time and reduces future signal severity/volume—the headline exposure estimate is a leading-indicator model output and does not drop instantly when reading the AI text.",
     "- Set confidence to confidenceRubricHint unless you have a strong reason from sparse data to use LOW.",
@@ -705,7 +753,14 @@ function buildAiPrompt(data: InjuryWeatherDashboardData, requestForecastOverride
     "- priorityThemes: titles must align with monthlyFocus and tradeSignals—each title should echo a monthlyFocus.title theme or name trades/categories from allowed lists (not generic demo card titles). The 3 titles must NOT reuse the same action phrase or trailing clause (e.g. do not end all three with “strengthen verification and pre-task focus”); vary verification vs walkdown vs corrective closeout vs permit/toolbox focus. Prefer different trades across themes when tradeSignals lists multiple trades. dueLabel must differ across themes where possible. dueLabel must be a planning horizon—never “Due tomorrow” or fake deadlines.",
     "- monthlyTrainingRecommendations: concrete training topics aligned to top hazard categories and severity mix.",
     "- recommendedControls: specific, verifiable field actions; at least two should name a trade or hazard family from allowed lists.",
-    JSON.stringify(aiContext),
+    ...(webResearch != null
+      ? [
+          webResearch.triggeredBySparseData
+            ? "sparseDataWebResearch is present (workspace signals sparse). bulletsFromPublicWebSources are the main public layer—use them more than static OSHA/BLS fields per publicSourceInfluencePolicy. Label as public web guidance, not this employer’s data. Do not add injury rates or enforcement claims unless the bullet text includes them. You may reference hazard themes from those bullets even if the trade name is not in allowedTradeNames."
+            : "sparseDataWebResearch (live web) is included every run—treat bulletsFromPublicWebSources as the dominant public source versus oshaPriorYearsCrossReference / nationalConstructionOshaReference (see publicSourceInfluencePolicy). Add at least one web-bullet angle in likelyInjuryDrivers or priorityActions while keeping drivers grounded in totals and tradeSignals.",
+        ]
+      : []),
+    JSON.stringify(contextForPrompt),
   ].join("\n");
 }
 
@@ -722,7 +777,12 @@ export async function generateInjuryWeatherAiInsights(
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) return empty();
 
-  const prompt = buildAiPrompt(data, requestForecastOverride);
+  let webResearch: InjuryWeatherWebResearchSupplement | null = null;
+  if (isInjuryWeatherSparseWebResearchEnabled()) {
+    webResearch = await injuryWeatherWebResearchSupplement(data);
+  }
+
+  const prompt = buildAiPrompt(data, requestForecastOverride, webResearch);
 
   const schema = requestForecastOverride
     ? {
@@ -791,6 +851,10 @@ export async function generateInjuryWeatherAiInsights(
       recommendedControls: (parsed.recommendedControls ?? []) as string[],
     };
     const insights = applyInsightGuards(data, withConfidence);
+    const insightsWithWeb: InjuryWeatherAiInsights = {
+      ...insights,
+      ...(webResearch ? { webResearchSupplement: webResearch } : {}),
+    };
 
     let forecastOverride: InjuryWeatherAiForecastOverride | null = null;
     if (requestForecastOverride && parsed.forecastOverride != null) {
@@ -810,7 +874,7 @@ export async function generateInjuryWeatherAiInsights(
       }
     }
 
-    return { insights, forecastOverride };
+    return { insights: insightsWithWeb, forecastOverride };
   } catch {
     return empty();
   }

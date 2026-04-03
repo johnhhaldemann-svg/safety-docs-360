@@ -89,6 +89,12 @@ export function InjuryWeatherDiagnosticsPanel({ data }: { data: InjuryWeatherDas
         <p className="text-slate-400">
           <span className="font-semibold text-slate-300">Record window:</span> {p.recordWindowLabel}
         </p>
+        <p className="text-slate-500">
+          Sparse signals: the AI Safety Advisor can run a{" "}
+          <span className="text-slate-400">web search</span> pass for cited public guidance. Set{" "}
+          <code className="rounded bg-slate-800 px-1">INJURY_WEATHER_SPARSE_WEB_RESEARCH=0</code> to disable (saves an extra API
+          call).
+        </p>
       </div>
     </details>
   );

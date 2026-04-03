@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyAiForecastOverride,
   computeConfidenceRubric,
@@ -249,6 +249,10 @@ describe("applyAiForecastOverride", () => {
 });
 
 describe("generateInjuryWeatherAiInsights", () => {
+  beforeEach(() => {
+    /** Avoid a second OpenAI call (web search) so single-fetch mocks stay valid. */
+    vi.stubEnv("INJURY_WEATHER_SPARSE_WEB_RESEARCH", "0");
+  });
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();

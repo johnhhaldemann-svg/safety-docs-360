@@ -491,7 +491,7 @@ export default function AppLayout({
     if (isCompanyScopedUser) {
       if (userRole === "read_only") {
         if (workspaceProduct === "csep") {
-          const readOnlyCsepRoutes = ["/dashboard", "/profile", "/library", "/search"];
+          const readOnlyCsepRoutes = ["/dashboard", "/profile", "/library", "/search", "/customer/billing"];
           const inReadOnlyCsep = readOnlyCsepRoutes.some(
             (route) => pathname === route || pathname.startsWith(`${route}/`)
           );
@@ -517,7 +517,7 @@ export default function AppLayout({
       }
 
       if (workspaceProduct === "csep") {
-        const csepRoutes = ["/dashboard", "/profile", "/library", "/search"];
+        const csepRoutes = ["/dashboard", "/profile", "/library", "/search", "/customer/billing"];
         const canOpenCsep =
           Boolean(permissionMap?.can_create_documents) ||
           Boolean(permissionMap?.can_edit_documents) ||
@@ -535,6 +535,14 @@ export default function AppLayout({
       }
 
       const companyAllowedRoutes = ["/dashboard", "/library", "/search", "/profile"];
+
+      if (companyId) {
+        companyAllowedRoutes.push("/customer/billing");
+      }
+
+      if (canAccessInternalAdmin) {
+        companyAllowedRoutes.push("/billing");
+      }
 
       if (
         userRole === "project_manager" ||
@@ -617,6 +625,7 @@ export default function AppLayout({
     acceptedTerms,
     accountStatus,
     canAccessInternalAdmin,
+    companyId,
     isAdminArea,
     isCompanyScopedUser,
     loading,

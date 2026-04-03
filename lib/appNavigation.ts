@@ -43,6 +43,7 @@ export const userQuickLinks: NavItem[] = [
 
 export const adminQuickLinks: NavItem[] = [
   { href: "/admin", label: "Admin home", short: "AH" },
+  { href: "/billing", label: "Billing", short: "BI" },
   { href: "/admin/review-documents", label: "Review queue", short: "RQ" },
   { href: "/admin/sor-audit", label: "SOR audit", short: "SA" },
   { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
@@ -56,6 +57,7 @@ export const companyAdminQuickLinks: NavItem[] = [
   { href: "/jobsites", label: "Jobsites", short: "JS" },
   { href: "/library", label: "Documents", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
+  { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/company-users", label: "Team", short: "TM" },
   { href: "/training-matrix", label: "Training", short: "TR" },
   { href: "/field-id-exchange", label: "Corrective actions", short: "CA" },
@@ -68,6 +70,7 @@ export const companyManagerQuickLinks: NavItem[] = [
   { href: "/jobsites", label: "Jobsites", short: "JS" },
   { href: "/library", label: "Documents", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
+  { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/training-matrix", label: "Training", short: "TR" },
   { href: "/field-id-exchange", label: "Corrective actions", short: "CA" },
   { href: "/analytics", label: "Analytics", short: "AN" },
@@ -78,6 +81,7 @@ export const companyUserQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/library", label: "Documents", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
+  { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/submit", label: "Submit", short: "SB" },
   { href: "/upload", label: "Upload", short: "UP" },
   { href: "/profile", label: "Profile", short: "CP" },
@@ -123,6 +127,7 @@ export const adminSideSections: NavSection[] = [
       { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },
       { href: "/admin/agreements", label: "Agreements", short: "AG" },
       { href: "/admin/marketplace", label: "Marketplace", short: "MK" },
+      { href: "/billing", label: "Billing", short: "BI" },
     ],
   },
   {
@@ -151,6 +156,7 @@ export const companyAdminSideSections: NavSection[] = [
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
       { href: "/search", label: "Search documents", short: "SR" },
+      { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/company-users", label: "Team & users", short: "US" },
       { href: "/training-matrix", label: "Training matrix", short: "TM" },
     ],
@@ -194,6 +200,7 @@ export const companyManagerSideSections: NavSection[] = [
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
       { href: "/search", label: "Search documents", short: "SR" },
+      { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/training-matrix", label: "Training matrix", short: "TM" },
     ],
   },
@@ -235,6 +242,7 @@ export const companyUserSideSections: NavSection[] = [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/library", label: "Documents", short: "DC" },
       { href: "/search", label: "Search documents", short: "SR" },
+      { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/training-matrix", label: "Training matrix", short: "TM" },
     ],
   },
@@ -269,7 +277,10 @@ export const accountSetupQuickLinks: NavItem[] = [
 /** Appended in app layout when user has internal admin access outside /admin. */
 export const internalAdminAppendedSection: NavSection = {
   title: "Platform",
-  items: [{ href: "/admin", label: "Admin panel", short: "AD" }],
+  items: [
+    { href: "/admin", label: "Admin panel", short: "AD" },
+    { href: "/billing", label: "Billing", short: "BI" },
+  ],
 };
 
 const NAV_ITEM_LISTS: { name: string; items: NavItem[] }[] = [

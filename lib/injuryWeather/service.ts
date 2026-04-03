@@ -40,6 +40,12 @@ import {
 } from "@/lib/injuryWeather/riskEngineV2";
 import { isForecasterSyntheticIncident } from "@/lib/injuryWeather/excludeForecasterIncidents";
 import { DEMO_LIKELY_INJURY_INSIGHT, likelyInjuryInsightFromSignals } from "@/lib/injuryWeather/likelyInjuryFromSignals";
+import { runDynamicInjuryForecastEngine } from "@/lib/injuryForecast/engine";
+import {
+  buildForecastInputFromLegacyContext,
+  buildForecastRunContextFromLegacy,
+  buildInjuryTypeContextFromLegacy,
+} from "@/lib/injuryForecast/legacyMapper";
 import { buildMonthlyFocusItems } from "@/lib/injuryWeather/monthlyFocus";
 import { injuryWeatherScopeNote } from "@/lib/injuryWeather/scopeMessaging";
 import {
@@ -67,6 +73,7 @@ import type {
   InjuryWeatherIndustryBenchmarkContext,
   InjuryWeatherSignalProvenance,
   NormalizedLiveSignalRow,
+  RiskEngineV2Explainability,
   TradeForecast,
   TrendPoint,
   WorkScheduleInputs,
@@ -640,6 +647,41 @@ const PLACEHOLDER_FOCUS_DIAG: Pick<InjuryWeatherDashboardData, "monthlyFocus" | 
   engineDiagnostics: { seedOnlyMode: true, liveSignalRowCount: null },
 };
 
+function computeDynamicInjuryForecastSnapshot(args: {
+  rows: NormalizedLiveSignalRow[];
+  explainability: RiskEngineV2Explainability;
+  location: InjuryWeatherDashboardData["location"];
+  industryBenchmarkContext: InjuryWeatherIndustryBenchmarkContext;
+  monthLabel: string;
+  workforceTotal?: number;
+  hoursWorked?: number;
+  behaviorSignals?: Partial<BehaviorSignals>;
+  workSchedule: WorkScheduleInputs;
+}) {
+  const input = buildForecastInputFromLegacyContext({
+    rows: args.rows,
+    explainability: args.explainability,
+    location: args.location,
+    industryBenchmarkContext: args.industryBenchmarkContext,
+    monthLabel: args.monthLabel,
+    workforceTotal: args.workforceTotal,
+    hoursWorked: args.hoursWorked,
+    behaviorSignals: args.behaviorSignals,
+    workSchedule: args.workSchedule,
+  });
+  const runContext = buildForecastRunContextFromLegacy({
+    rows: args.rows,
+    location: args.location,
+    monthLabel: args.monthLabel,
+    workforceTotal: args.workforceTotal,
+    hoursWorked: args.hoursWorked,
+  });
+  return runDynamicInjuryForecastEngine(input, {
+    injuryTypeContext: buildInjuryTypeContextFromLegacy(args.rows, args.location),
+    runContext,
+  });
+}
+
 function withFinalInjuryDashboardFields(
   data: InjuryWeatherDashboardData,
   diagnostics: InjuryWeatherEngineDiagnostics
@@ -691,7 +733,7 @@ export async function getInjuryWeatherDashboardData(filters?: {
     console.warn(
       "[injury-weather] Supabase service role client is not configured; Injury Weather is using seed/offline data only."
     );
-    const fallback = computeFromSeed(workbookRows, filters);
+    const fallback = computeFromSeed(workbookRows, { ...filters, industryBenchmarkContext: benchmarkCtx });
     const availableMonths = build90DayOutlookMonths(trendFromSeed.availableMonths);
     return withFinalInjuryDashboardFields(
       {
@@ -757,6 +799,7 @@ export async function getInjuryWeatherDashboardData(filters?: {
     workSchedule: filters?.workSchedule,
     recordWindowLabel,
     trendFallback: trendFromSeed,
+    industryBenchmarkContext: benchmarkCtx,
   });
   live.availableMonths = build90DayOutlookMonths(historyTrend.availableMonths);
   live.availableTrades = availableTradesFromData(historyTrend.availableTrades, workbookRows);
@@ -791,6 +834,7 @@ export async function refreshInjuryWeatherDailySnapshot() {
     month,
     recordWindowLabel: "All dates (daily snapshot)",
     trendFallback: trendFromSeed,
+    industryBenchmarkContext: benchmarkCtx,
   });
   payload.availableMonths = build90DayOutlookMonths(payload.availableMonths);
   payload.availableTrades = availableTradesFromData(payload.availableTrades, seedRows());
@@ -914,10 +958,12 @@ function buildDashboardFromLiveSignals(
     behaviorSignals?: Partial<BehaviorSignals>;
     workSchedule?: Partial<WorkScheduleInputs>;
     trendFallback: { availableMonths: string[]; trend: TrendPoint[] };
+    industryBenchmarkContext?: InjuryWeatherIndustryBenchmarkContext;
   }
 ): InjuryWeatherDashboardData {
   const forecastMonthStart = parseMonthLabel(params.month.trim()) ?? new Date();
   const asOf = new Date();
+  const industryBenchmarkContext = params.industryBenchmarkContext ?? offlineInjuryWeatherBenchmarkContext();
 
   const tradeFilterSet = tradeFilterStringsToIds([...(params.trades ?? []), ...(params.trade ? [params.trade] : [])]);
   const hasTradeFilter = tradeFilterSet.size > 0;
@@ -1100,6 +1146,34 @@ function buildDashboardFromLiveSignals(
   };
 }
 
+function normalizedLiveSignalRowsFromSeed(filtered: SeedRow[]): NormalizedLiveSignalRow[] {
+  const out: NormalizedLiveSignalRow[] = [];
+  for (const r of filtered) {
+    const obs =
+      typeof r.observed_at === "number" ? excelSerialToDate(r.observed_at) : new Date(String(r.observed_at ?? ""));
+    if (Number.isNaN(obs.getTime())) continue;
+    const categoryLabel = String(r.subcategory ?? r.category ?? "General").trim() || "General";
+    const ot = String(r.observation_type ?? "sor").toLowerCase();
+    const source: NormalizedLiveSignalRow["source"] = ot.includes("incident")
+      ? "incident"
+      : ot.includes("correct") || ot.includes("capa")
+        ? "corrective_action"
+        : "sor";
+    const status = source === "corrective_action" ? mapCorrectiveStatusToOpenClosed(r.status) : undefined;
+    out.push({
+      tradeId: "seed",
+      tradeLabel: inferTradeFromSeedRow(r),
+      categoryId: null,
+      categoryLabel,
+      severity: normalizeSeverity(String(r.severity ?? "medium")),
+      created_at: obs.toISOString(),
+      source,
+      ...(status ? { status } : {}),
+    });
+  }
+  return out;
+}
+
 function computeFromSeed(
   rows: SeedRow[],
   filters?: {
@@ -1111,11 +1185,13 @@ function computeFromSeed(
     hoursWorked?: number;
     behaviorSignals?: Partial<BehaviorSignals>;
     workSchedule?: Partial<WorkScheduleInputs>;
+    industryBenchmarkContext?: InjuryWeatherIndustryBenchmarkContext;
   }
 ): Omit<InjuryWeatherDashboardData, "summary"> & { summary: DashboardSummary } {
   const seedMonthLabel =
     filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
   const locEmpty = injuryWeatherLocationWithBlsTradeBlend(filters?.stateCode, new Map(), seedMonthLabel);
+  const benchCtxSeed = filters?.industryBenchmarkContext ?? offlineInjuryWeatherBenchmarkContext();
   if (rows.length === 0) {
     const weatherDemo = locEmpty.combinedWeatherFactor ?? locEmpty.weatherRiskMultiplier;
     const demoWorkSchedule = normalizeWorkSchedule(filters?.workSchedule);
@@ -1140,6 +1216,11 @@ function computeFromSeed(
       trendVolumeBase: 48,
       monthProjectionFactor: 1,
     });
+    const demoExplainability = scoreRowsForForecast(
+      [],
+      parseMonthLabel(seedMonthLabel.trim()) ?? new Date(),
+      new Date()
+    ).explainability;
     return {
       summary: {
         month: new Date().toLocaleString("en-US", { month: "long", year: "numeric" }),
@@ -1178,7 +1259,18 @@ function computeFromSeed(
       }),
       behaviorSignals: normalizeBehaviorSignals(filters?.behaviorSignals),
       workSchedule: demoWorkSchedule,
-      industryBenchmarkContext: offlineInjuryWeatherBenchmarkContext(),
+      industryBenchmarkContext: benchCtxSeed,
+      dynamicInjuryForecast: computeDynamicInjuryForecastSnapshot({
+        rows: [],
+        explainability: demoExplainability,
+        location: locEmpty,
+        industryBenchmarkContext: benchCtxSeed,
+        monthLabel: seedMonthLabel,
+        behaviorSignals: filters?.behaviorSignals,
+        workSchedule: demoWorkSchedule,
+        workforceTotal: filters?.workforceTotal,
+        hoursWorked: filters?.hoursWorked,
+      }),
       ...PLACEHOLDER_FOCUS_DIAG,
     };
   }
@@ -1313,6 +1405,23 @@ function computeFromSeed(
   const roundedSeedStructural = Math.round(seedStructural * 10) / 10;
   const requestedTradesSeed = filters?.trades ?? [];
   const caseAllocSeed = computeCaseAllocationBudget(seedCases, filtered.length, tradeForecastsRaw.length);
+  const seedNormRows = normalizedLiveSignalRowsFromSeed(filtered);
+  const { explainability: seedExplainability } = scoreRowsForForecast(
+    seedNormRows,
+    parseMonthLabel(seedMonthLabel.trim()) ?? new Date(),
+    new Date()
+  );
+  const seedDynamicForecast = computeDynamicInjuryForecastSnapshot({
+    rows: seedNormRows,
+    explainability: seedExplainability,
+    location: locSeed,
+    industryBenchmarkContext: benchCtxSeed,
+    monthLabel: seedMonthLabel,
+    workforceTotal: filters?.workforceTotal,
+    hoursWorked: filters?.hoursWorked,
+    behaviorSignals: filters?.behaviorSignals,
+    workSchedule: seedWorkSchedule,
+  });
   const tradeForecasts =
     tradeForecastsRaw.length === 0 && requestedTradesSeed.length > 0
       ? tradeForecastsWhenNoSignals(requestedTradesSeed)
@@ -1346,7 +1455,7 @@ function computeFromSeed(
     forecastMode: forecastModeFromObservationCount(filtered.length),
     forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(filtered.length),
     lastUpdatedAt: new Date().toISOString(),
-    likelyInjuryInsight: likelyInjuryInsightFromSignals([]),
+    likelyInjuryInsight: likelyInjuryInsightFromSignals(seedNormRows),
     caseAllocationNote: caseAllocSeed.capped
       ? `Trade cards use a capped case-style budget (${caseAllocSeed.budget}) while only ${filtered.length} in-window signal row(s) roll up to a single trade (below ${caseAllocSeed.threshold}); the headline projected case index (${seedCases}) still reflects the full model.`
       : undefined,
@@ -1376,7 +1485,8 @@ function computeFromSeed(
     }),
     behaviorSignals: normalizeBehaviorSignals(filters?.behaviorSignals),
     workSchedule: seedWorkSchedule,
-    industryBenchmarkContext: offlineInjuryWeatherBenchmarkContext(),
+    industryBenchmarkContext: benchCtxSeed,
+    dynamicInjuryForecast: seedDynamicForecast,
     ...PLACEHOLDER_FOCUS_DIAG,
   };
 }

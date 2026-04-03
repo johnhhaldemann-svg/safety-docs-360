@@ -1,6 +1,7 @@
 import type { InjuryType } from "@/lib/incidents/injuryType";
 import type { SorHazardCategoryCode } from "@/lib/incidents/sorHazardCategory";
 import type { OshaNationalConstructionReference } from "@/lib/benchmarking/oshaConstructionNationalReference";
+import type { DynamicForecastOutput } from "@/lib/injuryForecast/types";
 
 export type RiskLevel = "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
 
@@ -389,6 +390,11 @@ export type InjuryWeatherDashboardData = {
   monthlyFocus: InjuryWeatherMonthlyFocusItem[];
   /** Runtime signal path diagnostics for superadmin troubleshooting. */
   engineDiagnostics: InjuryWeatherEngineDiagnostics;
+  /**
+   * Layered Poisson-style hybrid engine (interpretable λ + ML hook placeholder).
+   * Legacy headline tiles (`structuralRiskScore`, `increasedIncidentRiskPercent`, etc.) remain unchanged for compatibility.
+   */
+  dynamicInjuryForecast?: DynamicForecastOutput | null;
 };
 
 /** AI Safety Advisor: priority theme row (not verified open items). */
@@ -396,6 +402,23 @@ export type AiPriorityTheme = {
   title: string;
   dueLabel: string;
   severity: RiskLevel;
+};
+
+/** Web search supplement for public OSHA/NIOSH-style context (OpenAI web_search + citations). */
+export type InjuryWeatherWebResearchCitation = {
+  title: string;
+  url: string;
+};
+
+export type InjuryWeatherWebResearchSupplement = {
+  /** True when sparse-data rules would have triggered the legacy path; false when enriching a data-rich workspace. */
+  triggeredBySparseData: boolean;
+  /** Model used for the web-search pass (e.g. gpt-4o). */
+  model?: string;
+  querySummary: string;
+  bullets: string[];
+  citations: InjuryWeatherWebResearchCitation[];
+  disclaimer: string;
 };
 
 export type InjuryWeatherAiInsights = {
@@ -409,6 +432,11 @@ export type InjuryWeatherAiInsights = {
   monthlyTrainingRecommendations: string[];
   /** AI-defined control / action lines (playbook style). */
   recommendedControls: string[];
+  /**
+   * Present when web research ran (`INJURY_WEATHER_SPARSE_WEB_RESEARCH` not `0`).
+   * Public-source context only—not employer records.
+   */
+  webResearchSupplement?: InjuryWeatherWebResearchSupplement;
 };
 
 /** Validated model output for full AI forecast override (merged into dashboard after checks). */
