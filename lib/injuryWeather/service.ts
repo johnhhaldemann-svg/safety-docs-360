@@ -7,11 +7,8 @@ import { getOshaNationalConstructionReference } from "@/lib/benchmarking/oshaCon
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { inferCalibrationTrend, computeBacktestCorrelations } from "@/lib/injuryWeather/backtest";
 import { computeDataConfidenceFromMetrics } from "@/lib/injuryWeather/dataConfidence";
-import {
-  effectiveTradeWeatherWeightFromByTrade,
-  getLocationWeatherContext,
-  mergeLocationWithTradeWeather,
-} from "@/lib/injuryWeather/locationWeather";
+import { effectiveTradeWeatherWeightFromByTradeWithBls } from "@/lib/injuryWeather/blsStateConstructionRates";
+import { getLocationWeatherContext, mergeLocationWithTradeWeather } from "@/lib/injuryWeather/locationWeather";
 import {
   INJURY_WEATHER_MODEL,
   behavioralLikelihoodAdjustmentFromMonthLabel,
@@ -51,7 +48,6 @@ import {
 import { EXPOSURE_EVENT_TYPE_LABELS, isExposureEventType } from "@/lib/incidents/exposureEventType";
 import { normalizeInjuryType } from "@/lib/incidents/injuryType";
 import { resolveSorHazardCategoryCode } from "@/lib/incidents/sorHazardCategory";
-import { appendAgentDebugNdjson } from "@/lib/agentDebugNdjsonFile";
 import type {
   DashboardAlert,
   BehaviorSignals,
@@ -628,6 +624,16 @@ function injuryWeatherScopeNote(companyId?: string | null, jobsiteId?: string | 
   return " · Scoped: this company’s SOR, corrective actions, and incidents only.";
 }
 
+function injuryWeatherLocationWithBlsTradeBlend(
+  stateCode: string | undefined,
+  byTrade: Map<string, Map<string, number>>,
+  monthLabel: string
+) {
+  const bls = effectiveTradeWeatherWeightFromByTradeWithBls(stateCode, byTrade, monthLabel);
+  const base = mergeLocationWithTradeWeather(getLocationWeatherContext(stateCode), bls.weight);
+  return bls.blsTradeRateNote ? { ...base, blsTradeRateNote: bls.blsTradeRateNote } : base;
+}
+
 export type InjuryWeatherLiveSignalScope = {
   companyId?: string | null;
   jobsiteId?: string | null;
@@ -672,16 +678,6 @@ export async function getInjuryWeatherDashboardData(filters?: {
   if (!admin) {
     const fallback = computeFromSeed(workbookRows, filters);
     const availableMonths = build90DayOutlookMonths(trendFromSeed.availableMonths);
-    appendAgentDebugNdjson({
-      hypothesisId: "IW-SEED",
-      location: "getInjuryWeatherDashboardData",
-      message: "no admin client — seed/offline dashboard",
-      data: {
-        riskSignalCount: fallback.summary.riskSignalCount,
-        forecastMode: forecastModeFromObservationCount(fallback.summary.riskSignalCount),
-        monthLabel,
-      },
-    });
     return {
       summary: {
         ...fallback.summary,
@@ -757,23 +753,6 @@ export async function getInjuryWeatherDashboardData(filters?: {
     forecastConfidenceScore: forecastConfidenceScoreFromObservationCount(live.summary.riskSignalCount),
     likelyInjuryInsight: likelyInjuryInsightFromSignals(likelyRowsForInsight),
   };
-  appendAgentDebugNdjson({
-    hypothesisId: "IW-LIVE",
-    location: "getInjuryWeatherDashboardData",
-    message: "assembled live dashboard",
-    data: {
-      allRowsCount: allRows.length,
-      liveScopedRowCount: liveSourceRows.length,
-      likelyInputRowCount: likelyRowsForInsight.length,
-      riskSignalCount: live.summary.riskSignalCount,
-      forecastMode: live.summary.forecastMode,
-      likelyHasData: live.summary.likelyInjuryInsight.hasData,
-      likelyHeadline: live.summary.likelyInjuryInsight.headline,
-      monthFilter: filters?.month ?? null,
-      hasTradeFilter:
-        tradeFilterStringsToIds([...(filters?.trades ?? []), ...(filters?.trade ? [filters.trade] : [])]).size > 0,
-    },
-  });
   return { ...live, industryBenchmarkContext: benchmarkCtx };
 }
 
@@ -943,8 +922,7 @@ function buildDashboardFromLiveSignals(
   const tradeForecasts = [...byTrade.entries()]
     .sort((a, b) => [...b[1].values()].reduce((n, v) => n + v, 0) - [...a[1].values()].reduce((n, v) => n + v, 0))
     .slice(0, 4);
-  const tradeWeatherBlend = effectiveTradeWeatherWeightFromByTrade(byTrade);
-  const location = mergeLocationWithTradeWeather(getLocationWeatherContext(params.stateCode), tradeWeatherBlend);
+  const location = injuryWeatherLocationWithBlsTradeBlend(params.stateCode, byTrade, params.month);
   const trend = [...historyMonthly.entries()]
     .sort((a, b) => monthSortValue(a[0]) - monthSortValue(b[0]))
     .slice(-7)
@@ -1090,14 +1068,14 @@ function computeFromSeed(
     workSchedule?: Partial<WorkScheduleInputs>;
   }
 ): Omit<InjuryWeatherDashboardData, "summary"> & { summary: DashboardSummary } {
-  const locEmpty = mergeLocationWithTradeWeather(getLocationWeatherContext(filters?.stateCode), 1);
+  const seedMonthLabel =
+    filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
+  const locEmpty = injuryWeatherLocationWithBlsTradeBlend(filters?.stateCode, new Map(), seedMonthLabel);
   if (rows.length === 0) {
     const weatherDemo = locEmpty.combinedWeatherFactor ?? locEmpty.weatherRiskMultiplier;
-    const demoMonthLabel =
-      filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
     const demoWorkSchedule = normalizeWorkSchedule(filters?.workSchedule);
     const demoBehavioralAdjustment = behavioralLikelihoodAdjustmentFromMonthLabel(
-      demoMonthLabel,
+      seedMonthLabel,
       filters?.behaviorSignals,
       demoWorkSchedule
     );
@@ -1105,7 +1083,7 @@ function computeFromSeed(
     const demoLikelihood = computeIncidentLikelihoodIndexPct(demoStructural, weatherDemo, 1);
     const { predictedRisk: demoPredictedRisk, factors: demoPredictedRiskFactors } = computePredictedRiskProduct({
       baseRiskScore: 58,
-      monthLabel: demoMonthLabel,
+      monthLabel: seedMonthLabel,
       behaviorSignals: filters?.behaviorSignals,
       workSchedule: demoWorkSchedule,
       tradeWeatherWeight: 1,
@@ -1216,10 +1194,7 @@ function computeFromSeed(
     .map(([month, value]) => ({ month, value, highRisk: value >= 40 }));
 
   const projectedBase = trend.slice(-3).reduce((sum, p) => sum + p.value, 0) / Math.max(1, Math.min(3, trend.length));
-  const locSeed = mergeLocationWithTradeWeather(
-    getLocationWeatherContext(filters?.stateCode),
-    effectiveTradeWeatherWeightFromByTrade(byTrade)
-  );
+  const locSeed = injuryWeatherLocationWithBlsTradeBlend(filters?.stateCode, byTrade, seedMonthLabel);
   const seedWeatherFactor = locSeed.combinedWeatherFactor ?? locSeed.weatherRiskMultiplier;
   const wfSeed = filters?.workforceTotal ? Math.max(1, Number(filters.workforceTotal)) : 0;
   const hrsSeed = filters?.hoursWorked ? Math.max(1, Number(filters.hoursWorked)) : 0;
@@ -1237,8 +1212,6 @@ function computeFromSeed(
     category: String(r.subcategory ?? r.category ?? "General").trim() || "General",
   }));
   const workforceDensitySeed = computeWorkforceSignalDensityPct(filtered.length, wfSeed);
-  const seedMonthLabel =
-    filters?.month || new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
   const seedWorkSchedule = normalizeWorkSchedule(filters?.workSchedule);
   const seedBehavioralAdjustment = behavioralLikelihoodAdjustmentFromMonthLabel(
     seedMonthLabel,

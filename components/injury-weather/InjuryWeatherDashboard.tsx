@@ -1148,6 +1148,14 @@ export function InjuryWeatherDashboard() {
           )}
         </p>
 
+        {data.location.blsTradeRateNote ? (
+          <p className="mt-2 rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
+            <span className="font-semibold text-slate-400">BLS state construction rates</span>
+            {": "}
+            {data.location.blsTradeRateNote}
+          </p>
+        ) : null}
+
         <div className="mt-8 border-t border-slate-700/80 pt-6">
           <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-slate-400">Trade &amp; craft filters</h3>
           <p className="mt-2 max-w-3xl text-[11px] leading-relaxed text-slate-500">

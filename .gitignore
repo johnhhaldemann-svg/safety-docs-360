@@ -29,7 +29,6 @@
 *.pem
 
 # debug
-debug-e0551b.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

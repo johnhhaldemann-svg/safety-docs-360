@@ -592,11 +592,11 @@ export default function DashboardPage() {
       } else {
       const [documentsResponse, creditResponse, companyResponse, workspaceSummaryResponse, analyticsResponse] =
         await Promise.all([
-          fetch("/api/workspace/documents", { headers: authHeaders }),
-          fetch("/api/library/credits", { headers: authHeaders }),
-          fetch("/api/company/users", { headers: authHeaders }),
-          fetch("/api/company/workspace/summary", { headers: authHeaders }),
-          fetch("/api/company/analytics/summary?days=30", { headers: authHeaders }),
+          fetchWithTimeoutSafe("/api/workspace/documents", { headers: authHeaders }, 15000, "Documents"),
+          fetchWithTimeoutSafe("/api/library/credits", { headers: authHeaders }, 15000, "Credits"),
+          fetchWithTimeoutSafe("/api/company/users", { headers: authHeaders }, 15000, "Company directory"),
+          fetchWithTimeoutSafe("/api/company/workspace/summary", { headers: authHeaders }, 15000, "Workspace summary"),
+          fetchWithTimeoutSafe("/api/company/analytics/summary?days=30", { headers: authHeaders }, 15000, "Analytics summary"),
         ]);
 
       const documentsData = (await documentsResponse.json().catch(() => null)) as

@@ -17,11 +17,21 @@ function canManage(role: string) {
 
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
-    requireAnyPermission: ["can_view_analytics", "can_view_all_company_data"],
+    requireAnyPermission: [
+      "can_view_analytics",
+      "can_view_all_company_data",
+      "can_view_dashboards",
+    ],
   });
   if ("error" in auth) return auth.error;
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
-  if (!companyScope.companyId) return NextResponse.json({ snapshots: [] });
+  if (!companyScope.companyId) {
+    return NextResponse.json({
+      snapshots: [],
+      warning:
+        "Company analytics are not available because no company workspace is linked to this account yet.",
+    });
+  }
   if (await companyHasCsepPlanName(auth.supabase, companyScope.companyId)) {
     return csepWorkspaceForbiddenResponse();
   }

@@ -294,6 +294,8 @@ export type InjuryWeatherLocation = {
   tradeWeatherWeight?: number;
   /** tradeWeatherWeight × weatherRiskMultiplier — applied to likelihood index only, not structural score. */
   combinedWeatherFactor?: number;
+  /** Present when a U.S. state in the BLS ingested dataset is selected; explains limited state coverage. */
+  blsTradeRateNote?: string;
 };
 
 /** How high-severity share, concentration, and repeat rate are scaled for the overall risk blend. */

@@ -137,6 +137,32 @@ async function fetchWithTimeout(
   }
 }
 
+function syntheticJsonResponse(payload: Record<string, unknown>, status: number): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+async function fetchWithTimeoutSafe(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+  errorPrefix: string
+): Promise<Response> {
+  try {
+    return await fetchWithTimeout(input, init, timeoutMs);
+  } catch (e) {
+    const timedOut = e instanceof Error && e.name === "AbortError";
+    return syntheticJsonResponse(
+      {
+        error: timedOut ? `${errorPrefix} timed out.` : `${errorPrefix} could not be reached.`,
+      },
+      503
+    );
+  }
+}
+
 function TrendSparkline({ points }: { points: Array<{ date: string; count: number }> }) {
   const w = 320;
   const h = 88;
@@ -197,8 +223,18 @@ export default function AnalyticsPage() {
     try {
       const headers = await getAuthHeaders();
       const [response, injRes] = await Promise.all([
-        fetchWithTimeout(`/api/company/analytics/summary?days=${windowDays}`, { headers }, 15000),
-        fetchWithTimeout(`/api/company/injury-analytics/model?days=${windowDays}`, { headers }, 15000),
+        fetchWithTimeoutSafe(
+          `/api/company/analytics/summary?days=${windowDays}`,
+          { headers },
+          15000,
+          "Analytics summary"
+        ),
+        fetchWithTimeoutSafe(
+          `/api/company/injury-analytics/model?days=${windowDays}`,
+          { headers },
+          15000,
+          "Injury model"
+        ),
       ]);
       let parsedInjury: LikelyInjuryInsightPayload | null = null;
       if (injRes.ok) {
@@ -224,8 +260,10 @@ export default function AnalyticsPage() {
         setSummary(nextSummary);
         setInjuryLikelihood(parsedInjury);
         if (!nextSummary) {
+          const warnText = typeof data?.warning === "string" ? data.warning.trim() : "";
           setMessage(
-            "No analytics summary is available for this account. Confirm you are linked to a company workspace with analytics access."
+            warnText ||
+              "No analytics summary is available for this account. Confirm you are linked to a company workspace with analytics access."
           );
           setMessageTone("warning");
         }
