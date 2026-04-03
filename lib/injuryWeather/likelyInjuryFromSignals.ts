@@ -117,7 +117,7 @@ export function likelyInjuryInsightFromSignals(rows: NormalizedLiveSignalRow[]):
   }
 
   const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]);
-  const [topT, topS] = ranked[0];
+  const [topT] = ranked[0];
   const second = ranked[1];
   const parts: string[] = [];
   if (table.length > 0) parts.push("incident exposure history");

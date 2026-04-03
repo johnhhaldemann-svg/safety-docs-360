@@ -32,7 +32,6 @@ import {
   computeTradeCategoryConcentrationPct,
   computeTrendPressureAndMomentumFromHistory,
   computeWorkforceSignalDensityPct,
-  riskBandFromStressCount,
   riskLevelFromStructuralScore,
 } from "@/lib/injuryWeather/riskModel";
 import sorSeed from "@/lib/injuryWeather/sor-fixed-seed.json";
@@ -64,7 +63,6 @@ import type {
   InjuryWeatherIndustryBenchmarkContext,
   InjuryWeatherSignalProvenance,
   NormalizedLiveSignalRow,
-  RiskLevel,
   TradeForecast,
   TrendPoint,
   WorkScheduleInputs,

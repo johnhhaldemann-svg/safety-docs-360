@@ -232,11 +232,11 @@ export default function AnalyticsPage() {
   const totals = useMemo(() => summary?.totals ?? {}, [summary]);
   const closure = useMemo(() => summary?.closureTimes ?? {}, [summary]);
   const dash = summary?.companyDashboard;
-  const topHazards = summary?.topHazardCategories ?? [];
+  const topHazards = useMemo(() => summary?.topHazardCategories ?? [], [summary]);
   const trends = summary?.observationTrends ?? [];
   const sif = summary?.sifDashboard;
   const leadership = summary?.safetyLeadership;
-  const recent = summary?.recentReports ?? [];
+  const recent = useMemo(() => summary?.recentReports ?? [], [summary]);
   const breakdown = summary?.observationBreakdown;
   const heatmap = summary?.riskHeatmap;
   const bands = dash?.observationPriorityBands;

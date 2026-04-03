@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getIndustryBenchmarkRates } from "@/lib/benchmarking/industryBenchmarkDataset";
 import { incidentRatePer200kHours } from "@/lib/benchmarking/incidentRate";
 import { injurySeverityScore } from "@/lib/incidents/injurySeverityScore";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
