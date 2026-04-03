@@ -68,6 +68,17 @@ textarea {
   font: inherit;
 }
 
+/*
+ * Native <select> in the dark app shell: [color-scheme:dark] on .app-shell-dark fixes
+ * Windows/Chrome opening a light dropdown. option/optgroup colors help Firefox and
+ * some browsers that honor per-option styling.
+ */
+.app-shell-dark select option,
+.app-shell-dark select optgroup {
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
 .auth-input:-webkit-autofill,
 .auth-input:-webkit-autofill:hover,
 .auth-input:-webkit-autofill:focus,

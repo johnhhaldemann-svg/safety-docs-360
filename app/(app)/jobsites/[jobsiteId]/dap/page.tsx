@@ -10,8 +10,8 @@ export default async function JobsiteDapPage({
     <JobsiteSurfaceClient
       jobsiteId={jobsiteId}
       surface="dap"
-      title="Jobsite DAP"
-      description="Scoped daily action plans for this jobsite."
+      title="Jobsite JSA"
+      description="Scoped job safety analyses and planned activities for this jobsite."
     />
   );
 }

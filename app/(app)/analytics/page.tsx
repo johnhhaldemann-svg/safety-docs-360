@@ -186,29 +186,49 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"error" | "warning">("error");
   const [tab, setTab] = useState<TabId>("overview");
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
 
   const loadSummary = useCallback(async (windowDays: number) => {
     setLoading(true);
     setMessage("");
+    setMessageTone("error");
     try {
       const headers = await getAuthHeaders();
       const [response, injRes] = await Promise.all([
         fetchWithTimeout(`/api/company/analytics/summary?days=${windowDays}`, { headers }, 15000),
         fetchWithTimeout(`/api/company/injury-analytics/model?days=${windowDays}`, { headers }, 15000),
       ]);
+      let parsedInjury: LikelyInjuryInsightPayload | null = null;
+      if (injRes.ok) {
+        const inj = (await injRes.json().catch(() => null)) as { likelyInjuryInsight?: LikelyInjuryInsightPayload } | null;
+        parsedInjury = inj?.likelyInjuryInsight ?? null;
+      }
+
       const data = (await response.json().catch(() => null)) as {
         summary?: AnalyticsSummary;
         error?: string;
+        /** Present on 500 when snapshot table is missing (see analytics/summary API). */
+        warning?: string;
       } | null;
-      if (!response.ok) throw new Error(data?.error || "Failed to load analytics summary.");
-      setSummary(data?.summary ?? null);
-      if (injRes.ok) {
-        const inj = (await injRes.json().catch(() => null)) as { likelyInjuryInsight?: LikelyInjuryInsightPayload } | null;
-        setInjuryLikelihood(inj?.likelyInjuryInsight ?? null);
+      if (!response.ok) {
+        setSummary(null);
+        setInjuryLikelihood(parsedInjury);
+        const errText = data?.error?.trim() || "";
+        const warnText = typeof data?.warning === "string" ? data.warning.trim() : "";
+        setMessage(errText || warnText || "Failed to load analytics summary.");
+        setMessageTone(errText ? "error" : warnText ? "warning" : "error");
       } else {
-        setInjuryLikelihood(null);
+        const nextSummary = data?.summary ?? null;
+        setSummary(nextSummary);
+        setInjuryLikelihood(parsedInjury);
+        if (!nextSummary) {
+          setMessage(
+            "No analytics summary is available for this account. Confirm you are linked to a company workspace with analytics access."
+          );
+          setMessageTone("warning");
+        }
       }
       setLastLoadedAt(Date.now());
     } catch (error) {
@@ -365,7 +385,7 @@ export default function AnalyticsPage() {
           </div>
         )}
 
-        {!loading && summary && injuryLikelihood ? (
+        {!loading && injuryLikelihood ? (
           <div className="rounded-xl border border-teal-500/40 bg-gradient-to-br from-teal-950/55 via-[#0a1218] to-slate-950/90 px-5 py-4 text-teal-50 shadow-[0_0_40px_rgba(20,184,166,0.12)]">
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-300/95">
               Predicted likely injury

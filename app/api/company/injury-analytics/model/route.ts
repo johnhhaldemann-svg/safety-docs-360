@@ -149,12 +149,14 @@ export async function GET(request: Request) {
   const sorCount = sorRows.length;
   const sorToInjuryRatio = sorCount > 0 ? injuryIncidentCount / sorCount : null;
 
+  const likelyInjuryInsight = likelyInjuryInsightFromSignals(insightRows);
+
   return NextResponse.json({
     windowDays: days,
     since,
     sorToExposureMap,
     eventToInjuryModel,
-    likelyInjuryInsight: likelyInjuryInsightFromSignals(insightRows),
+    likelyInjuryInsight,
     industryBenchmarkRates: getIndustryBenchmarkRates(industryCode),
     industryCode,
     hoursWorked,

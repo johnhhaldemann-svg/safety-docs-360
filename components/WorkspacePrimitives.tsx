@@ -21,7 +21,7 @@ export function PageHero({
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-100 sm:text-4xl">
             {title}
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">{description}</p>
+          <p className="mt-3 max-w-2xl text-sm leading-[1.65] text-slate-300">{description}</p>
         </div>
         {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
       </div>
@@ -49,7 +49,7 @@ export function SectionCard({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-100">{title}</h2>
-          {description ? <p className="mt-1 text-sm text-slate-400">{description}</p> : null}
+          {description ? <p className="mt-1 text-sm leading-relaxed text-slate-300">{description}</p> : null}
         </div>
         {aside}
       </div>

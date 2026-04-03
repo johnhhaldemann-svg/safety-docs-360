@@ -30,6 +30,7 @@ export const AUTH_APP_STATIC_ROUTES = [
   "/training-matrix",
   "/field-id-exchange",
   "/daps",
+  "/jsa",
   "/permits",
   "/incidents",
   "/analytics",

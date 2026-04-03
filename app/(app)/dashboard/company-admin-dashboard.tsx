@@ -366,10 +366,10 @@ export function CompanyAdminDashboard({
       tone: dashboardMetrics.openIncidents > 0 ? ("warning" as const) : ("success" as const),
     },
     {
-      title: "DAP Completion Today",
+      title: "JSA completion today",
       value: `${dashboardMetrics.dapCompletionToday.percent}%`,
       note: `${dashboardMetrics.dapCompletionToday.completed}/${dashboardMetrics.dapCompletionToday.total} planned activities completed today`,
-      href: "/daps",
+      href: "/jsa",
       tone: "info" as const,
     },
   ];

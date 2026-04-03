@@ -540,6 +540,7 @@ export default function AppLayout({
           "/field-id-exchange",
           "/safety-submit",
           "/daps",
+          "/jsa",
           "/permits",
           "/incidents",
           "/analytics",
@@ -831,7 +832,7 @@ export default function AppLayout({
   }
 
   return (
-    <div className="min-h-screen bg-app-canvas text-slate-100">
+    <div className="app-shell-dark min-h-screen bg-app-canvas text-slate-100 [color-scheme:dark]">
       <div className="flex min-h-screen">
         {mobileMenuOpen ? (
           <button

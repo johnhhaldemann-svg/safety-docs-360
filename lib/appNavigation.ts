@@ -137,7 +137,7 @@ export const companyAdminSideSections: NavSection[] = [
     title: "Safety & programs",
     items: [
       { href: "/field-id-exchange", label: "Corrective actions", short: "CA" },
-      { href: "/daps", label: "DAPs", short: "DP" },
+      { href: "/jsa", label: "JSA", short: "JA" },
       { href: "/permits", label: "Permits", short: "PM" },
       { href: "/incidents", label: "Incidents", short: "IN" },
     ],
@@ -178,7 +178,7 @@ export const companyManagerSideSections: NavSection[] = [
     title: "Safety & programs",
     items: [
       { href: "/field-id-exchange", label: "Corrective actions", short: "CA" },
-      { href: "/daps", label: "DAPs", short: "DP" },
+      { href: "/jsa", label: "JSA", short: "JA" },
       { href: "/permits", label: "Permits", short: "PM" },
       { href: "/incidents", label: "Incidents", short: "IN" },
     ],

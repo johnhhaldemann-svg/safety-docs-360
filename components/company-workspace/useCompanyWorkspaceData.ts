@@ -610,7 +610,7 @@ export function useCompanyWorkspaceData() {
       };
     };
     return [
-      summarize("daps", "DAPs", daps),
+      summarize("daps", "JSAs", daps),
       summarize("permits", "Permits", permits),
       summarize("incidents", "Incidents", incidents),
       summarize("reports", "Reports", reports),

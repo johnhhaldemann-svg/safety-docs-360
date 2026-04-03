@@ -35,8 +35,8 @@ export function AuditExcelRowCard({
         <div className="min-w-0 flex-1 space-y-2">
           {entries.map(([k, v]) => (
             <div key={`${rowKey}-${k}`} className="text-sm">
-              <span className="font-semibold text-slate-300">{humanizeFieldKey(k)}: </span>
-              <span className="text-slate-400">{String(v).trim()}</span>
+              <span className="font-semibold text-slate-200">{humanizeFieldKey(k)}: </span>
+              <span className="text-slate-100">{String(v).trim()}</span>
             </div>
           ))}
         </div>
@@ -49,7 +49,7 @@ export function AuditExcelRowCard({
               className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
                 status === value
                   ? "border-emerald-600 bg-emerald-600 text-white"
-                  : "border-slate-700/80 bg-slate-900/90 text-slate-400 hover:border-slate-600"
+                  : "border-slate-600/80 bg-slate-950/70 text-slate-200 hover:border-slate-500 hover:bg-slate-900/80"
               }`}
             >
               {label}

@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { OSHA_FIELD_AUDIT_SECTIONS, fieldItemKey } from "@/lib/jobsiteAudits/oshaFieldAuditTemplate";
+import { getFieldAuditSectionsForTrade } from "@/lib/jobsiteAudits/fieldAuditTradeScope";
+import { fieldItemKey } from "@/lib/jobsiteAudits/oshaFieldAuditTemplate";
 
 type RowStatus = "" | "pass" | "fail" | "na";
 
@@ -60,14 +61,14 @@ function PieChart({
           </text>
         ) : null}
       </svg>
-      <ul className="mt-3 w-full max-w-xs space-y-1 text-xs">
+      <ul className="mt-3 w-full max-w-xs space-y-1.5 text-sm">
         {slices.map((sl) => (
-          <li key={sl.label} className="flex items-center justify-between gap-2 text-slate-300">
+          <li key={sl.label} className="flex items-center justify-between gap-2 text-slate-200">
             <span className="flex min-w-0 items-center gap-2">
               <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: sl.color }} />
               <span className="truncate">{sl.label}</span>
             </span>
-            <span className="shrink-0 font-semibold tabular-nums text-slate-100">
+            <span className="shrink-0 font-semibold tabular-nums text-slate-50">
               {total > 0 ? Math.round((sl.value / total) * 100) : 0}%
             </span>
           </li>
@@ -118,7 +119,7 @@ function LineTrendChart({
         const y = h - pad - ((p - min) / span) * (h - pad * 2);
         return <circle key={i} cx={x} cy={y} r="3.5" fill="white" stroke="rgb(5 150 105)" strokeWidth="2" />;
       })}
-      <g className="fill-slate-500" style={{ fontSize: "8px" }}>
+      <g className="fill-slate-200" style={{ fontSize: "11px" }}>
         {labels.map((lab, i) => {
           const x = pad + (i / Math.max(1, labels.length - 1)) * (w - pad * 2);
           return (
@@ -164,6 +165,7 @@ export function AuditorDashboard({
   auditors,
   auditDate,
   statusMap,
+  selectedTrade,
   trendPoints,
   trendLabels,
   demoTrend,
@@ -172,6 +174,7 @@ export function AuditorDashboard({
   auditors: string;
   auditDate: string;
   statusMap: Record<string, RowStatus>;
+  selectedTrade: string;
   trendPoints: number[];
   trendLabels: string[];
   demoTrend: boolean;
@@ -183,7 +186,7 @@ export function AuditorDashboard({
     const failsBySection: Record<string, number> = {};
     const issues: OpenIssueRow[] = [];
 
-    for (const sec of OSHA_FIELD_AUDIT_SECTIONS) {
+    for (const sec of getFieldAuditSectionsForTrade(selectedTrade)) {
       for (const it of sec.items) {
         const key = fieldItemKey(sec.id, it.id);
         const st = statusMap[key] ?? "";
@@ -228,26 +231,26 @@ export function AuditorDashboard({
       statusSlices,
       issues: issues.slice(0, 10),
     };
-  }, [auditDate, auditors, jobsite, statusMap]);
+  }, [auditDate, auditors, jobsite, selectedTrade, statusMap]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 antialiased">
       <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-700 to-emerald-900 px-5 py-4 text-white shadow-md">
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-200/90">
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-50/95">
           Safety auditor dashboard
         </p>
-        <h2 className="mt-1 text-2xl font-black tracking-tight">Field audit overview</h2>
-        <p className="mt-1 max-w-2xl text-sm text-emerald-100/90">
+        <h2 className="mt-1 text-2xl font-black tracking-tight text-white">Field audit overview</h2>
+        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-emerald-50/95">
           Charts reflect this device&apos;s saved checklist. Trend line fills in as you record monthly snapshots.
         </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-100">Audit compliance scores</h3>
-          <p className="text-xs text-slate-500">Last {trendPoints.length} data points (max 12 months)</p>
+          <h3 className="text-base font-bold text-slate-50">Audit compliance scores</h3>
+          <p className="text-xs text-slate-300">Last {trendPoints.length} data points (max 12 months)</p>
           {demoTrend ? (
-            <p className="mt-1 text-[11px] font-medium text-amber-700">
+            <p className="mt-1 text-xs font-medium text-amber-200">
               Showing sample curve until you have two or more saved months.
             </p>
           ) : null}
@@ -257,11 +260,11 @@ export function AuditorDashboard({
         </div>
 
         <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-100">Findings by category</h3>
-          <p className="text-xs text-slate-500">Failed items grouped by checklist section</p>
+          <h3 className="text-base font-bold text-slate-50">Findings by category</h3>
+          <p className="text-xs text-slate-300">Failed items grouped by checklist section</p>
           <div className="mt-4">
             {fieldStats.findingSlices.length === 0 ? (
-              <p className="py-10 text-center text-sm text-slate-500">
+              <p className="py-10 text-center text-sm leading-relaxed text-slate-300">
                 No failures yet. Failures appear here by section (fall protection, PPE, excavation, cranes, etc.).
               </p>
             ) : (
@@ -271,17 +274,17 @@ export function AuditorDashboard({
         </div>
 
         <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-100">Audit status</h3>
-          <p className="text-xs text-slate-500">All scored field audit items</p>
+          <h3 className="text-base font-bold text-slate-50">Audit status</h3>
+          <p className="text-xs text-slate-300">All scored field audit items</p>
           <div className="mt-4">
             {fieldStats.pass + fieldStats.fail + fieldStats.na === 0 ? (
-              <p className="py-10 text-center text-sm text-slate-500">
+              <p className="py-10 text-center text-sm leading-relaxed text-slate-300">
                 Complete items in the field audit tab to populate this chart.
               </p>
             ) : (
               <>
                 <PieChart slices={fieldStats.statusSlices} centerLabel={`${fieldStats.compliantPct}%`} />
-                <p className="mt-2 text-center text-xs text-slate-500">
+                <p className="mt-2 text-center text-xs text-slate-300">
                   Pass rate on answered pass/fail items (N/A excluded from rate).
                 </p>
               </>
@@ -290,12 +293,12 @@ export function AuditorDashboard({
         </div>
 
         <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm lg:col-span-2">
-          <h3 className="text-sm font-bold text-slate-100">Open audit issues</h3>
-          <p className="text-xs text-slate-500">Up to 10 failed line items from the current draft</p>
+          <h3 className="text-base font-bold text-slate-50">Open audit issues</h3>
+          <p className="text-xs text-slate-300">Up to 10 failed line items from the current draft</p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[640px] border-collapse text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-700/80 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-slate-700/80 text-[11px] font-bold uppercase tracking-wide text-slate-300">
                   <th className="py-2 pr-3">Date</th>
                   <th className="py-2 pr-3">Job</th>
                   <th className="py-2 pr-3">Auditor</th>
@@ -307,30 +310,30 @@ export function AuditorDashboard({
               <tbody>
                 {fieldStats.issues.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-500">
+                    <td colSpan={6} className="py-8 text-center text-slate-300">
                       No failed items yet. Mark any line &quot;Fail&quot; in the field audit to populate this table.
                     </td>
                   </tr>
                 ) : (
                   fieldStats.issues.map((row) => (
                     <tr key={row.id} className="border-b border-slate-700/60">
-                      <td className="py-2.5 pr-3 text-slate-400">{row.date}</td>
-                      <td className="py-2.5 pr-3 font-medium text-slate-100">{row.job}</td>
-                      <td className="py-2.5 pr-3 text-slate-400">{row.auditor}</td>
-                      <td className="py-2.5 pr-3 text-slate-200">{row.category}</td>
+                      <td className="py-2.5 pr-3 text-slate-300">{row.date}</td>
+                      <td className="py-2.5 pr-3 font-medium text-slate-50">{row.job}</td>
+                      <td className="py-2.5 pr-3 text-slate-300">{row.auditor}</td>
+                      <td className="py-2.5 pr-3 text-slate-100">{row.category}</td>
                       <td className="py-2.5 pr-3">
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                             row.openFindings === "Critical"
-                              ? "bg-red-100 text-red-100"
-                              : "bg-sky-100 text-sky-100"
+                              ? "bg-red-500/25 text-red-100 ring-1 ring-red-400/40"
+                              : "bg-sky-500/25 text-sky-100 ring-1 ring-sky-400/35"
                           }`}
                         >
                           {row.openFindings}
                         </span>
                       </td>
-                      <td className="py-2.5 text-emerald-700">
-                        <button type="button" className="text-xs font-semibold underline">
+                      <td className="py-2.5 text-emerald-400">
+                        <button type="button" className="text-xs font-semibold underline decoration-emerald-400/80 underline-offset-2 hover:text-emerald-300">
                           Log CAPA
                         </button>
                       </td>

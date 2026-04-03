@@ -417,7 +417,7 @@ export default function DashboardPage() {
             return { key, label, total: items.length, open, inProgress, closed };
           };
           setModuleSummaries([
-            summarize("daps", "DAPs", daps),
+            summarize("daps", "JSAs", daps),
             summarize("permits", "Permits", permits),
             summarize("incidents", "Incidents", incidents),
             summarize("reports", "Reports", reports),
@@ -610,7 +610,7 @@ export default function DashboardPage() {
         return { key, label, total: items.length, open, inProgress, closed };
       };
       setModuleSummaries([
-        summarize("daps", "DAPs", daps),
+        summarize("daps", "JSAs", daps),
         summarize("permits", "Permits", permits),
         summarize("incidents", "Incidents", incidents),
         summarize("reports", "Reports", reports),

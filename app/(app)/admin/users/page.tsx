@@ -793,7 +793,7 @@ export default function AdminUsersPage() {
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
-              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-sky-500"
+              className="rounded-xl border border-slate-600 bg-slate-950 px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-sky-500"
             >
             {inviteRoleOptions.map((role) => (
               <option key={role}>{role}</option>
@@ -806,7 +806,7 @@ export default function AdminUsersPage() {
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-sky-500"
+              className="rounded-xl border border-slate-600 bg-slate-950 px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-sky-500"
             >
               {roleOptions.map((role) => (
                 <option key={role}>{role}</option>
@@ -1023,7 +1023,7 @@ export default function AdminUsersPage() {
               <select
                 value={editRole}
                 onChange={(e) => setEditRole(e.target.value)}
-                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               >
                 {(capabilities.canViewAllUsers ? roleOptions : inviteRoleOptions).filter(
                   (role) => role !== "All Roles"
@@ -1039,7 +1039,7 @@ export default function AdminUsersPage() {
                   <select
                     value={editCompanyId}
                     onChange={(e) => setEditCompanyId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
+                    className="w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
                   >
                     <option value="">
                       {companiesLoading
@@ -1076,7 +1076,7 @@ export default function AdminUsersPage() {
               <select
                 value={editStatus}
                 onChange={(e) => setEditStatus(e.target.value)}
-                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
+                className="w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
               >
                 <option>Pending</option>
                 <option>Active</option>
@@ -1094,7 +1094,7 @@ export default function AdminUsersPage() {
               <button
                 onClick={() => void handleDeactivateUser()}
                 disabled={removeLoading}
-                className="rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-950/40 disabled:opacity-60"
+                className="rounded-xl border border-red-400/90 px-4 py-3 text-sm font-semibold text-red-100 transition hover:bg-red-950/55 disabled:opacity-60"
               >
                 {removeLoading ? "Deactivating..." : "Deactivate User"}
               </button>
@@ -1102,7 +1102,7 @@ export default function AdminUsersPage() {
                 <button
                   onClick={() => void handleDeleteUser()}
                   disabled={removeLoading}
-                  className="rounded-xl border border-red-500 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-950/40 disabled:opacity-60"
+                  className="rounded-xl border border-red-400 px-4 py-3 text-sm font-semibold text-red-100 transition hover:bg-red-950/55 disabled:opacity-60"
                 >
                   {removeLoading ? "Deleting..." : "Delete User"}
                 </button>
@@ -1111,7 +1111,7 @@ export default function AdminUsersPage() {
                 <button
                   onClick={() => void handleUserAction("resend_invite")}
                   disabled={actionLoading === "resend_invite"}
-                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:opacity-60"
+                  className="rounded-xl border border-slate-400 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-slate-800/80 disabled:opacity-60"
                 >
                   {actionLoading === "resend_invite" ? "Sending..." : "Resend Invite"}
                 </button>
@@ -1120,7 +1120,7 @@ export default function AdminUsersPage() {
                 <button
                   onClick={() => void handleUserAction("password_reset")}
                   disabled={actionLoading === "password_reset"}
-                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:opacity-60"
+                  className="rounded-xl border border-slate-400 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-slate-800/80 disabled:opacity-60"
                 >
                   {actionLoading === "password_reset" ? "Sending..." : "Send Password Reset"}
                 </button>
@@ -1131,7 +1131,7 @@ export default function AdminUsersPage() {
                 <button
                   onClick={() => void handleUserAction("force_sign_out")}
                   disabled={actionLoading === "force_sign_out"}
-                  className="rounded-xl border border-amber-300 px-4 py-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-950/40 disabled:opacity-60"
+                  className="rounded-xl border border-amber-400/90 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-950/50 disabled:opacity-60"
                 >
                   {actionLoading === "force_sign_out" ? "Forcing..." : "Force Sign Out"}
                 </button>
