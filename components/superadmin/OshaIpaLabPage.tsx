@@ -64,8 +64,8 @@ export function OshaIpaLabPage() {
     <div className="space-y-8">
       <PageHero
         eyebrow="Superadmin · OSHA IPA"
-        title="OSHA compliance tracker (Streamlit)"
-        description="Standalone Streamlit app for 2024 IPA construction data: rates, monthly trends, 5-Why RCA, training notes, and scenario-style projections. Runs outside this Next.js app; use the steps below to start it."
+        title="Construction injury forecaster (Streamlit + IPA)"
+        description="Standalone Streamlit app: IPA-based DART/recordable rates, monthly trends, 5-Why RCA, training reminders, trade+FTE injury forecast, and PDF export. Runs outside this Next.js app — start it locally or host Streamlit separately and set NEXT_PUBLIC_STREAMLIT_OSHA_URL on Vercel."
         actions={
           STREAMLIT_BASE ? (
             <a

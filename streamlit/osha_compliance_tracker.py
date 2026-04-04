@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from fpdf import FPDF
 
 warnings.filterwarnings("ignore")
 
@@ -40,10 +41,92 @@ def load_ipa_from_bytes(raw: bytes) -> pd.DataFrame:
     return normalize_ipa_dataframe(df)
 
 
-st.set_page_config(page_title="OSHA Compliance Tracker 2024", layout="wide")
-st.title("🛡️ OSHA Compliance Tracker 2024 – Construction")
+def compute_injury_forecast(
+    ipa: pd.DataFrame, trade: str, fte: int, overall_dart_rate: float
+) -> tuple[float, float, dict[str, int]]:
+    """DART rate per 200k hours, expected DART cases for scenario hours, injury share percents."""
+    filtered = ipa[ipa["industry_description"] == trade]
+    th = filtered["total_hours"].sum()
+    trade_dart_rate = (
+        round((filtered["dart_cases"].sum() / th * 200000), 2)
+        if len(filtered) > 0 and th > 0
+        else overall_dart_rate
+    )
+    total_scenario_hours = fte * 2000
+    # OSHA-style: cases = rate * hours / 200000
+    expected_dart_cases = round(trade_dart_rate * total_scenario_hours / 200000, 1)
+    trade_l = str(trade).lower()
+    injuries = {
+        "Sprains/strains/tears (back/shoulder)": 45 if any(x in trade_l for x in ["concrete", "excav"]) else 35,
+        "Falls to lower level": 42 if any(x in trade_l for x in ["roof", "frame", "siding"]) else 25,
+        "Fractures": 18,
+        "Cuts/lacerations": 15,
+        "Struck-by object": 22,
+    }
+    return trade_dart_rate, expected_dart_cases, injuries
+
+
+def build_forecast_pdf_bytes(
+    overall_dart_rate: float,
+    overall_total_rate: float,
+    trade: str,
+    fte: int,
+    month: str,
+    expected_dart_cases: float,
+    injuries: dict[str, int],
+) -> bytes:
+    class PDF(FPDF):
+        def header(self) -> None:
+            self.set_font("Helvetica", "B", 14)
+            self.cell(0, 10, "Construction Injury Forecast Report (IPA-based)", ln=1, align="C")
+            self.ln(4)
+
+        def footer(self) -> None:
+            self.set_y(-12)
+            self.set_font("Helvetica", "I", 8)
+            self.cell(0, 8, f"Page {self.page_no()}", align="C", ln=0)
+
+    pdf = PDF()
+    pdf.set_auto_page_break(auto=True, margin=12)
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=11)
+
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "Summary rates (full IPA construction subset)", ln=1)
+    pdf.set_font("Helvetica", size=11)
+    pdf.cell(0, 7, f"DART rate: {overall_dart_rate:.2f} per 200k hrs (BLS construction ref. ~1.3)", ln=1)
+    pdf.cell(0, 7, f"Total recordable rate: {overall_total_rate:.2f} per 200k hrs (BLS ref. ~2.2)", ln=1)
+    pdf.ln(4)
+
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "Scenario injury forecast (IPA trade + workforce)", ln=1)
+    pdf.set_font("Helvetica", size=11)
+    pdf.cell(0, 7, f"Trade: {trade}", ln=1)
+    pdf.cell(0, 7, f"FTE: {fte}  |  Horizon: {month}", ln=1)
+    pdf.cell(0, 7, f"Expected DART cases (scenario): {expected_dart_cases}", ln=1)
+    pdf.ln(3)
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 7, "Likely injury mix (illustrative weights)", ln=1)
+    pdf.set_font("Helvetica", size=10)
+    for inj, pct in list(injuries.items())[:5]:
+        count = round((pct / 100) * expected_dart_cases, 1)
+        pdf.cell(0, 6, f"- {inj}: {pct}% weight -> ~{count} cases", ln=1)
+
+    pdf.ln(6)
+    pdf.set_font("Helvetica", "I", 9)
+    pdf.multi_cell(0, 5, "Generated from your IPA workbook and OSHA incidence-rate math. Not a substitute for professional safety or legal advice.")
+
+    out = pdf.output(dest="S")
+    if isinstance(out, str):
+        return out.encode("latin-1", errors="replace")
+    return bytes(out)
+
+
+st.set_page_config(page_title="Construction Injury Forecaster (IPA)", layout="wide")
+st.title("Injury forecaster — OSHA IPA construction")
 st.markdown(
-    "**Your real 2024 IPA data + Monthly Trends + Training + Root Cause Analysis + Expanded AI ML-Style Model**"
+    "**IPA-based DART / recordable rates, monthly trends, 5-Why RCA, training notes, scenario injury forecast, PDF export**"
 )
 
 st.sidebar.header("Data source")
@@ -120,14 +203,14 @@ col3.metric(
 )
 
 if overall_dart_rate > 2.0:
-    st.error("🚨 HIGH RISK")
+    st.error("HIGH RISK — DART rate above typical threshold")
 elif overall_dart_rate > 1.3:
-    st.warning("⚠️ ELEVATED RISK")
+    st.warning("ELEVATED RISK — above BLS construction reference")
 else:
-    st.success("✅ GOOD COMPLIANCE")
+    st.success("Rates at or below BLS reference band (contextual only)")
 
-# Monthly Trend Tracking (Revised)
-st.subheader("📈 Monthly Trend Tracking – 2024")
+# Monthly Trend Tracking
+st.subheader("Monthly trend tracking — 2024")
 if not monthly.empty:
     fig = go.Figure()
     fig.add_trace(
@@ -159,9 +242,11 @@ if not monthly.empty:
     )
     fig.update_layout(yaxis2=dict(title="DART Cases", overlaying="y", side="right"))
     st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No month column detected in this workbook (or demo data). Upload full IPA with submission timestamps for charts.")
 
-# ====================== INCIDENT ROOT CAUSE ANALYSIS ======================
-st.subheader("🔍 Incident Root Cause Analysis (5-Why)")
+# ====================== ROOT CAUSE (5-WHY) ======================
+st.subheader("Incident root cause (5-Why)")
 incident_type = st.selectbox(
     "Incident Type",
     [
@@ -177,85 +262,106 @@ if incident_type == "Other":
 else:
     incident_description = incident_type
 
-st.write("**5-Why Analysis**")
-why1 = st.text_input("Why 1?")
-why2 = st.text_input("Why 2?")
-why3 = st.text_input("Why 3?")
-why4 = st.text_input("Why 4?")
-why5 = st.text_input("Why 5? (Root Cause)")
+st.write("**5-Why analysis**")
+st.text_input("Why 1?", key="why1")
+st.text_input("Why 2?", key="why2")
+st.text_input("Why 3?", key="why3")
+st.text_input("Why 4?", key="why4")
+st.text_input("Why 5? (Root cause)", key="why5")
 
-if st.button("Save Root Cause Analysis"):
+if st.button("Save root cause analysis"):
     if "rca_log" not in st.session_state:
         st.session_state.rca_log = []
+    w5 = (st.session_state.get("why5") or "").strip()
+    chain = " -> ".join(
+        (st.session_state.get(f"why{i}") or "").strip()
+        for i in range(1, 6)
+        if (st.session_state.get(f"why{i}") or "").strip()
+    )
     st.session_state.rca_log.append(
         {
             "Date": pd.Timestamp.now().strftime("%Y-%m-%d"),
             "Incident": incident_description,
-            "Root Cause": why5 if why5 else "Not fully determined",
+            "Root cause": w5 if w5 else "Not fully determined",
+            "5-Why chain": chain or "—",
         }
     )
-    st.success("Analysis saved!")
+    st.success("Analysis saved.")
 
 if "rca_log" in st.session_state and st.session_state.rca_log:
     st.dataframe(pd.DataFrame(st.session_state.rca_log))
 
-# ====================== OSHA SAFETY TRAINING ======================
-st.subheader("🧑‍🏫 OSHA Safety Training")
-trained = st.slider("What % of your workforce has current OSHA 10-Hour training?", 0, 100, 65)
+# ====================== TRAINING ======================
+st.subheader("OSHA-aligned training reminders")
+trained = st.slider("Percent of workforce with current OSHA 10-Hour (illustrative)", 0, 100, 65)
 st.progress(trained / 100)
+st.write("**Typical priorities from construction IPA patterns**")
+st.info(
+    "Fall protection, lifting/ergonomics, struck-by awareness, full OSHA 10-Hour for field staff — tune to your trade mix."
+)
 
-st.write("**Recommended Training Based on Your Data**")
-st.success("• Fall Protection Training (High priority)")
-st.success("• Lifting & Ergonomics / Back Safety")
-st.success("• Struck-by Awareness")
-st.success("• OSHA 10-Hour Construction (all workers)")
-
-# ====================== EXPANDED AI ML-STYLE MODEL ======================
-st.subheader("🤖 Expanded AI ML-Style Injury Prediction Model")
+# ====================== INJURY FORECAST (scenario model) ======================
+st.subheader("Injury forecast — trade + workforce scenario (IPA-driven)")
+st.caption(
+    "Uses your IPA subset: trade-level DART rate per 200k hours, scaled to FTE x 2,000 hours/year. "
+    "Injury mix is a structured heuristic, not a trained ML model."
+)
 
 col_ai1, col_ai2 = st.columns(2)
 with col_ai1:
-    trade = st.selectbox("Trade / Sub-sector", options=sorted(ipa["industry_description"].dropna().unique()))
+    trade = st.selectbox("Trade / sub-sector", options=sorted(ipa["industry_description"].dropna().unique()))
 with col_ai2:
     fte = st.number_input("Number of workers (FTE)", min_value=1, value=50, step=1)
 
 month = st.selectbox(
-    "Month",
+    "Scenario month label",
     options=["Overall 2024"] + list(monthly["month_name"].unique()) if not monthly.empty else ["Overall 2024"],
 )
 
-if st.button("🔍 Run AI ML Prediction", type="primary"):
-    with st.spinner("Running model on your full 2024 IPA data..."):
-        filtered = ipa[ipa["industry_description"] == trade]
-        trade_dart_rate = (
-            round((filtered["dart_cases"].sum() / filtered["total_hours"].sum() * 200000), 2)
-            if len(filtered) > 0 and filtered["total_hours"].sum() > 0
-            else overall_dart_rate
-        )
+if st.button("Run injury forecast", type="primary"):
+    _tdr, expected_dart_cases, injuries = compute_injury_forecast(ipa, trade, fte, overall_dart_rate)
+    st.session_state["forecast_trade"] = trade
+    st.session_state["forecast_fte"] = fte
+    st.session_state["forecast_month"] = month
+    st.session_state["forecast_expected"] = expected_dart_cases
+    st.session_state["forecast_injuries"] = injuries
+    st.session_state["forecast_tdr"] = _tdr
 
-        predicted_dart_rate = trade_dart_rate
-        total_scenario_hours = fte * 2000
-        expected_dart_cases = round(predicted_dart_rate * total_scenario_hours / 200000, 1)
+if "forecast_expected" in st.session_state:
+    st.subheader(
+        f"Forecast for **{st.session_state['forecast_trade']}** — "
+        f"{st.session_state['forecast_fte']} FTE — {st.session_state['forecast_month']}"
+    )
+    st.metric("Expected DART cases (scenario year)", f"{st.session_state['forecast_expected']}")
+    st.caption(f"Trade DART rate used: {st.session_state.get('forecast_tdr', 0):.2f} per 200k hours")
+    st.write("**Likely injury mix (weights)**")
+    for inj, pct in list(st.session_state["forecast_injuries"].items())[:5]:
+        count = round((pct / 100) * st.session_state["forecast_expected"], 1)
+        st.write(f"- **{inj}** — {pct}% weight → ~**{count}** cases")
+    st.info("Prioritize fall protection and mechanical lifting where weights are high for your trade.")
 
-        st.subheader(f"AI Prediction for **{trade}** — {fte} workers — {month}")
-        st.metric("Expected DART Cases", f"{expected_dart_cases}")
+# ====================== PDF EXPORT ======================
+st.subheader("Download PDF report")
+_pdf_trade = st.session_state.get("forecast_trade", trade)
+_pdf_fte = st.session_state.get("forecast_fte", fte)
+_pdf_month = st.session_state.get("forecast_month", month)
+_, _exp, _inj = compute_injury_forecast(ipa, _pdf_trade, _pdf_fte, overall_dart_rate)
 
-        st.write("**Most Likely Injuries**")
-        trade_l = str(trade).lower()
-        injuries = {
-            "Sprains/strains/tears (back/shoulder)": 45 if any(x in trade_l for x in ["concrete", "excav"]) else 35,
-            "Falls to lower level": 42 if any(x in trade_l for x in ["roof", "frame", "siding"]) else 25,
-            "Fractures": 18,
-            "Cuts/lacerations": 15,
-            "Struck-by object": 22,
-        }
-        for inj, pct in list(injuries.items())[:5]:
-            count = round((pct / 100) * expected_dart_cases, 1)
-            st.write(f"• **{inj}** — {pct}% likelihood → ~**{count}** expected cases")
+pdf_bytes = build_forecast_pdf_bytes(
+    overall_dart_rate,
+    overall_total_rate,
+    _pdf_trade,
+    _pdf_fte,
+    _pdf_month,
+    _exp,
+    _inj,
+)
+st.download_button(
+    label="Download injury forecast PDF",
+    data=pdf_bytes,
+    file_name="Construction_Injury_Forecast_IPA_Report.pdf",
+    mime="application/pdf",
+)
 
-        st.info(
-            "**AI Recommendation**: Prioritize fall protection and mechanical lifting aids to reduce predicted DART cases by ~35-45%."
-        )
-
-st.caption("All modules built from your 2024 IPA.xlsx + BLS 2024 data. Ready for daily use.")
-st.success("✅ Complete app loaded – everything you need is here!")
+st.caption("IPA workbook + BLS reference values. For internal planning only.")
+st.success("App ready — run a forecast above, then download the PDF if needed.")
