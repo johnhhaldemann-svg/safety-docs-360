@@ -115,10 +115,28 @@ export function OshaIpaLabPage() {
           </li>
         </ol>
         {!STREAMLIT_BASE ? (
-          <p className="mt-4 text-sm text-amber-200/90">
-            Embed and “Open Streamlit app” appear after you set{" "}
-            <code className="rounded bg-slate-900 px-1.5 py-0.5">NEXT_PUBLIC_STREAMLIT_OSHA_URL</code>.
-          </p>
+          <div className="mt-4 space-y-3 text-sm text-amber-200/90">
+            <p>
+              The blue <strong>Open Streamlit app</strong> button and the embed are hidden until{" "}
+              <code className="rounded bg-slate-900 px-1.5 py-0.5">NEXT_PUBLIC_STREAMLIT_OSHA_URL</code> is set at{" "}
+              <strong>build time</strong> (Next.js inlines <code className="rounded bg-slate-900 px-1.5 py-0.5">NEXT_PUBLIC_*</code>{" "}
+              into the client bundle).
+            </p>
+            <p>
+              <strong>Local:</strong> put it in <code className="rounded bg-slate-900 px-1.5 py-0.5">.env.local</code> (e.g.{" "}
+              <code className="rounded bg-slate-900 px-1.5 py-0.5">http://127.0.0.1:8501</code>), then restart{" "}
+              <code className="rounded bg-slate-900 px-1.5 py-0.5">npm run dev</code>.{" "}
+              <code className="rounded bg-slate-900 px-1.5 py-0.5">.env.local</code> is not pushed to GitHub, so it does{" "}
+              <strong>not</strong> apply to Vercel by itself.
+            </p>
+            <p>
+              <strong>Vercel (this website):</strong> add the same variable under Project → Settings → Environment Variables
+              for Production (and Preview if needed). It must be a <strong>public HTTPS URL</strong> where Streamlit is
+              actually hosted (Streamlit Community Cloud, Railway, Render, your own server, etc.). Do{" "}
+              <strong>not</strong> use <code className="rounded bg-slate-900 px-1.5 py-0.5">127.0.0.1</code> there —
+              that points at each visitor&apos;s own computer, not your Streamlit server. Redeploy after saving env vars.
+            </p>
+          </div>
         ) : null}
       </SectionCard>
 
