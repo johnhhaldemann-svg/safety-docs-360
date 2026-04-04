@@ -65,7 +65,7 @@ export function OshaIpaLabPage() {
       <PageHero
         eyebrow="Superadmin · OSHA IPA"
         title="Construction injury forecaster (Streamlit + IPA)"
-        description="Standalone Streamlit app: IPA-based rates, trends, 5-Why RCA, trade+FTE injury forecast, optional OpenAI briefings (same OPENAI_API_KEY as Injury Weather), and PDF export. Runs outside Next.js — host Streamlit separately and set NEXT_PUBLIC_STREAMLIT_OSHA_URL on Vercel for embed/link."
+        description="Standalone Streamlit app (multipage): IPA-based rates and trends, trade+FTE injury forecast, optional OpenAI briefings (same OPENAI_API_KEY as Injury Weather), PDF export, plus a separate sidebar page for 5-Why root cause (not mixed with the forecaster). Runs outside Next.js — host Streamlit separately and set NEXT_PUBLIC_STREAMLIT_OSHA_URL on Vercel for embed/link."
         actions={
           STREAMLIT_BASE ? (
             <a

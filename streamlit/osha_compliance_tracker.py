@@ -9,12 +9,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from fpdf import FPDF
 
-from openai_advisor import (
-    fetch_forecast_ai_briefing,
-    fetch_rca_ai_suggestions,
-    openai_model,
-    resolve_openai_key,
-)
+from openai_advisor import fetch_forecast_ai_briefing, openai_model, resolve_openai_key
 
 warnings.filterwarnings("ignore")
 
@@ -200,8 +195,8 @@ def build_forecast_pdf_bytes(
 st.set_page_config(page_title="Construction Injury Forecaster (IPA)", layout="wide")
 st.title("Injury forecaster — OSHA IPA construction")
 st.markdown(
-    "**IPA-based DART / recordable rates, monthly trends, 5-Why RCA, training notes, scenario injury forecast, "
-    "optional OpenAI briefings, PDF export**"
+    "**IPA-based DART / recordable rates, monthly trends, training notes, scenario injury forecast, "
+    "optional OpenAI briefings, PDF export.** Use the sidebar page **Root cause (5-Why)** for RCA — separate from this forecaster."
 )
 
 st.sidebar.header("Data source")
@@ -324,92 +319,6 @@ if not monthly.empty:
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("No month column detected in this workbook (or demo data). Upload full IPA with submission timestamps for charts.")
-
-# ====================== ROOT CAUSE (5-WHY) ======================
-st.subheader("Incident root cause (5-Why)")
-incident_type = st.selectbox(
-    "Incident Type",
-    [
-        "Fall to lower level",
-        "Overexertion / lifting",
-        "Struck-by object",
-        "Contact with objects/equipment",
-        "Other",
-    ],
-)
-if incident_type == "Other":
-    incident_description = st.text_input("Describe the incident")
-else:
-    incident_description = incident_type
-
-st.write("**5-Why analysis**")
-st.text_input("Why 1?", key="why1")
-st.text_input("Why 2?", key="why2")
-st.text_input("Why 3?", key="why3")
-st.text_input("Why 4?", key="why4")
-st.text_input("Why 5? (Root cause)", key="why5")
-
-if st.button("Save root cause analysis"):
-    if "rca_log" not in st.session_state:
-        st.session_state.rca_log = []
-    w5 = (st.session_state.get("why5") or "").strip()
-    chain = " -> ".join(
-        (st.session_state.get(f"why{i}") or "").strip()
-        for i in range(1, 6)
-        if (st.session_state.get(f"why{i}") or "").strip()
-    )
-    st.session_state.rca_log.append(
-        {
-            "Date": pd.Timestamp.now().strftime("%Y-%m-%d"),
-            "Incident": incident_description,
-            "Root cause": w5 if w5 else "Not fully determined",
-            "5-Why chain": chain or "—",
-        }
-    )
-    st.success("Analysis saved.")
-
-if "rca_log" in st.session_state and st.session_state.rca_log:
-    st.dataframe(pd.DataFrame(st.session_state.rca_log))
-
-_rca_key = resolve_openai_key(st)
-if st.button("AI: suggest follow-up questions (5-Why)"):
-    if not _rca_key:
-        st.warning("Set **OPENAI_API_KEY** (or Streamlit **Secrets**) to use RCA coaching.")
-    else:
-        _chain = " -> ".join(
-            (st.session_state.get(f"why{i}") or "").strip()
-            for i in range(1, 6)
-            if (st.session_state.get(f"why{i}") or "").strip()
-        )
-        with st.spinner("Calling OpenAI…"):
-            _rca_ai, _rca_err = fetch_rca_ai_suggestions(
-                api_key=_rca_key,
-                incident_label=incident_description,
-                why_chain=_chain,
-            )
-        if _rca_err:
-            st.error(_rca_err)
-        else:
-            st.session_state["ai_rca"] = _rca_ai
-
-if isinstance(st.session_state.get("ai_rca"), dict):
-    _ar = st.session_state["ai_rca"]
-    with st.expander("AI RCA suggestions", expanded=True):
-        fq = _ar.get("followUpQuestions")
-        if isinstance(fq, list) and fq:
-            st.write("**Follow-up questions**")
-            for q in fq:
-                st.write(f"- {q}")
-        st_t = _ar.get("systemicThemes")
-        if isinstance(st_t, list) and st_t:
-            st.write("**Systemic themes**")
-            for t in st_t:
-                st.write(f"- {t}")
-        nv = _ar.get("nextVerificationSteps")
-        if isinstance(nv, list) and nv:
-            st.write("**Verification steps**")
-            for v in nv:
-                st.write(f"- {v}")
 
 # ====================== TRAINING ======================
 st.subheader("OSHA-aligned training reminders")
