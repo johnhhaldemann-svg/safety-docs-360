@@ -232,6 +232,10 @@ export default function AppLayout({
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [bootError, setBootError] = useState("");
   const isAdminArea = pathname.startsWith("/admin");
+  const isSuperadminRoute = pathname.startsWith("/superadmin");
+  /** Platform admin sidebar: /admin/* or superadmin-only analytics (Injury Weather, OSHA IPA lab). */
+  const showPlatformAdminShell =
+    isAdminArea || (isSuperadminRoute && userRole === "super_admin");
   const isCompanyAdminUser = userRole === "company_admin";
   const isCompanyManagerUser = userRole === "manager" || userRole === "safety_manager";
   const isCompanyUser =
@@ -257,26 +261,26 @@ export default function AppLayout({
     if (needsCompanySetup) {
       return accountSetupSideSections;
     }
-    if (!isAdminArea && isCompanyScopedUser && workspaceProduct === "csep") {
+    if (!showPlatformAdminShell && isCompanyScopedUser && workspaceProduct === "csep") {
       return getCsepNavSectionsForRole(userRole);
     }
-    if (!isAdminArea && isCompanyAdminUser) {
+    if (!showPlatformAdminShell && isCompanyAdminUser) {
       return companyAdminSideSections;
     }
-    if (!isAdminArea && isCompanyManagerUser) {
+    if (!showPlatformAdminShell && isCompanyManagerUser) {
       return companyManagerSideSections;
     }
-    if (!isAdminArea && isCompanyUser) {
+    if (!showPlatformAdminShell && isCompanyUser) {
       return companyUserSideSections;
     }
-    const base = isAdminArea ? adminSideSections : userSideSections;
-    if (!isAdminArea && canAccessInternalAdmin) {
+    const base = showPlatformAdminShell ? adminSideSections : userSideSections;
+    if (!showPlatformAdminShell && canAccessInternalAdmin) {
       return [...base, internalAdminAppendedSection];
     }
     return base;
   }, [
     canAccessInternalAdmin,
-    isAdminArea,
+    showPlatformAdminShell,
     isCompanyAdminUser,
     isCompanyManagerUser,
     isCompanyScopedUser,
@@ -302,10 +306,10 @@ export default function AppLayout({
 
     return {
       href: pathname,
-      label: isAdminArea ? "Admin Workspace" : "Workspace",
-      short: isAdminArea ? "AD" : "WS",
+      label: showPlatformAdminShell ? "Admin Workspace" : "Workspace",
+      short: showPlatformAdminShell ? "AD" : "WS",
     };
-  }, [isAdminArea, pathname, sideSections]);
+  }, [pathname, showPlatformAdminShell, sideSections]);
 
   useEffect(() => {
     let cancelled = false;
@@ -488,6 +492,11 @@ export default function AppLayout({
       return;
     }
 
+    if (isSuperadminRoute && userRole !== "super_admin") {
+      router.replace("/dashboard");
+      return;
+    }
+
     if (isCompanyScopedUser) {
       if (userRole === "read_only") {
         if (workspaceProduct === "csep") {
@@ -628,6 +637,7 @@ export default function AppLayout({
     companyId,
     isAdminArea,
     isCompanyScopedUser,
+    isSuperadminRoute,
     loading,
     needsCompanySetup,
     needsProfileSetup,
@@ -659,7 +669,7 @@ export default function AppLayout({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [workspaceChromeReady]);
 
-  const workspaceLabel = isAdminArea
+  const workspaceLabel = showPlatformAdminShell
     ? "Admin Workspace"
     : needsProfileSetup
       ? "Profile Setup"
@@ -668,7 +678,7 @@ export default function AppLayout({
       : isCompanyScopedUser
         ? "Company Workspace"
         : "User Workspace";
-  const workspaceDescriptor = isAdminArea
+  const workspaceDescriptor = showPlatformAdminShell
     ? "Safety management controls"
     : needsProfileSetup
       ? "Build your construction profile first"
@@ -1056,7 +1066,7 @@ export default function AppLayout({
                             {currentNavItem.label}
                           </h1>
                           <p className="mt-1 text-sm text-slate-400">
-                            {isAdminArea
+                            {showPlatformAdminShell
                               ? "Administrative tools and audit controls"
                               : needsProfileSetup
                                 ? "Complete your construction profile before opening company setup or workspace tools"
