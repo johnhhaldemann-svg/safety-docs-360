@@ -47,6 +47,7 @@ export const adminQuickLinks: NavItem[] = [
   { href: "/admin/review-documents", label: "Review queue", short: "RQ" },
   { href: "/admin/sor-audit", label: "SOR audit", short: "SA" },
   { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
+  { href: "/superadmin/osha-ipa-lab", label: "OSHA IPA lab (Streamlit)", short: "OA" },
   { href: "/admin/users", label: "Users", short: "US" },
   { href: "/admin/companies", label: "Companies", short: "CO" },
   { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },
@@ -128,6 +129,16 @@ export const adminSideSections: NavSection[] = [
       { href: "/admin/agreements", label: "Agreements", short: "AG" },
       { href: "/admin/marketplace", label: "Marketplace", short: "MK" },
       { href: "/billing", label: "Billing", short: "BI" },
+    ],
+  },
+  {
+    title: "OSHA IPA tools",
+    items: [
+      {
+        href: "/superadmin/osha-ipa-lab",
+        label: "Compliance tracker (Streamlit)",
+        short: "OA",
+      },
     ],
   },
   {

@@ -41,6 +41,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Local IPA workbooks for Streamlit OSHA lab (optional; do not commit large/sensitive sheets)
+/streamlit/*.xlsx
+!/streamlit/sample_ipa_demo.xlsx
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
