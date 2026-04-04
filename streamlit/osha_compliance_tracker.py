@@ -93,6 +93,15 @@ def _pdf_ascii(text: str, max_len: int = 3500) -> str:
     return str(text).encode("latin-1", errors="replace").decode("latin-1")[:max_len]
 
 
+def _pdf_multi(pdf: FPDF, text: str, line_h: float = 5, max_len: int = 3500) -> None:
+    """fpdf2 multi_cell(0, …) can raise if cursor/x is wrong; use explicit printable width."""
+    w = float(pdf.epw)
+    if w < 10:
+        w = float(pdf.w) - float(pdf.l_margin) - float(pdf.r_margin)
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(w, line_h, _pdf_ascii(text, max_len))
+
+
 def build_forecast_pdf_bytes(
     overall_dart_rate: float,
     overall_total_rate: float,
@@ -143,40 +152,44 @@ def build_forecast_pdf_bytes(
 
     pdf.ln(6)
     pdf.set_font("Helvetica", "I", 9)
-    pdf.multi_cell(
-        0,
-        5,
-        _pdf_ascii(
-            "Generated from your IPA workbook and OSHA incidence-rate math. Not a substitute for professional safety or legal advice."
-        ),
+    _pdf_multi(
+        pdf,
+        "Generated from your IPA workbook and OSHA incidence-rate math. Not a substitute for professional safety or legal advice.",
+        line_h=5,
+        max_len=500,
     )
 
     if ai_briefing:
         pdf.add_page()
         pdf.set_font("Helvetica", "B", 12)
+        pdf.set_x(pdf.l_margin)
         pdf.cell(0, 8, _pdf_ascii("AI advisory (OpenAI — planning aid only)"), ln=1)
         pdf.set_font("Helvetica", size=10)
         h = ai_briefing.get("headline")
         if h:
             pdf.set_font("Helvetica", "B", 11)
-            pdf.multi_cell(0, 6, _pdf_ascii(str(h), 500))
+            _pdf_multi(pdf, str(h), line_h=6, max_len=500)
             pdf.set_font("Helvetica", size=10)
         es = ai_briefing.get("executiveSummary")
         if es:
-            pdf.multi_cell(0, 5, _pdf_ascii(str(es), 2000))
+            for para in str(es).split("\n"):
+                p = para.strip()
+                if p:
+                    _pdf_multi(pdf, p, line_h=5, max_len=2000)
             pdf.ln(2)
         acts = ai_briefing.get("priorityActions")
         if isinstance(acts, list) and acts:
             pdf.set_font("Helvetica", "B", 10)
+            pdf.set_x(pdf.l_margin)
             pdf.cell(0, 6, _pdf_ascii("Priority actions"), ln=1)
             pdf.set_font("Helvetica", size=10)
             for a in acts[:8]:
-                pdf.multi_cell(0, 5, _pdf_ascii(f"- {a}", 400))
+                _pdf_multi(pdf, f"- {a}", line_h=5, max_len=400)
         lim = ai_briefing.get("limitations")
         if lim:
             pdf.ln(2)
             pdf.set_font("Helvetica", "I", 9)
-            pdf.multi_cell(0, 5, _pdf_ascii(str(lim), 800))
+            _pdf_multi(pdf, str(lim), line_h=5, max_len=800)
 
     out = pdf.output(dest="S")
     if isinstance(out, str):
