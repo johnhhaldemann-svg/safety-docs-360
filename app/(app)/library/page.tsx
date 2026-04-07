@@ -17,6 +17,7 @@ import {
   getMarketplacePreviewPath,
   isMarketplaceEnabled,
 } from "@/lib/marketplace";
+import { isPreviewableMarketplaceSource } from "@/lib/marketplacePreviewExcerpt";
 import type { CreditTransaction } from "@/lib/credits";
 import {
   getDocumentStatusLabel,
@@ -1144,6 +1145,13 @@ function DocumentCard({
   const hasAttachedFile = Boolean(
     document.file_path || document.draft_file_path || document.final_file_path
   );
+  const previewSource =
+    document.file_name ||
+    document.file_path ||
+    document.draft_file_path ||
+    document.final_file_path ||
+    "";
+  const canPreviewFile = hasAttachedFile && isPreviewableMarketplaceSource(previewSource);
 
   return (
     <article
@@ -1192,17 +1200,19 @@ function DocumentCard({
       <button
         type="button"
         onClick={() => {
-          if (!hasAttachedFile) return;
+          if (!canPreviewFile) return;
           onOpen();
         }}
-        disabled={actionLoading || !hasAttachedFile}
+        disabled={actionLoading || !canPreviewFile}
         className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {actionLoading
           ? "Loading…"
-          : hasAttachedFile
+          : canPreviewFile
             ? actionLabel
-            : "No file attached"}
+            : hasAttachedFile
+              ? "Preview unavailable"
+              : "No file attached"}
       </button>
     </article>
   );
@@ -1317,7 +1327,7 @@ function MarketplaceSection({
                 </div>
 
                 <div className="mt-5 flex flex-col gap-3">
-                  {getMarketplacePreviewPath(doc.notes) ? (
+                  {isPreviewableMarketplaceSource(getMarketplacePreviewPath(doc.notes)) ? (
                     <button
                       type="button"
                       onClick={() => onPreview(doc.id)}

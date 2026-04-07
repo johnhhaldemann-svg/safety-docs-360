@@ -5,6 +5,12 @@ import { sniffGcDocumentKind } from "@/lib/gcProgramAiReview";
 /** Short on-screen preview only; full file is never sent to the client. */
 export const MARKETPLACE_PREVIEW_MAX_CHARS = 2000;
 
+export function isPreviewableMarketplaceSource(source?: string | null) {
+  const lower = source?.trim().toLowerCase();
+  if (!lower) return false;
+  return lower.endsWith(".pdf") || lower.endsWith(".docx");
+}
+
 function clipExcerpt(raw: string): { excerpt: string; truncated: boolean } {
   const normalized = raw.replace(/\0/g, "").replace(/\s+/g, " ").trim();
   if (normalized.length <= MARKETPLACE_PREVIEW_MAX_CHARS) {
