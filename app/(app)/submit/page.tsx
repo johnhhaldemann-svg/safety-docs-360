@@ -60,6 +60,10 @@ export default function SubmitPage() {
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
 
+  /**
+   * Company workspaces use `company_subscriptions` (updated in admin). The legacy client query
+   * against `subscriptions` by user_id misses that row — use the same credits API as the library.
+   */
   async function checkSubscription() {
     setCheckingSubscription(true);
 
@@ -69,26 +73,40 @@ export default function SubmitPage() {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
+      setSubscriptionStatus("inactive");
       setMessage("You must be logged in.");
       setMessageTone("error");
       setCheckingSubscription(false);
       return;
     }
 
-    const { data, error } = await supabase
-      .from("subscriptions")
-      .select("status")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const sessionResult = await supabase.auth.getSession();
+    const accessToken = sessionResult.data.session?.access_token;
+    if (!accessToken) {
+      setSubscriptionStatus("inactive");
+      setCheckingSubscription(false);
+      return;
+    }
 
-    if (error) {
-      setMessage(`Subscription check failed: ${error.message}`);
+    const res = await fetch("/api/library/credits", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const payload = (await res.json().catch(() => null)) as
+      | { subscriptionStatus?: string | null; error?: string }
+      | null;
+
+    if (!res.ok) {
+      setSubscriptionStatus("inactive");
+      setMessage(payload?.error ?? `Subscription check failed (${res.status}).`);
       setMessageTone("error");
       setCheckingSubscription(false);
       return;
     }
 
-    setSubscriptionStatus(data?.status ?? "inactive");
+    const raw = payload?.subscriptionStatus;
+    setSubscriptionStatus(
+      typeof raw === "string" && raw.trim() ? raw.trim().toLowerCase() : "inactive"
+    );
     setCheckingSubscription(false);
   }
 
@@ -267,7 +285,13 @@ export default function SubmitPage() {
 
   const hasFiles = Boolean(selectedFiles && selectedFiles.length > 0);
   const canSubmitDocuments = Boolean(permissionMap?.can_submit_documents);
-  const submitDisabled = submitting || checkingSubscription || !agreedToSubmissionTerms || permissionsLoading || !canSubmitDocuments;
+  const submitDisabled =
+    submitting ||
+    checkingSubscription ||
+    subscriptionStatus !== "active" ||
+    !agreedToSubmissionTerms ||
+    permissionsLoading ||
+    !canSubmitDocuments;
   const checklistItems = [
     { label: "Enter a clear request title", done: title.trim().length > 0 },
     { label: "Choose the service type you need", done: Boolean(serviceType) },
