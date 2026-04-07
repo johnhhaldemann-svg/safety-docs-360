@@ -14,7 +14,10 @@ import {
 } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 import { logDocumentDownload } from "@/lib/downloadAudit";
-import { downloadDocumentsBucketObject } from "@/lib/supabaseStorageServer";
+import {
+  downloadDocumentsBucketObject,
+  normalizeDocumentsBucketObjectPath,
+} from "@/lib/supabaseStorageServer";
 
 export const runtime = "nodejs";
 
@@ -98,7 +101,9 @@ export async function GET(
       ? document.final_file_path.trim()
       : "";
 
-  const storagePath = customPreviewOk ? previewPathRaw : finalPath || null;
+  let storagePath: string | null = customPreviewOk
+    ? previewPathRaw
+    : finalPath || null;
 
   if (!storagePath) {
     return NextResponse.json(
@@ -107,22 +112,54 @@ export async function GET(
     );
   }
 
-  const excerptSource = customPreviewOk ? "marketplace_preview" : "final_file";
+  let excerptSource: "marketplace_preview" | "final_file" = customPreviewOk
+    ? "marketplace_preview"
+    : "final_file";
 
-  const downloaded = await downloadDocumentsBucketObject(storagePath);
+  const canFallbackToFinal =
+    Boolean(finalPath) &&
+    normalizeDocumentsBucketObjectPath(finalPath) !==
+      normalizeDocumentsBucketObjectPath(storagePath);
+
+  let downloaded = await downloadDocumentsBucketObject(storagePath);
+
+  if (!downloaded.ok && canFallbackToFinal) {
+    const fromFinal = await downloadDocumentsBucketObject(finalPath);
+    if (fromFinal.ok) {
+      downloaded = fromFinal;
+      storagePath = finalPath;
+      excerptSource = "final_file";
+    }
+  }
+
   if (!downloaded.ok) {
     return NextResponse.json(
       { error: downloaded.error },
       { status: downloaded.status }
     );
   }
-  const buffer = downloaded.buffer;
-  const sourceName = fileNameFromPreviewPath(
+
+  let buffer = downloaded.buffer;
+  let sourceName = fileNameFromPreviewPath(
     storagePath,
     document.project_name ?? null
   );
 
-  const extracted = await extractMarketplacePreviewExcerpt(buffer, sourceName);
+  let extracted = await extractMarketplacePreviewExcerpt(buffer, sourceName);
+
+  if (!extracted.ok && canFallbackToFinal && excerptSource === "marketplace_preview") {
+    const fromFinal = await downloadDocumentsBucketObject(finalPath);
+    if (fromFinal.ok) {
+      buffer = fromFinal.buffer;
+      storagePath = finalPath;
+      excerptSource = "final_file";
+      sourceName = fileNameFromPreviewPath(
+        finalPath,
+        document.project_name ?? null
+      );
+      extracted = await extractMarketplacePreviewExcerpt(buffer, sourceName);
+    }
+  }
 
   if (!extracted.ok) {
     return NextResponse.json(
