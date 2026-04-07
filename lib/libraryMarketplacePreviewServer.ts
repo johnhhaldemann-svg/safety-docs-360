@@ -16,6 +16,7 @@ import {
 } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { serverLog } from "@/lib/serverLog";
 import {
   downloadDocumentsBucketObject,
   normalizeDocumentsBucketObjectPath,
@@ -103,10 +104,29 @@ export async function prepareMarketplaceLibraryPreview(
   const { supabase, user } = auth;
   const supabaseClient = supabase as SupabaseClient;
 
-  const [agreementResult, agreementConfig] = await Promise.all([
-    getUserAgreementRecord(supabaseClient, user.id, user.user_metadata ?? undefined),
-    getAgreementConfig(supabaseClient).catch(() => getDefaultAgreementConfig()),
-  ]);
+  let agreementResult: Awaited<ReturnType<typeof getUserAgreementRecord>>;
+  let agreementConfig: Awaited<ReturnType<typeof getAgreementConfig>>;
+  try {
+    [agreementResult, agreementConfig] = await Promise.all([
+      getUserAgreementRecord(
+        supabaseClient,
+        user.id,
+        user.user_metadata ?? undefined
+      ).catch((e) => {
+        serverLog("warn", "library_preview_user_agreement_failed", {
+          message: e instanceof Error ? e.message : String(e),
+        });
+        return { data: null, error: null };
+      }),
+      getAgreementConfig(supabaseClient).catch(() => getDefaultAgreementConfig()),
+    ]);
+  } catch (e) {
+    serverLog("warn", "library_preview_agreement_bundle_failed", {
+      message: e instanceof Error ? e.message : String(e),
+    });
+    agreementResult = { data: null, error: null };
+    agreementConfig = getDefaultAgreementConfig();
+  }
 
   if (
     !agreementResult.data?.accepted_terms ||
@@ -151,7 +171,8 @@ export async function prepareMarketplaceLibraryPreview(
     };
   }
 
-  if (!isApprovedDocumentStatus(doc.status, true)) {
+  /** Match library catalog rules: `true` was a bug — it treated every non-archived row as approved. */
+  if (!isApprovedDocumentStatus(doc.status, Boolean(doc.final_file_path))) {
     return {
       ok: false,
       response: NextResponse.json(

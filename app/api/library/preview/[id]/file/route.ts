@@ -44,7 +44,12 @@ export async function GET(
     ? "application/pdf"
     : contentTypeForPreviewFileName(sourceFileName);
   const asciiName = asciiFallbackFileName(sourceFileName);
-  const utf8Star = encodeURIComponent(sourceFileName);
+  let utf8Star: string;
+  try {
+    utf8Star = encodeURIComponent(sourceFileName);
+  } catch {
+    utf8Star = encodeURIComponent(asciiName);
+  }
 
   try {
     await logDocumentDownload({
