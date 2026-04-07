@@ -38,7 +38,7 @@ Always do **step 1 before step 2** when migrations changed, so production code m
 | `SUPABASE_SERVICE_ROLE_KEY` | Server / scripts | Service role for admin API routes and seed scripts (never expose to the client) |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Optional | Server-side fallbacks read by [`lib/supabaseAdmin.ts`](lib/supabaseAdmin.ts) |
 | `OPENAI_API_KEY` | For AI features | Document / GC program AI review, injury-weather insights |
-| `CRON_SECRET` | Production cron | Bearer or `?secret=` for [`/api/cron/injury-weather-refresh`](app/api/cron/injury-weather-refresh/route.ts) |
+| `CRON_SECRET` | Production cron | Bearer or `?secret=` for [`/api/cron/injury-weather-refresh`](app/api/cron/injury-weather-refresh/route.ts) and [`/api/cron/company-billing-invoices`](app/api/cron/company-billing-invoices/route.ts) |
 | `NEXT_PUBLIC_ADMIN_EMAILS` | Optional | Comma-separated admin emails ([`lib/rbac.ts`](lib/rbac.ts), [`lib/admin.ts`](lib/admin.ts)) |
 | `NEXT_PUBLIC_SITE_URL` / `NEXT_PUBLIC_APP_URL` | Optional | Absolute URLs for redirects (e.g. invite links) |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | Optional | Shown on `/privacy` for data and privacy inquiries |
@@ -97,7 +97,7 @@ RLS policies are defined in migrations. API routes should align with [`docs/api-
 
 ## Scheduled jobs (Vercel)
 
-[`vercel.json`](vercel.json) defines a daily cron hitting `/api/cron/injury-weather-refresh`. Set `CRON_SECRET` in Vercel and configure the same value for the cron `Authorization: Bearer …` header (Vercel cron supports this pattern when documented in your deployment).
+[`vercel.json`](vercel.json) defines two daily crons: `/api/cron/injury-weather-refresh` and `/api/cron/company-billing-invoices`. Set `CRON_SECRET` in Vercel and configure the same value for the cron `Authorization: Bearer …` header (Vercel cron supports this pattern when documented in your deployment).
 
 ## License
 

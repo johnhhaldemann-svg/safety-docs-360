@@ -3,8 +3,13 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
+import {
+  type InvoiceLineItemLike,
+  getInvoiceSourceSummary,
+  summarizeBillingCharges,
+} from "@/lib/billing/invoicePresentation";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,6 +32,17 @@ export default function BillingInvoiceDetailPage() {
       id: string;
       invoice_number: string;
       status: string;
+      currency: string;
+      total_cents: number;
+      subtotal_cents: number;
+      tax_cents: number;
+      discount_cents: number;
+      balance_due_cents: number;
+      payment_link?: string | null;
+      billing_source?: string | null;
+      billing_period_key?: string | null;
+      billing_period_start?: string | null;
+      billing_period_end?: string | null;
       billing_invoice_line_items?: Array<Record<string, unknown>>;
     };
     payments: unknown[];
@@ -47,6 +63,7 @@ export default function BillingInvoiceDetailPage() {
       setLoading(false);
       return;
     }
+
     const res = await fetch(`/api/billing/invoices/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -129,11 +146,21 @@ export default function BillingInvoiceDetailPage() {
     void load();
   }
 
+  const invoice = payload?.invoice ?? null;
+  const lines = useMemo(
+    () =>
+      ((invoice?.billing_invoice_line_items ?? []) as InvoiceLineItemLike[]),
+    [invoice?.billing_invoice_line_items]
+  );
+  const chargeSummary = useMemo(() => summarizeBillingCharges(lines), [lines]);
+  const sourceSummary = useMemo(() => getInvoiceSourceSummary(invoice ?? {}), [invoice]);
+  const events = payload?.events ?? [];
+
   if (loading) {
-    return <p className="text-slate-400">Loading…</p>;
+    return <p className="text-slate-400">Loading...</p>;
   }
 
-  if (!payload?.invoice) {
+  if (!invoice) {
     return (
       <div className="space-y-4">
         {message ? <InlineMessage tone="error">{message}</InlineMessage> : null}
@@ -144,21 +171,12 @@ export default function BillingInvoiceDetailPage() {
     );
   }
 
-  const inv = payload.invoice;
-  const lines = (inv.billing_invoice_line_items ?? []) as Array<{
-    id?: string;
-    description?: string;
-    quantity?: number;
-    unit_price_cents?: number;
-    line_total_cents?: number;
-  }>;
-
   return (
     <div className="space-y-8">
       <PageHero
         eyebrow="Invoice"
-        title={inv.invoice_number}
-        description={`Status: ${inv.status}`}
+        title={invoice.invoice_number}
+        description={`Status: ${invoice.status}`}
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -167,7 +185,7 @@ export default function BillingInvoiceDetailPage() {
             >
               List
             </Link>
-            {inv.status === "draft" ? (
+            {invoice.status === "draft" ? (
               <button
                 type="button"
                 className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white"
@@ -176,11 +194,11 @@ export default function BillingInvoiceDetailPage() {
                 Mark sent
               </button>
             ) : null}
-            {inv.status !== "draft" &&
-            inv.status !== "paid" &&
-            inv.status !== "void" &&
-            inv.status !== "cancelled" &&
-            Number(inv.balance_due_cents) > 0 ? (
+            {invoice.status !== "draft" &&
+            invoice.status !== "paid" &&
+            invoice.status !== "void" &&
+            invoice.status !== "cancelled" &&
+            Number(invoice.balance_due_cents) > 0 ? (
               <button
                 type="button"
                 className="inline-flex min-h-11 items-center justify-center rounded-xl border border-violet-500 px-4 py-2 text-sm font-semibold text-violet-200"
@@ -189,7 +207,9 @@ export default function BillingInvoiceDetailPage() {
                 Stripe payment link
               </button>
             ) : null}
-            {inv.status !== "paid" && inv.status !== "void" && inv.status !== "cancelled" ? (
+            {invoice.status !== "paid" &&
+            invoice.status !== "void" &&
+            invoice.status !== "cancelled" ? (
               <button
                 type="button"
                 className="inline-flex min-h-11 items-center justify-center rounded-xl border border-emerald-600 px-4 py-2 text-sm font-semibold text-emerald-200"
@@ -209,38 +229,94 @@ export default function BillingInvoiceDetailPage() {
 
       {message ? <InlineMessage tone="error">{message}</InlineMessage> : null}
 
+      <SectionCard
+        title="Billing summary"
+        description="Recurring company pricing is surfaced separately so subscription and licensed-seat charges are easy to review."
+      >
+        <div className="grid gap-4 md:grid-cols-4">
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Source</div>
+            <div className="mt-2">
+              <span
+                className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                  sourceSummary.tone === "success"
+                    ? "bg-emerald-500/15 text-emerald-200"
+                    : sourceSummary.tone === "info"
+                      ? "bg-sky-500/15 text-sky-200"
+                      : "bg-slate-800 text-slate-300"
+                }`}
+              >
+                {sourceSummary.source}
+              </span>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Period</div>
+            <div className="mt-2 text-sm font-semibold text-slate-100">
+              {sourceSummary.period ?? "Not recurring"}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Subscription</div>
+            <div className="mt-2 text-sm font-semibold text-slate-100">
+              {formatMoney(chargeSummary.subscription_cents, String(invoice.currency))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Licensing</div>
+            <div className="mt-2 text-sm font-semibold text-slate-100">
+              {formatMoney(chargeSummary.licensing_cents, String(invoice.currency))}
+            </div>
+          </div>
+        </div>
+        {sourceSummary.isRecurring ? (
+          <p className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-100">
+            This invoice was generated automatically from company subscription and licensed-seat pricing.
+          </p>
+        ) : sourceSummary.isCompanyPricing ? (
+          <p className="mt-4 rounded-xl border border-sky-500/20 bg-sky-950/30 px-4 py-3 text-sm text-sky-100">
+            This invoice uses company pricing overrides for subscription and licensing.
+          </p>
+        ) : null}
+      </SectionCard>
+
       <SectionCard title="Amounts" description="All figures in cents are computed server-side.">
         <dl className="grid gap-2 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-slate-500">Subtotal</dt>
             <dd className="font-semibold text-white">
-              {formatMoney(Number(inv.subtotal_cents), String(inv.currency))}
+              {formatMoney(Number(invoice.subtotal_cents), String(invoice.currency))}
             </dd>
           </div>
           <div>
             <dt className="text-slate-500">Tax</dt>
             <dd className="font-semibold text-white">
-              {formatMoney(Number(inv.tax_cents), String(inv.currency))}
+              {formatMoney(Number(invoice.tax_cents), String(invoice.currency))}
             </dd>
           </div>
           <div>
             <dt className="text-slate-500">Total</dt>
             <dd className="font-semibold text-white">
-              {formatMoney(Number(inv.total_cents), String(inv.currency))}
+              {formatMoney(Number(invoice.total_cents), String(invoice.currency))}
             </dd>
           </div>
           <div>
             <dt className="text-slate-500">Balance due</dt>
             <dd className="font-semibold text-amber-200">
-              {formatMoney(Number(inv.balance_due_cents), String(inv.currency))}
+              {formatMoney(Number(invoice.balance_due_cents), String(invoice.currency))}
             </dd>
           </div>
         </dl>
-        {typeof inv.payment_link === "string" && inv.payment_link ? (
+        {typeof invoice.payment_link === "string" && invoice.payment_link ? (
           <p className="mt-3 break-all text-xs text-slate-400">
             Payment link:{" "}
-            <a href={inv.payment_link} className="text-sky-400 underline" target="_blank" rel="noreferrer">
-              {inv.payment_link}
+            <a
+              href={invoice.payment_link}
+              className="text-sky-400 underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {invoice.payment_link}
             </a>
           </p>
         ) : null}
@@ -248,23 +324,40 @@ export default function BillingInvoiceDetailPage() {
 
       <SectionCard title="Line items" description="">
         <ul className="space-y-2 text-sm">
-          {lines.map((li) => (
-            <li key={li.id} className="flex justify-between gap-4 border-b border-slate-800 py-2">
-              <span className="text-slate-200">{li.description}</span>
-              <span className="text-slate-400">
-                {li.quantity} × {formatMoney(Number(li.unit_price_cents), String(inv.currency))} ={" "}
-                {formatMoney(Number(li.line_total_cents), String(inv.currency))}
-              </span>
-            </li>
-          ))}
+          {lines.map((line, index) => {
+            const component = String(line.metadata?.billing_component ?? "").trim().toLowerCase();
+            const tag =
+              component === "company_subscription"
+                ? "Subscription"
+                : component === "licensed_seats"
+                  ? "Licensing"
+                  : line.item_type === "subscription"
+                    ? "Subscription"
+                    : "Other";
+
+            return (
+              <li key={line.id ?? `${index}`} className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 py-2">
+                <div className="space-y-1">
+                  <div className="text-slate-200">{line.description}</div>
+                  <span className="inline-flex rounded-full bg-slate-800 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+                    {tag}
+                  </span>
+                </div>
+                <span className="text-slate-400">
+                  {line.quantity} x {formatMoney(Number(line.unit_price_cents), String(invoice.currency))} ={" "}
+                  {formatMoney(Number(line.line_total_cents), String(invoice.currency))}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       </SectionCard>
 
       <SectionCard title="Audit" description="Recent billing events.">
         <ul className="space-y-2 text-xs text-slate-400">
-          {(payload.events as Array<{ event_type?: string; created_at?: string }>).map((e, i) => (
-            <li key={i}>
-              {e.created_at} — {e.event_type}
+          {(events as Array<{ event_type?: string; created_at?: string }>).map((event, index) => (
+            <li key={index}>
+              {event.created_at} - {event.event_type}
             </li>
           ))}
         </ul>

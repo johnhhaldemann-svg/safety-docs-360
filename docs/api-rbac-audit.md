@@ -26,6 +26,7 @@ These files import and use `authorizeRequest` (grep `authorizeRequest` in `app/a
 | `POST /api/auth/register`, `POST /api/auth/company-register` | Public signup flows | Creates accounts; validate input server-side |
 | `GET /api/auth/me` | Session | Uses `authorizeRequest` or equivalent |
 | `GET /api/cron/injury-weather-refresh` | `CRON_SECRET` only | Vercel cron; not user session |
+| `GET /api/cron/company-billing-invoices` | `CRON_SECRET` only | Vercel cron; recurring company billing |
 | `GET /api/uploads` | Lists upload hints | No sensitive data; `POST` returns 400 |
 
 ## Legacy proxy routes

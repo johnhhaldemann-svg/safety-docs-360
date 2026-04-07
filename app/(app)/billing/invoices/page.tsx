@@ -4,6 +4,11 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
 import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
+import {
+  formatBillingPeriodLabel,
+  getBillingSourceLabel,
+  getBillingSourceTone,
+} from "@/lib/billing/invoicePresentation";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,6 +26,10 @@ type InvoiceRow = {
   balance_due_cents: number;
   currency: string;
   created_by_user_id: string;
+  billing_source?: string | null;
+  billing_period_key?: string | null;
+  billing_period_start?: string | null;
+  billing_period_end?: string | null;
   billing_customers?: { company_name?: string; billing_email?: string } | null;
   companies?: { name?: string } | null;
 };
@@ -50,6 +59,7 @@ export default function BillingInvoicesListPage() {
         setLoading(false);
         return;
       }
+
       const res = await fetch("/api/billing/invoices", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -76,12 +86,15 @@ export default function BillingInvoicesListPage() {
     return () => window.clearTimeout(t);
   }, [load]);
 
-  const outstanding = invoices.reduce((s, i) => s + (i.balance_due_cents > 0 ? i.balance_due_cents : 0), 0);
+  const outstanding = invoices.reduce(
+    (sum, invoice) => sum + (invoice.balance_due_cents > 0 ? invoice.balance_due_cents : 0),
+    0
+  );
   const overdue = invoices.filter(
-    (i) =>
-      i.balance_due_cents > 0 &&
-      i.due_date < new Date().toISOString().slice(0, 10) &&
-      !["draft", "void", "cancelled", "paid"].includes(i.status)
+    (invoice) =>
+      invoice.balance_due_cents > 0 &&
+      invoice.due_date < new Date().toISOString().slice(0, 10) &&
+      !["draft", "void", "cancelled", "paid"].includes(invoice.status)
   );
 
   return (
@@ -89,7 +102,7 @@ export default function BillingInvoicesListPage() {
       <PageHero
         eyebrow="Platform billing"
         title="Invoices"
-        description="Create, send, and track customer invoices. Super Admins see all companies; Admins only see assigned companies."
+        description="Create, send, and track customer invoices. Recurring company pricing is labeled clearly so subscription and licensing charges are easy to audit."
         actions={
           <Link
             href="/billing/invoices/new"
@@ -100,9 +113,7 @@ export default function BillingInvoicesListPage() {
         }
       />
 
-      {message ? (
-        <InlineMessage tone="error">{message}</InlineMessage>
-      ) : null}
+      {message ? <InlineMessage tone="error">{message}</InlineMessage> : null}
 
       <section className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
@@ -121,16 +132,17 @@ export default function BillingInvoicesListPage() {
 
       <SectionCard title="All invoices" description="Latest first. Use New invoice to add a draft.">
         {loading ? (
-          <p className="text-sm text-slate-400">Loading…</p>
+          <p className="text-sm text-slate-400">Loading...</p>
         ) : invoices.length === 0 ? (
           <p className="text-sm text-slate-400">No invoices yet.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px] text-left text-sm">
+            <table className="w-full min-w-[980px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-700 text-slate-500">
                   <th className="py-2 pr-3">Number</th>
                   <th className="py-2 pr-3">Customer</th>
+                  <th className="py-2 pr-3">Billing</th>
                   <th className="py-2 pr-3">Issue</th>
                   <th className="py-2 pr-3">Due</th>
                   <th className="py-2 pr-3">Total</th>
@@ -140,28 +152,48 @@ export default function BillingInvoicesListPage() {
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((inv) => (
-                  <tr key={inv.id} className="border-b border-slate-800/80">
-                    <td className="py-3 pr-3 font-mono text-slate-200">{inv.invoice_number}</td>
+                {invoices.map((invoice) => (
+                  <tr key={invoice.id} className="border-b border-slate-800/80">
+                    <td className="py-3 pr-3 font-mono text-slate-200">{invoice.invoice_number}</td>
                     <td className="py-3 pr-3 text-slate-300">
-                      {inv.billing_customers?.company_name ?? inv.companies?.name ?? "—"}
+                      {invoice.billing_customers?.company_name ?? invoice.companies?.name ?? "—"}
                     </td>
-                    <td className="py-3 pr-3 text-slate-400">{inv.issue_date}</td>
-                    <td className="py-3 pr-3 text-slate-400">{inv.due_date}</td>
+                    <td className="py-3 pr-3">
+                      <div className="space-y-1">
+                        <span
+                          className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                            getBillingSourceTone(invoice.billing_source) === "success"
+                              ? "bg-emerald-500/15 text-emerald-200"
+                              : getBillingSourceTone(invoice.billing_source) === "info"
+                                ? "bg-sky-500/15 text-sky-200"
+                                : "bg-slate-800 text-slate-300"
+                          }`}
+                        >
+                          {getBillingSourceLabel(invoice.billing_source)}
+                        </span>
+                        {formatBillingPeriodLabel(invoice.billing_period_key) ? (
+                          <div className="text-xs text-slate-500">
+                            {formatBillingPeriodLabel(invoice.billing_period_key)}
+                          </div>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="py-3 pr-3 text-slate-400">{invoice.issue_date}</td>
+                    <td className="py-3 pr-3 text-slate-400">{invoice.due_date}</td>
                     <td className="py-3 pr-3 text-slate-200">
-                      {formatMoney(inv.total_cents, inv.currency)}
+                      {formatMoney(invoice.total_cents, invoice.currency)}
                     </td>
                     <td className="py-3 pr-3 text-slate-200">
-                      {formatMoney(inv.balance_due_cents, inv.currency)}
+                      {formatMoney(invoice.balance_due_cents, invoice.currency)}
                     </td>
                     <td className="py-3 pr-3">
                       <span className="rounded-full bg-slate-800 px-2 py-1 text-xs font-semibold text-slate-300">
-                        {inv.status}
+                        {invoice.status}
                       </span>
                     </td>
                     <td className="py-3">
                       <Link
-                        href={`/billing/invoices/${inv.id}`}
+                        href={`/billing/invoices/${invoice.id}`}
                         className="font-semibold text-sky-400 hover:text-sky-300"
                       >
                         View

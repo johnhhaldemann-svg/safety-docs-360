@@ -3,8 +3,13 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
+import {
+  type InvoiceLineItemLike,
+  getInvoiceSourceSummary,
+  summarizeBillingCharges,
+} from "@/lib/billing/invoicePresentation";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,6 +30,18 @@ export default function CustomerInvoiceDetailPage() {
   const [data, setData] = useState<{
     invoice: Record<string, unknown> & {
       invoice_number: string;
+      status: string;
+      currency: string;
+      total_cents: number;
+      subtotal_cents: number;
+      tax_cents: number;
+      discount_cents: number;
+      balance_due_cents: number;
+      payment_link?: string | null;
+      billing_source?: string | null;
+      billing_period_key?: string | null;
+      billing_period_start?: string | null;
+      billing_period_end?: string | null;
       billing_invoice_line_items?: Array<Record<string, unknown>>;
     };
     payments: unknown[];
@@ -43,6 +60,7 @@ export default function CustomerInvoiceDetailPage() {
       setLoading(false);
       return;
     }
+
     const res = await fetch(`/api/customer/billing/invoices/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -71,11 +89,21 @@ export default function CustomerInvoiceDetailPage() {
     return () => window.clearTimeout(t);
   }, [id]);
 
+  const invoice = data?.invoice ?? null;
+  const lines = useMemo(
+    () =>
+      ((invoice?.billing_invoice_line_items ?? []) as InvoiceLineItemLike[]),
+    [invoice?.billing_invoice_line_items]
+  );
+  const chargeSummary = useMemo(() => summarizeBillingCharges(lines), [lines]);
+  const sourceSummary = useMemo(() => getInvoiceSourceSummary(invoice ?? {}), [invoice]);
+  const payments = data?.payments ?? [];
+
   if (loading) {
-    return <p className="text-slate-400">Loading…</p>;
+    return <p className="text-slate-400">Loading...</p>;
   }
 
-  if (!data?.invoice) {
+  if (!invoice) {
     return (
       <div className="space-y-4">
         {message ? <InlineMessage tone="error">{message}</InlineMessage> : null}
@@ -86,27 +114,19 @@ export default function CustomerInvoiceDetailPage() {
     );
   }
 
-  const inv = data.invoice;
-  const balanceDue = Number(inv.balance_due_cents);
+  const balanceDue = Number(invoice.balance_due_cents);
   const canPayOnline =
     balanceDue > 0 &&
-    typeof inv.payment_link === "string" &&
-    inv.payment_link.length > 0 &&
-    !["paid", "void", "cancelled"].includes(String(inv.status).toLowerCase());
-  const lines = (inv.billing_invoice_line_items ?? []) as Array<{
-    id?: string;
-    description?: string;
-    quantity?: number;
-    unit_price_cents?: number;
-    line_total_cents?: number;
-  }>;
+    typeof invoice.payment_link === "string" &&
+    invoice.payment_link.length > 0 &&
+    !["paid", "void", "cancelled"].includes(String(invoice.status).toLowerCase());
 
   return (
     <div className="space-y-8">
       <PageHero
         eyebrow="Invoice"
-        title={inv.invoice_number}
-        description={`Status: ${String(inv.status)}`}
+        title={invoice.invoice_number}
+        description={`Status: ${String(invoice.status)}`}
         actions={
           <Link
             href="/customer/billing"
@@ -117,11 +137,46 @@ export default function CustomerInvoiceDetailPage() {
         }
       />
 
+      <SectionCard
+        title="Billing summary"
+        description="Subscription and licensing charges are surfaced separately so the company can see what the recurring bill contains."
+      >
+        <div className="grid gap-4 md:grid-cols-4">
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Source</div>
+            <div className="mt-2 text-sm font-semibold text-slate-100">{sourceSummary.source}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Period</div>
+            <div className="mt-2 text-sm font-semibold text-slate-100">
+              {sourceSummary.period ?? "Not recurring"}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Subscription</div>
+            <div className="mt-2 text-sm font-semibold text-slate-100">
+              {formatMoney(chargeSummary.subscription_cents, String(invoice.currency))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Licensing</div>
+            <div className="mt-2 text-sm font-semibold text-slate-100">
+              {formatMoney(chargeSummary.licensing_cents, String(invoice.currency))}
+            </div>
+          </div>
+        </div>
+        {sourceSummary.isRecurring ? (
+          <p className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-100">
+            This invoice was generated automatically from company subscription and licensed-seat pricing.
+          </p>
+        ) : null}
+      </SectionCard>
+
       <SectionCard title="Totals" description="">
         {checkoutFlag === "success" ? (
           <div className="mb-4">
             <InlineMessage tone="success">
-              Thanks — your payment is processing. This page will update once the payment is confirmed.
+              Thanks - your payment is processing. This page will update once the payment is confirmed.
             </InlineMessage>
           </div>
         ) : null}
@@ -136,20 +191,20 @@ export default function CustomerInvoiceDetailPage() {
           <div>
             <dt className="text-slate-500">Total</dt>
             <dd className="font-semibold text-white">
-              {formatMoney(Number(inv.total_cents), String(inv.currency))}
+              {formatMoney(Number(invoice.total_cents), String(invoice.currency))}
             </dd>
           </div>
           <div>
             <dt className="text-slate-500">Balance due</dt>
             <dd className="font-semibold text-amber-200">
-              {formatMoney(Number(inv.balance_due_cents), String(inv.currency))}
+              {formatMoney(Number(invoice.balance_due_cents), String(invoice.currency))}
             </dd>
           </div>
         </dl>
         {canPayOnline ? (
           <div className="mt-4">
             <a
-              href={String(inv.payment_link)}
+              href={String(invoice.payment_link)}
               className="inline-flex min-h-11 items-center justify-center rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white"
             >
               Pay now
@@ -164,25 +219,45 @@ export default function CustomerInvoiceDetailPage() {
 
       <SectionCard title="Line items" description="">
         <ul className="space-y-2 text-sm">
-          {lines.map((li) => (
-            <li key={li.id} className="flex justify-between gap-4 border-b border-slate-800 py-2">
-              <span className="text-slate-200">{li.description}</span>
-              <span className="text-slate-400">
-                {formatMoney(Number(li.line_total_cents), String(inv.currency))}
-              </span>
-            </li>
-          ))}
+          {lines.map((line, index) => {
+            const component = String(line.metadata?.billing_component ?? "").trim().toLowerCase();
+            const tag =
+              component === "company_subscription"
+                ? "Subscription"
+                : component === "licensed_seats"
+                  ? "Licensing"
+                  : line.item_type === "subscription"
+                    ? "Subscription"
+                    : "Other";
+
+            return (
+              <li
+                key={line.id ?? `${index}`}
+                className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 py-2"
+              >
+                <div className="space-y-1">
+                  <div className="text-slate-200">{line.description}</div>
+                  <span className="inline-flex rounded-full bg-slate-800 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+                    {tag}
+                  </span>
+                </div>
+                <span className="text-slate-400">
+                  {formatMoney(Number(line.line_total_cents), String(invoice.currency))}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       </SectionCard>
 
       <SectionCard title="Payments" description="">
-        {data.payments.length === 0 ? (
+        {payments.length === 0 ? (
           <p className="text-sm text-slate-500">No payments recorded yet.</p>
         ) : (
           <ul className="text-sm text-slate-400">
-            {(data.payments as Array<{ created_at?: string; amount_cents?: number }>).map((p, i) => (
-              <li key={i}>
-                {p.created_at}: {formatMoney(Number(p.amount_cents), String(inv.currency))}
+            {(payments as Array<{ created_at?: string; amount_cents?: number }>).map((payment, index) => (
+              <li key={index}>
+                {payment.created_at}: {formatMoney(Number(payment.amount_cents), String(invoice.currency))}
               </li>
             ))}
           </ul>

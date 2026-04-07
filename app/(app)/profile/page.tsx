@@ -29,8 +29,12 @@ const supabase = createClient(
 type AuthMeResponse = {
   user?: {
     companyId?: string | null;
+    role?: string;
+    roleLabel?: string;
+    team?: string;
     permissionMap?: {
       can_access_internal_admin?: boolean;
+      can_manage_company_users?: boolean;
     };
   };
 };
@@ -170,6 +174,9 @@ export default function ProfilePage() {
   const [initialProfileComplete, setInitialProfileComplete] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [canAccessInternalAdmin, setCanAccessInternalAdmin] = useState(false);
+  const [workspaceRoleLabel, setWorkspaceRoleLabel] = useState("");
+  const [workspaceTeam, setWorkspaceTeam] = useState("");
+  const [canManageTeamUsers, setCanManageTeamUsers] = useState(false);
   const [managedUserId, setManagedUserId] = useState("");
   const [returnTo, setReturnTo] = useState("/company-users");
   const [managedProfile, setManagedProfile] = useState(false);
@@ -244,6 +251,9 @@ export default function ProfilePage() {
         if (meResponse.ok) {
           setCompanyId(meData?.user?.companyId ?? null);
           setCanAccessInternalAdmin(Boolean(meData?.user?.permissionMap?.can_access_internal_admin));
+          setWorkspaceRoleLabel((meData?.user?.roleLabel ?? "").trim());
+          setWorkspaceTeam((meData?.user?.team ?? "").trim());
+          setCanManageTeamUsers(Boolean(meData?.user?.permissionMap?.can_manage_company_users));
         }
 
         if (profileResponse.ok && profileData?.profile) {
@@ -335,7 +345,7 @@ export default function ProfilePage() {
       tradeSelect === OTHER_SELECT ? tradeOther.trim() : tradeSelect.trim();
 
     if (!positionSelect) {
-      const msg = "Select your site position.";
+      const msg = "Select your jobsite title.";
       setMessageTone("error");
       setMessage(msg);
       toast.error(msg);
@@ -343,7 +353,7 @@ export default function ProfilePage() {
       return;
     }
     if (positionSelect === OTHER_SELECT && !jobTitle) {
-      const msg = "Enter your site position when using Other.";
+      const msg = "Enter your jobsite title when using Other.";
       setMessageTone("error");
       setMessage(msg);
       toast.error(msg);
@@ -527,7 +537,7 @@ export default function ProfilePage() {
   const profileChecklist = [
     { label: "Identity and profile photo", done: Boolean(fullName.trim() && (photoPreview || photoUrl)) },
     {
-      label: "Site position and trade",
+      label: "Jobsite title and trade",
       done: Boolean(resolvedJobTitle && resolvedTrade),
     },
     { label: "Field location and experience", done: Boolean(city.trim() && stateRegion.trim() && yearsExperience.trim()) },
@@ -553,8 +563,8 @@ export default function ProfilePage() {
         }
         description={
           managedProfile
-            ? "Review and update the construction details that matter on a real jobsite: crew role, trade specialty, certifications, equipment experience, work region, and site readiness."
-            : "Capture the construction details that matter on a real jobsite: crew role, trade specialty, certifications, equipment experience, work region, and site readiness."
+            ? "Update this employee’s jobsite-facing profile (title, trade, credentials). This is separate from their workspace role, which is set under Team access."
+            : "Your app role (Company Admin, Company User, etc.) is shown below. The form fields are your public jobsite title and trade—used on your construction card, not for permissions."
         }
         actions={
           managedProfile ? (
@@ -570,16 +580,58 @@ export default function ProfilePage() {
 
       {managedProfile ? (
         <InlineMessage tone="neutral">
-          You are editing the construction profile for <strong>{managedProfileLabel}</strong>.
-          Company admins can only manage employee profiles inside their own company workspace.
+          You are editing the construction profile for <strong>{managedProfileLabel}</strong> (jobsite title, trade, photo—what others see in the field). Workspace permissions are managed under{" "}
+          <Link href="/company-users" className="font-semibold text-sky-300 underline-offset-2 hover:underline">
+            Team access
+          </Link>
+          .
         </InlineMessage>
+      ) : null}
+
+      {!managedProfile && workspaceRoleLabel ? (
+        <SectionCard
+          title="Workspace access"
+          description="Who you are in the platform (permissions). This is not the same as jobsite title in the form below."
+        >
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                App role
+              </p>
+              <p className="mt-2 text-xl font-bold tracking-tight text-slate-100">{workspaceRoleLabel}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                Controls what you can do (documents, CSEP, billing, team management). Only a company admin can change this under Team access.
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Company team
+              </p>
+              <p className="mt-2 text-xl font-bold tracking-tight text-slate-100">
+                {workspaceTeam || "—"}
+              </p>
+              {canManageTeamUsers ? (
+                <Link
+                  href="/company-users"
+                  className="mt-4 inline-flex items-center rounded-xl border border-sky-500/40 bg-sky-950/30 px-4 py-2.5 text-sm font-semibold text-sky-200 transition hover:bg-sky-950/50"
+                >
+                  Open team &amp; roles
+                </Link>
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Ask your company admin if this role should be updated.
+                </p>
+              )}
+            </div>
+          </div>
+        </SectionCard>
       ) : null}
 
       <section className="grid gap-4 lg:grid-cols-4">
         {[
           {
             label: "Identity",
-            detail: "Photo, full name, and the crew role people recognize you by on a jobsite.",
+            detail: "Photo, full name, and the jobsite title shown on your construction card (not your app role above).",
           },
           {
             label: "Trade",
@@ -591,7 +643,7 @@ export default function ProfilePage() {
           },
           {
             label: "Readiness",
-            detail: "A clean construction summary that company admins can trust before granting access.",
+            detail: "A clear field summary so your company can trust this profile before jobsite use.",
           },
         ].map((item, index) => (
           <div
@@ -615,7 +667,11 @@ export default function ProfilePage() {
         <div className="space-y-5">
           <SectionCard
             title="Field identity card"
-            description="Set the name, crew role, and photo that should represent you across company access and project records."
+            description={
+              managedProfile
+                ? "Public jobsite identity: name, photo, and jobsite title/trade shown on the construction card. Permissions are not edited here—use Team access."
+                : "Public jobsite identity: name, photo, and jobsite title/trade on your construction profile. This does not change your app role in Workspace access above."
+            }
           >
             <div className="grid gap-5 lg:grid-cols-[0.78fr_1.22fr]">
               <div className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-5">
@@ -662,8 +718,11 @@ export default function ProfilePage() {
                   />
                   <div className="space-y-1.5">
                     <label className="block text-xs font-semibold text-slate-400">
-                      Site position <span className="text-red-600">*</span>
+                      Jobsite title <span className="text-red-600">*</span>
                     </label>
+                    <p className="text-xs leading-5 text-slate-500">
+                      Shown on your construction card (e.g. Site Safety Manager). Not the same as your app role.
+                    </p>
                     <select
                       value={positionSelect}
                       onChange={(e) => {
@@ -671,9 +730,9 @@ export default function ProfilePage() {
                         setPositionSelect(v);
                         if (v !== OTHER_SELECT) setPositionOther("");
                       }}
-                      className="w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
+                      className="mt-1.5 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
                     >
-                      <option value="">Select position…</option>
+                      <option value="">Select jobsite title…</option>
                       {CONSTRUCTION_POSITIONS.map((p) => (
                         <option key={p} value={p}>
                           {p}
@@ -684,7 +743,7 @@ export default function ProfilePage() {
                     {positionSelect === OTHER_SELECT ? (
                       <input
                         type="text"
-                        placeholder="Describe your position"
+                        placeholder="Describe your jobsite title"
                         value={positionOther}
                         onChange={(e) => setPositionOther(e.target.value)}
                         className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
@@ -1009,8 +1068,8 @@ export default function ProfilePage() {
               <div className="min-w-0 flex-1">
                 <div className="text-2xl font-black tracking-tight text-white">{displayName}</div>
                 <div className="mt-1 text-sm font-semibold text-sky-100">
-                  {resolvedJobTitle || "Job title"}
-                  {resolvedJobTitle && resolvedTrade ? " - " : ""}
+                  {resolvedJobTitle || "Jobsite title"}
+                  {resolvedJobTitle && resolvedTrade ? " · " : ""}
                   {resolvedTrade || ""}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">

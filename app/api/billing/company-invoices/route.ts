@@ -9,14 +9,11 @@ import {
 import {
   addUtcDaysToYmd,
   buildCompanyBillingLineItems,
-  buildCompanyBillingNote,
 } from "@/lib/billing/companyInvoiceDraft";
+import { createRecurringCompanyInvoice } from "@/lib/billing/recurringCompanyBilling";
 import {
-  computeBalanceDue,
   computeInvoiceTotals,
-  computeLineTotalCents,
 } from "@/lib/billing/invoiceTotals";
-import { recordBillingEvent } from "@/lib/billing/recordEvent";
 import { getCompanySeatCounts, normalizeCompanySubscriptionStatus } from "@/lib/companySeats";
 import type { InvoiceStatus, LineItemInput } from "@/lib/billing/types";
 
@@ -89,16 +86,6 @@ function normalizeLineItems(raw: unknown): LineItemInput[] {
 function normalizeStatus(value: unknown): InvoiceStatus {
   const status = String(value ?? "draft").trim().toLowerCase();
   return (STATUSES.has(status) ? status : "draft") as InvoiceStatus;
-}
-
-function buildCombinedLineItems(
-  companyLineItems: LineItemInput[],
-  manualLineItems: LineItemInput[]
-): LineItemInput[] {
-  return [...companyLineItems, ...manualLineItems].map((item, index) => ({
-    ...item,
-    sort_order: item.sort_order ?? index,
-  }));
 }
 
 async function getBillableCustomer(params: {
@@ -395,148 +382,51 @@ export async function POST(request: Request) {
       companyId,
     });
 
-    const preview = await loadCompanyBillingPreview(auth, companyId);
-    if ("error" in preview) {
-      return NextResponse.json({ error: preview.error }, { status: 400 });
-    }
-
-    const customer = await getBillableCustomer({
+    const result = await createRecurringCompanyInvoice({
       supabase: auth.supabase,
       companyId,
-      companyName: preview.companyName,
-      primaryContactName: preview.company.primary_contact_name,
-      primaryContactEmail: preview.company.primary_contact_email,
-      requestedCustomerId: requestedCustomerId || undefined,
-      createIfMissing: true,
-    });
-
-    if (customer.error || !customer.data) {
-      return NextResponse.json({ error: customer.error || "Billing customer not available." }, { status: 400 });
-    }
-
-    const lineItems = buildCombinedLineItems(preview.lineItems, extraLineItems);
-    if (lineItems.length === 0) {
-      return NextResponse.json(
-        {
-          error:
-            "No billable line items were generated. Configure company subscription and seat pricing first.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const totals = computeInvoiceTotals({
-      lineItems,
-      discountCents: discount_cents,
+      createdByUserId: auth.user.id,
+      issueDateYmd: issue_date,
+      dueDateYmd: due_date,
       taxRateBps: tax_rate_bps,
+      discountCents: discount_cents,
+      status,
+      currency: String(body.currency ?? "usd").trim().toLowerCase() || "usd",
+      notes: body.notes == null ? null : String(body.notes),
+      terms: body.terms == null ? null : String(body.terms),
+      requestedCustomerId: requestedCustomerId || undefined,
+      extraLineItems,
+      billingSource: "recurring_company_pricing",
     });
 
-    const { data: invoiceNumber, error: numErr } = await auth.supabase.rpc(
-      "billing_generate_invoice_number"
-    );
+    if (result.status === "created") {
+      const { data: full } = await auth.supabase
+        .from("billing_invoices")
+        .select("*, billing_invoice_line_items(*)")
+        .eq("id", result.invoiceId)
+        .single();
 
-    if (numErr || !invoiceNumber || typeof invoiceNumber !== "string") {
-      return NextResponse.json(
-        { error: numErr?.message || "Failed to generate invoice number." },
-        { status: 500 }
-      );
+      return NextResponse.json({
+        invoice: full,
+        message: "Recurring company billing draft created.",
+      });
     }
 
-    const amount_paid_cents = 0;
-    const balance_due_cents = computeBalanceDue(totals.total_cents, amount_paid_cents);
-    const notes =
-      body.notes == null || String(body.notes).trim() === ""
-        ? buildCompanyBillingNote({
-            companyName: preview.companyName,
-            planName: preview.subscription.planName,
-            seatsUsed: preview.subscription.seatsUsed,
-          })
-        : String(body.notes);
-    const terms = body.terms == null ? "Net 30" : String(body.terms);
-    const currency = String(body.currency ?? "usd").trim().toLowerCase() || "usd";
+    if (result.status === "skipped" && result.existingInvoiceId) {
+      const { data: full } = await auth.supabase
+        .from("billing_invoices")
+        .select("*, billing_invoice_line_items(*)")
+        .eq("id", result.existingInvoiceId)
+        .single();
 
-    const { data: invoice, error: invoiceErr } = await auth.supabase
-      .from("billing_invoices")
-      .insert({
-        invoice_number: invoiceNumber,
-        customer_id: customer.data.id,
-        company_id: companyId,
-        status,
-        issue_date,
-        due_date,
-        subtotal_cents: totals.subtotal_cents,
-        tax_cents: totals.tax_cents,
-        discount_cents: totals.discount_cents,
-        total_cents: totals.total_cents,
-        amount_paid_cents,
-        balance_due_cents,
-        currency,
-        notes,
-        terms,
-        created_by_user_id: auth.user.id,
-        metadata: {
-          ...(body.metadata && typeof body.metadata === "object"
-            ? (body.metadata as Record<string, unknown>)
-            : {}),
-          billing_mode: "company_pricing",
-          company_name: preview.companyName,
-          plan_name: preview.subscription.planName,
-          seats_used: preview.subscription.seatsUsed,
-          membership_seats: preview.subscription.membershipSeats,
-          pending_invites: preview.subscription.pendingInviteCount,
-          generated_from_company_subscription: true,
-        },
-      })
-      .select()
-      .single();
-
-    if (invoiceErr || !invoice) {
-      return NextResponse.json({ error: invoiceErr?.message || "Insert failed." }, { status: 500 });
+      return NextResponse.json({
+        invoice: full,
+        message: result.reason,
+        skipped: true,
+      });
     }
 
-    const invoiceId = invoice.id as string;
-    const rows = lineItems.map((li, index) => ({
-      invoice_id: invoiceId,
-      sort_order: li.sort_order ?? index,
-      item_type: li.item_type ?? "custom",
-      description: li.description,
-      quantity: li.quantity,
-      unit_price_cents: li.unit_price_cents,
-      line_total_cents: computeLineTotalCents(li.quantity, li.unit_price_cents),
-      metadata: li.metadata ?? {},
-    }));
-
-    const { error: liErr } = await auth.supabase.from("billing_invoice_line_items").insert(rows);
-    if (liErr) {
-      await auth.supabase.from("billing_invoices").delete().eq("id", invoiceId);
-      return NextResponse.json({ error: liErr.message }, { status: 500 });
-    }
-
-    await recordBillingEvent(auth.supabase, {
-      invoice_id: invoiceId,
-      event_type: "created",
-      created_by_user_id: auth.user.id,
-      event_data: {
-        invoice_number: invoiceNumber,
-        status,
-        billing_mode: "company_pricing",
-      },
-    });
-
-    const { data: full } = await auth.supabase
-      .from("billing_invoices")
-      .select("*, billing_invoice_line_items(*)")
-      .eq("id", invoiceId)
-      .single();
-
-    return NextResponse.json({
-      invoice: full,
-      billingCustomer: customer.data,
-      preview: {
-        lineItems: preview.lineItems,
-        totals: preview.totals,
-      },
-    });
+    return NextResponse.json({ error: result.reason }, { status: result.status === "error" ? 500 : 400 });
   } catch (e) {
     if (e instanceof BillingAccessError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

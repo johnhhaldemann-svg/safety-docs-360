@@ -45,9 +45,9 @@ Run **Supabase migrations first** whenever migration files changed, then deploy 
 3. **Custom domain**: attach domain in Vercel; ensure DNS and HTTPS complete. Update Supabase redirect URLs to match.
 4. **Build**: confirm `npm run build` succeeds (Vercel runs this automatically).
 
-## 3. Scheduled cron (Injury Weather)
+## 3. Scheduled crons
 
-[`vercel.json`](../vercel.json) schedules `GET /api/cron/injury-weather-refresh` daily.
+[`vercel.json`](../vercel.json) schedules `GET /api/cron/injury-weather-refresh` and `GET /api/cron/company-billing-invoices` daily.
 
 1. Set **`CRON_SECRET`** in Vercel **Production** (and Preview if crons run there).
 2. Vercel injects `Authorization: Bearer <CRON_SECRET>` on cron invocations when `CRON_SECRET` is defined. The handler also accepts `?secret=<CRON_SECRET>` for **manual** runs (do not share or log URLs containing the secret).

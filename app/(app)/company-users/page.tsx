@@ -547,7 +547,7 @@ export default function CompanyUsersPage() {
       <PageHero
         eyebrow="Company Workspace"
         title="Workforce Operations"
-        description={`Manage role/status, assignment readiness, and module access visibility for ${scopeCompanyName}.`}
+        description={`Workspace roles here (Company Admin, Company User, etc.) control app permissions—documents, CSEP, and billing. They are separate from jobsite titles on each person’s Construction profile.`}
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <Link
