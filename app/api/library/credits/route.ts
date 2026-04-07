@@ -9,6 +9,7 @@ import {
 } from "@/lib/companyBilling";
 import { normalizeCompanySubscriptionStatus } from "@/lib/companySeats";
 import { authorizeRequest } from "@/lib/rbac";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { DEFAULT_DOCUMENT_CREDITS, normalizePurchasedIds } from "@/lib/marketplace";
 import {
   ensureInitialCredits,
@@ -47,9 +48,15 @@ export async function GET(request: Request) {
     authUser: user,
   });
 
+  // `company_subscriptions` / `company_credit_transactions` RLS only allows managers; members
+  // (e.g. superintendent) cannot read those rows with the user JWT. After auth + membership
+  // scope, use service role when available so billing UI matches `company_subscriptions`.
+  const admin = createSupabaseAdminClient();
+  const companyDataClient = admin ?? supabase;
+
   if (companyScope.companyId) {
     const companySubscription = await getCompanySubscriptionStatus(
-      supabase,
+      companyDataClient,
       companyScope.companyId
     );
     const companySubStatus = normalizeCompanySubscriptionStatus(
@@ -57,13 +64,13 @@ export async function GET(request: Request) {
     );
 
     const companyTransactionResult = await listCompanyCreditTransactions(
-      supabase,
+      companyDataClient,
       companyScope.companyId
     );
 
     if (!companyTransactionResult.error) {
       const initialGrant = await ensureInitialCompanyCredits({
-        supabase,
+        supabase: companyDataClient,
         companyId: companyScope.companyId,
         subscriptionStatus: companySubscription.data?.status ?? null,
         existingTransactions: companyTransactionResult.data,
@@ -71,7 +78,7 @@ export async function GET(request: Request) {
 
       const ledgerResult =
         initialGrant.granted && !initialGrant.error
-          ? await listCompanyCreditTransactions(supabase, companyScope.companyId)
+          ? await listCompanyCreditTransactions(companyDataClient, companyScope.companyId)
           : companyTransactionResult;
 
       if (!ledgerResult.error) {
