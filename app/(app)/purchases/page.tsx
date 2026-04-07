@@ -416,8 +416,9 @@ export default function PurchasesPage() {
       >
         {!canManageBilling ? (
           <InlineMessage tone="warning">
-            Your current role can view completed documents and credit history, but only
-            billing-enabled roles can add marketplace credits or unlock files.
+            Your current role can view unlocked documents and credit history here. Only
+            billing-enabled roles can buy marketplace credits or unlock new listings from
+            the library.
           </InlineMessage>
         ) : (
           <div className="grid gap-4 md:grid-cols-3">

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -609,9 +609,9 @@ export default function AppLayout({
         companyAllowedRoutes.push("/company-users");
       }
 
-      if (permissionMap?.can_manage_billing) {
-        companyAllowedRoutes.push("/purchases");
-      }
+      // All company users may open My Purchases to see unlocked docs and history; only
+      // can_manage_billing can buy credits or unlock on /purchases (enforced in UI + APIs).
+      companyAllowedRoutes.push("/purchases");
 
       if (
         permissionMap?.can_view_dashboards &&
