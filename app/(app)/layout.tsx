@@ -295,6 +295,11 @@ export default function AppLayout({
     [sideSections]
   );
 
+  const sidebarQuickItems = useMemo(
+    () => commandPaletteItems.slice(0, 4),
+    [commandPaletteItems]
+  );
+
   const currentNavItem = useMemo(() => {
     for (const section of sideSections) {
       for (const item of section.items) {
@@ -932,6 +937,50 @@ export default function AppLayout({
                       Safety Management Platform
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-4 pb-1">
+              <div className="rounded-[1.4rem] border border-white/10 bg-white/5 p-3 shadow-[0_12px_24px_rgba(2,8,23,0.14)]">
+                <div className="flex items-center justify-between gap-3 px-1">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">
+                    Quick access
+                  </div>
+                  <div className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                    {currentNavItem.short}
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {sidebarQuickItems.map((item) => {
+                    const active = isActivePath(pathname, item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cx(
+                          "flex items-center gap-2 rounded-2xl border px-3 py-2.5 transition",
+                          active
+                            ? "border-teal-400/50 bg-teal-400/10 text-white"
+                            : "border-white/10 bg-white/5 text-slate-200 hover:bg-white/10 hover:text-white"
+                        )}
+                      >
+                        <span
+                          className={cx(
+                            "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-[10px] font-black",
+                            active
+                              ? "bg-teal-500/25 text-teal-100"
+                              : "bg-white/8 text-teal-200"
+                          )}
+                        >
+                          {item.short}
+                        </span>
+                        <span className="min-w-0 truncate text-xs font-semibold">
+                          {item.label}
+                        </span>
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             </div>

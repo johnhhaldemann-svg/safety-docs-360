@@ -164,7 +164,6 @@ export const companyAdminSideSections: NavSection[] = [
     title: "Overview",
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
-      { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
       {
         href: "/library#library-marketplace",
@@ -172,9 +171,16 @@ export const companyAdminSideSections: NavSection[] = [
         short: "MK",
       },
       { href: "/search", label: "Search documents", short: "SR" },
+      { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
+    ],
+  },
+  {
+    title: "People & account",
+    items: [
       { href: "/company-users", label: "Team & users", short: "US" },
       { href: "/training-matrix", label: "Training matrix", short: "TM" },
+      { href: "/profile", label: "Construction profile", short: "CP" },
     ],
   },
   {
@@ -201,10 +207,6 @@ export const companyAdminSideSections: NavSection[] = [
       { href: "/peshep", label: "PESHEP builder", short: "PB" },
       { href: "/csep", label: "CSEP builder", short: "CS" },
     ],
-  },
-  {
-    title: "Account",
-    items: [{ href: "/profile", label: "Construction profile", short: "CP" }],
   },
 ];
 
@@ -213,7 +215,6 @@ export const companyManagerSideSections: NavSection[] = [
     title: "Overview",
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
-      { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
       {
         href: "/library#library-marketplace",
@@ -221,6 +222,7 @@ export const companyManagerSideSections: NavSection[] = [
         short: "MK",
       },
       { href: "/search", label: "Search documents", short: "SR" },
+      { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/training-matrix", label: "Training matrix", short: "TM" },
     ],
@@ -251,7 +253,7 @@ export const companyManagerSideSections: NavSection[] = [
     ],
   },
   {
-    title: "Account",
+    title: "People & account",
     items: [{ href: "/profile", label: "Construction profile", short: "CP" }],
   },
 ];
@@ -269,7 +271,6 @@ export const companyUserSideSections: NavSection[] = [
       },
       { href: "/search", label: "Search documents", short: "SR" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
-      { href: "/training-matrix", label: "Training matrix", short: "TM" },
     ],
   },
   {
@@ -280,8 +281,11 @@ export const companyUserSideSections: NavSection[] = [
     ],
   },
   {
-    title: "Account",
-    items: [{ href: "/profile", label: "Construction profile", short: "CP" }],
+    title: "Learn & profile",
+    items: [
+      { href: "/training-matrix", label: "Training matrix", short: "TM" },
+      { href: "/profile", label: "Construction profile", short: "CP" },
+    ],
   },
 ];
 
