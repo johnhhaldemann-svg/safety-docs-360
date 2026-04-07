@@ -28,6 +28,7 @@ export default function NewInvoicePage() {
   ]);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [creatingCompanyDraft, setCreatingCompanyDraft] = useState(false);
 
   const loadCustomers = useCallback(async () => {
     const {
@@ -111,6 +112,66 @@ export default function NewInvoicePage() {
       router.push(`/billing/invoices/${data.invoice.id}`);
     }
     setSaving(false);
+  }
+
+  async function createCompanyBillingDraft() {
+    setCreatingCompanyDraft(true);
+    setMessage("");
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) {
+      setMessage("Sign in required.");
+      setCreatingCompanyDraft(false);
+      return;
+    }
+
+    const line_items = lines
+      .map((row) => ({
+        description: row.description.trim(),
+        quantity: Number(row.quantity) || 1,
+        unit_price_cents: Math.max(0, Math.floor(Number(row.unit_price_cents) || 0)),
+        item_type: "custom" as const,
+      }))
+      .filter((r) => r.description.length > 0);
+
+    const res = await fetch("/api/billing/company-invoices", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        customer_id: customerId,
+        company_id: companyId,
+        status: "draft",
+        issue_date: issueDate,
+        due_date: dueDate,
+        tax_rate_bps: Math.max(0, Math.floor(Number(taxBps) || 0)),
+        discount_cents: Math.max(0, Math.floor(Number(discountCents) || 0)),
+        notes: notes.trim() || null,
+        terms: terms.trim() || null,
+        line_items,
+      }),
+    });
+
+    const data = (await res.json().catch(() => null)) as
+      | { error?: string; invoice?: { id: string } }
+      | null;
+
+    if (!res.ok) {
+      setMessage(data?.error || "Create failed.");
+      setCreatingCompanyDraft(false);
+      return;
+    }
+
+    if (data?.invoice?.id) {
+      router.push(`/billing/invoices/${data.invoice.id}`);
+    }
+
+    setCreatingCompanyDraft(false);
   }
 
   return (
@@ -294,7 +355,19 @@ export default function NewInvoicePage() {
           >
             {saving ? "Saving…" : "Save draft"}
           </button>
+          <button
+            type="button"
+            disabled={creatingCompanyDraft || !customerId || !companyId}
+            onClick={() => void createCompanyBillingDraft()}
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-violet-400/60 px-5 py-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-950/40 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {creatingCompanyDraft ? "Creating..." : "Generate company billing draft"}
+          </button>
         </div>
+        <p className="mt-3 text-xs text-slate-500">
+          The company billing draft uses the selected workspace&apos;s subscription and licensed
+          user pricing. Manual line items you enter here are added on top.
+        </p>
       </SectionCard>
     </div>
   );

@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { MarketplacePreviewModal } from "@/components/MarketplacePreviewModal";
 import {
   EmptyState,
   InlineMessage,
@@ -41,6 +42,13 @@ type DocumentItem = {
   final_file_path?: string | null;
 };
 
+type ExcerptModalState = {
+  title: string;
+  excerpt: string;
+  truncated: boolean;
+  empty: boolean;
+};
+
 function statusClasses(status?: string | null) {
   return getDocumentStatusTone(status);
 }
@@ -52,6 +60,9 @@ export default function ReviewDocumentsPage() {
   const [message, setMessage] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkLoading, setBulkLoading] = useState<"" | "archive" | "delete">("");
+  const [excerptModal, setExcerptModal] = useState<ExcerptModalState | null>(null);
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
+  const [downloadLoadingId, setDownloadLoadingId] = useState<string | null>(null);
 
   const loadDocuments = useCallback(async () => {
     const { data, error } = await supabase
@@ -82,8 +93,57 @@ export default function ReviewDocumentsPage() {
     return session.access_token;
   }, []);
 
-  const openDraftDocument = useCallback(
+  const previewDraftExcerpt = useCallback(
     async (documentId: string) => {
+      setPreviewLoadingId(documentId);
+      setMessage("");
+      try {
+        const token = await getAccessToken();
+        const res = await fetch(`/api/admin/documents/${documentId}/preview-excerpt`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = (await res.json().catch(() => null)) as
+          | {
+              error?: string;
+              title?: string;
+              excerpt?: string;
+              truncated?: boolean;
+              empty?: boolean;
+            }
+          | null;
+
+        if (!res.ok) {
+          throw new Error(data?.error || "Failed to load preview excerpt.");
+        }
+
+        if (typeof data?.excerpt !== "string") {
+          throw new Error("Invalid preview response.");
+        }
+
+        setExcerptModal({
+          title: typeof data.title === "string" ? data.title : "Document preview",
+          excerpt: data.excerpt,
+          truncated: Boolean(data.truncated),
+          empty: Boolean(data.empty),
+        });
+      } catch (error) {
+        setMessage(
+          error instanceof Error ? error.message : "Failed to load preview excerpt."
+        );
+      } finally {
+        setPreviewLoadingId(null);
+      }
+    },
+    [getAccessToken]
+  );
+
+  const downloadFullDraft = useCallback(
+    async (documentId: string) => {
+      setDownloadLoadingId(documentId);
+      setMessage("");
       try {
         const token = await getAccessToken();
         const res = await fetch(`/api/documents/download/${documentId}`, {
@@ -94,7 +154,7 @@ export default function ReviewDocumentsPage() {
 
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          throw new Error(data?.error || "Failed to open draft document.");
+          throw new Error(data?.error || "Failed to download draft document.");
         }
 
         const blob = await res.blob();
@@ -105,8 +165,10 @@ export default function ReviewDocumentsPage() {
         }, 60_000);
       } catch (error) {
         setMessage(
-          error instanceof Error ? error.message : "Failed to open draft document."
+          error instanceof Error ? error.message : "Failed to download draft document."
         );
+      } finally {
+        setDownloadLoadingId(null);
       }
     },
     [getAccessToken]
@@ -312,7 +374,10 @@ export default function ReviewDocumentsPage() {
         emptyMessage="No submitted drafts are waiting for review."
         documents={pendingDocuments}
         actionLabel="Review"
-        onOpenDraft={openDraftDocument}
+        onPreviewDraft={previewDraftExcerpt}
+        onDownloadFullDraft={downloadFullDraft}
+        previewLoadingId={previewLoadingId}
+        downloadLoadingId={downloadLoadingId}
         canReviewDocuments={canReviewDocuments}
         canApproveDocuments={canApproveDocuments}
         selectedIds={selectedIds}
@@ -324,11 +389,24 @@ export default function ReviewDocumentsPage() {
         emptyMessage="No approved documents yet."
         documents={approvedDocuments}
         actionLabel="Open Review"
-        onOpenDraft={openDraftDocument}
+        onPreviewDraft={previewDraftExcerpt}
+        onDownloadFullDraft={downloadFullDraft}
+        previewLoadingId={previewLoadingId}
+        downloadLoadingId={downloadLoadingId}
         canReviewDocuments={canReviewDocuments}
         canApproveDocuments={canApproveDocuments}
         selectedIds={selectedIds}
         setSelectedIds={setSelectedIds}
+      />
+
+      <MarketplacePreviewModal
+        open={Boolean(excerptModal)}
+        onClose={() => setExcerptModal(null)}
+        title={excerptModal?.title ?? ""}
+        excerpt={excerptModal?.excerpt ?? ""}
+        truncated={excerptModal?.truncated ?? false}
+        empty={excerptModal?.empty ?? false}
+        variant="admin"
       />
     </div>
   );
@@ -339,7 +417,10 @@ function ReviewSection({
   emptyMessage,
   documents,
   actionLabel,
-  onOpenDraft,
+  onPreviewDraft,
+  onDownloadFullDraft,
+  previewLoadingId,
+  downloadLoadingId,
   canReviewDocuments,
   canApproveDocuments,
   selectedIds,
@@ -349,7 +430,10 @@ function ReviewSection({
   emptyMessage: string;
   documents: DocumentItem[];
   actionLabel: string;
-  onOpenDraft: (documentId: string) => Promise<void>;
+  onPreviewDraft: (documentId: string) => Promise<void>;
+  onDownloadFullDraft: (documentId: string) => Promise<void>;
+  previewLoadingId: string | null;
+  downloadLoadingId: string | null;
   canReviewDocuments: boolean;
   canApproveDocuments: boolean;
   selectedIds: string[];
@@ -452,12 +536,22 @@ function ReviewSection({
                     <button
                       type="button"
                       onClick={() => {
-                        void onOpenDraft(doc.id);
+                        void onPreviewDraft(doc.id);
                       }}
-                      disabled={!canReviewDocuments}
-                      className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-600 bg-slate-900/90 px-4 text-sm font-extrabold text-slate-100 hover:bg-slate-800/70"
+                      disabled={!canReviewDocuments || previewLoadingId === doc.id}
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-600 bg-slate-900/90 px-4 text-sm font-extrabold text-slate-100 hover:bg-slate-800/70 disabled:opacity-60"
                     >
-                      Open Draft DOCX
+                      {previewLoadingId === doc.id ? "Loading excerpt…" : "Preview excerpt"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void onDownloadFullDraft(doc.id);
+                      }}
+                      disabled={!canReviewDocuments || downloadLoadingId === doc.id}
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-600/50 bg-amber-950/30 px-4 text-sm font-extrabold text-amber-100 hover:bg-amber-950/50 disabled:opacity-60"
+                    >
+                      {downloadLoadingId === doc.id ? "Downloading…" : "Download full draft"}
                     </button>
 
                     <Link

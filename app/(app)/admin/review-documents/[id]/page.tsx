@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import { MarketplacePreviewModal } from "@/components/MarketplacePreviewModal";
 import {
   EmptyState,
   InlineMessage,
@@ -152,7 +153,14 @@ export default function ReviewDocumentPage() {
   const [savingMarketplace, setSavingMarketplace] = useState(false);
   const [marketplacePreviewFile, setMarketplacePreviewFile] = useState<File | null>(null);
   const [uploadingPreview, setUploadingPreview] = useState(false);
-  const [openingDraft, setOpeningDraft] = useState(false);
+  const [previewExcerptLoading, setPreviewExcerptLoading] = useState(false);
+  const [fullFileDownloadLoading, setFullFileDownloadLoading] = useState(false);
+  const [excerptModal, setExcerptModal] = useState<{
+    title: string;
+    excerpt: string;
+    truncated: boolean;
+    empty: boolean;
+  } | null>(null);
   const [lifecycleLoading, setLifecycleLoading] = useState<
     "archive" | "restore" | "delete" | ""
   >("");
@@ -283,12 +291,61 @@ export default function ReviewDocumentPage() {
     })();
   }, []);
 
-  const openDraftDocument = useCallback(async () => {
+  const previewAdminExcerpt = useCallback(async () => {
     if (!documentItem?.id) {
       return;
     }
 
-    setOpeningDraft(true);
+    setPreviewExcerptLoading(true);
+
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`/api/admin/documents/${documentItem.id}/preview-excerpt`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = (await res.json().catch(() => null)) as
+        | {
+            error?: string;
+            title?: string;
+            excerpt?: string;
+            truncated?: boolean;
+            empty?: boolean;
+          }
+        | null;
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to load preview excerpt.");
+      }
+
+      if (typeof data?.excerpt !== "string") {
+        throw new Error("Invalid preview response.");
+      }
+
+      setExcerptModal({
+        title: typeof data.title === "string" ? data.title : "Document preview",
+        excerpt: data.excerpt,
+        truncated: Boolean(data.truncated),
+        empty: Boolean(data.empty),
+      });
+    } catch (error) {
+      setFeedbackMessage(
+        error instanceof Error ? error.message : "Failed to load preview excerpt.",
+        "error"
+      );
+    } finally {
+      setPreviewExcerptLoading(false);
+    }
+  }, [documentItem?.id, getAccessToken, setFeedbackMessage]);
+
+  const downloadFullDraft = useCallback(async () => {
+    if (!documentItem?.id) {
+      return;
+    }
+
+    setFullFileDownloadLoading(true);
 
     try {
       const token = await getAccessToken();
@@ -302,7 +359,7 @@ export default function ReviewDocumentPage() {
         const data = (await res.json().catch(() => null)) as
           | { error?: string }
           | null;
-        throw new Error(data?.error || "Failed to open draft document.");
+        throw new Error(data?.error || "Failed to download draft document.");
       }
 
       const blob = await res.blob();
@@ -311,44 +368,55 @@ export default function ReviewDocumentPage() {
       window.setTimeout(() => {
         window.URL.revokeObjectURL(url);
       }, 60_000);
-      setFeedbackMessage("Draft DOCX opened in a new tab.", "success");
+      setFeedbackMessage("Full draft opened in a new tab.", "success");
     } catch (error) {
       setFeedbackMessage(
-        error instanceof Error ? error.message : "Failed to open draft document.",
+        error instanceof Error ? error.message : "Failed to download draft document.",
         "error"
       );
     } finally {
-      setOpeningDraft(false);
+      setFullFileDownloadLoading(false);
     }
   }, [documentItem?.id, getAccessToken, setFeedbackMessage]);
 
-  const openGcUploadedFile = useCallback(async () => {
-    if (!documentItem?.file_path) {
+  const downloadGcFullUpload = useCallback(async () => {
+    if (!documentItem?.id) {
       return;
     }
 
-    setOpeningDraft(true);
+    setFullFileDownloadLoading(true);
 
     try {
-      const { data, error } = await supabase.storage
-        .from("documents")
-        .createSignedUrl(documentItem.file_path, 120);
+      const token = await getAccessToken();
+      const res = await fetch(`/api/admin/documents/${documentItem.id}/download-upload`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-      if (error || !data?.signedUrl) {
-        throw new Error(error?.message || "Could not open uploaded file.");
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(data?.error || "Failed to open full company upload.");
       }
 
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-      setFeedbackMessage("Opened company upload in a new tab.", "success");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 60_000);
+      setFeedbackMessage("Full company upload opened in a new tab.", "success");
     } catch (error) {
       setFeedbackMessage(
-        error instanceof Error ? error.message : "Failed to open uploaded file.",
+        error instanceof Error ? error.message : "Failed to open company upload.",
         "error"
       );
     } finally {
-      setOpeningDraft(false);
+      setFullFileDownloadLoading(false);
     }
-  }, [documentItem?.file_path, setFeedbackMessage]);
+  }, [documentItem?.id, getAccessToken, setFeedbackMessage]);
 
   async function runGcReview(action: "approve" | "reject") {
     if (!documentItem?.id) {
@@ -1095,19 +1163,32 @@ export default function ReviewDocumentPage() {
         actions={
           <>
             {canOpenPrimaryReviewFile ? (
-              <button
-                type="button"
-                onClick={() => {
-                  void (isGcProgramDoc ? openGcUploadedFile() : openDraftDocument());
-                }}
-                className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
-              >
-                {openingDraft
-                  ? "Opening..."
-                  : isGcProgramDoc
-                    ? "Open company upload"
-                    : "Open Draft DOCX"}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void previewAdminExcerpt();
+                  }}
+                  disabled={previewExcerptLoading}
+                  className="rounded-xl border border-sky-500/40 bg-sky-950/40 px-5 py-3 text-sm font-semibold text-sky-100 transition hover:bg-sky-950/60 disabled:opacity-60"
+                >
+                  {previewExcerptLoading ? "Loading excerpt…" : "Preview excerpt"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void (isGcProgramDoc ? downloadGcFullUpload() : downloadFullDraft());
+                  }}
+                  disabled={fullFileDownloadLoading}
+                  className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:opacity-60"
+                >
+                  {fullFileDownloadLoading
+                    ? "Opening…"
+                    : isGcProgramDoc
+                      ? "Open full upload"
+                      : "Download full draft"}
+                </button>
+              </>
             ) : null}
             <Link
               href="/admin/review-documents"
@@ -1222,32 +1303,58 @@ export default function ReviewDocumentPage() {
                 </p>
                 <p className="mt-2 text-sm text-slate-400">
                   {isGcProgramDoc
-                    ? "Open the file the company uploaded. It stays hidden from their workspace until you approve it."
-                    : "Download the submitted draft to complete edits in Word before uploading the approved version."}
+                    ? "Preview an excerpt first; open the full company upload only when you need the complete file. It stays hidden from their workspace until you approve it."
+                    : "Preview a short excerpt first. Download the full draft when you need to edit in Word before uploading the approved version."}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
                   {isGcProgramDoc ? (
                     documentItem.file_path ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void previewAdminExcerpt();
+                          }}
+                          disabled={previewExcerptLoading}
+                          className="rounded-xl border border-sky-500/40 bg-sky-950/40 px-4 py-2.5 text-sm font-semibold text-sky-100 transition hover:bg-sky-950/60 disabled:opacity-60"
+                        >
+                          {previewExcerptLoading ? "Loading excerpt…" : "Preview excerpt"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void downloadGcFullUpload();
+                          }}
+                          disabled={fullFileDownloadLoading}
+                          className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:opacity-60"
+                        >
+                          {fullFileDownloadLoading ? "Opening…" : "Open full upload"}
+                        </button>
+                      </>
+                    ) : null
+                  ) : (
+                    <>
                       <button
                         type="button"
                         onClick={() => {
-                          void openGcUploadedFile();
+                          void previewAdminExcerpt();
                         }}
-                        className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+                        disabled={previewExcerptLoading}
+                        className="rounded-xl border border-sky-500/40 bg-sky-950/40 px-4 py-2.5 text-sm font-semibold text-sky-100 transition hover:bg-sky-950/60 disabled:opacity-60"
                       >
-                        {openingDraft ? "Opening..." : "Open company upload"}
+                        {previewExcerptLoading ? "Loading excerpt…" : "Preview excerpt"}
                       </button>
-                    ) : null
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void openDraftDocument();
-                      }}
-                      className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
-                    >
-                      {openingDraft ? "Opening..." : "Open Draft DOCX"}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void downloadFullDraft();
+                        }}
+                        disabled={fullFileDownloadLoading}
+                        className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:opacity-60"
+                      >
+                        {fullFileDownloadLoading ? "Opening…" : "Download full draft"}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -1931,6 +2038,16 @@ export default function ReviewDocumentPage() {
           </SectionCard>
         </div>
       </div>
+
+      <MarketplacePreviewModal
+        open={Boolean(excerptModal)}
+        onClose={() => setExcerptModal(null)}
+        title={excerptModal?.title ?? ""}
+        excerpt={excerptModal?.excerpt ?? ""}
+        truncated={excerptModal?.truncated ?? false}
+        empty={excerptModal?.empty ?? false}
+        variant="admin"
+      />
     </div>
   );
 }

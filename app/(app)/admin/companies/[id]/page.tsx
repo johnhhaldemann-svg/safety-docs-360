@@ -171,6 +171,7 @@ export default function AdminCompanyDetailPage({
   });
   const [savingSubscription, setSavingSubscription] = useState(false);
   const [savingCompanyPermissions, setSavingCompanyPermissions] = useState(false);
+  const [creatingBillingDraft, setCreatingBillingDraft] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingCompany, setDeletingCompany] = useState(false);
@@ -501,6 +502,64 @@ export default function AdminCompanyDetailPage({
     setSavingCompanyPermissions(false);
   }, [companyId, companyPermissionDraft, loadCompany]);
 
+  const handleCreateBillingDraft = useCallback(async () => {
+    if (!companyId) return;
+
+    setCreatingBillingDraft(true);
+    setMessage("");
+
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error || !session?.access_token) {
+        setMessageTone("error");
+        setMessage("You must be logged in as an internal admin.");
+        setCreatingBillingDraft(false);
+        return;
+      }
+
+      const res = await fetch("/api/billing/company-invoices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          company_id: companyId,
+        }),
+      });
+
+      const data = (await res.json().catch(() => null)) as
+        | {
+            error?: string;
+            invoice?: { id?: string };
+          }
+        | null;
+
+      if (!res.ok) {
+        setMessageTone("error");
+        setMessage(data?.error || "Failed to create billing draft.");
+        setCreatingBillingDraft(false);
+        return;
+      }
+
+      setMessageTone("success");
+      setMessage("Billing draft created.");
+
+      if (data?.invoice?.id) {
+        router.push(`/billing/invoices/${data.invoice.id}`);
+      }
+    } catch (err) {
+      setMessageTone("error");
+      setMessage(err instanceof Error ? err.message : "Failed to create billing draft.");
+    }
+
+    setCreatingBillingDraft(false);
+  }, [companyId, router]);
+
   const handlePermanentDelete = useCallback(async () => {
     if (!company) return;
 
@@ -586,6 +645,10 @@ export default function AdminCompanyDetailPage({
         : [],
     [summary]
   );
+
+  const canGenerateBillingDraft =
+    Boolean(subscription) &&
+    (subscription?.subscriptionPriceCents != null || subscription?.seatPriceCents != null);
 
   return (
     <div className="space-y-8">
@@ -954,7 +1017,21 @@ export default function AdminCompanyDetailPage({
                 >
                   {savingSubscription ? "Saving…" : "Save subscription, licenses & pricing"}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCreateBillingDraft()}
+                  disabled={creatingBillingDraft || loading || !canGenerateBillingDraft}
+                  className="rounded-xl border border-violet-400/60 px-5 py-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-950/40 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {creatingBillingDraft ? "Creating..." : "Create billing draft"}
+                </button>
               </div>
+            ) : null}
+            {canManageCompanySubscription && !canGenerateBillingDraft ? (
+              <p className="text-sm text-slate-500">
+                Add a subscription or seat price override first to generate an automatic billing
+                draft.
+              </p>
             ) : null}
           </div>
         )}

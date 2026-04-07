@@ -1,6 +1,6 @@
 "use client";
 
-type PreviewVariant = "marketplace" | "workspace";
+type PreviewVariant = "marketplace" | "workspace" | "admin";
 
 type Props = {
   open: boolean;
@@ -9,7 +9,7 @@ type Props = {
   excerpt: string;
   truncated: boolean;
   empty: boolean;
-  /** Workspace = in-review / active library rows; marketplace = credit unlock listings */
+  /** Workspace = in-review / active library rows; marketplace = credit unlock listings; admin = review queue */
   variant?: PreviewVariant;
 };
 
@@ -27,19 +27,25 @@ export function MarketplacePreviewModal({
   }
 
   const emptyBody =
-    variant === "workspace"
-      ? "No readable text could be extracted (for example, a scanned PDF). When this record is approved, open the full file from Ready to open."
-      : "No readable text could be pulled from the preview file (for example, a scanned PDF). Unlock the document after purchase to access the complete file from the publisher.";
+    variant === "admin"
+      ? "No readable text could be extracted (for example, a scanned PDF). Use Download full draft or Open full upload on this page if you need the complete file."
+      : variant === "workspace"
+        ? "No readable text could be extracted (for example, a scanned PDF). When this record is approved, open the full file from Ready to open."
+        : "No readable text could be pulled from the preview file (for example, a scanned PDF). Unlock the document after purchase to access the complete file from the publisher.";
 
   const footerMain =
-    variant === "workspace"
-      ? "This is an on-screen excerpt only — not a download. After approval, use Open document under Ready to open for the full file (with the usual confirmation)."
-      : "This screen shows a short on-platform excerpt only. There is no file download here. Purchasing unlocks the full document through your library.";
+    variant === "admin"
+      ? "This is an on-screen excerpt only — not the full file. Use “Download full draft” or “Open full upload” on the review page when you need the complete document."
+      : variant === "workspace"
+        ? "This is an on-screen excerpt only — not a download. After approval, use Open document under Ready to open for the full file (with the usual confirmation)."
+        : "This screen shows a short on-platform excerpt only. There is no file download here. Purchasing unlocks the full document through your library.";
 
   const truncatedNote =
-    variant === "workspace"
-      ? "Text is truncated; the full file is available only after approval from Ready to open."
-      : "Text is truncated; the full content is available only after unlock.";
+    variant === "admin"
+      ? "Text is truncated; download the full draft or company upload from the review actions if you need everything."
+      : variant === "workspace"
+        ? "Text is truncated; the full file is available only after approval from Ready to open."
+        : "Text is truncated; the full content is available only after unlock.";
 
   return (
     <div
