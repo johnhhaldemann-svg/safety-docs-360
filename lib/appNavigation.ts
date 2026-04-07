@@ -166,6 +166,11 @@ export const companyAdminSideSections: NavSection[] = [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
+      {
+        href: "/library#library-marketplace",
+        label: "Marketplace",
+        short: "MK",
+      },
       { href: "/search", label: "Search documents", short: "SR" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/company-users", label: "Team & users", short: "US" },
@@ -210,6 +215,11 @@ export const companyManagerSideSections: NavSection[] = [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/library", label: "Documents", short: "DC" },
+      {
+        href: "/library#library-marketplace",
+        label: "Marketplace",
+        short: "MK",
+      },
       { href: "/search", label: "Search documents", short: "SR" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/training-matrix", label: "Training matrix", short: "TM" },
@@ -252,6 +262,11 @@ export const companyUserSideSections: NavSection[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/library", label: "Documents", short: "DC" },
+      {
+        href: "/library#library-marketplace",
+        label: "Marketplace",
+        short: "MK",
+      },
       { href: "/search", label: "Search documents", short: "SR" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/training-matrix", label: "Training matrix", short: "TM" },

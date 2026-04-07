@@ -488,17 +488,29 @@ function LibraryPageContent() {
   }, [approvedDocuments, creditState.purchasedDocumentIds, currentUserId, isManagerView]);
 
   const marketplaceDocuments = useMemo(() => {
-    if (isManagerView) {
-      return [];
-    }
-
     return approvedDocuments.filter(
       (doc) =>
         isMarketplaceEnabled(doc.notes) &&
         doc.user_id !== currentUserId &&
         !creditState.purchasedDocumentIds.includes(doc.id)
     );
-  }, [approvedDocuments, creditState.purchasedDocumentIds, currentUserId, isManagerView]);
+  }, [approvedDocuments, creditState.purchasedDocumentIds, currentUserId]);
+
+  useEffect(() => {
+    if (loading || typeof window === "undefined") {
+      return;
+    }
+    if (window.location.hash !== "#library-marketplace") {
+      return;
+    }
+    const t = window.setTimeout(() => {
+      document.getElementById("library-marketplace")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [loading, marketplaceDocuments.length]);
 
   const stats = useMemo(() => {
     const activeDocuments = documents.filter((doc) => !isArchivedDocumentStatus(doc.status));
@@ -914,18 +926,16 @@ function LibraryPageContent() {
         highlightDocumentId={highlightDocId}
       />
 
-      {!isManagerView ? (
-        <MarketplaceSection
-          documents={marketplaceDocuments}
-          loading={loading}
-          creditBalance={creditState.creditBalance}
-          actionLoadingId={actionLoadingId}
-          previewLoadingId={previewLoadingId}
-          onPurchase={handlePurchaseDocument}
-          onPreview={handleMarketplacePreview}
-          highlightDocumentId={highlightDocId}
-        />
-      ) : null}
+      <MarketplaceSection
+        documents={marketplaceDocuments}
+        loading={loading}
+        creditBalance={creditState.creditBalance}
+        actionLoadingId={actionLoadingId}
+        previewLoadingId={previewLoadingId}
+        onPurchase={handlePurchaseDocument}
+        onPreview={handleMarketplacePreview}
+        highlightDocumentId={highlightDocId}
+      />
 
       {!isManagerView ? (
         <DocumentSection
@@ -1124,7 +1134,10 @@ function MarketplaceSection({
   highlightDocumentId?: string | null;
 }) {
   return (
-    <section className="rounded-[1.75rem] border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
+    <section
+      id="library-marketplace"
+      className="scroll-mt-24 rounded-[1.75rem] border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm"
+    >
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="text-2xl font-black tracking-tight text-white">
