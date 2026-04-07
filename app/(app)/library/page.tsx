@@ -1141,6 +1141,9 @@ function DocumentCard({
   actionLoading?: boolean;
 }) {
   const status = getDocumentStatus(document);
+  const hasAttachedFile = Boolean(
+    document.file_path || document.draft_file_path || document.final_file_path
+  );
 
   return (
     <article
@@ -1188,11 +1191,18 @@ function DocumentCard({
 
       <button
         type="button"
-        onClick={onOpen}
-        disabled={actionLoading}
+        onClick={() => {
+          if (!hasAttachedFile) return;
+          onOpen();
+        }}
+        disabled={actionLoading || !hasAttachedFile}
         className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {actionLoading ? "Loading…" : actionLabel}
+        {actionLoading
+          ? "Loading…"
+          : hasAttachedFile
+            ? actionLabel
+            : "No file attached"}
       </button>
     </article>
   );
