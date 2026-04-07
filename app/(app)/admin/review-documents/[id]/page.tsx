@@ -10,6 +10,7 @@ import {
   PageHero,
   SectionCard,
   StartChecklist,
+  WorkflowPath,
 } from "@/components/WorkspacePrimitives";
 import type { BuilderProgramAiReview } from "@/lib/builderDocumentAiReview";
 import { isDocumentAiReviewerRole } from "@/lib/documentAiReviewAuth";
@@ -1011,6 +1012,75 @@ export default function ReviewDocumentPage() {
   const canOpenPrimaryReviewFile = isGcProgramDoc
     ? Boolean(documentItem.file_path)
     : Boolean(documentItem.draft_file_path);
+  const reviewNotesProvided = Boolean(reviewerEmail.trim() || reviewNotes.trim());
+  const hasFinalFile = Boolean(documentItem.final_file_path);
+  const currentStepLabel = isArchivedStatus(documentItem.status)
+    ? "Archived"
+    : isGcProgramDoc
+      ? hasFinalFile
+        ? "Published"
+        : reviewNotesProvided
+          ? "Ready to approve"
+          : "Review upload"
+      : hasFinalFile
+        ? "Approved"
+        : reviewNotesProvided
+          ? "Finalize DOCX"
+          : "Review draft";
+  const reviewWorkflowSteps = isGcProgramDoc
+    ? [
+        {
+          label: "Review company upload",
+          detail: "Open the submitted file and confirm it matches the GC requirements.",
+          complete: Boolean(documentItem.file_path),
+          active: !documentItem.file_path,
+        },
+        {
+          label: "Capture review notes",
+          detail: "Record missing items, reviewer comments, and any required edits.",
+          complete: reviewNotesProvided,
+          active: !reviewNotesProvided && Boolean(documentItem.file_path),
+        },
+        {
+          label: "Approve or reject",
+          detail: "Release the upload to the workspace or remove it from the queue.",
+          complete: hasFinalFile || isArchivedStatus(documentItem.status),
+          active: !hasFinalFile && !isArchivedStatus(documentItem.status),
+        },
+        {
+          label: "Track publish state",
+          detail: "Use marketplace and lifecycle controls after the approval decision.",
+          complete: hasFinalFile,
+          active: hasFinalFile && !isArchivedStatus(documentItem.status),
+        },
+      ]
+    : [
+        {
+          label: "Review draft DOCX",
+          detail: "Open the draft file and complete any edits before final approval.",
+          complete: Boolean(documentItem.draft_file_path),
+          active: !documentItem.draft_file_path,
+        },
+        {
+          label: "Capture reviewer notes",
+          detail: "Save the reviewer email and any approval comments before sending.",
+          complete: reviewNotesProvided,
+          active: !reviewNotesProvided && Boolean(documentItem.draft_file_path),
+        },
+        {
+          label: "Upload final DOCX",
+          detail: "Attach the approved file and mark the document as ready for delivery.",
+          complete: hasFinalFile,
+          active: !hasFinalFile && reviewNotesProvided,
+        },
+        {
+          label: "Publish or archive",
+          detail:
+            "Decide whether the completed file should stay active, move to marketplace, or be archived.",
+          complete: hasFinalFile || isArchivedStatus(documentItem.status),
+          active: hasFinalFile && !isArchivedStatus(documentItem.status),
+        },
+      ];
 
   return (
     <div className="space-y-8">
@@ -1076,9 +1146,9 @@ export default function ReviewDocumentPage() {
           detail="Primary document category saved on the record."
         />
         <StatCard
-          label="Marketplace"
-          value={marketplaceEnabled ? `${creditCost} credits` : "Hidden"}
-          detail="Completed document listing and credit cost."
+          label="Current Step"
+          value={currentStepLabel}
+          detail="What the reviewer should do next."
         />
         <StatCard
           label="Last Updated"
@@ -1090,6 +1160,12 @@ export default function ReviewDocumentPage() {
           detail="Most recent review or marketplace event."
         />
       </div>
+
+      <WorkflowPath
+        title="Review path"
+        description="The page is arranged in the order most admins work through the document. Complete the source review first, then finalize and publish or archive."
+        steps={reviewWorkflowSteps}
+      />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_360px]">
         <div className="space-y-6">
@@ -1203,6 +1279,34 @@ export default function ReviewDocumentPage() {
                   placeholder="e.g. Contract exhibit references, site-specific controls, environmental requirements, client redlines to verify…"
                   className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                 />
+                <div>
+                  <label className="block text-sm font-semibold text-slate-200">
+                    Site / GC reference document (optional)
+                  </label>
+                  <p className="mt-1 text-xs text-slate-500">
+                    PDF or DOCX (max 12 MB). The AI compares the draft to this file alongside OSHA expectations.
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      className="block w-full max-w-md text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800/70 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-200 hover:file:bg-slate-200"
+                      onChange={(e) => {
+                        const next = e.target.files?.[0] ?? null;
+                        setBuilderSiteReferenceFile(next);
+                      }}
+                    />
+                    {builderSiteReferenceFile ? (
+                      <button
+                        type="button"
+                        onClick={() => setBuilderSiteReferenceFile(null)}
+                        className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-400 transition hover:bg-slate-950/50"
+                      >
+                        Clear file
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
@@ -1221,6 +1325,13 @@ export default function ReviewDocumentPage() {
                     {builderAiExtraction.ok
                       ? `Text extracted (${builderAiExtraction.method}${builderAiExtraction.truncated ? ", truncated" : ""}).`
                       : `Text extraction: ${builderAiExtraction.error ?? "failed"} — review may be limited.`}
+                  </p>
+                ) : null}
+                {builderAiSiteExtraction ? (
+                  <p className="text-xs text-slate-500">
+                    Site reference ({builderAiSiteExtraction.fileName}): text extracted (
+                    {builderAiSiteExtraction.method}
+                    {builderAiSiteExtraction.truncated ? ", truncated" : ""}).
                   </p>
                 ) : null}
                 {builderAiDisclaimer ? (

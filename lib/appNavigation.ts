@@ -43,14 +43,14 @@ export const userQuickLinks: NavItem[] = [
 
 export const adminQuickLinks: NavItem[] = [
   { href: "/admin", label: "Admin home", short: "AH" },
-  { href: "/billing", label: "Billing", short: "BI" },
   { href: "/admin/review-documents", label: "Review queue", short: "RQ" },
-  { href: "/admin/sor-audit", label: "SOR audit", short: "SA" },
-  { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
-  { href: "/superadmin/osha-ipa-lab", label: "OSHA IPA lab (Streamlit)", short: "OA" },
   { href: "/admin/users", label: "Users", short: "US" },
   { href: "/admin/companies", label: "Companies", short: "CO" },
+  { href: "/billing", label: "Billing", short: "BI" },
+  { href: "/admin/sor-audit", label: "SOR audit", short: "SA" },
   { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },
+  { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
+  { href: "/superadmin/osha-ipa-lab", label: "Compliance tracker", short: "OA" },
 ];
 
 export const companyAdminQuickLinks: NavItem[] = [
@@ -117,28 +117,33 @@ export const userSideSections: NavSection[] = [
 
 export const adminSideSections: NavSection[] = [
   {
-    title: "Platform admin",
+    title: "Review & approvals",
     items: [
       { href: "/admin", label: "Admin dashboard", short: "AH" },
       { href: "/admin/review-documents", label: "Review queue", short: "RQ" },
       { href: "/admin/sor-audit", label: "SOR audit", short: "SA" },
-      { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
+      { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },
+    ],
+  },
+  {
+    title: "People & records",
+    items: [
       { href: "/admin/users", label: "Users", short: "US" },
       { href: "/admin/companies", label: "Companies", short: "CO" },
-      { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },
       { href: "/admin/agreements", label: "Agreements", short: "AG" },
-      { href: "/admin/marketplace", label: "Marketplace", short: "MK" },
       { href: "/billing", label: "Billing", short: "BI" },
     ],
   },
   {
-    title: "OSHA IPA tools",
+    title: "Tools & systems",
     items: [
+      { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
       {
         href: "/superadmin/osha-ipa-lab",
-        label: "Compliance tracker (Streamlit)",
+        label: "Compliance tracker",
         short: "OA",
       },
+      { href: "/admin/marketplace", label: "Marketplace", short: "MK" },
     ],
   },
   {
