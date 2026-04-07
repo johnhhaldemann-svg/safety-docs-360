@@ -7,6 +7,7 @@ import {
   purchasedCompanyDocumentIdsFromTransactions,
   sumCompanyCreditBalance,
 } from "@/lib/companyBilling";
+import { normalizeCompanySubscriptionStatus } from "@/lib/companySeats";
 import { authorizeRequest } from "@/lib/rbac";
 import { DEFAULT_DOCUMENT_CREDITS, normalizePurchasedIds } from "@/lib/marketplace";
 import {
@@ -51,6 +52,10 @@ export async function GET(request: Request) {
       supabase,
       companyScope.companyId
     );
+    const companySubStatus = normalizeCompanySubscriptionStatus(
+      companySubscription.data?.status ?? null
+    );
+
     const companyTransactionResult = await listCompanyCreditTransactions(
       supabase,
       companyScope.companyId
@@ -75,7 +80,7 @@ export async function GET(request: Request) {
           purchasedDocumentIds: purchasedCompanyDocumentIdsFromTransactions(
             ledgerResult.data
           ),
-          subscriptionStatus: companySubscription.data?.status ?? "inactive",
+          subscriptionStatus: companySubStatus,
           transactions: ledgerResult.data.slice(0, 10),
           ledgerEnabled: true,
           billingScope: "company",
@@ -84,6 +89,20 @@ export async function GET(request: Request) {
         });
       }
     }
+
+    // Company scope is known but the credit ledger could not be read (e.g. RLS with a
+    // user-scoped client). Still report subscription from company_subscriptions so UI
+    // does not fall back to the per-user subscriptions table.
+    return NextResponse.json({
+      creditBalance: 0,
+      purchasedDocumentIds: [],
+      subscriptionStatus: companySubStatus,
+      transactions: [],
+      ledgerEnabled: false,
+      billingScope: "company",
+      companyId: companyScope.companyId,
+      companyName: companyScope.companyName,
+    });
   }
 
   const { data: subscription } = await supabase
