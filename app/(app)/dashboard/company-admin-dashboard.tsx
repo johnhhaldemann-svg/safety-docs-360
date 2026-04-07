@@ -636,6 +636,64 @@ export function CompanyAdminDashboard({
     },
   ];
 
+  const stagingSmokeTestItems = [
+    {
+      id: "smoke-signup",
+      title: "Signup flow",
+      detail: "Create a company request and confirm the approval handoff works cleanly.",
+      href: "/company-signup",
+    },
+    {
+      id: "smoke-onboarding",
+      title: "Onboarding flow",
+      detail: "Open company setup and confirm the workspace landing path reads clearly.",
+      href: "/company-setup",
+    },
+    {
+      id: "smoke-first-document",
+      title: "First document flow",
+      detail: "Submit a document and confirm it reaches the queue and the review path.",
+      href: "/submit",
+    },
+    {
+      id: "smoke-billing",
+      title: "Billing flow",
+      detail: "Open billing hub and purchases to verify credits, invoices, and top-ups load.",
+      href: "/billing",
+    },
+  ];
+
+  const launchChecklistItems = [
+    {
+      id: "invite-first-user",
+      title: "Invite the first employee",
+      detail: "Set up the first team member so the workspace can begin routing approvals and alerts.",
+      href: "/company-users",
+      done: companyUsers.length > 0 || companyInvites.length > 0,
+    },
+    {
+      id: "review-billing",
+      title: "Review billing and credits",
+      detail: "Check the billing hub and confirm the workspace has the right subscription and credit balance.",
+      href: "/billing",
+      done: creditBalance !== null && creditBalance >= 0,
+    },
+    {
+      id: "create-first-jobsite",
+      title: "Create the first jobsite",
+      detail: "Add the company’s first active site so document and field activity has a clear home.",
+      href: "/jobsites",
+      done: jobsites.length > 0,
+    },
+    {
+      id: "submit-first-document",
+      title: "Submit the first document",
+      detail: "Start the document workflow so the workspace has a real approval path to manage.",
+      href: "/submit",
+      done: documents.length > 0,
+    },
+  ];
+
   return (
     <div className="space-y-8">
       <section className="rounded-[1.9rem] border border-[#dbe9ff] bg-slate-900/90 p-6 shadow-[0_16px_36px_rgba(148,163,184,0.12)]">
@@ -707,6 +765,64 @@ export function CompanyAdminDashboard({
           {workspaceLoaded && analyticsSummaryIssue ? (
             <InlineMessage tone={analyticsSummaryIssue.tone}>{analyticsSummaryIssue.message}</InlineMessage>
           ) : null}
+
+          <SectionCard
+            title="Launch Checklist"
+            description="The first setup steps that help a new company move from approval into active daily use."
+            aside={
+              <StatusBadge
+                label={`${launchChecklistItems.filter((item) => item.done).length}/${launchChecklistItems.length} complete`}
+                tone={launchChecklistItems.every((item) => item.done) ? "success" : "info"}
+              />
+            }
+          >
+            <div className="grid gap-3 xl:grid-cols-2">
+              {launchChecklistItems.map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 transition hover:border-sky-500/35 hover:bg-sky-950/30"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                        Company onboarding
+                      </div>
+                      <div className="mt-2 text-base font-bold text-slate-100">{item.title}</div>
+                    </div>
+                    <StatusBadge label={item.done ? "Done" : "Next"} tone={item.done ? "success" : "warning"} />
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-slate-500">{item.detail}</p>
+                  <div className="mt-4 text-sm font-semibold text-sky-300">
+                    {item.done ? "Review again" : "Open now"}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Staging smoke test"
+            description="Run these checks in staging before launch so signup, onboarding, and document flow are ready."
+            aside={<StatusBadge label="Launch QA" tone="info" />}
+          >
+            <div className="grid gap-3 xl:grid-cols-2">
+              {stagingSmokeTestItems.map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 transition hover:border-sky-500/35 hover:bg-sky-950/30"
+                >
+                  <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                    Smoke test
+                  </div>
+                  <div className="mt-2 text-base font-bold text-slate-100">{item.title}</div>
+                  <p className="mt-3 text-sm leading-6 text-slate-500">{item.detail}</p>
+                  <div className="mt-4 text-sm font-semibold text-sky-300">Open now</div>
+                </Link>
+              ))}
+            </div>
+          </SectionCard>
 
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_170px_auto]">
             <input

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeDocumentsBucketObjectPath } from "./supabaseStorageServer";
+import { normalizeDocumentsBucketObjectPath } from "./documentsBucketPath";
 
 describe("normalizeDocumentsBucketObjectPath", () => {
   it("passes through normal bucket keys", () => {

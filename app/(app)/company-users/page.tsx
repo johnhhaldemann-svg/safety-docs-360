@@ -303,6 +303,64 @@ export default function CompanyUsersPage() {
     [activeUsers.length, invites.length, pendingUsers.length]
   );
 
+  const launchChecklistItems = [
+    {
+      id: "invite-first-employee",
+      title: "Invite the first employee",
+      detail: "Send the first invite so the account approval flow has a real user to move through.",
+      href: "/company-users",
+      done: invites.length > 0,
+    },
+    {
+      id: "approve-first-account",
+      title: "Approve the first account",
+      detail: "Confirm access, apply the correct role, and make the workspace active for the team.",
+      href: "/company-users",
+      done: pendingUsers.length === 0 && activeUsers.length > 0,
+    },
+    {
+      id: "review-billing-credits",
+      title: "Review billing and credits",
+      detail: "Check the billing hub and marketplace credits before the first document is opened.",
+      href: "/billing",
+      done: true,
+    },
+    {
+      id: "create-first-jobsite",
+      title: "Create the first jobsite",
+      detail: "Add the first active site so jobsite assignment and document routing have a home.",
+      href: "/jobsites",
+      done: jobsites.length > 0,
+    },
+  ] as const;
+
+  const stagingSmokeTestItems = [
+    {
+      id: "smoke-signup",
+      title: "Signup flow",
+      detail: "Create a company request and confirm the approval handoff works cleanly.",
+      href: "/company-signup",
+    },
+    {
+      id: "smoke-onboarding",
+      title: "Onboarding flow",
+      detail: "Open company setup and confirm the workspace landing path reads clearly.",
+      href: "/company-setup",
+    },
+    {
+      id: "smoke-first-document",
+      title: "First document flow",
+      detail: "Submit a document and confirm it reaches the queue and the review path.",
+      href: "/submit",
+    },
+    {
+      id: "smoke-billing",
+      title: "Billing flow",
+      detail: "Open billing hub and purchases to verify credits, invoices, and top-ups load.",
+      href: "/billing",
+    },
+  ] as const;
+
   const activityItems = useMemo(() => {
     const userItems = users.map((user) => ({
         id: user.id,
@@ -602,14 +660,60 @@ export default function CompanyUsersPage() {
 
       <SectionCard
         title="Launch checklist"
-        description="Use this after the company is approved so the first week stays on track."
+        description="Use this after approval so the first week stays on track."
+        aside={
+          <StatusBadge
+            label={`${launchChecklistItems.filter((item) => item.done).length}/${launchChecklistItems.length} complete`}
+            tone={launchChecklistItems.every((item) => item.done) ? "success" : "info"}
+          />
+        }
       >
-        <ul className="list-inside list-disc space-y-2 text-sm leading-6 text-slate-400">
-          <li>Invite the first employee and verify the email address is correct.</li>
-          <li>Approve the first pending account so the company workspace becomes active.</li>
-          <li>Assign jobsites only when a role needs site-specific limits.</li>
-          <li>Review billing and marketplace credits so completed documents can be opened later.</li>
-        </ul>
+        <div className="grid gap-3 xl:grid-cols-2">
+          {launchChecklistItems.map((item) => (
+            <Link
+              key={item.id}
+              href={item.href}
+              className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 transition hover:border-sky-500/35 hover:bg-sky-950/30"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                    Company onboarding
+                  </div>
+                  <div className="mt-2 text-base font-bold text-slate-100">{item.title}</div>
+                </div>
+                <StatusBadge label={item.done ? "Done" : "Next"} tone={item.done ? "success" : "warning"} />
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-500">{item.detail}</p>
+              <div className="mt-4 text-sm font-semibold text-sky-300">
+                {item.done ? "Review again" : "Open now"}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Staging smoke test"
+        description="Run these checks in staging before launch so signup, onboarding, and document flow are ready."
+        aside={<StatusBadge label="Launch QA" tone="info" />}
+      >
+        <div className="grid gap-3 xl:grid-cols-2">
+          {stagingSmokeTestItems.map((item) => (
+            <Link
+              key={item.id}
+              href={item.href}
+              className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 transition hover:border-sky-500/35 hover:bg-sky-950/30"
+            >
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                Smoke test
+              </div>
+              <div className="mt-2 text-base font-bold text-slate-100">{item.title}</div>
+              <p className="mt-3 text-sm leading-6 text-slate-500">{item.detail}</p>
+              <div className="mt-4 text-sm font-semibold text-sky-300">Open now</div>
+            </Link>
+          ))}
+        </div>
       </SectionCard>
 
       <section className="grid gap-5 sm:grid-cols-3">
@@ -732,11 +836,11 @@ export default function CompanyUsersPage() {
       </section>
 
       <SectionCard
-        title="1. Invited Employees"
+        title="Invited employees"
         description="These employees have been invited but have not finished creating their account yet."
       >
         {loading ? (
-          <InlineMessage>Loading pending invites...</InlineMessage>
+          <InlineMessage>Loading invited employees...</InlineMessage>
         ) : invites.length === 0 ? (
           <EmptyState
             title="No invites are waiting"
@@ -764,11 +868,11 @@ export default function CompanyUsersPage() {
       </SectionCard>
 
       <SectionCard
-        title="2. Awaiting Approval"
+        title="Awaiting approval"
         description="Employees who finished account setup stay here until you approve access to the company workspace."
       >
         {loading ? (
-          <InlineMessage>Loading company approval queue...</InlineMessage>
+          <InlineMessage>Loading approval queue...</InlineMessage>
         ) : pendingUsers.length === 0 ? (
           <EmptyState
             title="No employees are waiting for approval"

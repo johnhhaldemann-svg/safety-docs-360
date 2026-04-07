@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getSubmitterPreviewStatus,
   isBuyerMarketplacePreviewBlocked,
+  isValidMarketplacePreviewPath,
 } from "./marketplace";
 
 describe("getSubmitterPreviewStatus", () => {
@@ -64,6 +65,44 @@ describe("isBuyerMarketplacePreviewBlocked", () => {
       isBuyerMarketplacePreviewBlocked(
         JSON.stringify({ marketplace: { submitterPreviewStatus: "approved" } })
       )
+    ).toBe(false);
+  });
+});
+
+describe("isValidMarketplacePreviewPath", () => {
+  const id = "a36ee44a-2f23-4fe5-bbdb-0c24c601cb15";
+
+  it("accepts bucket-relative keys under marketplace-preview/{id}/", () => {
+    expect(
+      isValidMarketplacePreviewPath(
+        id,
+        `marketplace-preview/${id}/2026-01-01_preview.pdf`
+      )
+    ).toBe(true);
+  });
+
+  it("accepts full Supabase public object URLs", () => {
+    expect(
+      isValidMarketplacePreviewPath(
+        id,
+        `https://xyz.supabase.co/storage/v1/object/public/documents/marketplace-preview/${id}/2026-01-01_preview.pdf`
+      )
+    ).toBe(true);
+  });
+
+  it("accepts UUID case mismatch between route id and path", () => {
+    const upper = id.toUpperCase();
+    expect(
+      isValidMarketplacePreviewPath(
+        upper,
+        `marketplace-preview/${id}/x.pdf`
+      )
+    ).toBe(true);
+  });
+
+  it("rejects other document prefixes", () => {
+    expect(
+      isValidMarketplacePreviewPath(id, "marketplace-preview/other-id/x.pdf")
     ).toBe(false);
   });
 });

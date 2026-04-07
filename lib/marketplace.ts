@@ -1,3 +1,5 @@
+import { normalizeDocumentsBucketObjectPath } from "@/lib/documentsBucketPath";
+
 const DEFAULT_DOCUMENT_CREDIT_COST = 5;
 
 export type SubmitterPreviewStatus = "pending" | "approved" | "rejected";
@@ -76,13 +78,27 @@ export function marketplacePreviewPathPrefix(documentId: string) {
   return `marketplace-preview/${documentId}/`;
 }
 
+/**
+ * True when `path` points at this document's marketplace preview object.
+ * Accepts raw bucket keys, `documents/...` prefixes, **and full Supabase public/sign URLs**
+ * (dashboard often stores the full URL in `notes`; comparing only to `marketplace-preview/{id}/...`
+ * incorrectly rejected those rows). UUID segment match is case-insensitive.
+ */
 export function isValidMarketplacePreviewPath(documentId: string, path: string) {
   const trimmed = path.trim();
   if (!trimmed || trimmed.includes("..")) {
     return false;
   }
-  const prefix = marketplacePreviewPathPrefix(documentId);
-  return trimmed.startsWith(prefix) && trimmed.length > prefix.length;
+  const key = normalizeDocumentsBucketObjectPath(trimmed);
+  if (!key || key.includes("..")) {
+    return false;
+  }
+  const id = documentId.trim();
+  if (!id) {
+    return false;
+  }
+  const prefix = marketplacePreviewPathPrefix(id);
+  return key.length > prefix.length && key.toLowerCase().startsWith(prefix.toLowerCase());
 }
 
 export function buildMarketplaceNotes(

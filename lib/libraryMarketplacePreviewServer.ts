@@ -17,10 +17,8 @@ import {
 import { getAgreementConfig } from "@/lib/legalSettings";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { serverLog } from "@/lib/serverLog";
-import {
-  downloadDocumentsBucketObject,
-  normalizeDocumentsBucketObjectPath,
-} from "@/lib/supabaseStorageServer";
+import { normalizeDocumentsBucketObjectPath } from "@/lib/documentsBucketPath";
+import { downloadDocumentsBucketObject } from "@/lib/supabaseStorageServer";
 
 export type MarketplacePreviewDocument = {
   id: string;
@@ -210,10 +208,14 @@ export async function prepareMarketplaceLibraryPreview(
   const previewPathRaw = getMarketplacePreviewPath(doc.notes)?.trim() ?? "";
   const customPreviewOk =
     previewPathRaw.length > 0 && isValidMarketplacePreviewPath(documentId, previewPathRaw);
+  const normalizedCustomKey = customPreviewOk
+    ? normalizeDocumentsBucketObjectPath(previewPathRaw)
+    : "";
   const finalPath =
     typeof doc.final_file_path === "string" ? doc.final_file_path.trim() : "";
 
-  let storagePath: string | null = customPreviewOk ? previewPathRaw : finalPath || null;
+  let storagePath: string | null =
+    customPreviewOk && normalizedCustomKey ? normalizedCustomKey : finalPath || null;
 
   if (!storagePath) {
     return {
