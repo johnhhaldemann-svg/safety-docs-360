@@ -9,6 +9,8 @@ type Props = {
   excerpt: string;
   truncated: boolean;
   empty: boolean;
+  /** When set (e.g. marketplace PDF), show native browser PDF preview via blob URL — not a download link. */
+  pdfObjectUrl?: string | null;
   /** Workspace = in-review / active library rows; marketplace = credit unlock listings; admin = review queue */
   variant?: PreviewVariant;
 };
@@ -20,6 +22,7 @@ export function MarketplacePreviewModal({
   excerpt,
   truncated,
   empty,
+  pdfObjectUrl,
   variant = "marketplace",
 }: Props) {
   if (!open) {
@@ -82,29 +85,43 @@ export function MarketplacePreviewModal({
         </div>
 
         <p className="mt-2 text-xs font-medium uppercase tracking-wide text-amber-200/90">
-          Preview excerpt — not the full document
+          {pdfObjectUrl
+            ? "PDF preview in browser — not a file download from this dialog"
+            : "Preview excerpt — not the full document"}
         </p>
 
-        <div className="relative mt-4 max-h-[min(50vh,22rem)] overflow-y-auto rounded-xl border border-slate-700/80 bg-slate-900/90 p-4">
-          <div
-            className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden opacity-[0.06] select-none"
-            aria-hidden
-          >
-            <span className="-rotate-12 whitespace-nowrap text-3xl font-black tracking-widest text-white">
-              PREVIEW ONLY · NOT FOR DOWNLOAD
-            </span>
+        {pdfObjectUrl ? (
+          <iframe
+            title={title}
+            src={pdfObjectUrl}
+            className="mt-4 h-[min(60vh,32rem)] w-full rounded-xl border border-slate-700/80 bg-white"
+          />
+        ) : (
+          <div className="relative mt-4 max-h-[min(50vh,22rem)] overflow-y-auto rounded-xl border border-slate-700/80 bg-slate-900/90 p-4">
+            <div
+              className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden opacity-[0.06] select-none"
+              aria-hidden
+            >
+              <span className="-rotate-12 whitespace-nowrap text-3xl font-black tracking-widest text-white">
+                PREVIEW ONLY · NOT FOR DOWNLOAD
+              </span>
+            </div>
+            {empty ? (
+              <p className="relative z-[1] text-sm leading-6 text-slate-400">{emptyBody}</p>
+            ) : (
+              <p className="relative z-[1] whitespace-pre-wrap text-sm leading-6 text-slate-200">
+                {excerpt}
+              </p>
+            )}
           </div>
-          {empty ? (
-            <p className="relative z-[1] text-sm leading-6 text-slate-400">{emptyBody}</p>
-          ) : (
-            <p className="relative z-[1] whitespace-pre-wrap text-sm leading-6 text-slate-200">
-              {excerpt}
-            </p>
-          )}
-        </div>
+        )}
 
-        <p className="mt-4 text-xs leading-5 text-slate-500">{footerMain}</p>
-        {!empty && truncated ? (
+        <p className="mt-4 text-xs leading-5 text-slate-500">
+          {pdfObjectUrl && variant === "marketplace"
+            ? "This uses your browser’s built-in PDF viewer. Unlocking still adds the full file to your library for download or open."
+            : footerMain}
+        </p>
+        {!pdfObjectUrl && !empty && truncated ? (
           <p className="mt-2 text-xs font-medium text-sky-300/90">{truncatedNote}</p>
         ) : null}
       </div>

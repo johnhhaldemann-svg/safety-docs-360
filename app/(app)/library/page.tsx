@@ -65,6 +65,8 @@ type ExcerptModalState = {
   truncated: boolean;
   empty: boolean;
   variant: "marketplace" | "workspace";
+  /** Blob URL for in-modal PDF preview (revoked on close). */
+  pdfObjectUrl?: string | null;
 };
 
 const LIBRARY_FILTER_STORAGE_KEY = "safety360:library-filters";
@@ -356,28 +358,70 @@ function LibraryPageContent() {
         const res = await fetch(`/api/library/preview/${documentId}`, {
           headers: {
             Authorization: `Bearer ${token}`,
+            Accept: "application/json",
           },
         });
 
-        const data = (await res.json().catch(() => null)) as
-          | {
-              error?: string;
-              title?: string;
-              excerpt?: string;
-              truncated?: boolean;
-              empty?: boolean;
-            }
-          | null;
+        const raw = await res.text();
+        type PreviewMeta = {
+          error?: string;
+          title?: string;
+          excerpt?: string;
+          truncated?: boolean;
+          empty?: boolean;
+          showPdfInline?: boolean;
+        };
+        let data: PreviewMeta | null = null;
+        try {
+          data = raw ? (JSON.parse(raw) as PreviewMeta) : null;
+        } catch {
+          data = null;
+        }
 
-        if (!res.ok || !data) {
-          const msg = data?.error || "Failed to load preview.";
+        if (!res.ok || !data || typeof data !== "object") {
+          const msg =
+            (data && typeof data.error === "string" && data.error) ||
+            "Failed to load preview.";
           setMessage(msg);
           toast.error(msg);
           return;
         }
 
+        if (data.showPdfInline) {
+          const fileRes = await fetch(`/api/library/preview/${documentId}/file`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (!fileRes.ok) {
+            let errMsg = "Failed to load PDF preview.";
+            try {
+              const errRaw = await fileRes.text();
+              const errJson = errRaw ? (JSON.parse(errRaw) as { error?: string }) : null;
+              if (errJson?.error) errMsg = errJson.error;
+            } catch {
+              /* ignore */
+            }
+            setMessage(errMsg);
+            toast.error(errMsg);
+            return;
+          }
+          const blob = await fileRes.blob();
+          const pdfObjectUrl = URL.createObjectURL(blob);
+          setExcerptModal({
+            title: typeof data.title === "string" ? data.title : "Marketplace preview",
+            excerpt: "",
+            truncated: false,
+            empty: false,
+            variant: "marketplace",
+            pdfObjectUrl,
+          });
+          return;
+        }
+
         if (typeof data.excerpt !== "string") {
-          const msg = data.error || "Failed to load preview.";
+          const msg =
+            (typeof data.error === "string" && data.error) || "Failed to load preview.";
           setMessage(msg);
           toast.error(msg);
           return;
@@ -1167,11 +1211,19 @@ function LibraryPageContent() {
 
       <MarketplacePreviewModal
         open={Boolean(excerptModal)}
-        onClose={() => setExcerptModal(null)}
+        onClose={() => {
+          setExcerptModal((prev) => {
+            if (prev?.pdfObjectUrl) {
+              URL.revokeObjectURL(prev.pdfObjectUrl);
+            }
+            return null;
+          });
+        }}
         title={excerptModal?.title ?? ""}
         excerpt={excerptModal?.excerpt ?? ""}
         truncated={excerptModal?.truncated ?? false}
         empty={excerptModal?.empty ?? false}
+        pdfObjectUrl={excerptModal?.pdfObjectUrl ?? undefined}
         variant={excerptModal?.variant ?? "marketplace"}
       />
     </div>

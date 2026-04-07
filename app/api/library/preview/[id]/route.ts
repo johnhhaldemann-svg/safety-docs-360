@@ -1,174 +1,56 @@
 import { NextResponse } from "next/server";
-import { authorizeRequest } from "@/lib/rbac";
-import { isApprovedDocumentStatus } from "@/lib/documentStatus";
-import {
-  getMarketplacePreviewPath,
-  isMarketplaceEnabled,
-  isValidMarketplacePreviewPath,
-} from "@/lib/marketplace";
-import { extractMarketplacePreviewExcerpt } from "@/lib/marketplacePreviewExcerpt";
-import {
-  getClientIpAddress,
-  getDefaultAgreementConfig,
-  getUserAgreementRecord,
-} from "@/lib/legal";
-import { getAgreementConfig } from "@/lib/legalSettings";
+import { getClientIpAddress } from "@/lib/legal";
 import { logDocumentDownload } from "@/lib/downloadAudit";
-import {
-  downloadDocumentsBucketObject,
-  normalizeDocumentsBucketObjectPath,
-} from "@/lib/supabaseStorageServer";
+import { prepareMarketplaceLibraryPreview } from "@/lib/libraryMarketplacePreviewServer";
 
 export const runtime = "nodejs";
 
-function fileNameFromPreviewPath(previewPath: string, projectName: string | null) {
-  const parts = previewPath.split("/").filter(Boolean);
-  const last = parts[parts.length - 1];
-  if (last) {
-    return last;
-  }
-  return `${projectName || "marketplace_preview"}.pdf`;
-}
+const JSON_HEADERS = {
+  "Content-Type": "application/json; charset=utf-8",
+  "Cache-Control": "no-store, max-age=0",
+} as const;
 
 export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const auth = await authorizeRequest(request);
+  const { id } = await context.params;
+  const prepared = await prepareMarketplaceLibraryPreview(request, id);
 
-  if ("error" in auth) {
-    return auth.error;
+  if (!prepared.ok) {
+    return prepared.response;
   }
 
-  const { supabase, user } = auth;
-  const { id } = await context.params;
+  const {
+    document,
+    textPreview,
+    isPdfInline,
+    excerptSource,
+    sourceFileName,
+    supabase,
+    user,
+  } = prepared;
 
-  const [agreementResult, agreementConfig] = await Promise.all([
-    getUserAgreementRecord(supabase, user.id, user.user_metadata ?? undefined),
-    getAgreementConfig(supabase).catch(() => getDefaultAgreementConfig()),
-  ]);
+  const title =
+    document.project_name?.trim() ||
+    sourceFileName.replace(/\.[^.]+$/, "") ||
+    "Marketplace preview";
 
-  if (
-    !agreementResult.data?.accepted_terms ||
-    agreementResult.data?.terms_version !== agreementConfig.version
-  ) {
+  if (isPdfInline) {
     return NextResponse.json(
       {
-        error: "Acceptance of the current agreement is required before previewing documents.",
-        termsVersion: agreementConfig.version,
+        title,
+        viewer: "pdf" as const,
+        showPdfInline: true,
+        excerpt: "",
+        empty: false,
+        truncated: false,
       },
-      { status: 403 }
+      { status: 200, headers: JSON_HEADERS }
     );
   }
 
-  const { data: document, error: documentError } = await supabase
-    .from("documents")
-    .select("id, user_id, project_name, status, notes, final_file_path")
-    .eq("id", id)
-    .single();
-
-  if (documentError || !document) {
-    return NextResponse.json({ error: "Document not found." }, { status: 404 });
-  }
-
-  if (document.status?.trim().toLowerCase() === "archived") {
-    return NextResponse.json(
-      { error: "This document is no longer available." },
-      { status: 404 }
-    );
-  }
-
-  if (!isApprovedDocumentStatus(document.status, true)) {
-    return NextResponse.json(
-      { error: "Preview is not available for this document." },
-      { status: 403 }
-    );
-  }
-
-  if (!isMarketplaceEnabled(document.notes)) {
-    return NextResponse.json(
-      { error: "This document is not listed in the marketplace." },
-      { status: 403 }
-    );
-  }
-
-  const previewPathRaw = getMarketplacePreviewPath(document.notes)?.trim() ?? "";
-  const customPreviewOk =
-    previewPathRaw.length > 0 &&
-    isValidMarketplacePreviewPath(id, previewPathRaw);
-  const finalPath =
-    typeof document.final_file_path === "string"
-      ? document.final_file_path.trim()
-      : "";
-
-  let storagePath: string | null = customPreviewOk
-    ? previewPathRaw
-    : finalPath || null;
-
-  if (!storagePath) {
-    return NextResponse.json(
-      { error: "No preview is available for this document." },
-      { status: 404 }
-    );
-  }
-
-  let excerptSource: "marketplace_preview" | "final_file" = customPreviewOk
-    ? "marketplace_preview"
-    : "final_file";
-
-  const canFallbackToFinal =
-    Boolean(finalPath) &&
-    normalizeDocumentsBucketObjectPath(finalPath) !==
-      normalizeDocumentsBucketObjectPath(storagePath);
-
-  let downloaded = await downloadDocumentsBucketObject(storagePath);
-
-  if (!downloaded.ok && canFallbackToFinal) {
-    const fromFinal = await downloadDocumentsBucketObject(finalPath);
-    if (fromFinal.ok) {
-      downloaded = fromFinal;
-      storagePath = finalPath;
-      excerptSource = "final_file";
-    }
-  }
-
-  if (!downloaded.ok) {
-    return NextResponse.json(
-      { error: downloaded.error },
-      { status: downloaded.status }
-    );
-  }
-
-  let buffer = downloaded.buffer;
-  let sourceName = fileNameFromPreviewPath(
-    storagePath,
-    document.project_name ?? null
-  );
-
-  let extracted = await extractMarketplacePreviewExcerpt(buffer, sourceName);
-
-  if (!extracted.ok && canFallbackToFinal && excerptSource === "marketplace_preview") {
-    const fromFinal = await downloadDocumentsBucketObject(finalPath);
-    if (fromFinal.ok) {
-      buffer = fromFinal.buffer;
-      storagePath = finalPath;
-      excerptSource = "final_file";
-      sourceName = fileNameFromPreviewPath(
-        finalPath,
-        document.project_name ?? null
-      );
-      extracted = await extractMarketplacePreviewExcerpt(buffer, sourceName);
-    }
-  }
-
-  if (!extracted.ok) {
-    return NextResponse.json(
-      { error: extracted.error },
-      { status: 422 }
-    );
-  }
-
-  const empty = extracted.excerpt.length === 0;
+  const preview = textPreview!;
 
   await logDocumentDownload({
     supabase,
@@ -181,22 +63,20 @@ export async function GET(
       route: "library_preview_excerpt",
       excerpt_source: excerptSource,
       project_name: document.project_name ?? null,
-      truncated: extracted.truncated,
-      empty_excerpt: empty,
+      truncated: preview.truncated,
+      empty_excerpt: preview.empty,
     },
   });
 
-  const title =
-    document.project_name?.trim() ||
-    sourceName.replace(/\.[^.]+$/, "") ||
-    "Marketplace preview";
-
-  const res = NextResponse.json({
-    title,
-    excerpt: extracted.excerpt,
-    truncated: extracted.truncated,
-    empty,
-  });
-  res.headers.set("Cache-Control", "no-store, max-age=0");
-  return res;
+  return NextResponse.json(
+    {
+      title,
+      viewer: "excerpt" as const,
+      showPdfInline: false,
+      excerpt: preview.excerpt,
+      truncated: preview.truncated,
+      empty: preview.empty,
+    },
+    { status: 200, headers: JSON_HEADERS }
+  );
 }
