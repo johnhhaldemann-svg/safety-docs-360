@@ -567,6 +567,34 @@ export default function CompanyUsersPage() {
         }
       />
 
+      <SectionCard
+        title="How company access works"
+        description="What employees can do in the app is driven by your company workspace—not by a platform super admin picking each person’s permissions."
+      >
+        <ul className="list-inside list-disc space-y-2 text-sm leading-6 text-slate-400">
+          <li>
+            <span className="font-semibold text-slate-200">Org-wide limits</span> (subscription, active license,
+            CSEP vs full workspace) apply to the whole company. Those are set at billing / onboarding—not per
+            employee.
+          </li>
+          <li>
+            <span className="font-semibold text-slate-200">You assign roles here</span> (Company User, Project
+            Manager, etc.). Each role brings a standard permission bundle for documents, safety modules, and
+            billing visibility.
+          </li>
+          <li>
+            <span className="font-semibold text-slate-200">Company-wide permission adjustments</span> (if your
+            org uses them) layer on top of roles for everyone in this company—managed in admin company settings,
+            not user-by-user.
+          </li>
+          <li>
+            <span className="font-semibold text-slate-200">Super admins</span> operate internal tools and
+            cross-company support. They do <span className="italic">not</span> need to configure each employee’s
+            access—that stays with Company Admins on this page.
+          </li>
+        </ul>
+      </SectionCard>
+
       <section className="grid gap-5 sm:grid-cols-3">
         {stats.map((item) => (
           <div key={item.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
