@@ -1,0 +1,18 @@
+# Speed up `vercel deploy` (CLI) by skipping files the Next.js build never reads.
+# Git-based deployments clone the full repo; this still helps local CLI uploads.
+
+# E2E / Playwright (not part of `next build`)
+playwright/
+playwright.config.ts
+playwright-global-setup.ts
+playwright-report/
+test-results/
+
+# Docs and automation (not bundled into the app)
+docs/
+.github/
+scripts/
+
+# Supabase SQL — applied with `supabase db push`, not at Vercel build time
+supabase/migrations/
+supabase/seed.sql

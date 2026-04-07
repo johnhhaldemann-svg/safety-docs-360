@@ -25,6 +25,8 @@ Run **Supabase migrations first** whenever migration files changed, then deploy 
 
 ## 2. Vercel
 
+[`vercel.json`](../vercel.json) uses **`npm ci`** for installs (faster, strict lockfile) when the build runs. If a deploy sits on **Initializing** for a minute, that is usually **queue + clone** before **Building** starts; total time ~1–2 minutes is typical for this app.
+
 1. Import the Git repo (or connect existing project) and set **Production** branch (usually `main`).
 2. **Environment variables** (Production; mirror for Preview if previews should hit a real backend):
 
