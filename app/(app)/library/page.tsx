@@ -414,35 +414,47 @@ function LibraryPageContent() {
           },
         });
 
-        const data = (await res.json().catch(() => null)) as
-          | {
-              error?: string;
-              title?: string;
-              excerpt?: string;
-              truncated?: boolean;
-              empty?: boolean;
-            }
-          | null;
+        const raw = await res.text();
+        type WorkspaceExcerptPayload = {
+          error?: string;
+          title?: string;
+          excerpt?: string;
+          truncated?: boolean;
+          empty?: boolean;
+        };
+        let payload: WorkspaceExcerptPayload | null = null;
+        if (raw) {
+          try {
+            payload = JSON.parse(raw) as WorkspaceExcerptPayload;
+          } catch {
+            payload = null;
+          }
+        }
 
-        if (!res.ok || !data) {
-          const msg = data?.error || "Failed to load preview.";
+        if (!res.ok) {
+          const trimmed = raw.trim();
+          const msg =
+            payload?.error ||
+            (trimmed && !trimmed.startsWith("<")
+              ? trimmed.slice(0, 200)
+              : `Preview failed (HTTP ${res.status}).`);
           setMessage(msg);
           toast.error(msg);
           return;
         }
 
-        if (typeof data.excerpt !== "string") {
-          const msg = data.error || "Failed to load preview.";
+        if (!payload || typeof payload.excerpt !== "string") {
+          const msg = payload?.error || "Failed to load preview.";
           setMessage(msg);
           toast.error(msg);
           return;
         }
 
         setExcerptModal({
-          title: typeof data.title === "string" ? data.title : "Document preview",
-          excerpt: data.excerpt,
-          truncated: Boolean(data.truncated),
-          empty: Boolean(data.empty),
+          title: typeof payload.title === "string" ? payload.title : "Document preview",
+          excerpt: payload.excerpt,
+          truncated: Boolean(payload.truncated),
+          empty: Boolean(payload.empty),
           variant: "workspace",
         });
       } catch (error) {

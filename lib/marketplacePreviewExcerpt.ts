@@ -1,5 +1,6 @@
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
+import { isApprovedDocumentStatus } from "@/lib/documentStatus";
 import { sniffGcDocumentKind } from "@/lib/gcProgramAiReview";
 
 /** Short on-screen preview only; full file is never sent to the client. */
@@ -53,6 +54,28 @@ export function hasWorkspaceDocumentStoragePath(doc: {
       doc.draft_file_path?.trim() ||
       doc.final_file_path?.trim()
   );
+}
+
+/**
+ * Chooses which storage key to download for library preview. In-review CSEP drafts live in
+ * `draft_file_path`; `file_path` may point at another upload (e.g. GC program) — prefer draft
+ * until the document is approved, then prefer `final_file_path`.
+ */
+export function pickWorkspacePreviewStoragePath(doc: {
+  status?: string | null;
+  file_path?: string | null;
+  draft_file_path?: string | null;
+  final_file_path?: string | null;
+}): string | null {
+  const final = doc.final_file_path?.trim() || "";
+  const draft = doc.draft_file_path?.trim() || "";
+  const filePath = doc.file_path?.trim() || "";
+  const approved = isApprovedDocumentStatus(doc.status, Boolean(final));
+
+  if (approved) {
+    return final || filePath || draft || null;
+  }
+  return draft || filePath || final || null;
 }
 
 function clipExcerpt(raw: string): { excerpt: string; truncated: boolean } {

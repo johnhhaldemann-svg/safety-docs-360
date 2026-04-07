@@ -3,6 +3,7 @@ import {
   basenameFromStoragePath,
   hasWorkspaceDocumentStoragePath,
   isAnyPreviewableDocumentPath,
+  pickWorkspacePreviewStoragePath,
 } from "./marketplacePreviewExcerpt";
 
 describe("isAnyPreviewableDocumentPath", () => {
@@ -65,5 +66,29 @@ describe("hasWorkspaceDocumentStoragePath", () => {
 describe("basenameFromStoragePath", () => {
   it("returns last segment", () => {
     expect(basenameFromStoragePath("drafts/acme/uuid/file")).toBe("file");
+  });
+});
+
+describe("pickWorkspacePreviewStoragePath", () => {
+  it("prefers draft over file_path while in review", () => {
+    expect(
+      pickWorkspacePreviewStoragePath({
+        status: "submitted",
+        file_path: "companies/x/old/wrong.pdf",
+        draft_file_path: "drafts/uuid/doc.docx",
+        final_file_path: null,
+      })
+    ).toBe("drafts/uuid/doc.docx");
+  });
+
+  it("prefers final_file_path when approved", () => {
+    expect(
+      pickWorkspacePreviewStoragePath({
+        status: "approved",
+        file_path: "companies/x/upload.pdf",
+        draft_file_path: "drafts/uuid/old.docx",
+        final_file_path: "final/uuid/final.pdf",
+      })
+    ).toBe("final/uuid/final.pdf");
   });
 });

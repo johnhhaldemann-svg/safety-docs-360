@@ -1,0 +1,22 @@
+import { describe, expect, it } from "vitest";
+import { normalizeDocumentsBucketObjectPath } from "./supabaseStorageServer";
+
+describe("normalizeDocumentsBucketObjectPath", () => {
+  it("passes through normal bucket keys", () => {
+    expect(normalizeDocumentsBucketObjectPath("drafts/user/id/file.docx")).toBe(
+      "drafts/user/id/file.docx"
+    );
+  });
+
+  it("strips accidental documents/ prefix", () => {
+    expect(normalizeDocumentsBucketObjectPath("documents/drafts/a/b.docx")).toBe("drafts/a/b.docx");
+  });
+
+  it("extracts key from public object URL", () => {
+    expect(
+      normalizeDocumentsBucketObjectPath(
+        "https://abc.supabase.co/storage/v1/object/public/documents/drafts/x/y.docx"
+      )
+    ).toBe("drafts/x/y.docx");
+  });
+});

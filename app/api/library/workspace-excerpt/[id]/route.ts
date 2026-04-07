@@ -10,6 +10,7 @@ import { normalizePurchasedIds } from "@/lib/marketplace";
 import {
   basenameFromStoragePath,
   extractMarketplacePreviewExcerpt,
+  pickWorkspacePreviewStoragePath,
 } from "@/lib/marketplacePreviewExcerpt";
 import {
   getClientIpAddress,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 import { logDocumentDownload } from "@/lib/downloadAudit";
+import { serverLog } from "@/lib/serverLog";
 import { downloadDocumentsBucketObject } from "@/lib/supabaseStorageServer";
 import { canRequestWorkspaceDocumentExcerpt } from "@/lib/workspaceDocumentAccess";
 
@@ -107,11 +109,7 @@ export async function GET(
     return NextResponse.json({ error: "You do not have access to this document." }, { status: 403 });
   }
 
-  const storagePath =
-    document.file_path?.trim() ||
-    document.draft_file_path?.trim() ||
-    document.final_file_path?.trim() ||
-    null;
+  const storagePath = pickWorkspacePreviewStoragePath(document);
 
   if (!storagePath) {
     return NextResponse.json(
@@ -122,6 +120,10 @@ export async function GET(
 
   const downloaded = await downloadDocumentsBucketObject(storagePath);
   if (!downloaded.ok) {
+    serverLog("warn", "library_workspace_excerpt_storage_download_failed", {
+      documentId: document.id,
+      status: downloaded.status,
+    });
     return NextResponse.json(
       { error: downloaded.error },
       { status: downloaded.status }
