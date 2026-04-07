@@ -16,6 +16,23 @@ export function normalizeWorkspaceUuid(value: string) {
   return value.trim().toLowerCase();
 }
 
+/** Safe UUID normalization when value may be null/undefined (e.g. DB rows vs JWT). */
+export function normalizeUuid(value: string | null | undefined): string | null {
+  if (value == null || typeof value !== "string") return null;
+  const t = value.trim().toLowerCase();
+  return t.length > 0 ? t : null;
+}
+
+/** Compare two UUID strings case-insensitively; false if either side is missing. */
+export function uuidMatches(
+  a: string | null | undefined,
+  b: string | null | undefined
+): boolean {
+  const na = normalizeUuid(a);
+  const nb = normalizeUuid(b);
+  return na !== null && nb !== null && na === nb;
+}
+
 /** When DB rows lag JWT (e.g. super-admin assigned company_id in metadata only). */
 function companyIdFromJwtMetadata(authUser?: AuthUserLike | null): string | null {
   if (!authUser) return null;
@@ -63,26 +80,29 @@ export async function getCompanyScope(params: {
     };
 
     if (row.company_id) {
-      const companyLookup = await (
-        supabase.from("companies") as {
-          select: (columns: string) => {
-            eq: (column: string, value: string) => {
-              maybeSingle: () => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
+      const normalizedCompanyId = normalizeUuid(row.company_id);
+      if (normalizedCompanyId) {
+        const companyLookup = await (
+          supabase.from("companies") as {
+            select: (columns: string) => {
+              eq: (column: string, value: string) => {
+                maybeSingle: () => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
+              };
             };
-          };
-        }
-      )
-        .select("id, name")
-        .eq("id", row.company_id)
-        .maybeSingle();
+          }
+        )
+          .select("id, name")
+          .eq("id", row.company_id)
+          .maybeSingle();
 
-      const companyData = (companyLookup.data ?? null) as { name?: string | null } | null;
+        const companyData = (companyLookup.data ?? null) as { name?: string | null } | null;
 
-      return {
-        companyId: row.company_id,
-        companyName: companyData?.name?.trim() || normalizeTeamName(row.team) || safeTeam,
-        source: "role_row" as const,
-      };
+        return {
+          companyId: normalizedCompanyId,
+          companyName: companyData?.name?.trim() || normalizeTeamName(row.team) || safeTeam,
+          source: "role_row" as const,
+        };
+      }
     }
   }
 
@@ -120,10 +140,11 @@ export async function getCompanyScope(params: {
 
     const companyId = row.company_id ?? row.companies?.id ?? null;
     const companyName = row.companies?.name?.trim() || safeTeam;
+    const normalizedMembershipCompanyId = normalizeUuid(companyId);
 
-    if (companyId) {
+    if (normalizedMembershipCompanyId) {
       return {
-        companyId,
+        companyId: normalizedMembershipCompanyId,
         companyName,
         source: "membership" as const,
       };
@@ -151,9 +172,10 @@ export async function getCompanyScope(params: {
       typeof jwtCompanyLookup.data === "object"
     ) {
       const c = jwtCompanyLookup.data as { id?: string | null; name?: string | null };
-      if (c.id) {
+      const normalizedJwtCompanyId = normalizeUuid(c.id);
+      if (normalizedJwtCompanyId) {
         return {
-          companyId: jwtCompanyId,
+          companyId: normalizedJwtCompanyId,
           companyName: c.name?.trim() || safeTeam,
           source: "jwt_metadata" as const,
         };
@@ -260,7 +282,7 @@ export async function ensureCompanyScope(params: {
     .eq("user_id", userId);
 
   return {
-    companyId: company.id,
+    companyId: normalizeUuid(company.id),
     companyName: company.name?.trim() || safeTeam,
     source: "team_fallback" as const,
   };

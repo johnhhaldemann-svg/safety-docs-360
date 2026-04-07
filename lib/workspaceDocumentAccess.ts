@@ -1,3 +1,4 @@
+import { uuidMatches } from "@/lib/companyScope";
 import { isApprovedDocumentStatus, isArchivedDocumentStatus } from "@/lib/documentStatus";
 import { isAdminRole, isCompanyRole, isCompanyWorkspaceOversightRole } from "@/lib/rbac";
 
@@ -29,18 +30,22 @@ export function canRequestWorkspaceDocumentExcerpt(
   if (isCompanyRole(params.role)) {
     if (isCompanyWorkspaceOversightRole(params.role)) {
       return params.companyScopeCompanyId
-        ? doc.company_id === params.companyScopeCompanyId
-        : doc.user_id === params.userId;
+        ? uuidMatches(doc.company_id, params.companyScopeCompanyId)
+        : uuidMatches(doc.user_id, params.userId);
     }
+
+    const purchased = params.purchasedDocumentIds.some((pid) =>
+      uuidMatches(pid, doc.id)
+    );
 
     return (
       isApprovedDocumentStatus(doc.status, Boolean(doc.final_file_path)) &&
       (Boolean(
         params.companyScopeCompanyId &&
-          doc.company_id === params.companyScopeCompanyId
+          uuidMatches(doc.company_id, params.companyScopeCompanyId)
       ) ||
-        doc.user_id === params.userId ||
-        params.purchasedDocumentIds.includes(doc.id))
+        uuidMatches(doc.user_id, params.userId) ||
+        purchased)
     );
   }
 
@@ -48,5 +53,5 @@ export function canRequestWorkspaceDocumentExcerpt(
     return true;
   }
 
-  return doc.user_id === params.userId;
+  return uuidMatches(doc.user_id, params.userId);
 }

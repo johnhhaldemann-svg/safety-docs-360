@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCompanyScope } from "@/lib/companyScope";
+import { getCompanyScope, uuidMatches } from "@/lib/companyScope";
 import {
   authorizeRequest,
   isCompanyRole,
@@ -61,15 +61,19 @@ export async function GET(request: Request) {
       }
 
       if (isCompanyWorkspaceOversightRole(auth.role)) {
-        return companyScope.companyId ? companyId === companyScope.companyId : userId === auth.user.id;
+        return companyScope.companyId
+          ? uuidMatches(companyId, companyScope.companyId)
+          : uuidMatches(userId, auth.user.id);
       }
 
       return (
         isApprovedDocumentStatus(status, Boolean(finalFilePath)) &&
         (
-          (companyScope.companyId ? companyId === companyScope.companyId : false) ||
-          userId === auth.user.id ||
-          purchasedDocumentIds.includes(id)
+          (companyScope.companyId
+            ? uuidMatches(companyId, companyScope.companyId)
+            : false) ||
+          uuidMatches(userId, auth.user.id) ||
+          purchasedDocumentIds.some((pid) => uuidMatches(pid, id))
         )
       );
     });
