@@ -6,6 +6,7 @@ import {
   isMarketplaceEnabled,
   isValidMarketplacePreviewPath,
 } from "@/lib/marketplace";
+import { extractMarketplacePreviewExcerpt } from "@/lib/marketplacePreviewExcerpt";
 import {
   getClientIpAddress,
   getDefaultAgreementConfig,
@@ -95,16 +96,34 @@ export async function GET(
     );
   }
 
-  const { data, error } = await supabase.storage
+  const { data: blob, error: downloadError } = await supabase.storage
     .from("documents")
-    .createSignedUrl(previewPath, 120);
+    .download(previewPath);
 
-  if (error || !data?.signedUrl) {
+  if (downloadError || !blob) {
     return NextResponse.json(
-      { error: error?.message || "Failed to create preview URL." },
+      { error: downloadError?.message || "Failed to load preview file." },
       { status: 500 }
     );
   }
+
+  const arrayBuffer = await blob.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const sourceName = fileNameFromPreviewPath(
+    previewPath,
+    document.project_name ?? null
+  );
+
+  const extracted = await extractMarketplacePreviewExcerpt(buffer, sourceName);
+
+  if (!extracted.ok) {
+    return NextResponse.json(
+      { error: extracted.error },
+      { status: 422 }
+    );
+  }
+
+  const empty = extracted.excerpt.length === 0;
 
   await logDocumentDownload({
     supabase,
@@ -114,13 +133,24 @@ export async function GET(
     fileKind: "preview",
     ipAddress: getClientIpAddress(request),
     metadata: {
-      route: "library_preview",
+      route: "library_preview_excerpt",
       project_name: document.project_name ?? null,
+      truncated: extracted.truncated,
+      empty_excerpt: empty,
     },
   });
 
-  return NextResponse.json({
-    signedUrl: data.signedUrl,
-    fileName: fileNameFromPreviewPath(previewPath, document.project_name ?? null),
+  const title =
+    document.project_name?.trim() ||
+    sourceName.replace(/\.[^.]+$/, "") ||
+    "Marketplace preview";
+
+  const res = NextResponse.json({
+    title,
+    excerpt: extracted.excerpt,
+    truncated: extracted.truncated,
+    empty,
   });
+  res.headers.set("Cache-Control", "no-store, max-age=0");
+  return res;
 }

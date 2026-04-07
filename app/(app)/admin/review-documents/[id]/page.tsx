@@ -1604,8 +1604,9 @@ export default function ReviewDocumentPage() {
                   Buyer preview (before credit unlock)
                 </p>
                 <p className="mt-1 text-sm text-slate-500">
-                  Upload a PDF or DOCX sample. Buyers who have not unlocked the document
-                  can open this from the library marketplace.
+                  Upload PDF or DOCX source material. Buyers see a short on-screen text
+                  excerpt only (no file download). Use text-based PDFs where possible;
+                  scanned pages may show no excerpt until they purchase.
                 </p>
                 {documentItem && getMarketplacePreviewPath(documentItem.notes) ? (
                   <p className="mt-3 text-xs font-medium text-emerald-400">

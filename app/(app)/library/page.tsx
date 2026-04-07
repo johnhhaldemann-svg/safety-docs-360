@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
+import { MarketplacePreviewModal } from "@/components/MarketplacePreviewModal";
 import {
   ActivityFeed,
   InlineMessage,
@@ -127,6 +128,12 @@ function LibraryPageContent() {
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [actionLoadingId, setActionLoadingId] = useState<string>("");
   const [previewLoadingId, setPreviewLoadingId] = useState<string>("");
+  const [marketplacePreviewModal, setMarketplacePreviewModal] = useState<{
+    title: string;
+    excerpt: string;
+    truncated: boolean;
+    empty: boolean;
+  } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
   const [typeFilter, setTypeFilter] = useState("All Types");
@@ -366,17 +373,35 @@ function LibraryPageContent() {
         });
 
         const data = (await res.json().catch(() => null)) as
-          | { error?: string; signedUrl?: string }
+          | {
+              error?: string;
+              title?: string;
+              excerpt?: string;
+              truncated?: boolean;
+              empty?: boolean;
+            }
           | null;
 
-        if (!res.ok || !data?.signedUrl) {
+        if (!res.ok || !data) {
           const msg = data?.error || "Failed to load preview.";
           setMessage(msg);
           toast.error(msg);
           return;
         }
 
-        window.open(data.signedUrl, "_blank");
+        if (typeof data.excerpt !== "string") {
+          const msg = data.error || "Failed to load preview.";
+          setMessage(msg);
+          toast.error(msg);
+          return;
+        }
+
+        setMarketplacePreviewModal({
+          title: typeof data.title === "string" ? data.title : "Marketplace preview",
+          excerpt: data.excerpt,
+          truncated: Boolean(data.truncated),
+          empty: Boolean(data.empty),
+        });
       } catch (error) {
         const msg =
           error instanceof Error ? error.message : "Failed to load preview.";
@@ -971,6 +996,15 @@ function LibraryPageContent() {
           void confirmPendingDownload();
         }}
       />
+
+      <MarketplacePreviewModal
+        open={Boolean(marketplacePreviewModal)}
+        onClose={() => setMarketplacePreviewModal(null)}
+        title={marketplacePreviewModal?.title ?? ""}
+        excerpt={marketplacePreviewModal?.excerpt ?? ""}
+        truncated={marketplacePreviewModal?.truncated ?? false}
+        empty={marketplacePreviewModal?.empty ?? false}
+      />
     </div>
   );
 }
@@ -1237,7 +1271,7 @@ function MarketplaceSection({
                       disabled={previewLoadingId === doc.id}
                       className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-600 bg-transparent px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800/50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {previewLoadingId === doc.id ? "Opening preview..." : "Preview sample"}
+                      {previewLoadingId === doc.id ? "Loading excerpt…" : "Preview excerpt"}
                     </button>
                   ) : null}
                   <button
