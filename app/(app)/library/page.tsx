@@ -56,9 +56,15 @@ type CreditState = {
   ledgerEnabled: boolean;
 };
 
-type PendingDownload =
-  | { mode: "direct"; path: string }
-  | { mode: "completed"; documentId: string };
+type PendingDownload = { mode: "completed"; documentId: string };
+
+type ExcerptModalState = {
+  title: string;
+  excerpt: string;
+  truncated: boolean;
+  empty: boolean;
+  variant: "marketplace" | "workspace";
+};
 
 function getDocumentTitle(doc: DocumentRow) {
   return doc.document_title ?? doc.project_name ?? doc.file_name ?? "Untitled Document";
@@ -128,12 +134,8 @@ function LibraryPageContent() {
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [actionLoadingId, setActionLoadingId] = useState<string>("");
   const [previewLoadingId, setPreviewLoadingId] = useState<string>("");
-  const [marketplacePreviewModal, setMarketplacePreviewModal] = useState<{
-    title: string;
-    excerpt: string;
-    truncated: boolean;
-    empty: boolean;
-  } | null>(null);
+  const [activeExcerptLoadingId, setActiveExcerptLoadingId] = useState<string>("");
+  const [excerptModal, setExcerptModal] = useState<ExcerptModalState | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
   const [typeFilter, setTypeFilter] = useState("All Types");
@@ -234,17 +236,6 @@ function LibraryPageContent() {
     }
   }, [getAccessToken]);
 
-  async function handleOpenFile(path?: string | null) {
-    setMessage("");
-
-    if (!path) {
-      setMessage("Open file failed: missing file path.");
-      return;
-    }
-
-    setPendingDownload({ mode: "direct", path });
-  }
-
   const handleOpenCompletedDocument = useCallback(
     async (documentId: string, confirmed = false) => {
       try {
@@ -282,20 +273,7 @@ function LibraryPageContent() {
     setMessage("");
 
     try {
-      if (pendingDownload.mode === "direct") {
-        const { data, error } = await supabase.storage
-          .from("documents")
-          .createSignedUrl(pendingDownload.path, 60);
-
-        if (error || !data?.signedUrl) {
-          throw new Error(error?.message || "Failed to create file access URL.");
-        }
-
-        window.open(data.signedUrl, "_blank");
-      } else {
-        await handleOpenCompletedDocument(pendingDownload.documentId, true);
-      }
-
+      await handleOpenCompletedDocument(pendingDownload.documentId, true);
       setPendingDownload(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to open document.");
@@ -396,11 +374,12 @@ function LibraryPageContent() {
           return;
         }
 
-        setMarketplacePreviewModal({
+        setExcerptModal({
           title: typeof data.title === "string" ? data.title : "Marketplace preview",
           excerpt: data.excerpt,
           truncated: Boolean(data.truncated),
           empty: Boolean(data.empty),
+          variant: "marketplace",
         });
       } catch (error) {
         const msg =
@@ -409,6 +388,62 @@ function LibraryPageContent() {
         toast.error(msg);
       } finally {
         setPreviewLoadingId("");
+      }
+    },
+    [getAccessToken]
+  );
+
+  const handleWorkspaceDocumentExcerpt = useCallback(
+    async (documentId: string) => {
+      setActiveExcerptLoadingId(documentId);
+      setMessage("");
+
+      try {
+        const token = await getAccessToken();
+        const res = await fetch(`/api/library/workspace-excerpt/${documentId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = (await res.json().catch(() => null)) as
+          | {
+              error?: string;
+              title?: string;
+              excerpt?: string;
+              truncated?: boolean;
+              empty?: boolean;
+            }
+          | null;
+
+        if (!res.ok || !data) {
+          const msg = data?.error || "Failed to load preview.";
+          setMessage(msg);
+          toast.error(msg);
+          return;
+        }
+
+        if (typeof data.excerpt !== "string") {
+          const msg = data.error || "Failed to load preview.";
+          setMessage(msg);
+          toast.error(msg);
+          return;
+        }
+
+        setExcerptModal({
+          title: typeof data.title === "string" ? data.title : "Document preview",
+          excerpt: data.excerpt,
+          truncated: Boolean(data.truncated),
+          empty: Boolean(data.empty),
+          variant: "workspace",
+        });
+      } catch (error) {
+        const msg =
+          error instanceof Error ? error.message : "Failed to load preview.";
+        setMessage(msg);
+        toast.error(msg);
+      } finally {
+        setActiveExcerptLoadingId("");
       }
     },
     [getAccessToken]
@@ -978,10 +1013,11 @@ function LibraryPageContent() {
         documents={otherDocuments}
         emptyTitle="No documents found"
         emptyMessage="Try adjusting your filters or upload a new file."
-        onOpen={(doc) =>
-          handleOpenFile(doc.file_path ?? doc.draft_file_path ?? doc.final_file_path)
-        }
-        actionLabel="Preview file"
+        onOpen={(doc) => {
+          void handleWorkspaceDocumentExcerpt(doc.id);
+        }}
+        actionLabel="Preview excerpt"
+        actionLoadingDocumentId={activeExcerptLoadingId}
         highlightDocumentId={highlightDocId}
       />
 
@@ -998,12 +1034,13 @@ function LibraryPageContent() {
       />
 
       <MarketplacePreviewModal
-        open={Boolean(marketplacePreviewModal)}
-        onClose={() => setMarketplacePreviewModal(null)}
-        title={marketplacePreviewModal?.title ?? ""}
-        excerpt={marketplacePreviewModal?.excerpt ?? ""}
-        truncated={marketplacePreviewModal?.truncated ?? false}
-        empty={marketplacePreviewModal?.empty ?? false}
+        open={Boolean(excerptModal)}
+        onClose={() => setExcerptModal(null)}
+        title={excerptModal?.title ?? ""}
+        excerpt={excerptModal?.excerpt ?? ""}
+        truncated={excerptModal?.truncated ?? false}
+        empty={excerptModal?.empty ?? false}
+        variant={excerptModal?.variant ?? "marketplace"}
       />
     </div>
   );
@@ -1032,6 +1069,7 @@ function DocumentSection({
   emptyTitle,
   emptyMessage,
   actionLabel,
+  actionLoadingDocumentId,
   highlightDocumentId,
 }: {
   title: string;
@@ -1042,6 +1080,7 @@ function DocumentSection({
   emptyTitle: string;
   emptyMessage: string;
   actionLabel: string;
+  actionLoadingDocumentId?: string;
   highlightDocumentId?: string | null;
 }) {
   return (
@@ -1079,6 +1118,7 @@ function DocumentSection({
               actionLabel={actionLabel}
               onOpen={() => onOpen(doc)}
               highlighted={highlightDocumentId === doc.id}
+              actionLoading={actionLoadingDocumentId === doc.id}
             />
           ))}
         </div>
@@ -1092,11 +1132,13 @@ function DocumentCard({
   actionLabel,
   onOpen,
   highlighted = false,
+  actionLoading = false,
 }: {
   document: DocumentRow;
   actionLabel: string;
   onOpen: () => void;
   highlighted?: boolean;
+  actionLoading?: boolean;
 }) {
   const status = getDocumentStatus(document);
 
@@ -1147,9 +1189,10 @@ function DocumentCard({
       <button
         type="button"
         onClick={onOpen}
-        className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+        disabled={actionLoading}
+        className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {actionLabel}
+        {actionLoading ? "Loading…" : actionLabel}
       </button>
     </article>
   );

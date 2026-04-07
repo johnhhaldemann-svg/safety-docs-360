@@ -1,5 +1,7 @@
 "use client";
 
+type PreviewVariant = "marketplace" | "workspace";
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -7,6 +9,8 @@ type Props = {
   excerpt: string;
   truncated: boolean;
   empty: boolean;
+  /** Workspace = in-review / active library rows; marketplace = credit unlock listings */
+  variant?: PreviewVariant;
 };
 
 export function MarketplacePreviewModal({
@@ -16,17 +20,33 @@ export function MarketplacePreviewModal({
   excerpt,
   truncated,
   empty,
+  variant = "marketplace",
 }: Props) {
   if (!open) {
     return null;
   }
+
+  const emptyBody =
+    variant === "workspace"
+      ? "No readable text could be extracted (for example, a scanned PDF). When this record is approved, open the full file from Ready to open."
+      : "No readable text could be pulled from the preview file (for example, a scanned PDF). Unlock the document after purchase to access the complete file from the publisher.";
+
+  const footerMain =
+    variant === "workspace"
+      ? "This is an on-screen excerpt only — not a download. After approval, use Open document under Ready to open for the full file (with the usual confirmation)."
+      : "This screen shows a short on-platform excerpt only. There is no file download here. Purchasing unlocks the full document through your library.";
+
+  const truncatedNote =
+    variant === "workspace"
+      ? "Text is truncated; the full file is available only after approval from Ready to open."
+      : "Text is truncated; the full content is available only after unlock.";
 
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="marketplace-preview-title"
+      aria-labelledby="document-excerpt-preview-title"
     >
       <button
         type="button"
@@ -41,7 +61,7 @@ export function MarketplacePreviewModal({
       >
         <div className="flex items-start justify-between gap-3">
           <h2
-            id="marketplace-preview-title"
+            id="document-excerpt-preview-title"
             className="text-lg font-bold tracking-tight text-white"
           >
             {title}
@@ -69,11 +89,7 @@ export function MarketplacePreviewModal({
             </span>
           </div>
           {empty ? (
-            <p className="relative z-[1] text-sm leading-6 text-slate-400">
-              No readable text could be pulled from the preview file (for example, a
-              scanned PDF). Unlock the document after purchase to access the complete
-              file from the publisher.
-            </p>
+            <p className="relative z-[1] text-sm leading-6 text-slate-400">{emptyBody}</p>
           ) : (
             <p className="relative z-[1] whitespace-pre-wrap text-sm leading-6 text-slate-200">
               {excerpt}
@@ -81,14 +97,9 @@ export function MarketplacePreviewModal({
           )}
         </div>
 
-        <p className="mt-4 text-xs leading-5 text-slate-500">
-          This screen shows a short on-platform excerpt only. There is no file download
-          here. Purchasing unlocks the full document through your library.
-        </p>
+        <p className="mt-4 text-xs leading-5 text-slate-500">{footerMain}</p>
         {!empty && truncated ? (
-          <p className="mt-2 text-xs font-medium text-sky-300/90">
-            Text is truncated; the full content is available only after unlock.
-          </p>
+          <p className="mt-2 text-xs font-medium text-sky-300/90">{truncatedNote}</p>
         ) : null}
       </div>
     </div>
