@@ -12,6 +12,11 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
+import { PermissionOverridesEditor } from "@/components/PermissionOverridesEditor";
+import {
+  normalizePermissionOverrides,
+  type PermissionOverrides,
+} from "@/lib/rbac";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,6 +32,7 @@ type AdminUser = {
   companyId?: string | null;
   companyName?: string;
   status: string;
+  permissionOverrides?: PermissionOverrides;
   created_at?: string | null;
   last_sign_in_at?: string | null;
 };
@@ -139,6 +145,10 @@ export default function AdminUsersPage() {
   const [editTeam, setEditTeam] = useState("General");
   const [editCompanyId, setEditCompanyId] = useState("");
   const [editStatus, setEditStatus] = useState("Active");
+  const [editPermissionOverrides, setEditPermissionOverrides] = useState<PermissionOverrides>({
+    allow: [],
+    deny: [],
+  });
   const [saveLoading, setSaveLoading] = useState(false);
   const [removeLoading, setRemoveLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState("");
@@ -443,6 +453,7 @@ export default function AdminUsersPage() {
           role: editRole,
           team: editTeam,
           accountStatus: editStatus,
+          permissionOverrides: editPermissionOverrides,
           ...(needsCompanyWorkspace ? { companyId: nextCompanyId } : {}),
         }),
       });
@@ -871,6 +882,9 @@ export default function AdminUsersPage() {
                         setEditTeam(user.team);
                         setEditCompanyId(findCompanyIdForUser(user, companies));
                         setEditStatus("Pending");
+                        setEditPermissionOverrides(
+                          normalizePermissionOverrides(user.permissionOverrides ?? null)
+                        );
                         setModalMessage("");
                         setModalMessageTone("neutral");
                       }}
@@ -981,7 +995,10 @@ export default function AdminUsersPage() {
                           ? "Pending"
                           : user.status === "Suspended"
                             ? "Suspended"
-                            : "Active"
+                          : "Active"
+                      );
+                      setEditPermissionOverrides(
+                        normalizePermissionOverrides(user.permissionOverrides ?? null)
                       );
                       setModalMessage("");
                       setModalMessageTone("neutral");
@@ -997,14 +1014,14 @@ export default function AdminUsersPage() {
         )}
       </SectionCard>
 
-      {editingUser ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 [color-scheme:dark]">
-          <div className="w-full max-w-lg rounded-3xl border border-slate-700/80 bg-slate-900/95 p-6 shadow-2xl [color-scheme:dark]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
-                  Manage User
-                </p>
+        {editingUser ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 [color-scheme:dark]">
+            <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-slate-700/80 bg-slate-900/95 p-6 shadow-2xl [color-scheme:dark]">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
+                    Manage User
+                  </p>
                 <h3 className="mt-2 text-2xl font-bold text-slate-100">{editingUser.name}</h3>
                 <p className="mt-1 text-sm text-slate-500">{editingUser.email}</p>
               </div>
@@ -1020,11 +1037,11 @@ export default function AdminUsersPage() {
               </button>
             </div>
 
-            <div className="mt-6 grid gap-4">
-              <select
-                value={editRole}
-                onChange={(e) => setEditRole(e.target.value)}
-                className={`w-full ${appNativeSelectClassName} py-3`}
+              <div className="mt-6 grid gap-4">
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value)}
+                  className={`w-full ${appNativeSelectClassName} py-3`}
               >
                 {(capabilities.canViewAllUsers ? roleOptions : inviteRoleOptions).filter(
                   (role) => role !== "All Roles"
@@ -1074,21 +1091,30 @@ export default function AdminUsersPage() {
                   placeholder="Display label (synced with workspace name when company is set)"
                 />
               </div>
-              <select
-                value={editStatus}
-                onChange={(e) => setEditStatus(e.target.value)}
-                className={`w-full ${appNativeSelectClassName} py-3`}
-              >
-                <option>Pending</option>
-                <option>Active</option>
-                <option>Suspended</option>
-              </select>
-            </div>
-
-            {modalMessage ? (
-              <div className="mt-4">
-                <InlineMessage tone={modalMessageTone}>{modalMessage}</InlineMessage>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  className={`w-full ${appNativeSelectClassName} py-3`}
+                >
+                  <option>Pending</option>
+                  <option>Active</option>
+                  <option>Suspended</option>
+                </select>
               </div>
+
+              <div className="mt-6 rounded-3xl border border-slate-700/70 bg-slate-950/45 p-5">
+                <PermissionOverridesEditor
+                  title="User function access"
+                  description="Set user-specific allow or block rules. Leave an item as Inherit to keep the company default."
+                  value={editPermissionOverrides}
+                  onChange={setEditPermissionOverrides}
+                />
+              </div>
+
+              {modalMessage ? (
+                <div className="mt-4">
+                  <InlineMessage tone={modalMessageTone}>{modalMessage}</InlineMessage>
+                </div>
             ) : null}
 
             <div className="mt-6 flex flex-wrap justify-end gap-3">

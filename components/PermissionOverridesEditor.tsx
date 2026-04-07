@@ -1,7 +1,7 @@
 "use client";
 
 import type { AppPermission, PermissionOverrides } from "@/lib/rbac";
-import { APP_PERMISSIONS, normalizePermissionOverrides, setPermissionOverride } from "@/lib/rbac";
+import { normalizePermissionOverrides, setPermissionOverride } from "@/lib/rbac";
 
 type PermissionGroup = {
   title: string;

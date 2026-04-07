@@ -4,8 +4,6 @@ import { getCompanyScope } from "@/lib/companyScope";
 import {
   authorizeRequest,
   formatAppRole,
-  getPermissionMap,
-  getRolePermissions,
   getUserRoleContext,
   isAdminRole,
 } from "@/lib/rbac";
@@ -527,6 +525,11 @@ export async function GET(request: Request) {
         role: auth.role,
         team: auth.team,
         accountStatus: auth.accountStatus,
+        permissions: auth.permissions,
+        permissionMap: auth.permissionMap,
+        companyId: null,
+        companyPermissionOverrides: null,
+        permissionOverrides: null,
       };
 
   const agreementConfigPromise = getAgreementConfig(auth.supabase).catch(() =>
@@ -633,8 +636,8 @@ export async function GET(request: Request) {
       companyProfile:
         companyProfile && !companyProfile.error ? companyProfile.data ?? null : null,
       isAdmin: isAdminRole(refreshedRoleContext.role),
-      permissions: getRolePermissions(refreshedRoleContext.role),
-      permissionMap: getPermissionMap(refreshedRoleContext.role),
+      permissions: refreshedRoleContext.permissions,
+      permissionMap: refreshedRoleContext.permissionMap,
       accountStatus: effectiveAccountStatus,
       pendingCompanySignupRequest:
         pendingCompanySignupRequest && !companyScope.companyId

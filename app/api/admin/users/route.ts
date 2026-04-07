@@ -53,21 +53,6 @@ type RpcAdminUserRow = {
   email_confirmed_at: string | null;
 };
 
-type AdminUserResponseRow = {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  team: string;
-  companyId?: string | null;
-  companyName?: string;
-  status: string;
-  permissionOverrides: ReturnType<typeof normalizePermissionOverrides>;
-  created_at?: string | null;
-  last_sign_in_at?: string | null;
-  email_confirmed_at?: string | null;
-};
-
 function getDisplayName(user: {
   email?: string | null;
   user_metadata?: Record<string, unknown>;
@@ -205,7 +190,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await auth.supabase
       .from("user_roles")
-      .select("user_id, role, team, company_id, account_status, created_at")
+      .select("user_id, role, team, company_id, account_status, permission_overrides, created_at")
       .order("created_at", { ascending: false });
 
     if (error) {

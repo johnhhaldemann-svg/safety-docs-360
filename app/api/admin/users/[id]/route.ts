@@ -5,6 +5,7 @@ import {
   isCrossWorkspaceAdminRole,
   normalizeAccountStatus,
   normalizeAppRole,
+  normalizePermissionOverrides,
 } from "@/lib/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
@@ -15,6 +16,7 @@ type UpdatePayload = {
   team?: string;
   accountStatus?: string;
   companyId?: string | null;
+  permissionOverrides?: unknown;
 };
 
 type CompanyLookupRow = {
@@ -286,20 +288,39 @@ export async function PATCH(
   const team = body.team?.trim() || "General";
   const accountStatus = normalizeAccountStatus(body.accountStatus);
   const companyIdInBody = Object.prototype.hasOwnProperty.call(body, "companyId");
+  const permissionOverridesInBody = Object.prototype.hasOwnProperty.call(
+    body,
+    "permissionOverrides"
+  );
   const explicitCompanyId = companyIdInBody
     ? body.companyId === null || body.companyId === undefined
       ? ""
       : trimText(String(body.companyId))
     : undefined;
   const canAssignCompanyWorkspace = isCrossWorkspaceAdminRole(auth.role);
+  const requestedPermissionOverrides = permissionOverridesInBody
+    ? normalizePermissionOverrides(body.permissionOverrides)
+    : null;
 
   if (!adminClient) {
+    const currentRoleRow = await auth.supabase
+      .from("user_roles")
+      .select("permission_overrides")
+      .eq("user_id", id)
+      .maybeSingle();
+    const existingPermissionOverrides = normalizePermissionOverrides(
+      currentRoleRow.data && typeof currentRoleRow.data === "object"
+        ? (currentRoleRow.data as { permission_overrides?: unknown }).permission_overrides ?? null
+        : null
+    );
+
     const { error: roleError } = await auth.supabase.from("user_roles").upsert(
       {
         user_id: id,
         role,
         team,
         account_status: accountStatus,
+        permission_overrides: requestedPermissionOverrides ?? existingPermissionOverrides,
         created_by: auth.user.id,
         updated_by: auth.user.id,
       },
@@ -320,6 +341,7 @@ export async function PATCH(
       role,
       team,
       accountStatus,
+      permissionOverrides: requestedPermissionOverrides ?? existingPermissionOverrides,
       warning:
         "Role was updated in the workspace RBAC table, but Supabase Auth metadata could not be synced because the service role key is unavailable at runtime.",
     });
@@ -349,6 +371,18 @@ export async function PATCH(
   if (companyAssignment.error) {
     return NextResponse.json({ error: companyAssignment.error }, { status: 400 });
   }
+
+  const { data: currentRoleRow } = await adminClient
+    .from("user_roles")
+    .select("permission_overrides")
+    .eq("user_id", id)
+    .maybeSingle();
+  const existingPermissionOverrides = normalizePermissionOverrides(
+    currentRoleRow && typeof currentRoleRow === "object"
+      ? (currentRoleRow as { permission_overrides?: unknown }).permission_overrides ?? null
+      : null
+  );
+  const nextPermissionOverrides = requestedPermissionOverrides ?? existingPermissionOverrides;
 
   const mergedUserMetadata = {
     ...(currentUser.user.user_metadata ?? {}),
@@ -388,6 +422,7 @@ export async function PATCH(
       team: companyAssignment.companyName || team,
       company_id: companyAssignment.companyId,
       account_status: accountStatus,
+      permission_overrides: nextPermissionOverrides,
       created_by: auth.user.id,
       updated_by: auth.user.id,
     },
@@ -447,6 +482,7 @@ export async function PATCH(
     team: companyAssignment.companyName || team,
     companyId: companyAssignment.companyId,
     accountStatus,
+    permissionOverrides: nextPermissionOverrides,
   });
 }
 

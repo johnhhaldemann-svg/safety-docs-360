@@ -12,6 +12,11 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
+import { PermissionOverridesEditor } from "@/components/PermissionOverridesEditor";
+import {
+  normalizePermissionOverrides,
+  type PermissionOverrides,
+} from "@/lib/rbac";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -38,6 +43,7 @@ type CompanyDetail = {
   archivedByEmail?: string;
   restoredAt?: string | null;
   restoredByEmail?: string;
+  permissionOverrides?: PermissionOverrides;
 };
 
 type CompanySummary = {
@@ -136,11 +142,17 @@ export default function AdminCompanyDetailPage({
   const [processingAction, setProcessingAction] = useState(false);
   const [canPermanentlyDeleteCompanies, setCanPermanentlyDeleteCompanies] = useState(false);
   const [canManageCompanySubscription, setCanManageCompanySubscription] = useState(false);
+  const [canManageCompanyPermissions, setCanManageCompanyPermissions] = useState(false);
   const [subscription, setSubscription] = useState<CompanySubscriptionSummary | null>(null);
   const [subStatusDraft, setSubStatusDraft] = useState("inactive");
   const [subPlanDraft, setSubPlanDraft] = useState("Pro");
   const [subMaxSeatsDraft, setSubMaxSeatsDraft] = useState("");
+  const [companyPermissionDraft, setCompanyPermissionDraft] = useState<PermissionOverrides>({
+    allow: [],
+    deny: [],
+  });
   const [savingSubscription, setSavingSubscription] = useState(false);
+  const [savingCompanyPermissions, setSavingCompanyPermissions] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingCompany, setDeletingCompany] = useState(false);
@@ -179,6 +191,7 @@ export default function AdminCompanyDetailPage({
             capabilities?: {
               canPermanentlyDeleteCompanies?: boolean;
               canManageCompanySubscription?: boolean;
+              canManageCompanyPermissions?: boolean;
             };
             subscription?: CompanySubscriptionSummary;
             company?: CompanyDetail;
@@ -201,7 +214,9 @@ export default function AdminCompanyDetailPage({
         setActivity([]);
         setCanPermanentlyDeleteCompanies(false);
         setCanManageCompanySubscription(false);
+        setCanManageCompanyPermissions(false);
         setSubscription(null);
+        setCompanyPermissionDraft({ allow: [], deny: [] });
         setLoading(false);
         return;
       }
@@ -211,6 +226,9 @@ export default function AdminCompanyDetailPage({
       );
       setCanManageCompanySubscription(
         Boolean(data?.capabilities?.canManageCompanySubscription)
+      );
+      setCanManageCompanyPermissions(
+        Boolean(data?.capabilities?.canManageCompanyPermissions)
       );
       const sub = data?.subscription;
       if (sub) {
@@ -222,6 +240,9 @@ export default function AdminCompanyDetailPage({
         setSubscription(null);
       }
       setCompany(data?.company ?? null);
+      setCompanyPermissionDraft(
+        normalizePermissionOverrides(data?.company?.permissionOverrides ?? null)
+      );
       setSummary(data?.summary ?? null);
       setUsers(data?.users ?? []);
       setInvites(data?.invites ?? []);
@@ -236,6 +257,7 @@ export default function AdminCompanyDetailPage({
       setInvites([]);
       setDocuments([]);
       setActivity([]);
+      setCompanyPermissionDraft({ allow: [], deny: [] });
     }
 
     setLoading(false);
@@ -377,6 +399,56 @@ export default function AdminCompanyDetailPage({
     subPlanDraft,
     subStatusDraft,
   ]);
+
+  const handleSaveCompanyPermissions = useCallback(async () => {
+    if (!companyId) return;
+
+    setSavingCompanyPermissions(true);
+    setMessage("");
+
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error || !session?.access_token) {
+        setMessageTone("error");
+        setMessage("You must be logged in as an internal admin.");
+        setSavingCompanyPermissions(false);
+        return;
+      }
+
+      const res = await fetch(`/api/admin/companies/${companyId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          permissionOverrides: companyPermissionDraft,
+        }),
+      });
+
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+
+      if (!res.ok) {
+        setMessageTone("error");
+        setMessage(data?.error || "Failed to save company access rules.");
+        setSavingCompanyPermissions(false);
+        return;
+      }
+
+      setMessageTone("success");
+      setMessage("Company access rules saved.");
+      await loadCompany();
+    } catch (err) {
+      setMessageTone("error");
+      setMessage(err instanceof Error ? err.message : "Failed to save company access rules.");
+    }
+
+    setSavingCompanyPermissions(false);
+  }, [companyId, companyPermissionDraft, loadCompany]);
 
   const handlePermanentDelete = useCallback(async () => {
     if (!company) return;
@@ -782,6 +854,49 @@ export default function AdminCompanyDetailPage({
               </div>
             ) : null}
           </div>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Company function access"
+        description="Set workspace-wide defaults for which functions this company can use. Individual user overrides can still refine access later."
+        aside={
+          <StatusBadge
+            label={canManageCompanyPermissions ? "Editable" : "Read only"}
+            tone={canManageCompanyPermissions ? "info" : "neutral"}
+          />
+        }
+      >
+        {loading ? (
+          <InlineMessage>Loading company access rules...</InlineMessage>
+        ) : !company ? (
+          <EmptyState
+            title="Company access not available"
+            description="Load the workspace first before editing access rules."
+          />
+        ) : canManageCompanyPermissions ? (
+          <div className="space-y-5">
+            <PermissionOverridesEditor
+              title="Workspace defaults"
+              description="These rules apply to the company as a whole. Users can still inherit, allow, or block additional access at the user level."
+              value={companyPermissionDraft}
+              onChange={setCompanyPermissionDraft}
+            />
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void handleSaveCompanyPermissions()}
+                disabled={savingCompanyPermissions}
+                className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingCompanyPermissions ? "Saving..." : "Save company access"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <InlineMessage tone="warning">
+            These workspace access rules are read only in the current session.
+          </InlineMessage>
         )}
       </SectionCard>
 

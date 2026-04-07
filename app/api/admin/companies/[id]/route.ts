@@ -9,7 +9,12 @@ import {
   getCompanySeatCounts,
   normalizeCompanySubscriptionStatus,
 } from "@/lib/companySeats";
-import { authorizeRequest, formatAccountStatus, formatAppRole } from "@/lib/rbac";
+import {
+  authorizeRequest,
+  formatAccountStatus,
+  formatAppRole,
+  normalizePermissionOverrides,
+} from "@/lib/rbac";
 import { normalizeApprovalPlanName } from "@/lib/workspaceProduct";
 
 type ServiceSupabase = NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
@@ -40,6 +45,7 @@ type CompanyRow = {
   archived_by_email?: string | null;
   restored_at?: string | null;
   restored_by_email?: string | null;
+  permission_overrides?: unknown;
 };
 
 type CompanyMembershipRow = {
@@ -560,6 +566,7 @@ export async function GET(request: Request, context: RouteContext) {
     capabilities: {
       canPermanentlyDeleteCompanies: auth.role === "super_admin",
       canManageCompanySubscription: ["super_admin", "admin", "platform_admin"].includes(auth.role),
+      canManageCompanyPermissions: ["super_admin", "admin", "platform_admin"].includes(auth.role),
     },
     subscription: {
       status: normalizeCompanySubscriptionStatus(subscriptionRow?.status ?? null),
@@ -592,6 +599,7 @@ export async function GET(request: Request, context: RouteContext) {
       archivedByEmail: company.archived_by_email?.trim() || "",
       restoredAt: company.restored_at ?? null,
       restoredByEmail: company.restored_by_email?.trim() || "",
+      permissionOverrides: normalizePermissionOverrides(company.permission_overrides ?? null),
     },
     summary,
     users,
@@ -629,6 +637,7 @@ type SubscriptionPatchBody = {
   planName?: string | null;
   subscriptionStatus?: string | null;
   maxUserSeats?: number | null;
+  permissionOverrides?: unknown;
 };
 
 /** Upsert `company_subscriptions` — subscription status, plan, and per-company user seat cap. */
@@ -657,6 +666,14 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const body = (await request.json().catch(() => null)) as SubscriptionPatchBody | null;
+  const subscriptionFieldsProvided = body
+    ? Object.prototype.hasOwnProperty.call(body, "subscriptionStatus") ||
+      Object.prototype.hasOwnProperty.call(body, "planName") ||
+      Object.prototype.hasOwnProperty.call(body, "maxUserSeats")
+    : false;
+  const permissionOverridesProvided = body
+    ? Object.prototype.hasOwnProperty.call(body, "permissionOverrides")
+    : false;
 
   const companyLookup = await adminClient.from("companies").select("id").eq("id", companyId).maybeSingle();
   if (companyLookup.error) {
@@ -719,38 +736,58 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
-  const upsertPayload: Record<string, unknown> = {
-    company_id: companyId,
-    status: nextStatus,
-    plan_name: planName,
-    max_user_seats: maxUserSeats,
-    credit_balance: row?.credit_balance ?? null,
-    updated_by: auth.user.id,
-  };
-  if (!row) {
-    upsertPayload.created_by = auth.user.id;
-  }
+  if (subscriptionFieldsProvided) {
+    const upsertPayload: Record<string, unknown> = {
+      company_id: companyId,
+      status: nextStatus,
+      plan_name: planName,
+      max_user_seats: maxUserSeats,
+      credit_balance: row?.credit_balance ?? null,
+      updated_by: auth.user.id,
+    };
+    if (!row) {
+      upsertPayload.created_by = auth.user.id;
+    }
 
-  const upsert = await adminClient.from("company_subscriptions").upsert(upsertPayload, {
-    onConflict: "company_id",
-  });
-
-  if (upsert.error) {
-    return NextResponse.json(
-      { error: upsert.error.message || "Failed to update company subscription." },
-      { status: 500 }
-    );
-  }
-
-  const prevNorm = normalizeCompanySubscriptionStatus(previousStatus);
-  if (nextStatus === "active" && prevNorm !== "active") {
-    const { data: txs } = await listCompanyCreditTransactions(adminClient, companyId);
-    await ensureInitialCompanyCredits({
-      supabase: adminClient,
-      companyId,
-      subscriptionStatus: "active",
-      existingTransactions: txs,
+    const upsert = await adminClient.from("company_subscriptions").upsert(upsertPayload, {
+      onConflict: "company_id",
     });
+
+    if (upsert.error) {
+      return NextResponse.json(
+        { error: upsert.error.message || "Failed to update company subscription." },
+        { status: 500 }
+      );
+    }
+
+    const prevNorm = normalizeCompanySubscriptionStatus(previousStatus);
+    if (nextStatus === "active" && prevNorm !== "active") {
+      const { data: txs } = await listCompanyCreditTransactions(adminClient, companyId);
+      await ensureInitialCompanyCredits({
+        supabase: adminClient,
+        companyId,
+        subscriptionStatus: "active",
+        existingTransactions: txs,
+      });
+    }
+  }
+
+  if (permissionOverridesProvided) {
+    const permissionOverrides = normalizePermissionOverrides(body?.permissionOverrides);
+    const permissionUpdate = await adminClient
+      .from("companies")
+      .update({
+        permission_overrides: permissionOverrides,
+        updated_by: auth.user.id,
+      })
+      .eq("id", companyId);
+
+    if (permissionUpdate.error) {
+      return NextResponse.json(
+        { error: permissionUpdate.error.message || "Failed to update company access rules." },
+        { status: 500 }
+      );
+    }
   }
 
   return NextResponse.json({
@@ -758,6 +795,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     planName,
     subscriptionStatus: nextStatus,
     maxUserSeats,
+    permissionOverrides: permissionOverridesProvided
+      ? normalizePermissionOverrides(body?.permissionOverrides)
+      : undefined,
   });
 }
 
