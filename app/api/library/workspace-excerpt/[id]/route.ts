@@ -6,7 +6,10 @@ import {
   purchasedDocumentIdsFromTransactions,
 } from "@/lib/credits";
 import { normalizePurchasedIds } from "@/lib/marketplace";
-import { extractMarketplacePreviewExcerpt } from "@/lib/marketplacePreviewExcerpt";
+import {
+  basenameFromStoragePath,
+  extractMarketplacePreviewExcerpt,
+} from "@/lib/marketplacePreviewExcerpt";
 import {
   getClientIpAddress,
   getDefaultAgreementConfig,
@@ -121,8 +124,8 @@ export async function GET(
   const buffer = downloaded.buffer;
   const sourceName =
     document.file_name?.trim() ||
-    storagePath.split("/").pop() ||
-    "document.pdf";
+    basenameFromStoragePath(storagePath) ||
+    "document.bin";
 
   const extracted = await extractMarketplacePreviewExcerpt(buffer, sourceName);
 

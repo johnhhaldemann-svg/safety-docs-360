@@ -88,6 +88,16 @@ type CompanyActivityItem = {
   tone: "info" | "warning" | "success" | "neutral";
 };
 
+type CompanySubscriptionSummary = {
+  status: string;
+  planName: string;
+  creditBalance: number | null;
+  maxUserSeats: number | null;
+  seatsUsed: number;
+  membershipSeats: number;
+  pendingInviteCount: number;
+};
+
 function formatRelative(timestamp?: string | null) {
   if (!timestamp) return "Recently";
   const diffMs = Date.now() - new Date(timestamp).getTime();
@@ -125,6 +135,12 @@ export default function AdminCompanyDetailPage({
   const [loading, setLoading] = useState(true);
   const [processingAction, setProcessingAction] = useState(false);
   const [canPermanentlyDeleteCompanies, setCanPermanentlyDeleteCompanies] = useState(false);
+  const [canManageCompanySubscription, setCanManageCompanySubscription] = useState(false);
+  const [subscription, setSubscription] = useState<CompanySubscriptionSummary | null>(null);
+  const [subStatusDraft, setSubStatusDraft] = useState("inactive");
+  const [subPlanDraft, setSubPlanDraft] = useState("Pro");
+  const [subMaxSeatsDraft, setSubMaxSeatsDraft] = useState("");
+  const [savingSubscription, setSavingSubscription] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingCompany, setDeletingCompany] = useState(false);
@@ -160,7 +176,11 @@ export default function AdminCompanyDetailPage({
       const data = (await res.json().catch(() => null)) as
         | {
             error?: string;
-            capabilities?: { canPermanentlyDeleteCompanies?: boolean };
+            capabilities?: {
+              canPermanentlyDeleteCompanies?: boolean;
+              canManageCompanySubscription?: boolean;
+            };
+            subscription?: CompanySubscriptionSummary;
             company?: CompanyDetail;
             summary?: CompanySummary;
             users?: CompanyUser[];
@@ -180,6 +200,8 @@ export default function AdminCompanyDetailPage({
         setDocuments([]);
         setActivity([]);
         setCanPermanentlyDeleteCompanies(false);
+        setCanManageCompanySubscription(false);
+        setSubscription(null);
         setLoading(false);
         return;
       }
@@ -187,6 +209,18 @@ export default function AdminCompanyDetailPage({
       setCanPermanentlyDeleteCompanies(
         Boolean(data?.capabilities?.canPermanentlyDeleteCompanies)
       );
+      setCanManageCompanySubscription(
+        Boolean(data?.capabilities?.canManageCompanySubscription)
+      );
+      const sub = data?.subscription;
+      if (sub) {
+        setSubscription(sub);
+        setSubStatusDraft(sub.status);
+        setSubPlanDraft(sub.planName);
+        setSubMaxSeatsDraft(sub.maxUserSeats != null ? String(sub.maxUserSeats) : "");
+      } else {
+        setSubscription(null);
+      }
       setCompany(data?.company ?? null);
       setSummary(data?.summary ?? null);
       setUsers(data?.users ?? []);
@@ -272,6 +306,77 @@ export default function AdminCompanyDetailPage({
     },
     [company, loadCompany]
   );
+
+  const handleSaveSubscription = useCallback(async () => {
+    if (!companyId) return;
+
+    setSavingSubscription(true);
+    setMessage("");
+
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error || !session?.access_token) {
+        setMessageTone("error");
+        setMessage("You must be logged in as an internal admin.");
+        setSavingSubscription(false);
+        return;
+      }
+
+      const maxParsed = subMaxSeatsDraft.trim();
+      const maxUserSeats =
+        maxParsed === "" ? null : parseInt(maxParsed, 10);
+      if (
+        maxUserSeats !== null &&
+        (!Number.isFinite(maxUserSeats) || maxUserSeats < 1)
+      ) {
+        setMessageTone("error");
+        setMessage("Max users must be blank (unlimited) or a whole number ≥ 1.");
+        setSavingSubscription(false);
+        return;
+      }
+
+      const res = await fetch(`/api/admin/companies/${companyId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          subscriptionStatus: subStatusDraft,
+          planName: subPlanDraft.trim() || "Pro",
+          maxUserSeats,
+        }),
+      });
+
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+
+      if (!res.ok) {
+        setMessageTone("error");
+        setMessage(data?.error || "Failed to save subscription settings.");
+        setSavingSubscription(false);
+        return;
+      }
+
+      setMessageTone("success");
+      setMessage("Subscription settings saved.");
+      await loadCompany();
+    } catch (err) {
+      setMessageTone("error");
+      setMessage(err instanceof Error ? err.message : "Failed to save subscription settings.");
+    }
+
+    setSavingSubscription(false);
+  }, [
+    companyId,
+    loadCompany,
+    subMaxSeatsDraft,
+    subPlanDraft,
+    subStatusDraft,
+  ]);
 
   const handlePermanentDelete = useCallback(async () => {
     if (!company) return;
@@ -564,6 +669,121 @@ export default function AdminCompanyDetailPage({
           ))}
         </section>
       </section>
+
+      <SectionCard
+        title="Subscription & user seats"
+        description="Activate billing access for this workspace and cap how many members and pending invites they can hold. Super Admins, Platform Admins, and App Admins can edit."
+      >
+        {loading ? (
+          <InlineMessage>Loading subscription…</InlineMessage>
+        ) : !subscription ? (
+          <EmptyState
+            title="Subscription not loaded"
+            description="Try refreshing the page. If this persists, check the company_subscriptions row in the database."
+          />
+        ) : (
+          <div className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Seat usage
+                </div>
+                <div className="mt-2 text-2xl font-bold text-slate-100">
+                  {subscription.seatsUsed}
+                  {subscription.maxUserSeats != null
+                    ? ` / ${subscription.maxUserSeats}`
+                    : " / ∞"}
+                </div>
+                <p className="mt-2 text-sm text-slate-500">
+                  {subscription.membershipSeats} members (active or pending approval) +{" "}
+                  {subscription.pendingInviteCount} pending invite
+                  {subscription.pendingInviteCount === 1 ? "" : "s"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Document credits (company)
+                </div>
+                <div className="mt-2 text-2xl font-bold text-slate-100">
+                  {subscription.creditBalance != null ? subscription.creditBalance : "—"}
+                </div>
+                <p className="mt-2 text-sm text-slate-500">
+                  Balance stored on the company subscription row.
+                </p>
+              </div>
+            </div>
+
+            {canManageCompanySubscription ? (
+              <div className="grid gap-4 md:grid-cols-3">
+                <label className="block text-sm">
+                  <span className="font-semibold text-slate-300">Subscription status</span>
+                  <select
+                    value={subStatusDraft}
+                    onChange={(e) => setSubStatusDraft(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-100 outline-none focus:border-sky-500"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="suspended">Suspended</option>
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  <span className="font-semibold text-slate-300">Plan name</span>
+                  <input
+                    type="text"
+                    value={subPlanDraft}
+                    onChange={(e) => setSubPlanDraft(e.target.value)}
+                    placeholder="Pro, CSEP, …"
+                    className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-100 outline-none focus:border-sky-500"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="font-semibold text-slate-300">Max users (optional)</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={subMaxSeatsDraft}
+                    onChange={(e) => setSubMaxSeatsDraft(e.target.value)}
+                    placeholder="Blank = unlimited"
+                    className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-100 outline-none focus:border-sky-500"
+                  />
+                </label>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4 text-sm text-slate-400">
+                Current status:{" "}
+                <span className="font-semibold text-slate-100">{subscription.status}</span>
+                {" · "}
+                Plan:{" "}
+                <span className="font-semibold text-slate-100">{subscription.planName}</span>
+                {subscription.maxUserSeats != null ? (
+                  <>
+                    {" "}
+                    · Max users:{" "}
+                    <span className="font-semibold text-slate-100">
+                      {subscription.maxUserSeats}
+                    </span>
+                  </>
+                ) : null}
+                . Only Super Admin, Platform Admin, or App Admin can change these settings.
+              </div>
+            )}
+
+            {canManageCompanySubscription ? (
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveSubscription()}
+                  disabled={savingSubscription}
+                  className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingSubscription ? "Saving…" : "Save subscription & seats"}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </SectionCard>
 
       <SectionCard
         title="Company Users"

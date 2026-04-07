@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -1053,7 +1053,7 @@ export default function AppLayout({
                     >
                       <span className="hidden sm:inline">Go to</span>
                       <span className="rounded-md bg-slate-950/60 px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
-                        Ctrl/⌘K
+                        Ctrl+K
                       </span>
                     </button>
                     <div className="min-w-0 flex-1">
@@ -1157,3 +1157,5 @@ export default function AppLayout({
     </div>
   );
 }
+
+

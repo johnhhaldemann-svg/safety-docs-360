@@ -17,7 +17,11 @@ import {
   getMarketplacePreviewPath,
   isMarketplaceEnabled,
 } from "@/lib/marketplace";
-import { isPreviewableMarketplaceSource } from "@/lib/marketplacePreviewExcerpt";
+import {
+  basenameFromStoragePath,
+  hasWorkspaceDocumentStoragePath,
+  isPreviewableMarketplaceSource,
+} from "@/lib/marketplacePreviewExcerpt";
 import type { CreditTransaction } from "@/lib/credits";
 import {
   getDocumentStatusLabel,
@@ -1142,16 +1146,14 @@ function DocumentCard({
   actionLoading?: boolean;
 }) {
   const status = getDocumentStatus(document);
-  const hasAttachedFile = Boolean(
-    document.file_path || document.draft_file_path || document.final_file_path
-  );
-  const previewSource =
-    document.file_name ||
-    document.file_path ||
-    document.draft_file_path ||
-    document.final_file_path ||
-    "";
-  const canPreviewFile = hasAttachedFile && isPreviewableMarketplaceSource(previewSource);
+  const hasAttachedFile = hasWorkspaceDocumentStoragePath(document);
+  const canPreviewFile = hasAttachedFile;
+  const displayFileName =
+    document.file_name?.trim() ||
+    basenameFromStoragePath(document.file_path) ||
+    basenameFromStoragePath(document.draft_file_path) ||
+    basenameFromStoragePath(document.final_file_path) ||
+    "No file name available";
 
   return (
     <article
@@ -1192,7 +1194,7 @@ function DocumentCard({
           File details
         </p>
         <p className="mt-2 truncate text-sm font-medium text-slate-200">
-          {document.file_name || "No file name available"}
+          {displayFileName}
         </p>
         <p className="mt-1 text-sm text-slate-500">{formatFileSize(document.file_size)}</p>
       </div>

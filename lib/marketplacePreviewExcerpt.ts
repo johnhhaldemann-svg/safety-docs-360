@@ -11,6 +11,50 @@ export function isPreviewableMarketplaceSource(source?: string | null) {
   return lower.endsWith(".pdf") || lower.endsWith(".docx");
 }
 
+/**
+ * True if any stored path/filename on the row looks like PDF/DOCX. Prefer this over
+ * checking a single field: `file_name` is sometimes a human title without an extension
+ * while `file_path` / draft / final still ends with .pdf or .docx.
+ */
+export function isAnyPreviewableDocumentPath(doc: {
+  file_name?: string | null;
+  file_path?: string | null;
+  draft_file_path?: string | null;
+  final_file_path?: string | null;
+}): boolean {
+  return [
+    doc.file_name,
+    doc.file_path,
+    doc.draft_file_path,
+    doc.final_file_path,
+  ].some((value) => isPreviewableMarketplaceSource(value));
+}
+
+/** Last path segment for display / hints (no leading/trailing slashes). */
+export function basenameFromStoragePath(path?: string | null) {
+  const t = path?.trim();
+  if (!t) return "";
+  const parts = t.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? "";
+}
+
+/**
+ * True when the row has a non-empty storage path after trim. Use this to enable
+ * workspace excerpt preview: the API downloads the object and detects PDF/DOCX from
+ * file bytes when the key has no `.pdf`/`.docx` suffix (common for CSEP / generated keys).
+ */
+export function hasWorkspaceDocumentStoragePath(doc: {
+  file_path?: string | null;
+  draft_file_path?: string | null;
+  final_file_path?: string | null;
+}): boolean {
+  return Boolean(
+    doc.file_path?.trim() ||
+      doc.draft_file_path?.trim() ||
+      doc.final_file_path?.trim()
+  );
+}
+
 function clipExcerpt(raw: string): { excerpt: string; truncated: boolean } {
   const normalized = raw.replace(/\0/g, "").replace(/\s+/g, " ").trim();
   if (normalized.length <= MARKETPLACE_PREVIEW_MAX_CHARS) {

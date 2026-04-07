@@ -1,4 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { assertCompanyInviteAllowed } from "@/lib/companySeats";
 import { ensureCompanyScope, getCompanyScope } from "@/lib/companyScope";
 import { sendCompanyInviteEmail } from "@/lib/inviteEmail";
 import {
@@ -503,6 +505,19 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "This company account is not linked to a valid company scope yet." },
       { status: 400 }
+    );
+  }
+
+  const seatClient = (adminClient ?? auth.supabase) as SupabaseClient;
+  const inviteAllowed = await assertCompanyInviteAllowed({
+    supabase: seatClient,
+    companyId: companyScope.companyId,
+    inviteEmailLower: email,
+  });
+  if (!inviteAllowed.ok) {
+    return NextResponse.json(
+      { error: inviteAllowed.error },
+      { status: inviteAllowed.status }
     );
   }
 

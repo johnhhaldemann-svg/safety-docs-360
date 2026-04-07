@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
@@ -506,7 +506,7 @@ export default function DashboardPage() {
         }
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
-          console.warn("Dashboard load timed out – showing partial data.");
+          console.warn("Dashboard load timed out - showing partial data.");
         } else {
           console.error("Dashboard load error:", error);
         }
@@ -713,6 +713,11 @@ export default function DashboardPage() {
     userRole === "manager" ||
     userRole === "company_user";
   const canManageCompanyUsers = Boolean(permissionMap?.can_manage_company_users);
+  const canCreateDocuments = Boolean(
+    permissionMap?.can_create_documents ||
+      permissionMap?.can_edit_documents ||
+      permissionMap?.can_submit_documents
+  );
   const companyManagementHref = canManageCompanyUsers ? "/company-users" : "/library";
 
   const activeDocuments = useMemo(
@@ -1043,10 +1048,16 @@ export default function DashboardPage() {
                 href: "/library",
               },
               {
-                title: "Completed Reports",
-                value: String(reportCount),
-                description: "Report documents available to open in the company library.",
-                href: "/library",
+                title: "Search Records",
+                value: String(activeDocuments.length),
+                description: "Find completed and active company files quickly.",
+                href: "/search",
+              },
+              {
+                title: "My Purchases",
+                value: String(activeDocuments.length),
+                description: "Open documents already unlocked for reference.",
+                href: "/purchases",
               },
             ]),
         {
@@ -1103,30 +1114,59 @@ export default function DashboardPage() {
           : []),
       ]
     : [
-        {
-          title: "Start Submission",
-          description: "Create a new request and send documents into the review workflow.",
-          href: "/submit",
-          button: "Open Submit",
-        },
-        {
-          title: "Build PESHEP",
-          description: "Launch the PESHEP builder for project safety planning.",
-          href: "/peshep",
-          button: "Build Plan",
-        },
-        {
-          title: "Build CSEP",
-          description: "Create contractor-specific safety documentation and controls.",
-          href: "/csep",
-          button: "Open CSEP",
-        },
-        {
-          title: "Upload Files",
-          description: "Add templates, forms, reports, and supporting documents.",
-          href: "/upload",
-          button: "Upload Now",
-        },
+        ...(canCreateDocuments
+          ? [
+              {
+                title: "Start Submission",
+                description: "Create a new request and send documents into the review workflow.",
+                href: "/submit",
+                button: "Open Submit",
+              },
+              {
+                title: "Build PESHEP",
+                description: "Launch the PESHEP builder for project safety planning.",
+                href: "/peshep",
+                button: "Build Plan",
+              },
+              {
+                title: "Build CSEP",
+                description: "Create contractor-specific safety documentation and controls.",
+                href: "/csep",
+                button: "Open CSEP",
+              },
+              {
+                title: "Upload Files",
+                description: "Add templates, forms, reports, and supporting documents.",
+                href: "/upload",
+                button: "Upload Now",
+              },
+            ]
+          : [
+              {
+                title: "Open Library",
+                description: "Browse approved and completed documents already available to you.",
+                href: "/library",
+                button: "Open Library",
+              },
+              {
+                title: "Search Records",
+                description: "Find documents by project, title, type, or category.",
+                href: "/search",
+                button: "Search",
+              },
+              {
+                title: "Review Purchases",
+                description: "Open documents you have already unlocked for reference.",
+                href: "/purchases",
+                button: "View Purchases",
+              },
+              {
+                title: "Update Profile",
+                description: "Keep your construction profile ready for future access.",
+                href: "/profile",
+                button: "Open Profile",
+              },
+            ]),
       ];
 
   const recentActivity = useMemo(() => {
@@ -1371,10 +1411,19 @@ export default function DashboardPage() {
         { label: "Open a completed document from the library", done: approvedCount > 0 },
       ]
     : [
-        { label: "Upload your first source document", done: activeDocuments.length > 0 },
-        { label: "Submit a request for review", done: pendingReviewCount > 0 || approvedCount > 0 },
-        { label: "Get an approved file into the library", done: approvedCount > 0 },
-        { label: "Open a completed document", done: approvedCount > 0 },
+        ...(canCreateDocuments
+          ? [
+              { label: "Upload your first source document", done: activeDocuments.length > 0 },
+              { label: "Submit a request for review", done: pendingReviewCount > 0 || approvedCount > 0 },
+              { label: "Get an approved file into the library", done: approvedCount > 0 },
+              { label: "Open a completed document", done: approvedCount > 0 },
+            ]
+          : [
+              { label: "Open the library", done: approvedCount > 0 },
+              { label: "Search for a document", done: activeDocuments.length > 0 },
+              { label: "Review your profile", done: Boolean(permissionMap) },
+              { label: "Check your purchases", done: approvedCount > 0 },
+            ]),
       ];
 
   const showWelcomeState = !loading && (isManagerView ? companyUserCount === 0 && approvedCount === 0 : activeDocuments.length === 0);
@@ -1420,10 +1469,10 @@ export default function DashboardPage() {
             CSEP workspace
           </p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Your CSEP program</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-            This account is limited to the Construction Safety &amp; Environmental Plan builder. Build and submit CSEP
-            records for admin review from one place.
-          </p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+              This account is limited to the Construction Safety &amp; Environmental Plan builder. Build and submit
+              CSEP records for admin review from one place.
+            </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
               href="/csep"
@@ -1469,7 +1518,7 @@ export default function DashboardPage() {
             Finished files after admin review. Open them here or from the library (sidebar: Completed documents).
           </p>
           {loading ? (
-            <p className="mt-4 text-sm text-slate-500">Loading…</p>
+            <p className="mt-4 text-sm text-slate-500">Loading...</p>
           ) : csepApprovedDocs.length === 0 ? (
             <p className="mt-4 text-sm text-slate-500">
               No approved CSEP yet. Submit from the builder; your file will show here once an administrator finalizes it.
@@ -1484,7 +1533,7 @@ export default function DashboardPage() {
                   <div className="min-w-0">
                     <div className="truncate font-semibold text-slate-100">{getDocumentLabel(doc)}</div>
                     <div className="text-xs text-slate-500">
-                      {(doc.project_name || "Project").trim() || "Project"} · {formatRelative(doc.created_at)}
+                      {(doc.project_name || "Project").trim() || "Project"} | {formatRelative(doc.created_at)}
                     </div>
                   </div>
                   <Link
@@ -1499,7 +1548,7 @@ export default function DashboardPage() {
           )}
           <div className="mt-4 border-t border-slate-700/60 pt-4">
             <Link href="/library" className="text-sm font-semibold text-sky-300 hover:text-sky-900">
-              Browse all completed documents →
+              Browse all completed documents
             </Link>
           </div>
         </section>
@@ -1608,10 +1657,19 @@ export default function DashboardPage() {
                       { title: "Library", note: "Open completed documents from one place.", href: "/library" },
                     ]
                   : [
-                      { title: "Upload", note: "Add source files and templates.", href: "/upload" },
-                      { title: "Submit", note: "Send work into the review queue.", href: "/submit" },
-                      { title: "Review", note: "Admins approve and finalize records.", href: "/admin/review-documents" },
-                      { title: "Library", note: "Open completed documents from one place.", href: "/library" },
+                      ...(canCreateDocuments
+                        ? [
+                            { title: "Upload", note: "Add source files and templates.", href: "/upload" },
+                            { title: "Submit", note: "Send work into the review queue.", href: "/submit" },
+                            { title: "Library", note: "Open completed documents from one place.", href: "/library" },
+                            { title: "Search", note: "Find files by title, type, or project.", href: "/search" },
+                          ]
+                        : [
+                            { title: "Library", note: "Open completed documents from one place.", href: "/library" },
+                            { title: "Search", note: "Find files by title, type, or project.", href: "/search" },
+                            { title: "Profile", note: "Keep your construction profile up to date.", href: "/profile" },
+                            { title: "Purchases", note: "Open unlocked records and completed files.", href: "/purchases" },
+                          ]),
                     ]).map((step, index) => (
                   <Link
                     key={step.title}
@@ -1994,3 +2052,5 @@ function DashboardIcon({ kind }: { kind: CountCard["icon"] }) {
     </svg>
   );
 }
+
+

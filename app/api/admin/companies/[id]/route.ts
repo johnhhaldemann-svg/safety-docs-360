@@ -1,5 +1,14 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient, getSupabaseServerEnvStatus } from "@/lib/supabaseAdmin";
+import {
+  ensureInitialCompanyCredits,
+  listCompanyCreditTransactions,
+} from "@/lib/companyBilling";
+import {
+  getCompanySeatCounts,
+  normalizeCompanySubscriptionStatus,
+} from "@/lib/companySeats";
 import { authorizeRequest, formatAccountStatus, formatAppRole } from "@/lib/rbac";
 import { normalizeApprovalPlanName } from "@/lib/workspaceProduct";
 
@@ -261,7 +270,8 @@ export async function GET(request: Request, context: RouteContext) {
   const supabase = adminClient ?? auth.supabase;
   const envStatus = getSupabaseServerEnvStatus();
 
-  const [companyResult, membershipsResult, invitesResult, documentsResult] = await Promise.all([
+  const [companyResult, membershipsResult, invitesResult, documentsResult, subscriptionResult] =
+    await Promise.all([
     supabase
       .from("companies")
       .select("*")
@@ -285,11 +295,23 @@ export async function GET(request: Request, context: RouteContext) {
       )
       .eq("company_id", companyId)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("company_subscriptions")
+      .select("status, plan_name, credit_balance, max_user_seats")
+      .eq("company_id", companyId)
+      .maybeSingle(),
   ]);
 
   if (companyResult.error) {
     return NextResponse.json(
       { error: companyResult.error.message || "Failed to load company workspace." },
+      { status: 500 }
+    );
+  }
+
+  if (subscriptionResult.error) {
+    return NextResponse.json(
+      { error: subscriptionResult.error.message || "Failed to load company subscription." },
       { status: 500 }
     );
   }
@@ -303,6 +325,18 @@ export async function GET(request: Request, context: RouteContext) {
   const memberships = (membershipsResult.data as CompanyMembershipRow[] | null) ?? [];
   const invites = (invitesResult.data as CompanyInviteRow[] | null) ?? [];
   const documents = (documentsResult.data as CompanyDocumentRow[] | null) ?? [];
+
+  const seatCounts = await getCompanySeatCounts(supabase as SupabaseClient, companyId);
+  if (seatCounts.error) {
+    return NextResponse.json({ error: seatCounts.error }, { status: 500 });
+  }
+
+  const subscriptionRow = subscriptionResult.data as {
+    status?: string | null;
+    plan_name?: string | null;
+    credit_balance?: number | null;
+    max_user_seats?: number | null;
+  } | null;
 
   const membershipMap = new Map<string, CompanyMembershipRow>();
   for (const membership of memberships) {
@@ -525,6 +559,18 @@ export async function GET(request: Request, context: RouteContext) {
   return NextResponse.json({
     capabilities: {
       canPermanentlyDeleteCompanies: auth.role === "super_admin",
+      canManageCompanySubscription: ["super_admin", "admin", "platform_admin"].includes(auth.role),
+    },
+    subscription: {
+      status: normalizeCompanySubscriptionStatus(subscriptionRow?.status ?? null),
+      planName: (subscriptionRow?.plan_name ?? "").trim() || "Pro",
+      creditBalance:
+        subscriptionRow?.credit_balance != null ? Number(subscriptionRow.credit_balance) : null,
+      maxUserSeats:
+        subscriptionRow?.max_user_seats != null ? Number(subscriptionRow.max_user_seats) : null,
+      seatsUsed: seatCounts.seatsUsed,
+      membershipSeats: seatCounts.membershipSeats,
+      pendingInviteCount: seatCounts.pendingInvites,
     },
     company: {
       id: company.id,
@@ -579,7 +625,13 @@ type DeleteCompanyBody = {
   confirmName?: string;
 };
 
-/** Upsert `company_subscriptions` (e.g. set `plan_name` to `CSEP` for backfill). */
+type SubscriptionPatchBody = {
+  planName?: string | null;
+  subscriptionStatus?: string | null;
+  maxUserSeats?: number | null;
+};
+
+/** Upsert `company_subscriptions` — subscription status, plan, and per-company user seat cap. */
 export async function PATCH(request: Request, context: RouteContext) {
   const auth = await authorizeRequest(request, {
     requirePermission: "can_view_all_company_data",
@@ -587,6 +639,13 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   if ("error" in auth) {
     return auth.error;
+  }
+
+  if (!["super_admin", "admin", "platform_admin"].includes(auth.role)) {
+    return NextResponse.json(
+      { error: "Only platform administrators can update company subscriptions and seat limits." },
+      { status: 403 }
+    );
   }
 
   const adminClient = createSupabaseAdminClient() ?? auth.supabase;
@@ -597,8 +656,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Company id is required." }, { status: 400 });
   }
 
-  const body = (await request.json().catch(() => null)) as { planName?: string } | null;
-  const planName = normalizeApprovalPlanName(body?.planName ?? null);
+  const body = (await request.json().catch(() => null)) as SubscriptionPatchBody | null;
 
   const companyLookup = await adminClient.from("companies").select("id").eq("id", companyId).maybeSingle();
   if (companyLookup.error) {
@@ -611,16 +669,71 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Company workspace not found." }, { status: 404 });
   }
 
-  const upsert = await adminClient.from("company_subscriptions").upsert(
-    {
-      company_id: companyId,
-      status: "active",
-      plan_name: planName,
-      created_by: auth.user.id,
-      updated_by: auth.user.id,
-    },
-    { onConflict: "company_id" }
-  );
+  const existingSub = await adminClient
+    .from("company_subscriptions")
+    .select("status, plan_name, credit_balance, max_user_seats")
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (existingSub.error) {
+    return NextResponse.json(
+      { error: existingSub.error.message || "Failed to load subscription." },
+      { status: 500 }
+    );
+  }
+
+  const row = existingSub.data as {
+    status?: string | null;
+    plan_name?: string | null;
+    credit_balance?: number | null;
+    max_user_seats?: number | null;
+  } | null;
+
+  const previousStatus = row?.status ?? null;
+
+  let nextStatus = normalizeCompanySubscriptionStatus(row?.status ?? null);
+  if (body?.subscriptionStatus !== undefined && body.subscriptionStatus !== null) {
+    nextStatus = normalizeCompanySubscriptionStatus(body.subscriptionStatus);
+  }
+
+  let planName = normalizeApprovalPlanName(row?.plan_name ?? null);
+  if (body?.planName !== undefined) {
+    planName = normalizeApprovalPlanName(body.planName);
+  }
+
+  let maxUserSeats: number | null = row?.max_user_seats ?? null;
+  if (body?.maxUserSeats !== undefined) {
+    if (body.maxUserSeats === null) {
+      maxUserSeats = null;
+    } else if (
+      typeof body.maxUserSeats === "number" &&
+      Number.isFinite(body.maxUserSeats) &&
+      body.maxUserSeats >= 1
+    ) {
+      maxUserSeats = Math.floor(body.maxUserSeats);
+    } else {
+      return NextResponse.json(
+        { error: "maxUserSeats must be null (unlimited) or an integer ≥ 1." },
+        { status: 400 }
+      );
+    }
+  }
+
+  const upsertPayload: Record<string, unknown> = {
+    company_id: companyId,
+    status: nextStatus,
+    plan_name: planName,
+    max_user_seats: maxUserSeats,
+    credit_balance: row?.credit_balance ?? null,
+    updated_by: auth.user.id,
+  };
+  if (!row) {
+    upsertPayload.created_by = auth.user.id;
+  }
+
+  const upsert = await adminClient.from("company_subscriptions").upsert(upsertPayload, {
+    onConflict: "company_id",
+  });
 
   if (upsert.error) {
     return NextResponse.json(
@@ -629,7 +742,23 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
-  return NextResponse.json({ success: true, planName });
+  const prevNorm = normalizeCompanySubscriptionStatus(previousStatus);
+  if (nextStatus === "active" && prevNorm !== "active") {
+    const { data: txs } = await listCompanyCreditTransactions(adminClient, companyId);
+    await ensureInitialCompanyCredits({
+      supabase: adminClient,
+      companyId,
+      subscriptionStatus: "active",
+      existingTransactions: txs,
+    });
+  }
+
+  return NextResponse.json({
+    success: true,
+    planName,
+    subscriptionStatus: nextStatus,
+    maxUserSeats,
+  });
 }
 
 export async function DELETE(request: Request, context: RouteContext) {

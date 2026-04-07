@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -174,10 +174,10 @@ export function CompanyAdminDashboard({
           <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
             {companyProfile?.name?.trim() || "Company Workspace"}
           </h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-            This account is limited to the CSEP builder. Create and submit Construction Safety &amp; Environmental Plans
-            for admin review—without the full company operations suite.
-          </p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+              This account is limited to the CSEP builder. Create and submit Construction Safety &amp; Environmental
+              Plans for admin review without the full company operations suite.
+            </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
               href="/csep"
@@ -520,7 +520,7 @@ export function CompanyAdminDashboard({
           ? dashboardMetrics.topHazardCategories
               .slice(0, 3)
               .map((item) => `${item.category.replace(/_/g, " ")} (${item.count})`)
-              .join(" · ")
+              .join(" | ")
           : "No hazard category trends yet.",
     },
   ];
@@ -694,7 +694,7 @@ export function CompanyAdminDashboard({
                 href="/jobsites"
                 className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300"
               >
-                Archive Jobsite
+                View Jobsites
               </a>
             </div>
           }
@@ -772,7 +772,7 @@ export function CompanyAdminDashboard({
 
         <SectionCard
           title="Pending Documents"
-            description="The document queue that needs the company’s attention today."
+          description="The document queue that needs the company's attention today."
         >
           {pendingDocuments.length === 0 ? (
             <EmptyState
@@ -789,7 +789,7 @@ export function CompanyAdminDashboard({
                         {getDocumentLabel(document)}
                       </div>
                       <div className="mt-1 text-sm text-slate-500">
-                        {(document.project_name?.trim() || "General Workspace")} · {document.document_type || "Document"}
+                      {(document.project_name?.trim() || "General Workspace")} | {document.document_type || "Document"}
                       </div>
                     </div>
                     <StatusBadge label={getDocumentStatusLabel(document.status, Boolean(document.final_file_path))} tone="warning" />
@@ -1031,10 +1031,10 @@ export function CompanyAdminDashboard({
             }
           />
 
-          <SectionCard
-            title="Field Issues & Overdue Items"
-            description="Today’s items that still need follow-up from the company side."
-          >
+        <SectionCard
+          title="Field Issues & Overdue Items"
+          description="Today's items that still need follow-up from the company side."
+        >
             {correctiveActions.length === 0 ? (
               <EmptyState
                 title="No overdue actions right now"
@@ -1068,7 +1068,7 @@ export function CompanyAdminDashboard({
                     {module.label}
                   </div>
                   <div className="mt-2 text-sm font-semibold text-slate-100">
-                    {module.total} total · {module.open} open · {module.inProgress} active · {module.closed} closed
+                    {module.total} total | {module.open} open | {module.inProgress} active | {module.closed} closed
                   </div>
                 </div>
               ))}
@@ -1168,3 +1168,5 @@ export function CompanyAdminDashboard({
     </div>
   );
 }
+
+
