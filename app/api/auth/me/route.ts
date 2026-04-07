@@ -514,37 +514,57 @@ async function handleAuthMeGet(request: Request) {
     !auth.permissionMap.can_access_internal_admin;
 
   if (shouldAutoResolveCompanyAccess) {
-    await applyPendingCompanyInvite({
-      supabase: (requestScopedSupabase ?? auth.supabase) as never,
-      adminClient,
-      userId: auth.user.id,
-      email: auth.user.email ?? "",
-      userMetadata: auth.user.user_metadata ?? undefined,
-      appMetadata: auth.user.app_metadata ?? undefined,
-    });
-    await applyApprovedCompanyOwnerLink({
-      supabase: (requestScopedSupabase ?? auth.supabase) as never,
-      adminClient,
-      userId: auth.user.id,
-      email: auth.user.email ?? "",
-      userMetadata: auth.user.user_metadata ?? undefined,
-      appMetadata: auth.user.app_metadata ?? undefined,
-    });
+    try {
+      await applyPendingCompanyInvite({
+        supabase: (requestScopedSupabase ?? auth.supabase) as never,
+        adminClient,
+        userId: auth.user.id,
+        email: auth.user.email ?? "",
+        userMetadata: auth.user.user_metadata ?? undefined,
+        appMetadata: auth.user.app_metadata ?? undefined,
+      });
+      await applyApprovedCompanyOwnerLink({
+        supabase: (requestScopedSupabase ?? auth.supabase) as never,
+        adminClient,
+        userId: auth.user.id,
+        email: auth.user.email ?? "",
+        userMetadata: auth.user.user_metadata ?? undefined,
+        appMetadata: auth.user.app_metadata ?? undefined,
+      });
+    } catch (error) {
+      serverLog("error", "auth_me_company_access_resolve_failed", {
+        message: error instanceof Error ? error.message : String(error),
+        userId: auth.user.id,
+      });
+    }
   }
 
-  const refreshedRoleContext = shouldAutoResolveCompanyAccess
-    ? await getUserRoleContext({
+  const authSliceRoleContext = {
+    role: auth.role,
+    team: auth.team,
+    accountStatus: auth.accountStatus,
+    permissions: auth.permissions,
+    permissionMap: auth.permissionMap,
+    companyId: null as string | null,
+  };
+
+  let refreshedRoleContext;
+  if (shouldAutoResolveCompanyAccess) {
+    try {
+      refreshedRoleContext = await getUserRoleContext({
         supabase: auth.supabase,
         user: auth.user,
-      })
-    : {
-        role: auth.role,
-        team: auth.team,
-        accountStatus: auth.accountStatus,
-        permissions: auth.permissions,
-        permissionMap: auth.permissionMap,
-        companyId: null,
-      };
+      });
+    } catch (error) {
+      serverLog("error", "auth_me_role_context_refresh_failed", {
+        message: error instanceof Error ? error.message : String(error),
+        userId: auth.user.id,
+      });
+      refreshedRoleContext = authSliceRoleContext;
+    }
+  } else {
+    refreshedRoleContext = authSliceRoleContext;
+  }
 
   const agreementConfigPromise = getAgreementConfig(auth.supabase).catch(() =>
     getDefaultAgreementConfig()
