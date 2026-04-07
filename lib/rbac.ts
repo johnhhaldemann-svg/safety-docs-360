@@ -51,6 +51,10 @@ export const APP_PERMISSIONS = [
 
 export type AppPermission = (typeof APP_PERMISSIONS)[number];
 export type PermissionMap = Record<AppPermission, boolean>;
+export type PermissionOverrides = {
+  allow: AppPermission[];
+  deny: AppPermission[];
+};
 
 type AuthLikeUser = {
   id: string;
@@ -63,7 +67,9 @@ type RoleRow = {
   user_id: string;
   role: string;
   team: string | null;
+  company_id: string | null;
   account_status: string | null;
+  permission_overrides: unknown;
 };
 
 type MessageError = { message?: string | null };
@@ -190,6 +196,85 @@ function isBootstrapAdminUser(user: AuthLikeUser) {
   return getBootstrapAdminEmails().includes(normalizeEmail(user.email));
 }
 
+function isAppPermission(permission: string): permission is AppPermission {
+  return (APP_PERMISSIONS as readonly string[]).includes(permission);
+}
+
+function toPermissionList(value: unknown): AppPermission[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<AppPermission>();
+
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const normalized = item.trim();
+    if (!isAppPermission(normalized) || seen.has(normalized)) continue;
+    seen.add(normalized);
+  }
+
+  return [...seen];
+}
+
+export function normalizePermissionOverrides(
+  overrides?: unknown | null
+): PermissionOverrides {
+  if (!overrides || typeof overrides !== "object") {
+    return { allow: [], deny: [] };
+  }
+
+  const record = overrides as {
+    allow?: unknown;
+    deny?: unknown;
+  };
+
+  const allow = toPermissionList(record.allow);
+  const allowSet = new Set(allow);
+  const deny = toPermissionList(record.deny).filter((permission) => !allowSet.has(permission));
+
+  return { allow, deny };
+}
+
+function applyPermissionOverridesToSet(
+  permissionSet: Set<AppPermission>,
+  overrides?: PermissionOverrides | null
+) {
+  const normalized = normalizePermissionOverrides(overrides);
+
+  for (const permission of normalized.deny) {
+    permissionSet.delete(permission);
+  }
+
+  for (const permission of normalized.allow) {
+    permissionSet.add(permission);
+  }
+}
+
+export function setPermissionOverride(
+  overrides: PermissionOverrides,
+  permission: AppPermission,
+  mode: "inherit" | "allow" | "deny"
+) {
+  const normalized = normalizePermissionOverrides(overrides);
+  const allow = new Set(normalized.allow);
+  const deny = new Set(normalized.deny);
+
+  allow.delete(permission);
+  deny.delete(permission);
+
+  if (mode === "allow") {
+    allow.add(permission);
+  } else if (mode === "deny") {
+    deny.add(permission);
+  }
+
+  return {
+    allow: [...allow],
+    deny: [...deny],
+  } satisfies PermissionOverrides;
+}
+
 export function getBootstrapAdminEmails() {
   const configured = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "")
     .split(",")
@@ -307,19 +392,38 @@ export function getRolePermissions(role?: string | null): AppPermission[] {
   return [...ROLE_PERMISSIONS[normalizeAppRole(role)]];
 }
 
-export function hasPermission(role: string | null | undefined, permission: AppPermission) {
-  return ROLE_PERMISSIONS[normalizeAppRole(role)].includes(permission);
+export function hasPermission(
+  role: string | null | undefined,
+  permission: AppPermission,
+  companyOverrides?: PermissionOverrides | null,
+  userOverrides?: PermissionOverrides | null
+) {
+  return getPermissionMap(role, companyOverrides, userOverrides)[permission];
 }
 
 export function hasAnyPermission(
   role: string | null | undefined,
-  permissions: readonly AppPermission[]
+  permissions: readonly AppPermission[],
+  companyOverrides?: PermissionOverrides | null,
+  userOverrides?: PermissionOverrides | null
 ) {
-  return permissions.some((permission) => hasPermission(role, permission));
+  const permissionMap = getPermissionMap(role, companyOverrides, userOverrides);
+  return permissions.some((permission) => permissionMap[permission]);
 }
 
-export function getPermissionMap(role?: string | null): PermissionMap {
-  const permissions = new Set(getRolePermissions(role));
+export function getPermissionMap(
+  role?: string | null,
+  companyOverrides?: PermissionOverrides | null,
+  userOverrides?: PermissionOverrides | null
+): PermissionMap {
+  const normalizedRole = normalizeAppRole(role);
+  const permissions = new Set(getRolePermissions(normalizedRole));
+
+  if (normalizedRole !== "super_admin" && normalizedRole !== "platform_admin") {
+    applyPermissionOverridesToSet(permissions, companyOverrides);
+    applyPermissionOverridesToSet(permissions, userOverrides);
+  }
+
   return APP_PERMISSIONS.reduce((acc, permission) => {
     acc[permission] = permissions.has(permission);
     return acc;
@@ -385,6 +489,17 @@ function getLegacyTeam(user: AuthLikeUser) {
   return metadataTeam.trim() || "General";
 }
 
+function getLegacyCompanyId(user: AuthLikeUser) {
+  const metadataCompanyId =
+    typeof user.app_metadata?.company_id === "string"
+      ? user.app_metadata.company_id
+      : typeof user.user_metadata?.company_id === "string"
+        ? user.user_metadata.company_id
+        : "";
+
+  return metadataCompanyId.trim() || null;
+}
+
 async function getRoleRow(
   supabase: SupabaseLikeClient,
   userId: string
@@ -398,7 +513,7 @@ async function getRoleRow(
       };
     }
   )
-    .select("user_id, role, team, account_status")
+    .select("user_id, role, team, company_id, account_status, permission_overrides")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -421,9 +536,20 @@ async function upsertRoleRow(params: {
   role: AppRole;
   team: string;
   accountStatus?: AccountStatus;
+  companyId?: string | null;
+  permissionOverrides?: PermissionOverrides | null;
   actorUserId?: string | null;
 }) {
-  const { supabase, userId, role, team, accountStatus, actorUserId } = params;
+  const {
+    supabase,
+    userId,
+    role,
+    team,
+    accountStatus,
+    companyId,
+    permissionOverrides,
+    actorUserId,
+  } = params;
 
   return (supabase.from("user_roles") as unknown as {
     upsert: (
@@ -435,7 +561,9 @@ async function upsertRoleRow(params: {
       user_id: userId,
       role,
       team,
+      company_id: companyId ?? null,
       account_status: accountStatus ?? "active",
+      permission_overrides: normalizePermissionOverrides(permissionOverrides),
       created_by: actorUserId ?? null,
       updated_by: actorUserId ?? null,
     },
@@ -464,22 +592,66 @@ export async function getUserRoleContext(params: {
           role: "super_admin",
           team: "Internal Admin",
           accountStatus: "active",
+          companyId: null,
           actorUserId: user.id,
         });
       }
 
+      const permissions = getPermissionMap("super_admin");
       return {
         role: "super_admin" as const,
         team: "Internal Admin",
         accountStatus: "active" as const,
+        companyId: null as string | null,
+        companyPermissionOverrides: null as PermissionOverrides | null,
+        permissionOverrides: null as PermissionOverrides | null,
+        permissions: APP_PERMISSIONS.filter((permission) => permissions[permission]),
+        permissionMap: permissions,
         source: "bootstrap_admin_override" as const,
       };
     }
+
+    const companyId = roleRowResult.data.company_id?.trim() || getLegacyCompanyId(user);
+    let companyPermissionOverrides: PermissionOverrides | null = null;
+
+    if (companyId) {
+      const companyRow = await (
+        supabase.from("companies") as {
+          select: (columns: string) => {
+            eq: (column: string, value: string) => {
+              maybeSingle: () => PromiseLike<{ data: unknown; error: MessageError | null }>;
+            };
+          };
+        }
+      )
+        .select("permission_overrides")
+        .eq("id", companyId)
+        .maybeSingle();
+
+      if (!companyRow.error) {
+        const companyRecord = companyRow.data as { permission_overrides?: unknown } | null;
+        companyPermissionOverrides = normalizePermissionOverrides(
+          companyRecord?.permission_overrides ?? null
+        );
+      }
+    }
+
+    const permissionOverrides = normalizePermissionOverrides(roleRowResult.data.permission_overrides);
+    const permissionMap = getPermissionMap(
+      normalizeAppRole(roleRowResult.data.role),
+      companyPermissionOverrides,
+      permissionOverrides
+    );
 
     return {
       role: normalizeAppRole(roleRowResult.data.role),
       team: roleRowResult.data.team?.trim() || "General",
       accountStatus: normalizeAccountStatus(roleRowResult.data.account_status),
+      companyId,
+      companyPermissionOverrides,
+      permissionOverrides,
+      permissions: APP_PERMISSIONS.filter((permission) => permissionMap[permission]),
+      permissionMap,
       source: "table" as const,
     };
   }
@@ -487,12 +659,37 @@ export async function getUserRoleContext(params: {
   const legacyRole = getLegacyRole(user);
   const legacyTeam = getLegacyTeam(user);
   const legacyAccountStatus = getLegacyAccountStatus(user);
+  const legacyCompanyId = getLegacyCompanyId(user);
+  let companyPermissionOverrides: PermissionOverrides | null = null;
+
+  if (legacyCompanyId) {
+    const companyRow = await (
+      supabase.from("companies") as {
+        select: (columns: string) => {
+          eq: (column: string, value: string) => {
+            maybeSingle: () => PromiseLike<{ data: unknown; error: MessageError | null }>;
+          };
+        };
+      }
+    )
+      .select("permission_overrides")
+      .eq("id", legacyCompanyId)
+      .maybeSingle();
+
+    if (!companyRow.error) {
+      const companyRecord = companyRow.data as { permission_overrides?: unknown } | null;
+      companyPermissionOverrides = normalizePermissionOverrides(
+        companyRecord?.permission_overrides ?? null
+      );
+    }
+  }
 
   if (
     !roleRowResult.error &&
     (legacyRole !== "viewer" ||
       legacyTeam !== "General" ||
-      legacyAccountStatus !== "active")
+      legacyAccountStatus !== "active" ||
+      Boolean(legacyCompanyId))
   ) {
     await upsertRoleRow({
       supabase,
@@ -500,14 +697,22 @@ export async function getUserRoleContext(params: {
       role: legacyRole,
       team: legacyTeam,
       accountStatus: legacyAccountStatus,
+      companyId: legacyCompanyId,
       actorUserId: user.id,
     });
   }
+
+  const permissionMap = getPermissionMap(legacyRole, companyPermissionOverrides, null);
 
   return {
     role: legacyRole,
     team: legacyTeam,
     accountStatus: legacyAccountStatus,
+    companyId: legacyCompanyId,
+    companyPermissionOverrides,
+    permissionOverrides: null as PermissionOverrides | null,
+    permissions: APP_PERMISSIONS.filter((permission) => permissionMap[permission]),
+    permissionMap,
     source: roleRowResult.error ? ("legacy_missing_table" as const) : ("legacy" as const),
   };
 }
@@ -601,7 +806,12 @@ export async function authorizeRequest(
 
     if (
       options.requirePermission &&
-      !hasPermission(roleContext.role, options.requirePermission)
+      !hasPermission(
+        roleContext.role,
+        options.requirePermission,
+        roleContext.companyPermissionOverrides,
+        roleContext.permissionOverrides
+      )
     ) {
       return {
         error: NextResponse.json(
@@ -613,7 +823,12 @@ export async function authorizeRequest(
 
     if (
       options.requireAnyPermission &&
-      !hasAnyPermission(roleContext.role, options.requireAnyPermission)
+      !hasAnyPermission(
+        roleContext.role,
+        options.requireAnyPermission,
+        roleContext.companyPermissionOverrides,
+        roleContext.permissionOverrides
+      )
     ) {
       return {
         error: NextResponse.json(
@@ -629,8 +844,8 @@ export async function authorizeRequest(
       role: roleContext.role,
       team: roleContext.team,
       accountStatus: roleContext.accountStatus,
-      permissions: getRolePermissions(roleContext.role),
-      permissionMap: getPermissionMap(roleContext.role),
+      permissions: roleContext.permissions,
+      permissionMap: roleContext.permissionMap,
     };
   }
 
@@ -694,7 +909,7 @@ export async function authorizeRequest(
     role: roleContext.role,
     team: roleContext.team,
     accountStatus: roleContext.accountStatus,
-    permissions: getRolePermissions(roleContext.role),
-    permissionMap: getPermissionMap(roleContext.role),
+    permissions: roleContext.permissions,
+    permissionMap: roleContext.permissionMap,
   };
 }
