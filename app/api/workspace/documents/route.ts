@@ -13,7 +13,7 @@ import {
   listCreditTransactions,
   purchasedDocumentIdsFromTransactions,
 } from "@/lib/credits";
-import { normalizePurchasedIds } from "@/lib/marketplace";
+import { isMarketplaceEnabled, normalizePurchasedIds } from "@/lib/marketplace";
 
 export const runtime = "nodejs";
 
@@ -33,7 +33,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  let documents = (data ?? []) as Array<Record<string, unknown>>;
+  const rawDocuments = (data ?? []) as Array<Record<string, unknown>>;
+
+  let documents = rawDocuments;
+  let marketplaceCatalog: Array<Record<string, unknown>> = [];
 
   if (isCompanyRole(auth.role)) {
     const companyScope = await getCompanyScope({
@@ -47,7 +50,9 @@ export async function GET(request: Request) {
       ? purchasedDocumentIdsFromTransactions(transactionResult.data)
       : normalizePurchasedIds(auth.user.user_metadata?.purchased_document_ids);
 
-    documents = documents.filter((document) => {
+    const workspaceDocumentIds = new Set<string>();
+
+    documents = rawDocuments.filter((document) => {
       const status = typeof document.status === "string" ? document.status : null;
       const finalFilePath =
         typeof document.final_file_path === "string" ? document.final_file_path : null;
@@ -61,12 +66,14 @@ export async function GET(request: Request) {
       }
 
       if (isCompanyWorkspaceOversightRole(auth.role)) {
-        return companyScope.companyId
+        const include = companyScope.companyId
           ? uuidMatches(companyId, companyScope.companyId)
           : uuidMatches(userId, auth.user.id);
+        if (include && id) workspaceDocumentIds.add(id);
+        return include;
       }
 
-      return (
+      const include =
         isApprovedDocumentStatus(status, Boolean(finalFilePath)) &&
         (
           (companyScope.companyId
@@ -74,13 +81,34 @@ export async function GET(request: Request) {
             : false) ||
           uuidMatches(userId, auth.user.id) ||
           purchasedDocumentIds.some((pid) => uuidMatches(pid, id))
-        )
-      );
+        );
+      if (include && id) workspaceDocumentIds.add(id);
+      return include;
+    });
+
+    marketplaceCatalog = rawDocuments.filter((document) => {
+      const status = typeof document.status === "string" ? document.status : null;
+      const finalFilePath =
+        typeof document.final_file_path === "string" ? document.final_file_path : null;
+      const notes = typeof document.notes === "string" ? document.notes : null;
+      const id = typeof document.id === "string" ? document.id : "";
+
+      if (!id || isArchivedDocumentStatus(status)) {
+        return false;
+      }
+      if (!isApprovedDocumentStatus(status, Boolean(finalFilePath)) || !finalFilePath?.trim()) {
+        return false;
+      }
+      if (!isMarketplaceEnabled(notes)) {
+        return false;
+      }
+      return !workspaceDocumentIds.has(id);
     });
   }
 
   return NextResponse.json({
     documents,
+    marketplaceCatalog,
     viewerRole: auth.role,
     viewerTeam: auth.team,
   });

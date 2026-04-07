@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   basenameFromStoragePath,
+  canRequestMarketplaceLibraryPreview,
   hasWorkspaceDocumentStoragePath,
   isAnyPreviewableDocumentPath,
   pickWorkspacePreviewStoragePath,
@@ -66,6 +67,46 @@ describe("hasWorkspaceDocumentStoragePath", () => {
 describe("basenameFromStoragePath", () => {
   it("returns last segment", () => {
     expect(basenameFromStoragePath("drafts/acme/uuid/file")).toBe("file");
+  });
+});
+
+describe("canRequestMarketplaceLibraryPreview", () => {
+  it("is true when custom preview path is pdf", () => {
+    expect(
+      canRequestMarketplaceLibraryPreview({
+        notes: JSON.stringify({
+          marketplace: { enabled: true, previewFilePath: "marketplace-preview/x/p.pdf" },
+        }),
+        final_file_path: null,
+      })
+    ).toBe(true);
+  });
+
+  it("is true when no custom preview but final is docx", () => {
+    expect(
+      canRequestMarketplaceLibraryPreview({
+        notes: JSON.stringify({ marketplace: { enabled: true } }),
+        final_file_path: "final/uuid/Job_CSEP_Draft.docx",
+      })
+    ).toBe(true);
+  });
+
+  it("is false when marketplace disabled", () => {
+    expect(
+      canRequestMarketplaceLibraryPreview({
+        notes: JSON.stringify({ marketplace: { enabled: false } }),
+        final_file_path: "final/uuid/x.docx",
+      })
+    ).toBe(false);
+  });
+
+  it("is true for extensionless final path when marketplace listed", () => {
+    expect(
+      canRequestMarketplaceLibraryPreview({
+        notes: JSON.stringify({ marketplace: { enabled: true } }),
+        final_file_path: "final/uuid/blobkey",
+      })
+    ).toBe(true);
   });
 });
 

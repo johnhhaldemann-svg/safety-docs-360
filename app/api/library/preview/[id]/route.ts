@@ -60,7 +60,7 @@ export async function GET(
 
   const { data: document, error: documentError } = await supabase
     .from("documents")
-    .select("id, user_id, project_name, status, notes")
+    .select("id, user_id, project_name, status, notes, final_file_path")
     .eq("id", id)
     .single();
 
@@ -89,15 +89,27 @@ export async function GET(
     );
   }
 
-  const previewPath = getMarketplacePreviewPath(document.notes);
-  if (!previewPath || !isValidMarketplacePreviewPath(id, previewPath)) {
+  const previewPathRaw = getMarketplacePreviewPath(document.notes)?.trim() ?? "";
+  const customPreviewOk =
+    previewPathRaw.length > 0 &&
+    isValidMarketplacePreviewPath(id, previewPathRaw);
+  const finalPath =
+    typeof document.final_file_path === "string"
+      ? document.final_file_path.trim()
+      : "";
+
+  const storagePath = customPreviewOk ? previewPathRaw : finalPath || null;
+
+  if (!storagePath) {
     return NextResponse.json(
       { error: "No preview is available for this document." },
       { status: 404 }
     );
   }
 
-  const downloaded = await downloadDocumentsBucketObject(previewPath);
+  const excerptSource = customPreviewOk ? "marketplace_preview" : "final_file";
+
+  const downloaded = await downloadDocumentsBucketObject(storagePath);
   if (!downloaded.ok) {
     return NextResponse.json(
       { error: downloaded.error },
@@ -106,7 +118,7 @@ export async function GET(
   }
   const buffer = downloaded.buffer;
   const sourceName = fileNameFromPreviewPath(
-    previewPath,
+    storagePath,
     document.project_name ?? null
   );
 
@@ -130,6 +142,7 @@ export async function GET(
     ipAddress: getClientIpAddress(request),
     metadata: {
       route: "library_preview_excerpt",
+      excerpt_source: excerptSource,
       project_name: document.project_name ?? null,
       truncated: extracted.truncated,
       empty_excerpt: empty,

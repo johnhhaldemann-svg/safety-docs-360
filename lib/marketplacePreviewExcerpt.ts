@@ -2,6 +2,7 @@ import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import { isApprovedDocumentStatus } from "@/lib/documentStatus";
 import { sniffGcDocumentKind } from "@/lib/gcProgramAiReview";
+import { getMarketplacePreviewPath, isMarketplaceEnabled } from "@/lib/marketplace";
 
 /** Short on-screen preview only; full file is never sent to the client. */
 export const MARKETPLACE_PREVIEW_MAX_CHARS = 2000;
@@ -37,6 +38,28 @@ export function basenameFromStoragePath(path?: string | null) {
   if (!t) return "";
   const parts = t.split("/").filter(Boolean);
   return parts[parts.length - 1] ?? "";
+}
+
+/** True when the library can request an excerpt (custom preview file or approved final PDF/DOCX). */
+export function canRequestMarketplaceLibraryPreview(doc: {
+  notes?: string | null;
+  final_file_path?: string | null;
+}) {
+  if (!isMarketplaceEnabled(doc.notes)) {
+    return false;
+  }
+  if (isPreviewableMarketplaceSource(getMarketplacePreviewPath(doc.notes))) {
+    return true;
+  }
+  const final = doc.final_file_path?.trim();
+  if (!final) {
+    return false;
+  }
+  if (isPreviewableMarketplaceSource(final)) {
+    return true;
+  }
+  const base = basenameFromStoragePath(final);
+  return Boolean(base) && !base.includes(".");
 }
 
 /**

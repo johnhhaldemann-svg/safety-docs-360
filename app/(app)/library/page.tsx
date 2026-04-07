@@ -12,15 +12,11 @@ import {
   InlineMessage,
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
-import {
-  getDocumentCreditCost,
-  getMarketplacePreviewPath,
-  isMarketplaceEnabled,
-} from "@/lib/marketplace";
+import { getDocumentCreditCost, isMarketplaceEnabled } from "@/lib/marketplace";
 import {
   basenameFromStoragePath,
+  canRequestMarketplaceLibraryPreview,
   hasWorkspaceDocumentStoragePath,
-  isPreviewableMarketplaceSource,
 } from "@/lib/marketplacePreviewExcerpt";
 import type { CreditTransaction } from "@/lib/credits";
 import {
@@ -128,6 +124,7 @@ function LibraryPageContent() {
   const highlightDocId = searchParams.get("doc");
 
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
+  const [marketplaceCatalog, setMarketplaceCatalog] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [viewerRole, setViewerRole] = useState("viewer");
@@ -178,6 +175,7 @@ function LibraryPageContent() {
         | {
             error?: string;
             documents?: DocumentRow[];
+            marketplaceCatalog?: DocumentRow[];
             viewerRole?: string;
           }
         | null;
@@ -189,6 +187,9 @@ function LibraryPageContent() {
       }
 
       setDocuments(data?.documents ?? []);
+      setMarketplaceCatalog(
+        Array.isArray(data?.marketplaceCatalog) ? data.marketplaceCatalog : []
+      );
       setViewerRole(data?.viewerRole ?? "viewer");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Error loading documents.");
@@ -534,19 +535,27 @@ function LibraryPageContent() {
 
   const categories = useMemo(() => {
     const values = Array.from(
-      new Set(documents.map((doc) => doc.category).filter(Boolean))
+      new Set(
+        [...documents, ...marketplaceCatalog]
+          .map((doc) => doc.category)
+          .filter(Boolean)
+      )
     ) as string[];
 
     return ["All Categories", ...values.sort()];
-  }, [documents]);
+  }, [documents, marketplaceCatalog]);
 
   const types = useMemo(() => {
     const values = Array.from(
-      new Set(documents.map((doc) => doc.document_type).filter(Boolean))
+      new Set(
+        [...documents, ...marketplaceCatalog]
+          .map((doc) => doc.document_type)
+          .filter(Boolean)
+      )
     ) as string[];
 
     return ["All Types", ...values.sort()];
-  }, [documents]);
+  }, [documents, marketplaceCatalog]);
 
   const isManagerView =
     viewerRole === "company_admin" ||
@@ -560,8 +569,8 @@ function LibraryPageContent() {
       ? { href: "/company-users", label: "Manage Company Users" }
       : { href: "/submit", label: "Submit document" };
 
-  const filteredDocuments = useMemo(() => {
-    return documents.filter((doc) => {
+  const matchesLibraryFilters = useCallback(
+    (doc: DocumentRow) => {
       if (!isManagerView && isArchivedDocumentStatus(doc.status)) {
         return false;
       }
@@ -585,8 +594,17 @@ function LibraryPageContent() {
         typeFilter === "All Types" ? true : doc.document_type === typeFilter;
 
       return matchesSearch && matchesCategory && matchesType;
-    });
-  }, [documents, searchTerm, categoryFilter, typeFilter, isManagerView]);
+    },
+    [isManagerView, searchTerm, categoryFilter, typeFilter]
+  );
+
+  const filteredDocuments = useMemo(() => {
+    return documents.filter(matchesLibraryFilters);
+  }, [documents, matchesLibraryFilters]);
+
+  const filteredMarketplaceCatalog = useMemo(() => {
+    return marketplaceCatalog.filter(matchesLibraryFilters);
+  }, [marketplaceCatalog, matchesLibraryFilters]);
 
   const approvedDocuments = useMemo(() => {
     return filteredDocuments.filter(
@@ -614,13 +632,25 @@ function LibraryPageContent() {
   }, [approvedDocuments, creditState.purchasedDocumentIds, currentUserId, isManagerView]);
 
   const marketplaceDocuments = useMemo(() => {
-    return approvedDocuments.filter(
+    const fromWorkspace = approvedDocuments.filter(
       (doc) =>
         isMarketplaceEnabled(doc.notes) &&
         doc.user_id !== currentUserId &&
         !creditState.purchasedDocumentIds.includes(doc.id)
     );
-  }, [approvedDocuments, creditState.purchasedDocumentIds, currentUserId]);
+    const fromCatalog = filteredMarketplaceCatalog.filter(
+      (doc) =>
+        isMarketplaceEnabled(doc.notes) &&
+        doc.user_id !== currentUserId &&
+        !creditState.purchasedDocumentIds.includes(doc.id)
+    );
+    return [...fromWorkspace, ...fromCatalog];
+  }, [
+    approvedDocuments,
+    filteredMarketplaceCatalog,
+    creditState.purchasedDocumentIds,
+    currentUserId,
+  ]);
 
   useEffect(() => {
     if (loading || typeof window === "undefined") {
@@ -1431,7 +1461,7 @@ function MarketplaceSection({
                 </div>
 
                 <div className="mt-5 flex flex-col gap-3">
-                  {isPreviewableMarketplaceSource(getMarketplacePreviewPath(doc.notes)) ? (
+                  {canRequestMarketplaceLibraryPreview(doc) ? (
                     <button
                       type="button"
                       onClick={() => onPreview(doc.id)}
