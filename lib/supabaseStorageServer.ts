@@ -48,6 +48,51 @@ export async function downloadDocumentsBucketObject(
     };
   }
 
-  const buffer = Buffer.from(await blob.arrayBuffer());
-  return { ok: true, buffer };
+  try {
+    const buffer = Buffer.from(await blob.arrayBuffer());
+    return { ok: true, buffer };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof Error
+          ? e.message
+          : "Could not read the downloaded file from storage.",
+      status: 503,
+    };
+  }
+}
+
+export async function uploadDocumentsBucketObject(
+  objectPath: string,
+  bytes: Uint8Array | Buffer,
+  contentType: string,
+  options?: { upsert?: boolean }
+): Promise<{ ok: true; key: string } | { ok: false; error: string; status: number }> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return {
+      ok: false,
+      error:
+        "File preview is unavailable: add SUPABASE_SERVICE_ROLE_KEY to the server environment (e.g. Vercel project settings).",
+      status: 503,
+    };
+  }
+
+  const key = normalizeDocumentsBucketObjectPath(objectPath);
+
+  const { error } = await admin.storage.from("documents").upload(key, bytes, {
+    upsert: options?.upsert ?? true,
+    contentType,
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      error: error.message || "Could not write the file to storage.",
+      status: 500,
+    };
+  }
+
+  return { ok: true, key };
 }

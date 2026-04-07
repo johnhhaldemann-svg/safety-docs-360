@@ -143,19 +143,26 @@ export async function GET(
 
   const empty = extracted.excerpt.length === 0;
 
-  await logDocumentDownload({
-    supabase,
-    documentId: document.id,
-    actorUserId: user.id,
-    ownerUserId: document.user_id ?? null,
-    fileKind: "draft",
-    ipAddress: getClientIpAddress(request),
-    metadata: {
-      route: "library_workspace_excerpt",
-      truncated: extracted.truncated,
-      empty_excerpt: empty,
-    },
-  });
+  try {
+    await logDocumentDownload({
+      supabase,
+      documentId: document.id,
+      actorUserId: user.id,
+      ownerUserId: document.user_id ?? null,
+      fileKind: "draft",
+      ipAddress: getClientIpAddress(request),
+      metadata: {
+        route: "library_workspace_excerpt",
+        truncated: extracted.truncated,
+        empty_excerpt: empty,
+      },
+    });
+  } catch (e) {
+    serverLog("warn", "library_workspace_excerpt_audit_log_failed", {
+      documentId: document.id,
+      message: e instanceof Error ? e.message : String(e),
+    });
+  }
 
   const title =
     document.document_title?.trim() ||

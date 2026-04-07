@@ -19,4 +19,18 @@ describe("normalizeDocumentsBucketObjectPath", () => {
       )
     ).toBe("drafts/x/y.docx");
   });
+
+  it("extracts key from authenticated object URL", () => {
+    expect(
+      normalizeDocumentsBucketObjectPath(
+        "https://abc.supabase.co/storage/v1/object/authenticated/documents/drafts/x/y.docx"
+      )
+    ).toBe("drafts/x/y.docx");
+  });
+
+  it("decodes percent-encoded path segments", () => {
+    expect(normalizeDocumentsBucketObjectPath("drafts/user/my%20file.pdf")).toBe(
+      "drafts/user/my file.pdf"
+    );
+  });
 });

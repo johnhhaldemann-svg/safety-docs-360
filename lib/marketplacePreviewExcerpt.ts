@@ -121,13 +121,20 @@ function clipExcerpt(raw: string): { excerpt: string; truncated: boolean } {
 }
 
 async function excerptFromPdf(buffer: Buffer): Promise<{ excerpt: string; truncated: boolean }> {
-  const parser = new PDFParse({ data: buffer });
+  let parser: InstanceType<typeof PDFParse> | null = null;
   try {
+    parser = new PDFParse({ data: buffer });
     const result = await parser.getText();
     const raw = result.text?.trim() ?? "";
     return clipExcerpt(raw);
   } finally {
-    await parser.destroy();
+    if (parser) {
+      try {
+        await parser.destroy();
+      } catch {
+        /* ignore cleanup failures */
+      }
+    }
   }
 }
 

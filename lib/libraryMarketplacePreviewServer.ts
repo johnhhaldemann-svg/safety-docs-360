@@ -102,6 +102,36 @@ export async function prepareMarketplaceLibraryPreview(
   const { supabase, user } = auth;
   const supabaseClient = supabase as SupabaseClient;
 
+  try {
+    return await runPrepareMarketplaceLibraryPreview(
+      documentId,
+      supabaseClient,
+      user
+    );
+  } catch (e) {
+    serverLog("error", "library_preview_prepare_unhandled", {
+      documentId,
+      message: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack : undefined,
+    });
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Preview temporarily unavailable. Please try again." },
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+        }
+      ),
+    };
+  }
+}
+
+async function runPrepareMarketplaceLibraryPreview(
+  documentId: string,
+  supabaseClient: SupabaseClient,
+  user: User
+): Promise<MarketplaceLibraryPreviewResult> {
   let agreementResult: Awaited<ReturnType<typeof getUserAgreementRecord>>;
   let agreementConfig: Awaited<ReturnType<typeof getAgreementConfig>>;
   try {
@@ -207,7 +237,8 @@ export async function prepareMarketplaceLibraryPreview(
 
   const previewPathRaw = getMarketplacePreviewPath(doc.notes)?.trim() ?? "";
   const customPreviewOk =
-    previewPathRaw.length > 0 && isValidMarketplacePreviewPath(documentId, previewPathRaw);
+    previewPathRaw.length > 0 &&
+    isValidMarketplacePreviewPath(doc.id, previewPathRaw);
   const normalizedCustomKey = customPreviewOk
     ? normalizeDocumentsBucketObjectPath(previewPathRaw)
     : "";

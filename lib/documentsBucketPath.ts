@@ -18,6 +18,7 @@ export function normalizeDocumentsBucketObjectPath(objectPath: string): string {
   const markers = [
     "/storage/v1/object/public/documents/",
     "/storage/v1/object/sign/documents/",
+    "/storage/v1/object/authenticated/documents/",
   ];
   for (const m of markers) {
     const i = p.indexOf(m);
@@ -31,6 +32,12 @@ export function normalizeDocumentsBucketObjectPath(objectPath: string): string {
 
   if (p.startsWith("documents/")) {
     p = p.slice("documents/".length);
+  }
+
+  try {
+    p = decodeURIComponent(p);
+  } catch {
+    /* keep raw key */
   }
 
   return p;
