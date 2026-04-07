@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
+  createSupabaseAdminClient,
   getSupabaseAnonKey,
   getSupabaseServerUrl,
   getSupabaseServiceRoleKey,
 } from "@/lib/supabaseAdmin";
+import { serverLog } from "@/lib/serverLog";
 
 export const APP_ROLES = [
   "platform_admin",
@@ -646,6 +648,106 @@ async function fetchCompanyPermissionOverrides(
   return normalizePermissionOverrides(companyRecord?.permission_overrides ?? null);
 }
 
+/**
+ * Team UI reads `company_memberships.role`; permissions read `user_roles.role`.
+ * If they drift (e.g. only one table updated), users see "Company Admin" but get viewer perms.
+ * Reconcile with service role when available. RLS blocks non-internal admins from self-updating `user_roles`.
+ */
+async function reconcileUserRoleWithCompanyMembership(params: {
+  userId: string;
+  jwtRow: RoleRow | null;
+}): Promise<RoleRow | null> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return params.jwtRow;
+  }
+
+  const { data: adminRow } = await admin
+    .from("user_roles")
+    .select("user_id, role, team, company_id, account_status, permission_overrides")
+    .eq("user_id", params.userId)
+    .maybeSingle();
+
+  let row = (params.jwtRow ?? (adminRow as RoleRow | null)) ?? null;
+  const rowCompanyId = row?.company_id?.trim() || null;
+
+  let membershipQuery = admin
+    .from("company_memberships")
+    .select("company_id, role, status")
+    .eq("user_id", params.userId)
+    .eq("status", "active");
+
+  if (rowCompanyId) {
+    membershipQuery = membershipQuery.eq("company_id", rowCompanyId);
+  }
+
+  const { data: membership } = await membershipQuery
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) {
+    return row;
+  }
+
+  const memRole = normalizeAppRole((membership as { role: string }).role);
+  const memCompanyId = (membership as { company_id: string }).company_id;
+
+  if (!row) {
+    await upsertRoleRow({
+      supabase: admin as never,
+      userId: params.userId,
+      role: memRole,
+      team: "General",
+      accountStatus: "active",
+      companyId: memCompanyId,
+      actorUserId: params.userId,
+    });
+    return {
+      user_id: params.userId,
+      role: memRole,
+      team: "General",
+      company_id: memCompanyId,
+      account_status: "active",
+      permission_overrides: null,
+    };
+  }
+
+  const rowCompany = row.company_id?.trim() || "";
+  const sameCompany = !rowCompany || rowCompany === memCompanyId;
+  if (!sameCompany) {
+    return row;
+  }
+
+  const tableRole = normalizeAppRole(row.role);
+  if (tableRole === memRole) {
+    return row;
+  }
+
+  await upsertRoleRow({
+    supabase: admin as never,
+    userId: params.userId,
+    role: memRole,
+    team: row.team?.trim() || "General",
+    accountStatus: normalizeAccountStatus(row.account_status),
+    companyId: memCompanyId,
+    actorUserId: params.userId,
+    permissionOverrides: normalizePermissionOverrides(row.permission_overrides),
+  });
+
+  serverLog("info", "user_roles_reconciled_from_company_membership", {
+    userId: params.userId,
+    fromRole: tableRole,
+    toRole: memRole,
+  });
+
+  return {
+    ...row,
+    role: memRole,
+    company_id: memCompanyId,
+  };
+}
+
 export async function getUserRoleContext(params: {
   supabase: SupabaseLikeClient;
   user: AuthLikeUser;
@@ -653,14 +755,23 @@ export async function getUserRoleContext(params: {
   const { supabase, user } = params;
   const roleRowResult = await getRoleRow(supabase, user.id);
 
-  if (roleRowResult.data) {
+  let effectiveRow: RoleRow | null = roleRowResult.data as RoleRow | null;
+
+  if (!isBootstrapAdminUser(user)) {
+    effectiveRow = await reconcileUserRoleWithCompanyMembership({
+      userId: user.id,
+      jwtRow: effectiveRow,
+    });
+  }
+
+  if (effectiveRow) {
     if (isBootstrapAdminUser(user)) {
       if (
-        normalizeAppRole(roleRowResult.data.role) !== "super_admin" ||
-        normalizeAccountStatus(roleRowResult.data.account_status) !== "active"
+        normalizeAppRole(effectiveRow.role) !== "super_admin" ||
+        normalizeAccountStatus(effectiveRow.account_status) !== "active"
       ) {
         await upsertRoleRow({
-          supabase,
+          supabase: (createSupabaseAdminClient() ?? supabase) as never,
           userId: user.id,
           role: "super_admin",
           team: "Internal Admin",
@@ -684,24 +795,24 @@ export async function getUserRoleContext(params: {
       };
     }
 
-    const companyId = roleRowResult.data.company_id?.trim() || getLegacyCompanyId(user);
+    const companyId = effectiveRow.company_id?.trim() || getLegacyCompanyId(user);
     let companyPermissionOverrides: PermissionOverrides | null = null;
 
     if (companyId) {
       companyPermissionOverrides = await fetchCompanyPermissionOverrides(supabase, companyId);
     }
 
-    const permissionOverrides = normalizePermissionOverrides(roleRowResult.data.permission_overrides);
+    const permissionOverrides = normalizePermissionOverrides(effectiveRow.permission_overrides);
     const permissionMap = getPermissionMap(
-      normalizeAppRole(roleRowResult.data.role),
+      normalizeAppRole(effectiveRow.role),
       companyPermissionOverrides,
       permissionOverrides
     );
 
     return {
-      role: normalizeAppRole(roleRowResult.data.role),
-      team: roleRowResult.data.team?.trim() || "General",
-      accountStatus: normalizeAccountStatus(roleRowResult.data.account_status),
+      role: normalizeAppRole(effectiveRow.role),
+      team: effectiveRow.team?.trim() || "General",
+      accountStatus: normalizeAccountStatus(effectiveRow.account_status),
       companyId,
       companyPermissionOverrides,
       permissionOverrides,
@@ -721,6 +832,8 @@ export async function getUserRoleContext(params: {
     companyPermissionOverrides = await fetchCompanyPermissionOverrides(supabase, legacyCompanyId);
   }
 
+  const upsertClient = createSupabaseAdminClient() ?? supabase;
+
   if (
     !roleRowResult.error &&
     (legacyRole !== "viewer" ||
@@ -729,7 +842,7 @@ export async function getUserRoleContext(params: {
       Boolean(legacyCompanyId))
   ) {
     await upsertRoleRow({
-      supabase,
+      supabase: upsertClient as never,
       userId: user.id,
       role: legacyRole,
       team: legacyTeam,

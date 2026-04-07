@@ -232,7 +232,7 @@ export default function CustomerInvoiceDetailPage() {
 
             return (
               <li
-                key={line.id ?? `${index}`}
+                key={`line-${index}`}
                 className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 py-2"
               >
                 <div className="space-y-1">

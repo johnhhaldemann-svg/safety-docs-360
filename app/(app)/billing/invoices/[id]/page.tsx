@@ -336,7 +336,7 @@ export default function BillingInvoiceDetailPage() {
                     : "Other";
 
             return (
-              <li key={line.id ?? `${index}`} className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 py-2">
+              <li key={`line-${index}`} className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 py-2">
                 <div className="space-y-1">
                   <div className="text-slate-200">{line.description}</div>
                   <span className="inline-flex rounded-full bg-slate-800 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">

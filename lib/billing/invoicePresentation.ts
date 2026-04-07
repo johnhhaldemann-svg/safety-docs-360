@@ -1,4 +1,5 @@
 export type InvoiceLineItemLike = {
+  id?: string | null;
   item_type?: string | null;
   description?: string | null;
   line_total_cents?: number | null;
