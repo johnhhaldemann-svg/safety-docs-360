@@ -116,6 +116,7 @@ export async function POST(request: Request) {
         status: "submitted",
         company_id: companyScope.companyId,
         draft_file_path: filePath,
+        file_name: draftFileName,
       })
       .select("id")
       .single();

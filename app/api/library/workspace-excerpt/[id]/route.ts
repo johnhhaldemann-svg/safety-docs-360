@@ -14,6 +14,7 @@ import {
 } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 import { logDocumentDownload } from "@/lib/downloadAudit";
+import { downloadDocumentsBucketObject } from "@/lib/supabaseStorageServer";
 import { canRequestWorkspaceDocumentExcerpt } from "@/lib/workspaceDocumentAccess";
 
 export const runtime = "nodejs";
@@ -110,18 +111,14 @@ export async function GET(
     );
   }
 
-  const { data: blob, error: downloadError } = await supabase.storage
-    .from("documents")
-    .download(storagePath);
-
-  if (downloadError || !blob) {
+  const downloaded = await downloadDocumentsBucketObject(storagePath);
+  if (!downloaded.ok) {
     return NextResponse.json(
-      { error: downloadError?.message || "Failed to load file for preview." },
-      { status: 500 }
+      { error: downloaded.error },
+      { status: downloaded.status }
     );
   }
-
-  const buffer = Buffer.from(await blob.arrayBuffer());
+  const buffer = downloaded.buffer;
   const sourceName =
     document.file_name?.trim() ||
     storagePath.split("/").pop() ||
