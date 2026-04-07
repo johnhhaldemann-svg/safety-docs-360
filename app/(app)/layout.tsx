@@ -609,6 +609,10 @@ export default function AppLayout({
         companyAllowedRoutes.push("/company-users");
       }
 
+      if (permissionMap?.can_manage_billing) {
+        companyAllowedRoutes.push("/purchases");
+      }
+
       if (
         permissionMap?.can_view_dashboards &&
         userRole !== "company_admin" &&

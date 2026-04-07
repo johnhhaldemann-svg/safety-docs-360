@@ -9,7 +9,12 @@ import {
   getCompanySeatCounts,
   normalizeCompanySubscriptionStatus,
 } from "@/lib/companySeats";
-import { authorizeRequest, formatAccountStatus, formatAppRole } from "@/lib/rbac";
+import {
+  authorizeRequest,
+  formatAccountStatus,
+  formatAppRole,
+  normalizePermissionOverrides,
+} from "@/lib/rbac";
 import { normalizeApprovalPlanName } from "@/lib/workspaceProduct";
 
 type ServiceSupabase = NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
@@ -40,6 +45,7 @@ type CompanyRow = {
   archived_by_email?: string | null;
   restored_at?: string | null;
   restored_by_email?: string | null;
+  permission_overrides?: unknown;
 };
 
 type CompanyMembershipRow = {
@@ -563,6 +569,7 @@ export async function GET(request: Request, context: RouteContext) {
       canPermanentlyDeleteCompanies: auth.role === "super_admin",
       canManageCompanySubscription: ["super_admin", "admin", "platform_admin"].includes(auth.role),
       canOverrideCompanyPricing: auth.role === "super_admin",
+      canManageCompanyPermissions: auth.role === "super_admin",
     },
     subscription: {
       status: normalizeCompanySubscriptionStatus(subscriptionRow?.status ?? null),
@@ -601,6 +608,7 @@ export async function GET(request: Request, context: RouteContext) {
       archivedByEmail: company.archived_by_email?.trim() || "",
       restoredAt: company.restored_at ?? null,
       restoredByEmail: company.restored_by_email?.trim() || "",
+      permissionOverrides: normalizePermissionOverrides(company.permission_overrides ?? null),
     },
     summary,
     users,
@@ -640,6 +648,7 @@ type SubscriptionPatchBody = {
   maxUserSeats?: number | null;
   subscriptionPriceCents?: number | null;
   seatPriceCents?: number | null;
+  permissionOverrides?: unknown;
 };
 
 function parseOptionalCents(value: unknown) {
@@ -698,10 +707,20 @@ export async function PATCH(request: Request, context: RouteContext) {
     ? Object.prototype.hasOwnProperty.call(body, "subscriptionPriceCents") ||
       Object.prototype.hasOwnProperty.call(body, "seatPriceCents")
     : false;
+  const permissionOverridesProvided = body
+    ? Object.prototype.hasOwnProperty.call(body, "permissionOverrides")
+    : false;
 
   if (pricingOverridesProvided && auth.role !== "super_admin") {
     return NextResponse.json(
       { error: "Only a Super Admin can override company pricing." },
+      { status: 403 }
+    );
+  }
+
+  if (permissionOverridesProvided && auth.role !== "super_admin") {
+    return NextResponse.json(
+      { error: "Only a Super Admin can manage company access rules." },
       { status: 403 }
     );
   }
@@ -715,6 +734,38 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
   if (!(companyLookup.data as { id?: string } | null)?.id) {
     return NextResponse.json({ error: "Company workspace not found." }, { status: 404 });
+  }
+
+  if (!subscriptionFieldsProvided && !permissionOverridesProvided) {
+    return NextResponse.json({ error: "No company fields were provided." }, { status: 400 });
+  }
+
+  if (permissionOverridesProvided) {
+    const companyUpdate = {
+      permission_overrides: normalizePermissionOverrides(body?.permissionOverrides ?? null),
+      updated_by: auth.user.id,
+    };
+
+    const companyUpdateResult = await adminClient
+      .from("companies")
+      .update(companyUpdate)
+      .eq("id", companyId);
+
+    if (companyUpdateResult.error) {
+      return NextResponse.json(
+        { error: companyUpdateResult.error.message || "Failed to update company access rules." },
+        { status: 500 }
+      );
+    }
+  }
+
+  if (!subscriptionFieldsProvided) {
+    return NextResponse.json({
+      success: true,
+      permissionOverrides: permissionOverridesProvided
+        ? normalizePermissionOverrides(body?.permissionOverrides ?? null)
+        : undefined,
+    });
   }
 
   const existingSub = await adminClient
@@ -832,6 +883,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     maxUserSeats,
     subscriptionPriceCents,
     seatPriceCents,
+    permissionOverrides: permissionOverridesProvided
+      ? normalizePermissionOverrides(body?.permissionOverrides ?? null)
+      : undefined,
   });
 }
 

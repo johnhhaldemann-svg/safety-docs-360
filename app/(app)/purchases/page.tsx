@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
+import { MARKETPLACE_CREDIT_PACKS } from "@/lib/billing/marketplaceCreditPacks";
 import type { CreditTransaction } from "@/lib/credits";
 import { getDocumentCreditCost } from "@/lib/marketplace";
 import type { PermissionMap } from "@/lib/rbac";
@@ -19,6 +20,13 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+const USD_FORMATTER = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 type DocumentRow = {
   id: string;
@@ -43,34 +51,6 @@ type CreditState = {
   companyId?: string | null;
   companyName?: string | null;
 };
-
-type TestCreditPack = {
-  id: "starter" | "pro" | "max";
-  label: string;
-  credits: number;
-  note: string;
-};
-
-const TEST_CREDIT_PACKS: TestCreditPack[] = [
-  {
-    id: "starter",
-    label: "Starter Pack",
-    credits: 10,
-    note: "Quick top-up for marketplace testing.",
-  },
-  {
-    id: "pro",
-    label: "Pro Pack",
-    credits: 25,
-    note: "Enough credits to unlock several completed docs.",
-  },
-  {
-    id: "max",
-    label: "Max Pack",
-    credits: 50,
-    note: "Best option for heavier test purchases.",
-  },
-];
 
 function isArchivedStatus(status?: string | null) {
   return status?.trim().toLowerCase() === "archived";
@@ -258,6 +238,7 @@ export default function PurchasesPage() {
   const totalCreditsSpent = useMemo(() => {
     return purchaseTransactions.reduce((total, tx) => total + Math.abs(tx.amount), 0);
   }, [purchaseTransactions]);
+
   const canManageBilling = Boolean(permissionMap?.can_manage_billing);
   const billingLabel =
     creditState.billingScope === "company"
@@ -296,8 +277,8 @@ export default function PurchasesPage() {
     [getAccessToken]
   );
 
-  const handleBuyTestCredits = useCallback(
-    async (packId: TestCreditPack["id"]) => {
+  const handleBuyMarketplaceCredits = useCallback(
+    async (packId: (typeof MARKETPLACE_CREDIT_PACKS)[number]["id"]) => {
       setCreditPackLoadingId(packId);
       setMessage("");
 
@@ -313,11 +294,20 @@ export default function PurchasesPage() {
         });
 
         const data = (await res.json().catch(() => null)) as
-          | (Partial<CreditState> & { error?: string; grantedCredits?: number })
+          | (Partial<CreditState> & {
+              error?: string;
+              grantedCredits?: number;
+              checkoutUrl?: string;
+            })
           | null;
 
         if (!res.ok) {
-          throw new Error(data?.error || "Failed to add test credits.");
+          throw new Error(data?.error || "Failed to start marketplace credit purchase.");
+        }
+
+        if (typeof data?.checkoutUrl === "string" && data.checkoutUrl.length > 0) {
+          window.location.assign(data.checkoutUrl);
+          return;
         }
 
         setCreditState((prev) => ({
@@ -349,11 +339,13 @@ export default function PurchasesPage() {
               : prev.companyName,
         }));
         setMessage(
-          `Added ${Number(data?.grantedCredits ?? 0)} test credits to your account.`
+          `Added ${Number(data?.grantedCredits ?? 0)} marketplace credits to your account.`
         );
       } catch (error) {
         setMessage(
-          error instanceof Error ? error.message : "Failed to add test credits."
+          error instanceof Error
+            ? error.message
+            : "Failed to start marketplace credit purchase."
         );
       } finally {
         setCreditPackLoadingId("");
@@ -367,7 +359,7 @@ export default function PurchasesPage() {
       <PageHero
         eyebrow="Completed Documents"
         title="My Purchases"
-        description="Open approved files you own or unlocked with credits, and keep a clean audit trail of balance, purchases, and access."
+        description="Open approved files you own or buy more marketplace credits for your workspace."
         actions={
           <>
             <Link
@@ -414,8 +406,8 @@ export default function PurchasesPage() {
       </section>
 
       <SectionCard
-        title="Buy Test Credits"
-        description="Use these in-app packs to simulate credit purchases without real payment processing."
+        title="Buy Marketplace Credits"
+        description="Top up your company or personal marketplace balance with secure checkout."
         aside={
           <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm font-semibold text-slate-300">
             {billingLabel}: {creditState.creditBalance}
@@ -424,11 +416,12 @@ export default function PurchasesPage() {
       >
         {!canManageBilling ? (
           <InlineMessage tone="warning">
-            Your current role can view completed documents and credit history, but only billing-enabled roles can add credits or unlock marketplace files.
+            Your current role can view completed documents and credit history, but only
+            billing-enabled roles can add marketplace credits or unlock files.
           </InlineMessage>
         ) : (
           <div className="grid gap-4 md:grid-cols-3">
-            {TEST_CREDIT_PACKS.map((pack) => (
+            {MARKETPLACE_CREDIT_PACKS.map((pack) => (
               <div
                 key={pack.id}
                 className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
@@ -445,13 +438,17 @@ export default function PurchasesPage() {
                   </span>
                 </div>
 
+                <div className="mt-4 text-sm font-semibold text-slate-200">
+                  {USD_FORMATTER.format(pack.priceCents / 100)}
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => void handleBuyTestCredits(pack.id)}
+                  onClick={() => void handleBuyMarketplaceCredits(pack.id)}
                   disabled={creditPackLoadingId === pack.id}
                   className="mt-5 inline-flex rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {creditPackLoadingId === pack.id ? "Adding..." : "Add Test Credits"}
+                  {creditPackLoadingId === pack.id ? "Buying..." : "Buy Credits"}
                 </button>
               </div>
             ))}
@@ -467,7 +464,7 @@ export default function PurchasesPage() {
 
       <SectionCard
         title="Unlocked Completed Documents"
-        description="Final deliverables you can open right now."
+        description="Final deliverables you can open right now from your marketplace balance."
         aside={
           <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm font-semibold text-slate-300">
             Subscription: {creditState.subscriptionStatus} ({billingLabel})
@@ -479,7 +476,7 @@ export default function PurchasesPage() {
         ) : availablePurchasedDocuments.length === 0 ? (
           <EmptyState
             title="No completed documents unlocked yet"
-            description="Visit the library marketplace or wait for one of your submissions to be approved."
+            description="Visit the library marketplace or buy more credits to unlock completed documents."
             actionHref="/library"
             actionLabel="Open Marketplace"
           />
@@ -511,7 +508,7 @@ export default function PurchasesPage() {
                     </div>
                     <p className="mt-2 text-sm text-slate-400">
                       {doc.document_type ?? "Completed document"}
-                      {doc.project_name ? ` • ${doc.project_name}` : ""}
+                      {doc.project_name ? ` · ${doc.project_name}` : ""}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
                       Added {formatRelative(doc.created_at)}
@@ -555,7 +552,8 @@ export default function PurchasesPage() {
                       {tx.documentTitle}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {tx.description || "Marketplace purchase"} • {new Date(tx.created_at).toLocaleString()}
+                      {tx.description || "Marketplace purchase"} ·{" "}
+                      {new Date(tx.created_at).toLocaleString()}
                     </p>
                   </div>
                   <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
@@ -629,7 +627,7 @@ export default function PurchasesPage() {
                   {doc && (
                     <p className="mt-3 text-sm text-slate-400">
                       {formatDocumentTitle(doc)}
-                      {tx.amount < 0 ? ` • ${purchaseCost} credit unlock` : ""}
+                      {tx.amount < 0 ? ` · ${purchaseCost} credit unlock` : ""}
                     </p>
                   )}
                 </div>

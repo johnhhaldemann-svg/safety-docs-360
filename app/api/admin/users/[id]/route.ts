@@ -16,6 +16,7 @@ type UpdatePayload = {
   team?: string;
   accountStatus?: string;
   companyId?: string | null;
+  permissionOverrides?: unknown;
 };
 
 type CompanyLookupRow = {
@@ -305,6 +306,12 @@ export async function PATCH(
         ? (currentRoleRow.data as { permission_overrides?: unknown }).permission_overrides ?? null
         : null
     );
+    const nextPermissionOverrides = Object.prototype.hasOwnProperty.call(
+      body,
+      "permissionOverrides"
+    )
+      ? normalizePermissionOverrides(body.permissionOverrides ?? null)
+      : existingPermissionOverrides;
 
     const { error: roleError } = await auth.supabase.from("user_roles").upsert(
       {
@@ -312,7 +319,7 @@ export async function PATCH(
         role,
         team,
         account_status: accountStatus,
-        permission_overrides: existingPermissionOverrides,
+        permission_overrides: nextPermissionOverrides,
         created_by: auth.user.id,
         updated_by: auth.user.id,
       },
@@ -373,6 +380,12 @@ export async function PATCH(
       ? (currentRoleRow as { permission_overrides?: unknown }).permission_overrides ?? null
       : null
   );
+  const nextPermissionOverrides = Object.prototype.hasOwnProperty.call(
+    body,
+    "permissionOverrides"
+  )
+    ? normalizePermissionOverrides(body.permissionOverrides ?? null)
+    : existingPermissionOverrides;
   const mergedUserMetadata = {
     ...(currentUser.user.user_metadata ?? {}),
     role,
@@ -392,9 +405,9 @@ export async function PATCH(
   const { error: updateError } = await adminClient.auth.admin.updateUserById(
     id,
     {
-      user_metadata: mergedUserMetadata,
-      app_metadata: mergedAppMetadata,
-    }
+    user_metadata: mergedUserMetadata,
+    app_metadata: mergedAppMetadata,
+  }
   );
 
   if (updateError) {
@@ -411,7 +424,7 @@ export async function PATCH(
       team: companyAssignment.companyName || team,
       company_id: companyAssignment.companyId,
       account_status: accountStatus,
-      permission_overrides: existingPermissionOverrides,
+      permission_overrides: nextPermissionOverrides,
       created_by: auth.user.id,
       updated_by: auth.user.id,
     },

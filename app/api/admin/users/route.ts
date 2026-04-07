@@ -11,6 +11,7 @@ import {
   isCrossWorkspaceAdminRole,
   normalizeAccountStatus,
   normalizeAppRole,
+  normalizePermissionOverrides,
 } from "@/lib/rbac";
 
 export const runtime = "nodejs";
@@ -28,6 +29,7 @@ type FallbackUserRoleRow = {
   team: string | null;
   company_id?: string | null;
   account_status: string | null;
+  permission_overrides?: unknown;
   created_at?: string | null;
 };
 
@@ -185,9 +187,9 @@ export async function GET(request: Request) {
       });
     }
 
-    const { data, error } = await auth.supabase
+      const { data, error } = await auth.supabase
       .from("user_roles")
-      .select("user_id, role, team, company_id, account_status, created_at")
+      .select("user_id, role, team, company_id, account_status, permission_overrides, created_at")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -220,6 +222,7 @@ export async function GET(request: Request) {
           companyId: row.company_id ?? null,
           companyName: row.company_id ? row.team?.trim() || "Company Workspace" : "",
           status: formatAccountStatus(row.account_status),
+          permissionOverrides: normalizePermissionOverrides(row.permission_overrides ?? null),
           created_at: row.created_at ?? null,
           last_sign_in_at: null,
           email_confirmed_at: null,
@@ -256,6 +259,16 @@ export async function GET(request: Request) {
     { companyId: string; companyName: string }
   >();
 
+  const { data: permissionData } = await adminClient
+    .from("user_roles")
+    .select("user_id, permission_overrides");
+  const permissionOverrideMap = new Map<string, unknown>();
+
+  for (const row of (permissionData as Array<{ user_id: string; permission_overrides?: unknown }> | null) ?? []) {
+    if (!row.user_id) continue;
+    permissionOverrideMap.set(row.user_id, row.permission_overrides ?? null);
+  }
+
   for (const row of (membershipData as CompanyMembershipLookupRow[] | null) ?? []) {
     const companyId = row.company_id?.trim() ?? "";
     if (!companyId) continue;
@@ -286,6 +299,9 @@ export async function GET(request: Request) {
           roleContext.accountStatus === "suspended"
             ? formatAccountStatus(roleContext.accountStatus)
             : getStatus(user),
+        permissionOverrides: normalizePermissionOverrides(
+          permissionOverrideMap.get(user.id) ?? null
+        ),
         created_at: user.created_at,
         last_sign_in_at: user.last_sign_in_at,
         email_confirmed_at: user.email_confirmed_at,

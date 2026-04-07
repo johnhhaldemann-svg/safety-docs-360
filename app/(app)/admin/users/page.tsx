@@ -12,6 +12,11 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
+import { PermissionOverridesEditor } from "@/components/PermissionOverridesEditor";
+import {
+  normalizePermissionOverrides,
+  type PermissionOverrides,
+} from "@/lib/permissionOverrides";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,6 +32,7 @@ type AdminUser = {
   companyId?: string | null;
   companyName?: string;
   status: string;
+  permissionOverrides?: PermissionOverrides;
   created_at?: string | null;
   last_sign_in_at?: string | null;
 };
@@ -114,6 +120,11 @@ function findCompanyIdForUser(user: AdminUser, companies: CompanyOption[]) {
   return matchedByName?.id ?? "";
 }
 
+function hasPermissionOverrides(overrides?: PermissionOverrides | null) {
+  const normalized = normalizePermissionOverrides(overrides ?? null);
+  return normalized.allow.length > 0 || normalized.deny.length > 0;
+}
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [capabilities, setCapabilities] = useState<AdminUserCapabilities>({
@@ -139,6 +150,10 @@ export default function AdminUsersPage() {
   const [editTeam, setEditTeam] = useState("General");
   const [editCompanyId, setEditCompanyId] = useState("");
   const [editStatus, setEditStatus] = useState("Active");
+  const [editPermissionOverrides, setEditPermissionOverrides] = useState<PermissionOverrides>({
+    allow: [],
+    deny: [],
+  });
   const [saveLoading, setSaveLoading] = useState(false);
   const [removeLoading, setRemoveLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState("");
@@ -444,6 +459,7 @@ export default function AdminUsersPage() {
           team: editTeam,
           accountStatus: editStatus,
           ...(needsCompanyWorkspace ? { companyId: nextCompanyId } : {}),
+          permissionOverrides: editPermissionOverrides,
         }),
       });
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -871,6 +887,9 @@ export default function AdminUsersPage() {
                         setEditTeam(user.team);
                         setEditCompanyId(findCompanyIdForUser(user, companies));
                         setEditStatus("Pending");
+                        setEditPermissionOverrides(
+                          normalizePermissionOverrides(user.permissionOverrides ?? null)
+                        );
                         setModalMessage("");
                         setModalMessageTone("neutral");
                       }}
@@ -951,6 +970,11 @@ export default function AdminUsersPage() {
                       >
                         {user.role}
                       </span>
+                      {hasPermissionOverrides(user.permissionOverrides) ? (
+                        <span className="inline-flex rounded-full bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-200 ring-1 ring-violet-400/25">
+                          Function overrides
+                        </span>
+                      ) : null}
                       <span
                         className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClasses(
                           user.status
@@ -983,6 +1007,9 @@ export default function AdminUsersPage() {
                               ? "Suspended"
                               : "Active"
                         );
+                        setEditPermissionOverrides(
+                          normalizePermissionOverrides(user.permissionOverrides ?? null)
+                        );
                         setModalMessage("");
                         setModalMessageTone("neutral");
                       }}
@@ -1005,9 +1032,14 @@ export default function AdminUsersPage() {
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
                     Manage User
                   </p>
-                <h3 className="mt-2 text-2xl font-bold text-slate-100">{editingUser.name}</h3>
-                <p className="mt-1 text-sm text-slate-500">{editingUser.email}</p>
-              </div>
+                  <h3 className="mt-2 text-2xl font-bold text-slate-100">{editingUser.name}</h3>
+                  <p className="mt-1 text-sm text-slate-500">{editingUser.email}</p>
+                  {hasPermissionOverrides(editingUser.permissionOverrides) ? (
+                    <div className="mt-3">
+                      <StatusBadge label="Function overrides active" tone="info" />
+                    </div>
+                  ) : null}
+                </div>
               <button
                 onClick={() => {
                   setEditingUser(null);
@@ -1090,8 +1122,18 @@ export default function AdminUsersPage() {
               </div>
             </div>
 
+            {capabilities.canViewAllUsers ? (
+              <PermissionOverridesEditor
+                title="User function overrides"
+                description="Super Admins can allow or block specific functions for this user on top of the role defaults."
+                value={editPermissionOverrides}
+                onChange={setEditPermissionOverrides}
+              />
+            ) : null}
+
             <p className="mt-2 text-xs text-slate-500">
-              In-app capabilities follow this user&apos;s role (user type), not manual allow/block rules.
+              Role defaults set the baseline, and Super Admin overrides can fine-tune the exact
+              functions this account can use.
             </p>
 
               {modalMessage ? (

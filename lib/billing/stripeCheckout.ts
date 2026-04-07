@@ -84,6 +84,8 @@ export async function createAndStoreStripeCheckoutSession(params: {
   stripe: Stripe;
   request: Request;
   invoiceId: string;
+  successUrl?: string;
+  cancelUrl?: string;
 }): Promise<{ url: string } | { error: string }> {
   const { supabase, stripe, request, invoiceId } = params;
 
@@ -115,6 +117,12 @@ export async function createAndStoreStripeCheckoutSession(params: {
 
   const stripeCustomerId = await ensureStripeBillingCustomer(stripe, supabase, billingCustomer);
   const baseUrl = resolveAppBaseUrl(request);
+  const successUrl =
+    params.successUrl ??
+    `${baseUrl}/customer/billing/invoices/${invoice.id}?checkout=success&session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl =
+    params.cancelUrl ??
+    `${baseUrl}/customer/billing/invoices/${invoice.id}?checkout=cancelled`;
 
   const currency = String(invoice.currency || "usd").toLowerCase();
   const session = await stripe.checkout.sessions.create({
@@ -138,8 +146,8 @@ export async function createAndStoreStripeCheckoutSession(params: {
     payment_intent_data: {
       metadata: { invoice_id: invoice.id },
     },
-    success_url: `${baseUrl}/customer/billing/invoices/${invoice.id}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${baseUrl}/customer/billing/invoices/${invoice.id}?checkout=cancelled`,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
   });
 
   if (!session.url) {

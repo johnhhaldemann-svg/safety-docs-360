@@ -175,6 +175,7 @@ export const companyAdminSideSections: NavSection[] = [
         label: "Marketplace",
         short: "MK",
       },
+      { href: "/purchases", label: "Buy credits", short: "CR" },
       { href: "/search", label: "Search documents", short: "SR" },
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/customer/billing", label: "Billing", short: "BL" },

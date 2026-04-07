@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { sendCompanyInviteEmail } from "@/lib/inviteEmail";
-import { authorizeRequest } from "@/lib/rbac";
+import { authorizeRequest, normalizePermissionOverrides } from "@/lib/rbac";
 import { normalizeApprovalPlanName } from "@/lib/workspaceProduct";
 
 export const runtime = "nodejs";
@@ -27,6 +27,13 @@ type CompanyRow = {
   archived_by_email?: string | null;
   restored_at?: string | null;
   restored_by_email?: string | null;
+  permission_overrides?: unknown;
+};
+
+type CompanySubscriptionRow = {
+  company_id: string;
+  subscription_price_cents: number | null;
+  seat_price_cents: number | null;
 };
 
 type MembershipRow = {
@@ -271,7 +278,7 @@ export async function GET(request: Request) {
 
   const adminClient = createSupabaseAdminClient() ?? auth.supabase;
 
-  const [companiesResult, membershipsResult, invitesResult, documentsResult, signupRequestsResult] =
+  const [companiesResult, membershipsResult, invitesResult, documentsResult, subscriptionsResult, signupRequestsResult] =
     await Promise.all([
     adminClient
       .from("companies")
@@ -280,6 +287,9 @@ export async function GET(request: Request) {
     adminClient.from("company_memberships").select("company_id, role, status"),
     adminClient.from("company_invites").select("company_id, consumed_at"),
     adminClient.from("documents").select("company_id, status, final_file_path"),
+    adminClient
+      .from("company_subscriptions")
+      .select("company_id, subscription_price_cents, seat_price_cents"),
     adminClient
       .from("company_signup_requests")
       .select(
@@ -299,6 +309,7 @@ export async function GET(request: Request) {
   const memberships = (membershipsResult.data as MembershipRow[] | null) ?? [];
   const invites = (invitesResult.data as InviteRow[] | null) ?? [];
   const documents = (documentsResult.data as CompanyDocumentRow[] | null) ?? [];
+  const subscriptions = (subscriptionsResult.data as CompanySubscriptionRow[] | null) ?? [];
   const signupRequests =
     (signupRequestsResult.data as CompanySignupRequestRow[] | null) ?? [];
 
@@ -308,6 +319,17 @@ export async function GET(request: Request) {
       (row) => row.company_id === company.id && !row.consumed_at
     );
     const companyDocuments = documents.filter((row) => row.company_id === company.id);
+    const companySubscription =
+      subscriptions.find((row) => row.company_id === company.id) ?? null;
+    const permissionOverrides = normalizePermissionOverrides(
+      company.permission_overrides ?? null
+    );
+    const hasAccessOverrides =
+      permissionOverrides.allow.length > 0 || permissionOverrides.deny.length > 0;
+    const hasPricingOverrides =
+      companySubscription != null &&
+      (companySubscription.subscription_price_cents != null ||
+        companySubscription.seat_price_cents != null);
 
     return {
       id: company.id,
@@ -329,6 +351,8 @@ export async function GET(request: Request) {
       archivedByEmail: company.archived_by_email?.trim() || "",
       restoredAt: company.restored_at ?? null,
       restoredByEmail: company.restored_by_email?.trim() || "",
+      hasAccessOverrides,
+      hasPricingOverrides,
       totalUsers: companyMemberships.length,
       companyAdmins: companyMemberships.filter((row) => row.role === "company_admin").length,
       activeUsers: companyMemberships.filter((row) => row.status === "active").length,

@@ -36,6 +36,8 @@ type CompanySummary = {
   archivedByEmail?: string;
   restoredAt?: string | null;
   restoredByEmail?: string;
+  hasAccessOverrides: boolean;
+  hasPricingOverrides: boolean;
   totalUsers: number;
   companyAdmins: number;
   activeUsers: number;
@@ -558,6 +560,12 @@ export default function AdminCompaniesPage() {
                             <div className="flex flex-wrap items-center gap-3">
                               <h3 className="text-lg font-bold text-slate-100">{company.name}</h3>
                               <StatusBadge label={company.status} tone={statusTone(company.status)} />
+                              {company.hasAccessOverrides ? (
+                                <StatusBadge label="Access overrides" tone="info" />
+                              ) : null}
+                              {company.hasPricingOverrides ? (
+                                <StatusBadge label="Pricing override" tone="warning" />
+                              ) : null}
                             </div>
                             <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-500">
                               <span>Workspace key: {company.teamKey}</span>
