@@ -27,7 +27,8 @@
     "supabase": "supabase",
     "db:push": "supabase db push --yes",
     "vercel:prod": "npx --yes vercel@latest deploy --prod",
-    "vercel:preview": "npx --yes vercel@latest deploy"
+    "vercel:preview": "npx --yes vercel@latest deploy",
+    "vercel:env:push-service-role": "node scripts/push-supabase-service-role-to-vercel.mjs"
   },
   "dependencies": {
     "@radix-ui/react-tabs": "^1.1.13",

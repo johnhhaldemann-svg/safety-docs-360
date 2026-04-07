@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -100,6 +101,15 @@ export default function MarketplacePreviewApprovalsPage() {
     });
   }, [documents, currentUserId]);
 
+  /** After you approve, the row leaves the pending queue — we still surface these so the page is not a blank dead-end. */
+  const approvedByYou = useMemo(() => {
+    if (!currentUserId) return [];
+    return documents.filter((doc) => {
+      if (doc.user_id !== currentUserId) return false;
+      return getSubmitterPreviewStatus(doc.notes) === "approved";
+    });
+  }, [documents, currentUserId]);
+
   const openPreview = useCallback(async (documentId: string) => {
     try {
       const token = await getAccessToken();
@@ -186,10 +196,43 @@ export default function MarketplacePreviewApprovalsPage() {
         {loading ? (
           <p className="text-sm text-slate-400">Loading…</p>
         ) : pendingForYou.length === 0 ? (
-          <EmptyState
-            title="Nothing pending"
-            description="When a preview is generated for your marketplace document, it will appear here for you to approve or reject."
-          />
+          approvedByYou.length > 0 ? (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/30 px-5 py-6 text-sm text-emerald-100/95">
+                <p className="text-base font-semibold text-white">You&apos;re all caught up</p>
+                <p className="mt-2 text-slate-300">
+                  Approving a preview removes it from this list on purpose — that preview is now allowed for buyers in the{" "}
+                  <Link
+                    href="/library"
+                    className="font-semibold text-sky-300 underline underline-offset-2 hover:text-sky-200"
+                  >
+                    Library
+                  </Link>
+                  .
+                </p>
+                <ul className="mt-4 space-y-2 border-t border-emerald-500/15 pt-4">
+                  {approvedByYou.slice(0, 10).map((doc) => (
+                    <li key={doc.id} className="flex flex-wrap items-baseline gap-x-2 text-slate-300">
+                      <span className="font-medium text-white">{titleFor(doc)}</span>
+                      <span className="text-xs uppercase tracking-wide text-emerald-500/90">preview approved</span>
+                    </li>
+                  ))}
+                </ul>
+                {approvedByYou.length > 10 ? (
+                  <p className="mt-3 text-xs text-slate-500">Showing 10 of {approvedByYou.length} approved listings.</p>
+                ) : null}
+              </div>
+              <p className="text-center text-sm text-slate-500">
+                When our team generates a <strong className="text-slate-400">new</strong> preview for a listing, it will
+                appear here again for you to approve or reject.
+              </p>
+            </div>
+          ) : (
+            <EmptyState
+              title="Nothing pending"
+              description="When a preview is generated for your marketplace document, it will appear here for you to approve or reject."
+            />
+          )
         ) : (
           <ul className="space-y-6">
             {pendingForYou.map((doc) => (

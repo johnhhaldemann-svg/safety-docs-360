@@ -308,18 +308,28 @@ export default function ReviewDocumentPage() {
         },
       });
 
-      const data = (await res.json().catch(() => null)) as
-        | {
-            error?: string;
-            title?: string;
-            excerpt?: string;
-            truncated?: boolean;
-            empty?: boolean;
-          }
-        | null;
+      const raw = await res.text();
+      type PreviewExcerptJson = {
+        error?: string;
+        title?: string;
+        excerpt?: string;
+        truncated?: boolean;
+        empty?: boolean;
+      };
+      let data: PreviewExcerptJson | null = null;
+      try {
+        data = raw ? (JSON.parse(raw) as PreviewExcerptJson) : null;
+      } catch {
+        data = null;
+      }
 
       if (!res.ok) {
-        throw new Error(data?.error || "Failed to load preview excerpt.");
+        const msg =
+          (data && typeof data.error === "string" && data.error) ||
+          (raw.trim() && !raw.trim().startsWith("<")
+            ? raw.trim().slice(0, 240)
+            : `Preview failed (HTTP ${res.status}).`);
+        throw new Error(msg);
       }
 
       if (typeof data?.excerpt !== "string") {

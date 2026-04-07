@@ -181,6 +181,11 @@ export default function CompanySignupPage() {
                   title: "Sign in with the same email",
                   body: "After approval, the owner signs in with that same account. No second signup should be needed.",
                 },
+                {
+                  step: "04",
+                  title: "Set up billing and credits",
+                  body: "Once the workspace is active, company admins can review invoices, buy marketplace credits, and manage subscription or seat pricing from the company workspace.",
+                },
               ].map((item) => (
                 <div
                   key={item.step}
@@ -202,7 +207,8 @@ export default function CompanySignupPage() {
             <div className="mt-8 rounded-3xl border border-amber-400/18 bg-amber-400/8 p-5 text-sm leading-7 text-amber-100">
               One email can only be used for one real account. If the company request is still
               pending, the app will tell you to wait instead of creating duplicate company
-              signup tickets.
+              signup tickets. After approval, billing, credits, and subscriptions are managed
+              from the company workspace rather than by creating a second account.
             </div>
 
             <div className="mt-8 flex flex-wrap gap-3">

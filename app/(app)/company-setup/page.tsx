@@ -224,6 +224,11 @@ export default function CompanySetupPage() {
             title: "Invite and approve employees",
             body: "After approval, sign back in with this same email and start inviting employees from the company workspace.",
           },
+          {
+            step: "04",
+            title: "Manage billing and credits",
+            body: "Once the company workspace is live, company admins can open Billing to review invoices and purchase marketplace credits for completed documents.",
+          },
         ].map((item) => (
           <div
             key={item.step}
@@ -373,6 +378,7 @@ export default function CompanySetupPage() {
                 <p>1. Your company workspace request is submitted under the signed-in account.</p>
                 <p>2. Internal admin approves the company and activates the workspace.</p>
                 <p>3. You sign back in with this same email and the company workspace opens on that account.</p>
+                <p>4. Company admins can then manage billing, invoices, and marketplace credits from the company workspace.</p>
                 <p>
                   Do not create another account after approval. The same owner email is attached automatically.
                 </p>
@@ -388,6 +394,7 @@ export default function CompanySetupPage() {
                   <p>1. Your company setup request is now waiting for internal approval.</p>
                   <p>2. Your personal account stays on file under this same email.</p>
                   <p>3. After approval, sign back in with this same email and the company workspace will attach automatically.</p>
+                  <p>4. Once active, company admins can buy marketplace credits and review billing from the company workspace.</p>
                 </div>
               </div>
             ) : null}

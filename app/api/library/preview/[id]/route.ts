@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getClientIpAddress } from "@/lib/legal";
 import { logDocumentDownload } from "@/lib/downloadAudit";
 import { prepareMarketplaceLibraryPreview } from "@/lib/libraryMarketplacePreviewServer";
+import { serverLog } from "@/lib/serverLog";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,19 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
-  const prepared = await prepareMarketplaceLibraryPreview(request, id);
+  let prepared: Awaited<ReturnType<typeof prepareMarketplaceLibraryPreview>>;
+  try {
+    prepared = await prepareMarketplaceLibraryPreview(request, id);
+  } catch (e) {
+    serverLog("error", "library_preview_prepare_failed", {
+      documentId: id,
+      message: e instanceof Error ? e.message : String(e),
+    });
+    return NextResponse.json(
+      { error: "Preview temporarily unavailable. Please try again." },
+      { status: 500, headers: JSON_HEADERS }
+    );
+  }
 
   if (!prepared.ok) {
     return prepared.response;
@@ -52,21 +65,28 @@ export async function GET(
 
   const preview = textPreview!;
 
-  await logDocumentDownload({
-    supabase,
-    documentId: document.id,
-    actorUserId: user.id,
-    ownerUserId: document.user_id ?? null,
-    fileKind: "preview",
-    ipAddress: getClientIpAddress(request),
-    metadata: {
-      route: "library_preview_excerpt",
-      excerpt_source: excerptSource,
-      project_name: document.project_name ?? null,
-      truncated: preview.truncated,
-      empty_excerpt: preview.empty,
-    },
-  });
+  try {
+    await logDocumentDownload({
+      supabase,
+      documentId: document.id,
+      actorUserId: user.id,
+      ownerUserId: document.user_id ?? null,
+      fileKind: "preview",
+      ipAddress: getClientIpAddress(request),
+      metadata: {
+        route: "library_preview_excerpt",
+        excerpt_source: excerptSource,
+        project_name: document.project_name ?? null,
+        truncated: preview.truncated,
+        empty_excerpt: preview.empty,
+      },
+    });
+  } catch (e) {
+    serverLog("warn", "library_preview_audit_log_failed", {
+      documentId: document.id,
+      message: e instanceof Error ? e.message : String(e),
+    });
+  }
 
   return NextResponse.json(
     {

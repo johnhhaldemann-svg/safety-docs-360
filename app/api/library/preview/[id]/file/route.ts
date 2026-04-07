@@ -7,6 +7,7 @@ import {
   isLikelyPdfBuffer,
   prepareMarketplaceLibraryPreview,
 } from "@/lib/libraryMarketplacePreviewServer";
+import { serverLog } from "@/lib/serverLog";
 
 export const runtime = "nodejs";
 
@@ -19,7 +20,19 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
-  const prepared = await prepareMarketplaceLibraryPreview(request, id);
+  let prepared: Awaited<ReturnType<typeof prepareMarketplaceLibraryPreview>>;
+  try {
+    prepared = await prepareMarketplaceLibraryPreview(request, id);
+  } catch (e) {
+    serverLog("error", "library_preview_file_prepare_failed", {
+      documentId: id,
+      message: e instanceof Error ? e.message : String(e),
+    });
+    return NextResponse.json(
+      { error: "Preview temporarily unavailable. Please try again." },
+      { status: 500, headers: { "Content-Type": "application/json; charset=utf-8" } }
+    );
+  }
 
   if (!prepared.ok) {
     return prepared.response;
@@ -33,20 +46,27 @@ export async function GET(
   const asciiName = asciiFallbackFileName(sourceFileName);
   const utf8Star = encodeURIComponent(sourceFileName);
 
-  await logDocumentDownload({
-    supabase,
-    documentId: document.id,
-    actorUserId: user.id,
-    ownerUserId: document.user_id ?? null,
-    fileKind: "preview",
-    ipAddress: getClientIpAddress(request),
-    metadata: {
-      route: "library_preview_file",
-      excerpt_source: excerptSource,
-      content_type: contentType,
-      project_name: document.project_name ?? null,
-    },
-  });
+  try {
+    await logDocumentDownload({
+      supabase,
+      documentId: document.id,
+      actorUserId: user.id,
+      ownerUserId: document.user_id ?? null,
+      fileKind: "preview",
+      ipAddress: getClientIpAddress(request),
+      metadata: {
+        route: "library_preview_file",
+        excerpt_source: excerptSource,
+        content_type: contentType,
+        project_name: document.project_name ?? null,
+      },
+    });
+  } catch (e) {
+    serverLog("warn", "library_preview_file_audit_log_failed", {
+      documentId: document.id,
+      message: e instanceof Error ? e.message : String(e),
+    });
+  }
 
   const disposition = `inline; filename="${asciiName}"; filename*=UTF-8''${utf8Star}`;
 

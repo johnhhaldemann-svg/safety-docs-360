@@ -147,4 +147,15 @@ describe("pickWorkspacePreviewStoragePath", () => {
       })
     ).toBe("final/uuid/final.pdf");
   });
+
+  it("prefers draft when status is submitted even if final_file_path is set", () => {
+    expect(
+      pickWorkspacePreviewStoragePath({
+        status: "submitted",
+        file_path: null,
+        draft_file_path: "drafts/uuid/current.docx",
+        final_file_path: "final/uuid/placeholder.pdf",
+      })
+    ).toBe("drafts/uuid/current.docx");
+  });
 });

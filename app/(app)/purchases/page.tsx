@@ -76,6 +76,20 @@ function formatRelative(timestamp?: string | null) {
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
+function formatDateTime(timestamp?: string | null) {
+  if (!timestamp) return "Unknown time";
+
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return timestamp;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
 export default function PurchasesPage() {
   const searchParams = useSearchParams();
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
@@ -593,7 +607,7 @@ export default function PurchasesPage() {
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
                       {tx.description || "Marketplace purchase"} ·{" "}
-                      {new Date(tx.created_at).toLocaleString()}
+                      {formatDateTime(tx.created_at)}
                     </p>
                   </div>
                   <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">

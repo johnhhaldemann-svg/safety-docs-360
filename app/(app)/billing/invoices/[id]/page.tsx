@@ -24,6 +24,20 @@ function formatMoney(cents: number, currency: string) {
   }).format(cents / 100);
 }
 
+function formatActivityTime(value?: string | null) {
+  if (!value) {
+    return "Unknown time";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
 export default function BillingInvoiceDetailPage() {
   const params = useParams();
   const id = String(params.id ?? "");
@@ -409,13 +423,23 @@ export default function BillingInvoiceDetailPage() {
       </SectionCard>
 
       <SectionCard title="Audit" description="Recent billing events.">
-        <ul className="space-y-2 text-xs text-slate-400">
-          {(events as Array<{ event_type?: string; created_at?: string }>).map((event, index) => (
-            <li key={index}>
-              {event.created_at} - {formatBillingEventLabel(event.event_type)}
-            </li>
-          ))}
-        </ul>
+        {events.length === 0 ? (
+          <p className="text-sm text-slate-500">No billing events recorded yet.</p>
+        ) : (
+          <ul className="space-y-2 text-xs text-slate-400">
+            {(events as Array<{ event_type?: string; created_at?: string }>).map((event, index) => (
+              <li
+                key={index}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-950/40 px-4 py-3"
+              >
+                <span className="inline-flex rounded-full bg-slate-800 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-200">
+                  {formatBillingEventLabel(event.event_type)}
+                </span>
+                <span className="text-slate-400">{formatActivityTime(event.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </SectionCard>
     </div>
   );

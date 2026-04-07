@@ -41,86 +41,104 @@ export async function GET(
     return res;
   }
 
-  const adminClient = createSupabaseAdminClient();
-  const docClient = adminClient ?? supabase;
+  try {
+    const adminClient = createSupabaseAdminClient();
+    const docClient = adminClient ?? supabase;
 
-  const { data: document, error: documentError } = await docClient
-    .from("documents")
-    .select(
-      "id, user_id, project_name, document_title, file_name, status, file_path, draft_file_path, final_file_path"
-    )
-    .eq("id", id)
-    .single();
+    const { data: document, error: documentError } = await docClient
+      .from("documents")
+      .select(
+        "id, user_id, project_name, document_title, file_name, status, file_path, draft_file_path, final_file_path"
+      )
+      .eq("id", id)
+      .single();
 
-  if (documentError || !document) {
-    return NextResponse.json({ error: "Document not found." }, { status: 404 });
-  }
+    if (documentError || !document) {
+      return NextResponse.json({ error: "Document not found." }, { status: 404 });
+    }
 
-  if (document.status?.trim().toLowerCase() === "archived") {
-    return NextResponse.json(
-      { error: "This document is archived and cannot be previewed." },
-      { status: 404 }
-    );
-  }
+    if (document.status?.trim().toLowerCase() === "archived") {
+      return NextResponse.json(
+        { error: "This document is archived and cannot be previewed." },
+        { status: 404 }
+      );
+    }
 
-  const storagePath = pickWorkspacePreviewStoragePath(document);
+    const storagePath = pickWorkspacePreviewStoragePath(document);
 
-  if (!storagePath) {
-    return NextResponse.json(
-      { error: "No file is attached to this document yet." },
-      { status: 404 }
-    );
-  }
+    if (!storagePath) {
+      return NextResponse.json(
+        { error: "No file is attached to this document yet." },
+        { status: 404 }
+      );
+    }
 
-  const downloaded = await downloadDocumentsBucketObject(storagePath);
-  if (!downloaded.ok) {
-    serverLog("warn", "admin_preview_excerpt_storage_download_failed", {
-      documentId: document.id,
-      status: downloaded.status,
-    });
-    return NextResponse.json({ error: downloaded.error }, { status: downloaded.status });
-  }
+    const downloaded = await downloadDocumentsBucketObject(storagePath);
+    if (!downloaded.ok) {
+      serverLog("warn", "admin_preview_excerpt_storage_download_failed", {
+        documentId: document.id,
+        status: downloaded.status,
+      });
+      return NextResponse.json({ error: downloaded.error }, { status: downloaded.status });
+    }
 
-  const buffer = downloaded.buffer;
-  const sourceName =
-    document.file_name?.trim() ||
-    basenameFromStoragePath(storagePath) ||
-    "document.bin";
+    const buffer = downloaded.buffer;
+    const sourceName =
+      document.file_name?.trim() ||
+      basenameFromStoragePath(storagePath) ||
+      "document.bin";
 
-  const extracted = await extractMarketplacePreviewExcerpt(buffer, sourceName);
+    const extracted = await extractMarketplacePreviewExcerpt(buffer, sourceName);
 
-  if (!extracted.ok) {
-    return NextResponse.json({ error: extracted.error }, { status: 422 });
-  }
+    if (!extracted.ok) {
+      return NextResponse.json({ error: extracted.error }, { status: 422 });
+    }
 
-  const empty = extracted.excerpt.length === 0;
+    const empty = extracted.excerpt.length === 0;
 
-  await logDocumentDownload({
-    supabase,
-    documentId: document.id,
-    actorUserId: user.id,
-    ownerUserId: document.user_id ?? null,
-    fileKind: "draft",
-    ipAddress: getClientIpAddress(request),
-    metadata: {
-      route: "admin_preview_excerpt",
+    try {
+      await logDocumentDownload({
+        supabase,
+        documentId: document.id,
+        actorUserId: user.id,
+        ownerUserId: document.user_id ?? null,
+        fileKind: "draft",
+        ipAddress: getClientIpAddress(request),
+        metadata: {
+          route: "admin_preview_excerpt",
+          truncated: extracted.truncated,
+          empty_excerpt: empty,
+        },
+      });
+    } catch (e) {
+      serverLog("warn", "admin_preview_excerpt_audit_log_failed", {
+        documentId: document.id,
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+
+    const title =
+      document.document_title?.trim() ||
+      document.project_name?.trim() ||
+      sourceName.replace(/\.[^.]+$/, "") ||
+      "Document preview";
+
+    const res = NextResponse.json({
+      title,
+      excerpt: extracted.excerpt,
       truncated: extracted.truncated,
-      empty_excerpt: empty,
-    },
-  });
-
-  const title =
-    document.document_title?.trim() ||
-    document.project_name?.trim() ||
-    sourceName.replace(/\.[^.]+$/, "") ||
-    "Document preview";
-
-  const res = NextResponse.json({
-    title,
-    excerpt: extracted.excerpt,
-    truncated: extracted.truncated,
-    empty,
-  });
-  res.headers.set("Cache-Control", "no-store, max-age=0");
-  return res;
+      empty,
+    });
+    res.headers.set("Cache-Control", "no-store, max-age=0");
+    return res;
+  } catch (e) {
+    serverLog("error", "admin_preview_excerpt_failed", {
+      documentId: id,
+      message: e instanceof Error ? e.message : String(e),
+    });
+    return NextResponse.json(
+      { error: "Preview temporarily unavailable. Please try again." },
+      { status: 500 }
+    );
+  }
 }

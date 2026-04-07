@@ -18,6 +18,7 @@ export function getSupabaseServiceRoleKey() {
     readEnv("SUPABASE_SERVICE_ROLE_KEY") ??
     readEnv("SUPABASE_SERVICE_ROLE") ??
     readEnv("SUPABASE_SERVICE_KEY") ??
+    /** Legacy typo used in some Vercel projects; prefer SUPABASE_SERVICE_ROLE_KEY in new setups. */
     readEnv("SUPABASE_SERIVCE_ROLE_KEY")
   );
 }

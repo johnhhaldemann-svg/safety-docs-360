@@ -13,6 +13,12 @@ const supabase = createClient(
 
 type CustomerRow = { id: string; company_id: string; company_name: string; billing_email: string };
 
+type InvoiceLineDraft = {
+  description: string;
+  quantity: string;
+  unit_price_cents: string;
+};
+
 export default function NewInvoicePage() {
   const router = useRouter();
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
@@ -23,7 +29,7 @@ export default function NewInvoicePage() {
   const [discountCents, setDiscountCents] = useState("0");
   const [notes, setNotes] = useState("");
   const [terms, setTerms] = useState("Net 30");
-  const [lines, setLines] = useState([
+  const [lines, setLines] = useState<InvoiceLineDraft[]>([
     { description: "", quantity: "1", unit_price_cents: "0" },
   ]);
   const [message, setMessage] = useState("");
@@ -36,12 +42,11 @@ export default function NewInvoicePage() {
     } = await supabase.auth.getSession();
     const token = session?.access_token;
     if (!token) return;
+
     const res = await fetch("/api/billing/customers", {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const data = (await res.json().catch(() => null)) as
-      | { customers?: CustomerRow[] }
-      | null;
+    const data = (await res.json().catch(() => null)) as { customers?: CustomerRow[] } | null;
     if (res.ok) {
       setCustomers(data?.customers ?? []);
     }
@@ -54,132 +59,83 @@ export default function NewInvoicePage() {
     return () => window.clearTimeout(t);
   }, [loadCustomers]);
 
-  const companyId = useMemo(() => {
-    const c = customers.find((x) => x.id === customerId);
-    return c?.company_id ?? "";
-  }, [customerId, customers]);
+  const selectedCustomer = useMemo(
+    () => customers.find((item) => item.id === customerId) ?? null,
+    [customerId, customers]
+  );
 
-  async function saveDraft() {
-    setSaving(true);
-    setMessage("");
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) {
-      setMessage("Sign in required.");
-      setSaving(false);
-      return;
-    }
-
-    const line_items = lines
-      .map((row) => ({
-        description: row.description.trim(),
-        quantity: Number(row.quantity) || 1,
-        unit_price_cents: Math.max(0, Math.floor(Number(row.unit_price_cents) || 0)),
-        item_type: "custom" as const,
-      }))
-      .filter((r) => r.description.length > 0);
-
-    const res = await fetch("/api/billing/invoices", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        customer_id: customerId,
-        company_id: companyId,
-        status: "draft",
-        issue_date: issueDate,
-        due_date: dueDate,
-        tax_rate_bps: Math.max(0, Math.floor(Number(taxBps) || 0)),
-        discount_cents: Math.max(0, Math.floor(Number(discountCents) || 0)),
-        notes: notes.trim() || null,
-        terms: terms.trim() || null,
-        line_items,
-      }),
-    });
-
-    const data = (await res.json().catch(() => null)) as { error?: string; invoice?: { id: string } } | null;
-    if (!res.ok) {
-      setMessage(data?.error || "Save failed.");
-      setSaving(false);
-      return;
-    }
-
-    if (data?.invoice?.id) {
-      router.push(`/billing/invoices/${data.invoice.id}`);
-    }
-    setSaving(false);
-  }
-
-  async function createCompanyBillingDraft() {
-    setCreatingCompanyDraft(true);
+  async function submitInvoice(target: "draft" | "company") {
+    const isCompanyDraft = target === "company";
+    setSaving(isCompanyDraft ? false : true);
+    setCreatingCompanyDraft(isCompanyDraft);
     setMessage("");
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) {
-      setMessage("Sign in required.");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setMessage("Sign in required.");
+        return;
+      }
+
+      const line_items = lines
+        .map((row) => ({
+          description: row.description.trim(),
+          quantity: Number(row.quantity) || 1,
+          unit_price_cents: Math.max(0, Math.floor(Number(row.unit_price_cents) || 0)),
+          item_type: "custom" as const,
+        }))
+        .filter((row) => row.description.length > 0);
+
+      const endpoint = target === "company" ? "/api/billing/company-invoices" : "/api/billing/invoices";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customer_id: customerId,
+          company_id: selectedCustomer?.company_id ?? "",
+          status: "draft",
+          issue_date: issueDate,
+          due_date: dueDate,
+          tax_rate_bps: Math.max(0, Math.floor(Number(taxBps) || 0)),
+          discount_cents: Math.max(0, Math.floor(Number(discountCents) || 0)),
+          notes: notes.trim() || null,
+          terms: terms.trim() || null,
+          line_items,
+        }),
+      });
+
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; invoice?: { id?: string } }
+        | null;
+
+      if (!res.ok) {
+        setMessage(data?.error || "Save failed.");
+        return;
+      }
+
+      if (data?.invoice?.id) {
+        router.push(`/billing/invoices/${data.invoice.id}`);
+      }
+    } finally {
+      setSaving(false);
       setCreatingCompanyDraft(false);
-      return;
     }
-
-    const line_items = lines
-      .map((row) => ({
-        description: row.description.trim(),
-        quantity: Number(row.quantity) || 1,
-        unit_price_cents: Math.max(0, Math.floor(Number(row.unit_price_cents) || 0)),
-        item_type: "custom" as const,
-      }))
-      .filter((r) => r.description.length > 0);
-
-    const res = await fetch("/api/billing/company-invoices", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        customer_id: customerId,
-        company_id: companyId,
-        status: "draft",
-        issue_date: issueDate,
-        due_date: dueDate,
-        tax_rate_bps: Math.max(0, Math.floor(Number(taxBps) || 0)),
-        discount_cents: Math.max(0, Math.floor(Number(discountCents) || 0)),
-        notes: notes.trim() || null,
-        terms: terms.trim() || null,
-        line_items,
-      }),
-    });
-
-    const data = (await res.json().catch(() => null)) as
-      | { error?: string; invoice?: { id: string } }
-      | null;
-
-    if (!res.ok) {
-      setMessage(data?.error || "Create failed.");
-      setCreatingCompanyDraft(false);
-      return;
-    }
-
-    if (data?.invoice?.id) {
-      router.push(`/billing/invoices/${data.invoice.id}`);
-    }
-
-    setCreatingCompanyDraft(false);
   }
+
+  const canCreateCompanyDraft = Boolean(selectedCustomer?.company_id);
 
   return (
     <div className="space-y-8">
       <PageHero
         eyebrow="Platform billing"
         title="New invoice"
-        description="Pick a billing customer, add line items, and save as draft. Sending email and Stripe checkout are next steps."
+        description="Create a draft invoice here, then send it, add a payment link, or mark it paid from the invoice detail page."
         actions={
           <Link
             href="/billing/invoices"
@@ -192,7 +148,18 @@ export default function NewInvoicePage() {
 
       {message ? <InlineMessage tone="error">{message}</InlineMessage> : null}
 
-      <SectionCard title="Invoice" description="Required: customer and dates. Line items optional for draft.">
+      <SectionCard
+        title="Invoice"
+        description="Choose a billing customer, add line items, and save the draft for review."
+        aside={
+          selectedCustomer ? (
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-xs text-slate-400">
+              <div className="font-semibold text-slate-200">{selectedCustomer.company_name}</div>
+              <div>{selectedCustomer.billing_email}</div>
+            </div>
+          ) : null
+        }
+      >
         <div className="grid gap-4 md:grid-cols-2">
           <div className="md:col-span-2">
             <label htmlFor="bill-customer" className="text-sm font-semibold text-slate-300">
@@ -204,17 +171,18 @@ export default function NewInvoicePage() {
               onChange={(e) => setCustomerId(e.target.value)}
               className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-sm text-slate-200"
             >
-              <option value="">Select…</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.company_name} — {c.billing_email}
+              <option value="">Select...</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.company_name} - {customer.billing_email}
                 </option>
               ))}
             </select>
             <p className="mt-2 text-xs text-slate-500">
-              Create billing profiles via API POST /api/billing/customers or add a seed in Supabase.
+              If this customer belongs to a company, company pricing drafts are available here too.
             </p>
           </div>
+
           <div>
             <label htmlFor="bill-issue" className="text-sm font-semibold text-slate-300">
               Issue date
@@ -227,6 +195,7 @@ export default function NewInvoicePage() {
               className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-sm text-slate-200"
             />
           </div>
+
           <div>
             <label htmlFor="bill-due" className="text-sm font-semibold text-slate-300">
               Due date
@@ -239,6 +208,7 @@ export default function NewInvoicePage() {
               className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-sm text-slate-200"
             />
           </div>
+
           <div>
             <label htmlFor="bill-tax" className="text-sm font-semibold text-slate-300">
               Tax (basis points, e.g. 825 = 8.25%)
@@ -252,6 +222,7 @@ export default function NewInvoicePage() {
               className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-sm text-slate-200"
             />
           </div>
+
           <div>
             <label htmlFor="bill-discount" className="text-sm font-semibold text-slate-300">
               Discount (cents)
@@ -265,6 +236,7 @@ export default function NewInvoicePage() {
               className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-sm text-slate-200"
             />
           </div>
+
           <div className="md:col-span-2">
             <label htmlFor="bill-notes" className="text-sm font-semibold text-slate-300">
               Notes
@@ -277,6 +249,7 @@ export default function NewInvoicePage() {
               className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-sm text-slate-200"
             />
           </div>
+
           <div className="md:col-span-2">
             <label htmlFor="bill-terms" className="text-sm font-semibold text-slate-300">
               Terms
@@ -292,17 +265,20 @@ export default function NewInvoicePage() {
 
         <div className="mt-8 space-y-3">
           <div className="text-sm font-semibold text-slate-200">Line items</div>
-          {lines.map((row, i) => (
-            <div key={i} className="grid gap-2 rounded-xl border border-slate-700/80 p-3 md:grid-cols-12">
+          {lines.map((row, index) => (
+            <div
+              key={index}
+              className="grid gap-2 rounded-xl border border-slate-700/80 p-3 md:grid-cols-12"
+            >
               <input
                 placeholder="Description"
                 value={row.description}
                 onChange={(e) => {
                   const next = [...lines];
-                  next[i] = { ...next[i], description: e.target.value };
+                  next[index] = { ...next[index], description: e.target.value };
                   setLines(next);
                 }}
-                className="md:col-span-5 rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200"
+                className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200 md:col-span-5"
               />
               <input
                 type="number"
@@ -310,10 +286,10 @@ export default function NewInvoicePage() {
                 value={row.quantity}
                 onChange={(e) => {
                   const next = [...lines];
-                  next[i] = { ...next[i], quantity: e.target.value };
+                  next[index] = { ...next[index], quantity: e.target.value };
                   setLines(next);
                 }}
-                className="md:col-span-2 rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200"
+                className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200 md:col-span-2"
               />
               <input
                 type="number"
@@ -321,15 +297,15 @@ export default function NewInvoicePage() {
                 value={row.unit_price_cents}
                 onChange={(e) => {
                   const next = [...lines];
-                  next[i] = { ...next[i], unit_price_cents: e.target.value };
+                  next[index] = { ...next[index], unit_price_cents: e.target.value };
                   setLines(next);
                 }}
-                className="md:col-span-3 rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200"
+                className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200 md:col-span-3"
               />
               <button
                 type="button"
-                className="md:col-span-2 rounded-lg border border-slate-600 text-sm text-slate-400 hover:bg-slate-900"
-                onClick={() => setLines(lines.filter((_, j) => j !== i))}
+                className="rounded-lg border border-slate-600 text-sm text-slate-400 hover:bg-slate-900 md:col-span-2"
+                onClick={() => setLines(lines.filter((_, lineIndex) => lineIndex !== index))}
               >
                 Remove
               </button>
@@ -350,23 +326,24 @@ export default function NewInvoicePage() {
           <button
             type="button"
             disabled={saving || !customerId}
-            onClick={() => void saveDraft()}
+            onClick={() => void submitInvoice("draft")}
             className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
-            {saving ? "Saving…" : "Save draft"}
+            {saving ? "Saving..." : "Save draft"}
           </button>
           <button
             type="button"
-            disabled={creatingCompanyDraft || !customerId || !companyId}
-            onClick={() => void createCompanyBillingDraft()}
+            disabled={creatingCompanyDraft || !customerId || !canCreateCompanyDraft}
+            onClick={() => void submitInvoice("company")}
             className="inline-flex min-h-11 items-center justify-center rounded-xl border border-violet-400/60 px-5 py-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-950/40 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {creatingCompanyDraft ? "Creating..." : "Generate company billing draft"}
           </button>
         </div>
+
         <p className="mt-3 text-xs text-slate-500">
-          The company billing draft uses the selected workspace&apos;s subscription and licensed
-          user pricing. Manual line items you enter here are added on top.
+          Company billing drafts pull in the selected workspace&apos;s subscription and seat pricing
+          automatically. You can still add manual line items on top.
         </p>
       </SectionCard>
     </div>

@@ -1,6 +1,5 @@
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
-import { isApprovedDocumentStatus } from "@/lib/documentStatus";
 import { sniffGcDocumentKind } from "@/lib/gcProgramAiReview";
 import {
   getMarketplacePreviewPath,
@@ -87,9 +86,11 @@ export function hasWorkspaceDocumentStoragePath(doc: {
 }
 
 /**
- * Chooses which storage key to download for library preview. In-review CSEP drafts live in
- * `draft_file_path`; `file_path` may point at another upload (e.g. GC program) — prefer draft
- * until the document is approved, then prefer `final_file_path`.
+ * Chooses which storage key to download for admin/library workspace preview.
+ * In-review work usually lives in `draft_file_path`. Do **not** use `isApprovedDocumentStatus(…, hasFinal)` here:
+ * that helper treats “has final_file_path” like approved even when status is still `submitted`, which
+ * would pick a stale/placeholder final and break excerpt preview. Only **`status === approved`**
+ * prefers `final_file_path` first.
  */
 export function pickWorkspacePreviewStoragePath(doc: {
   status?: string | null;
@@ -100,9 +101,9 @@ export function pickWorkspacePreviewStoragePath(doc: {
   const final = doc.final_file_path?.trim() || "";
   const draft = doc.draft_file_path?.trim() || "";
   const filePath = doc.file_path?.trim() || "";
-  const approved = isApprovedDocumentStatus(doc.status, Boolean(final));
+  const explicitlyApproved = doc.status?.trim().toLowerCase() === "approved";
 
-  if (approved) {
+  if (explicitlyApproved) {
     return final || filePath || draft || null;
   }
   return draft || filePath || final || null;
@@ -156,12 +157,12 @@ export async function extractMarketplacePreviewExcerpt(
     };
   }
 
-  let kind: "pdf" | "docx" | null = null;
-  if (lower.endsWith(".pdf")) kind = "pdf";
-  else if (lower.endsWith(".docx")) kind = "docx";
-  else kind = sniffGcDocumentKind(buffer);
-
   try {
+    let kind: "pdf" | "docx" | null = null;
+    if (lower.endsWith(".pdf")) kind = "pdf";
+    else if (lower.endsWith(".docx")) kind = "docx";
+    else kind = sniffGcDocumentKind(buffer);
+
     if (kind === "pdf") {
       const { excerpt, truncated } = await excerptFromPdf(buffer);
       return { ok: true, excerpt, truncated };

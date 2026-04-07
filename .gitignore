@@ -27,6 +27,7 @@
 # misc
 .DS_Store
 *.pem
+.npm-cache/
 
 # Python (Streamlit local runs)
 **/__pycache__/
@@ -41,6 +42,7 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+.env.vercel.sync.tmp
 
 # vercel
 .vercel

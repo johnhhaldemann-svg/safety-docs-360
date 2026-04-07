@@ -15,6 +15,7 @@ import {
   getUserAgreementRecord,
 } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import {
   downloadDocumentsBucketObject,
   normalizeDocumentsBucketObjectPath,
@@ -123,7 +124,9 @@ export async function prepareMarketplaceLibraryPreview(
     };
   }
 
-  const { data: document, error: documentError } = await supabaseClient
+  /** Prefer service-role read so marketplace rows are visible like the library catalog (avoids RLS edge cases with mixed policies). */
+  const docClient = createSupabaseAdminClient() ?? supabaseClient;
+  const { data: document, error: documentError } = await docClient
     .from("documents")
     .select("id, user_id, project_name, status, notes, final_file_path")
     .eq("id", documentId)

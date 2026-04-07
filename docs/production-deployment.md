@@ -34,7 +34,7 @@ Run **Supabase migrations first** whenever migration files changed, then deploy 
    |----------|--------|
    | `NEXT_PUBLIC_SUPABASE_URL` | Production project URL |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anon key (safe for browser) |
-   | `SUPABASE_SERVICE_ROLE_KEY` | Server only; never `NEXT_PUBLIC_*` |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Server only; never `NEXT_PUBLIC_*`. If an older env uses the typo `SUPABASE_SERIVCE_ROLE_KEY`, the app still reads it; rename or duplicate to the canonical name when convenient. |
    | `NEXT_PUBLIC_SITE_URL` / `NEXT_PUBLIC_APP_URL` | Canonical URL for invites and redirects |
    | `NEXT_PUBLIC_ADMIN_EMAILS` | Optional; platform admin list |
    | `CRON_SECRET` | Long random string; required for scheduled cron (see below) |

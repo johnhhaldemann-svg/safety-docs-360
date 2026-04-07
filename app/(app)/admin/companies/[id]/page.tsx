@@ -653,6 +653,21 @@ export default function AdminCompanyDetailPage({
     Boolean(subscription) &&
     (subscription?.subscriptionPriceCents != null || subscription?.seatPriceCents != null);
 
+  const pricingSummary = useMemo(() => {
+    if (!subscription) {
+      return null;
+    }
+
+    return {
+      status: subscription.status,
+      planName: subscription.planName,
+      subscriptionPrice: formatCents(subscription.subscriptionPriceCents),
+      seatPrice: formatCents(subscription.seatPriceCents),
+      maxUsers: subscription.maxUserSeats != null ? String(subscription.maxUserSeats) : "Unlimited",
+      creditBalance: subscription.creditBalance ?? null,
+    };
+  }, [subscription]);
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -768,6 +783,43 @@ export default function AdminCompanyDetailPage({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {pricingSummary ? (
+        <section className="grid gap-4 md:grid-cols-4">
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Subscription
+            </div>
+            <div className="mt-2 text-lg font-bold text-slate-100">{pricingSummary.status}</div>
+            <div className="mt-1 text-sm text-slate-500">{pricingSummary.planName}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Pricing
+            </div>
+            <div className="mt-2 text-sm font-semibold text-slate-100">
+              Subscription {pricingSummary.subscriptionPrice}
+            </div>
+            <div className="mt-1 text-sm text-slate-500">Seat license {pricingSummary.seatPrice}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              License cap
+            </div>
+            <div className="mt-2 text-lg font-bold text-slate-100">{pricingSummary.maxUsers}</div>
+            <div className="mt-1 text-sm text-slate-500">Licensed users allowed in the workspace</div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Credits
+            </div>
+            <div className="mt-2 text-lg font-bold text-slate-100">
+              {pricingSummary.creditBalance ?? "—"}
+            </div>
+            <div className="mt-1 text-sm text-slate-500">Marketplace credit balance tied to billing</div>
+          </div>
+        </section>
       ) : null}
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}

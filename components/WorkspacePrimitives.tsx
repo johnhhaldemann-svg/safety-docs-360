@@ -88,7 +88,7 @@ export function InlineMessage({
         ? "Attention"
         : tone === "error"
           ? "Error"
-          : "Update";
+          : "Notice";
 
   return (
     <div className={`rounded-xl border px-4 py-3 text-sm ${toneClass}`}>

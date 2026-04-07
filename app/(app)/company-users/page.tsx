@@ -556,6 +556,18 @@ export default function CompanyUsersPage() {
             >
               Training matrix
             </Link>
+            <Link
+              href="/billing"
+              className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-5 py-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
+            >
+              Billing hub
+            </Link>
+            <Link
+              href="/purchases"
+              className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-5 py-3 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/15"
+            >
+              Buy credits
+            </Link>
             <button
               onClick={handleInvite}
               disabled={inviteLoading || !inviteEmail.trim()}
@@ -585,6 +597,18 @@ export default function CompanyUsersPage() {
             <span className="font-semibold text-slate-200">Company Admins</span> manage roles and membership here.
             Super admins do not need to hand-pick individual features per employee.
           </li>
+        </ul>
+      </SectionCard>
+
+      <SectionCard
+        title="Launch checklist"
+        description="Use this after the company is approved so the first week stays on track."
+      >
+        <ul className="list-inside list-disc space-y-2 text-sm leading-6 text-slate-400">
+          <li>Invite the first employee and verify the email address is correct.</li>
+          <li>Approve the first pending account so the company workspace becomes active.</li>
+          <li>Assign jobsites only when a role needs site-specific limits.</li>
+          <li>Review billing and marketplace credits so completed documents can be opened later.</li>
         </ul>
       </SectionCard>
 

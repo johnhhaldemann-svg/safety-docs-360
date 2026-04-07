@@ -41,6 +41,30 @@ function formatMoney(cents: number, currency: string) {
   }).format(cents / 100);
 }
 
+function formatDate(value?: string | null) {
+  if (!value) {
+    return "—";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+  }).format(date);
+}
+
+function getStatusTone(status: string) {
+  const normalized = status.trim().toLowerCase();
+  if (["paid", "sent"].includes(normalized)) {
+    return "success";
+  }
+  if (["draft", "void", "cancelled"].includes(normalized)) {
+    return "neutral";
+  }
+  return "warning";
+}
+
 export default function BillingInvoicesListPage() {
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,14 +110,15 @@ export default function BillingInvoicesListPage() {
     return () => window.clearTimeout(t);
   }, [load]);
 
-  const outstanding = invoices.reduce(
-    (sum, invoice) => sum + (invoice.balance_due_cents > 0 ? invoice.balance_due_cents : 0),
+  const today = new Date().toISOString().slice(0, 10);
+  const totalBalanceDue = invoices.reduce(
+    (sum, invoice) => sum + Math.max(0, invoice.balance_due_cents),
     0
   );
   const overdue = invoices.filter(
     (invoice) =>
       invoice.balance_due_cents > 0 &&
-      invoice.due_date < new Date().toISOString().slice(0, 10) &&
+      invoice.due_date < today &&
       !["draft", "void", "cancelled", "paid"].includes(invoice.status)
   );
 
@@ -118,7 +143,7 @@ export default function BillingInvoicesListPage() {
       <section className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
           <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Outstanding</div>
-          <div className="mt-2 text-2xl font-black text-white">{formatMoney(outstanding, "usd")}</div>
+          <div className="mt-2 text-2xl font-black text-white">{formatMoney(totalBalanceDue, "usd")}</div>
         </div>
         <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
           <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Overdue count</div>
@@ -152,55 +177,73 @@ export default function BillingInvoicesListPage() {
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((invoice) => (
-                  <tr key={invoice.id} className="border-b border-slate-800/80">
-                    <td className="py-3 pr-3 font-mono text-slate-200">{invoice.invoice_number}</td>
-                    <td className="py-3 pr-3 text-slate-300">
-                      {invoice.billing_customers?.company_name ?? invoice.companies?.name ?? "—"}
-                    </td>
-                    <td className="py-3 pr-3">
-                      <div className="space-y-1">
+                {invoices.map((invoice) => {
+                  const isOverdue =
+                    invoice.balance_due_cents > 0 &&
+                    invoice.due_date < today &&
+                    !["draft", "void", "cancelled", "paid"].includes(invoice.status);
+
+                  return (
+                    <tr key={invoice.id} className="border-b border-slate-800/80">
+                      <td className="py-3 pr-3 font-mono text-slate-200">{invoice.invoice_number}</td>
+                      <td className="py-3 pr-3 text-slate-300">
+                        {invoice.billing_customers?.company_name ?? invoice.companies?.name ?? "—"}
+                      </td>
+                      <td className="py-3 pr-3">
+                        <div className="space-y-1">
+                          <span
+                            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                              getBillingSourceTone(invoice.billing_source) === "success"
+                                ? "bg-emerald-500/15 text-emerald-200"
+                                : getBillingSourceTone(invoice.billing_source) === "info"
+                                  ? "bg-sky-500/15 text-sky-200"
+                                  : "bg-slate-800 text-slate-300"
+                            }`}
+                          >
+                            {getBillingSourceLabel(invoice.billing_source)}
+                          </span>
+                          {formatBillingPeriodLabel(invoice.billing_period_key) ? (
+                            <div className="text-xs text-slate-500">
+                              {formatBillingPeriodLabel(invoice.billing_period_key)}
+                            </div>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="py-3 pr-3 text-slate-400">{formatDate(invoice.issue_date)}</td>
+                      <td className="py-3 pr-3 text-slate-400">{formatDate(invoice.due_date)}</td>
+                      <td className="py-3 pr-3 text-slate-200">
+                        {formatMoney(invoice.total_cents, invoice.currency)}
+                      </td>
+                      <td className="py-3 pr-3 text-slate-200">
+                        {formatMoney(invoice.balance_due_cents, invoice.currency)}
+                      </td>
+                      <td className="py-3 pr-3">
                         <span
-                          className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                            getBillingSourceTone(invoice.billing_source) === "success"
+                          className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                            getStatusTone(invoice.status) === "success"
                               ? "bg-emerald-500/15 text-emerald-200"
-                              : getBillingSourceTone(invoice.billing_source) === "info"
-                                ? "bg-sky-500/15 text-sky-200"
+                              : getStatusTone(invoice.status) === "warning"
+                                ? "bg-amber-500/15 text-amber-200"
                                 : "bg-slate-800 text-slate-300"
                           }`}
                         >
-                          {getBillingSourceLabel(invoice.billing_source)}
+                          {invoice.status}
                         </span>
-                        {formatBillingPeriodLabel(invoice.billing_period_key) ? (
-                          <div className="text-xs text-slate-500">
-                            {formatBillingPeriodLabel(invoice.billing_period_key)}
-                          </div>
+                        {isOverdue ? (
+                          <div className="mt-2 text-xs font-semibold text-amber-200">Overdue</div>
                         ) : null}
-                      </div>
-                    </td>
-                    <td className="py-3 pr-3 text-slate-400">{invoice.issue_date}</td>
-                    <td className="py-3 pr-3 text-slate-400">{invoice.due_date}</td>
-                    <td className="py-3 pr-3 text-slate-200">
-                      {formatMoney(invoice.total_cents, invoice.currency)}
-                    </td>
-                    <td className="py-3 pr-3 text-slate-200">
-                      {formatMoney(invoice.balance_due_cents, invoice.currency)}
-                    </td>
-                    <td className="py-3 pr-3">
-                      <span className="rounded-full bg-slate-800 px-2 py-1 text-xs font-semibold text-slate-300">
-                        {invoice.status}
-                      </span>
-                    </td>
-                    <td className="py-3">
-                      <Link
-                        href={`/billing/invoices/${invoice.id}`}
-                        className="font-semibold text-sky-400 hover:text-sky-300"
-                      >
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-3">
+                        <Link
+                          href={`/billing/invoices/${invoice.id}`}
+                          className="font-semibold text-sky-400 hover:text-sky-300"
+                        >
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

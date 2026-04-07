@@ -326,6 +326,7 @@ export default function AdminUsersPage() {
         lastSeen.getDate() === today.getDate()
       );
     }).length;
+    const overrideCount = users.filter((user) => hasPermissionOverrides(user.permissionOverrides)).length;
     return [
       {
         title: capabilities.canViewAllUsers ? "All Users" : "Platform Users",
@@ -356,6 +357,11 @@ export default function AdminUsersPage() {
         note: capabilities.canViewAllUsers
           ? "Accounts blocked from platform or company workspaces"
           : "Internal accounts blocked from the app",
+      },
+      {
+        title: "Function Overrides",
+        value: String(overrideCount),
+        note: "Accounts with allow/deny permission rules",
       },
     ];
   }, [capabilities.canViewAllUsers, pendingApprovals.length, users]);
