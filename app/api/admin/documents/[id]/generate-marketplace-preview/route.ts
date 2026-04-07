@@ -11,10 +11,14 @@ import {
   pickWorkspacePreviewStoragePath,
 } from "@/lib/marketplacePreviewExcerpt";
 import { checkFixedWindowRateLimit } from "@/lib/rateLimit";
-import { downloadDocumentsBucketObject } from "@/lib/supabaseStorageServer";
+import {
+  downloadDocumentsBucketObject,
+  uploadDocumentsBucketObject,
+} from "@/lib/supabaseStorageServer";
 import { serverLog } from "@/lib/serverLog";
 import { generateMarketplacePreviewPdfFromDocument } from "@/lib/generateMarketplacePreviewPdf";
 import { getClientIpAddress } from "@/lib/legal";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -97,11 +101,26 @@ export async function POST(
     sourceName.replace(/\.[^.]+$/, "") ||
     "Document";
 
-  const generated = await generateMarketplacePreviewPdfFromDocument({
-    buffer: downloaded.buffer,
-    sourceFileName: sourceName,
-    documentTitle,
-  });
+  let generated;
+  try {
+    generated = await generateMarketplacePreviewPdfFromDocument({
+      buffer: downloaded.buffer,
+      sourceFileName: sourceName,
+      documentTitle,
+    });
+  } catch (e) {
+    serverLog("error", "generate_marketplace_preview_render_failed", {
+      documentId: id,
+      message: e instanceof Error ? e.message : String(e),
+    });
+    return NextResponse.json(
+      {
+        error:
+          "Preview generation failed for this file. Upload a PDF or DOCX preview manually instead.",
+      },
+      { status: 422 }
+    );
+  }
 
   if (!generated.ok) {
     return NextResponse.json({ error: generated.error }, { status: 422 });
@@ -110,17 +129,17 @@ export async function POST(
   const safeStamp = new Date().toISOString().replace(/[:.]/g, "-");
   const storageKey = `${marketplacePreviewPathPrefix(id)}${safeStamp}_preview.pdf`;
 
-  const { error: uploadError } = await supabase.storage
-    .from("documents")
-    .upload(storageKey, generated.pdfBytes, {
-      upsert: true,
-      contentType: "application/pdf",
-    });
-
-  if (uploadError) {
-    return NextResponse.json({ error: uploadError.message }, { status: 500 });
+  const upload = await uploadDocumentsBucketObject(
+    storageKey,
+    generated.pdfBytes,
+    "application/pdf",
+    { upsert: true }
+  );
+  if (!upload.ok) {
+    return NextResponse.json({ error: upload.error }, { status: upload.status });
   }
 
+  const admin = createSupabaseAdminClient() ?? supabase;
   const notes = buildMarketplaceNotes(document.notes, {
     enabled: true,
     creditCost: getDocumentCreditCost(document.notes),
@@ -130,7 +149,7 @@ export async function POST(
 
   const marketplaceUpdatedAt = new Date().toISOString();
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await admin
     .from("documents")
     .update({
       notes,

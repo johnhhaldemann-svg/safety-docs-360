@@ -6,6 +6,7 @@ import {
   isMarketplaceEnabled,
   marketplacePreviewPathPrefix,
 } from "@/lib/marketplace";
+import { uploadDocumentsBucketObject } from "@/lib/supabaseStorageServer";
 
 export const runtime = "nodejs";
 
@@ -82,15 +83,11 @@ export async function POST(
   const storagePath = `${marketplacePreviewPathPrefix(id)}${safeName}`;
   const fileBuffer = new Uint8Array(await file.arrayBuffer());
 
-  const { error: uploadError } = await auth.supabase.storage
-    .from("documents")
-    .upload(storagePath, fileBuffer, {
-      upsert: true,
-      contentType,
-    });
-
-  if (uploadError) {
-    return NextResponse.json({ error: uploadError.message }, { status: 500 });
+  const upload = await uploadDocumentsBucketObject(storagePath, fileBuffer, contentType, {
+    upsert: true,
+  });
+  if (!upload.ok) {
+    return NextResponse.json({ error: upload.error }, { status: upload.status });
   }
 
   const notes = buildMarketplaceNotes(document.notes, {
