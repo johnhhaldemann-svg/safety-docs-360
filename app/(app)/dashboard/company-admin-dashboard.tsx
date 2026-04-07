@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityFeed,
   EmptyState,
@@ -112,6 +112,8 @@ function getStatusTone(label: string): "neutral" | "success" | "warning" | "info
   return "info";
 }
 
+const DASHBOARD_FILTER_STORAGE_KEY = "safety360:company-dashboard-filters";
+
 export function CompanyAdminDashboard({
   loading,
   workspaceLoaded,
@@ -158,7 +160,53 @@ export function CompanyAdminDashboard({
 }) {
   const [selectedJobsite, setSelectedJobsite] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
   const [referenceTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(DASHBOARD_FILTER_STORAGE_KEY);
+      if (!stored) {
+        setFiltersLoaded(true);
+        return;
+      }
+
+      const parsed = JSON.parse(stored) as {
+        searchQuery?: string;
+        selectedJobsite?: string;
+      } | null;
+
+      if (typeof parsed?.searchQuery === "string") {
+        setSearchQuery(parsed.searchQuery);
+      }
+      if (typeof parsed?.selectedJobsite === "string" && parsed.selectedJobsite.trim()) {
+        setSelectedJobsite(parsed.selectedJobsite);
+      }
+    } catch {
+      // Ignore malformed or unavailable persisted filters.
+    } finally {
+      setFiltersLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!filtersLoaded) return;
+
+    try {
+      window.localStorage.setItem(
+        DASHBOARD_FILTER_STORAGE_KEY,
+        JSON.stringify({ searchQuery, selectedJobsite })
+      );
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [filtersLoaded, searchQuery, selectedJobsite]);
+
+  useEffect(() => {
+    if (selectedJobsite === "all") return;
+    if (jobsites.some((jobsite) => jobsite.name === selectedJobsite)) return;
+    setSelectedJobsite("all");
+  }, [jobsites, selectedJobsite]);
 
   if (workspaceProduct === "csep") {
     const csepDocs = documents.filter((d) => /csep/i.test(d.document_type ?? ""));
@@ -288,6 +336,13 @@ export function CompanyAdminDashboard({
       );
     return matchesSearch;
   });
+
+  const hasActiveFilters = normalizedSearch.length > 0 || selectedJobsite !== "all";
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedJobsite("all");
+  };
 
   const overdueActionsCount =
     pendingUsers.length +
@@ -426,6 +481,62 @@ export function CompanyAdminDashboard({
       note: "Certification expiration tracking is ready for rollout",
     },
   ];
+
+  const priorityQueueItems: Array<{
+    id: string;
+    title: string;
+    detail: string;
+    href: string;
+    button: string;
+    tone: "success" | "warning" | "info";
+  }> = [];
+
+  if (highRiskAlerts.length > 0) {
+    const alert = highRiskAlerts[0];
+    priorityQueueItems.push({
+      id: "high-risk-alert",
+      title: alert.title,
+      detail: alert.detail,
+      href: "/field-id-exchange",
+      button: "Review alert",
+      tone: "warning",
+    });
+  }
+
+  if (pendingUsers.length > 0) {
+    priorityQueueItems.push({
+      id: "pending-users",
+      title: `${pendingUsers.length} company user${pendingUsers.length === 1 ? "" : "s"} waiting for approval`,
+      detail: "Open company users to approve, suspend, or activate access.",
+      href: "/company-users",
+      button: "Review users",
+      tone: "info",
+    });
+  }
+
+  if (pendingDocuments.length > 0) {
+    priorityQueueItems.push({
+      id: "pending-documents",
+      title: `${pendingDocuments.length} document${pendingDocuments.length === 1 ? "" : "s"} still pending review`,
+      detail: "Open the library queue and follow up on the newest submissions.",
+      href: "/library",
+      button: "Review docs",
+      tone: "warning",
+    });
+  }
+
+  if (companyInvites.length > 0) {
+    priorityQueueItems.push({
+      id: "pending-invites",
+      title: `${companyInvites.length} invite${companyInvites.length === 1 ? "" : "s"} still waiting`,
+      detail: "Remind invited employees to finish account setup.",
+      href: "/company-users",
+      button: "Open invites",
+      tone: "info",
+    });
+  }
+
+  priorityQueueItems.splice(3);
 
   const recentActivityItems = [
     ...filteredDocuments.slice(0, 4).map((document) => ({
@@ -654,8 +765,74 @@ export function CompanyAdminDashboard({
               </div>
             </details>
           </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span>{filteredDocuments.length} documents match</span>
+            <span>•</span>
+            <span>{filteredJobsites.length} jobsites match</span>
+            <span>•</span>
+            <span>{filteredUsers.length} users match</span>
+            {hasActiveFilters ? (
+              <>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="font-semibold text-sky-300 transition hover:text-sky-200"
+                >
+                  Clear filters
+                </button>
+              </>
+            ) : null}
+          </div>
         </div>
       </section>
+
+      <SectionCard
+        title="Priority Queue"
+        description="The items that need attention first in this workspace."
+        aside={
+          <StatusBadge
+            label={
+              priorityQueueItems.length > 0
+                ? `${priorityQueueItems.length} action${priorityQueueItems.length === 1 ? "" : "s"}`
+                : "Queue clear"
+            }
+            tone={priorityQueueItems.length > 0 ? "warning" : "success"}
+          />
+        }
+      >
+        {priorityQueueItems.length === 0 ? (
+          <EmptyState
+            title="No urgent items right now"
+            description="Approvals, document reviews, and high-risk alerts are all clear."
+            actionHref="/library"
+            actionLabel="Open library"
+          />
+        ) : (
+          <div className="grid gap-3 xl:grid-cols-3">
+            {priorityQueueItems.map((item) => (
+              <Link
+                key={item.id}
+                href={item.href}
+                className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 transition hover:border-sky-500/35 hover:bg-sky-950/30"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                      Priority
+                    </div>
+                    <div className="mt-2 text-lg font-bold text-slate-100">{item.title}</div>
+                  </div>
+                  <StatusBadge label={item.button} tone={item.tone} />
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-500">{item.detail}</p>
+                <div className="mt-4 text-sm font-semibold text-sky-300">Open now</div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </SectionCard>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpiCards.map((card) => (

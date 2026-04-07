@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
 import {
   authorizeRequest,
-  isCompanyAdminRole,
   isCompanyRole,
+  isCompanyWorkspaceOversightRole,
 } from "@/lib/rbac";
 import {
   isApprovedDocumentStatus,
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
         return false;
       }
 
-      if (isCompanyAdminRole(auth.role) || auth.role === "manager") {
+      if (isCompanyWorkspaceOversightRole(auth.role)) {
         return companyScope.companyId ? companyId === companyScope.companyId : userId === auth.user.id;
       }
 

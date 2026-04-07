@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
 import {
   listCreditTransactions,
@@ -54,7 +55,12 @@ export async function GET(
     );
   }
 
-  const { data: document, error: documentError } = await supabase
+  // Load row with service role when available. RLS on `documents` can hide in-review rows
+  // from company peers (e.g. company_id null / policy overlap) even when the library list
+  // shows the document; access is still enforced below via canRequestWorkspaceDocumentExcerpt.
+  const adminClient = createSupabaseAdminClient();
+  const docClient = adminClient ?? supabase;
+  const { data: document, error: documentError } = await docClient
     .from("documents")
     .select(
       "id, user_id, company_id, project_name, document_title, file_name, status, file_path, draft_file_path, final_file_path"

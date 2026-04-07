@@ -71,6 +71,8 @@ type ExcerptModalState = {
   variant: "marketplace" | "workspace";
 };
 
+const LIBRARY_FILTER_STORAGE_KEY = "safety360:library-filters";
+
 function getDocumentTitle(doc: DocumentRow) {
   return doc.document_title ?? doc.project_name ?? doc.file_name ?? "Untitled Document";
 }
@@ -117,8 +119,8 @@ function getStatusTone(status: string) {
 
 function getSubscriptionTone(status: string) {
   return status.trim().toLowerCase() === "active"
-    ? "bg-emerald-100 text-emerald-700"
-    : "bg-slate-200 text-slate-300";
+    ? "bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-500/30"
+    : "bg-slate-800/80 text-slate-300 ring-1 ring-slate-600/70";
 }
 
 function LibraryPageContent() {
@@ -144,6 +146,7 @@ function LibraryPageContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
   const [typeFilter, setTypeFilter] = useState("All Types");
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
   const [pendingDownload, setPendingDownload] = useState<PendingDownload | null>(null);
   const [downloadLoading, setDownloadLoading] = useState(false);
 
@@ -462,6 +465,49 @@ function LibraryPageContent() {
   }, [loadCredits, loadDocuments]);
 
   useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(LIBRARY_FILTER_STORAGE_KEY);
+      if (!saved) {
+        setFiltersLoaded(true);
+        return;
+      }
+
+      const parsed = JSON.parse(saved) as {
+        searchTerm?: string;
+        categoryFilter?: string;
+        typeFilter?: string;
+      } | null;
+
+      if (typeof parsed?.searchTerm === "string") {
+        setSearchTerm(parsed.searchTerm);
+      }
+      if (typeof parsed?.categoryFilter === "string" && parsed.categoryFilter.trim()) {
+        setCategoryFilter(parsed.categoryFilter);
+      }
+      if (typeof parsed?.typeFilter === "string" && parsed.typeFilter.trim()) {
+        setTypeFilter(parsed.typeFilter);
+      }
+    } catch {
+      // Ignore malformed or unavailable persisted filters.
+    } finally {
+      setFiltersLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!filtersLoaded) return;
+
+    try {
+      window.localStorage.setItem(
+        LIBRARY_FILTER_STORAGE_KEY,
+        JSON.stringify({ searchTerm, categoryFilter, typeFilter })
+      );
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [categoryFilter, filtersLoaded, searchTerm, typeFilter]);
+
+  useEffect(() => {
     if (!highlightDocId || loading) {
       return;
     }
@@ -493,7 +539,10 @@ function LibraryPageContent() {
   const isManagerView =
     viewerRole === "company_admin" ||
     viewerRole === "manager" ||
-    viewerRole === "company_user";
+    viewerRole === "company_user" ||
+    viewerRole === "project_manager" ||
+    viewerRole === "safety_manager" ||
+    viewerRole === "foreman";
   const companyPrimaryAction =
     viewerRole === "company_admin"
       ? { href: "/company-users", label: "Manage Company Users" }
@@ -643,6 +692,23 @@ function LibraryPageContent() {
       ];
 
   const transactionPreview = creditState.transactions.slice(0, 4);
+  const heroQuickJumps = [
+    {
+      label: "Ready to open",
+      note: `${accessibleApprovedDocuments.length} completed file${accessibleApprovedDocuments.length === 1 ? "" : "s"}`,
+      href: "#ready-documents",
+    },
+    {
+      label: "Marketplace unlocks",
+      note: `${marketplaceDocuments.length} unlockable file${marketplaceDocuments.length === 1 ? "" : "s"}`,
+      href: "#library-marketplace",
+    },
+    {
+      label: "Active documents",
+      note: `${otherDocuments.length} in-progress record${otherDocuments.length === 1 ? "" : "s"}`,
+      href: "#active-documents",
+    },
+  ];
   const recentDocumentItems = filteredDocuments.slice(0, 4).map((doc) => ({
     id: doc.id,
     title: getDocumentTitle(doc),
@@ -658,15 +724,15 @@ function LibraryPageContent() {
           label: "Ready & marketplace",
           detail:
             "Open approved company files from Ready to open; use Marketplace unlocks for listed documents from credits.",
-          complete: true,
+          active: accessibleApprovedDocuments.length > 0 || marketplaceDocuments.length > 0,
+          complete: accessibleApprovedDocuments.length > 0 || marketplaceDocuments.length > 0,
         },
         {
           label: "Active documents",
           detail:
             "Preview draft or in-review submissions from the Active documents list when a file has been uploaded.",
           active: otherDocuments.length > 0,
-          complete:
-            accessibleApprovedDocuments.length > 0 || otherDocuments.length === 0,
+          complete: otherDocuments.length === 0,
         },
         {
           label: "Library access",
@@ -677,7 +743,8 @@ function LibraryPageContent() {
         {
           label: "Company users",
           detail: "Invite and manage only users assigned to your company.",
-          complete: true,
+          active: viewerRole === "company_admin",
+          complete: viewerRole === "company_admin",
         },
       ]
     : [
@@ -702,7 +769,7 @@ function LibraryPageContent() {
           label: "Library access",
           detail: "Open completed documents directly from your ready list after approval or purchase.",
           active: accessibleApprovedDocuments.length > 0,
-          complete: false,
+          complete: accessibleApprovedDocuments.length > 0,
         },
       ];
 
@@ -736,6 +803,22 @@ function LibraryPageContent() {
               >
                 {isManagerView ? "Back to dashboard" : "Search all records"}
               </Link>
+            </div>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              {heroQuickJumps.map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className="rounded-2xl border border-slate-700/80 bg-slate-900/70 p-4 transition hover:border-teal-400/40 hover:bg-slate-900/90"
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Quick jump
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-white">{item.label}</p>
+                  <p className="mt-1 text-sm leading-5 text-slate-400">{item.note}</p>
+                </Link>
+              ))}
             </div>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -989,6 +1072,7 @@ function LibraryPageContent() {
       ) : null}
 
       <DocumentSection
+        sectionId="ready-documents"
         title="Ready to open"
         description="Completed documents you already have access to."
         loading={loading}
@@ -1012,6 +1096,7 @@ function LibraryPageContent() {
       />
 
       <DocumentSection
+        sectionId="active-documents"
         title="All active documents"
         description="Uploaded records that are still in progress or waiting on completion."
         loading={loading}
@@ -1056,7 +1141,7 @@ export default function LibraryPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[40vh] items-center justify-center text-sm font-semibold text-slate-400">
-          Loading library…
+          Loading library...
         </div>
       }
     >
@@ -1066,6 +1151,7 @@ export default function LibraryPage() {
 }
 
 function DocumentSection({
+  sectionId,
   title,
   description,
   documents,
@@ -1077,6 +1163,7 @@ function DocumentSection({
   actionLoadingDocumentId,
   highlightDocumentId,
 }: {
+  sectionId?: string;
   title: string;
   description: string;
   documents: DocumentRow[];
@@ -1089,7 +1176,10 @@ function DocumentSection({
   highlightDocumentId?: string | null;
 }) {
   return (
-    <section className="rounded-[1.75rem] border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
+    <section
+      id={sectionId}
+      className="scroll-mt-24 rounded-[1.75rem] border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm"
+    >
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="text-2xl font-black tracking-tight text-white">{title}</h2>
@@ -1209,7 +1299,7 @@ function DocumentCard({
         className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {actionLoading
-          ? "Loading…"
+          ? "Loading..."
           : canPreviewFile
             ? actionLabel
             : hasAttachedFile
@@ -1304,7 +1394,7 @@ function MarketplaceSection({
                       {doc.document_type || "Completed document"}
                     </p>
                   </div>
-                  <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-300">
+                  <span className="rounded-full bg-sky-950/40 px-3 py-1 text-xs font-semibold text-sky-200 ring-1 ring-sky-500/30">
                     {cost} credits
                   </span>
                 </div>
@@ -1336,7 +1426,7 @@ function MarketplaceSection({
                       disabled={previewLoadingId === doc.id}
                       className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-600 bg-transparent px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800/50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {previewLoadingId === doc.id ? "Loading excerpt…" : "Preview excerpt"}
+                      {previewLoadingId === doc.id ? "Loading excerpt..." : "Preview excerpt"}
                     </button>
                   ) : null}
                   <button

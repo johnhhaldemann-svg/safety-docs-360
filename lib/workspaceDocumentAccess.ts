@@ -1,5 +1,5 @@
 import { isApprovedDocumentStatus, isArchivedDocumentStatus } from "@/lib/documentStatus";
-import { isAdminRole, isCompanyAdminRole, isCompanyRole } from "@/lib/rbac";
+import { isAdminRole, isCompanyRole, isCompanyWorkspaceOversightRole } from "@/lib/rbac";
 
 type DocAccessRow = {
   id: string;
@@ -27,7 +27,7 @@ export function canRequestWorkspaceDocumentExcerpt(
   }
 
   if (isCompanyRole(params.role)) {
-    if (isCompanyAdminRole(params.role) || params.role === "manager") {
+    if (isCompanyWorkspaceOversightRole(params.role)) {
       return params.companyScopeCompanyId
         ? doc.company_id === params.companyScopeCompanyId
         : doc.user_id === params.userId;

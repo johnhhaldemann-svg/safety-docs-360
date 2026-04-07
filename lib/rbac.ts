@@ -282,6 +282,22 @@ export function isCompanyAdminRole(role?: string | null) {
   return normalizeAppRole(role) === "company_admin";
 }
 
+/**
+ * Roles that can see every non-archived document for their company (drafts, in review,
+ * submitted). Keeps the library list and `/api/library/workspace-excerpt` in sync.
+ * (E.g. Superintendent → project_manager must match company_admin, not only “approved”.)
+ */
+export function isCompanyWorkspaceOversightRole(role?: string | null) {
+  const r = normalizeAppRole(role);
+  return (
+    r === "company_admin" ||
+    r === "manager" ||
+    r === "project_manager" ||
+    r === "safety_manager" ||
+    r === "foreman"
+  );
+}
+
 export function canManageCompanyUsers(role?: string | null) {
   const normalized = normalizeAppRole(role);
   return normalized === "company_admin" || isAdminRole(normalized);
