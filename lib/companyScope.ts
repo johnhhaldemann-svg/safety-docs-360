@@ -36,44 +36,9 @@ export async function getCompanyScope(params: {
   const { supabase, userId, fallbackTeam, authUser } = params;
   const safeTeam = normalizeTeamName(fallbackTeam);
 
-  const membershipResult = await (
-    supabase.from("company_memberships") as {
-      select: (columns: string) => {
-        eq: (column: string, value: string) => {
-          limit: (n: number) => {
-            maybeSingle: () => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
-          };
-        };
-      };
-    }
-  )
-    .select("company_id, status, companies(id, name)")
-    .eq("user_id", userId)
-    .limit(1)
-    .maybeSingle();
-
-  if (
-    !membershipResult.error &&
-    membershipResult.data &&
-    typeof membershipResult.data === "object"
-  ) {
-    const row = membershipResult.data as {
-      company_id?: string | null;
-      companies?: { id?: string | null; name?: string | null } | null;
-    };
-
-    const companyId = row.company_id ?? row.companies?.id ?? null;
-    const companyName = row.companies?.name?.trim() || safeTeam;
-
-    if (companyId) {
-      return {
-        companyId,
-        companyName,
-        source: "membership" as const,
-      };
-    }
-  }
-
+  // Prefer `user_roles.company_id` first. Admin subscription + billing are keyed off that company;
+  // if we only looked at `company_memberships` with limit(1), we could pick a different workspace
+  // and read the wrong `company_subscriptions` row (inactive / missing).
   const roleRowResult = await (
     supabase.from("user_roles") as {
       select: (columns: string) => {
@@ -117,6 +82,50 @@ export async function getCompanyScope(params: {
         companyId: row.company_id,
         companyName: companyData?.name?.trim() || normalizeTeamName(row.team) || safeTeam,
         source: "role_row" as const,
+      };
+    }
+  }
+
+  const membershipResult = await (
+    supabase.from("company_memberships") as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          order: (
+            column: string,
+            options?: { ascending?: boolean }
+          ) => {
+            limit: (n: number) => {
+              maybeSingle: () => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
+            };
+          };
+        };
+      };
+    }
+  )
+    .select("company_id, status, companies(id, name)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (
+    !membershipResult.error &&
+    membershipResult.data &&
+    typeof membershipResult.data === "object"
+  ) {
+    const row = membershipResult.data as {
+      company_id?: string | null;
+      companies?: { id?: string | null; name?: string | null } | null;
+    };
+
+    const companyId = row.company_id ?? row.companies?.id ?? null;
+    const companyName = row.companies?.name?.trim() || safeTeam;
+
+    if (companyId) {
+      return {
+        companyId,
+        companyName,
+        source: "membership" as const,
       };
     }
   }
