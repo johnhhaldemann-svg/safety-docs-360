@@ -45,14 +45,21 @@ export async function GET(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Invoice not found." }, { status: 404 });
   }
 
-  const { data: payments } = await auth.supabase
-    .from("billing_invoice_payments")
-    .select("*")
-    .eq("invoice_id", id)
-    .order("created_at", { ascending: false });
+    const { data: payments } = await auth.supabase
+      .from("billing_invoice_payments")
+      .select("*")
+      .eq("invoice_id", id)
+      .order("created_at", { ascending: false });
 
-  return NextResponse.json({
-    invoice,
-    payments: payments ?? [],
-  });
-}
+    const { data: events } = await auth.supabase
+      .from("billing_events")
+      .select("*")
+      .eq("invoice_id", id)
+      .order("created_at", { ascending: false });
+
+    return NextResponse.json({
+      invoice,
+      payments: payments ?? [],
+      events: events ?? [],
+    });
+  }

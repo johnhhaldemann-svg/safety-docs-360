@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
 import {
   type InvoiceLineItemLike,
+  formatBillingEventLabel,
   getInvoiceSourceSummary,
   summarizeBillingCharges,
 } from "@/lib/billing/invoicePresentation";
@@ -48,6 +49,7 @@ export default function CustomerInvoiceDetailPage() {
       billing_invoice_line_items?: Array<Record<string, unknown>>;
     };
     payments: unknown[];
+    events: unknown[];
   } | null>(null);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "error" | "neutral">("neutral");
@@ -149,6 +151,7 @@ export default function CustomerInvoiceDetailPage() {
   const chargeSummary = useMemo(() => summarizeBillingCharges(lines), [lines]);
   const sourceSummary = useMemo(() => getInvoiceSourceSummary(invoice ?? {}), [invoice]);
   const payments = data?.payments ?? [];
+  const events = data?.events ?? [];
   const canManageBilling = Boolean(permissionMap?.can_manage_billing);
 
   if (loading) {
@@ -322,6 +325,20 @@ export default function CustomerInvoiceDetailPage() {
             {(payments as Array<{ created_at?: string; amount_cents?: number }>).map((payment, index) => (
               <li key={index}>
                 {payment.created_at}: {formatMoney(Number(payment.amount_cents), String(invoice.currency))}
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Billing activity" description="A short history of billing changes on this invoice.">
+        {events.length === 0 ? (
+          <p className="text-sm text-slate-500">No billing events recorded yet.</p>
+        ) : (
+          <ul className="space-y-2 text-xs text-slate-400">
+            {(events as Array<{ event_type?: string; created_at?: string }>).map((event, index) => (
+              <li key={index}>
+                {event.created_at} - {formatBillingEventLabel(event.event_type)}
               </li>
             ))}
           </ul>

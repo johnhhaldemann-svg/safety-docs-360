@@ -66,13 +66,20 @@ export async function POST(request: Request, context: RouteContext) {
     });
 
     const total_cents = inv.total_cents as number;
+    const remaining_due_cents = computeBalanceDue(total_cents, inv.amount_paid_cents as number);
     let amount_cents = Math.floor(Number(body.amount_cents ?? total_cents));
     if (body.mark_full === true || body.amount_cents === undefined) {
-      amount_cents = Math.max(0, total_cents - (inv.amount_paid_cents as number));
+      amount_cents = Math.max(0, remaining_due_cents);
     }
 
     if (amount_cents <= 0) {
       return NextResponse.json({ error: "amount_cents must be positive." }, { status: 400 });
+    }
+    if (amount_cents > remaining_due_cents) {
+      return NextResponse.json(
+        { error: "amount_cents cannot exceed the remaining invoice balance." },
+        { status: 400 }
+      );
     }
 
     const { error: payErr } = await auth.supabase.from("billing_invoice_payments").insert({
