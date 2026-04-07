@@ -12,11 +12,6 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
-import { PermissionOverridesEditor } from "@/components/PermissionOverridesEditor";
-import {
-  normalizePermissionOverrides,
-  type PermissionOverrides,
-} from "@/lib/rbac";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,7 +27,6 @@ type AdminUser = {
   companyId?: string | null;
   companyName?: string;
   status: string;
-  permissionOverrides?: PermissionOverrides;
   created_at?: string | null;
   last_sign_in_at?: string | null;
 };
@@ -145,10 +139,6 @@ export default function AdminUsersPage() {
   const [editTeam, setEditTeam] = useState("General");
   const [editCompanyId, setEditCompanyId] = useState("");
   const [editStatus, setEditStatus] = useState("Active");
-  const [editPermissionOverrides, setEditPermissionOverrides] = useState<PermissionOverrides>({
-    allow: [],
-    deny: [],
-  });
   const [saveLoading, setSaveLoading] = useState(false);
   const [removeLoading, setRemoveLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState("");
@@ -453,7 +443,6 @@ export default function AdminUsersPage() {
           role: editRole,
           team: editTeam,
           accountStatus: editStatus,
-          permissionOverrides: editPermissionOverrides,
           ...(needsCompanyWorkspace ? { companyId: nextCompanyId } : {}),
         }),
       });
@@ -882,9 +871,6 @@ export default function AdminUsersPage() {
                         setEditTeam(user.team);
                         setEditCompanyId(findCompanyIdForUser(user, companies));
                         setEditStatus("Pending");
-                        setEditPermissionOverrides(
-                          normalizePermissionOverrides(user.permissionOverrides ?? null)
-                        );
                         setModalMessage("");
                         setModalMessageTone("neutral");
                       }}
@@ -986,23 +972,20 @@ export default function AdminUsersPage() {
                   </div>
                   <button
                     onClick={() => {
-                      setEditingUser(user);
-                      setEditRole(user.role);
-                      setEditTeam(user.team);
-                      setEditCompanyId(findCompanyIdForUser(user, companies));
-                      setEditStatus(
-                        user.status === "Pending"
-                          ? "Pending"
-                          : user.status === "Suspended"
-                            ? "Suspended"
-                          : "Active"
-                      );
-                      setEditPermissionOverrides(
-                        normalizePermissionOverrides(user.permissionOverrides ?? null)
-                      );
-                      setModalMessage("");
-                      setModalMessageTone("neutral");
-                    }}
+                        setEditingUser(user);
+                        setEditRole(user.role);
+                        setEditTeam(user.team);
+                        setEditCompanyId(findCompanyIdForUser(user, companies));
+                        setEditStatus(
+                          user.status === "Pending"
+                            ? "Pending"
+                            : user.status === "Suspended"
+                              ? "Suspended"
+                              : "Active"
+                        );
+                        setModalMessage("");
+                        setModalMessageTone("neutral");
+                      }}
                     className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
                   >
                     Manage
@@ -1091,6 +1074,10 @@ export default function AdminUsersPage() {
                   placeholder="Display label (synced with workspace name when company is set)"
                 />
               </div>
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Account status
+                </label>
                 <select
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value)}
@@ -1101,21 +1088,17 @@ export default function AdminUsersPage() {
                   <option>Suspended</option>
                 </select>
               </div>
+            </div>
 
-              <div className="mt-6 rounded-3xl border border-slate-700/70 bg-slate-950/45 p-5">
-                <PermissionOverridesEditor
-                  title="User function access"
-                  description="Set user-specific allow or block rules. Leave an item as Inherit to keep the company default."
-                  value={editPermissionOverrides}
-                  onChange={setEditPermissionOverrides}
-                />
-              </div>
+            <p className="mt-2 text-xs text-slate-500">
+              In-app capabilities follow this user&apos;s role (user type), not manual allow/block rules.
+            </p>
 
               {modalMessage ? (
                 <div className="mt-4">
                   <InlineMessage tone={modalMessageTone}>{modalMessage}</InlineMessage>
                 </div>
-            ) : null}
+              ) : null}
 
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button

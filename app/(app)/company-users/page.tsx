@@ -314,7 +314,7 @@ export default function CompanyUsersPage() {
         detail:
           user.status === "Pending"
             ? "This user still needs approval before they can enter the company workspace."
-            : `Workspace title: ${user.role} · ${scopeTeam}.`,
+            : `${user.role} · ${scopeTeam}.`,
         meta: formatRelative(user.last_sign_in_at ?? user.created_at),
         tone: user.status === "Pending" ? ("warning" as const) : ("info" as const),
       }));
@@ -547,7 +547,7 @@ export default function CompanyUsersPage() {
       <PageHero
         eyebrow="Company Workspace"
         title="Workforce Operations"
-        description={`What this company can use in the app—documents, CSEP, billing features—comes from your subscription and workspace tier, not from per-person permission packages. Jobsite titles on each person’s Construction profile are separate.`}
+        description={`Each person’s role (user type) determines what they can do in the app. Your company’s subscription sets which products and tiers the workspace uses overall. Jobsite titles on each person’s Construction profile are separate.`}
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -569,22 +569,21 @@ export default function CompanyUsersPage() {
 
       <SectionCard
         title="How company access works"
-        description="Feature access is defined for your whole company workspace. Invites and approvals add people under that same company footprint."
+        description="Assign each person a role (user type). That role’s standard capabilities apply to them—there are no separate manual feature assignments per user."
       >
         <ul className="list-inside list-disc space-y-2 text-sm leading-6 text-slate-400">
           <li>
-            <span className="font-semibold text-slate-200">Subscription and workspace tier</span> (active license,
-            CSEP vs full workspace, included capabilities) apply to the entire company. Billing and onboarding set
-            what the company is entitled to—not individual entitlement per employee.
+            <span className="font-semibold text-slate-200">Role</span> (Company Admin, Field User, Read Only, etc.)
+            defines in-app permissions for documents, safety modules, and billing visibility. Pick the role that matches
+            how this person should work.
           </li>
           <li>
-            <span className="font-semibold text-slate-200">Everyone in this workspace</span> operates under that
-            same company-level access. You still invite people and choose how the team is organized here; that does
-            not create separate product entitlements outside what the company has.
+            <span className="font-semibold text-slate-200">Company subscription</span> (active license, CSEP vs full
+            workspace) applies to the whole organization and sets which products are available.
           </li>
           <li>
-            <span className="font-semibold text-slate-200">Platform support</span> does not assign per-user feature
-            packages. Your company’s plan and company settings define what’s available to the workspace.
+            <span className="font-semibold text-slate-200">Company Admins</span> manage roles and membership here.
+            Super admins do not need to hand-pick individual features per employee.
           </li>
         </ul>
       </SectionCard>
@@ -634,7 +633,7 @@ export default function CompanyUsersPage() {
           {
             step: "03",
             title: "Approve access",
-            body: "Review the pending employee here, approve them, and set their workspace title for your team.",
+            body: "Review the pending employee here, approve them, and assign the correct role for their job.",
           },
         ].map((item) => (
           <div
@@ -657,7 +656,7 @@ export default function CompanyUsersPage() {
       <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <SectionCard
           title="Invite Employee"
-          description="Start the process here. Employees use this invite to create their account before you approve membership under your company workspace."
+          description="Start the process here. Employees use this invite to create their account before you approve access."
         >
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
@@ -674,11 +673,11 @@ export default function CompanyUsersPage() {
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="invite-workspace-title" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Workspace title
+              <label htmlFor="invite-role" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Role (user type)
               </label>
               <select
-                id="invite-workspace-title"
+                id="invite-role"
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value)}
                 className={appNativeSelectClassName}
@@ -727,7 +726,7 @@ export default function CompanyUsersPage() {
                   <div>
                     <p className="text-sm font-semibold text-slate-100">{invite.email}</p>
                     <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                      <span>Workspace title: {invite.role}</span>
+                      <span>Role: {invite.role}</span>
                       <span>Status: {invite.status}</span>
                       <span>Sent {formatRelative(invite.created_at)}</span>
                     </div>
@@ -763,7 +762,7 @@ export default function CompanyUsersPage() {
                     </div>
                     <p className="mt-1 text-sm text-slate-500">{user.email}</p>
                     <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
-                      <span>Workspace title: {user.role}</span>
+                      <span>Role: {user.role}</span>
                       <span>Company: {scopeCompanyName}</span>
                       <span>Created {formatRelative(user.created_at)}</span>
                     </div>
@@ -810,7 +809,7 @@ export default function CompanyUsersPage() {
 
       <SectionCard
         title="3. Active Team Members"
-        description="Approved employees in your company workspace appear here."
+        description="Approved employees with active access to your workspace appear here."
       >
         <div className="mb-4">
           <input
@@ -900,7 +899,7 @@ export default function CompanyUsersPage() {
               <thead className="bg-slate-950/50">
                 <tr>
                   <th className="px-3 py-2 text-left font-semibold text-slate-300">User</th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-300">Workspace title</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-300">Role</th>
                   <th className="px-3 py-2 text-left font-semibold text-slate-300">Status</th>
                   <th className="px-3 py-2 text-left font-semibold text-slate-300">Assigned Jobsites</th>
                   <th className="px-3 py-2 text-right font-semibold text-slate-300">Manage</th>
@@ -942,7 +941,7 @@ export default function CompanyUsersPage() {
                             <span className="text-xs text-amber-700">No jobsites assigned</span>
                           )
                         ) : (
-                          <span className="text-xs text-slate-500">All jobsites (company default)</span>
+                          <span className="text-xs text-slate-500">Company-wide (all jobsites)</span>
                         )}
                       </td>
                       <td className="px-3 py-3 text-right">
@@ -1053,11 +1052,11 @@ export default function CompanyUsersPage() {
                 Company scope: <span className="font-semibold text-slate-100">{scopeCompanyName}</span>
               </div>
               <div className="grid gap-2">
-                <label htmlFor="edit-workspace-title" className="text-xs font-semibold text-slate-500">
-                  Workspace title
+                <label htmlFor="edit-member-role" className="text-xs font-semibold text-slate-500">
+                  Role (user type)
                 </label>
                 <select
-                  id="edit-workspace-title"
+                  id="edit-member-role"
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value)}
                   className={`w-full ${appNativeSelectClassName} py-3`}
@@ -1088,7 +1087,7 @@ export default function CompanyUsersPage() {
                     Assigned Jobsites
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    For this title, limit visibility to the jobsites you select below. Product capabilities still follow
+                    For this role, limit which jobsites they see below. In-app features still follow the role type and
                     your company subscription.
                   </p>
                   <div className="mt-3 grid max-h-44 gap-2 overflow-y-auto">

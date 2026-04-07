@@ -16,7 +16,6 @@ type UpdatePayload = {
   team?: string;
   accountStatus?: string;
   companyId?: string | null;
-  permissionOverrides?: unknown;
 };
 
 type CompanyLookupRow = {
@@ -288,19 +287,12 @@ export async function PATCH(
   const team = body.team?.trim() || "General";
   const accountStatus = normalizeAccountStatus(body.accountStatus);
   const companyIdInBody = Object.prototype.hasOwnProperty.call(body, "companyId");
-  const permissionOverridesInBody = Object.prototype.hasOwnProperty.call(
-    body,
-    "permissionOverrides"
-  );
   const explicitCompanyId = companyIdInBody
     ? body.companyId === null || body.companyId === undefined
       ? ""
       : trimText(String(body.companyId))
     : undefined;
   const canAssignCompanyWorkspace = isCrossWorkspaceAdminRole(auth.role);
-  const requestedPermissionOverrides = permissionOverridesInBody
-    ? normalizePermissionOverrides(body.permissionOverrides)
-    : null;
 
   if (!adminClient) {
     const currentRoleRow = await auth.supabase
@@ -320,7 +312,7 @@ export async function PATCH(
         role,
         team,
         account_status: accountStatus,
-        permission_overrides: requestedPermissionOverrides ?? existingPermissionOverrides,
+        permission_overrides: existingPermissionOverrides,
         created_by: auth.user.id,
         updated_by: auth.user.id,
       },
@@ -341,7 +333,6 @@ export async function PATCH(
       role,
       team,
       accountStatus,
-      permissionOverrides: requestedPermissionOverrides ?? existingPermissionOverrides,
       warning:
         "Role was updated in the workspace RBAC table, but Supabase Auth metadata could not be synced because the service role key is unavailable at runtime.",
     });
@@ -382,8 +373,6 @@ export async function PATCH(
       ? (currentRoleRow as { permission_overrides?: unknown }).permission_overrides ?? null
       : null
   );
-  const nextPermissionOverrides = requestedPermissionOverrides ?? existingPermissionOverrides;
-
   const mergedUserMetadata = {
     ...(currentUser.user.user_metadata ?? {}),
     role,
@@ -422,7 +411,7 @@ export async function PATCH(
       team: companyAssignment.companyName || team,
       company_id: companyAssignment.companyId,
       account_status: accountStatus,
-      permission_overrides: nextPermissionOverrides,
+      permission_overrides: existingPermissionOverrides,
       created_by: auth.user.id,
       updated_by: auth.user.id,
     },
@@ -482,7 +471,6 @@ export async function PATCH(
     team: companyAssignment.companyName || team,
     companyId: companyAssignment.companyId,
     accountStatus,
-    permissionOverrides: nextPermissionOverrides,
   });
 }
 

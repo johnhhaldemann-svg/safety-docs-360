@@ -11,7 +11,6 @@ import {
   isCrossWorkspaceAdminRole,
   normalizeAccountStatus,
   normalizeAppRole,
-  normalizePermissionOverrides,
 } from "@/lib/rbac";
 
 export const runtime = "nodejs";
@@ -29,7 +28,6 @@ type FallbackUserRoleRow = {
   team: string | null;
   company_id?: string | null;
   account_status: string | null;
-  permission_overrides?: unknown;
   created_at?: string | null;
 };
 
@@ -170,7 +168,6 @@ export async function GET(request: Request) {
           role: formatAppRole(row.role),
           team: row.team?.trim() || "General",
           status: row.status?.trim() || "Active",
-          permissionOverrides: normalizePermissionOverrides(null),
           created_at: row.created_at,
           last_sign_in_at: row.last_sign_in_at,
           email_confirmed_at: row.email_confirmed_at,
@@ -190,7 +187,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await auth.supabase
       .from("user_roles")
-      .select("user_id, role, team, company_id, account_status, permission_overrides, created_at")
+      .select("user_id, role, team, company_id, account_status, created_at")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -223,7 +220,6 @@ export async function GET(request: Request) {
           companyId: row.company_id ?? null,
           companyName: row.company_id ? row.team?.trim() || "Company Workspace" : "",
           status: formatAccountStatus(row.account_status),
-          permissionOverrides: normalizePermissionOverrides(row.permission_overrides ?? null),
           created_at: row.created_at ?? null,
           last_sign_in_at: null,
           email_confirmed_at: null,
@@ -290,7 +286,6 @@ export async function GET(request: Request) {
           roleContext.accountStatus === "suspended"
             ? formatAccountStatus(roleContext.accountStatus)
             : getStatus(user),
-        permissionOverrides: roleContext.permissionOverrides ?? normalizePermissionOverrides(null),
         created_at: user.created_at,
         last_sign_in_at: user.last_sign_in_at,
         email_confirmed_at: user.email_confirmed_at,
@@ -378,7 +373,6 @@ export async function POST(request: Request) {
           role,
           team,
           account_status: accountStatus,
-          permission_overrides: normalizePermissionOverrides(null),
           created_by: auth.user.id,
           updated_by: auth.user.id,
         },

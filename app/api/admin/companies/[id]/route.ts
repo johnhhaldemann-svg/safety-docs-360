@@ -9,12 +9,7 @@ import {
   getCompanySeatCounts,
   normalizeCompanySubscriptionStatus,
 } from "@/lib/companySeats";
-import {
-  authorizeRequest,
-  formatAccountStatus,
-  formatAppRole,
-  normalizePermissionOverrides,
-} from "@/lib/rbac";
+import { authorizeRequest, formatAccountStatus, formatAppRole } from "@/lib/rbac";
 import { normalizeApprovalPlanName } from "@/lib/workspaceProduct";
 
 type ServiceSupabase = NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
@@ -45,7 +40,6 @@ type CompanyRow = {
   archived_by_email?: string | null;
   restored_at?: string | null;
   restored_by_email?: string | null;
-  permission_overrides?: unknown;
 };
 
 type CompanyMembershipRow = {
@@ -569,7 +563,6 @@ export async function GET(request: Request, context: RouteContext) {
       canPermanentlyDeleteCompanies: auth.role === "super_admin",
       canManageCompanySubscription: ["super_admin", "admin", "platform_admin"].includes(auth.role),
       canOverrideCompanyPricing: auth.role === "super_admin",
-      canManageCompanyPermissions: ["super_admin", "admin", "platform_admin"].includes(auth.role),
     },
     subscription: {
       status: normalizeCompanySubscriptionStatus(subscriptionRow?.status ?? null),
@@ -608,7 +601,6 @@ export async function GET(request: Request, context: RouteContext) {
       archivedByEmail: company.archived_by_email?.trim() || "",
       restoredAt: company.restored_at ?? null,
       restoredByEmail: company.restored_by_email?.trim() || "",
-      permissionOverrides: normalizePermissionOverrides(company.permission_overrides ?? null),
     },
     summary,
     users,
@@ -648,7 +640,6 @@ type SubscriptionPatchBody = {
   maxUserSeats?: number | null;
   subscriptionPriceCents?: number | null;
   seatPriceCents?: number | null;
-  permissionOverrides?: unknown;
 };
 
 function parseOptionalCents(value: unknown) {
@@ -702,9 +693,6 @@ export async function PATCH(request: Request, context: RouteContext) {
       Object.prototype.hasOwnProperty.call(body, "maxUserSeats") ||
       Object.prototype.hasOwnProperty.call(body, "subscriptionPriceCents") ||
       Object.prototype.hasOwnProperty.call(body, "seatPriceCents")
-    : false;
-  const permissionOverridesProvided = body
-    ? Object.prototype.hasOwnProperty.call(body, "permissionOverrides")
     : false;
   const pricingOverridesProvided = body
     ? Object.prototype.hasOwnProperty.call(body, "subscriptionPriceCents") ||
@@ -837,24 +825,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
-  if (permissionOverridesProvided) {
-    const permissionOverrides = normalizePermissionOverrides(body?.permissionOverrides);
-    const permissionUpdate = await adminClient
-      .from("companies")
-      .update({
-        permission_overrides: permissionOverrides,
-        updated_by: auth.user.id,
-      })
-      .eq("id", companyId);
-
-    if (permissionUpdate.error) {
-      return NextResponse.json(
-        { error: permissionUpdate.error.message || "Failed to update company access rules." },
-        { status: 500 }
-      );
-    }
-  }
-
   return NextResponse.json({
     success: true,
     planName,
@@ -862,9 +832,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     maxUserSeats,
     subscriptionPriceCents,
     seatPriceCents,
-    permissionOverrides: permissionOverridesProvided
-      ? normalizePermissionOverrides(body?.permissionOverrides)
-      : undefined,
   });
 }
 

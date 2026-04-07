@@ -544,8 +544,6 @@ async function handleAuthMeGet(request: Request) {
         permissions: auth.permissions,
         permissionMap: auth.permissionMap,
         companyId: null,
-        companyPermissionOverrides: null,
-        permissionOverrides: null,
       };
 
   const agreementConfigPromise = getAgreementConfig(auth.supabase).catch(() =>

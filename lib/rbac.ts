@@ -238,21 +238,6 @@ export function normalizePermissionOverrides(
   return { allow, deny };
 }
 
-function applyPermissionOverridesToSet(
-  permissionSet: Set<AppPermission>,
-  overrides?: PermissionOverrides | null
-) {
-  const normalized = normalizePermissionOverrides(overrides);
-
-  for (const permission of normalized.deny) {
-    permissionSet.delete(permission);
-  }
-
-  for (const permission of normalized.allow) {
-    permissionSet.add(permission);
-  }
-}
-
 export function setPermissionOverride(
   overrides: PermissionOverrides,
   permission: AppPermission,
@@ -401,35 +386,23 @@ export function getRolePermissions(role?: string | null): AppPermission[] {
 
 export function hasPermission(
   role: string | null | undefined,
-  permission: AppPermission,
-  companyOverrides?: PermissionOverrides | null,
-  userOverrides?: PermissionOverrides | null
+  permission: AppPermission
 ) {
-  return getPermissionMap(role, companyOverrides, userOverrides)[permission];
+  return getPermissionMap(role)[permission];
 }
 
 export function hasAnyPermission(
   role: string | null | undefined,
-  permissions: readonly AppPermission[],
-  companyOverrides?: PermissionOverrides | null,
-  userOverrides?: PermissionOverrides | null
+  permissions: readonly AppPermission[]
 ) {
-  const permissionMap = getPermissionMap(role, companyOverrides, userOverrides);
-  return permissions.some((permission) => permissionMap[permission]);
+  const permissionMap = getPermissionMap(role);
+  return permissions.some((p) => permissionMap[p]);
 }
 
-export function getPermissionMap(
-  role?: string | null,
-  companyOverrides?: PermissionOverrides | null,
-  userOverrides?: PermissionOverrides | null
-): PermissionMap {
+/** Effective permissions from normalized role only (`ROLE_PERMISSIONS`). */
+export function getPermissionMap(role?: string | null): PermissionMap {
   const normalizedRole = normalizeAppRole(role);
   const permissions = new Set(getRolePermissions(normalizedRole));
-
-  if (normalizedRole !== "super_admin" && normalizedRole !== "platform_admin") {
-    applyPermissionOverridesToSet(permissions, companyOverrides);
-    applyPermissionOverridesToSet(permissions, userOverrides);
-  }
 
   return APP_PERMISSIONS.reduce((acc, permission) => {
     acc[permission] = permissions.has(permission);
@@ -606,46 +579,17 @@ async function upsertRoleRow(params: {
     updated_by: actorUserId ?? null,
   };
 
-  const withOverrides = {
-    ...baseRow,
-    permission_overrides: normalizePermissionOverrides(permissionOverrides),
-  };
+  const upsertRow: Record<string, unknown> = { ...baseRow };
+  if (permissionOverrides !== undefined) {
+    upsertRow.permission_overrides = normalizePermissionOverrides(permissionOverrides);
+  }
 
-  let result = await table.upsert(withOverrides, { onConflict: "user_id" });
+  let result = await table.upsert(upsertRow, { onConflict: "user_id" });
   if (result.error && isMissingPermissionOverridesColumn(result.error)) {
     result = await table.upsert(baseRow, { onConflict: "user_id" });
   }
 
   return result;
-}
-
-async function fetchCompanyPermissionOverrides(
-  supabase: SupabaseLikeClient,
-  companyId: string
-): Promise<PermissionOverrides | null> {
-  const companyRow = await (
-    supabase.from("companies") as {
-      select: (columns: string) => {
-        eq: (column: string, value: string) => {
-          maybeSingle: () => PromiseLike<{ data: unknown; error: MessageError | null }>;
-        };
-      };
-    }
-  )
-    .select("permission_overrides")
-    .eq("id", companyId)
-    .maybeSingle();
-
-  if (companyRow.error && isMissingPermissionOverridesColumn(companyRow.error)) {
-    return null;
-  }
-
-  if (companyRow.error) {
-    return null;
-  }
-
-  const companyRecord = companyRow.data as { permission_overrides?: unknown } | null;
-  return normalizePermissionOverrides(companyRecord?.permission_overrides ?? null);
 }
 
 /**
@@ -668,7 +612,7 @@ async function reconcileUserRoleWithCompanyMembership(params: {
     .eq("user_id", params.userId)
     .maybeSingle();
 
-  let row = (params.jwtRow ?? (adminRow as RoleRow | null)) ?? null;
+  const row = (params.jwtRow ?? (adminRow as RoleRow | null)) ?? null;
   const rowCompanyId = row?.company_id?.trim() || null;
 
   let membershipQuery = admin
@@ -787,8 +731,6 @@ export async function getUserRoleContext(params: {
         team: "Internal Admin",
         accountStatus: "active" as const,
         companyId: null as string | null,
-        companyPermissionOverrides: null as PermissionOverrides | null,
-        permissionOverrides: null as PermissionOverrides | null,
         permissions: APP_PERMISSIONS.filter((permission) => permissions[permission]),
         permissionMap: permissions,
         source: "bootstrap_admin_override" as const,
@@ -796,26 +738,13 @@ export async function getUserRoleContext(params: {
     }
 
     const companyId = effectiveRow.company_id?.trim() || getLegacyCompanyId(user);
-    let companyPermissionOverrides: PermissionOverrides | null = null;
-
-    if (companyId) {
-      companyPermissionOverrides = await fetchCompanyPermissionOverrides(supabase, companyId);
-    }
-
-    const permissionOverrides = normalizePermissionOverrides(effectiveRow.permission_overrides);
-    const permissionMap = getPermissionMap(
-      normalizeAppRole(effectiveRow.role),
-      companyPermissionOverrides,
-      permissionOverrides
-    );
+    const permissionMap = getPermissionMap(normalizeAppRole(effectiveRow.role));
 
     return {
       role: normalizeAppRole(effectiveRow.role),
       team: effectiveRow.team?.trim() || "General",
       accountStatus: normalizeAccountStatus(effectiveRow.account_status),
       companyId,
-      companyPermissionOverrides,
-      permissionOverrides,
       permissions: APP_PERMISSIONS.filter((permission) => permissionMap[permission]),
       permissionMap,
       source: "table" as const,
@@ -826,11 +755,6 @@ export async function getUserRoleContext(params: {
   const legacyTeam = getLegacyTeam(user);
   const legacyAccountStatus = getLegacyAccountStatus(user);
   const legacyCompanyId = getLegacyCompanyId(user);
-  let companyPermissionOverrides: PermissionOverrides | null = null;
-
-  if (legacyCompanyId) {
-    companyPermissionOverrides = await fetchCompanyPermissionOverrides(supabase, legacyCompanyId);
-  }
 
   const upsertClient = createSupabaseAdminClient() ?? supabase;
 
@@ -852,15 +776,13 @@ export async function getUserRoleContext(params: {
     });
   }
 
-  const permissionMap = getPermissionMap(legacyRole, companyPermissionOverrides, null);
+  const permissionMap = getPermissionMap(legacyRole);
 
   return {
     role: legacyRole,
     team: legacyTeam,
     accountStatus: legacyAccountStatus,
     companyId: legacyCompanyId,
-    companyPermissionOverrides,
-    permissionOverrides: null as PermissionOverrides | null,
     permissions: APP_PERMISSIONS.filter((permission) => permissionMap[permission]),
     permissionMap,
     source: roleRowResult.error ? ("legacy_missing_table" as const) : ("legacy" as const),
@@ -954,15 +876,7 @@ export async function authorizeRequest(
       };
     }
 
-    if (
-      options.requirePermission &&
-      !hasPermission(
-        roleContext.role,
-        options.requirePermission,
-        roleContext.companyPermissionOverrides,
-        roleContext.permissionOverrides
-      )
-    ) {
+    if (options.requirePermission && !hasPermission(roleContext.role, options.requirePermission)) {
       return {
         error: NextResponse.json(
           { error: "You do not have permission for this action." },
@@ -973,12 +887,7 @@ export async function authorizeRequest(
 
     if (
       options.requireAnyPermission &&
-      !hasAnyPermission(
-        roleContext.role,
-        options.requireAnyPermission,
-        roleContext.companyPermissionOverrides,
-        roleContext.permissionOverrides
-      )
+      !hasAnyPermission(roleContext.role, options.requireAnyPermission)
     ) {
       return {
         error: NextResponse.json(
@@ -1029,15 +938,7 @@ export async function authorizeRequest(
     };
   }
 
-  if (
-    options.requirePermission &&
-    !hasPermission(
-      roleContext.role,
-      options.requirePermission,
-      roleContext.companyPermissionOverrides,
-      roleContext.permissionOverrides
-    )
-  ) {
+  if (options.requirePermission && !hasPermission(roleContext.role, options.requirePermission)) {
     return {
       error: NextResponse.json(
         { error: "You do not have permission for this action." },
@@ -1048,12 +949,7 @@ export async function authorizeRequest(
 
   if (
     options.requireAnyPermission &&
-    !hasAnyPermission(
-      roleContext.role,
-      options.requireAnyPermission,
-      roleContext.companyPermissionOverrides,
-      roleContext.permissionOverrides
-    )
+    !hasAnyPermission(roleContext.role, options.requireAnyPermission)
   ) {
     return {
       error: NextResponse.json(
