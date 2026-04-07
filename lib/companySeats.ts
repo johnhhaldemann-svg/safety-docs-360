@@ -122,7 +122,7 @@ export async function assertCompanyInviteAllowed(params: {
         ok: false,
         status: 403,
         error:
-          "Company subscription is not active. Ask a platform administrator to activate the subscription before inviting users.",
+          "Company license/subscription is not active. Ask a platform administrator to activate billing before inviting users.",
       };
     }
 
@@ -136,7 +136,7 @@ export async function assertCompanyInviteAllowed(params: {
         return {
           ok: false,
           status: 403,
-          error: `This company has reached its user limit (${maxSeats} seats). Ask a platform administrator to raise the seat limit or deactivate users before inviting more people.`,
+          error: `This company has reached its licensed user limit (${maxSeats} seats). Ask a platform administrator to raise the seat limit or deactivate users before inviting more people.`,
         };
       }
     }
@@ -147,7 +147,7 @@ export async function assertCompanyInviteAllowed(params: {
         ok: false,
         status: 403,
         error:
-          "Company subscription is not active. Ask a platform administrator to activate the subscription before managing invites.",
+          "Company license/subscription is not active. Ask a platform administrator to activate billing before managing invites.",
       };
     }
   }

@@ -99,10 +99,25 @@ type CompanySubscriptionSummary = {
   planName: string;
   creditBalance: number | null;
   maxUserSeats: number | null;
+  subscriptionPriceCents: number | null;
+  seatPriceCents: number | null;
   seatsUsed: number;
   membershipSeats: number;
   pendingInviteCount: number;
 };
+
+function formatCents(cents: number | null) {
+  if (cents == null) {
+    return "Default";
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
 
 function formatRelative(timestamp?: string | null) {
   if (!timestamp) return "Recently";
@@ -142,11 +157,14 @@ export default function AdminCompanyDetailPage({
   const [processingAction, setProcessingAction] = useState(false);
   const [canPermanentlyDeleteCompanies, setCanPermanentlyDeleteCompanies] = useState(false);
   const [canManageCompanySubscription, setCanManageCompanySubscription] = useState(false);
+  const [canOverrideCompanyPricing, setCanOverrideCompanyPricing] = useState(false);
   const [canManageCompanyPermissions, setCanManageCompanyPermissions] = useState(false);
   const [subscription, setSubscription] = useState<CompanySubscriptionSummary | null>(null);
   const [subStatusDraft, setSubStatusDraft] = useState("inactive");
   const [subPlanDraft, setSubPlanDraft] = useState("Pro");
   const [subMaxSeatsDraft, setSubMaxSeatsDraft] = useState("");
+  const [subSubscriptionPriceDraft, setSubSubscriptionPriceDraft] = useState("");
+  const [subSeatPriceDraft, setSubSeatPriceDraft] = useState("");
   const [companyPermissionDraft, setCompanyPermissionDraft] = useState<PermissionOverrides>({
     allow: [],
     deny: [],
@@ -191,6 +209,7 @@ export default function AdminCompanyDetailPage({
             capabilities?: {
               canPermanentlyDeleteCompanies?: boolean;
               canManageCompanySubscription?: boolean;
+              canOverrideCompanyPricing?: boolean;
               canManageCompanyPermissions?: boolean;
             };
             subscription?: CompanySubscriptionSummary;
@@ -214,6 +233,7 @@ export default function AdminCompanyDetailPage({
         setActivity([]);
         setCanPermanentlyDeleteCompanies(false);
         setCanManageCompanySubscription(false);
+        setCanOverrideCompanyPricing(false);
         setCanManageCompanyPermissions(false);
         setSubscription(null);
         setCompanyPermissionDraft({ allow: [], deny: [] });
@@ -227,6 +247,7 @@ export default function AdminCompanyDetailPage({
       setCanManageCompanySubscription(
         Boolean(data?.capabilities?.canManageCompanySubscription)
       );
+      setCanOverrideCompanyPricing(Boolean(data?.capabilities?.canOverrideCompanyPricing));
       setCanManageCompanyPermissions(
         Boolean(data?.capabilities?.canManageCompanyPermissions)
       );
@@ -236,6 +257,10 @@ export default function AdminCompanyDetailPage({
         setSubStatusDraft(sub.status);
         setSubPlanDraft(sub.planName);
         setSubMaxSeatsDraft(sub.maxUserSeats != null ? String(sub.maxUserSeats) : "");
+        setSubSubscriptionPriceDraft(
+          sub.subscriptionPriceCents != null ? String(sub.subscriptionPriceCents) : ""
+        );
+        setSubSeatPriceDraft(sub.seatPriceCents != null ? String(sub.seatPriceCents) : "");
       } else {
         setSubscription(null);
       }
@@ -257,6 +282,7 @@ export default function AdminCompanyDetailPage({
       setInvites([]);
       setDocuments([]);
       setActivity([]);
+      setCanOverrideCompanyPricing(false);
       setCompanyPermissionDraft({ allow: [], deny: [] });
     }
 
@@ -361,6 +387,22 @@ export default function AdminCompanyDetailPage({
         return;
       }
 
+      const subscriptionPriceParsed = subSubscriptionPriceDraft.trim();
+      const subscriptionPriceCents =
+        subscriptionPriceParsed === "" ? null : parseInt(subscriptionPriceParsed, 10);
+      const seatPriceParsed = subSeatPriceDraft.trim();
+      const seatPriceCents = seatPriceParsed === "" ? null : parseInt(seatPriceParsed, 10);
+      if (
+        [subscriptionPriceCents, seatPriceCents].some(
+          (value) => value !== null && (!Number.isFinite(value) || value < 0)
+        )
+      ) {
+        setMessageTone("error");
+        setMessage("Pricing overrides must be blank or a whole number of cents ≥ 0.");
+        setSavingSubscription(false);
+        return;
+      }
+
       const res = await fetch(`/api/admin/companies/${companyId}`, {
         method: "PATCH",
         headers: {
@@ -371,6 +413,12 @@ export default function AdminCompanyDetailPage({
           subscriptionStatus: subStatusDraft,
           planName: subPlanDraft.trim() || "Pro",
           maxUserSeats,
+          ...(canOverrideCompanyPricing
+            ? {
+                subscriptionPriceCents,
+                seatPriceCents,
+              }
+            : {}),
         }),
       });
 
@@ -394,9 +442,12 @@ export default function AdminCompanyDetailPage({
     setSavingSubscription(false);
   }, [
     companyId,
+    canOverrideCompanyPricing,
     loadCompany,
     subMaxSeatsDraft,
     subPlanDraft,
+    subSeatPriceDraft,
+    subSubscriptionPriceDraft,
     subStatusDraft,
   ]);
 
@@ -743,8 +794,8 @@ export default function AdminCompanyDetailPage({
       </section>
 
       <SectionCard
-        title="Subscription & user seats"
-        description="Activate billing access for this workspace and cap how many members and pending invites they can hold. Super Admins, Platform Admins, and App Admins can edit."
+        title="Subscription, licenses & pricing"
+        description="Activate billing access for this workspace, cap how many licensed users it can hold, and let Super Admins override pricing when needed."
       >
         {loading ? (
           <InlineMessage>Loading subscription…</InlineMessage>
@@ -767,7 +818,7 @@ export default function AdminCompanyDetailPage({
                     : " / ∞"}
                 </div>
                 <p className="mt-2 text-sm text-slate-500">
-                  {subscription.membershipSeats} members (active or pending approval) +{" "}
+                  {subscription.membershipSeats} licensed members (active or pending approval) +{" "}
                   {subscription.pendingInviteCount} pending invite
                   {subscription.pendingInviteCount === 1 ? "" : "s"}
                 </p>
@@ -810,7 +861,7 @@ export default function AdminCompanyDetailPage({
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="font-semibold text-slate-300">Max users (optional)</span>
+                  <span className="font-semibold text-slate-300">Max licensed users (optional)</span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -831,13 +882,65 @@ export default function AdminCompanyDetailPage({
                 {subscription.maxUserSeats != null ? (
                   <>
                     {" "}
-                    · Max users:{" "}
+                    · Max licensed users:{" "}
                     <span className="font-semibold text-slate-100">
                       {subscription.maxUserSeats}
                     </span>
                   </>
                 ) : null}
                 . Only Super Admin, Platform Admin, or App Admin can change these settings.
+              </div>
+            )}
+
+            {canOverrideCompanyPricing ? (
+              <div className="rounded-2xl border border-violet-400/30 bg-violet-950/20 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-100">Superadmin pricing override</p>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Leave a field blank to use the default plan price.
+                    </p>
+                  </div>
+                  <StatusBadge label="Super Admin only" tone="info" />
+                </div>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="block text-sm">
+                    <span className="font-semibold text-slate-300">Subscription price (cents)</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={subSubscriptionPriceDraft}
+                      onChange={(e) => setSubSubscriptionPriceDraft(e.target.value)}
+                      placeholder="Default pricing"
+                      className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-100 outline-none focus:border-violet-400"
+                    />
+                    <p className="mt-2 text-xs text-slate-500">
+                      Default: {formatCents(subscription.subscriptionPriceCents)}
+                    </p>
+                  </label>
+                  <label className="block text-sm">
+                    <span className="font-semibold text-slate-300">Seat license price (cents)</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={subSeatPriceDraft}
+                      onChange={(e) => setSubSeatPriceDraft(e.target.value)}
+                      placeholder="Default pricing"
+                      className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-100 outline-none focus:border-violet-400"
+                    />
+                    <p className="mt-2 text-xs text-slate-500">
+                      Default: {formatCents(subscription.seatPriceCents)}
+                    </p>
+                  </label>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4 text-sm text-slate-400">
+                Pricing: subscription {formatCents(subscription.subscriptionPriceCents)} · seat license{" "}
+                {formatCents(subscription.seatPriceCents)}.
+                <span className="mt-1 block text-slate-500">
+                  Pricing overrides are controlled by Super Admins.
+                </span>
               </div>
             )}
 
@@ -849,7 +952,7 @@ export default function AdminCompanyDetailPage({
                   disabled={savingSubscription}
                   className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {savingSubscription ? "Saving…" : "Save subscription & seats"}
+                  {savingSubscription ? "Saving…" : "Save subscription, licenses & pricing"}
                 </button>
               </div>
             ) : null}

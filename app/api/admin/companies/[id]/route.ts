@@ -303,7 +303,7 @@ export async function GET(request: Request, context: RouteContext) {
       .order("created_at", { ascending: false }),
     supabase
       .from("company_subscriptions")
-      .select("status, plan_name, credit_balance, max_user_seats")
+      .select("status, plan_name, credit_balance, max_user_seats, subscription_price_cents, seat_price_cents")
       .eq("company_id", companyId)
       .maybeSingle(),
   ]);
@@ -342,6 +342,8 @@ export async function GET(request: Request, context: RouteContext) {
     plan_name?: string | null;
     credit_balance?: number | null;
     max_user_seats?: number | null;
+    subscription_price_cents?: number | null;
+    seat_price_cents?: number | null;
   } | null;
 
   const membershipMap = new Map<string, CompanyMembershipRow>();
@@ -566,6 +568,7 @@ export async function GET(request: Request, context: RouteContext) {
     capabilities: {
       canPermanentlyDeleteCompanies: auth.role === "super_admin",
       canManageCompanySubscription: ["super_admin", "admin", "platform_admin"].includes(auth.role),
+      canOverrideCompanyPricing: auth.role === "super_admin",
       canManageCompanyPermissions: ["super_admin", "admin", "platform_admin"].includes(auth.role),
     },
     subscription: {
@@ -575,6 +578,12 @@ export async function GET(request: Request, context: RouteContext) {
         subscriptionRow?.credit_balance != null ? Number(subscriptionRow.credit_balance) : null,
       maxUserSeats:
         subscriptionRow?.max_user_seats != null ? Number(subscriptionRow.max_user_seats) : null,
+      subscriptionPriceCents:
+        subscriptionRow?.subscription_price_cents != null
+          ? Number(subscriptionRow.subscription_price_cents)
+          : null,
+      seatPriceCents:
+        subscriptionRow?.seat_price_cents != null ? Number(subscriptionRow.seat_price_cents) : null,
       seatsUsed: seatCounts.seatsUsed,
       membershipSeats: seatCounts.membershipSeats,
       pendingInviteCount: seatCounts.pendingInvites,
@@ -637,8 +646,29 @@ type SubscriptionPatchBody = {
   planName?: string | null;
   subscriptionStatus?: string | null;
   maxUserSeats?: number | null;
+  subscriptionPriceCents?: number | null;
+  seatPriceCents?: number | null;
   permissionOverrides?: unknown;
 };
+
+function parseOptionalCents(value: unknown) {
+  if (value === undefined) {
+    return { provided: false as const, value: null as number | null };
+  }
+
+  if (value === null) {
+    return { provided: true as const, value: null as number | null };
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return { provided: true as const, error: "Pricing overrides must be null or a whole number of cents ≥ 0." };
+  }
+
+  return {
+    provided: true as const,
+    value: Math.floor(value),
+  };
+}
 
 /** Upsert `company_subscriptions` — subscription status, plan, and per-company user seat cap. */
 export async function PATCH(request: Request, context: RouteContext) {
@@ -669,11 +699,24 @@ export async function PATCH(request: Request, context: RouteContext) {
   const subscriptionFieldsProvided = body
     ? Object.prototype.hasOwnProperty.call(body, "subscriptionStatus") ||
       Object.prototype.hasOwnProperty.call(body, "planName") ||
-      Object.prototype.hasOwnProperty.call(body, "maxUserSeats")
+      Object.prototype.hasOwnProperty.call(body, "maxUserSeats") ||
+      Object.prototype.hasOwnProperty.call(body, "subscriptionPriceCents") ||
+      Object.prototype.hasOwnProperty.call(body, "seatPriceCents")
     : false;
   const permissionOverridesProvided = body
     ? Object.prototype.hasOwnProperty.call(body, "permissionOverrides")
     : false;
+  const pricingOverridesProvided = body
+    ? Object.prototype.hasOwnProperty.call(body, "subscriptionPriceCents") ||
+      Object.prototype.hasOwnProperty.call(body, "seatPriceCents")
+    : false;
+
+  if (pricingOverridesProvided && auth.role !== "super_admin") {
+    return NextResponse.json(
+      { error: "Only a Super Admin can override company pricing." },
+      { status: 403 }
+    );
+  }
 
   const companyLookup = await adminClient.from("companies").select("id").eq("id", companyId).maybeSingle();
   if (companyLookup.error) {
@@ -688,7 +731,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const existingSub = await adminClient
     .from("company_subscriptions")
-    .select("status, plan_name, credit_balance, max_user_seats")
+    .select("status, plan_name, credit_balance, max_user_seats, subscription_price_cents, seat_price_cents")
     .eq("company_id", companyId)
     .maybeSingle();
 
@@ -704,6 +747,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     plan_name?: string | null;
     credit_balance?: number | null;
     max_user_seats?: number | null;
+    subscription_price_cents?: number | null;
+    seat_price_cents?: number | null;
   } | null;
 
   const previousStatus = row?.status ?? null;
@@ -736,12 +781,32 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
+  let subscriptionPriceCents: number | null = row?.subscription_price_cents ?? null;
+  const parsedSubscriptionPrice = parseOptionalCents(body?.subscriptionPriceCents);
+  if (parsedSubscriptionPrice.provided) {
+    if ("error" in parsedSubscriptionPrice) {
+      return NextResponse.json({ error: parsedSubscriptionPrice.error }, { status: 400 });
+    }
+    subscriptionPriceCents = parsedSubscriptionPrice.value;
+  }
+
+  let seatPriceCents: number | null = row?.seat_price_cents ?? null;
+  const parsedSeatPrice = parseOptionalCents(body?.seatPriceCents);
+  if (parsedSeatPrice.provided) {
+    if ("error" in parsedSeatPrice) {
+      return NextResponse.json({ error: parsedSeatPrice.error }, { status: 400 });
+    }
+    seatPriceCents = parsedSeatPrice.value;
+  }
+
   if (subscriptionFieldsProvided) {
     const upsertPayload: Record<string, unknown> = {
       company_id: companyId,
       status: nextStatus,
       plan_name: planName,
       max_user_seats: maxUserSeats,
+      subscription_price_cents: subscriptionPriceCents,
+      seat_price_cents: seatPriceCents,
       credit_balance: row?.credit_balance ?? null,
       updated_by: auth.user.id,
     };
@@ -795,6 +860,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     planName,
     subscriptionStatus: nextStatus,
     maxUserSeats,
+    subscriptionPriceCents,
+    seatPriceCents,
     permissionOverrides: permissionOverridesProvided
       ? normalizePermissionOverrides(body?.permissionOverrides)
       : undefined,

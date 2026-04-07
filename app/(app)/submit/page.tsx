@@ -157,7 +157,7 @@ export default function SubmitPage() {
     }
 
     if (subscriptionStatus !== "active") {
-      const msg = "An active subscription is required before submitting documents.";
+      const msg = "An active company license/subscription is required before submitting documents.";
       setMessage(msg);
       setMessageTone("warning");
       toast.warning(msg);
@@ -433,8 +433,8 @@ export default function SubmitPage() {
 
         <div className="space-y-6">
           <SectionCard
-            title="Subscription Status"
-            description="Submission access is based on an active subscription."
+        title="License Status"
+        description="Submission access is based on an active company license/subscription."
           >
             <div>
               {checkingSubscription ? (
