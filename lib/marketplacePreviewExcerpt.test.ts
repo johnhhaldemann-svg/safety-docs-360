@@ -108,6 +108,21 @@ describe("canRequestMarketplaceLibraryPreview", () => {
       })
     ).toBe(true);
   });
+
+  it("is false when owner approval gates buyer preview", () => {
+    expect(
+      canRequestMarketplaceLibraryPreview({
+        notes: JSON.stringify({
+          marketplace: {
+            enabled: true,
+            previewFilePath: "marketplace-preview/x/p.pdf",
+            submitterPreviewStatus: "pending",
+          },
+        }),
+        final_file_path: "final/uuid/x.docx",
+      })
+    ).toBe(false);
+  });
 });
 
 describe("pickWorkspacePreviewStoragePath", () => {

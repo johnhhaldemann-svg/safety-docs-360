@@ -4,6 +4,7 @@ import { logDocumentDownload } from "@/lib/downloadAudit";
 import {
   asciiFallbackFileName,
   contentTypeForPreviewFileName,
+  isLikelyPdfBuffer,
   prepareMarketplaceLibraryPreview,
 } from "@/lib/libraryMarketplacePreviewServer";
 
@@ -25,7 +26,10 @@ export async function GET(
   }
 
   const { buffer, sourceFileName, document, excerptSource, supabase, user } = prepared;
-  const contentType = contentTypeForPreviewFileName(sourceFileName);
+  /** Inline PDF viewers often require `application/pdf`; keys without `.pdf` used to fall through to octet-stream. */
+  const contentType = isLikelyPdfBuffer(buffer, sourceFileName)
+    ? "application/pdf"
+    : contentTypeForPreviewFileName(sourceFileName);
   const asciiName = asciiFallbackFileName(sourceFileName);
   const utf8Star = encodeURIComponent(sourceFileName);
 

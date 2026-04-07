@@ -19,6 +19,7 @@ import type { PermissionMap } from "@/lib/rbac";
 import {
   getDocumentCreditCost,
   getMarketplacePreviewPath,
+  getSubmitterPreviewStatus,
   isMarketplaceEnabled,
 } from "@/lib/marketplace";
 import {
@@ -153,6 +154,7 @@ export default function ReviewDocumentPage() {
   const [savingMarketplace, setSavingMarketplace] = useState(false);
   const [marketplacePreviewFile, setMarketplacePreviewFile] = useState<File | null>(null);
   const [uploadingPreview, setUploadingPreview] = useState(false);
+  const [generatingPreview, setGeneratingPreview] = useState(false);
   const [previewExcerptLoading, setPreviewExcerptLoading] = useState(false);
   const [fullFileDownloadLoading, setFullFileDownloadLoading] = useState(false);
   const [excerptModal, setExcerptModal] = useState<{
@@ -711,6 +713,54 @@ export default function ReviewDocumentPage() {
       setFeedbackMessage("Failed to save marketplace settings.", "error");
     } finally {
       setSavingMarketplace(false);
+    }
+  }
+
+  async function generateMarketplacePreviewPdf() {
+    if (!documentItem) return;
+
+    setGeneratingPreview(true);
+    setFeedback("");
+
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(
+        `/api/admin/documents/${documentItem.id}/generate-marketplace-preview`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; notes?: string }
+        | null;
+
+      if (!res.ok) {
+        setFeedbackMessage(data?.error || "Failed to generate preview PDF.", "error");
+        return;
+      }
+
+      setDocumentItem((prev) =>
+        prev
+          ? {
+              ...prev,
+              notes: data?.notes ?? prev.notes ?? null,
+            }
+          : prev
+      );
+      await loadDocument();
+      setFeedbackMessage(
+        "Preview PDF generated and sent to the document owner for approval.",
+        "success"
+      );
+    } catch (error) {
+      console.error(error);
+      setFeedbackMessage("Failed to generate preview PDF.", "error");
+    } finally {
+      setGeneratingPreview(false);
     }
   }
 
@@ -1822,9 +1872,10 @@ export default function ReviewDocumentPage() {
                   Buyer preview (before credit unlock)
                 </p>
                 <p className="mt-1 text-sm text-slate-500">
-                  Upload PDF or DOCX source material. Buyers see a short on-screen text
-                  excerpt only (no file download). Use text-based PDFs where possible;
-                  scanned pages may show no excerpt until they purchase.
+                  Upload PDF or DOCX source material, or generate a watermarked PDF from the
+                  draft or final file. Buyers see a short on-screen excerpt or inline PDF
+                  preview (no full-document download). Text-based PDFs work best; scanned
+                  pages may show little or no excerpt until purchase.
                 </p>
                 {documentItem && getMarketplacePreviewPath(documentItem.notes) ? (
                   <p className="mt-3 text-xs font-medium text-emerald-400">
@@ -1834,6 +1885,18 @@ export default function ReviewDocumentPage() {
                 ) : (
                   <p className="mt-3 text-xs text-slate-500">No preview uploaded yet.</p>
                 )}
+                {documentItem ? (
+                  <p className="mt-2 text-xs text-slate-400">
+                    Owner approval status:{" "}
+                    {(() => {
+                      const s = getSubmitterPreviewStatus(documentItem.notes);
+                      if (s === "pending") return "Pending document owner approval";
+                      if (s === "approved") return "Approved by document owner (or manual upload)";
+                      if (s === "rejected") return "Rejected by document owner — replace preview";
+                      return "Not required (legacy listing or manual upload without gate)";
+                    })()}
+                  </p>
+                ) : null}
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
                   <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-950/50">
                     <input
@@ -1858,10 +1921,21 @@ export default function ReviewDocumentPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      void generateMarketplacePreviewPdf();
+                    }}
+                    disabled={generatingPreview || uploadingPreview || !canApproveDocuments}
+                    className="rounded-xl border border-violet-500/40 bg-violet-950/40 px-4 py-2.5 text-sm font-semibold text-violet-100 transition hover:bg-violet-950/70 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {generatingPreview ? "Generating…" : "Generate preview PDF for owner"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
                       void uploadMarketplacePreview();
                     }}
                     disabled={
                       uploadingPreview ||
+                      generatingPreview ||
                       !canApproveDocuments ||
                       !marketplacePreviewFile
                     }
@@ -1877,6 +1951,7 @@ export default function ReviewDocumentPage() {
                     disabled={
                       savingMarketplace ||
                       uploadingPreview ||
+                      generatingPreview ||
                       !canApproveDocuments ||
                       !getMarketplacePreviewPath(documentItem?.notes ?? null)
                     }

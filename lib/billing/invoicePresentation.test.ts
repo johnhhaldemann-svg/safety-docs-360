@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatBillingPeriodLabel,
+  formatBillingEventLabel,
   getBillingSourceLabel,
   getInvoiceSourceSummary,
   summarizeBillingCharges,
@@ -51,5 +52,11 @@ describe("invoicePresentation", () => {
     expect(summary.source).toBe("Recurring company billing");
     expect(summary.period).toBe("Apr 2026 (2026-04-01 to 2026-04-30)");
     expect(summary.isRecurring).toBe(true);
+  });
+
+  it("formats billing event labels", () => {
+    expect(formatBillingEventLabel("payment_link_created")).toBe("Payment link created");
+    expect(formatBillingEventLabel("payment_failed")).toBe("Payment failed");
+    expect(formatBillingEventLabel("unknown_event")).toBe("unknown event");
   });
 });

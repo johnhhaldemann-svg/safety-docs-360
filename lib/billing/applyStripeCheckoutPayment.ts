@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { computeBalanceDue } from "@/lib/billing/invoiceTotals";
 import { listCompanyCreditTransactions } from "@/lib/companyBilling";
 import { recordBillingEvent } from "@/lib/billing/recordEvent";
+import { sendMarketplaceCreditPurchaseReceiptEmail } from "@/lib/billing/marketplaceCreditReceiptEmail";
 
 export function stripeCheckoutDedupeKey(session: Stripe.Checkout.Session): string | null {
   const pi = session.payment_intent;
@@ -169,7 +170,8 @@ async function ensureMarketplaceCreditPackGrant(
 
 export async function applyCheckoutSessionCompleted(
   admin: SupabaseClient,
-  session: Stripe.Checkout.Session
+  session: Stripe.Checkout.Session,
+  params?: { baseUrl?: string | null }
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (session.mode !== "payment") {
     return { ok: false, reason: "not_payment_mode" };
@@ -288,6 +290,7 @@ export async function applyCheckoutSessionCompleted(
     id: string;
     invoice_number: string;
     company_id: string;
+    customer_id: string;
     amount_paid_cents: number;
     metadata?: Record<string, unknown> | null;
     billing_source?: string | null;
@@ -295,6 +298,59 @@ export async function applyCheckoutSessionCompleted(
 
   if (!grantResult.ok) {
     return grantResult;
+  }
+
+  const packInfo = getMarketplaceCreditPackInfo(inv as {
+    billing_source?: string | null;
+    metadata?: Record<string, unknown> | null;
+  }, lineItems as InvoiceLineItemRow[]);
+
+  if (packInfo && Number(packInfo.credits) > 0) {
+    const receiptAlreadySent = await billingEventExists(admin, invoiceId, ["receipt_sent"]);
+    if (!receiptAlreadySent) {
+      const { data: billingCustomer, error: billingCustomerErr } = await admin
+        .from("billing_customers")
+        .select("company_name, billing_email")
+        .eq("id", (inv as { customer_id?: string }).customer_id ?? "")
+        .maybeSingle();
+
+      if (!billingCustomerErr && billingCustomer) {
+        const receiptResult = await sendMarketplaceCreditPurchaseReceiptEmail({
+          toEmail: String((billingCustomer as { billing_email?: string }).billing_email ?? "").trim(),
+          companyName:
+            String((billingCustomer as { company_name?: string }).company_name ?? "").trim() ||
+            "Company Workspace",
+          invoiceNumber: String((inv as { invoice_number?: string }).invoice_number ?? ""),
+          invoiceId,
+          baseUrl: params?.baseUrl ?? null,
+          packLabel: packInfo.label ?? "Marketplace credit pack",
+          credits: packInfo.credits,
+          amountCents: Number(amountCents),
+          currency: invCurrency,
+        });
+
+        if (receiptResult.sent) {
+          await recordBillingEvent(admin, {
+            invoice_id: invoiceId,
+            event_type: "receipt_sent",
+            created_by_user_id: null,
+            event_data: {
+              stripe_checkout_session_id: session.id,
+              invoice_number: String((inv as { invoice_number?: string }).invoice_number ?? ""),
+              receipt_url: receiptResult.receiptUrl ?? null,
+              to_email: String((billingCustomer as { billing_email?: string }).billing_email ?? ""),
+              credit_pack_id: packInfo.packId,
+              credit_pack_label: packInfo.label,
+              credit_pack_credits: packInfo.credits,
+            },
+          });
+        } else {
+          console.warn("marketplace receipt email skipped:", receiptResult.warning);
+        }
+      } else if (billingCustomerErr) {
+        console.warn("marketplace receipt email customer lookup failed:", billingCustomerErr.message);
+      }
+    }
   }
 
   return { ok: true };

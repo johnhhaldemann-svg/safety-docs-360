@@ -27,6 +27,9 @@ export default function CustomerInvoiceDetailPage() {
   const params = useParams();
   const id = String(params.id ?? "");
   const [checkoutFlag, setCheckoutFlag] = useState<string | null>(null);
+  const [permissionMap, setPermissionMap] = useState<{ can_manage_billing?: boolean } | null>(
+    null
+  );
   const [data, setData] = useState<{
     invoice: Record<string, unknown> & {
       invoice_number: string;
@@ -47,10 +50,13 @@ export default function CustomerInvoiceDetailPage() {
     payments: unknown[];
   } | null>(null);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"success" | "error" | "neutral">("neutral");
   const [loading, setLoading] = useState(true);
+  const [resendingReceipt, setResendingReceipt] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setMessageTone("neutral");
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -61,11 +67,24 @@ export default function CustomerInvoiceDetailPage() {
       return;
     }
 
-    const res = await fetch(`/api/customer/billing/invoices/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const [meResponse, res] = await Promise.all([
+      fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      fetch(`/api/customer/billing/invoices/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    ]);
+
+    const meData = (await meResponse.json().catch(() => null)) as
+      | { user?: { permissionMap?: { can_manage_billing?: boolean } } }
+      | null;
+    if (meResponse.ok) {
+      setPermissionMap(meData?.user?.permissionMap ?? null);
+    }
     const json = (await res.json().catch(() => null)) as typeof data & { error?: string };
     if (!res.ok) {
+      setMessageTone("error");
       setMessage(json?.error || "Failed to load.");
       setData(null);
     } else {
@@ -73,6 +92,38 @@ export default function CustomerInvoiceDetailPage() {
     }
     setLoading(false);
   }, [id]);
+
+  async function resendReceipt() {
+    setResendingReceipt(true);
+    setMessage("");
+    setMessageTone("neutral");
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) {
+      setMessageTone("error");
+      setResendingReceipt(false);
+      return;
+    }
+
+    const res = await fetch(`/api/customer/billing/invoices/${id}/resend-receipt`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
+    if (!res.ok) {
+      setMessageTone("error");
+      setMessage(json?.error || "Receipt resend failed.");
+      setResendingReceipt(false);
+      return;
+    }
+
+    setMessageTone("success");
+    setMessage(json?.message || "Receipt resent.");
+    setResendingReceipt(false);
+  }
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -98,6 +149,7 @@ export default function CustomerInvoiceDetailPage() {
   const chargeSummary = useMemo(() => summarizeBillingCharges(lines), [lines]);
   const sourceSummary = useMemo(() => getInvoiceSourceSummary(invoice ?? {}), [invoice]);
   const payments = data?.payments ?? [];
+  const canManageBilling = Boolean(permissionMap?.can_manage_billing);
 
   if (loading) {
     return <p className="text-slate-400">Loading...</p>;
@@ -106,7 +158,7 @@ export default function CustomerInvoiceDetailPage() {
   if (!invoice) {
     return (
       <div className="space-y-4">
-        {message ? <InlineMessage tone="error">{message}</InlineMessage> : null}
+      {message ? <InlineMessage tone={messageTone === "success" ? "success" : "error"}>{message}</InlineMessage> : null}
         <Link href="/customer/billing" className="text-sky-400">
           Back to billing
         </Link>
@@ -185,6 +237,18 @@ export default function CustomerInvoiceDetailPage() {
             <InlineMessage tone="neutral">
               Checkout was cancelled. You can try again when you are ready.
             </InlineMessage>
+          </div>
+        ) : null}
+        {sourceSummary.isMarketplaceCreditPack && canManageBilling && (invoice.status.toLowerCase() === "paid" || balanceDue <= 0) ? (
+          <div className="mb-4">
+            <button
+              type="button"
+              onClick={() => void resendReceipt()}
+              disabled={resendingReceipt}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-amber-500 px-4 py-2 text-sm font-semibold text-amber-200 disabled:opacity-60"
+            >
+              {resendingReceipt ? "Resending..." : "Resend receipt"}
+            </button>
           </div>
         ) : null}
         <dl className="grid gap-2 text-sm sm:grid-cols-2">

@@ -531,7 +531,14 @@ export default function AppLayout({
       }
 
       if (workspaceProduct === "csep") {
-        const csepRoutes = ["/dashboard", "/profile", "/library", "/search", "/customer/billing"];
+        const csepRoutes = [
+          "/dashboard",
+          "/profile",
+          "/library",
+          "/search",
+          "/customer/billing",
+          "/marketplace-preview-approvals",
+        ];
         const canOpenCsep =
           Boolean(permissionMap?.can_create_documents) ||
           Boolean(permissionMap?.can_edit_documents) ||
@@ -612,6 +619,7 @@ export default function AppLayout({
       // All company users may open My Purchases to see unlocked docs and history; only
       // can_manage_billing can buy credits or unlock on /purchases (enforced in UI + APIs).
       companyAllowedRoutes.push("/purchases");
+      companyAllowedRoutes.push("/marketplace-preview-approvals");
 
       if (
         permissionMap?.can_view_dashboards &&

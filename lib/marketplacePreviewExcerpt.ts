@@ -2,7 +2,11 @@ import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import { isApprovedDocumentStatus } from "@/lib/documentStatus";
 import { sniffGcDocumentKind } from "@/lib/gcProgramAiReview";
-import { getMarketplacePreviewPath, isMarketplaceEnabled } from "@/lib/marketplace";
+import {
+  getMarketplacePreviewPath,
+  isBuyerMarketplacePreviewBlocked,
+  isMarketplaceEnabled,
+} from "@/lib/marketplace";
 
 /** Short on-screen preview only; full file is never sent to the client. */
 export const MARKETPLACE_PREVIEW_MAX_CHARS = 2000;
@@ -46,6 +50,9 @@ export function canRequestMarketplaceLibraryPreview(doc: {
   final_file_path?: string | null;
 }) {
   if (!isMarketplaceEnabled(doc.notes)) {
+    return false;
+  }
+  if (isBuyerMarketplacePreviewBlocked(doc.notes)) {
     return false;
   }
   if (isPreviewableMarketplaceSource(getMarketplacePreviewPath(doc.notes))) {

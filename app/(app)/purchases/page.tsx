@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import { MARKETPLACE_CREDIT_PACKS } from "@/lib/billing/marketplaceCreditPacks";
 import type { CreditTransaction } from "@/lib/credits";
@@ -76,10 +77,12 @@ function formatRelative(timestamp?: string | null) {
 }
 
 export default function PurchasesPage() {
+  const searchParams = useSearchParams();
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [checkoutNotice, setCheckoutNotice] = useState("");
   const [actionLoadingId, setActionLoadingId] = useState("");
   const [creditPackLoadingId, setCreditPackLoadingId] = useState("");
   const [pendingDocumentId, setPendingDocumentId] = useState<string>("");
@@ -192,6 +195,36 @@ export default function PurchasesPage() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const checkout = searchParams.get("checkout");
+    const invoiceId = searchParams.get("invoice_id");
+    const sessionId = searchParams.get("session_id");
+
+    if (checkout === "success") {
+      setCheckoutNotice(
+        invoiceId
+          ? `Payment complete for invoice ${invoiceId}. We are refreshing your company credit balance now.`
+          : "Payment complete. We are refreshing your company credit balance now."
+      );
+
+      const timer = window.setTimeout(() => {
+        void loadData();
+      }, 2500);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    if (checkout === "cancelled") {
+      setCheckoutNotice(
+        sessionId
+          ? "Checkout was cancelled before payment completed. No credits were added."
+          : "Checkout was cancelled before payment completed."
+      );
+    }
+
+    return undefined;
+  }, [loadData, searchParams]);
 
   const completedDocuments = useMemo(() => {
     return documents.filter(
@@ -377,6 +410,12 @@ export default function PurchasesPage() {
           </>
         }
       />
+
+      {checkoutNotice ? (
+        <InlineMessage tone={checkoutNotice.toLowerCase().includes("cancelled") ? "warning" : "success"}>
+          {checkoutNotice}
+        </InlineMessage>
+      ) : null}
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard

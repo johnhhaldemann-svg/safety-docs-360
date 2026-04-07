@@ -1,10 +1,14 @@
 const DEFAULT_DOCUMENT_CREDIT_COST = 5;
 
+export type SubmitterPreviewStatus = "pending" | "approved" | "rejected";
+
 type MarketplaceNotes = {
   marketplace?: {
     enabled?: boolean;
     creditCost?: number;
     previewFilePath?: string;
+    /** Owner of the document must approve auto-generated preview before buyers see it. */
+    submitterPreviewStatus?: SubmitterPreviewStatus;
   };
   creditCost?: number;
   legacyText?: string;
@@ -50,6 +54,23 @@ export function getMarketplacePreviewPath(notes?: string | null): string | null 
   return path ? path : null;
 }
 
+export function getSubmitterPreviewStatus(
+  notes?: string | null
+): SubmitterPreviewStatus | undefined {
+  const parsed = parseMarketplaceNotes(notes);
+  const s = parsed.marketplace?.submitterPreviewStatus;
+  if (s === "pending" || s === "approved" || s === "rejected") {
+    return s;
+  }
+  return undefined;
+}
+
+/** Block anonymous marketplace buyers until the document owner approves the preview (or legacy row with no status). */
+export function isBuyerMarketplacePreviewBlocked(notes?: string | null) {
+  const s = getSubmitterPreviewStatus(notes);
+  return s === "pending" || s === "rejected";
+}
+
 /** Storage prefix for a document's marketplace preview objects. */
 export function marketplacePreviewPathPrefix(documentId: string) {
   return `marketplace-preview/${documentId}/`;
@@ -70,6 +91,7 @@ export function buildMarketplaceNotes(
     enabled: boolean;
     creditCost: number;
     previewFilePath?: string | null;
+    submitterPreviewStatus?: SubmitterPreviewStatus | null;
   }
 ) {
   const parsed = parseMarketplaceNotes(existingNotes);
@@ -81,11 +103,20 @@ export function buildMarketplaceNotes(
 
   if (settings.previewFilePath === null) {
     delete marketplace.previewFilePath;
+    delete marketplace.submitterPreviewStatus;
   } else if (
     typeof settings.previewFilePath === "string" &&
     settings.previewFilePath.trim()
   ) {
     marketplace.previewFilePath = settings.previewFilePath.trim();
+  }
+
+  if (settings.submitterPreviewStatus !== undefined) {
+    if (settings.submitterPreviewStatus === null) {
+      delete marketplace.submitterPreviewStatus;
+    } else {
+      marketplace.submitterPreviewStatus = settings.submitterPreviewStatus;
+    }
   }
 
   const next: MarketplaceNotes = {

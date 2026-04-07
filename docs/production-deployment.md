@@ -43,7 +43,19 @@ Run **Supabase migrations first** whenever migration files changed, then deploy 
    Full list and comments: [`.env.example`](../.env.example) and [README.md](../README.md).
 
 3. **Custom domain**: attach domain in Vercel; ensure DNS and HTTPS complete. Update Supabase redirect URLs to match.
-4. **Build**: confirm `npm run build` succeeds (Vercel runs this automatically).
+4. **Build**: confirm `npm run build` succeeds locally (Vercel runs the same command for Next.js). This repo declares **`engines.node` ≥ 20.9** in [`package.json`](../package.json) so Vercel uses a compatible Node runtime.
+5. **If the deployment fails**, use the table below before changing code.
+
+### Vercel build failures — typical causes
+
+| Symptom / cause | What to do |
+|-----------------|------------|
+| **Wrong repo / folder** | **Settings → General → Root Directory** must be the folder that contains `package.json` (repo root if the app lives at the repository root). |
+| **No install / lockfile** | Commit **`package-lock.json`** (or `pnpm-lock.yaml` / `yarn.lock` if you use that manager). Vercel installs from the lockfile at the root directory above. |
+| **Node too old** | Use **Node 20+** for Next.js 16. In Vercel: **Settings → General → Node.js Version** → **20.x**. This repo also sets **`engines`** in `package.json` and [`.nvmrc`](../.nvmrc) to `20`. |
+| **Missing env vars** | Some failures happen at **build** if code reads env at import time. **Settings → Environment Variables**: set at least `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` for server routes. Copy values for **Production** and **Preview** if previews should work. See the table in §2 above. |
+| **Git not connected / no push** | Confirm the GitHub/GitLab app is installed on the org/account, the repo is linked, and **Production Branch** matches the branch you push (often `main`). |
+| **Build / output settings overridden** | **Settings → General → Build & Development Settings**: leave **Build Command** as **`npm run build`** or **empty** (Vercel’s Next.js default). **Output Directory** should be **default/empty** unless you use a custom static export. **Install Command** should be **default** unless you standardize on `pnpm install` / `yarn install`. |
 
 ## 3. Scheduled crons
 

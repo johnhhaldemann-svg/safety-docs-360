@@ -113,6 +113,11 @@ export const userSideSections: NavSection[] = [
     items: [
       { href: "/profile", label: "Construction profile", short: "CP" },
       { href: "/purchases", label: "My purchases", short: "MP" },
+      {
+        href: "/marketplace-preview-approvals",
+        label: "Marketplace preview approvals",
+        short: "PA",
+      },
     ],
   },
 ];
@@ -178,6 +183,11 @@ export const companyAdminSideSections: NavSection[] = [
         short: "MK",
       },
       { href: "/purchases", label: "Buy credits", short: "CR" },
+      {
+        href: "/marketplace-preview-approvals",
+        label: "Preview approvals",
+        short: "PA",
+      },
       { href: "/search", label: "Search documents", short: "SR" },
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
@@ -233,6 +243,11 @@ export const companyManagerSideSections: NavSection[] = [
       { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/purchases", label: "My purchases", short: "MP" },
+      {
+        href: "/marketplace-preview-approvals",
+        label: "Preview approvals",
+        short: "PA",
+      },
       { href: "/training-matrix", label: "Training matrix", short: "TM" },
     ],
   },
@@ -281,6 +296,11 @@ export const companyUserSideSections: NavSection[] = [
       { href: "/search", label: "Search documents", short: "SR" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/purchases", label: "My purchases", short: "MP" },
+      {
+        href: "/marketplace-preview-approvals",
+        label: "Preview approvals",
+        short: "PA",
+      },
     ],
   },
   {

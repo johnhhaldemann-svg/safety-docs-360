@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
 import {
   type InvoiceLineItemLike,
+  formatBillingEventLabel,
   getInvoiceSourceSummary,
   summarizeBillingCharges,
 } from "@/lib/billing/invoicePresentation";
@@ -49,11 +50,14 @@ export default function BillingInvoiceDetailPage() {
     events: unknown[];
   } | null>(null);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"success" | "error" | "neutral">("neutral");
   const [loading, setLoading] = useState(true);
+  const [resendingReceipt, setResendingReceipt] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setMessage("");
+    setMessageTone("neutral");
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -69,6 +73,7 @@ export default function BillingInvoiceDetailPage() {
     });
     const data = (await res.json().catch(() => null)) as typeof payload & { error?: string };
     if (!res.ok) {
+      setMessageTone("error");
       setMessage(data?.error || "Failed to load.");
       setPayload(null);
       setLoading(false);
@@ -87,6 +92,7 @@ export default function BillingInvoiceDetailPage() {
 
   async function postJson(path: string, body: Record<string, unknown>) {
     setMessage("");
+    setMessageTone("neutral");
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -99,6 +105,7 @@ export default function BillingInvoiceDetailPage() {
     });
     const data = (await res.json().catch(() => null)) as { error?: string };
     if (!res.ok) {
+      setMessageTone("error");
       setMessage(data?.error || "Action failed.");
       return;
     }
@@ -107,6 +114,7 @@ export default function BillingInvoiceDetailPage() {
 
   async function createPaymentLink() {
     setMessage("");
+    setMessageTone("neutral");
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -118,6 +126,7 @@ export default function BillingInvoiceDetailPage() {
     });
     const data = (await res.json().catch(() => null)) as { error?: string; payment_link?: string };
     if (!res.ok) {
+      setMessageTone("error");
       setMessage(data?.error || "Could not create payment link.");
       return;
     }
@@ -129,6 +138,7 @@ export default function BillingInvoiceDetailPage() {
 
   async function sendInvoice() {
     setMessage("");
+    setMessageTone("neutral");
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -140,10 +150,44 @@ export default function BillingInvoiceDetailPage() {
     });
     const data = (await res.json().catch(() => null)) as { error?: string };
     if (!res.ok) {
+      setMessageTone("error");
       setMessage(data?.error || "Send failed.");
       return;
     }
     void load();
+  }
+
+  async function resendReceipt() {
+    setResendingReceipt(true);
+    setMessage("");
+    setMessageTone("neutral");
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) {
+      setMessageTone("error");
+      setResendingReceipt(false);
+      return;
+    }
+
+    const res = await fetch(`/api/billing/invoices/${id}/resend-receipt`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const data = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
+    if (!res.ok) {
+      setMessageTone("error");
+      setMessage(data?.error || "Receipt resend failed.");
+      setResendingReceipt(false);
+      return;
+    }
+
+    setMessageTone("success");
+    setMessage(data?.message || "Receipt resent.");
+    void load();
+    setResendingReceipt(false);
   }
 
   const invoice = payload?.invoice ?? null;
@@ -223,11 +267,22 @@ export default function BillingInvoiceDetailPage() {
                 Mark paid (full balance)
               </button>
             ) : null}
+            {sourceSummary.isMarketplaceCreditPack &&
+            (invoice.status === "paid" || Number(invoice.balance_due_cents) <= 0) ? (
+              <button
+                type="button"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-amber-500 px-4 py-2 text-sm font-semibold text-amber-200 disabled:opacity-60"
+                onClick={() => void resendReceipt()}
+                disabled={resendingReceipt}
+              >
+                {resendingReceipt ? "Resending..." : "Resend receipt"}
+              </button>
+            ) : null}
           </div>
         }
       />
 
-      {message ? <InlineMessage tone="error">{message}</InlineMessage> : null}
+      {message ? <InlineMessage tone={messageTone === "success" ? "success" : "error"}>{message}</InlineMessage> : null}
 
       <SectionCard
         title="Billing summary"
@@ -357,7 +412,7 @@ export default function BillingInvoiceDetailPage() {
         <ul className="space-y-2 text-xs text-slate-400">
           {(events as Array<{ event_type?: string; created_at?: string }>).map((event, index) => (
             <li key={index}>
-              {event.created_at} - {event.event_type}
+              {event.created_at} - {formatBillingEventLabel(event.event_type)}
             </li>
           ))}
         </ul>

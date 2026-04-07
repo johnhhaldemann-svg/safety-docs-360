@@ -72,7 +72,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     await recordBillingEvent(auth.supabase, {
       invoice_id: id,
-      event_type: "updated",
+      event_type: "payment_link_created",
       created_by_user_id: auth.user.id,
       event_data: { action: "payment_link_created", stripe: true },
     });

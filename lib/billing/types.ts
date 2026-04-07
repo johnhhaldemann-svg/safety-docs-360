@@ -23,10 +23,12 @@ export type BillingEventType =
   | "created"
   | "updated"
   | "sent"
+  | "payment_link_created"
   | "viewed"
   | "reminder_sent"
   | "payment_received"
   | "marked_paid"
+  | "receipt_sent"
   | "voided"
   | "cancelled"
   | "payment_failed";

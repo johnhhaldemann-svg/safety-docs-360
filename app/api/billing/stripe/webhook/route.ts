@@ -4,6 +4,7 @@ import {
   applyCheckoutSessionCompleted,
   recordStripePaymentIntentFailed,
 } from "@/lib/billing/applyStripeCheckoutPayment";
+import { resolveAppBaseUrl } from "@/lib/billing/resolveAppBaseUrl";
 import { getStripe, getStripeWebhookSecret } from "@/lib/billing/stripeCheckout";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
@@ -44,7 +45,9 @@ export async function POST(request: Request) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const r = await applyCheckoutSessionCompleted(admin, session);
+        const r = await applyCheckoutSessionCompleted(admin, session, {
+          baseUrl: resolveAppBaseUrl(request),
+        });
         if (!r.ok) {
           console.warn("checkout.session.completed skipped:", r.reason, session.id);
         }

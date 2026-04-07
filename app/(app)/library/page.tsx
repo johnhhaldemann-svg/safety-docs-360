@@ -12,7 +12,11 @@ import {
   InlineMessage,
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
-import { getDocumentCreditCost, isMarketplaceEnabled } from "@/lib/marketplace";
+import {
+  getDocumentCreditCost,
+  getSubmitterPreviewStatus,
+  isMarketplaceEnabled,
+} from "@/lib/marketplace";
 import {
   basenameFromStoragePath,
   canRequestMarketplaceLibraryPreview,
@@ -379,9 +383,12 @@ function LibraryPageContent() {
         }
 
         if (!res.ok || !data || typeof data !== "object") {
+          const trimmed = raw.trim();
           const msg =
             (data && typeof data.error === "string" && data.error) ||
-            "Failed to load preview.";
+            (trimmed && !trimmed.startsWith("<")
+              ? trimmed.slice(0, 240)
+              : `Preview failed (HTTP ${res.status}).`);
           setMessage(msg);
           toast.error(msg);
           return;
@@ -406,8 +413,14 @@ function LibraryPageContent() {
             toast.error(errMsg);
             return;
           }
-          const blob = await fileRes.blob();
-          const pdfObjectUrl = URL.createObjectURL(blob);
+          const pdfBytes = await fileRes.arrayBuffer();
+          const headerCt = fileRes.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
+          const mime =
+            headerCt.includes("pdf") || headerCt === "application/x-pdf"
+              ? headerCt
+              : "application/pdf";
+          const pdfBlob = new Blob([pdfBytes], { type: mime });
+          const pdfObjectUrl = URL.createObjectURL(pdfBlob);
           setExcerptModal({
             title: typeof data.title === "string" ? data.title : "Marketplace preview",
             excerpt: "",
@@ -1466,6 +1479,13 @@ function MarketplaceSection({
           {documents.map((doc) => {
             const cost = getDocumentCreditCost(doc.notes);
             const canAfford = creditBalance >= cost;
+            const previewGate = getSubmitterPreviewStatus(doc.notes);
+            const previewGateMessage =
+              isMarketplaceEnabled(doc.notes) && previewGate === "pending"
+                ? "Buyer preview is waiting for the document owner to approve it before it appears here."
+                : isMarketplaceEnabled(doc.notes) && previewGate === "rejected"
+                  ? "Buyer preview was rejected by the document owner; the publisher must publish an updated preview."
+                  : null;
 
             const highlighted = highlightDocumentId === doc.id;
             return (
@@ -1511,6 +1531,10 @@ function MarketplaceSection({
                       : `You need ${cost - creditBalance} more credit${cost - creditBalance === 1 ? "" : "s"}.`}
                   </p>
                 </div>
+
+                {previewGateMessage ? (
+                  <p className="mt-4 text-xs leading-5 text-amber-200/90">{previewGateMessage}</p>
+                ) : null}
 
                 <div className="mt-5 flex flex-col gap-3">
                   {canRequestMarketplaceLibraryPreview(doc) ? (

@@ -27,7 +27,7 @@ These are **two separate systems**. There is no single “push” to both.
 | **1. Database** | Apply SQL migrations to your **Supabase** project | Locally: `supabase link --project-ref <ref>` then `npm run db:push`. Or enable [`.github/workflows/supabase-db-push.yml`](.github/workflows/supabase-db-push.yml) (GitHub secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`) and merge migration changes / run the workflow. |
 | **2. App** | Deploy the **Next.js** app to **Vercel** | Push to the branch Vercel uses for Production (usually `main`), or run `npm run vercel:prod` (uses `npx vercel`; run `npx vercel login` once). Preview: `npm run vercel:preview`. |
 
-Always do **step 1 before step 2** when migrations changed, so production code matches the database. Env vars for Vercel are in the project dashboard (same keys as [`.env.example`](.env.example)). Full checklist: [`docs/production-deployment.md`](docs/production-deployment.md).
+Always do **step 1 before step 2** when migrations changed, so production code matches the database. Env vars for Vercel are in the project dashboard (same keys as [`.env.example`](.env.example)). Full checklist: [`docs/production-deployment.md`](docs/production-deployment.md) (includes a **Vercel build failure** troubleshooting table: root directory, lockfile, Node 20, env vars, Git, build settings).
 
 ## Environment variables
 

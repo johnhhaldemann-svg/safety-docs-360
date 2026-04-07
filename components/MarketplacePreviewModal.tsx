@@ -64,7 +64,9 @@ export function MarketplacePreviewModal({
         onClick={onClose}
       />
       <div
-        className="relative z-[101] w-full max-w-lg rounded-2xl border border-slate-600 bg-slate-950 p-6 shadow-2xl"
+        className={`relative z-[101] w-full rounded-2xl border border-slate-600 bg-slate-950 p-6 shadow-2xl ${
+          pdfObjectUrl ? "max-w-[min(92vw,56rem)]" : "max-w-lg"
+        }`}
         onClick={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.preventDefault()}
       >
@@ -91,11 +93,35 @@ export function MarketplacePreviewModal({
         </p>
 
         {pdfObjectUrl ? (
-          <iframe
-            title={title}
-            src={pdfObjectUrl}
-            className="mt-4 h-[min(60vh,32rem)] w-full rounded-xl border border-slate-700/80 bg-white"
-          />
+          <div className="mt-4 flex flex-col gap-2">
+            <a
+              href={pdfObjectUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-fit items-center rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm font-semibold text-sky-300 transition hover:border-slate-500 hover:bg-slate-800/80"
+            >
+              Open PDF in new tab
+            </a>
+            <object
+              data={pdfObjectUrl}
+              type="application/pdf"
+              title={title}
+              className="h-[min(60vh,32rem)] w-full rounded-xl border border-slate-700/80 bg-white"
+            >
+              <p className="rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 text-sm leading-6 text-slate-400">
+                Embedded preview is not available in this browser.{" "}
+                <a
+                  href={pdfObjectUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-sky-400 underline"
+                >
+                  Open the PDF in a new tab
+                </a>{" "}
+                to view it.
+              </p>
+            </object>
+          </div>
         ) : (
           <div className="relative mt-4 max-h-[min(50vh,22rem)] overflow-y-auto rounded-xl border border-slate-700/80 bg-slate-900/90 p-4">
             <div

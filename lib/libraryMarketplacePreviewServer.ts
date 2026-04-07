@@ -4,6 +4,8 @@ import { authorizeRequest } from "@/lib/rbac";
 import { isApprovedDocumentStatus } from "@/lib/documentStatus";
 import {
   getMarketplacePreviewPath,
+  getSubmitterPreviewStatus,
+  isBuyerMarketplacePreviewBlocked,
   isMarketplaceEnabled,
   isValidMarketplacePreviewPath,
 } from "@/lib/marketplace";
@@ -161,6 +163,21 @@ export async function prepareMarketplaceLibraryPreview(
       ok: false,
       response: NextResponse.json(
         { error: "This document is not listed in the marketplace." },
+        { status: 403 }
+      ),
+    };
+  }
+
+  if (isBuyerMarketplacePreviewBlocked(doc.notes)) {
+    const status = getSubmitterPreviewStatus(doc.notes);
+    const error =
+      status === "rejected"
+        ? "The document owner rejected this marketplace preview. An updated preview must be published before buyers can see it."
+        : "This preview is waiting for the document owner to approve it before buyers can see it in the library.";
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error, submitterPreviewStatus: status ?? "pending" },
         { status: 403 }
       ),
     };

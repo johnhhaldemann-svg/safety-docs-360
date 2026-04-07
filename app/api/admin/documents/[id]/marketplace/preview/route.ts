@@ -97,6 +97,7 @@ export async function POST(
     enabled: isMarketplaceEnabled(document.notes),
     creditCost: getDocumentCreditCost(document.notes),
     previewFilePath: storagePath,
+    submitterPreviewStatus: "approved",
   });
   const marketplaceUpdatedAt = new Date().toISOString();
 

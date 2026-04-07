@@ -10,6 +10,9 @@ export type InvoiceLineItemLike = {
 
 export function getBillingSourceLabel(source?: string | null) {
   const normalized = String(source ?? "").trim().toLowerCase();
+  if (normalized === "marketplace_credit_pack") {
+    return "Marketplace credit pack";
+  }
   if (normalized === "recurring_company_pricing") {
     return "Recurring company billing";
   }
@@ -21,6 +24,9 @@ export function getBillingSourceLabel(source?: string | null) {
 
 export function getBillingSourceTone(source?: string | null): "success" | "info" | "neutral" {
   const normalized = String(source ?? "").trim().toLowerCase();
+  if (normalized === "marketplace_credit_pack") {
+    return "info";
+  }
   if (normalized === "recurring_company_pricing") {
     return "success";
   }
@@ -122,5 +128,31 @@ export function getInvoiceSourceSummary(invoice: {
     period,
     isRecurring: String(invoice.billing_source ?? "").trim().toLowerCase() === "recurring_company_pricing",
     isCompanyPricing: String(invoice.billing_source ?? "").trim().toLowerCase() === "company_pricing",
+    isMarketplaceCreditPack:
+      String(invoice.billing_source ?? "").trim().toLowerCase() === "marketplace_credit_pack",
   };
+}
+
+export function formatBillingEventLabel(eventType?: string | null) {
+  const normalized = String(eventType ?? "").trim().toLowerCase();
+  if (!normalized) {
+    return "Update";
+  }
+
+  const labels: Record<string, string> = {
+    created: "Created",
+    updated: "Updated",
+    sent: "Sent",
+    payment_link_created: "Payment link created",
+    viewed: "Viewed",
+    reminder_sent: "Reminder sent",
+    payment_received: "Payment received",
+    marked_paid: "Marked paid",
+    receipt_sent: "Receipt sent",
+    voided: "Voided",
+    cancelled: "Cancelled",
+    payment_failed: "Payment failed",
+  };
+
+  return labels[normalized] ?? normalized.replace(/_/g, " ");
 }
