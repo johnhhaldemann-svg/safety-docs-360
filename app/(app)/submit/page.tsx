@@ -60,58 +60,9 @@ export default function SubmitPage() {
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
 
-  /**
-   * Company workspaces use `company_subscriptions` (updated in admin). The legacy client query
-   * against `subscriptions` by user_id misses that row — use the same credits API as the library.
-   */
-  async function checkSubscription() {
-    setCheckingSubscription(true);
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setSubscriptionStatus("inactive");
-      setMessage("You must be logged in.");
-      setMessageTone("error");
-      setCheckingSubscription(false);
-      return;
-    }
-
-    const sessionResult = await supabase.auth.getSession();
-    const accessToken = sessionResult.data.session?.access_token;
-    if (!accessToken) {
-      setSubscriptionStatus("inactive");
-      setCheckingSubscription(false);
-      return;
-    }
-
-    const res = await fetch("/api/library/credits", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const payload = (await res.json().catch(() => null)) as
-      | { subscriptionStatus?: string | null; error?: string }
-      | null;
-
-    if (!res.ok) {
-      setSubscriptionStatus("inactive");
-      setMessage(payload?.error ?? `Subscription check failed (${res.status}).`);
-      setMessageTone("error");
-      setCheckingSubscription(false);
-      return;
-    }
-
-    const raw = payload?.subscriptionStatus;
-    setSubscriptionStatus(
-      typeof raw === "string" && raw.trim() ? raw.trim().toLowerCase() : "inactive"
-    );
-    setCheckingSubscription(false);
-  }
-
   useEffect(() => {
     async function loadWorkspaceState() {
+      setCheckingSubscription(true);
       const sessionResult = await supabase.auth.getSession();
       const accessToken = sessionResult.data.session?.access_token;
 
@@ -122,17 +73,36 @@ export default function SubmitPage() {
           },
         });
         const meData = (await meResponse.json().catch(() => null)) as
-          | { user?: { permissionMap?: PermissionMap; companyId?: string | null } }
+          | {
+              user?: {
+                permissionMap?: PermissionMap;
+                companyId?: string | null;
+                subscriptionStatus?: string | null;
+              };
+              error?: string;
+            }
           | null;
 
-        if (meResponse.ok) {
-          setPermissionMap(meData?.user?.permissionMap ?? null);
-          setCompanyId(meData?.user?.companyId ?? null);
+        if (meResponse.ok && meData?.user) {
+          setPermissionMap(meData.user.permissionMap ?? null);
+          setCompanyId(meData.user.companyId ?? null);
+          const raw = meData.user.subscriptionStatus;
+          setSubscriptionStatus(
+            typeof raw === "string" && raw.trim() ? raw.trim().toLowerCase() : "inactive"
+          );
+        } else {
+          setSubscriptionStatus("inactive");
+          if (!meResponse.ok) {
+            setMessage(meData?.error ?? `Session check failed (${meResponse.status}).`);
+            setMessageTone("error");
+          }
         }
+      } else {
+        setSubscriptionStatus("inactive");
       }
 
+      setCheckingSubscription(false);
       setPermissionsLoading(false);
-      await checkSubscription();
 
       const {
         data: { user },

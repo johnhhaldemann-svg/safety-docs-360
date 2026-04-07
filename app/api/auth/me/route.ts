@@ -18,6 +18,7 @@ import {
   getSupabaseAnonKey,
   getSupabaseServerUrl,
 } from "@/lib/supabaseAdmin";
+import { normalizeCompanySubscriptionStatus } from "@/lib/companySeats";
 import { planNameToWorkspaceProduct, type WorkspaceProduct } from "@/lib/workspaceProduct";
 import { serverLog } from "@/lib/serverLog";
 
@@ -605,17 +606,34 @@ async function handleAuthMeGet(request: Request) {
   );
 
   let workspaceProduct: WorkspaceProduct = "full";
+  let subscriptionStatus = normalizeCompanySubscriptionStatus(null);
+
   if (companyScope.companyId) {
-    const subscriptionResult = await auth.supabase
+    const admin = createSupabaseAdminClient();
+    const subscriptionClient = admin ?? auth.supabase;
+    const subscriptionResult = await subscriptionClient
       .from("company_subscriptions")
-      .select("plan_name")
+      .select("plan_name, status")
       .eq("company_id", companyScope.companyId)
       .maybeSingle();
-    const planName =
-      !subscriptionResult.error && subscriptionResult.data
-        ? (subscriptionResult.data as { plan_name?: string | null }).plan_name
-        : null;
-    workspaceProduct = planNameToWorkspaceProduct(planName);
+
+    if (!subscriptionResult.error && subscriptionResult.data) {
+      const row = subscriptionResult.data as {
+        plan_name?: string | null;
+        status?: string | null;
+      };
+      workspaceProduct = planNameToWorkspaceProduct(row.plan_name);
+      subscriptionStatus = normalizeCompanySubscriptionStatus(row.status ?? null);
+    }
+  } else {
+    const { data: userSubscription } = await auth.supabase
+      .from("subscriptions")
+      .select("status")
+      .eq("user_id", auth.user.id)
+      .maybeSingle();
+    subscriptionStatus = normalizeCompanySubscriptionStatus(
+      (userSubscription as { status?: string | null } | null)?.status ?? null
+    );
   }
 
   return NextResponse.json(
@@ -629,6 +647,7 @@ async function handleAuthMeGet(request: Request) {
       companyId: companyScope.companyId,
       companyName: effectiveCompanyName,
       workspaceProduct,
+      subscriptionStatus,
       profile: {
         userId: auth.user.id,
         fullName: userProfile?.full_name?.trim() || fallbackFullName,
