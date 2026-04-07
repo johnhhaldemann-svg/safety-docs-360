@@ -70,7 +70,10 @@ export default function BillingInvoicesListPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const t = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [load]);
 
   const outstanding = invoices.reduce((s, i) => s + (i.balance_due_cents > 0 ? i.balance_due_cents : 0), 0);

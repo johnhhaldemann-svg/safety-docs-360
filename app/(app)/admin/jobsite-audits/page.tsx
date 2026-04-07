@@ -20,6 +20,7 @@ import {
   AUDIT_SYSTEM_BLUEPRINT,
   AUDIT_SYSTEM_BLUEPRINT_TEXT,
 } from "@/lib/jobsiteAudits/auditSystemBlueprint";
+import { CONSTRUCTION_TRADE_LABEL_BY_SLUG } from "@/lib/constructionTradeTaxonomy";
 import {
   fieldCompliancePercentForSections,
   getFieldAuditSectionsForTrade,
@@ -495,7 +496,7 @@ export default function AdminJobsiteAuditsPage() {
             >
               {tradeOptions.map((trade) => (
                 <option key={trade} value={trade}>
-                  {trade.replaceAll("_", " ")}
+                  {CONSTRUCTION_TRADE_LABEL_BY_SLUG[trade] ?? trade.replaceAll("_", " ")}
                 </option>
               ))}
             </select>

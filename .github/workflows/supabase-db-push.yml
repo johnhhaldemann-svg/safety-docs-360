@@ -1,0 +1,31 @@
+# Apply SQL migrations in supabase/migrations/ to your hosted Supabase project.
+# Vercel only builds the Next.js app — it does not run db push. Run this workflow (or push locally)
+# so production/staging databases stay in sync before or after you deploy to Vercel.
+name: Supabase DB push
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
+
+jobs:
+  db-push:
+    runs-on: ubuntu-latest
+    if: secrets.SUPABASE_ACCESS_TOKEN != '' && secrets.SUPABASE_PROJECT_REF != ''
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.84.10
+
+      - name: Link Supabase project
+        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+
+      - name: Push pending migrations
+        run: supabase db push --yes

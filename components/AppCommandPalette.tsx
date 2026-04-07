@@ -28,11 +28,13 @@ export function AppCommandPalette({ open, onOpenChange, items }: AppCommandPalet
   }, [items, query]);
 
   useEffect(() => {
-    if (open) {
-      setQuery("");
-      const t = window.setTimeout(() => inputRef.current?.focus(), 10);
-      return () => window.clearTimeout(t);
-    }
+    if (!open) return;
+    const clearQuery = window.setTimeout(() => setQuery(""), 0);
+    const focusInput = window.setTimeout(() => inputRef.current?.focus(), 10);
+    return () => {
+      window.clearTimeout(clearQuery);
+      window.clearTimeout(focusInput);
+    };
   }, [open]);
 
   const onKeyDown = useCallback(

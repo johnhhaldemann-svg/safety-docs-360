@@ -2,31 +2,12 @@
  * Canonical lists for construction profile trade + site position.
  * Profile and training requirements both use these so matrix scoping lines up with user picks.
  */
-export const CONSTRUCTION_TRADES = [
-  "General / Multi-trade",
-  "Survey / Layout",
-  "Demolition",
-  "Earthwork",
-  "Excavation / Utilities",
-  "Concrete",
-  "Steel / Ironwork",
-  "Masonry",
-  "Drywall",
-  "Painting",
-  "Flooring",
-  "Roofing",
-  "Electrical",
-  "Mechanical / HVAC",
-  "Plumbing",
-  "Low Voltage",
-  "Fire Protection",
-  "Elevator",
-  "Landscaping",
-  "Asphalt / Paving",
-  "Traffic Control",
-  "Scaffolding",
-  "Insulation",
-] as const;
+import {
+  CONSTRUCTION_TRADE_LABELS,
+  LEGACY_CONSTRUCTION_TRADE_LABELS,
+} from "@/lib/constructionTradeTaxonomy";
+
+export const CONSTRUCTION_TRADES = [...CONSTRUCTION_TRADE_LABELS] as unknown as readonly string[];
 
 export const CONSTRUCTION_POSITIONS = [
   "Superintendent",
@@ -52,7 +33,7 @@ export const CONSTRUCTION_POSITIONS = [
 export type ConstructionTrade = (typeof CONSTRUCTION_TRADES)[number];
 export type ConstructionPosition = (typeof CONSTRUCTION_POSITIONS)[number];
 
-const TRADE_SET = new Set<string>(CONSTRUCTION_TRADES);
+const TRADE_SET = new Set<string>([...CONSTRUCTION_TRADE_LABELS, ...LEGACY_CONSTRUCTION_TRADE_LABELS]);
 const POSITION_SET = new Set<string>(CONSTRUCTION_POSITIONS);
 
 export function isAllowedConstructionTrade(value: string): boolean {

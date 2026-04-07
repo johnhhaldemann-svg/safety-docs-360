@@ -4,6 +4,7 @@ type MarketplaceNotes = {
   marketplace?: {
     enabled?: boolean;
     creditCost?: number;
+    previewFilePath?: string;
   };
   creditCost?: number;
   legacyText?: string;
@@ -43,18 +44,53 @@ export function isMarketplaceEnabled(notes?: string | null) {
   return true;
 }
 
+export function getMarketplacePreviewPath(notes?: string | null): string | null {
+  const parsed = parseMarketplaceNotes(notes);
+  const path = parsed.marketplace?.previewFilePath?.trim();
+  return path ? path : null;
+}
+
+/** Storage prefix for a document's marketplace preview objects. */
+export function marketplacePreviewPathPrefix(documentId: string) {
+  return `marketplace-preview/${documentId}/`;
+}
+
+export function isValidMarketplacePreviewPath(documentId: string, path: string) {
+  const trimmed = path.trim();
+  if (!trimmed || trimmed.includes("..")) {
+    return false;
+  }
+  const prefix = marketplacePreviewPathPrefix(documentId);
+  return trimmed.startsWith(prefix) && trimmed.length > prefix.length;
+}
+
 export function buildMarketplaceNotes(
   existingNotes: string | null | undefined,
-  settings: { enabled: boolean; creditCost: number }
+  settings: {
+    enabled: boolean;
+    creditCost: number;
+    previewFilePath?: string | null;
+  }
 ) {
   const parsed = parseMarketplaceNotes(existingNotes);
+  const marketplace: NonNullable<MarketplaceNotes["marketplace"]> = {
+    ...(parsed.marketplace ?? {}),
+    enabled: settings.enabled,
+    creditCost: Math.max(1, Math.round(settings.creditCost)),
+  };
+
+  if (settings.previewFilePath === null) {
+    delete marketplace.previewFilePath;
+  } else if (
+    typeof settings.previewFilePath === "string" &&
+    settings.previewFilePath.trim()
+  ) {
+    marketplace.previewFilePath = settings.previewFilePath.trim();
+  }
+
   const next: MarketplaceNotes = {
     ...parsed,
-    marketplace: {
-      ...(parsed.marketplace ?? {}),
-      enabled: settings.enabled,
-      creditCost: Math.max(1, Math.round(settings.creditCost)),
-    },
+    marketplace,
   };
 
   if ((!parsed || Object.keys(parsed).length === 0) && existingNotes?.trim()) {

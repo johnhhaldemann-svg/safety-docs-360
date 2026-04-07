@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { Suspense, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -450,6 +451,23 @@ function LoginPageContent() {
           </section>
         </div>
       </div>
+      <footer className="mx-auto max-w-7xl px-4 pb-8 text-center text-xs text-slate-500 sm:px-6 lg:px-8">
+        <Link href="/terms" className="font-semibold text-slate-400 hover:text-slate-200">
+          Terms
+        </Link>
+        <span className="mx-2 text-slate-600" aria-hidden>
+          ·
+        </span>
+        <Link href="/privacy" className="font-semibold text-slate-400 hover:text-slate-200">
+          Privacy
+        </Link>
+        <span className="mx-2 text-slate-600" aria-hidden>
+          ·
+        </span>
+        <Link href="/liability-waiver" className="font-semibold text-slate-400 hover:text-slate-200">
+          Liability waiver
+        </Link>
+      </footer>
     </main>
   );
 }

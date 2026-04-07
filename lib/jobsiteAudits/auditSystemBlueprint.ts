@@ -1,3 +1,5 @@
+import { JOBSITE_AUDIT_TRADE_SLUGS } from "@/lib/constructionTradeTaxonomy";
+
 export const AUDIT_SYSTEM_BLUEPRINT = {
   audit_system: {
     audit_header: {
@@ -18,34 +20,7 @@ export const AUDIT_SYSTEM_BLUEPRINT = {
         "incident_follow_up",
         "closeout_verification",
       ],
-      trade_scope_being_audited: [
-        "general_contractor",
-        "carpentry",
-        "drywall",
-        "framing",
-        "roofing",
-        "electrical",
-        "plumbing",
-        "hvac",
-        "fire_protection",
-        "steel_erection",
-        "concrete",
-        "masonry",
-        "excavation_earthwork",
-        "demolition",
-        "painting",
-        "flooring",
-        "insulation",
-        "ceiling_acoustical",
-        "glazing",
-        "waterproofing",
-        "equipment_crane_operations",
-        "scaffold_access",
-        "millwright_mechanical",
-        "utilities_underground",
-        "landscaping_site_work",
-        "other",
-      ],
+      trade_scope_being_audited: [...JOBSITE_AUDIT_TRADE_SLUGS],
     },
     universal_audit_sections: [
       "housekeeping",

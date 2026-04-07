@@ -37,6 +37,12 @@ export function LegalAcceptanceBlock({
           View Terms
         </Link>
         <Link
+          href="/privacy"
+          className="rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
+        >
+          Privacy
+        </Link>
+        <Link
           href="/liability-waiver"
           className="rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
         >

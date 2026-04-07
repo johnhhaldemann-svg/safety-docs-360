@@ -16,6 +16,7 @@ import { isDocumentAiReviewerRole } from "@/lib/documentAiReviewAuth";
 import type { PermissionMap } from "@/lib/rbac";
 import {
   getDocumentCreditCost,
+  getMarketplacePreviewPath,
   isMarketplaceEnabled,
 } from "@/lib/marketplace";
 import {
@@ -148,6 +149,8 @@ export default function ReviewDocumentPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingMarketplace, setSavingMarketplace] = useState(false);
+  const [marketplacePreviewFile, setMarketplacePreviewFile] = useState<File | null>(null);
+  const [uploadingPreview, setUploadingPreview] = useState(false);
   const [openingDraft, setOpeningDraft] = useState(false);
   const [lifecycleLoading, setLifecycleLoading] = useState<
     "archive" | "restore" | "delete" | ""
@@ -637,6 +640,120 @@ export default function ReviewDocumentPage() {
     } catch (error) {
       console.error(error);
       setFeedbackMessage("Failed to save marketplace settings.", "error");
+    } finally {
+      setSavingMarketplace(false);
+    }
+  }
+
+  async function uploadMarketplacePreview() {
+    if (!documentItem) return;
+
+    if (!marketplacePreviewFile) {
+      setFeedbackMessage("Choose a PDF or DOCX preview file first.", "warning");
+      return;
+    }
+
+    setUploadingPreview(true);
+    setFeedback("");
+
+    try {
+      const token = await getAccessToken();
+      const formData = new FormData();
+      formData.append("file", marketplacePreviewFile);
+
+      const res = await fetch(
+        `/api/admin/documents/${documentItem.id}/marketplace/preview`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; notes?: string }
+        | null;
+
+      if (!res.ok) {
+        setFeedbackMessage(data?.error || "Failed to upload preview.", "error");
+        return;
+      }
+
+      setDocumentItem((prev) =>
+        prev
+          ? {
+              ...prev,
+              notes: data?.notes ?? prev.notes ?? null,
+            }
+          : prev
+      );
+      setMarketplacePreviewFile(null);
+      await loadDocument();
+      setFeedbackMessage("Marketplace preview uploaded.", "success");
+    } catch (error) {
+      console.error(error);
+      setFeedbackMessage("Failed to upload preview.", "error");
+    } finally {
+      setUploadingPreview(false);
+    }
+  }
+
+  async function removeMarketplacePreview() {
+    if (!documentItem) return;
+
+    if (!getMarketplacePreviewPath(documentItem.notes)) {
+      setFeedbackMessage("There is no preview to remove.", "warning");
+      return;
+    }
+
+    setSavingMarketplace(true);
+    setFeedback("");
+
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(
+        `/api/admin/documents/${documentItem.id}/marketplace`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            enabled: marketplaceEnabled,
+            creditCost: Number(creditCost),
+            previewFilePath: null,
+          }),
+        }
+      );
+
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; notes?: string }
+        | null;
+
+      if (!res.ok) {
+        setFeedbackMessage(
+          data?.error || "Failed to remove marketplace preview.",
+          "error"
+        );
+        return;
+      }
+
+      setDocumentItem((prev) =>
+        prev
+          ? {
+              ...prev,
+              notes: data?.notes ?? prev.notes ?? null,
+            }
+          : prev
+      );
+      await loadDocument();
+      setFeedbackMessage("Marketplace preview removed.", "success");
+    } catch (error) {
+      console.error(error);
+      setFeedbackMessage("Failed to remove marketplace preview.", "error");
     } finally {
       setSavingMarketplace(false);
     }
@@ -1480,6 +1597,75 @@ export default function ReviewDocumentPage() {
                   onChange={(event) => setCreditCost(event.target.value)}
                   className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                 />
+              </div>
+
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                <p className="text-sm font-semibold text-slate-100">
+                  Buyer preview (before credit unlock)
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Upload a PDF or DOCX sample. Buyers who have not unlocked the document
+                  can open this from the library marketplace.
+                </p>
+                {documentItem && getMarketplacePreviewPath(documentItem.notes) ? (
+                  <p className="mt-3 text-xs font-medium text-emerald-400">
+                    Preview on file:{" "}
+                    {getMarketplacePreviewPath(documentItem.notes)?.split("/").pop()}
+                  </p>
+                ) : (
+                  <p className="mt-3 text-xs text-slate-500">No preview uploaded yet.</p>
+                )}
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-950/50">
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      className="sr-only"
+                      onChange={(event) => {
+                        const next = event.target.files?.[0] ?? null;
+                        setMarketplacePreviewFile(next);
+                        event.target.value = "";
+                      }}
+                    />
+                    Choose file
+                  </label>
+                  {marketplacePreviewFile ? (
+                    <span className="truncate text-sm text-slate-400">
+                      {marketplacePreviewFile.name}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void uploadMarketplacePreview();
+                    }}
+                    disabled={
+                      uploadingPreview ||
+                      !canApproveDocuments ||
+                      !marketplacePreviewFile
+                    }
+                    className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {uploadingPreview ? "Uploading..." : "Upload preview"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void removeMarketplacePreview();
+                    }}
+                    disabled={
+                      savingMarketplace ||
+                      uploadingPreview ||
+                      !canApproveDocuments ||
+                      !getMarketplacePreviewPath(documentItem?.notes ?? null)
+                    }
+                    className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Remove preview
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-3">

@@ -11,6 +11,12 @@ import {
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
 import { GcRequiredProgramUpload } from "@/components/csep/GcRequiredProgramUpload";
+import {
+  csepDefaultPpeForKind,
+  csepOshaRefsForKind,
+  csepSummaryForKind,
+} from "@/lib/csepTradeTemplates";
+import { CONSTRUCTION_TRADE_LABELS, csepKindForTradeLabel } from "@/lib/constructionTradeTaxonomy";
 import type { PermissionMap } from "@/lib/rbac";
 
 type RiskLevel = "Low" | "Medium" | "High";
@@ -55,24 +61,7 @@ type CSEPForm = {
   included_sections: string[];
 };
 
-const tradeOptions = [
-  "Survey / Layout",
-  "Demolition",
-  "Earthwork",
-  "Excavation / Utilities",
-  "Concrete",
-  "Roofing",
-  "Electrical",
-  "Mechanical / HVAC",
-  "Plumbing",
-  "Low Voltage",
-  "Elevator",
-  "Fire Protection",
-  "Landscaping",
-  "Asphalt / Paving",
-  "Traffic Control",
-  "Other",
-];
+const tradeOptions = [...CONSTRUCTION_TRADE_LABELS];
 
 const ppeOptions = [
   "Hard Hat",
@@ -209,240 +198,14 @@ const BASE_ITEMS: CSEPRiskItem[] = [
   },
 ];
 
-const TRADE_SUMMARIES: Record<string, string> = {
-  "Survey / Layout":
-    "Survey and layout activities expose workers to changing site conditions, uneven terrain, nearby equipment movement, overhead hazards, and utility-related hazards.",
-  Demolition:
-    "Demolition activities expose workers to unstable materials, debris handling, heavy equipment interaction, electrical energy, dust generation, and falling object hazards.",
-  Earthwork:
-    "Earthwork operations involve active equipment movement, unstable terrain, grading, compaction, hauling, and changing site conditions.",
-  "Excavation / Utilities":
-    "Excavation and utility work exposes workers to trench hazards, underground utility strikes, equipment interaction, and changing soil conditions.",
-  Concrete:
-    "Concrete work involves formwork, placement, finishing, equipment interaction, wet surfaces, manual handling, and elevated work exposures.",
-  Roofing:
-    "Roofing operations involve leading-edge work, falls from height, material handling, weather exposure, hot work, and falling object hazards.",
-  Electrical:
-    "Electrical work exposes workers to energized systems, temporary power, overhead work, tool use, access equipment, and coordination with other active trades.",
-  "Mechanical / HVAC":
-    "Mechanical and HVAC work involves material handling, duct and equipment installation, energized systems, elevated work, and active construction coordination.",
-  Plumbing:
-    "Plumbing work involves piping installation, overhead work, equipment interaction, energized systems, confined areas, and hot work exposure.",
-  "Low Voltage":
-    "Low voltage work includes data and security system installation, access equipment use, energized tie-ins, and overhead work in active spaces.",
-  Elevator:
-    "Elevator work involves shaft access, heavy material movement, energized systems, overhead installation, and falling object hazards.",
-  "Fire Protection":
-    "Fire protection work includes sprinkler and standpipe installation, system tie-ins, testing, elevated work, and coordination with other systems.",
-  Landscaping:
-    "Landscaping work includes grading, irrigation, planting, hardscape work, equipment use, and frequent exposure to changing weather and site traffic.",
-  "Asphalt / Paving":
-    "Asphalt and paving work involves heavy equipment, haul routes, compaction, hot materials, live traffic interface, and manual handling exposure.",
-  "Traffic Control":
-    "Traffic control work involves active vehicle exposure, barricade installation, lane closures, signage work, and struck-by risk around public and site traffic.",
-  Other:
-    "When the contractor’s trade is not listed, identify exposures through scope of work, site walkthrough, equipment and materials on site, and coordination with the GC safety team. Supplement with site-specific notes and applicable permit requirements.",
-};
-
-const TRADE_OSHA_REFS: Record<string, string[]> = {
-  "Survey / Layout": [
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart K – Electrical",
-    "OSHA 1926 Subpart M – Fall Protection",
-  ],
-  Demolition: [
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart K – Electrical",
-    "OSHA 1926 Subpart M – Fall Protection",
-  ],
-  Earthwork: [
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart P – Excavations",
-    "OSHA 1926 Subpart M – Fall Protection",
-  ],
-  "Excavation / Utilities": [
-    "OSHA 1926 Subpart P – Excavations",
-    "OSHA 1926 Subpart K – Electrical",
-    "OSHA 1926 Subpart E – PPE",
-  ],
-  Concrete: [
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart M – Fall Protection",
-    "OSHA 1926 Subpart L – Scaffolding",
-  ],
-  Roofing: [
-    "OSHA 1926 Subpart M – Fall Protection",
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart L – Scaffolding",
-  ],
-  Electrical: [
-    "OSHA 1926 Subpart K – Electrical",
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart M – Fall Protection",
-  ],
-  "Mechanical / HVAC": [
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart K – Electrical",
-    "OSHA 1926 Subpart M – Fall Protection",
-  ],
-  Plumbing: [
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart K – Electrical",
-    "OSHA 1926 Subpart M – Fall Protection",
-  ],
-  "Low Voltage": [
-    "OSHA 1926 Subpart K – Electrical",
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart M – Fall Protection",
-  ],
-  Elevator: [
-    "OSHA 1926 Subpart M – Fall Protection",
-    "OSHA 1926 Subpart K – Electrical",
-    "OSHA 1926 Subpart E – PPE",
-  ],
-  "Fire Protection": [
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart K – Electrical",
-    "OSHA 1926 Subpart M – Fall Protection",
-  ],
-  Landscaping: [
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart K – Electrical",
-    "OSHA 1926 Subpart M – Fall Protection",
-  ],
-  "Asphalt / Paving": [
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart M – Fall Protection",
-    "OSHA 1926 Subpart K – Electrical",
-  ],
-  "Traffic Control": [
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart M – Fall Protection",
-    "OSHA 1926 Subpart K – Electrical",
-  ],
-  Other: [
-    "OSHA 1926 Subpart E – PPE",
-    "OSHA 1926 Subpart M – Fall Protection",
-    "OSHA 1926 Subpart K – Electrical",
-    "OSHA 1926 Subpart C – General Safety and Health Provisions",
-  ],
-};
-
-const TRADE_PPE: Record<string, string[]> = {
-  "Survey / Layout": [
-    "Hard Hat",
-    "Safety Glasses",
-    "High Visibility Vest",
-    "Gloves",
-    "Steel Toe Boots",
-  ],
-  Demolition: [
-    "Hard Hat",
-    "Safety Glasses",
-    "High Visibility Vest",
-    "Gloves",
-    "Steel Toe Boots",
-    "Hearing Protection",
-    "Respiratory Protection",
-  ],
-  Earthwork: [
-    "Hard Hat",
-    "Safety Glasses",
-    "High Visibility Vest",
-    "Gloves",
-    "Steel Toe Boots",
-  ],
-  "Excavation / Utilities": [
-    "Hard Hat",
-    "Safety Glasses",
-    "High Visibility Vest",
-    "Gloves",
-    "Steel Toe Boots",
-  ],
-  Concrete: [
-    "Hard Hat",
-    "Safety Glasses",
-    "High Visibility Vest",
-    "Gloves",
-    "Steel Toe Boots",
-    "Face Shield",
-  ],
-  Roofing: [
-    "Hard Hat",
-    "Safety Glasses",
-    "Gloves",
-    "Steel Toe Boots",
-    "Fall Protection Harness",
-  ],
-  Electrical: [
-    "Hard Hat",
-    "Safety Glasses",
-    "Gloves",
-    "Steel Toe Boots",
-    "Face Shield",
-  ],
-  "Mechanical / HVAC": [
-    "Hard Hat",
-    "Safety Glasses",
-    "High Visibility Vest",
-    "Gloves",
-    "Steel Toe Boots",
-    "Hearing Protection",
-  ],
-  Plumbing: ["Hard Hat", "Safety Glasses", "Gloves", "Steel Toe Boots"],
-  "Low Voltage": ["Hard Hat", "Safety Glasses", "Gloves", "Steel Toe Boots"],
-  Elevator: [
-    "Hard Hat",
-    "Safety Glasses",
-    "Gloves",
-    "Steel Toe Boots",
-    "Fall Protection Harness",
-  ],
-  "Fire Protection": ["Hard Hat", "Safety Glasses", "Gloves", "Steel Toe Boots"],
-  Landscaping: [
-    "Hard Hat",
-    "Safety Glasses",
-    "High Visibility Vest",
-    "Gloves",
-    "Steel Toe Boots",
-  ],
-  "Asphalt / Paving": [
-    "Hard Hat",
-    "Safety Glasses",
-    "High Visibility Vest",
-    "Gloves",
-    "Steel Toe Boots",
-  ],
-  "Traffic Control": [
-    "Hard Hat",
-    "Safety Glasses",
-    "High Visibility Vest",
-    "Gloves",
-    "Steel Toe Boots",
-  ],
-  Other: [
-    "Hard Hat",
-    "Safety Glasses",
-    "High Visibility Vest",
-    "Gloves",
-    "Steel Toe Boots",
-  ],
-};
-
 function buildTradeLibraryItem(trade: string): CSEPTradeLibraryItem {
+  const kind = csepKindForTradeLabel(trade);
   return {
     trade,
     sectionTitle: `Site-Specific Safety Requirements – ${trade}`,
-    summary:
-      TRADE_SUMMARIES[trade] ??
-      "Trade-specific work exposes workers to changing site conditions, equipment interaction, access challenges, and task-specific hazards that must be managed through planning and controls.",
-    oshaRefs: TRADE_OSHA_REFS[trade] ?? ["OSHA 1926 Subpart E – PPE"],
-    defaultPPE: TRADE_PPE[trade] ?? [
-      "Hard Hat",
-      "Safety Glasses",
-      "Gloves",
-      "Steel Toe Boots",
-    ],
+    summary: csepSummaryForKind(kind),
+    oshaRefs: csepOshaRefsForKind(kind),
+    defaultPPE: csepDefaultPpeForKind(kind),
     items: BASE_ITEMS,
   };
 }

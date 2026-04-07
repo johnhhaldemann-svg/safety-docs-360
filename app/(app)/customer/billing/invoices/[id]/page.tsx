@@ -57,12 +57,18 @@ export default function CustomerInvoiceDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    void load();
+    const t = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [load]);
 
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get("checkout");
-    setCheckoutFlag(q);
+    const t = window.setTimeout(() => {
+      const q = new URLSearchParams(window.location.search).get("checkout");
+      setCheckoutFlag(q);
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [id]);
 
   if (loading) {

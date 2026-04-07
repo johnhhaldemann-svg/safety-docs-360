@@ -452,7 +452,10 @@ export default function AnalyticsPage() {
   }, []);
 
   useEffect(() => {
-    void loadSummary(days);
+    const t = window.setTimeout(() => {
+      void loadSummary(days);
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [days, loadSummary]);
 
   const totals = useMemo(() => summary?.totals ?? {}, [summary]);

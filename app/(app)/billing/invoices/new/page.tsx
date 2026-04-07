@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
@@ -17,7 +17,6 @@ export default function NewInvoicePage() {
   const router = useRouter();
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [customerId, setCustomerId] = useState("");
-  const [companyId, setCompanyId] = useState("");
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [taxBps, setTaxBps] = useState("0");
@@ -48,12 +47,15 @@ export default function NewInvoicePage() {
   }, []);
 
   useEffect(() => {
-    void loadCustomers();
+    const t = window.setTimeout(() => {
+      void loadCustomers();
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [loadCustomers]);
 
-  useEffect(() => {
+  const companyId = useMemo(() => {
     const c = customers.find((x) => x.id === customerId);
-    setCompanyId(c?.company_id ?? "");
+    return c?.company_id ?? "";
   }, [customerId, customers]);
 
   async function saveDraft() {

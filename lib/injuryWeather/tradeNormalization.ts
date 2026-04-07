@@ -3,33 +3,64 @@
  * SOR `trade` is primary; category-text inference is fallback only (see `resolveTradeForRow`).
  */
 
+import { CONSTRUCTION_TRADE_DEFINITIONS } from "@/lib/constructionTradeTaxonomy";
+
 export type TradeCanonical = {
   id: string;
   label: string;
   aliases: string[];
 };
 
-/** CONFIG: extend aliases to match your org’s vocabulary. */
+/** Older profile / SOR free-text values → current taxonomy slug id */
+const LEGACY_TRADE_TO_SLUG: Record<string, string> = {
+  "general / multi-trade": "general_contractor",
+  "survey / layout": "site_preparation_clearing",
+  demolition: "demolition",
+  earthwork: "earthwork",
+  "excavation / utilities": "utility_underground_work",
+  concrete: "concrete_forming_placement",
+  "steel / ironwork": "steel_framing_structural_steel",
+  masonry: "masonry_brick_block_stone",
+  drywall: "drywall_metal_stud_framing",
+  painting: "painting_wall_covering",
+  flooring: "flooring_tile_carpet_hardwood_concrete_polishing",
+  roofing: "roofing",
+  electrical: "electrical",
+  "mechanical / hvac": "hvac_mechanical",
+  plumbing: "plumbing",
+  "low voltage": "low_voltage_data_communications",
+  "fire protection": "fire_protection_sprinklers",
+  elevator: "elevators_escalators",
+  landscaping: "landscaping_irrigation",
+  "asphalt / paving": "asphalt_paving",
+  "traffic control": "road_highway_construction",
+  scaffolding: "scaffolding_hoisting",
+  insulation: "insulation",
+  other: "other_not_listed",
+};
+
+function uniqAliases(base: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const a of base) {
+    const s = a.trim().toLowerCase();
+    if (!s || seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+  }
+  return out;
+}
+
 /** Canonical craft labels for Injury Weather chips (unioned with trades seen in data). */
-export const TRADE_CANONICAL: TradeCanonical[] = [
-  { id: "general_contractor", label: "General Contractor", aliases: ["general contractor", "gc", "general"] },
-  { id: "steel_work", label: "Steel Work", aliases: ["steel work", "steel", "structural steel", "ironwork", "iron worker", "rebar"] },
-  { id: "electrical", label: "Electrical", aliases: ["electrical", "electric", "electrician"] },
-  { id: "roofing", label: "Roofing", aliases: ["roofing", "roofer", "roof"] },
-  { id: "concrete", label: "Concrete", aliases: ["concrete", "cement", "formwork", "rebar placement"] },
-  { id: "carpentry", label: "Carpentry", aliases: ["carpentry", "carpenter", "framing", "millwork"] },
-  { id: "plumbing", label: "Plumbing", aliases: ["plumbing", "plumber"] },
-  { id: "hvac", label: "HVAC", aliases: ["hvac", "mechanical"] },
-  { id: "masonry", label: "Masonry", aliases: ["masonry", "mason", "brick"] },
-  { id: "earthworks", label: "Earthworks", aliases: ["earthworks", "excavation", "grading"] },
-  { id: "demolition", label: "Demolition", aliases: ["demolition", "demo"] },
-  { id: "glazing", label: "Glazing", aliases: ["glazing", "glass"] },
-  { id: "scaffolding", label: "Scaffolding", aliases: ["scaffolding", "scaffold"] },
-  { id: "roadwork", label: "Roadwork", aliases: ["roadwork", "paving", "asphalt"] },
-  { id: "landscaping", label: "Landscaping", aliases: ["landscaping", "landscape"] },
-  { id: "drywall", label: "Drywall", aliases: ["drywall", "gypsum"] },
-  { id: "painting", label: "Painting", aliases: ["painting", "painter"] },
-];
+export const TRADE_CANONICAL: TradeCanonical[] = CONSTRUCTION_TRADE_DEFINITIONS.map((d) => ({
+  id: d.slug,
+  label: d.label,
+  aliases: uniqAliases([
+    d.label,
+    d.slug.replace(/_/g, " "),
+    d.slug.replace(/_/g, "/"),
+  ]),
+}));
 
 /** Sorted labels from `TRADE_CANONICAL` — used to offer filters before a trade appears in safety data. */
 export function curatedConstructionTradeLabels(): string[] {
@@ -41,6 +72,10 @@ for (const t of TRADE_CANONICAL) {
   const register = (s: string) => ALIAS_TO_ID.set(s.trim().toLowerCase(), { id: t.id, label: t.label });
   register(t.label);
   for (const a of t.aliases) register(a);
+}
+for (const [legacy, slug] of Object.entries(LEGACY_TRADE_TO_SLUG)) {
+  const row = TRADE_CANONICAL.find((c) => c.id === slug);
+  if (row) ALIAS_TO_ID.set(legacy, { id: row.id, label: row.label });
 }
 
 function slugId(raw: string): string {
@@ -56,14 +91,15 @@ function slugId(raw: string): string {
 export function inferTradeFromCategoryText(text: string): { id: string; label: string } {
   const haystack = text.toLowerCase();
   if (haystack.includes("carpent") || haystack.includes("framing") || haystack.includes("millwork"))
-    return { id: "carpentry", label: "Carpentry" };
+    return { id: "wood_framing", label: "Wood Framing" };
   if (haystack.includes("roof")) return { id: "roofing", label: "Roofing" };
   if (haystack.includes("electrical") || haystack.includes("loto") || haystack.includes("arc flash") || haystack.includes("temporary power"))
     return { id: "electrical", label: "Electrical" };
-  if (haystack.includes("concrete") || haystack.includes("formwork") || haystack.includes("rebar")) return { id: "concrete", label: "Concrete" };
+  if (haystack.includes("concrete") || haystack.includes("formwork") || haystack.includes("rebar"))
+    return { id: "concrete_forming_placement", label: "Concrete Forming & Placement" };
   if (haystack.includes("rigging") || haystack.includes("steel") || haystack.includes("welding") || haystack.includes("crane"))
-    return { id: "steel_work", label: "Steel Work" };
-  return { id: "general_contractor", label: "General Contractor" };
+    return { id: "steel_framing_structural_steel", label: "Steel Framing / Structural Steel" };
+  return { id: "general_contractor", label: "General Contractor / Construction Manager" };
 }
 
 /**

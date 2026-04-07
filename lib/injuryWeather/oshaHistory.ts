@@ -35,9 +35,9 @@ const OSHA_TRADE_HISTORY: OshaTradeHistory[] = [
 function normalizeTradeName(value: string): string {
   const v = value.toLowerCase();
   if (v.includes("roof")) return "Roofing";
-  if (v.includes("elect")) return "Electrical";
-  if (v.includes("concrete")) return "Concrete";
-  if (v.includes("steel") || v.includes("rig")) return "Steel Work";
+  if (v.includes("elect") || v.includes("low voltage") || v.includes("communications")) return "Electrical";
+  if (v.includes("concrete") || v.includes("foundation") || v.includes("pile")) return "Concrete";
+  if (v.includes("steel") || v.includes("rig") || v.includes("weld") || v.includes("bridge")) return "Steel Work";
   return "General Contractor";
 }
 

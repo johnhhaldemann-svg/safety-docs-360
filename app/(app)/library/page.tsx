@@ -11,7 +11,11 @@ import {
   InlineMessage,
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
-import { getDocumentCreditCost, isMarketplaceEnabled } from "@/lib/marketplace";
+import {
+  getDocumentCreditCost,
+  getMarketplacePreviewPath,
+  isMarketplaceEnabled,
+} from "@/lib/marketplace";
 import type { CreditTransaction } from "@/lib/credits";
 import {
   getDocumentStatusLabel,
@@ -122,6 +126,7 @@ function LibraryPageContent() {
   });
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [actionLoadingId, setActionLoadingId] = useState<string>("");
+  const [previewLoadingId, setPreviewLoadingId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
   const [typeFilter, setTypeFilter] = useState("All Types");
@@ -345,6 +350,43 @@ function LibraryPageContent() {
       setActionLoadingId("");
     },
     [getAccessToken, loadCredits]
+  );
+
+  const handleMarketplacePreview = useCallback(
+    async (documentId: string) => {
+      setPreviewLoadingId(documentId);
+      setMessage("");
+
+      try {
+        const token = await getAccessToken();
+        const res = await fetch(`/api/library/preview/${documentId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = (await res.json().catch(() => null)) as
+          | { error?: string; signedUrl?: string }
+          | null;
+
+        if (!res.ok || !data?.signedUrl) {
+          const msg = data?.error || "Failed to load preview.";
+          setMessage(msg);
+          toast.error(msg);
+          return;
+        }
+
+        window.open(data.signedUrl, "_blank");
+      } catch (error) {
+        const msg =
+          error instanceof Error ? error.message : "Failed to load preview.";
+        setMessage(msg);
+        toast.error(msg);
+      } finally {
+        setPreviewLoadingId("");
+      }
+    },
+    [getAccessToken]
   );
 
   useEffect(() => {
@@ -878,7 +920,9 @@ function LibraryPageContent() {
           loading={loading}
           creditBalance={creditState.creditBalance}
           actionLoadingId={actionLoadingId}
+          previewLoadingId={previewLoadingId}
           onPurchase={handlePurchaseDocument}
+          onPreview={handleMarketplacePreview}
           highlightDocumentId={highlightDocId}
         />
       ) : null}
@@ -1065,14 +1109,18 @@ function MarketplaceSection({
   loading,
   creditBalance,
   actionLoadingId,
+  previewLoadingId,
   onPurchase,
+  onPreview,
   highlightDocumentId,
 }: {
   documents: DocumentRow[];
   loading: boolean;
   creditBalance: number;
   actionLoadingId: string;
+  previewLoadingId: string;
   onPurchase: (documentId: string) => void;
+  onPreview: (documentId: string) => void;
   highlightDocumentId?: string | null;
 }) {
   return (
@@ -1161,17 +1209,30 @@ function MarketplaceSection({
                   </p>
                 </div>
 
-                <button
-                  onClick={() => onPurchase(doc.id)}
-                  disabled={actionLoadingId === doc.id || !canAfford}
-                  className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {actionLoadingId === doc.id
-                    ? "Unlocking..."
-                    : canAfford
-                      ? "Unlock document"
-                      : "Not enough credits"}
-                </button>
+                <div className="mt-5 flex flex-col gap-3">
+                  {getMarketplacePreviewPath(doc.notes) ? (
+                    <button
+                      type="button"
+                      onClick={() => onPreview(doc.id)}
+                      disabled={previewLoadingId === doc.id}
+                      className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-600 bg-transparent px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800/50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {previewLoadingId === doc.id ? "Opening preview..." : "Preview sample"}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => onPurchase(doc.id)}
+                    disabled={actionLoadingId === doc.id || !canAfford}
+                    className="inline-flex w-full items-center justify-center rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    {actionLoadingId === doc.id
+                      ? "Unlocking..."
+                      : canAfford
+                        ? "Unlock document"
+                        : "Not enough credits"}
+                  </button>
+                </div>
               </article>
             );
           })}

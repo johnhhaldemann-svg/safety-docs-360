@@ -819,13 +819,13 @@ export function allocateIntegerShares(budget: number, weights: number[]): number
   const sumW = safe.reduce((a, b) => a + b, 0);
   if (sumW <= 0) {
     const base = Math.floor(budget / n);
-    let rem = budget - base * n;
+    const rem = budget - base * n;
     return safe.map((_, i) => base + (i < rem ? 1 : 0));
   }
 
   const ideal = safe.map((w) => (budget * w) / sumW);
   const floors = ideal.map((x) => Math.floor(x + 1e-12));
-  let rem = budget - floors.reduce((a, b) => a + b, 0);
+  const rem = budget - floors.reduce((a, b) => a + b, 0);
   const order = safe
     .map((_, i) => i)
     .sort((i, j) => {

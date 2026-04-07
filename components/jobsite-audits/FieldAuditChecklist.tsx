@@ -44,8 +44,11 @@ export function FieldAuditChecklist({
     [selectedTrade]
   );
 
+  const [categoryIndex, setCategoryIndex] = useState(0);
+
   useEffect(() => {
-    setCategoryIndex(0);
+    const t = window.setTimeout(() => setCategoryIndex(0), 0);
+    return () => window.clearTimeout(t);
   }, [selectedTrade]);
 
   const total = countFieldAuditItemsInSections(sections);
@@ -53,8 +56,6 @@ export function FieldAuditChecklist({
     .flatMap((s) => s.items.map((it) => statusMap[fieldItemKey(s.id, it.id)] ?? ""))
     .filter((x) => x !== "").length;
   const pct = total > 0 ? Math.round((scored / total) * 100) : 0;
-
-  const [categoryIndex, setCategoryIndex] = useState(0);
   const section = sections[categoryIndex] ?? sections[0];
   const lastIdx = Math.max(0, sections.length - 1);
 

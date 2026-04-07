@@ -16,7 +16,7 @@ export async function logDocumentDownload(params: {
   documentId: string;
   actorUserId: string;
   ownerUserId?: string | null;
-  fileKind: "draft" | "final";
+  fileKind: "draft" | "final" | "preview";
   ipAddress?: string | null;
   metadata?: Record<string, unknown>;
 }) {

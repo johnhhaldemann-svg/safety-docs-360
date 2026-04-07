@@ -871,6 +871,9 @@ export default function AppLayout({
             <Link href="/terms" className="rounded-xl border border-slate-600 bg-slate-800/80 px-4 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800">
               View Terms
             </Link>
+            <Link href="/privacy" className="rounded-xl border border-slate-600 bg-slate-800/80 px-4 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800">
+              Privacy
+            </Link>
             <Link href="/liability-waiver" className="rounded-xl border border-slate-600 bg-slate-800/80 px-4 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800">
               View Liability Waiver
             </Link>

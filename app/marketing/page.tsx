@@ -314,6 +314,17 @@ export default function MarketingPage() {
           </div>
         </div>
       </section>
+
+      <footer className="mx-auto max-w-7xl px-6 pb-10">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-slate-700/60 pt-6 text-xs text-slate-500">
+          <Link href="/terms" className="font-semibold text-slate-400 hover:text-slate-200">
+            Terms
+          </Link>
+          <Link href="/privacy" className="font-semibold text-slate-400 hover:text-slate-200">
+            Privacy
+          </Link>
+        </div>
+      </footer>
     </main>
   );
 }

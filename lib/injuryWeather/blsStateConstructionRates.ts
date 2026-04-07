@@ -96,13 +96,42 @@ function rowMatchesMatcher(m: IndustryMatcher, r: BlsConstructionRateRow): boole
   return r.ind.toLowerCase().includes(m.sub.toLowerCase());
 }
 
+/** Map detailed trade labels to `TRADE_INDUSTRY_MATCHERS` keys when not an exact table key. */
+function blsMatcherTableKeyForLabel(label: string): keyof typeof TRADE_INDUSTRY_MATCHERS | null {
+  const L = label.trim().toLowerCase();
+  if (/roof/.test(L)) return "Roofing";
+  if (/electric|low voltage|communications|data/.test(L)) return "Electrical";
+  if (/plumb|sprinkler|fire protection/.test(L)) return "Plumbing";
+  if (/hvac|mechanical|sheet metal/.test(L)) return "HVAC";
+  if (/concrete|foundation|pile/.test(L)) return "Concrete";
+  if (/masonry|brick|block|stucco|plaster/.test(L)) return "Masonry";
+  if (/steel|welding|rigg|bridge/.test(L)) return "Steel Work";
+  if (
+    /excavat|grading|earthwork|site preparation|clearing|utility|underground|road|highway|asphalt|paving|landscape|irrigation/.test(
+      L
+    )
+  )
+    return "Earthworks";
+  if (/demo/.test(L)) return "Demolition";
+  if (/glass|glazing|curtain|storefront/.test(L)) return "Glazing";
+  if (/scaffold|hoist/.test(L)) return "Scaffolding";
+  if (/drywall|ceiling|floor|paint|carpentr|trim|millwork|tile|insulation|siding|waterproof/.test(L)) return "Carpentry";
+  if (/elevator|escalator|millwright/.test(L)) return "Steel Work";
+  if (/general contractor|construction manager|safety|environmental|other\s*\/\s*not/.test(L)) return "General Contractor";
+  return null;
+}
+
 function findBlsRowForTrade(
   stateCode: string,
   year: number,
   tradeLabel: string,
   rows: BlsConstructionRateRow[]
 ): BlsConstructionRateRow | null {
-  const matchers = TRADE_INDUSTRY_MATCHERS[tradeLabel.trim()];
+  const trimmed = tradeLabel.trim();
+  const tableKey = blsMatcherTableKeyForLabel(trimmed);
+  const matchers =
+    TRADE_INDUSTRY_MATCHERS[trimmed as keyof typeof TRADE_INDUSTRY_MATCHERS] ??
+    (tableKey ? TRADE_INDUSTRY_MATCHERS[tableKey] : undefined);
   if (!matchers?.length) return null;
   const pool = rows.filter((r) => r.sc === stateCode && r.y === year);
   for (const m of matchers) {

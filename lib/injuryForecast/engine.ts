@@ -146,7 +146,7 @@ export function runDynamicInjuryForecastEngine(
 
   const topRiskDrivers = buildTopRiskDrivers(layers);
   const trendDirection = trend.raw.direction;
-  let confidenceScore = clampConfidenceToMode(mode, uncertainty.raw.confidenceScore);
+  const confidenceScore = clampConfidenceToMode(mode, uncertainty.raw.confidenceScore);
 
   const injuryScores =
     options?.injuryTypeContext != null

@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
-import { buildMarketplaceNotes } from "@/lib/marketplace";
+import {
+  buildMarketplaceNotes,
+  getDocumentCreditCost,
+  isMarketplaceEnabled,
+  isValidMarketplacePreviewPath,
+} from "@/lib/marketplace";
 
 export const runtime = "nodejs";
 
 type MarketplacePayload = {
   enabled?: boolean;
   creditCost?: number;
+  previewFilePath?: string | null;
 };
 
 export async function PATCH(
@@ -21,12 +27,6 @@ export async function PATCH(
 
   const { id } = await context.params;
   const body = (await request.json()) as MarketplacePayload;
-  const enabled = Boolean(body.enabled);
-  const creditCost =
-    typeof body.creditCost === "number" && Number.isFinite(body.creditCost)
-      ? Math.max(1, Math.round(body.creditCost))
-      : 5;
-
   const { data: document, error: getError } = await auth.supabase
     .from("documents")
     .select("id, notes")
@@ -40,9 +40,37 @@ export async function PATCH(
     );
   }
 
+  const enabled =
+    typeof body.enabled === "boolean"
+      ? body.enabled
+      : isMarketplaceEnabled(document.notes);
+  const creditCost =
+    typeof body.creditCost === "number" && Number.isFinite(body.creditCost)
+      ? Math.max(1, Math.round(body.creditCost))
+      : getDocumentCreditCost(document.notes);
+
+  let previewFilePath: string | null | undefined = undefined;
+  if ("previewFilePath" in body) {
+    const v = body.previewFilePath;
+    if (v === null) {
+      previewFilePath = null;
+    } else if (typeof v === "string" && v.trim()) {
+      if (!isValidMarketplacePreviewPath(id, v)) {
+        return NextResponse.json(
+          { error: "Invalid preview file path." },
+          { status: 400 }
+        );
+      }
+      previewFilePath = v.trim();
+    } else {
+      previewFilePath = null;
+    }
+  }
+
   const notes = buildMarketplaceNotes(document.notes, {
     enabled,
     creditCost,
+    previewFilePath,
   });
   const marketplaceUpdatedAt = new Date().toISOString();
 

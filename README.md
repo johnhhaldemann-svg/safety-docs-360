@@ -18,6 +18,17 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Supabase + Vercel deploy (“push”)
+
+These are **two separate systems**. There is no single “push” to both.
+
+| Step | What | How |
+|------|------|-----|
+| **1. Database** | Apply SQL migrations to your **Supabase** project | Locally: `supabase link --project-ref <ref>` then `npm run db:push`. Or enable [`.github/workflows/supabase-db-push.yml`](.github/workflows/supabase-db-push.yml) (GitHub secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`) and merge migration changes / run the workflow. |
+| **2. App** | Deploy the **Next.js** app to **Vercel** | Push to the branch Vercel uses for Production (usually `main`), or run `npm run vercel:prod` (uses `npx vercel`; run `npx vercel login` once). Preview: `npm run vercel:preview`. |
+
+Always do **step 1 before step 2** when migrations changed, so production code matches the database. Env vars for Vercel are in the project dashboard (same keys as [`.env.example`](.env.example)). Full checklist: [`docs/production-deployment.md`](docs/production-deployment.md).
+
 ## Environment variables
 
 | Variable | Required | Purpose |
@@ -30,17 +41,21 @@ Open [http://localhost:3000](http://localhost:3000).
 | `CRON_SECRET` | Production cron | Bearer or `?secret=` for [`/api/cron/injury-weather-refresh`](app/api/cron/injury-weather-refresh/route.ts) |
 | `NEXT_PUBLIC_ADMIN_EMAILS` | Optional | Comma-separated admin emails ([`lib/rbac.ts`](lib/rbac.ts), [`lib/admin.ts`](lib/admin.ts)) |
 | `NEXT_PUBLIC_SITE_URL` / `NEXT_PUBLIC_APP_URL` | Optional | Absolute URLs for redirects (e.g. invite links) |
+| `NEXT_PUBLIC_SUPPORT_EMAIL` | Optional | Shown on `/privacy` for data and privacy inquiries |
 
 **E2E / smoke**
 
 | Variable | Purpose |
 |----------|---------|
 | `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` | Playwright authenticated tests |
+| `E2E_NEXT_PUBLIC_SUPABASE_URL` / `E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase project for CI E2E (same as test user); all four values required for the `playwright-full` GitHub Actions job |
 | `PLAYWRIGHT_BASE_URL` | Override default `http://127.0.0.1:3000` |
 | `PLAYWRIGHT_SKIP_WEBSERVER` | Set to skip starting the dev server from Playwright |
 | `SMOKE_BASE_URL` / `SMOKE_BEARER_TOKEN` | [`scripts/smoke-safety-ops.mjs`](scripts/smoke-safety-ops.mjs) |
 
 See [`docs/dev-setup.md`](docs/dev-setup.md) for Supabase workflow, cron, and superadmin notes.
+
+**Production launch:** step-by-step checklist in [`docs/production-deployment.md`](docs/production-deployment.md). Operations and go-to-market alignment in [`docs/support-onboarding-runbook.md`](docs/support-onboarding-runbook.md).
 
 ## Scripts
 
@@ -53,20 +68,32 @@ See [`docs/dev-setup.md`](docs/dev-setup.md) for Supabase workflow, cron, and su
 | `npm run test:navigation` | Navigation integrity tests |
 | `npm run test:links` | Broken link checker |
 | `npm run test:e2e` | Playwright (see [`playwright.config.ts`](playwright.config.ts)) |
-| `npx playwright test tests/a11y.spec.ts` | Accessibility (axe) on `/`, `/login`, `/submit` |
+| `npx playwright test tests/a11y.spec.ts` | Accessibility (axe) on `/`, `/login`, `/privacy`, `/submit` |
 | `npm run test:e2e:ci` | Build + production server + Playwright |
 | `npm run smoke:safetyops` | HTTP smoke script |
 | `npm run seed:csep-test` | Seed CSEP test user (needs service role) |
+| `npm run db:push` | `supabase db push --yes` (after `supabase link`) |
+| `npm run vercel:prod` | Production deploy (`npx vercel deploy --prod`) |
+| `npm run vercel:preview` | Preview deploy (`npx vercel deploy`) |
+
+Keep the **Supabase CLI** (`supabase` in `devDependencies`) current with `npm install`; the GitHub **Supabase DB push** workflow pins the same major line in [`.github/workflows/supabase-db-push.yml`](.github/workflows/supabase-db-push.yml).
 
 ## Database
 
-Apply migrations with the Supabase CLI (link your project, then):
+Migrations live in `supabase/migrations/` and apply to **Supabase** (Postgres), not to Vercel. Deploy order: **run migrations**, then ship the Next.js app on Vercel so the API matches the schema.
+
+**Local / manual**
 
 ```bash
-supabase db push
+supabase link --project-ref <your-project-ref>
+npm run db:push
 ```
 
-RLS policies live in `supabase/migrations/`. API routes should align with [`docs/api-rbac-audit.md`](docs/api-rbac-audit.md).
+(`npm run db:push` is `supabase db push --yes`.)
+
+**CI (optional):** when `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_REF` are set as GitHub repo secrets, [.github/workflows/supabase-db-push.yml](.github/workflows/supabase-db-push.yml) runs `supabase db push` on migration changes to `main`/`master` or via **Actions → Supabase DB push → Run workflow**. See [docs/production-deployment.md](docs/production-deployment.md).
+
+RLS policies are defined in migrations. API routes should align with [`docs/api-rbac-audit.md`](docs/api-rbac-audit.md).
 
 ## Scheduled jobs (Vercel)
 

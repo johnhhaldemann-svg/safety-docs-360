@@ -20,6 +20,13 @@ test.describe("Accessibility (axe)", () => {
     expect(seriousViolations(violations), JSON.stringify(violations, null, 2)).toEqual([]);
   });
 
+  test("privacy page has no critical or serious issues", async ({ page }) => {
+    await page.goto("/privacy");
+    await page.waitForLoadState("domcontentloaded");
+    const { violations } = await new AxeBuilder({ page }).analyze();
+    expect(seriousViolations(violations), JSON.stringify(violations, null, 2)).toEqual([]);
+  });
+
   test("submit flow entry (redirects if unauthenticated) has no critical or serious issues", async ({
     page,
   }) => {

@@ -84,7 +84,15 @@ export function tradeLabelToDefaultKey(label: string): string | null {
   if (/paint|coat/.test(s)) return "painting";
   if (/glaz|window/.test(s)) return "glazing";
   if (/fork|crane|rigg|lift|hoist|equipment/.test(s)) return "equipment_ops";
-  if (/general|gc|contractor/.test(s)) return "general_construction";
+  if (/general|gc|contractor|construction manager/.test(s)) return "general_construction";
+  if (/foundation|pile|forming|concrete/.test(s)) return "concrete";
+  if (/grading|earthwork|site preparation|clearing/.test(s)) return "excavation";
+  if (/road|highway|bridge|asphalt|utility|underground|landscape|irrigation/.test(s)) return "excavation";
+  if (/masonry|brick|block|stucco|plaster/.test(s)) return "concrete";
+  if (/wood framing|metal stud|drywall|ceiling|interior trim|flooring|tile|paint/.test(s)) return "interiors";
+  if (/siding|cladding|waterproof|exterior trim|insulation/.test(s)) return "interiors";
+  if (/glass|glazing|curtain|storefront|elevator|escalator|scaffold|hoist|rigg|weld/.test(s)) return "steel_work";
+  if (/sheet metal|safety|environmental/.test(s)) return "general_construction";
   return null;
 }
 

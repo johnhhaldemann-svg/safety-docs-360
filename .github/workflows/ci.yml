@@ -38,9 +38,15 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-build
 
   playwright-full:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    # Skip until all E2E secrets are set; failures fail the job once configured.
+    if: >-
+      github.event_name == 'push'
+      && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      && secrets.E2E_USER_EMAIL != ''
+      && secrets.E2E_USER_PASSWORD != ''
+      && secrets.E2E_NEXT_PUBLIC_SUPABASE_URL != ''
+      && secrets.E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY != ''
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -49,7 +55,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install chromium --with-deps
-      - name: Full E2E (requires E2E_USER_* secrets on the repo)
+      - name: Full E2E (requires E2E_USER_* and E2E_NEXT_PUBLIC_* secrets)
         run: npm run test:e2e:ci
         env:
           CI: true

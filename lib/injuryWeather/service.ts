@@ -100,7 +100,7 @@ const DEFAULT_TRADE_FORECASTS: TradeForecast[] = [
     footerNote: "Temporary power inspection watchlist is elevated.",
   },
   {
-    trade: "Concrete",
+    trade: "Concrete Forming & Placement",
     forecastProvenance: "demo",
     categories: [
       { name: "Struck-By Hazards", predictedCount: 15, riskLevel: "LOW" },
@@ -109,7 +109,7 @@ const DEFAULT_TRADE_FORECASTS: TradeForecast[] = [
     footerNote: "Current Status: Under Control",
   },
   {
-    trade: "Steel Work",
+    trade: "Steel Framing / Structural Steel",
     forecastProvenance: "demo",
     categories: [
       { name: "Rigging Safety", predictedCount: 41, riskLevel: "MODERATE" },

@@ -4,10 +4,30 @@
  */
 
 import {
+  CONSTRUCTION_TRADE_DEFINITIONS,
+  type FieldAuditScopeKey,
+} from "@/lib/constructionTradeTaxonomy";
+import {
   type FieldAuditSection,
   OSHA_FIELD_AUDIT_SECTIONS,
   fieldItemKey,
 } from "@/lib/jobsiteAudits/oshaFieldAuditTemplate";
+
+const SCOPE_KEYS = new Set<string>(
+  CONSTRUCTION_TRADE_DEFINITIONS.map((d) => d.fieldScope as string)
+);
+
+function resolveFieldScopeKey(tradeSlug: string): FieldAuditScopeKey {
+  const t = tradeSlug.trim();
+  if (t === "general_contractor") return "general_contractor";
+  if (CONSTRUCTION_TRADE_DEFINITIONS.some((d) => d.slug === t)) {
+    const d = CONSTRUCTION_TRADE_DEFINITIONS.find((x) => x.slug === t)!;
+    return d.fieldScope;
+  }
+  if (SCOPE_KEYS.has(t)) return t as FieldAuditScopeKey;
+  if (t in TRADE_EXTRA_SECTION_IDS) return t as FieldAuditScopeKey;
+  return "other";
+}
 
 /** Sections most trades share (site, falls, PPE, health, emergency). */
 export const CORE_FIELD_AUDIT_SECTION_IDS: readonly string[] = [
@@ -56,11 +76,11 @@ const TRADE_EXTRA_SECTION_IDS: Record<string, readonly string[]> = {
 };
 
 export function getFieldAuditSectionsForTrade(trade: string): FieldAuditSection[] {
-  const t = trade.trim();
-  if (t === "general_contractor") {
+  const scope = resolveFieldScopeKey(trade);
+  if (scope === "general_contractor") {
     return OSHA_FIELD_AUDIT_SECTIONS;
   }
-  const extras = TRADE_EXTRA_SECTION_IDS[t];
+  const extras = TRADE_EXTRA_SECTION_IDS[scope];
   const allowed = new Set(extras ?? CORE_FIELD_AUDIT_SECTION_IDS);
   return OSHA_FIELD_AUDIT_SECTIONS.filter((s) => allowed.has(s.id));
 }

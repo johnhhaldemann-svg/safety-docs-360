@@ -62,7 +62,10 @@ export default function BillingInvoiceDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    void load();
+    const t = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [load]);
 
   async function postJson(path: string, body: Record<string, unknown>) {

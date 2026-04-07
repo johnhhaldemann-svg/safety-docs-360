@@ -117,7 +117,10 @@ export default function SearchPage() {
   }, []);
 
   useEffect(() => {
-    void loadDocuments();
+    const t = window.setTimeout(() => {
+      void loadDocuments();
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [loadDocuments]);
 
   const typeOptions = useMemo(() => {

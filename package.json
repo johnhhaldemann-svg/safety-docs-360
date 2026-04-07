@@ -21,7 +21,10 @@
     "streamlit:osha": "node ./scripts/run-osha-streamlit.mjs",
     "streamlit:osha:install": "node ./scripts/install-osha-streamlit-deps.mjs",
     "streamlit:osha:demo-data": "node ./scripts/run-demo-ipa-generator.mjs",
-    "supabase": "supabase"
+    "supabase": "supabase",
+    "db:push": "supabase db push --yes",
+    "vercel:prod": "npx --yes vercel@latest deploy --prod",
+    "vercel:preview": "npx --yes vercel@latest deploy"
   },
   "dependencies": {
     "@radix-ui/react-tabs": "^1.1.13",
@@ -47,7 +50,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "^16.2.1",
-    "supabase": "^2.84.9",
+    "supabase": "^2.84.10",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.2"

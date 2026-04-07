@@ -1,5 +1,9 @@
 # Developer setup and operations
 
+## Production checklist
+
+For Vercel env vars, Supabase Auth URLs, cron, and GitHub E2E secrets, use [production-deployment.md](./production-deployment.md). For support, onboarding, and launch-mode decisions, see [support-onboarding-runbook.md](./support-onboarding-runbook.md).
+
 ## Staging vs production Supabase
 
 - Use **separate Supabase projects** for staging and production.
@@ -8,9 +12,12 @@
 
 ## Migrations
 
-1. Install [Supabase CLI](https://supabase.com/docs/guides/cli).
-2. Link: `supabase link --project-ref <ref>`.
-3. Push schema: `supabase db push` (or your team’s documented migration process).
+1. Install [Supabase CLI](https://supabase.com/docs/guides/cli) (or use `npx supabase` / `npm run supabase`).
+2. Repo root includes [`supabase/config.toml`](../supabase/config.toml) from `supabase init` so `db push` works in CI and locally.
+3. Link: `supabase link --project-ref <ref>`.
+4. Push schema: `npm run db:push` or `supabase db push` (or your team’s documented migration process).
+
+**Vercel** does not execute migrations. Optional GitHub workflow: [supabase-db-push.yml](../.github/workflows/supabase-db-push.yml) (secrets documented in [production-deployment.md](./production-deployment.md)).
 
 After pulling new migrations, re-run push before testing features that depend on new tables or RLS.
 
@@ -34,5 +41,5 @@ After pulling new migrations, re-run push before testing features that depend on
 ## E2E tests
 
 1. Configure `NEXT_PUBLIC_SUPABASE_*` so the app can run.
-2. Optional: `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` for authenticated suites.
+2. Optional: `E2E_USER_EMAIL`, `E2E_USER_PASSWORD`, `E2E_NEXT_PUBLIC_SUPABASE_URL`, and `E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY` for CI full E2E on `main` (all four required there; see [production-deployment.md](./production-deployment.md)).
 3. Run `npm run test:e2e` or `npm run test:e2e:ci` (see root [`README.md`](../README.md)).
