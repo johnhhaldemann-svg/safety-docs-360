@@ -389,7 +389,12 @@ export function canManageCompanyUsers(role?: string | null) {
 }
 
 export function getRolePermissions(role?: string | null): AppPermission[] {
-  return [...ROLE_PERMISSIONS[normalizeAppRole(role)]];
+  const normalized = normalizeAppRole(role);
+  const row = ROLE_PERMISSIONS[normalized];
+  if (!row) {
+    return [];
+  }
+  return [...row];
 }
 
 export function hasPermission(
@@ -500,6 +505,17 @@ function getLegacyCompanyId(user: AuthLikeUser) {
   return metadataCompanyId.trim() || null;
 }
 
+function isMissingPermissionOverridesColumn(error?: { message?: string | null } | null) {
+  const m = (error?.message ?? "").toLowerCase();
+  return (
+    m.includes("permission_overrides") &&
+    (m.includes("does not exist") ||
+      m.includes("schema cache") ||
+      m.includes("could not find") ||
+      m.includes("column"))
+  );
+}
+
 async function getRoleRow(
   supabase: SupabaseLikeClient,
   userId: string
@@ -516,6 +532,26 @@ async function getRoleRow(
     .select("user_id, role, team, company_id, account_status, permission_overrides")
     .eq("user_id", userId)
     .maybeSingle();
+
+  if (error && isMissingPermissionOverridesColumn(error)) {
+    const fallback = await (
+      supabase.from("user_roles") as {
+        select: (columns: string) => {
+          eq: (column: string, value: string) => {
+            maybeSingle: () => PromiseLike<{ data: unknown; error: MessageError | null }>;
+          };
+        };
+      }
+    )
+      .select("user_id, role, team, company_id, account_status")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    return {
+      data: (fallback.data as RoleRow | null) ?? null,
+      error: fallback.error ?? null,
+    };
+  }
 
   if (error) {
     return {
@@ -551,26 +587,63 @@ async function upsertRoleRow(params: {
     actorUserId,
   } = params;
 
-  return (supabase.from("user_roles") as unknown as {
+  const table = supabase.from("user_roles") as unknown as {
     upsert: (
       values: Record<string, unknown>,
       options?: Record<string, unknown>
     ) => PromiseLike<{ error: MessageError | null }>;
-  }).upsert(
-    {
-      user_id: userId,
-      role,
-      team,
-      company_id: companyId ?? null,
-      account_status: accountStatus ?? "active",
-      permission_overrides: normalizePermissionOverrides(permissionOverrides),
-      created_by: actorUserId ?? null,
-      updated_by: actorUserId ?? null,
-    },
-    {
-      onConflict: "user_id",
+  };
+
+  const baseRow: Record<string, unknown> = {
+    user_id: userId,
+    role,
+    team,
+    company_id: companyId ?? null,
+    account_status: accountStatus ?? "active",
+    created_by: actorUserId ?? null,
+    updated_by: actorUserId ?? null,
+  };
+
+  const withOverrides = {
+    ...baseRow,
+    permission_overrides: normalizePermissionOverrides(permissionOverrides),
+  };
+
+  let result = await table.upsert(withOverrides, { onConflict: "user_id" });
+  if (result.error && isMissingPermissionOverridesColumn(result.error)) {
+    result = await table.upsert(baseRow, { onConflict: "user_id" });
+  }
+
+  return result;
+}
+
+async function fetchCompanyPermissionOverrides(
+  supabase: SupabaseLikeClient,
+  companyId: string
+): Promise<PermissionOverrides | null> {
+  const companyRow = await (
+    supabase.from("companies") as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          maybeSingle: () => PromiseLike<{ data: unknown; error: MessageError | null }>;
+        };
+      };
     }
-  );
+  )
+    .select("permission_overrides")
+    .eq("id", companyId)
+    .maybeSingle();
+
+  if (companyRow.error && isMissingPermissionOverridesColumn(companyRow.error)) {
+    return null;
+  }
+
+  if (companyRow.error) {
+    return null;
+  }
+
+  const companyRecord = companyRow.data as { permission_overrides?: unknown } | null;
+  return normalizePermissionOverrides(companyRecord?.permission_overrides ?? null);
 }
 
 export async function getUserRoleContext(params: {
@@ -615,25 +688,7 @@ export async function getUserRoleContext(params: {
     let companyPermissionOverrides: PermissionOverrides | null = null;
 
     if (companyId) {
-      const companyRow = await (
-        supabase.from("companies") as {
-          select: (columns: string) => {
-            eq: (column: string, value: string) => {
-              maybeSingle: () => PromiseLike<{ data: unknown; error: MessageError | null }>;
-            };
-          };
-        }
-      )
-        .select("permission_overrides")
-        .eq("id", companyId)
-        .maybeSingle();
-
-      if (!companyRow.error) {
-        const companyRecord = companyRow.data as { permission_overrides?: unknown } | null;
-        companyPermissionOverrides = normalizePermissionOverrides(
-          companyRecord?.permission_overrides ?? null
-        );
-      }
+      companyPermissionOverrides = await fetchCompanyPermissionOverrides(supabase, companyId);
     }
 
     const permissionOverrides = normalizePermissionOverrides(roleRowResult.data.permission_overrides);
@@ -663,25 +718,7 @@ export async function getUserRoleContext(params: {
   let companyPermissionOverrides: PermissionOverrides | null = null;
 
   if (legacyCompanyId) {
-    const companyRow = await (
-      supabase.from("companies") as {
-        select: (columns: string) => {
-          eq: (column: string, value: string) => {
-            maybeSingle: () => PromiseLike<{ data: unknown; error: MessageError | null }>;
-          };
-        };
-      }
-    )
-      .select("permission_overrides")
-      .eq("id", legacyCompanyId)
-      .maybeSingle();
-
-    if (!companyRow.error) {
-      const companyRecord = companyRow.data as { permission_overrides?: unknown } | null;
-      companyPermissionOverrides = normalizePermissionOverrides(
-        companyRecord?.permission_overrides ?? null
-      );
-    }
+    companyPermissionOverrides = await fetchCompanyPermissionOverrides(supabase, legacyCompanyId);
   }
 
   if (
@@ -881,7 +918,12 @@ export async function authorizeRequest(
 
   if (
     options.requirePermission &&
-    !hasPermission(roleContext.role, options.requirePermission)
+    !hasPermission(
+      roleContext.role,
+      options.requirePermission,
+      roleContext.companyPermissionOverrides,
+      roleContext.permissionOverrides
+    )
   ) {
     return {
       error: NextResponse.json(
@@ -893,7 +935,12 @@ export async function authorizeRequest(
 
   if (
     options.requireAnyPermission &&
-    !hasAnyPermission(roleContext.role, options.requireAnyPermission)
+    !hasAnyPermission(
+      roleContext.role,
+      options.requireAnyPermission,
+      roleContext.companyPermissionOverrides,
+      roleContext.permissionOverrides
+    )
   ) {
     return {
       error: NextResponse.json(

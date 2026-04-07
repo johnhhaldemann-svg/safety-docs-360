@@ -19,6 +19,7 @@ import {
   getSupabaseServerUrl,
 } from "@/lib/supabaseAdmin";
 import { planNameToWorkspaceProduct, type WorkspaceProduct } from "@/lib/workspaceProduct";
+import { serverLog } from "@/lib/serverLog";
 
 export const runtime = "nodejs";
 
@@ -474,6 +475,20 @@ function getFallbackFullName(user: {
 }
 
 export async function GET(request: Request) {
+  try {
+    return await handleAuthMeGet(request);
+  } catch (error) {
+    serverLog("error", "auth_me_get_unhandled", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json(
+      { error: "Could not load session profile." },
+      { status: 500 }
+    );
+  }
+}
+
+async function handleAuthMeGet(request: Request) {
   const auth = await authorizeRequest(request, {
     allowPending: true,
     allowSuspended: true,
