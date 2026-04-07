@@ -590,13 +590,22 @@ function LibraryPageContent() {
   const workflowSteps = isManagerView
     ? [
         {
-          label: "Completed docs only",
-      detail: "Company accounts are limited to the completed-document side of the workflow.",
+          label: "Ready & marketplace",
+          detail:
+            "Open approved company files from Ready to open; use Marketplace unlocks for listed documents from credits.",
           complete: true,
         },
         {
+          label: "Active documents",
+          detail:
+            "Preview draft or in-review submissions from the Active documents list when a file has been uploaded.",
+          active: otherDocuments.length > 0,
+          complete:
+            accessibleApprovedDocuments.length > 0 || otherDocuments.length === 0,
+        },
+        {
           label: "Library access",
-          detail: "Open approved files directly from the completed library.",
+          detail: "Open approved finals with download confirmation when you have access.",
           active: accessibleApprovedDocuments.length > 0,
           complete: accessibleApprovedDocuments.length > 0,
         },
@@ -900,7 +909,7 @@ function LibraryPageContent() {
         title={isManagerView ? "Company Access Workflow" : "Upload to Library Workflow"}
         description={
           isManagerView
-            ? "This role stays on the completed-document side of the platform and does not handle draft or review-stage files."
+            ? "Approved files land in Ready to open. Draft and in-review company submissions appear under Active documents, where you can preview attached files when storage paths exist."
             : "The library is the end of the document journey. Files appear here after upload, submission, admin review, and final approval."
         }
         steps={workflowSteps}
@@ -937,21 +946,19 @@ function LibraryPageContent() {
         highlightDocumentId={highlightDocId}
       />
 
-      {!isManagerView ? (
-        <DocumentSection
-          title="All active documents"
-          description="Uploaded records that are still in progress or waiting on completion."
-          loading={loading}
-          documents={otherDocuments}
-          emptyTitle="No documents found"
-          emptyMessage="Try adjusting your filters or upload a new file."
-          onOpen={(doc) =>
-            handleOpenFile(doc.file_path ?? doc.draft_file_path ?? doc.final_file_path)
-          }
-          actionLabel="Preview file"
-          highlightDocumentId={highlightDocId}
-        />
-      ) : null}
+      <DocumentSection
+        title="All active documents"
+        description="Uploaded records that are still in progress or waiting on completion."
+        loading={loading}
+        documents={otherDocuments}
+        emptyTitle="No documents found"
+        emptyMessage="Try adjusting your filters or upload a new file."
+        onOpen={(doc) =>
+          handleOpenFile(doc.file_path ?? doc.draft_file_path ?? doc.final_file_path)
+        }
+        actionLabel="Preview file"
+        highlightDocumentId={highlightDocId}
+      />
 
       <DownloadConfirmModal
         open={Boolean(pendingDownload)}
