@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
+import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
   InlineMessage,
@@ -323,6 +325,18 @@ export default function PESHEPUniversalPage() {
           </>
         }
       />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <CompanyAiAssistPanel
+          surface="peshep"
+          structuredContext={JSON.stringify({
+            project_name: answers.project_name,
+            company_name: answers.company_name,
+            step: steps[step]?.title,
+          })}
+        />
+        <CompanyMemoryBankPanel />
+      </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_340px]">
         <div className="space-y-5">

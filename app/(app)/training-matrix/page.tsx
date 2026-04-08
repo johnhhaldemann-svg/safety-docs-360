@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Check, Minus, X } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
+import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import { ComplianceCommandCenter } from "@/components/training-matrix/ComplianceCommandCenter";
 import { InlineMessage, SectionCard } from "@/components/WorkspacePrimitives";
 import { TRAINING_REQUIREMENTS_MIGRATION_SQL } from "@/lib/companyTrainingRequirementsDb";
@@ -1015,6 +1017,20 @@ export default function TrainingMatrixPage() {
           </div>
         </div>
       </section>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <CompanyAiAssistPanel
+          surface="training_matrix"
+          title="Training assistant"
+          structuredContext={JSON.stringify({
+            requirements: requirements.length,
+            people: rows.length,
+            met: trackerStats?.met,
+            gap: trackerStats?.gap,
+          })}
+        />
+        <CompanyMemoryBankPanel />
+      </div>
 
       {schemaMigrationNeeded && !schemaMigrationBannerDismissed ? (
         <SchemaMigrationBanner onDismiss={dismissSchemaMigrationBanner} />

@@ -5,6 +5,8 @@ import { createClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
+import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
+import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import {
   ActivityFeed,
   EmptyState,
@@ -317,7 +319,7 @@ export default function SubmitPage() {
           <>
             <Link
               href="/my-submissions"
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
+              className="rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-800"
             >
               My Submissions
             </Link>
@@ -330,6 +332,21 @@ export default function SubmitPage() {
           </>
         }
       />
+
+      {companyId ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <CompanyAiAssistPanel
+            surface="submit"
+            title="Submission assistant"
+            structuredContext={JSON.stringify({
+              serviceType,
+              title: title.trim() || undefined,
+              hasFiles,
+            })}
+          />
+          <CompanyMemoryBankPanel />
+        </div>
+      ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <SectionCard
@@ -346,10 +363,11 @@ export default function SubmitPage() {
           ) : null}
           <fieldset disabled={permissionsLoading || !canSubmitDocuments} className="grid gap-5 disabled:opacity-60">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-300">
+              <label htmlFor="submission-title" className="mb-2 block text-sm font-semibold text-slate-300">
                 Request Title
               </label>
               <input
+                id="submission-title"
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -359,10 +377,11 @@ export default function SubmitPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-300">
+              <label htmlFor="submission-service-type" className="mb-2 block text-sm font-semibold text-slate-300">
                 Service Type
               </label>
               <select
+                id="submission-service-type"
                 value={serviceType}
                 onChange={(e) => setServiceType(e.target.value)}
                 className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
@@ -375,10 +394,11 @@ export default function SubmitPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-300">
+              <label htmlFor="submission-notes" className="mb-2 block text-sm font-semibold text-slate-300">
                 Notes for Our Team
               </label>
               <textarea
+                id="submission-notes"
                 value={customerNotes}
                 onChange={(e) => setCustomerNotes(e.target.value)}
                 rows={5}
@@ -388,10 +408,11 @@ export default function SubmitPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-300">
+              <label htmlFor="submission-files" className="mb-2 block text-sm font-semibold text-slate-300">
                 Upload Source Files
               </label>
               <input
+                id="submission-files"
                 type="file"
                 multiple
                 onChange={(e) => setSelectedFiles(e.target.files)}

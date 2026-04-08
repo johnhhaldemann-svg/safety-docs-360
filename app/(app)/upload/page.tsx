@@ -4,6 +4,8 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
+import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
@@ -377,6 +379,23 @@ async function confirmOpenFile() {
           </>
         }
       />
+
+      {companyId ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <CompanyAiAssistPanel
+            surface="upload"
+            title="Upload assistant"
+            structuredContext={JSON.stringify({
+              projectName: projectName.trim() || undefined,
+              documentTitle: documentTitle.trim() || undefined,
+              documentType,
+              category,
+              recentUploads: uploadCounts.total,
+            })}
+          />
+          <CompanyMemoryBankPanel />
+        </div>
+      ) : null}
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard

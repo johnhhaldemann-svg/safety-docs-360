@@ -1,7 +1,18 @@
 import { test, expect } from "./fixtures";
-import { performLogin, performLogout, hasE2ECredentials } from "./helpers/auth";
+import { performLogin, performLogout } from "./helpers/auth";
 import { clearClientAuthState } from "./helpers/storage";
 import { expectAuthenticatedShellUrl } from "./helpers/sessionWait";
+
+function getAuthSmokeCredentials() {
+  const email = process.env.E2E_AUTH_USER_EMAIL?.trim() || process.env.E2E_USER_EMAIL?.trim();
+  const password = process.env.E2E_AUTH_USER_PASSWORD?.trim() || process.env.E2E_USER_PASSWORD?.trim();
+
+  if (!email || !password) {
+    return null;
+  }
+
+  return { email, password };
+}
 
 test.describe("Login page", () => {
   test("loads secure access portal", async ({ page }) => {
@@ -24,10 +35,10 @@ test.describe("Login page", () => {
 
 test.describe("Authenticated session", () => {
   test("login and logout round-trip", async ({ page }) => {
-    test.skip(!hasE2ECredentials(), "Set E2E_USER_EMAIL and E2E_USER_PASSWORD to run this test.");
+    const credentials = getAuthSmokeCredentials();
+    test.skip(!credentials, "Set E2E_AUTH_USER_EMAIL and E2E_AUTH_USER_PASSWORD to run this test.");
 
-    const email = process.env.E2E_USER_EMAIL!;
-    const password = process.env.E2E_USER_PASSWORD!;
+    const { email, password } = credentials!;
 
     await performLogin(page, { email, password });
     await expectAuthenticatedShellUrl(page, "after login");

@@ -5,6 +5,8 @@ import { createClient } from "@supabase/supabase-js";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
+import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import { MarketplacePreviewModal } from "@/components/MarketplacePreviewModal";
 import {
@@ -1033,6 +1035,21 @@ function LibraryPageContent() {
           </div>
         </div>
       </section>
+
+      {isManagerView ? (
+        <section className="grid gap-4 lg:grid-cols-2">
+          <CompanyAiAssistPanel
+            surface="library"
+            title="Library assistant"
+            structuredContext={JSON.stringify({
+              workspaceDocuments: documents.length,
+              marketplaceEntries: marketplaceCatalog.length,
+              search: searchTerm.trim() || undefined,
+            })}
+          />
+          <CompanyMemoryBankPanel />
+        </section>
+      ) : null}
 
       <section className="rounded-[1.75rem] border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">

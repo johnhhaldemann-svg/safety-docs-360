@@ -4,6 +4,8 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
+import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import {
   EmptyState,
   InlineMessage,
@@ -160,6 +162,20 @@ export default function PermitsPage() {
           </Link>
         }
       />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <CompanyAiAssistPanel
+          surface="permits"
+          title="Permit assistant"
+          structuredContext={JSON.stringify({
+            total: counts.total,
+            active: counts.active,
+            sif: counts.sif,
+            stopWork: counts.stopWork,
+          })}
+        />
+        <CompanyMemoryBankPanel />
+      </div>
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 

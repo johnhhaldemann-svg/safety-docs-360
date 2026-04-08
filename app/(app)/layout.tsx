@@ -1144,7 +1144,7 @@ export default function AppLayout({
                           </p>
                         </div>
                       </div>
-                      <p className="mt-1 max-w-3xl text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500 sm:text-sm">
+                      <p className="mt-1 max-w-3xl text-[11px] font-medium uppercase tracking-[0.14em] text-slate-300 sm:text-sm">
                         Enterprise Safety Management Platform
                       </p>
                     </div>
@@ -1218,5 +1218,4 @@ export default function AppLayout({
     </div>
   );
 }
-
 

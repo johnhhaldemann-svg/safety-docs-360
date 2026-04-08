@@ -20,6 +20,8 @@ import {
   Shield,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
+import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -1085,6 +1087,19 @@ export function JsaWorkspace() {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2 print:hidden">
+          <CompanyAiAssistPanel
+            surface="jsa"
+            title="JSA assistant"
+            structuredContext={JSON.stringify({
+              jobsite: jobSiteName.trim() || undefined,
+              activeJsaId: selectedId || undefined,
+              steps: steps.length,
+            })}
+          />
+          <CompanyMemoryBankPanel />
         </div>
 
         {message ? (

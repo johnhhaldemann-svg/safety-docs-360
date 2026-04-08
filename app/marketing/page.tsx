@@ -63,7 +63,7 @@ export default function MarketingPage() {
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-slate-700/80 bg-slate-900/85 px-6 py-4 shadow-lg backdrop-blur">
           <div>
             <div className="text-2xl font-black tracking-tight">Safety360Docs</div>
-            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">
               Enterprise Safety Management Platform
             </div>
           </div>
@@ -101,7 +101,7 @@ export default function MarketingPage() {
           <h1 className="mt-5 max-w-4xl text-4xl font-black tracking-tight text-white sm:text-6xl">
             Turn safety documents into a managed workflow, not a folder problem.
           </h1>
-          <p className="mt-6 max-w-3xl text-base leading-8 text-slate-400">
+          <p className="mt-6 max-w-3xl text-base leading-8 text-slate-300">
             Safety360Docs brings uploads, reviews, approvals, builders, compliance
             records, admin oversight, and completed deliverables into one clean
             workspace built for active projects and growing teams.
@@ -130,7 +130,7 @@ export default function MarketingPage() {
             ].map(([title, body]) => (
               <div key={title} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                 <div className="text-lg font-bold text-slate-100">{title}</div>
-                <div className="mt-2 text-sm leading-6 text-slate-500">{body}</div>
+                <div className="mt-2 text-sm leading-6 text-slate-300">{body}</div>
               </div>
             ))}
           </div>
@@ -139,7 +139,7 @@ export default function MarketingPage() {
         <div className="rounded-[2.2rem] border border-slate-800 bg-[linear-gradient(180deg,_#0f1f3b_0%,_#152e54_100%)] p-6 text-white shadow-[0_22px_48px_rgba(15,23,42,0.24)] sm:p-8">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-200">
+                <div className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-100">
                 Product Snapshot
               </div>
               <div className="mt-3 text-3xl font-black tracking-tight">
@@ -174,7 +174,7 @@ export default function MarketingPage() {
             <div className="mt-5 rounded-2xl border border-white/10 bg-[#0d1830] p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold text-white">Admin Queues</div>
-                <div className="text-xs text-slate-300">Review and access</div>
+                <div className="text-xs text-slate-200">Review and access</div>
               </div>
               <div className="mt-4 space-y-3">
                 {proofTiles.map((tile, index) => (
@@ -202,7 +202,7 @@ export default function MarketingPage() {
           <div className="mt-3 text-3xl font-black tracking-tight text-white">
             One clear route from source file to approved document.
           </div>
-          <div className="mt-4 max-w-3xl text-sm leading-7 text-slate-400">
+          <div className="mt-4 max-w-3xl text-sm leading-7 text-slate-300">
             The strongest part of the product story is the workflow itself. Show teams
             exactly how documents move, who approves them, and where completed files
             live when the job is done.
@@ -211,11 +211,11 @@ export default function MarketingPage() {
           <div className="mt-8 grid gap-5 lg:grid-cols-4">
             {workflowSteps.map((step, index) => (
               <div key={step.title} className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-5">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">
                   Step {index + 1}
                 </div>
                 <div className="mt-3 text-xl font-bold text-slate-100">{step.title}</div>
-                <div className="mt-3 text-sm leading-7 text-slate-400">{step.body}</div>
+                <div className="mt-3 text-sm leading-7 text-slate-300">{step.body}</div>
               </div>
             ))}
           </div>
@@ -230,7 +230,7 @@ export default function MarketingPage() {
               className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm"
             >
               <div className="text-xl font-bold text-slate-100">{feature.title}</div>
-              <p className="mt-3 text-sm leading-7 text-slate-400">{feature.body}</p>
+              <p className="mt-3 text-sm leading-7 text-slate-300">{feature.body}</p>
             </div>
           ))}
         </div>
@@ -252,7 +252,7 @@ export default function MarketingPage() {
                   className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
                 >
                   <div className="text-lg font-bold text-slate-100">{item.role}</div>
-                  <div className="mt-3 text-sm leading-7 text-slate-400">{item.text}</div>
+                  <div className="mt-3 text-sm leading-7 text-slate-300">{item.text}</div>
                 </div>
               ))}
             </div>
@@ -274,7 +274,7 @@ export default function MarketingPage() {
               ].map((line) => (
                 <div
                   key={line}
-                  className="rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-4 text-sm leading-7 text-slate-400"
+                className="rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-4 text-sm leading-7 text-slate-300"
                 >
                   {line}
                 </div>
@@ -316,11 +316,11 @@ export default function MarketingPage() {
       </section>
 
       <footer className="mx-auto max-w-7xl px-6 pb-10">
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-slate-700/60 pt-6 text-xs text-slate-500">
-          <Link href="/terms" className="font-semibold text-slate-400 hover:text-slate-200">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-slate-700/60 pt-6 text-xs text-slate-300">
+          <Link href="/terms" className="font-semibold text-slate-300 hover:text-slate-100">
             Terms
           </Link>
-          <Link href="/privacy" className="font-semibold text-slate-400 hover:text-slate-200">
+          <Link href="/privacy" className="font-semibold text-slate-300 hover:text-slate-100">
             Privacy
           </Link>
         </div>

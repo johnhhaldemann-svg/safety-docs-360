@@ -10,6 +10,8 @@ import {
   StatusBadge,
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
+import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
+import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import { GcRequiredProgramUpload } from "@/components/csep/GcRequiredProgramUpload";
 import {
   csepDefaultPpeForKind,
@@ -549,6 +551,18 @@ export default function CSEPPage() {
           />
         </div>
 
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <CompanyAiAssistPanel
+            surface="csep"
+            structuredContext={JSON.stringify({
+              trade: form.trade,
+              project_name: form.project_name,
+              selected_hazards: form.selected_hazards,
+            })}
+          />
+          <CompanyMemoryBankPanel />
+        </div>
+
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
             {!authLoading && !canUseBuilder ? (
@@ -642,7 +656,7 @@ export default function CSEPPage() {
                   <h2 className="text-xl font-semibold text-slate-100">
                     Trade Selection
                   </h2>
-                  <p className="mt-1 text-sm text-slate-400">
+                  <p className="mt-1 text-sm text-slate-300">
                     Selecting a trade loads that trade’s default hazards,
                     activities, controls, and permit triggers.
                   </p>
@@ -809,7 +823,7 @@ export default function CSEPPage() {
                     </label>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-300">
                     Select a trade to load hazards.
                   </p>
                 )}
@@ -820,7 +834,7 @@ export default function CSEPPage() {
               <h2 className="text-xl font-semibold text-slate-100">
                 Submit for Review
               </h2>
-              <p className="mt-2 text-sm text-slate-400">
+              <p className="mt-2 text-sm text-slate-300">
                 Submit this CSEP to the admin review queue. The completed document will only be available after admin review is finished.
               </p>
 
@@ -924,7 +938,7 @@ export default function CSEPPage() {
                     </span>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-500">No sections selected.</p>
+                  <p className="text-sm text-slate-300">No sections selected.</p>
                 )}
               </div>
             </section>
@@ -944,7 +958,7 @@ export default function CSEPPage() {
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-300">
                     Select a trade to load OSHA references.
                   </p>
                 )}
@@ -966,7 +980,7 @@ export default function CSEPPage() {
                     </span>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-300">
                     No hazards selected for the generated CSEP.
                   </p>
                 )}
@@ -988,7 +1002,7 @@ export default function CSEPPage() {
                     </span>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-300">
                     Select hazards to auto-generate program sections in the CSEP.
                   </p>
                 )}
@@ -1010,7 +1024,7 @@ export default function CSEPPage() {
                     </span>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-300">
                     Select a trade to load permits.
                   </p>
                 )}
@@ -1051,7 +1065,7 @@ export default function CSEPPage() {
                       </div>
                     ))
                 ) : (
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-300">
                     Select a trade to load the activity / hazard matrix.
                   </p>
                 )}
@@ -1067,7 +1081,7 @@ export default function CSEPPage() {
                 <div className="text-sm font-semibold text-slate-100">
                   Submission Handoff
                 </div>
-                <div className="mt-1 text-sm text-slate-500">
+                <div className="mt-1 text-sm text-slate-300">
                   Review the snapshot on the right, then send the CSEP into admin review.
                 </div>
               </div>
@@ -1116,7 +1130,7 @@ function SnapshotRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
-      <span className="text-sm text-slate-500">{label}</span>
+      <span className="text-sm text-slate-300">{label}</span>
       <span
         className={`text-right text-sm font-semibold ${
           missing ? "text-amber-200/90" : "text-slate-100"

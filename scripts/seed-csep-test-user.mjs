@@ -45,8 +45,16 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 const email =
   process.env.CSEP_TEST_EMAIL?.trim() || "csep-test@example.com";
 const password = process.env.CSEP_TEST_PASSWORD?.trim() || "CsepLocalTest2026!";
-const teamKey = "csep-local-test";
-const companyName = "CSEP Local Test Company";
+const companyName =
+  process.env.CSEP_TEST_COMPANY_NAME?.trim() || "CSEP Local Test Company";
+const teamKey =
+  process.env.CSEP_TEST_TEAM_KEY?.trim() ||
+  companyName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") ||
+  "csep-local-test";
+const companyPlan = process.env.CSEP_TEST_PLAN_NAME?.trim() || "CSEP";
 const testRole = process.env.CSEP_TEST_ROLE?.trim() || "company_user";
 
 function looksLikePlaceholder(u, key) {
@@ -120,7 +128,7 @@ async function ensureCsepSubscription(companyId) {
     {
       company_id: companyId,
       status: "active",
-      plan_name: "CSEP",
+      plan_name: companyPlan,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "company_id" }
@@ -214,6 +222,55 @@ async function upsertRoleAndMembership(userId, companyId) {
   if (memErr) {
     throw new Error(memErr.message);
   }
+
+  const { error: metaErr } = await supabase.auth.admin.updateUserById(userId, {
+    user_metadata: {
+      role: testRole,
+      team: companyName,
+      company_id: companyId,
+      account_status: "active",
+      company_name: companyName,
+    },
+    app_metadata: {
+      role: testRole,
+      team: companyName,
+      company_id: companyId,
+      account_status: "active",
+      company_name: companyName,
+    },
+  });
+
+  if (metaErr) {
+    throw new Error(metaErr.message);
+  }
+
+  const { error: profileErr } = await supabase.from("user_profiles").upsert(
+    {
+      user_id: userId,
+      full_name: "Submit Smoke",
+      preferred_name: "Submit Smoke",
+      job_title: "Superintendent",
+      trade_specialty: "General Contractor",
+      years_experience: 10,
+      phone: "555-555-0100",
+      city: "Chicago",
+      state_region: "IL",
+      readiness_status: "ready",
+      certifications: [],
+      certification_expirations: {},
+      specialties: ["Documentation", "Company onboarding"],
+      equipment: [],
+      bio: "Construction profile seeded for live smoke testing.",
+      photo_url: null,
+      photo_path: null,
+      profile_complete: true,
+    },
+    { onConflict: "user_id" }
+  );
+
+  if (profileErr) {
+    throw new Error(profileErr.message);
+  }
 }
 
 async function main() {
@@ -226,6 +283,7 @@ async function main() {
   console.log(`  Email:    ${email}`);
   console.log(`  Password: ${password}`);
   console.log(`  Company:  ${companyName} (${companyId})`);
+  console.log(`  Plan:     ${companyPlan}`);
   console.log(`  Role:     ${testRole}`);
 }
 

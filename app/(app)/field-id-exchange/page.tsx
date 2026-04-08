@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
+import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import {
   ActivityFeed,
   EmptyState,
@@ -979,6 +981,20 @@ export default function FieldIdExchangePage() {
           </>
         }
       />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <CompanyAiAssistPanel
+          surface="corrective_actions"
+          title="Corrective action assistant"
+          structuredContext={JSON.stringify({
+            open: openCount,
+            inProgress: inProgressCount,
+            overdue: overdueCount,
+            company: companyName,
+          })}
+        />
+        <CompanyMemoryBankPanel />
+      </div>
 
       <InlineMessage tone="neutral">
         This board stays on-demand. Click Refresh Board to load the current field items, then use

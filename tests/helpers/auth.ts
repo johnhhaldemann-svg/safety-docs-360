@@ -1,5 +1,7 @@
 import type { Page } from "@playwright/test";
 
+/** E2E: with E2E_USER_EMAIL/PASSWORD, authenticated flows can open /dashboard or /library; company AI panels POST to /api/company/ai/assist only after user clicks Ask. */
+
 export function hasE2ECredentials(): boolean {
   return Boolean(process.env.E2E_USER_EMAIL?.trim() && process.env.E2E_USER_PASSWORD);
 }

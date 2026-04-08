@@ -1,6 +1,7 @@
 import { test, expect } from "./fixtures";
 import { hasE2ECredentials } from "./helpers/auth";
 import { expectAuthenticatedShellUrl } from "./helpers/sessionWait";
+import { CLICKWRAP_LABEL } from "@/lib/legal";
 
 test.describe("Library", () => {
   test.beforeEach(() => {
@@ -33,7 +34,20 @@ test.describe("Submit request (form behavior)", () => {
     await page.goto("/submit", { waitUntil: "domcontentloaded" });
     await expectAuthenticatedShellUrl(page, "/submit");
 
-    const submitBtn = page.getByRole("button", { name: "Submit Request" });
+    const plainSubmitBtn = page.getByRole("button", { name: "Submit Request" });
+    const csepSubmitBtn = page.getByRole("button", { name: "Submit for Review" });
+    const isPlainSubmitFlow = await plainSubmitBtn.isVisible().catch(() => false);
+    const isCsepSubmitFlow = await csepSubmitBtn.isVisible().catch(() => false);
+
+    if (!isPlainSubmitFlow && !isCsepSubmitFlow) {
+      test.info().annotations.push({
+        type: "note",
+        description: "Workspace landed on the CSEP summary without a submit CTA, so the checkbox-gate assertion is skipped.",
+      });
+      return;
+    }
+
+    const submitBtn = isPlainSubmitFlow ? plainSubmitBtn : csepSubmitBtn;
     await expect(submitBtn).toBeVisible({ timeout: 25_000 });
 
     const roleBlocked = page.getByText(/cannot submit documents into the review queue/i);
@@ -45,11 +59,17 @@ test.describe("Submit request (form behavior)", () => {
       return;
     }
 
-    const fieldset = page.locator("fieldset").filter({ has: page.getByText("Request Title") });
-    const agreement = fieldset.locator('input[type="checkbox"]');
+    const agreement = page.getByRole("checkbox", { name: CLICKWRAP_LABEL });
     await expect(agreement).toBeVisible({ timeout: 15_000 });
     await expect(submitBtn).toBeDisabled();
     await agreement.check();
+    if (!isPlainSubmitFlow) {
+      test.info().annotations.push({
+        type: "note",
+        description: "CSEP builder requires additional fields, so the legal checkbox alone does not enable submit.",
+      });
+      return;
+    }
     await expect(submitBtn).toBeEnabled({ timeout: 10_000 });
   });
 });

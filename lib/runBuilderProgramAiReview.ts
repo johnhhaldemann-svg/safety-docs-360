@@ -17,7 +17,8 @@ export async function runBuilderProgramDocumentAiReview(
   admin: SupabaseClient,
   documentId: string,
   additionalReviewerContext: string,
-  siteReference?: { buffer: Buffer; fileName: string } | null
+  siteReference?: { buffer: Buffer; fileName: string } | null,
+  options?: { allowedCompanyId?: string | null }
 ): Promise<
   | {
       ok: true;
@@ -58,6 +59,18 @@ export async function runBuilderProgramDocumentAiReview(
 
   if (!doc?.id) {
     return { ok: false, status: 404, error: "Document not found." };
+  }
+
+  const allowed = options?.allowedCompanyId?.trim();
+  if (allowed) {
+    const docCid = (doc as { company_id?: string | null }).company_id?.trim() || "";
+    if (!docCid || docCid !== allowed) {
+      return {
+        ok: false,
+        status: 403,
+        error: "This document is not available in your company workspace.",
+      };
+    }
   }
 
   const programLabel = normalizeBuilderProgramType(doc.document_type ?? null);

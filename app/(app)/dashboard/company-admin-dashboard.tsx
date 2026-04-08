@@ -9,6 +9,8 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
+import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
+import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import {
   getDocumentStatusLabel,
   isApprovedDocumentStatus,
@@ -236,11 +238,11 @@ export function CompanyAdminDashboard({
     return (
       <div className="space-y-6">
         <section className="rounded-[1.9rem] border border-[#dbe9ff] bg-slate-900/90 p-6 shadow-[0_16px_36px_rgba(148,163,184,0.12)]">
-          <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">CSEP workspace</div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">CSEP workspace</div>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
             {companyProfile?.name?.trim() || "Company Workspace"}
           </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
               This account is limited to the CSEP builder. Create and submit Construction Safety &amp; Environmental
               Plans for admin review without the full company operations suite.
             </p>
@@ -267,12 +269,17 @@ export function CompanyAdminDashboard({
             { label: "Approved", value: String(approvedCsep), note: "Completed CSEP files" },
           ].map((card) => (
             <div key={card.label} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm">
-              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">{card.label}</div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">{card.label}</div>
               <div className="mt-2 text-3xl font-black text-white">{loading ? "-" : card.value}</div>
-              <p className="mt-2 text-sm text-slate-500">{card.note}</p>
+              <p className="mt-2 text-sm text-slate-300">{card.note}</p>
             </div>
           ))}
         </section>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <CompanyAiAssistPanel surface="csep" title="CSEP workspace assistant" />
+          <CompanyMemoryBankPanel />
+        </div>
       </div>
     );
   }
@@ -1010,6 +1017,25 @@ export function CompanyAdminDashboard({
 
           {workspaceLoaded && analyticsSummaryIssue ? (
             <InlineMessage tone={analyticsSummaryIssue.tone}>{analyticsSummaryIssue.message}</InlineMessage>
+          ) : null}
+
+          {workspaceLoaded ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <CompanyAiAssistPanel
+                surface="dashboard"
+                title="Operations assistant"
+                structuredContext={JSON.stringify({
+                  totalActiveJobsites: dashboardMetrics.totalActiveJobsites,
+                  totalOpenObservations: dashboardMetrics.totalOpenObservations,
+                  totalHighRiskObservations: dashboardMetrics.totalHighRiskObservations,
+                  openIncidents: dashboardMetrics.openIncidents,
+                  pendingDocuments: pendingDocuments.length,
+                  pendingUsers: pendingUsers.length,
+                  highRiskAlerts: highRiskAlerts.length,
+                })}
+              />
+              <CompanyMemoryBankPanel />
+            </div>
           ) : null}
 
           <SectionCard

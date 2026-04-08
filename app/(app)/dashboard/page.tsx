@@ -1465,11 +1465,11 @@ export default function DashboardPage() {
     return (
       <div className="space-y-6">
         <section className="rounded-[1.8rem] border border-[#d9e8ff] bg-slate-900/90 p-6 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
-          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">
+          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">
             CSEP workspace
           </p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Your CSEP program</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
               This account is limited to the Construction Safety &amp; Environmental Plan builder. Build and submit
               CSEP records for admin review from one place.
             </p>
@@ -1505,9 +1505,9 @@ export default function DashboardPage() {
               key={card.label}
               className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm"
             >
-              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">{card.label}</div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">{card.label}</div>
               <div className="mt-2 text-3xl font-black text-white">{loading ? "-" : card.value}</div>
-              <p className="mt-2 text-sm text-slate-500">{card.note}</p>
+              <p className="mt-2 text-sm text-slate-300">{card.note}</p>
             </div>
           ))}
         </section>
