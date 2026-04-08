@@ -371,6 +371,7 @@ function LibraryPageContent() {
         const raw = await res.text();
         type PreviewMeta = {
           error?: string;
+          stage?: string;
           title?: string;
           excerpt?: string;
           truncated?: boolean;
@@ -386,11 +387,16 @@ function LibraryPageContent() {
 
         if (!res.ok || !data || typeof data !== "object") {
           const trimmed = raw.trim();
-          const msg =
+          const baseMsg =
             (data && typeof data.error === "string" && data.error) ||
             (trimmed && !trimmed.startsWith("<")
               ? trimmed.slice(0, 240)
               : `Preview failed (HTTP ${res.status}).`);
+          const stageMsg =
+            data && typeof data.stage === "string" && data.stage.trim()
+              ? ` [${data.stage.trim()}]`
+              : "";
+          const msg = `${baseMsg}${stageMsg}`;
           setMessage(msg);
           toast.error(msg);
           return;
@@ -477,6 +483,7 @@ function LibraryPageContent() {
         const raw = await res.text();
         type WorkspaceExcerptPayload = {
           error?: string;
+          stage?: string;
           title?: string;
           excerpt?: string;
           truncated?: boolean;
@@ -493,11 +500,16 @@ function LibraryPageContent() {
 
         if (!res.ok) {
           const trimmed = raw.trim();
-          const msg =
+          const baseMsg =
             payload?.error ||
             (trimmed && !trimmed.startsWith("<")
               ? trimmed.slice(0, 200)
               : `Preview failed (HTTP ${res.status}).`);
+          const stageMsg =
+            payload && typeof payload.stage === "string" && payload.stage.trim()
+              ? ` [${payload.stage.trim()}]`
+              : "";
+          const msg = `${baseMsg}${stageMsg}`;
           setMessage(msg);
           toast.error(msg);
           return;
