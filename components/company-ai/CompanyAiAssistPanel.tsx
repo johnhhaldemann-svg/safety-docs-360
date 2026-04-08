@@ -1,12 +1,9 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
 import { useCallback, useState } from "react";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type Props = {
   surface: string;

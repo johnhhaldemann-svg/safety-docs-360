@@ -1,13 +1,10 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
-import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type MemoryItem = {
   id: string;
