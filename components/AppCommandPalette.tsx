@@ -97,7 +97,7 @@ export function AppCommandPalette({ open, onOpenChange, items }: AppCommandPalet
             <li className="px-3 py-6 text-center text-sm text-slate-500">No matches</li>
           ) : (
             filtered.map((item) => (
-              <li key={item.href} role="option">
+              <li key={item.href} role="option" aria-selected={false}>
                 <Link
                   href={item.href}
                   onClick={() => onOpenChange(false)}

@@ -34,7 +34,10 @@ function isInjuryWeatherWithAiPayload(
 }
 
 function dashboardFromAiPayload(body: InjuryWeatherDashboardWithAiResponse): InjuryWeatherDashboardData {
-  const { aiInsights: _a, deterministicBaseline: _d, aiForecastMeta: _m, ...rest } = body;
+  const rest = { ...body } as Record<string, unknown>;
+  delete rest.aiInsights;
+  delete rest.deterministicBaseline;
+  delete rest.aiForecastMeta;
   return rest as InjuryWeatherDashboardData;
 }
 
@@ -1531,9 +1534,12 @@ export function InjuryWeatherDashboard() {
               className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100"
               placeholder="e.g. North campus phase 2"
               title="Included in JSON export only; does not change forecast math"
-              aria-description="Included in JSON export only; does not change forecast math"
+              aria-describedby="injury-weather-report-label-hint"
             />
-            <span className="text-[10px] leading-snug text-slate-600">
+            <span
+              id="injury-weather-report-label-hint"
+              className="text-[10px] leading-snug text-slate-600"
+            >
               For exports and filenames—does not change model inputs.
             </span>
           </label>

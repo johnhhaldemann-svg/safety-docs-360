@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -110,6 +110,24 @@ function getStatusTone(label: string): "neutral" | "success" | "warning" | "info
     return "warning";
   }
   return "info";
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getPulseTone(score: number): "neutral" | "success" | "warning" | "info" | "error" {
+  if (score >= 85) return "success";
+  if (score >= 65) return "info";
+  if (score >= 45) return "warning";
+  return "error";
+}
+
+function getPulseLabel(score: number) {
+  if (score >= 85) return "Thriving";
+  if (score >= 65) return "Strong";
+  if (score >= 45) return "Needs attention";
+  return "At risk";
 }
 
 const DASHBOARD_FILTER_STORAGE_KEY = "safety360:company-dashboard-filters";
@@ -365,6 +383,145 @@ export function CompanyAdminDashboard({
     openIncidents: moduleSummaries.find((item) => item.key === "incidents")?.open ?? 0,
     dapCompletionToday: { completed: 0, total: 0, percent: 0 },
   };
+  const currentDate = new Date(referenceTime);
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+  const documentsThisMonth = documents.filter((document) => {
+    const createdAt = new Date(document.created_at);
+    return createdAt.getMonth() === currentMonth && createdAt.getFullYear() === currentYear;
+  });
+  const approvedThisMonth = approvedDocuments.filter((document) => {
+    const createdAt = new Date(document.created_at);
+    return createdAt.getMonth() === currentMonth && createdAt.getFullYear() === currentYear;
+  });
+  const workspacePulseScore = clampNumber(
+    72 +
+      Math.min(12, approvedDocuments.length * 2) +
+      Math.min(8, activeUsers.length * 2) +
+      Math.min(8, onlineUsers.length * 2) +
+      Math.min(6, jobsites.length * 2) +
+      (creditBalance !== null && creditBalance > 0 ? 4 : 0) -
+      highRiskAlerts.length * 12 -
+      pendingDocuments.length * 4 -
+      pendingUsers.length * 3 -
+      companyInvites.length * 2 -
+      attentionDocuments.length * 5 -
+      overdueActionsCount * 2,
+    0,
+    100
+  );
+  const workspacePulseLabel = getPulseLabel(workspacePulseScore);
+  const workspacePulseTone = getPulseTone(workspacePulseScore);
+  const workspaceBadgeCards = [
+    {
+      id: "team-online",
+      title:
+        onlineUsers.length > 0
+          ? `${onlineUsers.length} team member${onlineUsers.length === 1 ? "" : "s"} online`
+          : "Team offline",
+      detail:
+        onlineUsers.length > 0
+          ? "Fresh activity is coming through the workspace now."
+          : "The board is quiet, which makes it a good time to prep the next move.",
+      tone: onlineUsers.length > 0 ? ("success" as const) : ("neutral" as const),
+    },
+    {
+      id: "site-map",
+      title:
+        jobsites.length > 0
+          ? `${jobsites.length} site${jobsites.length === 1 ? "" : "s"} mapped`
+          : "First site still to create",
+      detail:
+        jobsites.length > 0
+          ? "The workspace already has a growing site map."
+          : "Add the first jobsite and the dashboard starts to feel alive.",
+      tone: jobsites.length > 0 ? ("info" as const) : ("neutral" as const),
+    },
+    {
+      id: "clean-board",
+      title:
+        pendingDocuments.length === 0 && pendingUsers.length === 0 && highRiskAlerts.length === 0
+          ? "Clean board"
+          : "Board in motion",
+      detail:
+        pendingDocuments.length === 0 && pendingUsers.length === 0 && highRiskAlerts.length === 0
+          ? "No urgent approvals or escalations are waiting."
+          : `${pendingDocuments.length + pendingUsers.length + highRiskAlerts.length} item${pendingDocuments.length + pendingUsers.length + highRiskAlerts.length === 1 ? "" : "s"} still need a little attention.`,
+      tone:
+        pendingDocuments.length === 0 && pendingUsers.length === 0 && highRiskAlerts.length === 0
+          ? ("success" as const)
+          : ("warning" as const),
+    },
+    {
+      id: "credits-ready",
+      title:
+        creditBalance !== null
+          ? `${creditBalance} credit${creditBalance === 1 ? "" : "s"} ready`
+          : "Credits pending",
+      detail:
+        creditBalance !== null && creditBalance > 0
+          ? "The marketplace has room for a few more unlocks."
+          : "Top up credits if the team needs more marketplace unlocks.",
+      tone:
+        creditBalance !== null && creditBalance > 0 ? ("success" as const) : ("warning" as const),
+    },
+  ];
+
+  const priorityQueueItems: Array<{
+    id: string;
+    title: string;
+    detail: string;
+    href: string;
+    button: string;
+    tone: "success" | "warning" | "info";
+  }> = [];
+
+  if (highRiskAlerts.length > 0) {
+    const alert = highRiskAlerts[0];
+    priorityQueueItems.push({
+      id: "high-risk-alert",
+      title: alert.title,
+      detail: alert.detail,
+      href: "/field-id-exchange",
+      button: "Review alert",
+      tone: "warning",
+    });
+  }
+
+  if (pendingUsers.length > 0) {
+    priorityQueueItems.push({
+      id: "pending-users",
+      title: `${pendingUsers.length} company user${pendingUsers.length === 1 ? "" : "s"} waiting for approval`,
+      detail: "Open company users to approve, suspend, or activate access.",
+      href: "/company-users",
+      button: "Review users",
+      tone: "info",
+    });
+  }
+
+  if (pendingDocuments.length > 0) {
+    priorityQueueItems.push({
+      id: "pending-documents",
+      title: `${pendingDocuments.length} document${pendingDocuments.length === 1 ? "" : "s"} still pending review`,
+      detail: "Open the library queue and follow up on the newest submissions.",
+      href: "/library",
+      button: "Review docs",
+      tone: "warning",
+    });
+  }
+
+  if (companyInvites.length > 0) {
+    priorityQueueItems.push({
+      id: "pending-invites",
+      title: `${companyInvites.length} invite${companyInvites.length === 1 ? "" : "s"} still waiting`,
+      detail: "Remind invited employees to finish account setup.",
+      href: "/company-users",
+      button: "Open invites",
+      tone: "info",
+    });
+  }
+
+  priorityQueueItems.splice(3);
 
   const kpiCards = [
     {
@@ -481,62 +638,6 @@ export function CompanyAdminDashboard({
       note: "Certification expiration tracking is ready for rollout",
     },
   ];
-
-  const priorityQueueItems: Array<{
-    id: string;
-    title: string;
-    detail: string;
-    href: string;
-    button: string;
-    tone: "success" | "warning" | "info";
-  }> = [];
-
-  if (highRiskAlerts.length > 0) {
-    const alert = highRiskAlerts[0];
-    priorityQueueItems.push({
-      id: "high-risk-alert",
-      title: alert.title,
-      detail: alert.detail,
-      href: "/field-id-exchange",
-      button: "Review alert",
-      tone: "warning",
-    });
-  }
-
-  if (pendingUsers.length > 0) {
-    priorityQueueItems.push({
-      id: "pending-users",
-      title: `${pendingUsers.length} company user${pendingUsers.length === 1 ? "" : "s"} waiting for approval`,
-      detail: "Open company users to approve, suspend, or activate access.",
-      href: "/company-users",
-      button: "Review users",
-      tone: "info",
-    });
-  }
-
-  if (pendingDocuments.length > 0) {
-    priorityQueueItems.push({
-      id: "pending-documents",
-      title: `${pendingDocuments.length} document${pendingDocuments.length === 1 ? "" : "s"} still pending review`,
-      detail: "Open the library queue and follow up on the newest submissions.",
-      href: "/library",
-      button: "Review docs",
-      tone: "warning",
-    });
-  }
-
-  if (companyInvites.length > 0) {
-    priorityQueueItems.push({
-      id: "pending-invites",
-      title: `${companyInvites.length} invite${companyInvites.length === 1 ? "" : "s"} still waiting`,
-      detail: "Remind invited employees to finish account setup.",
-      href: "/company-users",
-      button: "Open invites",
-      tone: "info",
-    });
-  }
-
-  priorityQueueItems.splice(3);
 
   const recentActivityItems = [
     ...filteredDocuments.slice(0, 4).map((document) => ({
@@ -693,6 +794,55 @@ export function CompanyAdminDashboard({
       done: documents.length > 0,
     },
   ];
+
+  const workspaceSpotlightCard =
+    highRiskAlerts.length > 0
+      ? {
+          id: "high-risk-alert",
+          title: highRiskAlerts[0].title,
+          detail: highRiskAlerts[0].detail,
+          href: "/field-id-exchange",
+          button: "Review alert",
+          tone: "warning" as const,
+        }
+      : pendingUsers.length > 0
+        ? {
+            id: "pending-users",
+            title: `${pendingUsers.length} company user${pendingUsers.length === 1 ? "" : "s"} waiting for approval`,
+            detail: "Open company users to approve, suspend, or activate access.",
+            href: "/company-users",
+            button: "Review users",
+            tone: "info" as const,
+          }
+        : pendingDocuments.length > 0
+          ? {
+              id: "pending-documents",
+              title: `${pendingDocuments.length} document${pendingDocuments.length === 1 ? "" : "s"} still pending review`,
+              detail: "Open the library queue and follow up on the newest submissions.",
+              href: "/library",
+              button: "Review docs",
+              tone: "warning" as const,
+            }
+          : companyInvites.length > 0
+            ? {
+                id: "pending-invites",
+                title: `${companyInvites.length} invite${companyInvites.length === 1 ? "" : "s"} still waiting`,
+                detail: "Remind invited employees to finish account setup.",
+                href: "/company-users",
+                button: "Open invites",
+                tone: "info" as const,
+              }
+            : pendingDocuments.length === 0
+              ? {
+                  id: "spotlight-clear",
+                  title: "Board is clear",
+                  detail:
+                    "There is no urgent work to push right now, so this is a good time to add the next jobsite or document.",
+                  href: "/submit",
+                  button: "Keep moving",
+                  tone: "success" as const,
+                }
+              : null;
 
   return (
     <div className="space-y-8">
@@ -920,8 +1070,8 @@ export function CompanyAdminDashboard({
       >
         {priorityQueueItems.length === 0 ? (
           <EmptyState
-            title="No urgent items right now"
-            description="Approvals, document reviews, and high-risk alerts are all clear."
+            title="Nice work, the board is clear"
+            description="Approvals, document reviews, and high-risk alerts are all in good shape."
             actionHref="/library"
             actionLabel="Open library"
           />
@@ -948,6 +1098,74 @@ export function CompanyAdminDashboard({
             ))}
           </div>
         )}
+      </SectionCard>
+
+      <SectionCard
+        title="Workspace Pulse"
+        description="A lighthearted read on momentum, wins, and the next useful move."
+        aside={<StatusBadge label={workspacePulseLabel} tone={workspacePulseTone} />}
+      >
+        <div className="grid gap-3 lg:grid-cols-4">
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              Pulse score
+            </div>
+            <div className="mt-3 flex items-end gap-2">
+              <span className="text-4xl font-black tracking-tight text-white">
+                {workspacePulseScore}
+              </span>
+              <span className="pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">
+                /100
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              {workspacePulseLabel} based on approvals, users online, jobsites, and current queue health.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              This month
+            </div>
+            <div className="mt-3 text-3xl font-black text-white">{documentsThisMonth.length} docs</div>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              {approvedThisMonth.length} approvals landed this month, with {pendingDocuments.length} still moving.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              Team badges
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {workspaceBadgeCards.map((badge) => (
+                <StatusBadge key={badge.id} label={badge.title} tone={badge.tone} />
+              ))}
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              Small wins that make the workspace feel organized and alive.
+            </p>
+          </div>
+
+          <Link
+            href={workspaceSpotlightCard?.href ?? "/library"}
+            className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 transition hover:border-sky-500/35 hover:bg-sky-950/30"
+          >
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              What&apos;s next
+            </div>
+            <div className="mt-3 text-lg font-bold text-slate-100">
+              {workspaceSpotlightCard?.title ?? "Open the library"}
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              {workspaceSpotlightCard?.detail ??
+                "The library is ready when you want to review documents or unlock more marketplace items."}
+            </p>
+            <div className="mt-4 text-sm font-semibold text-sky-300">
+              {workspaceSpotlightCard?.button ?? "Open library"}
+            </div>
+          </Link>
+        </div>
       </SectionCard>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -995,7 +1213,7 @@ export function CompanyAdminDashboard({
           {filteredJobsites.length === 0 ? (
             <EmptyState
               title="No jobsites are active yet"
-              description="As project names are used in submitted documents, your company dashboard will group them here as jobsites."
+              description="That gives you a clean slate. Add the first site and the board will start organizing itself around it."
             />
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
@@ -1069,8 +1287,8 @@ export function CompanyAdminDashboard({
         >
           {pendingDocuments.length === 0 ? (
             <EmptyState
-              title="No documents are waiting right now"
-              description="Submitted company documents will appear here as soon as they need review or follow-up."
+              title="The review queue is clear"
+              description="Submitted company documents will appear here when they need review or follow-up."
             />
           ) : (
             <div className="space-y-3">
@@ -1242,8 +1460,8 @@ export function CompanyAdminDashboard({
             ))}
             {filteredUsers.length === 0 ? (
               <EmptyState
-                title="No company users match this view"
-                description="Invite your first employee or adjust the current dashboard search."
+                title="No users match this search"
+                description="Try a different search or invite the next teammate into the workspace."
               />
             ) : null}
           </div>
@@ -1274,7 +1492,7 @@ export function CompanyAdminDashboard({
           {liveMatrixSummary.length === 0 ? (
             <EmptyState
               title="No matrix items are live yet"
-              description="As corrective actions are created and reviewed, matrix rows will appear here by category."
+              description="That’s a quiet board for now. As corrective actions are created and reviewed, rows will appear here by category."
             />
           ) : (
             <div className="overflow-hidden rounded-2xl border border-slate-700/80">
@@ -1372,12 +1590,12 @@ export function CompanyAdminDashboard({
             title="High-Risk Alerts"
             description="Auto-escalated SIF and stop-work items from permits and incidents."
           >
-            {highRiskAlerts.length === 0 ? (
-              <EmptyState
-                title="No high-risk alerts right now"
-                description="Critical escalations and active stop-work items will appear here automatically."
-              />
-            ) : (
+          {highRiskAlerts.length === 0 ? (
+            <EmptyState
+              title="No high-risk alerts right now"
+              description="The workspace is calm. Critical escalations and active stop-work items will appear here automatically."
+            />
+          ) : (
               <div className="space-y-3">
                 {highRiskAlerts.map((item) => (
                   <div key={item.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">

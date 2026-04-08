@@ -1,10 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const authorizeRequest = vi.fn();
-const getCompanyScope = vi.fn();
-const recordBillingEvent = vi.fn();
-const sendMarketplaceCreditPurchaseReceiptEmail = vi.fn();
-const resolveAppBaseUrl = vi.fn();
+const {
+  authorizeRequest,
+  getCompanyScope,
+  recordBillingEvent,
+  sendMarketplaceCreditPurchaseReceiptEmail,
+  resolveAppBaseUrl,
+} = vi.hoisted(() => ({
+  authorizeRequest: vi.fn(),
+  getCompanyScope: vi.fn(),
+  recordBillingEvent: vi.fn(),
+  sendMarketplaceCreditPurchaseReceiptEmail: vi.fn(),
+  resolveAppBaseUrl: vi.fn(),
+}));
 
 vi.mock("@/lib/rbac", () => ({ authorizeRequest }));
 vi.mock("@/lib/companyScope", () => ({ getCompanyScope }));

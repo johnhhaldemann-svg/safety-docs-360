@@ -1141,7 +1141,7 @@ function buildDashboardFromLiveSignals(
     riskEngineV2Explainability: explainability,
     behaviorSignals: resolvedBehavior,
     workSchedule: resolvedWorkSchedule,
-    industryBenchmarkContext: offlineInjuryWeatherBenchmarkContext(),
+    industryBenchmarkContext,
     ...PLACEHOLDER_FOCUS_DIAG,
   };
 }

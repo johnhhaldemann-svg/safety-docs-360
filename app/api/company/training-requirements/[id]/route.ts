@@ -214,8 +214,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     .single();
 
   if (updateRes.error && isMissingRenewalMonthsError(updateRes.error)) {
-    const { renewal_months: _r, ...withoutRenewal } = updatePayload;
-    updatePayload = withoutRenewal;
+    updatePayload = { ...updatePayload };
+    delete updatePayload.renewal_months;
     returnSelect = selectAfterUpdate(applyColumnsAvailable, false);
     updateRes = await auth.supabase
       .from("company_training_requirements")

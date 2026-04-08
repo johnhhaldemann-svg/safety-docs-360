@@ -1,9 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const authorizeRequest = vi.fn();
-const assertStaffCanAccessCompany = vi.fn();
-const isInternalBillingStaffRole = vi.fn();
-const recordBillingEvent = vi.fn();
+const {
+  authorizeRequest,
+  assertStaffCanAccessCompany,
+  isInternalBillingStaffRole,
+  recordBillingEvent,
+} = vi.hoisted(() => ({
+  authorizeRequest: vi.fn(),
+  assertStaffCanAccessCompany: vi.fn(),
+  isInternalBillingStaffRole: vi.fn(),
+  recordBillingEvent: vi.fn(),
+}));
 
 vi.mock("@/lib/rbac", () => ({ authorizeRequest }));
 vi.mock("@/lib/billing/access", () => ({

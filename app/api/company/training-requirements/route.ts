@@ -231,7 +231,8 @@ export async function POST(request: Request) {
 
   let schemaWarning: string | null = null;
   if (createdRes.error && isMissingRenewalMonthsError(createdRes.error)) {
-    const { renewal_months: _r, ...noRenewalPayload } = insertPayload;
+    const noRenewalPayload = { ...insertPayload };
+    delete noRenewalPayload.renewal_months;
     createdRes = await auth.supabase
       .from("company_training_requirements")
       .insert(noRenewalPayload)
@@ -239,7 +240,9 @@ export async function POST(request: Request) {
       .single();
   }
   if (createdRes.error && isMissingApplyColumnsError(createdRes.error)) {
-    const { apply_trades: _t, apply_positions: _p, ...withMaybeRenewal } = insertPayload;
+    const withMaybeRenewal = { ...insertPayload };
+    delete withMaybeRenewal.apply_trades;
+    delete withMaybeRenewal.apply_positions;
     createdRes = await auth.supabase
       .from("company_training_requirements")
       .insert(withMaybeRenewal)
@@ -247,7 +250,8 @@ export async function POST(request: Request) {
       .single();
     schemaWarning = TRAINING_REQUIREMENTS_SCHEMA_WARNING;
     if (createdRes.error && isMissingRenewalMonthsError(createdRes.error)) {
-      const { renewal_months: _r, ...minimalInsert } = withMaybeRenewal as Record<string, unknown>;
+      const minimalInsert = { ...(withMaybeRenewal as Record<string, unknown>) };
+      delete minimalInsert.renewal_months;
       createdRes = await auth.supabase
         .from("company_training_requirements")
         .insert(minimalInsert)

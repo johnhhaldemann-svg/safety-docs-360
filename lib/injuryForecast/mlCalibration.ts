@@ -1,4 +1,4 @@
-import type { InjuryTypeScore, MlCalibrationHooks } from "./types";
+import type { MlCalibrationHooks } from "./types";
 
 /**
  * Placeholder ML calibration: returns interpretable outputs unchanged until a trained model is injected.

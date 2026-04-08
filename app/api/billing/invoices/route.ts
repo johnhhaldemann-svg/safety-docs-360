@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeRequest, normalizeAppRole } from "@/lib/rbac";
+import { authorizeRequest } from "@/lib/rbac";
 import {
   assertStaffCanAccessCompany,
   BillingAccessError,

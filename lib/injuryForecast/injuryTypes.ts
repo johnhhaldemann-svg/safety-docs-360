@@ -65,7 +65,7 @@ export function scoreLikelyInjuryTypes(ctx: ScoreCtx): InjuryTypeScore[] {
       displayLabel: LABELS[cat],
       score: s,
       confidence,
-      explanation: explainFor(cat, ctx),
+      explanation: explainFor(cat),
     });
   }
 
@@ -97,7 +97,7 @@ export function scoreLikelyInjuryTypes(ctx: ScoreCtx): InjuryTypeScore[] {
   ];
 }
 
-function explainFor(cat: CanonicalInjuryCategory, ctx: ScoreCtx): string {
+function explainFor(cat: CanonicalInjuryCategory): string {
   if (cat === "slip_trip_fall") return "Elevated by housekeeping / access cues and surface + rain exposure in the environment layer.";
   if (cat === "rigging_material_handling") return "Elevated by rigging / lifting keywords and wind exposure.";
   if (cat === "heat_illness") return "Elevated by heat indices and outdoor exposure assumptions.";

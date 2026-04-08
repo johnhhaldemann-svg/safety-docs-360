@@ -6,9 +6,6 @@ const COLS_WITH_RENEWAL = `${COLS_BASE}, renewal_months`;
 const COLS_APPLY = "apply_trades, apply_positions";
 const COLS_TS = "created_at, updated_at";
 
-/** @deprecated use COLS_WITH_RENEWAL — kept for explicit exports */
-const COLS_CORE = COLS_WITH_RENEWAL;
-
 export const TRAINING_REQUIREMENTS_SCHEMA_WARNING =
   "Your database is missing columns apply_trades and apply_positions. In Supabase → SQL Editor, run the migration that adds them (see supabase/migrations/20260329120000_training_requirements_trade_position.sql). Until then, every requirement applies to all trades and positions, and new saves cannot store trade/position picks.";
 

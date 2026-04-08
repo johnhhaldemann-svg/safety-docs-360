@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const authorizeRequest = vi.fn();
-const getCompanyScope = vi.fn();
+const { authorizeRequest, getCompanyScope } = vi.hoisted(() => ({
+  authorizeRequest: vi.fn(),
+  getCompanyScope: vi.fn(),
+}));
 
 vi.mock("@/lib/rbac", () => ({ authorizeRequest }));
 vi.mock("@/lib/companyScope", () => ({ getCompanyScope }));
