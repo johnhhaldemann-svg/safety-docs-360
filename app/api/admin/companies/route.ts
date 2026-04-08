@@ -345,7 +345,7 @@ export async function GET(request: Request) {
       country: company.country?.trim() || "",
       primaryContactName: company.primary_contact_name?.trim() || "",
       primaryContactEmail: company.primary_contact_email?.trim() || "",
-      status: company.status?.trim() || "active",
+      status: company.status?.trim() || "approved",
       createdAt: company.created_at,
       archivedAt: company.archived_at ?? null,
       archivedByEmail: company.archived_by_email?.trim() || "",
@@ -425,7 +425,7 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const nextCompanyStatus = action === "archive" ? "archived" : "active";
+    const nextCompanyStatus = action === "archive" ? "archived" : "approved";
     const nextMembershipStatus = action === "archive" ? "suspended" : "active";
     const nowIso = new Date().toISOString();
 
@@ -581,6 +581,7 @@ export async function PATCH(request: Request) {
         team_key: string | null;
       }
     | null = null;
+  let companyInsertError: string | null = null;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const insertResult = await supabase
@@ -598,7 +599,7 @@ export async function PATCH(request: Request) {
         country: signupRequest.country?.trim() || null,
         primary_contact_name: primaryContactName,
         primary_contact_email: primaryContactEmail,
-        status: "active",
+        status: "approved",
         created_by: auth.user.id,
         updated_by: auth.user.id,
       })
@@ -609,12 +610,15 @@ export async function PATCH(request: Request) {
       companyData = insertResult.data;
       break;
     }
+
+    companyInsertError = insertResult.error?.message || companyInsertError;
   }
 
   if (!companyData?.id) {
     return NextResponse.json(
       {
         error:
+          companyInsertError ||
           "Failed to activate the company workspace. Confirm the companies table allows internal admin inserts.",
       },
       { status: 500 }

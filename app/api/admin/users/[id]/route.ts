@@ -138,7 +138,7 @@ async function resolveCompanyAssignment(params: {
       };
     }
 
-    if ((company.status ?? "active").trim().toLowerCase() === "archived") {
+    if ((company.status ?? "approved").trim().toLowerCase() === "archived") {
       return {
         companyId: null,
         companyName: null,

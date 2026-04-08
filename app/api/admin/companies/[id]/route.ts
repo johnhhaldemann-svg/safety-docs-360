@@ -602,7 +602,7 @@ export async function GET(request: Request, context: RouteContext) {
       country: company.country?.trim() || "",
       primaryContactName: company.primary_contact_name?.trim() || "",
       primaryContactEmail: company.primary_contact_email?.trim() || "",
-      status: company.status?.trim() || "active",
+      status: company.status?.trim() || "approved",
       createdAt: company.created_at,
       archivedAt: company.archived_at ?? null,
       archivedByEmail: company.archived_by_email?.trim() || "",

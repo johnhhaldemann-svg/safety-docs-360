@@ -132,7 +132,7 @@ function formatRelative(timestamp?: string | null) {
 
 function statusTone(status: string): "success" | "warning" | "error" | "neutral" {
   const normalized = status.trim().toLowerCase();
-  if (normalized === "active") return "success";
+  if (normalized === "active" || normalized === "approved") return "success";
   if (normalized === "archived" || normalized === "pending") return "warning";
   if (normalized === "suspended") return "error";
   return "neutral";

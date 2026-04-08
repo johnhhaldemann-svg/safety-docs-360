@@ -69,7 +69,7 @@ function formatRelative(timestamp?: string | null) {
 
 function statusTone(status: string): "success" | "warning" | "error" | "neutral" {
   const normalized = status.trim().toLowerCase();
-  if (normalized === "active") return "success";
+  if (normalized === "active" || normalized === "approved") return "success";
   if (normalized === "archived") return "warning";
   if (normalized === "pending") return "warning";
   if (normalized === "suspended") return "error";
@@ -577,7 +577,9 @@ export default function AdminCompaniesPage() {
                                   {company.archivedByEmail ? ` by ${company.archivedByEmail}` : ""}
                                 </span>
                               ) : null}
-                              {company.status.trim().toLowerCase() === "active" && company.restoredAt ? (
+                              {(company.status.trim().toLowerCase() === "active" ||
+                                company.status.trim().toLowerCase() === "approved") &&
+                              company.restoredAt ? (
                                 <span>
                                   Restored {formatRelative(company.restoredAt)}
                                   {company.restoredByEmail ? ` by ${company.restoredByEmail}` : ""}
