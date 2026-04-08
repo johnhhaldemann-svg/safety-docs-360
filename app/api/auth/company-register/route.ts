@@ -176,6 +176,8 @@ export async function POST(request: Request) {
       })
     : { error: null };
 
+  /** Self-signup: leave created_by/updated_by null — they reference auth.users(id) and
+   *  using the brand-new user id can fail FK checks right after signUp in some environments. */
   const roleResult = adminClient
     ? await adminClient.from("user_roles").upsert(
         {
@@ -184,8 +186,8 @@ export async function POST(request: Request) {
           team: companyName,
           company_id: null,
           account_status: "pending",
-          created_by: userId,
-          updated_by: userId,
+          created_by: null,
+          updated_by: null,
         },
         {
           onConflict: "user_id",
