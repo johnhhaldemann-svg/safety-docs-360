@@ -94,7 +94,32 @@ export async function prepareMarketplaceLibraryPreview(
   documentId: string
 ): Promise<MarketplaceLibraryPreviewResult> {
   let stage = "authorize";
-  const auth = await authorizeRequest(request);
+  let auth:
+    | Awaited<ReturnType<typeof authorizeRequest>>
+    | { error: NextResponse };
+  try {
+    auth = await authorizeRequest(request);
+  } catch (e) {
+    serverLog("error", "library_preview_authorize_failed", {
+      documentId,
+      stage,
+      message: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack : undefined,
+    });
+    return {
+      ok: false,
+      response: NextResponse.json(
+        {
+          error: "Preview temporarily unavailable while loading authorize. Please try again.",
+          stage,
+        },
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+        }
+      ),
+    };
+  }
 
   if ("error" in auth) {
     return { ok: false, response: auth.error as NextResponse };
