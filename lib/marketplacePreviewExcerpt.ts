@@ -118,19 +118,19 @@ function clipExcerpt(raw: string): { excerpt: string; truncated: boolean } {
   };
 }
 
+type PdfParserInstance = {
+  getText: () => PromiseLike<{ text?: string | null }>;
+  destroy?: () => PromiseLike<void> | void;
+};
+
 async function excerptFromPdf(buffer: Buffer): Promise<{ excerpt: string; truncated: boolean }> {
-  let parser:
-    | {
-        getText: () => PromiseLike<{ text?: string | null }>;
-        destroy?: () => PromiseLike<void> | void;
-      }
-    | null = null;
+  let parser: PdfParserInstance | null = null;
   try {
     const pdfParseModule = await import("pdf-parse");
     const PdfParseCtor =
-      (pdfParseModule as { PDFParse?: new (options: { data: Buffer }) => typeof parser }).PDFParse ??
-      ((pdfParseModule as { default?: new (options: { data: Buffer }) => typeof parser }).default ??
-        null);
+      (pdfParseModule as { PDFParse?: new (options: { data: Buffer }) => PdfParserInstance }).PDFParse ??
+      (pdfParseModule as { default?: new (options: { data: Buffer }) => PdfParserInstance }).default ??
+      null;
 
     if (!PdfParseCtor) {
       throw new Error("PDF preview parser is unavailable.");
@@ -143,7 +143,7 @@ async function excerptFromPdf(buffer: Buffer): Promise<{ excerpt: string; trunca
   } finally {
     if (parser) {
       try {
-        await parser.destroy();
+        await parser.destroy?.();
       } catch {
         /* ignore cleanup failures */
       }
