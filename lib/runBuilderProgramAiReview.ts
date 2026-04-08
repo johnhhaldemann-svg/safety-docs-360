@@ -18,7 +18,7 @@ export async function runBuilderProgramDocumentAiReview(
   documentId: string,
   additionalReviewerContext: string,
   siteReference?: { buffer: Buffer; fileName: string } | null,
-  options?: { allowedCompanyId?: string | null }
+  options?: { allowedCompanyId?: string | null; companyMemoryExcerpts?: string | null }
 ): Promise<
   | {
       ok: true;
@@ -155,6 +155,7 @@ export async function runBuilderProgramDocumentAiReview(
       additionalReviewerContext: additionalReviewerContext.trim() || null,
       siteReferenceText,
       siteReferenceFileName,
+      companyMemoryExcerpts: options?.companyMemoryExcerpts?.trim() || null,
     });
 
     return {

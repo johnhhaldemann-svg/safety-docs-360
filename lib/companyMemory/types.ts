@@ -2,6 +2,7 @@ export type CompanyMemorySource =
   | "manual"
   | "document_excerpt"
   | "incident_summary"
+  | "document_upload"
   | "other";
 
 export type CompanyMemoryItemRow = {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { canMutateCompanyMemory } from "@/lib/companyMemoryAccess";
-import { deleteCompanyMemoryItem, updateCompanyMemoryItem } from "@/lib/companyMemory";
+import { deleteCompanyMemoryItem, getCompanyMemoryItem, updateCompanyMemoryItem } from "@/lib/companyMemory";
 import { normalizeMemorySource } from "@/lib/companyMemory/repository";
 import { checkFixedWindowRateLimit } from "@/lib/rateLimit";
 import { serverLog } from "@/lib/serverLog";
@@ -117,10 +117,28 @@ export async function DELETE(request: Request, context: RouteContext) {
   }
 
   const { id } = await context.params;
+
+  const { item } = await getCompanyMemoryItem(auth.supabase, companyScope.companyId, id);
+  const meta = item?.metadata && typeof item.metadata === "object" ? item.metadata : null;
+  const storagePath =
+    meta && typeof (meta as Record<string, unknown>).storagePath === "string"
+      ? ((meta as Record<string, unknown>).storagePath as string).trim()
+      : "";
+
   const { error } = await deleteCompanyMemoryItem(auth.supabase, companyScope.companyId, id);
 
   if (error) {
     return NextResponse.json({ error }, { status: 500 });
+  }
+
+  if (storagePath) {
+    const { error: rmErr } = await auth.supabase.storage.from("documents").remove([storagePath]);
+    if (rmErr) {
+      serverLog("warn", "company_memory_storage_delete_failed", {
+        memoryItemId: id,
+        message: rmErr.message.slice(0, 200),
+      });
+    }
   }
 
   serverLog("info", "company_memory_delete", {

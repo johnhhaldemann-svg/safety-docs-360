@@ -16,6 +16,7 @@ Short guide for making **Company knowledge** and the **operations assistant** pa
 - Site- or customer-specific PPE, access, or stop-work triggers
 - Repeated customer rules that people ask about in the field
 - One-paragraph “remember this” summaries after incidents or audits (not a full investigation report)
+- **PDF or DOCX uploads** (from the Company knowledge panel): text is extracted for AI search and the file is kept in your company storage; use for reference procedures or owner/GC requirements you want the assistant and draft review to see
 
 **Keep out of memory (use controlled documents instead):**
 

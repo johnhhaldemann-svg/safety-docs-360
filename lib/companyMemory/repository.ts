@@ -21,12 +21,19 @@ const SOURCES = new Set<CompanyMemorySource>([
   "manual",
   "document_excerpt",
   "incident_summary",
+  "document_upload",
   "other",
 ]);
 
 export function normalizeMemorySource(raw: string | null | undefined): CompanyMemorySource {
   const t = (raw ?? "manual").trim().toLowerCase();
-  if (t === "document_excerpt" || t === "incident_summary" || t === "manual" || t === "other") {
+  if (
+    t === "document_excerpt" ||
+    t === "incident_summary" ||
+    t === "document_upload" ||
+    t === "manual" ||
+    t === "other"
+  ) {
     return t;
   }
   return "other";

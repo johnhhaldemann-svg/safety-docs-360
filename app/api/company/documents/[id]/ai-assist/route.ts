@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { parseBuilderProgramAiReviewPostBody } from "@/lib/parseGcProgramAiReviewPostBody";
+import { retrieveMemoryForQuery } from "@/lib/companyMemory/repository";
 import { runBuilderProgramDocumentAiReview } from "@/lib/runBuilderProgramAiReview";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { checkFixedWindowRateLimit } from "@/lib/rateLimit";
@@ -81,12 +82,34 @@ export async function POST(request: Request, context: RouteContext) {
 
   const { additionalReviewerContext, siteDocument } = parsedBody.data;
 
+  let companyMemoryExcerpts: string | null = null;
+  if (companyScope.companyId) {
+    const memoryQuery = [
+      additionalReviewerContext,
+      "construction safety site program PPE hazards controls requirements",
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .slice(0, 2000);
+    const { chunks } = await retrieveMemoryForQuery(auth.supabase, companyScope.companyId, memoryQuery, {
+      topK: 8,
+    });
+    if (chunks.length > 0) {
+      companyMemoryExcerpts = chunks
+        .map(
+          (c, i) =>
+            `[${i + 1}] (${c.source}) ${c.title}\n${c.body.slice(0, 4000)}${c.body.length > 4000 ? "\n…" : ""}`
+        )
+        .join("\n\n");
+    }
+  }
+
   const result = await runBuilderProgramDocumentAiReview(
     admin,
     documentId,
     additionalReviewerContext,
     siteDocument,
-    { allowedCompanyId: companyScope.companyId }
+    { allowedCompanyId: companyScope.companyId, companyMemoryExcerpts }
   );
 
   if (!result.ok) {

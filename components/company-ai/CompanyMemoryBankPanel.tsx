@@ -2,7 +2,7 @@
 
 import { ChevronDown } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -40,6 +40,8 @@ export function CompanyMemoryBankPanel({ className = "" }: Props) {
   const [pendingSimilar, setPendingSimilar] = useState<SimilarCandidate | null>(null);
   /** Saved entry cards are hidden by default to reduce vertical clutter. */
   const [savedEntriesOpen, setSavedEntriesOpen] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -159,6 +161,38 @@ export function CompanyMemoryBankPanel({ className = "" }: Props) {
     }
   };
 
+  const uploadDocumentFile = async (file: File) => {
+    setUploadingDoc(true);
+    setError("");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Sign in required.");
+      const fd = new FormData();
+      fd.append("file", file);
+      if (title.trim()) {
+        fd.append("title", title.trim());
+      }
+      const res = await fetch("/api/company/memory/upload", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: fd,
+      });
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(data?.error || "Upload failed.");
+      setTitle("");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed.");
+    } finally {
+      setUploadingDoc(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
   const addAsSeparate = async () => {
     setPendingSimilar(null);
     setSaving(true);
@@ -247,7 +281,8 @@ export function CompanyMemoryBankPanel({ className = "" }: Props) {
       <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Memory bank</div>
       <h2 className="mt-2 text-lg font-bold text-slate-100">Company knowledge</h2>
       <p className="mt-1 text-sm text-slate-300">
-        Snippets power AI answers. {canMutate ? "Add procedures, site rules, or lessons learned." : "Ask a lead to add entries."}
+        Snippets and uploaded PDFs/DOCX power AI answers and draft review.{" "}
+        {canMutate ? "Add procedures, site rules, or reference documents." : "Ask a lead to add entries."}
       </p>
 
       {canMutate ? (
@@ -268,11 +303,36 @@ export function CompanyMemoryBankPanel({ className = "" }: Props) {
           <button
             type="button"
             onClick={addItem}
-            disabled={saving}
+            disabled={saving || uploadingDoc}
             className="rounded-xl border border-sky-500/40 bg-sky-950/40 px-4 py-2 text-sm font-semibold text-sky-200 disabled:opacity-60"
           >
             {saving ? "Saving..." : "Add to memory"}
           </button>
+          <div className="rounded-xl border border-slate-700/60 bg-slate-900/30 p-3">
+            <div className="text-xs font-semibold text-slate-400">Upload a document</div>
+            <p className="mt-1 text-xs text-slate-500">
+              PDF or DOCX (max 12 MB). Text is extracted for search; the file is stored for your company. Optional: set
+              Title above to label this upload.
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void uploadDocumentFile(f);
+              }}
+            />
+            <button
+              type="button"
+              disabled={uploadingDoc || saving}
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-2 rounded-xl border border-slate-600 bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-200 disabled:opacity-60"
+            >
+              {uploadingDoc ? "Uploading…" : "Choose PDF or DOCX"}
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -315,7 +375,14 @@ export function CompanyMemoryBankPanel({ className = "" }: Props) {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="font-semibold text-slate-200">{item.title || "Untitled"}</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold text-slate-200">{item.title || "Untitled"}</span>
+                          {item.source === "document_upload" ? (
+                            <span className="rounded-md border border-violet-500/35 bg-violet-950/40 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-200">
+                              Document
+                            </span>
+                          ) : null}
+                        </div>
                         <div className="mt-1 line-clamp-3 text-slate-400">{item.body}</div>
                       </div>
                       {canMutate ? (

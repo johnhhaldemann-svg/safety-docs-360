@@ -53,6 +53,8 @@ export async function generateBuilderProgramAiReview(params: {
   /** Optional site/owner/GC reference (PDF/DOCX) to compare against the draft */
   siteReferenceText?: string | null;
   siteReferenceFileName?: string | null;
+  /** Optional company knowledge snippets (from memory bank, including uploaded reference docs) */
+  companyMemoryExcerpts?: string | null;
 }): Promise<{ review: BuilderProgramAiReview; disclaimer: string }> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
@@ -65,6 +67,9 @@ export async function generateBuilderProgramAiReview(params: {
   const siteText = params.siteReferenceText?.trim() ?? "";
   const hasSiteRef = Boolean(siteName && siteText.length >= 20);
 
+  const memoryExcerpts = params.companyMemoryExcerpts?.trim() ?? "";
+  const hasMemory = memoryExcerpts.length >= 40;
+
   const contextBlock = [
     `Program type: ${label} (CSEP / PSHSEP / PESHEP-style builder safety-environmental plans in this product).`,
     `Project name: ${params.projectName || "(none)"}`,
@@ -73,6 +78,9 @@ export async function generateBuilderProgramAiReview(params: {
     params.recordNotes?.trim() ? `Record notes: ${params.recordNotes.trim()}` : null,
     params.additionalReviewerContext?.trim()
       ? `Reviewer-provided context (site rules, owner requirements, gaps to check): ${params.additionalReviewerContext.trim()}`
+      : null,
+    hasMemory
+      ? `--- Company knowledge (internal reference only; not a regulation) ---\n${memoryExcerpts.slice(0, 24_000)}${memoryExcerpts.length > 24_000 ? "\n…" : ""}`
       : null,
     siteName
       ? hasSiteRef
@@ -92,7 +100,7 @@ export async function generateBuilderProgramAiReview(params: {
     "Tasks:",
     "1) Summarize what the draft appears to cover (scope, trades, hazards, controls, PPE, permits, emergency info, environmental notes if any).",
     "2) Identify strengths relative to typical expectations for a site-specific or project safety/environmental plan.",
-    "3) When a site/owner/GC reference document is provided, compare the draft to that reference: note matches, omissions, and conflicts, in addition to OSHA-oriented gaps.",
+    "3) When company knowledge excerpts are provided, treat them as the company's own rules and priorities—align the draft and flag conflicts. When a site/owner/GC reference document is provided, compare the draft to that reference: note matches, omissions, and conflicts, in addition to OSHA-oriented gaps.",
     "4) Identify gaps, ambiguities, or risks a reviewer should address before approving (missing sections, vague controls, inconsistent PPE, etc.).",
     "5) Recommend concrete edits or follow-up questions for the reviewer.",
     "Do NOT invent citations, inspections, or compliance determinations. If text is unreadable or too thin, set overallAssessment to insufficient_context.",
