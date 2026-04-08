@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
 
@@ -37,6 +38,8 @@ export function CompanyMemoryBankPanel({ className = "" }: Props) {
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
   const [pendingSimilar, setPendingSimilar] = useState<SimilarCandidate | null>(null);
+  /** Saved entry cards are hidden by default to reduce vertical clutter. */
+  const [savedEntriesOpen, setSavedEntriesOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -276,36 +279,59 @@ export function CompanyMemoryBankPanel({ className = "" }: Props) {
         </p>
       ) : null}
 
-      <div className="mt-4 max-h-64 space-y-2 overflow-y-auto pr-1">
-        {loading ? (
-          <div className="text-sm text-slate-400">Loading...</div>
-        ) : items.length === 0 ? (
-          <div className="text-sm text-slate-400">No memory entries yet.</div>
-        ) : (
-          items.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-xl border border-slate-800/80 bg-slate-900/40 px-3 py-2 text-sm"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="font-semibold text-slate-200">{item.title || "Untitled"}</div>
-                  <div className="mt-1 line-clamp-3 text-slate-400">{item.body}</div>
-                </div>
-                {canMutate ? (
-                  <button
-                    type="button"
-                    onClick={() => remove(item.id)}
-                    className="shrink-0 text-xs font-semibold text-rose-300 hover:text-rose-200"
+      {loading || items.length > 0 ? (
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setSavedEntriesOpen((o) => !o)}
+            className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-left text-sm font-semibold text-slate-200 hover:border-slate-600/80 hover:bg-slate-900/70"
+            aria-expanded={savedEntriesOpen}
+          >
+            <span>
+              Saved entries
+              {!loading && items.length > 0 ? (
+                <span className="ml-1 font-normal text-slate-400">({items.length})</span>
+              ) : null}
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${savedEntriesOpen ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+          </button>
+          {savedEntriesOpen ? (
+            <div className="mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
+              {loading ? (
+                <div className="text-sm text-slate-400">Loading...</div>
+              ) : items.length === 0 ? (
+                <div className="text-sm text-slate-400">No memory entries yet.</div>
+              ) : (
+                items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-slate-800/80 bg-slate-900/40 px-3 py-2 text-sm"
                   >
-                    Remove
-                  </button>
-                ) : null}
-              </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-200">{item.title || "Untitled"}</div>
+                        <div className="mt-1 line-clamp-3 text-slate-400">{item.body}</div>
+                      </div>
+                      {canMutate ? (
+                        <button
+                          type="button"
+                          onClick={() => remove(item.id)}
+                          className="shrink-0 text-xs font-semibold text-rose-300 hover:text-rose-200"
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-          ))
-        )}
-      </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
