@@ -386,6 +386,11 @@ export function CompanyAdminDashboard({
   const currentDate = new Date(referenceTime);
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
+  const oneWeekMs = 1000 * 60 * 60 * 24 * 7;
+  const documentsThisWeek = documents.filter((document) => {
+    const createdAt = new Date(document.created_at);
+    return referenceTime - createdAt.getTime() <= oneWeekMs;
+  });
   const documentsThisMonth = documents.filter((document) => {
     const createdAt = new Date(document.created_at);
     return createdAt.getMonth() === currentMonth && createdAt.getFullYear() === currentYear;
@@ -412,6 +417,62 @@ export function CompanyAdminDashboard({
   );
   const workspacePulseLabel = getPulseLabel(workspacePulseScore);
   const workspacePulseTone = getPulseTone(workspacePulseScore);
+  const weeklyRecapTone =
+    highRiskAlerts.length > 0 || overdueActionsCount > 0
+      ? ("warning" as const)
+      : approvedThisMonth.length > 0 || documentsThisWeek.length > 0
+        ? ("success" as const)
+        : ("info" as const);
+  const weeklyRecapLabel =
+    highRiskAlerts.length > 0 || overdueActionsCount > 0
+      ? "Busy week"
+      : approvedThisMonth.length > 0 || documentsThisWeek.length > 0
+        ? "Strong week"
+        : "Quiet week";
+  const weeklyRecapCards = [
+    {
+      id: "recap-docs",
+      title: `${documentsThisWeek.length} document${documentsThisWeek.length === 1 ? "" : "s"} touched`,
+      detail:
+        documentsThisWeek.length > 0
+          ? "Recent document activity is keeping the board moving."
+          : "No new document movement in the last seven days.",
+      tone: documentsThisWeek.length > 0 ? ("info" as const) : ("neutral" as const),
+    },
+    {
+      id: "recap-approvals",
+      title: `${approvedThisMonth.length} approvals this month`,
+      detail:
+        approvedThisMonth.length > 0
+          ? "The team is closing work and keeping approvals moving."
+          : "Approvals will show up here as documents finish review.",
+      tone: approvedThisMonth.length > 0 ? ("success" as const) : ("neutral" as const),
+    },
+    {
+      id: "recap-sites",
+      title:
+        jobsites.length > 0
+          ? `${jobsites.length} site${jobsites.length === 1 ? "" : "s"} in play`
+          : "No sites added yet",
+      detail:
+        jobsites.length > 0
+          ? "The workspace already has a place to organize the work."
+          : "Add a jobsite and the board starts feeling more complete.",
+      tone: jobsites.length > 0 ? ("info" as const) : ("neutral" as const),
+    },
+    {
+      id: "recap-actions",
+      title:
+        overdueActionsCount > 0
+          ? `${overdueActionsCount} follow-up${overdueActionsCount === 1 ? "" : "s"} waiting`
+          : "No overdue follow-up",
+      detail:
+        overdueActionsCount > 0
+          ? "A small cleanup pass will keep the workspace feeling sharp."
+          : "Nothing is overdue, so the week is running clean.",
+      tone: overdueActionsCount > 0 ? ("warning" as const) : ("success" as const),
+    },
+  ];
   const workspaceBadgeCards = [
     {
       id: "team-online",
@@ -522,6 +583,90 @@ export function CompanyAdminDashboard({
   }
 
   priorityQueueItems.splice(3);
+
+  const workspaceSpotlight =
+    priorityQueueItems[0] ??
+    (pendingDocuments.length === 0
+      ? {
+          id: "spotlight-clear",
+          title: "Board is clear",
+          detail:
+            "There is no urgent work to push right now, so this is a good time to add the next jobsite or document.",
+          href: "/submit",
+          button: "Keep moving",
+          tone: "success" as const,
+        }
+      : null);
+  const workspaceMilestones = [
+    {
+      id: "milestone-first-user",
+      title:
+        companyUsers.length > 0 || companyInvites.length > 0
+          ? "First teammate onboarded"
+          : "Invite the first teammate",
+      detail:
+        companyUsers.length > 0 || companyInvites.length > 0
+          ? "The workspace already has another person in the mix."
+          : "A first invite makes the board feel like a real team workspace.",
+      tone:
+        companyUsers.length > 0 || companyInvites.length > 0
+          ? ("success" as const)
+          : ("neutral" as const),
+    },
+    {
+      id: "milestone-first-site",
+      title: jobsites.length > 0 ? "First jobsite created" : "Create the first jobsite",
+      detail:
+        jobsites.length > 0
+          ? "The site map has started and the dashboard can organize around it."
+          : "Once the first jobsite exists, documents and actions have a home.",
+      tone: jobsites.length > 0 ? ("info" as const) : ("neutral" as const),
+    },
+    {
+      id: "milestone-first-doc",
+      title: documents.length > 0 ? "First document in the board" : "Submit the first document",
+      detail:
+        documents.length > 0
+          ? "There is real workflow moving through the workspace."
+          : "A first document gives the approval flow something to do.",
+      tone: documents.length > 0 ? ("success" as const) : ("neutral" as const),
+    },
+    {
+      id: "milestone-first-approval",
+      title:
+        approvedDocuments.length > 0
+          ? "First approval completed"
+          : "Complete the first approval",
+      detail:
+        approvedDocuments.length > 0
+          ? "The workspace has already closed a loop."
+          : "Approval is where the workspace starts to feel real.",
+      tone: approvedDocuments.length > 0 ? ("success" as const) : ("warning" as const),
+    },
+    {
+      id: "milestone-credits",
+      title:
+        creditBalance !== null && creditBalance > 0
+          ? "Marketplace credits ready"
+          : "Top up marketplace credits",
+      detail:
+        creditBalance !== null && creditBalance > 0
+          ? "The board is ready for unlocks when the team needs them."
+          : "Credits keep the marketplace moving when someone wants to open a file.",
+      tone:
+        creditBalance !== null && creditBalance > 0 ? ("success" as const) : ("warning" as const),
+    },
+    {
+      id: "milestone-clean-queue",
+      title:
+        priorityQueueItems.length === 0 ? "Board is clean" : "Clear the priority queue",
+      detail:
+        priorityQueueItems.length === 0
+          ? "No urgent items are left hanging."
+          : "One good sweep through the queue will make the workspace feel lighter.",
+      tone: priorityQueueItems.length === 0 ? ("success" as const) : ("warning" as const),
+    },
+  ];
 
   const kpiCards = [
     {
@@ -794,55 +939,6 @@ export function CompanyAdminDashboard({
       done: documents.length > 0,
     },
   ];
-
-  const workspaceSpotlightCard =
-    highRiskAlerts.length > 0
-      ? {
-          id: "high-risk-alert",
-          title: highRiskAlerts[0].title,
-          detail: highRiskAlerts[0].detail,
-          href: "/field-id-exchange",
-          button: "Review alert",
-          tone: "warning" as const,
-        }
-      : pendingUsers.length > 0
-        ? {
-            id: "pending-users",
-            title: `${pendingUsers.length} company user${pendingUsers.length === 1 ? "" : "s"} waiting for approval`,
-            detail: "Open company users to approve, suspend, or activate access.",
-            href: "/company-users",
-            button: "Review users",
-            tone: "info" as const,
-          }
-        : pendingDocuments.length > 0
-          ? {
-              id: "pending-documents",
-              title: `${pendingDocuments.length} document${pendingDocuments.length === 1 ? "" : "s"} still pending review`,
-              detail: "Open the library queue and follow up on the newest submissions.",
-              href: "/library",
-              button: "Review docs",
-              tone: "warning" as const,
-            }
-          : companyInvites.length > 0
-            ? {
-                id: "pending-invites",
-                title: `${companyInvites.length} invite${companyInvites.length === 1 ? "" : "s"} still waiting`,
-                detail: "Remind invited employees to finish account setup.",
-                href: "/company-users",
-                button: "Open invites",
-                tone: "info" as const,
-              }
-            : pendingDocuments.length === 0
-              ? {
-                  id: "spotlight-clear",
-                  title: "Board is clear",
-                  detail:
-                    "There is no urgent work to push right now, so this is a good time to add the next jobsite or document.",
-                  href: "/submit",
-                  button: "Keep moving",
-                  tone: "success" as const,
-                }
-              : null;
 
   return (
     <div className="space-y-8">
@@ -1148,23 +1244,75 @@ export function CompanyAdminDashboard({
           </div>
 
           <Link
-            href={workspaceSpotlightCard?.href ?? "/library"}
+            href={workspaceSpotlight?.href ?? "/library"}
             className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 transition hover:border-sky-500/35 hover:bg-sky-950/30"
           >
             <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
               What&apos;s next
             </div>
             <div className="mt-3 text-lg font-bold text-slate-100">
-              {workspaceSpotlightCard?.title ?? "Open the library"}
+              {workspaceSpotlight?.title ?? "Open the library"}
             </div>
             <p className="mt-3 text-sm leading-6 text-slate-500">
-              {workspaceSpotlightCard?.detail ??
+              {workspaceSpotlight?.detail ??
                 "The library is ready when you want to review documents or unlock more marketplace items."}
             </p>
             <div className="mt-4 text-sm font-semibold text-sky-300">
-              {workspaceSpotlightCard?.button ?? "Open library"}
+              {workspaceSpotlight?.button ?? "Open library"}
             </div>
           </Link>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Weekly Recap"
+        description="A quick snapshot of what moved this week and where the next win probably lives."
+        aside={<StatusBadge label={weeklyRecapLabel} tone={weeklyRecapTone} />}
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {weeklyRecapCards.map((card) => (
+            <div key={card.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                Weekly snapshot
+              </div>
+              <div className="mt-3 text-lg font-bold text-slate-100">{card.title}</div>
+              <p className="mt-3 text-sm leading-6 text-slate-500">{card.detail}</p>
+              <div className="mt-4">
+                <StatusBadge label={card.title.split(" ")[0]} tone={card.tone} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Milestone Badges"
+        description="A small set of check-ins that make the workspace feel like progress is actually happening."
+        aside={
+          <StatusBadge
+            label={`${workspaceMilestones.filter((item) => item.tone === "success").length} unlocked`}
+            tone="success"
+          />
+        }
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {workspaceMilestones.map((milestone) => (
+            <div key={milestone.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                    Milestone
+                  </div>
+                  <div className="mt-2 text-base font-bold text-slate-100">{milestone.title}</div>
+                </div>
+                <StatusBadge
+                  label={milestone.tone === "success" ? "Unlocked" : milestone.tone === "warning" ? "Next" : "Locked"}
+                  tone={milestone.tone}
+                />
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-500">{milestone.detail}</p>
+            </div>
+          ))}
         </div>
       </SectionCard>
 

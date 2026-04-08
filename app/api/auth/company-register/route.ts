@@ -35,7 +35,6 @@ export async function POST(request: Request) {
     getDefaultAgreementConfig()
   );
 
-  /** Service role is required: public signUp can return before auth.users is visible to FK checks. */
   if (!adminClient) {
     return NextResponse.json(
       {
@@ -110,7 +109,6 @@ export async function POST(request: Request) {
   const { data: created, error: createError } = await adminClient.auth.admin.createUser({
     email,
     password,
-    /** Ensures auth.users row is committed so user_roles.user_id FK succeeds in the same request. */
     email_confirm: true,
     user_metadata: pendingMetadata,
     app_metadata: pendingMetadata,
@@ -144,22 +142,6 @@ export async function POST(request: Request) {
 
   const userId = created.user.id;
 
-  /** Self-signup: leave created_by/updated_by null — optional FK to auth.users. */
-  const roleResult = await adminClient.from("user_roles").upsert(
-    {
-      user_id: userId,
-      role: "viewer",
-      team: companyName,
-      company_id: null,
-      account_status: "pending",
-      created_by: null,
-      updated_by: null,
-    },
-    {
-      onConflict: "user_id",
-    }
-  );
-
   const signupRequestResult = await adminClient
     .from("company_signup_requests")
     .insert({
@@ -180,13 +162,6 @@ export async function POST(request: Request) {
       status: "pending",
       notes: "Created from the company owner signup flow.",
     });
-
-  if (roleResult.error) {
-    return NextResponse.json(
-      { error: roleResult.error.message || "Failed to create the pending owner account." },
-      { status: 500 }
-    );
-  }
 
   if (signupRequestResult.error) {
     if (

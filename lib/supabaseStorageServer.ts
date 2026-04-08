@@ -23,7 +23,24 @@ export async function downloadDocumentsBucketObject(
 
   const key = normalizeDocumentsBucketObjectPath(objectPath);
 
-  const { data: blob, error } = await admin.storage.from("documents").download(key);
+  let blobResult:
+    | { data: Blob | null; error: { message?: string | null } | null }
+    | undefined;
+
+  try {
+    blobResult = await admin.storage.from("documents").download(key);
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof Error && e.message
+          ? `File preview is unavailable: ${e.message}`
+          : "File preview is unavailable: could not read the file from storage.",
+      status: 503,
+    };
+  }
+
+  const { data: blob, error } = blobResult ?? { data: null, error: null };
 
   if (error || !blob) {
     const msg = (error?.message ?? "").toLowerCase();
@@ -81,10 +98,27 @@ export async function uploadDocumentsBucketObject(
 
   const key = normalizeDocumentsBucketObjectPath(objectPath);
 
-  const { error } = await admin.storage.from("documents").upload(key, bytes, {
-    upsert: options?.upsert ?? true,
-    contentType,
-  });
+  let uploadResult:
+    | { error: { message?: string | null } | null }
+    | undefined;
+
+  try {
+    uploadResult = await admin.storage.from("documents").upload(key, bytes, {
+      upsert: options?.upsert ?? true,
+      contentType,
+    });
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof Error && e.message
+          ? `Could not write the file to storage: ${e.message}`
+          : "Could not write the file to storage.",
+      status: 500,
+    };
+  }
+
+  const { error } = uploadResult ?? { error: null };
 
   if (error) {
     return {

@@ -10,7 +10,7 @@ export default function PrivacyPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-300">Legal</p>
             <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-100">Privacy overview</h1>
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-2 text-sm text-slate-300">
               Customize this page before a public or paid launch. It is a starting point, not legal advice.
             </p>
           </div>
@@ -69,8 +69,8 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          <p className="text-xs text-slate-600">
-            See also <Link href="/terms" className="text-teal-400 underline-offset-2 hover:underline">Terms of Service</Link>
+          <p className="text-xs text-slate-300">
+            See also <Link href="/terms" className="font-semibold text-white underline underline-offset-2 decoration-white/70 hover:text-slate-100">Terms of Service</Link>
             {" "}and your organization&apos;s agreements inside the app.
           </p>
         </div>

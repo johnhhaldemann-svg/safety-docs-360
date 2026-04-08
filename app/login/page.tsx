@@ -403,7 +403,7 @@ function LoginPageContent() {
                   <button
                     onClick={mode === "login" ? handleLogin : handleCreateAccount}
                     disabled={loading || (mode === "signup" && !agreed)}
-                    className="w-full rounded-2xl bg-amber-400 px-4 py-4 text-sm font-black uppercase tracking-[0.16em] text-white shadow-[0_16px_36px_rgba(245,158,11,0.26)] transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full rounded-2xl bg-amber-400 px-4 py-4 text-sm font-black uppercase tracking-[0.16em] text-slate-950 shadow-[0_16px_36px_rgba(245,158,11,0.26)] transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loading
                       ? mode === "login"
@@ -436,7 +436,7 @@ function LoginPageContent() {
                           "Create your account first. After sign-in, you will build your construction profile, launch your company workspace, and then invite employees."
                         );
                       }}
-                      className="inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+                      className="inline-flex items-center justify-center rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-600"
                     >
                       Create Account
                     </button>

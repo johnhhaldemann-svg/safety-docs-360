@@ -122,6 +122,24 @@ function getProfileHref(userId: string) {
   return `/profile?userId=${encodeURIComponent(userId)}&returnTo=${encodeURIComponent("/company-users")}`;
 }
 
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getPulseTone(score: number): "neutral" | "success" | "warning" | "info" | "error" {
+  if (score >= 85) return "success";
+  if (score >= 65) return "info";
+  if (score >= 45) return "warning";
+  return "error";
+}
+
+function getPulseLabel(score: number) {
+  if (score >= 85) return "Thriving";
+  if (score >= 65) return "Strong";
+  if (score >= 45) return "Needs attention";
+  return "Building";
+}
+
 export default function CompanyUsersPage() {
   const [users, setUsers] = useState<CompanyUser[]>([]);
   const [invites, setInvites] = useState<CompanyInvite[]>([]);
@@ -144,6 +162,7 @@ export default function CompanyUsersPage() {
   const [jobsites, setJobsites] = useState<Jobsite[]>([]);
   const [assignmentMap, setAssignmentMap] = useState<Record<string, string[]>>({});
   const [editAssignments, setEditAssignments] = useState<string[]>([]);
+  const [referenceTime] = useState(() => Date.now());
 
   async function getAccessToken() {
     const {
@@ -273,6 +292,14 @@ export default function CompanyUsersPage() {
     () => filteredTeamMembers.filter((user) => user.status === "Suspended"),
     [filteredTeamMembers]
   );
+  const onlineUsers = useMemo(
+    () =>
+      activeUsers.filter((user) => {
+        if (!user.last_sign_in_at) return false;
+        return referenceTime - new Date(user.last_sign_in_at).getTime() <= 1000 * 60 * 20;
+      }),
+    [activeUsers, referenceTime]
+  );
   const jobsiteNameById = useMemo(
     () =>
       jobsites.reduce<Record<string, string>>((acc, jobsite) => {
@@ -302,6 +329,91 @@ export default function CompanyUsersPage() {
     ],
     [activeUsers.length, invites.length, pendingUsers.length]
   );
+  const teamPulseScore = clampNumber(
+    68 +
+      Math.min(10, activeUsers.length * 3) +
+      Math.min(8, onlineUsers.length * 4) +
+      Math.min(8, jobsites.length * 2) -
+      pendingUsers.length * 5 -
+      invites.length * 2,
+    0,
+    100
+  );
+  const teamPulseLabel = getPulseLabel(teamPulseScore);
+  const teamPulseTone = getPulseTone(teamPulseScore);
+  const teamSpotlight =
+    pendingUsers.length > 0
+      ? {
+          title: "Approve the next teammate",
+          detail: "There is already someone waiting, so this is the highest-value next click.",
+          href: "/company-users",
+          button: "Review approvals",
+          tone: "warning" as const,
+        }
+      : invites.length > 0
+        ? {
+            title: "Follow up on invites",
+            detail: "The invite lane already has activity, so now is a good time to keep the flow moving.",
+            href: "/company-users",
+            button: "Open invites",
+            tone: "info" as const,
+          }
+        : jobsites.length === 0
+          ? {
+              title: "Create the first jobsite",
+              detail: "A first site gives new team members a place to land and helps the workspace feel real.",
+              href: "/jobsites",
+              button: "Add jobsite",
+              tone: "success" as const,
+            }
+          : {
+              title: "Keep the team moving",
+              detail: "The workspace is in good shape, so the next best move is usually documents or field work.",
+              href: "/submit",
+              button: "Submit document",
+              tone: "success" as const,
+            };
+  const teamMilestones = [
+    {
+      id: "team-invite",
+      title: invites.length > 0 ? "First invite sent" : "Send the first invite",
+      detail:
+        invites.length > 0
+          ? "The onboarding lane is already active."
+          : "Inviting the first teammate makes the workspace feel alive.",
+      tone: invites.length > 0 ? ("success" as const) : ("neutral" as const),
+    },
+    {
+      id: "team-approval",
+      title:
+        pendingUsers.length === 0 && activeUsers.length > 0
+          ? "Approval flow moving"
+          : "Approve the first account",
+      detail:
+        pendingUsers.length === 0 && activeUsers.length > 0
+          ? "At least one account has already made it through approval."
+          : "Once the first user is approved, the team path feels real.",
+      tone: pendingUsers.length === 0 && activeUsers.length > 0 ? ("success" as const) : ("warning" as const),
+    },
+    {
+      id: "team-online",
+      title: onlineUsers.length > 0 ? "Someone is online" : "Get the team online",
+      detail:
+        onlineUsers.length > 0
+          ? "Live sign-ins are happening now."
+          : "A recent sign-in is a good sign that the workspace is in use.",
+      tone: onlineUsers.length > 0 ? ("info" as const) : ("neutral" as const),
+    },
+    {
+      id: "team-sites",
+      title: jobsites.length > 0 ? "Site map started" : "Create the first site",
+      detail:
+        jobsites.length > 0
+          ? "The team already has a place to organize field work."
+          : "Jobsites help users, documents, and safety work snap into place.",
+      tone: jobsites.length > 0 ? ("success" as const) : ("neutral" as const),
+    },
+  ];
 
   const launchChecklistItems = [
     {
@@ -712,6 +824,98 @@ export default function CompanyUsersPage() {
               <p className="mt-3 text-sm leading-6 text-slate-500">{item.detail}</p>
               <div className="mt-4 text-sm font-semibold text-sky-300">Open now</div>
             </Link>
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Team Pulse"
+        description="A quick read on how the company access lane is moving today."
+        aside={<StatusBadge label={teamPulseLabel} tone={teamPulseTone} />}
+      >
+        <div className="grid gap-3 lg:grid-cols-4">
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              Pulse score
+            </div>
+            <div className="mt-3 flex items-end gap-2">
+              <span className="text-4xl font-black tracking-tight text-white">{teamPulseScore}</span>
+              <span className="pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">
+                /100
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              {teamPulseLabel} based on active users, online teammates, invites, and site readiness.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              What&apos;s next
+            </div>
+            <div className="mt-3 text-lg font-bold text-slate-100">{teamSpotlight.title}</div>
+            <p className="mt-3 text-sm leading-6 text-slate-500">{teamSpotlight.detail}</p>
+            <Link href={teamSpotlight.href} className="mt-4 inline-flex text-sm font-semibold text-sky-300">
+              {teamSpotlight.button}
+            </Link>
+          </div>
+
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              Team badges
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[
+                invites.length > 0 ? "Invites in motion" : "Invite lane quiet",
+                pendingUsers.length > 0 ? "Approvals waiting" : "Approvals clear",
+                onlineUsers.length > 0 ? "Team online" : "Team offline",
+              ].map((label) => (
+                <StatusBadge
+                  key={label}
+                  label={label}
+                  tone={
+                    label.includes("clear") || label.includes("online")
+                      ? "success"
+                      : label.includes("waiting") || label.includes("motion")
+                        ? "warning"
+                        : "info"
+                  }
+                />
+              ))}
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              A lightweight view of who is active, who is waiting, and where the flow is strongest.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              Milestones
+            </div>
+            <div className="mt-3 text-3xl font-black text-white">
+              {teamMilestones.filter((item) => item.tone === "success").length} unlocked
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              Small wins that make onboarding feel like progress instead of paperwork.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {teamMilestones.map((milestone) => (
+            <div key={milestone.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                Milestone
+              </div>
+              <div className="mt-3 text-lg font-bold text-slate-100">{milestone.title}</div>
+              <p className="mt-3 text-sm leading-6 text-slate-500">{milestone.detail}</p>
+              <div className="mt-4">
+                <StatusBadge
+                  label={milestone.tone === "success" ? "Unlocked" : milestone.tone === "warning" ? "Next" : "Locked"}
+                  tone={milestone.tone}
+                />
+              </div>
+            </div>
           ))}
         </div>
       </SectionCard>

@@ -1177,8 +1177,8 @@ function LibraryPageContent() {
         headerPills={["Owned or unlocked", "Open without preview", "Moves into your ready list"]}
         loading={loading}
         documents={accessibleApprovedDocuments}
-        emptyTitle="No ready documents yet"
-        emptyMessage="Completed documents you own or unlock with credits will show up here first."
+        emptyTitle="Your ready-to-open shelf is empty"
+        emptyMessage="Completed documents you own or unlock with credits will land here first."
         onOpen={(doc) => setPendingDownload({ mode: "completed", documentId: doc.id })}
         actionLabel="Open document"
         highlightDocumentId={highlightDocId}
@@ -1202,8 +1202,8 @@ function LibraryPageContent() {
         headerPills={["Drafts and reviews", "Preview excerpt available when a file exists", "Search and filters apply here"]}
         loading={loading}
         documents={otherDocuments}
-        emptyTitle="No documents found"
-        emptyMessage="Try adjusting your filters or upload a new file."
+        emptyTitle="Nothing matches this filter"
+        emptyMessage="Try another search or clear the filters to see the full document board."
         onOpen={(doc) => {
           void handleWorkspaceDocumentExcerpt(doc.id);
         }}
@@ -1515,10 +1515,10 @@ function MarketplaceSection({
       ) : documents.length === 0 ? (
         <div className="mt-6 rounded-3xl border border-dashed border-slate-600 bg-slate-950/50 p-10 text-center">
           <p className="text-base font-semibold text-slate-100">
-            No marketplace documents available
+            The marketplace is quiet right now
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            When completed documents are listed for credits, they will appear here.
+            When completed documents are listed for credits, they will appear here. Check back when the board has fresh unlocks.
           </p>
         </div>
       ) : (

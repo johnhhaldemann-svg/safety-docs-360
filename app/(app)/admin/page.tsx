@@ -61,6 +61,24 @@ function getDocumentTitle(doc: DocumentRow) {
   return doc.project_name ?? doc.document_type ?? "Untitled Document";
 }
 
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getPulseTone(score: number): "neutral" | "success" | "warning" | "info" | "error" {
+  if (score >= 85) return "success";
+  if (score >= 65) return "info";
+  if (score >= 45) return "warning";
+  return "error";
+}
+
+function getPulseLabel(score: number) {
+  if (score >= 85) return "Very steady";
+  if (score >= 65) return "Healthy";
+  if (score >= 45) return "Needs attention";
+  return "Under pressure";
+}
+
 export default function AdminPage() {
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
@@ -340,6 +358,81 @@ export default function AdminPage() {
     [archivedDocuments]
   );
   const canAssignRoles = Boolean(permissionMap?.can_assign_roles);
+  const adminPulseScore = clampNumber(
+    70 +
+      Math.min(12, approvedDocuments.length * 2) +
+      Math.min(10, activeTodayUsers.length * 3) +
+      Math.min(8, recentAccess.length * 2) -
+      pendingReview.length * 6 -
+      pendingUsers.length * 4 -
+      (archivedDocuments.length === 0 ? 2 : 0),
+    0,
+    100
+  );
+  const adminPulseLabel = getPulseLabel(adminPulseScore);
+  const adminPulseTone = getPulseTone(adminPulseScore);
+  const adminRecapCards = [
+    {
+      id: "recap-docs",
+      title: `${pendingReview.length} document${pendingReview.length === 1 ? "" : "s"} in review`,
+      detail:
+        pendingReview.length > 0
+          ? "Review queue has items waiting for a decision."
+          : "The document queue is clear and ready for the next file.",
+      tone: pendingReview.length > 0 ? ("warning" as const) : ("success" as const),
+    },
+    {
+      id: "recap-users",
+      title: `${pendingUsers.length} user${pendingUsers.length === 1 ? "" : "s"} waiting`,
+      detail:
+        pendingUsers.length > 0
+          ? "Higher-permission admins can move these accounts into the workspace."
+          : "No user approvals are blocking access right now.",
+      tone: pendingUsers.length > 0 ? ("warning" as const) : ("success" as const),
+    },
+    {
+      id: "recap-active",
+      title: `${activeTodayUsers.length} active today`,
+      detail:
+        activeTodayUsers.length > 0
+          ? "People are signing in and keeping the workspace moving."
+          : "No one is online yet, which is a good time to prep the next task.",
+      tone: activeTodayUsers.length > 0 ? ("info" as const) : ("neutral" as const),
+    },
+    {
+      id: "recap-archive",
+      title: `${archivedDocuments.length} archived record${archivedDocuments.length === 1 ? "" : "s"}`,
+      detail:
+        archivedDocuments.length > 0
+          ? "Old records are being tucked away cleanly."
+          : "Nothing has been archived yet, which keeps the workflow easy to scan.",
+      tone: archivedDocuments.length > 0 ? ("info" as const) : ("neutral" as const),
+    },
+  ];
+  const adminSpotlight =
+    pendingReview.length > 0
+      ? {
+          title: "Review the next document",
+          detail: "The queue already has something waiting, so this is the highest-value click.",
+          href: "/admin/review-documents",
+          button: "Open review queue",
+          tone: "warning" as const,
+        }
+      : pendingUsers.length > 0
+        ? {
+            title: "Approve the next user",
+            detail: "A waiting account is ready to be activated by a higher-permission admin.",
+            href: "/admin/users",
+            button: "Manage users",
+            tone: "info" as const,
+          }
+        : {
+            title: "Keep the board moving",
+            detail: "The admin board is light right now, so it’s a good time to check archive or companies.",
+            href: "/admin/companies",
+            button: "Track companies",
+            tone: "success" as const,
+          };
 
   return (
     <div className="space-y-8">
@@ -373,6 +466,107 @@ export default function AdminPage() {
         }
       />
 
+      <SectionCard
+        title="Admin Pulse"
+        description="A light, at-a-glance read on how the admin workspace is flowing today."
+        aside={<StatusBadge label={adminPulseLabel} tone={adminPulseTone} />}
+      >
+        <div className="grid gap-3 lg:grid-cols-4">
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              Pulse score
+            </div>
+            <div className="mt-3 flex items-end gap-2">
+              <span className="text-4xl font-black tracking-tight text-white">{adminPulseScore}</span>
+              <span className="pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">
+                /100
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              {adminPulseLabel} based on review queue activity, approvals, and users active today.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              What&apos;s next
+            </div>
+            <div className="mt-3 text-lg font-bold text-slate-100">{adminSpotlight.title}</div>
+            <p className="mt-3 text-sm leading-6 text-slate-500">{adminSpotlight.detail}</p>
+            <Link href={adminSpotlight.href} className="mt-4 inline-flex text-sm font-semibold text-sky-300">
+              {adminSpotlight.button}
+            </Link>
+          </div>
+
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              Admin badges
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[
+                pendingReview.length === 0 ? "Review queue clear" : "Review queue active",
+                pendingUsers.length === 0 ? "Users settled" : "Users awaiting approval",
+                activeTodayUsers.length > 0 ? "Team online" : "Quiet board",
+              ].map((label) => (
+                <StatusBadge
+                  key={label}
+                  label={label}
+                  tone={
+                    label.includes("clear") || label.includes("settled") || label.includes("online")
+                      ? "success"
+                      : label.includes("active") || label.includes("awaiting")
+                        ? "warning"
+                        : "info"
+                  }
+                />
+              ))}
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              Small signal chips that make the admin view feel more human without hiding the real work.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              Archive rhythm
+            </div>
+            <div className="mt-3 text-3xl font-black text-white">{recentlyArchived.length} items</div>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              Archived files stay easy to scan, so the active board feels less cluttered.
+            </p>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Admin Recap"
+        description="A compact summary of what is moving, what is settled, and what is most likely next."
+        aside={
+          <StatusBadge
+            label={`${adminRecapCards.filter((item) => item.tone === "success").length} green`}
+            tone="success"
+          />
+        }
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {adminRecapCards.map((card) => (
+            <div key={card.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                Admin recap
+              </div>
+              <div className="mt-3 text-lg font-bold text-slate-100">{card.title}</div>
+              <p className="mt-3 text-sm leading-6 text-slate-500">{card.detail}</p>
+              <div className="mt-4">
+                <StatusBadge
+                  label={card.tone === "success" ? "Unlocked" : card.tone === "warning" ? "Watch" : "Open"}
+                  tone={card.tone}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((item) => (
           <div key={item.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
@@ -392,11 +586,11 @@ export default function AdminPage() {
           items={
             documentQueue.length > 0
               ? documentQueue
-              : [
+                : [
                   {
                     id: "empty-doc-queue",
-                    title: "No documents are waiting for review",
-                    detail: "Submitted files will appear here as soon as they need approval.",
+                    title: "Review queue looks good",
+                    detail: "Submitted files will show up here when the board needs another admin decision.",
                     meta: "Clear",
                     tone: "success",
                   },
@@ -412,13 +606,13 @@ export default function AdminPage() {
               userQueue.length > 0
                 ? userQueue
                 : [
-                    {
-                      id: "empty-user-queue",
-                      title: "No users are waiting for approval",
-                      detail: "New signups and invited users will appear here until approved.",
-                      meta: "Clear",
-                      tone: "success",
-                    },
+                  {
+                    id: "empty-user-queue",
+                    title: "No users are waiting right now",
+                    detail: "New signups and invited users will appear here until an admin approves them.",
+                    meta: "Clear",
+                    tone: "success",
+                  },
                   ]
             }
           />
@@ -441,11 +635,11 @@ export default function AdminPage() {
           items={
             recentAccess.length > 0
               ? recentAccess
-              : [
+                : [
                   {
                     id: "no-access",
                     title: "No access activity yet",
-                    detail: "User sign-ins and new account creation will appear here.",
+                    detail: "User sign-ins and new account creation will appear here when the board starts moving.",
                     meta: "Waiting",
                     tone: "neutral",
                   },
@@ -459,11 +653,11 @@ export default function AdminPage() {
           items={
             recentAdminActivity.length > 0
               ? recentAdminActivity
-              : [
+                : [
                   {
                     id: "no-admin-activity",
                     title: "No admin activity yet",
-                    detail: "Review, archive, and final-file events will appear here.",
+                    detail: "Review, archive, and final-file events will appear here as the dashboard gets used.",
                     meta: "Waiting",
                     tone: "neutral",
                   },
@@ -525,7 +719,7 @@ export default function AdminPage() {
         >
           {recentlyArchived.length === 0 ? (
             <EmptyState
-              title="No archive activity yet"
+              title="Archive is quiet for now"
               description="Archived documents will appear here after records are moved out of the active workflow."
             />
           ) : (
