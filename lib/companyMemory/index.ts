@@ -5,6 +5,7 @@ export {
   insertCompanyMemoryItem,
   listCompanyMemoryItems,
   matchCompanyMemorySemantic,
+  memorySearchTokensFromQuery,
   normalizeMemorySource,
   retrieveMemoryForQuery,
   searchCompanyMemoryKeyword,

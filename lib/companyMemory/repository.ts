@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createEmbedding } from "@/lib/companyMemory/embed";
 import type { CompanyMemoryItemRow, CompanyMemorySource } from "@/lib/companyMemory/types";
+import { serverLog } from "@/lib/serverLog";
 
 const SOURCES = new Set<CompanyMemorySource>([
   "manual",
@@ -15,6 +16,123 @@ export function normalizeMemorySource(raw: string | null | undefined): CompanyMe
     return t;
   }
   return "other";
+}
+
+/** Words too generic to use alone for memory ILIKE (keeps "lilly", "ppe", "gloves", etc.). */
+const KEYWORD_STOPWORDS = new Set([
+  "a",
+  "an",
+  "the",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "can",
+  "could",
+  "should",
+  "would",
+  "will",
+  "what",
+  "which",
+  "who",
+  "whom",
+  "whose",
+  "where",
+  "when",
+  "why",
+  "how",
+  "if",
+  "or",
+  "and",
+  "but",
+  "not",
+  "no",
+  "yes",
+  "to",
+  "of",
+  "in",
+  "on",
+  "at",
+  "by",
+  "for",
+  "with",
+  "from",
+  "as",
+  "into",
+  "onto",
+  "i",
+  "we",
+  "you",
+  "he",
+  "she",
+  "it",
+  "they",
+  "them",
+  "our",
+  "your",
+  "my",
+  "this",
+  "that",
+  "these",
+  "those",
+  "there",
+  "here",
+  "any",
+  "all",
+  "some",
+  "each",
+  "every",
+  "both",
+  "few",
+  "more",
+  "most",
+  "other",
+  "such",
+  "than",
+  "then",
+  "so",
+  "too",
+  "very",
+  "just",
+  "also",
+  "only",
+  "own",
+  "same",
+  "tell",
+  "about",
+  "through",
+  "during",
+  "before",
+  "after",
+  "above",
+  "below",
+  "between",
+  "under",
+  "again",
+  "once",
+]);
+
+function escapeIlikePattern(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+/**
+ * Tokens for keyword search over title/body (natural-language questions).
+ * Exported for unit tests.
+ */
+export function memorySearchTokensFromQuery(query: string): string[] {
+  const raw = query.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  const tokens = raw.filter((t) => t.length >= 2 && !KEYWORD_STOPWORDS.has(t));
+  return tokens.slice(0, 12);
 }
 
 export async function listCompanyMemoryItems(
@@ -72,43 +190,54 @@ export async function searchCompanyMemoryKeyword(
     return { items: [] };
   }
   const cap = Math.min(limit, 32);
-  const pattern = `%${q.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
-
-  const [titleRes, bodyRes] = await Promise.all([
-    supabase
-      .from("company_memory_items")
-      .select(
-        "id, company_id, source, title, body, metadata, created_by, created_at, updated_at"
-      )
-      .eq("company_id", companyId)
-      .ilike("title", pattern)
-      .limit(cap),
-    supabase
-      .from("company_memory_items")
-      .select(
-        "id, company_id, source, title, body, metadata, created_by, created_at, updated_at"
-      )
-      .eq("company_id", companyId)
-      .ilike("body", pattern)
-      .limit(cap),
-  ]);
-
-  if (titleRes.error) {
-    return { items: [], error: titleRes.error.message };
-  }
-  if (bodyRes.error) {
-    return { items: [], error: bodyRes.error.message };
-  }
+  const tokens = memorySearchTokensFromQuery(q);
+  const searchTerms =
+    tokens.length > 0 ? tokens : [q.slice(0, 200).toLowerCase().replace(/\s+/g, " ").trim()];
 
   const seen = new Set<string>();
   const out: CompanyMemoryItemRow[] = [];
-  for (const row of [...(titleRes.data ?? []), ...(bodyRes.data ?? [])]) {
-    const r = row as CompanyMemoryItemRow;
-    if (seen.has(r.id)) continue;
-    seen.add(r.id);
-    out.push(r);
-    if (out.length >= cap) break;
+
+  for (const term of searchTerms) {
+    if (term.length < 2) continue;
+    const pattern = `%${escapeIlikePattern(term)}%`;
+
+    const [titleRes, bodyRes] = await Promise.all([
+      supabase
+        .from("company_memory_items")
+        .select(
+          "id, company_id, source, title, body, metadata, created_by, created_at, updated_at"
+        )
+        .eq("company_id", companyId)
+        .ilike("title", pattern)
+        .limit(cap),
+      supabase
+        .from("company_memory_items")
+        .select(
+          "id, company_id, source, title, body, metadata, created_by, created_at, updated_at"
+        )
+        .eq("company_id", companyId)
+        .ilike("body", pattern)
+        .limit(cap),
+    ]);
+
+    if (titleRes.error) {
+      return { items: [], error: titleRes.error.message };
+    }
+    if (bodyRes.error) {
+      return { items: [], error: bodyRes.error.message };
+    }
+
+    for (const row of [...(titleRes.data ?? []), ...(bodyRes.data ?? [])]) {
+      const r = row as CompanyMemoryItemRow;
+      if (seen.has(r.id)) continue;
+      seen.add(r.id);
+      out.push(r);
+      if (out.length >= cap) {
+        return { items: out };
+      }
+    }
   }
+
   return { items: out };
 }
 
@@ -232,13 +361,20 @@ export async function insertCompanyMemoryItem(
         .eq("id", id)
         .eq("company_id", params.companyId);
       if (upErr) {
-        return { id, error: upErr.message };
+        serverLog("warn", "company_memory_embedding_update_failed", {
+          companyId: params.companyId,
+          itemId: id,
+          operation: "insert",
+          message: upErr.message.slice(0, 200),
+        });
       }
     } catch (e) {
-      return {
-        id,
-        error: e instanceof Error ? e.message : "Embedding failed.",
-      };
+      serverLog("warn", "company_memory_embedding_failed", {
+        companyId: params.companyId,
+        itemId: id,
+        operation: "insert",
+        message: e instanceof Error ? e.message.slice(0, 200) : "Embedding failed.",
+      });
     }
   }
 
@@ -282,13 +418,26 @@ export async function updateCompanyMemoryItem(
         const text = `${item.title}\n\n${item.body}`.trim();
         const embedding = await createEmbedding(text);
         const vectorLiteral = `[${embedding.join(",")}]`;
-        await supabase
+        const { error: upErr } = await supabase
           .from("company_memory_items")
           .update({ embedding: vectorLiteral })
           .eq("id", params.id)
           .eq("company_id", params.companyId);
+        if (upErr) {
+          serverLog("warn", "company_memory_embedding_update_failed", {
+            companyId: params.companyId,
+            itemId: params.id,
+            operation: "update",
+            message: upErr.message.slice(0, 200),
+          });
+        }
       } catch (e) {
-        return { error: e instanceof Error ? e.message : "Embedding update failed." };
+        serverLog("warn", "company_memory_embedding_failed", {
+          companyId: params.companyId,
+          itemId: params.id,
+          operation: "update",
+          message: e instanceof Error ? e.message.slice(0, 200) : "Embedding failed.",
+        });
       }
     }
   }
