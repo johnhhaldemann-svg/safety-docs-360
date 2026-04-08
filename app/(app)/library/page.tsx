@@ -833,7 +833,7 @@ function LibraryPageContent() {
         {
           label: "Ready & marketplace",
           detail:
-            "Open approved company files from Ready to open; use Marketplace unlocks for listed documents from credits.",
+            "Open approved company files from Ready to open. Use Marketplace unlocks to buy listed documents with credits.",
           active: accessibleApprovedDocuments.length > 0 || marketplaceDocuments.length > 0,
           complete: accessibleApprovedDocuments.length > 0 || marketplaceDocuments.length > 0,
         },
@@ -871,13 +871,13 @@ function LibraryPageContent() {
         },
         {
           label: "Approved files",
-          detail: "Completed records become ready to open or available for marketplace unlock.",
+          detail: "Completed records become ready to open or available to unlock in the marketplace.",
           active: accessibleApprovedDocuments.length > 0,
           complete: accessibleApprovedDocuments.length > 0,
         },
         {
           label: "Library access",
-          detail: "Open completed documents directly from your ready list after approval or purchase.",
+          detail: "Open completed documents directly from your ready-to-open list after approval or purchase.",
           active: accessibleApprovedDocuments.length > 0,
           complete: accessibleApprovedDocuments.length > 0,
         },
@@ -977,8 +977,8 @@ function LibraryPageContent() {
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-300">
                 {isManagerView
-                  ? "Completed files that are already available to this company account will appear in the ready list below."
-                  : "Use credits to unlock completed marketplace documents and move them straight into your ready-to-open list."}
+                  ? "Completed files already available to this company account will appear below."
+                  : "Use credits to unlock completed marketplace documents and add them to your ready-to-open list."}
               </p>
             </div>
 
@@ -1182,7 +1182,7 @@ function LibraryPageContent() {
         title={isManagerView ? "Company Access Workflow" : "Upload to Library Workflow"}
         description={
           isManagerView
-            ? "Approved files land in Ready to open. Draft and in-review company submissions appear under Active documents, where you can preview attached files when storage paths exist."
+            ? "Approved files land in Ready to open. Draft and in-review company submissions appear under Active documents, where attached files can be previewed when storage paths exist."
             : "The library is the end of the document journey. Files appear here after upload, submission, admin review, and final approval."
         }
         steps={workflowSteps}
@@ -1200,7 +1200,7 @@ function LibraryPageContent() {
         sectionId="ready-documents"
         title="Ready to open"
         description="Completed documents you already have access to."
-        headerPills={["Owned or unlocked", "Open without preview", "Moves into your ready list"]}
+        headerPills={["Owned or unlocked", "Open without preview", "Adds to your ready-to-open list"]}
         loading={loading}
         documents={accessibleApprovedDocuments}
         emptyTitle="Your ready-to-open shelf is empty"
@@ -1225,7 +1225,7 @@ function LibraryPageContent() {
         sectionId="active-documents"
         title="All active documents"
         description="Uploaded records that are still in progress or waiting on completion."
-        headerPills={["Drafts and reviews", "Preview excerpt available when a file exists", "Search and filters apply here"]}
+        headerPills={["Drafts and reviews", "Preview sample available when a file exists", "Search and filters apply here"]}
         loading={loading}
         documents={otherDocuments}
         emptyTitle="Nothing matches this filter"
@@ -1233,7 +1233,7 @@ function LibraryPageContent() {
         onOpen={(doc) => {
           void handleWorkspaceDocumentExcerpt(doc.id);
         }}
-        actionLabel="Preview excerpt"
+        actionLabel="Preview sample"
         actionLoadingDocumentId={activeExcerptLoadingId}
         highlightDocumentId={highlightDocId}
       />
@@ -1490,12 +1490,12 @@ function MarketplaceSection({
               Marketplace unlocks
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Use credits to unlock completed documents and move them into your ready list.
+              Use credits to unlock completed documents and add them to your ready-to-open list.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <span className="rounded-full border border-slate-600 bg-slate-950/50 px-3 py-1.5 text-xs font-semibold text-slate-300">
-              Preview first, then unlock
+              See the sample first, then unlock
             </span>
             <span className="rounded-full border border-slate-600 bg-slate-950/50 px-3 py-1.5 text-xs font-semibold text-slate-300">
               Unlocks move straight to Ready to open
@@ -1555,9 +1555,9 @@ function MarketplaceSection({
             const previewGate = getSubmitterPreviewStatus(doc.notes);
             const previewGateMessage =
               isMarketplaceEnabled(doc.notes) && previewGate === "pending"
-                ? "Buyer preview is waiting for the document owner to approve it before it appears here."
+                ? "The buyer sample is waiting for the document owner to approve it before it appears here."
                 : isMarketplaceEnabled(doc.notes) && previewGate === "rejected"
-                  ? "Buyer preview was rejected by the document owner; the publisher must publish an updated preview."
+                  ? "The buyer sample was rejected by the document owner; the publisher must publish an updated sample."
                   : null;
             const previewStateLabel = previewGateMessage
               ? "Preview gated"
@@ -1566,6 +1566,14 @@ function MarketplaceSection({
                 : "Preview unavailable";
             const previewStateTone =
               previewGateMessage ? "warning" : canRequestMarketplaceLibraryPreview(doc) ? "success" : "neutral";
+            const teaserLine =
+              previewGateMessage ||
+              (canAfford
+                ? "You can unlock this document right now."
+                : `Add ${cost - creditBalance} more credit${cost - creditBalance === 1 ? "" : "s"} to unlock.`);
+            const documentValueLine = canRequestMarketplaceLibraryPreview(doc)
+              ? "See the structure first, then decide whether to buy."
+              : "This listing is ready for purchase and will move to your ready shelf after unlock.";
 
             const highlighted = highlightDocumentId === doc.id;
             return (
@@ -1573,27 +1581,22 @@ function MarketplaceSection({
                 key={doc.id}
                 id={`library-doc-${doc.id}`}
                 className={[
-                  "flex h-full flex-col rounded-3xl border bg-slate-900/80 p-5 shadow-sm",
+                  "relative flex h-full flex-col overflow-hidden rounded-[2rem] border bg-[linear-gradient(180deg,_rgba(15,23,42,0.98)_0%,_rgba(15,23,42,0.92)_60%,_rgba(2,6,23,0.98)_100%)] p-5 shadow-[0_18px_40px_rgba(2,6,23,0.22)]",
                   highlighted
-                    ? "border-teal-400/70 ring-2 ring-teal-400/50 ring-offset-2 ring-offset-slate-950"
+                    ? "border-sky-400/70 ring-2 ring-sky-400/50 ring-offset-2 ring-offset-slate-950"
                     : "border-slate-700/80",
                 ].join(" ")}
               >
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/60 to-transparent" />
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="text-lg font-bold leading-6 text-white">
-                      {getDocumentTitle(doc)}
-                    </h3>
-                    <p className="mt-2 text-sm text-slate-500">
-                      {doc.document_type || "Completed document"}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <span className="rounded-full bg-sky-950/40 px-3 py-1 text-xs font-semibold text-sky-200 ring-1 ring-sky-500/30">
-                        {cost} credits
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-sky-500/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-sky-200 ring-1 ring-sky-400/20">
+                        Marketplace listing
                       </span>
                       <span
                         className={[
-                          "rounded-full px-3 py-1 text-xs font-semibold ring-1",
+                          "rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] ring-1",
                           previewStateTone === "success"
                             ? "bg-emerald-950/40 text-emerald-200 ring-emerald-500/25"
                             : previewStateTone === "warning"
@@ -1604,7 +1607,37 @@ function MarketplaceSection({
                         {previewStateLabel}
                       </span>
                     </div>
+                    <h3 className="mt-4 text-lg font-bold leading-6 text-white">
+                      {getDocumentTitle(doc)}
+                    </h3>
+                    <p className="mt-2 text-sm text-slate-400">
+                      {doc.document_type || "Completed document"}
+                    </p>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Price
+                        </p>
+                        <p className="mt-1 text-base font-black text-white">{cost} credits</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Access
+                        </p>
+                        <p className="mt-1 text-base font-black text-white">
+                          {canAfford ? "Available now" : "Needs top-up"}
+                        </p>
+                      </div>
+                    </div>
                   </div>
+                </div>
+
+                <div className="mt-5 rounded-[1.5rem] border border-slate-700/80 bg-slate-950/60 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Listing summary
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">{documentValueLine}</p>
+                  <p className="mt-3 text-sm font-semibold text-slate-100">{teaserLine}</p>
                 </div>
 
                 <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
@@ -1613,18 +1646,6 @@ function MarketplaceSection({
                   <InfoPair label="Uploaded by" value={doc.uploaded_by || "Unknown"} />
                   <InfoPair label="Created" value={formatCompactDate(doc.created_at)} />
                 </dl>
-
-                <div className="mt-5 rounded-2xl border border-slate-700/80 bg-slate-900/85 p-4">
-                  <p className="text-sm text-slate-400">
-                    Unlock this completed file and add it to your ready-to-open
-                    library.
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-slate-100">
-                    {canAfford
-                      ? "You have enough credits for this unlock."
-                      : `You need ${cost - creditBalance} more credit${cost - creditBalance === 1 ? "" : "s"}.`}
-                  </p>
-                </div>
 
                 {previewGateMessage ? (
                   <p className="mt-4 text-xs leading-5 text-amber-200/90">{previewGateMessage}</p>
@@ -1636,16 +1657,16 @@ function MarketplaceSection({
                       type="button"
                       onClick={() => onPreview(doc.id)}
                       disabled={previewLoadingId === doc.id}
-                      className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-600 bg-transparent px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800/50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-600 bg-slate-950/60 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {previewLoadingId === doc.id ? "Loading excerpt..." : "Preview excerpt"}
+                      {previewLoadingId === doc.id ? "Loading sample..." : "Preview sample"}
                     </button>
                   ) : null}
                   <button
                     type="button"
                     onClick={() => onPurchase(doc.id)}
                     disabled={actionLoadingId === doc.id || !canAfford}
-                    className="inline-flex w-full items-center justify-center rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    className="inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_#38bdf8_0%,_#0ea5e9_55%,_#0284c7_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_28px_rgba(14,165,233,0.24)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
                   >
                     {actionLoadingId === doc.id
                       ? "Unlocking..."

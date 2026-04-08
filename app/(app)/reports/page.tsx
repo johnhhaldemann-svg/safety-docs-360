@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
@@ -237,7 +237,7 @@ export default function ReportsPage() {
       <PageHero
         eyebrow="Company Board"
         title="Reports"
-        description="Generate daily and weekly operational summaries from live safety data."
+        description="Generate daily and weekly summaries from live safety data."
         actions={
           <>
             <button
@@ -257,7 +257,7 @@ export default function ReportsPage() {
               href="/field-id-exchange"
               className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
-              Open Corrective Actions
+              Open Field iD Exchange
             </Link>
           </>
         }
@@ -265,11 +265,11 @@ export default function ReportsPage() {
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
       <InlineMessage tone="neutral">
-        Reports update on demand. Click Refresh Reports whenever you want the latest history.
+        Reports update on demand. Click Refresh Reports when you want the latest data.
       </InlineMessage>
 
       <section className="grid gap-4 md:grid-cols-2">
-        <SectionCard title="Generate Reports" description="Run operational summaries on demand.">
+        <SectionCard title="Generate Reports" description="Run summaries on demand.">
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => void generateReport("daily_report")}
@@ -287,13 +287,13 @@ export default function ReportsPage() {
             </button>
           </div>
           <div className="mt-5 space-y-3 rounded-xl border border-slate-700/80 bg-slate-950/50 p-4">
-            <div className="text-sm font-semibold text-slate-100">End-of-Day Jobsite Report Generator</div>
+            <div className="text-sm font-semibold text-slate-100">End-of-Day Report</div>
             <div className="grid gap-3 md:grid-cols-2">
               <input
                 type="text"
                 value={jobsiteId}
                 onChange={(event) => setJobsiteId(event.target.value)}
-                placeholder="Jobsite ID (optional for all jobsites)"
+                placeholder="Jobsite ID (optional)"
                 className="rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm"
               />
               <input
@@ -307,7 +307,7 @@ export default function ReportsPage() {
               value={narrative}
               onChange={(event) => setNarrative(event.target.value)}
               rows={3}
-              placeholder="Optional safety summary narrative override"
+              placeholder="Optional summary note"
               className="w-full rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm"
             />
             <button
@@ -319,9 +319,9 @@ export default function ReportsPage() {
             </button>
           </div>
         </SectionCard>
-        <SectionCard title="Latest Generated Metrics" description="Most recent generated report payload.">
+        <SectionCard title="Latest Report Output" description="Most recent report output.">
           {!latestGenerated?.metrics ? (
-            <InlineMessage tone="neutral">Generate a report to view metric output.</InlineMessage>
+            <InlineMessage tone="neutral">Generate a report to view the latest metrics.</InlineMessage>
           ) : (
             <div className="space-y-3 text-sm text-slate-300">
               <div>
@@ -347,7 +347,7 @@ export default function ReportsPage() {
         </SectionCard>
       </section>
 
-      <SectionCard title="Report History" description="Generated daily and weekly report records.">
+      <SectionCard title="Report History" description="Generated daily and weekly reports.">
         {loading ? (
           <InlineMessage>Loading reports...</InlineMessage>
         ) : reports.length === 0 ? (
@@ -416,3 +416,5 @@ export default function ReportsPage() {
     </div>
   );
 }
+
+

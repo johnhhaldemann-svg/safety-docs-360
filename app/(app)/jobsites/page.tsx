@@ -158,8 +158,7 @@ export default function JobsitesPage() {
         {
           id: "no-jobsite-selected",
           title: "No jobsite selected yet",
-          detail:
-            "Pick a site from the directory to open its live document and activity feed.",
+          detail: "Pick a site to open its live document and activity feed.",
           meta: "Waiting",
           tone: "neutral" as const,
         },
@@ -183,8 +182,7 @@ export default function JobsitesPage() {
           {
             id: "no-jobsite-activity",
             title: "No recent site activity yet",
-            detail:
-              "Site submissions, uploads, and approvals will appear here as work starts moving.",
+            detail: "Site submissions, uploads, and approvals will appear here as work starts moving.",
             meta: "Waiting",
             tone: "neutral" as const,
           },
@@ -280,7 +278,7 @@ export default function JobsitesPage() {
   ) {
     if (jobsite.source !== "table") {
       setMessage(
-        "Convert this document-based jobsite into a managed jobsite first, then you can control its status here."
+        "Convert this document-only site into a managed jobsite first, then you can control its status here."
       );
       setMessageTone("warning");
       return;
@@ -375,9 +373,9 @@ export default function JobsitesPage() {
       />
 
       <InlineMessage tone="neutral">
-        Company admins can create managed jobsites here, while older document-only project names can
-        be converted into real jobsites as your workspace matures. Use Refresh Jobsites whenever
-        you want the latest company data.
+        Company admins can create managed jobsites here. Older document-only project names can be
+        converted into managed jobsites as the workspace grows. Use Refresh Jobsites to load the
+        latest company data.
       </InlineMessage>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -423,7 +421,7 @@ export default function JobsitesPage() {
       <section className="grid gap-6 xl:grid-cols-[0.98fr_1.02fr]">
         <SectionCard
           title="Add or Convert a Jobsite"
-          description="Create a managed jobsite, or promote a document-only project name into a real site record."
+          description="Create a managed jobsite or turn a document-only project name into a real site record."
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -561,7 +559,7 @@ export default function JobsitesPage() {
                   resetComposer(selectedJobsite);
                   setMessage(
                     selectedJobsite.source === "document_fallback"
-                      ? "This document-based site is loaded into the form. Save it to create a managed jobsite."
+                      ? "This document-only site is loaded into the form. Save it to create a managed jobsite."
                       : "Selected jobsite loaded into the form."
                   );
                   setMessageTone(
@@ -630,7 +628,7 @@ export default function JobsitesPage() {
             {filteredJobsites.length === 0 ? (
               <EmptyState
                 title="No jobsites match this view"
-                description="Create your first managed jobsite or clear the current search and status filters."
+                description="Create your first jobsite or clear the current search and status filters."
                 actionHref="/submit"
                 actionLabel="Submit Document"
               />
@@ -701,7 +699,7 @@ export default function JobsitesPage() {
                               setSelectedJobsiteId(jobsite.id);
                               resetComposer(jobsite);
                               setMessage(
-                                "This site is currently coming from document activity only. Save it in the form to convert it into a managed jobsite."
+                                "This site is currently based on document activity only. Save the form to convert it into a managed jobsite."
                               );
                               setMessageTone("warning");
                             }}
@@ -1012,8 +1010,8 @@ export default function JobsitesPage() {
                   label: "Open Reports",
                 },
                 {
-                  title: "Corrective Actions",
-                  detail: `${pendingDocuments.length} pending document actions and ${companyInvites.length} open invites currently need follow-up.`,
+                  title: "Action Items",
+                  detail: `${pendingDocuments.length} pending document items and ${companyInvites.length} open invites still need attention.`,
                   href: "/dashboard",
                   label: "Back to Board",
                 },
