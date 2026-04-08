@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 type PreviewVariant = "marketplace" | "workspace" | "admin";
 
 type Props = {
@@ -64,6 +66,31 @@ function splitPreviewLines(value: string) {
     .split(/\n+/)
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter(Boolean);
+}
+
+function splitIntoSentences(value: string) {
+  return value
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+/u)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+function getSummaryPoints(value: string, lines: string[]) {
+  const sentences = splitIntoSentences(value).filter((sentence) => sentence.length >= 40);
+  if (sentences.length > 0) {
+    return sentences.slice(0, 3);
+  }
+
+  return lines.slice(0, 3).filter((line) => line.length > 0);
+}
+
+function chunkLines(lines: string[], size: number) {
+  const chunks: string[][] = [];
+  for (let index = 0; index < lines.length; index += size) {
+    chunks.push(lines.slice(index, index + size));
+  }
+  return chunks;
 }
 
 function extractPreviewFields(lines: string[]) {
@@ -139,12 +166,15 @@ export function MarketplacePreviewModal({
   pdfObjectUrl,
   variant = "marketplace",
 }: Props) {
+  const [showAllExcerpt, setShowAllExcerpt] = useState(false);
+
   if (!open) {
     return null;
   }
 
   const normalizedExcerpt = normalizePreviewText(excerpt);
   const previewLines = splitPreviewLines(normalizedExcerpt);
+  const summaryPoints = getSummaryPoints(normalizedExcerpt, previewLines);
   const keyFields = extractPreviewFields(previewLines);
   const previewModeLabel = pdfObjectUrl ? "PDF preview" : "Text excerpt";
   const previewScopeLabel = variantLabel(variant);
@@ -177,6 +207,9 @@ export function MarketplacePreviewModal({
     { label: "Lines", value: empty ? "0" : String(previewLines.length) },
     { label: "Preview", value: truncated ? "Truncated" : "Full excerpt" },
   ];
+  const visibleExcerptLines = showAllExcerpt ? previewLines : previewLines.slice(0, 9);
+  const excerptChunks = chunkLines(visibleExcerptLines, 3);
+  const hasMoreExcerpt = previewLines.length > visibleExcerptLines.length;
 
   return (
     <div
@@ -269,6 +302,24 @@ export function MarketplacePreviewModal({
                 <p className="mt-3 text-sm leading-6 text-slate-400">{emptyBody}</p>
               ) : null}
             </div>
+
+            {!empty && summaryPoints.length > 0 ? (
+              <div className="mt-4 rounded-2xl border border-slate-700/80 bg-slate-950/70 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Quick summary
+                </p>
+                <ul className="mt-3 space-y-2">
+                  {summaryPoints.map((point, index) => (
+                    <li
+                      key={`${index}-${point.slice(0, 20)}`}
+                      className="rounded-xl border border-slate-800/80 bg-slate-900/60 px-3 py-2 text-sm leading-6 text-slate-200"
+                    >
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </section>
 
           <section className="rounded-3xl border border-slate-700/80 bg-slate-900/80 p-5">
@@ -343,31 +394,65 @@ export function MarketplacePreviewModal({
           </div>
         ) : (
           <section className="mt-5 rounded-3xl border border-slate-700/80 bg-slate-900/80">
-            <div className="border-b border-slate-800/80 px-5 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Readable excerpt
-              </p>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                The text below is split into smaller rows so it is easier to scan.
-              </p>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 px-5 py-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  Readable excerpt
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  The text below is grouped into smaller cards so it is easier to scan.
+                </p>
+              </div>
+              {!empty && previewLines.length > 9 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllExcerpt((value) => !value)}
+                  className="rounded-xl border border-slate-700/80 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
+                >
+                  {showAllExcerpt
+                    ? "Show less"
+                    : `Show more (${previewLines.length - visibleExcerptLines.length})`}
+                </button>
+              ) : null}
             </div>
             {empty ? (
               <div className="px-5 py-6">
                 <p className="text-sm leading-6 text-slate-400">{emptyBody}</p>
               </div>
             ) : (
-              <div className="max-h-[min(52vh,28rem)] overflow-y-auto">
-                {previewLines.map((line, index) => (
-                  <div
-                    key={`${index}-${line.slice(0, 32)}`}
-                    className="flex gap-3 border-b border-slate-800/70 px-5 py-3 last:border-b-0"
-                  >
-                    <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[11px] font-semibold text-slate-300">
-                      {index + 1}
-                    </span>
-                    <p className="text-sm leading-6 text-slate-100">{line}</p>
-                  </div>
-                ))}
+              <div className="max-h-[min(52vh,28rem)] overflow-y-auto p-4 sm:p-5">
+                <div className="grid gap-3">
+                  {excerptChunks.map((chunk, index) => (
+                    <article
+                      key={`${index}-${chunk[0] ?? "chunk"}`}
+                      className="rounded-2xl border border-slate-700/80 bg-slate-950/80 p-4"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Section {index + 1}
+                        </p>
+                        <span className="rounded-full border border-slate-700/80 bg-slate-900/90 px-2.5 py-1 text-[11px] font-semibold text-slate-400">
+                          {chunk.length} line{chunk.length === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {chunk.map((line, lineIndex) => (
+                          <p
+                            key={`${index}-${lineIndex}-${line.slice(0, 24)}`}
+                            className="text-sm leading-6 text-slate-100"
+                          >
+                            {line}
+                          </p>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                {hasMoreExcerpt ? (
+                  <p className="mt-4 text-xs font-medium text-slate-500">
+                    Showing the first {visibleExcerptLines.length} lines. Expand to read the rest.
+                  </p>
+                ) : null}
               </div>
             )}
           </section>
