@@ -1,6 +1,3 @@
-import { PDFParse } from "pdf-parse";
-import mammoth from "mammoth";
-
 const MAX_CHARS = 90_000;
 
 export type GcProgramAiReview = {
@@ -46,7 +43,22 @@ async function extractPdfToResult(buffer: Buffer): Promise<{
   truncated: boolean;
   method: "pdf";
 }> {
-  const parser = new PDFParse({ data: buffer });
+  type PdfParserInstance = {
+    getText: () => PromiseLike<{ text?: string | null }>;
+    destroy?: () => PromiseLike<void> | void;
+  };
+
+  const pdfParseModule = await import("pdf-parse");
+  const PdfParseCtor =
+    (pdfParseModule as { PDFParse?: new (options: { data: Buffer }) => PdfParserInstance }).PDFParse ??
+    (pdfParseModule as { default?: new (options: { data: Buffer }) => PdfParserInstance }).default ??
+    null;
+
+  if (!PdfParseCtor) {
+    throw new Error("PDF preview parser is unavailable.");
+  }
+
+  const parser = new PdfParseCtor({ data: buffer });
   try {
     const result = await parser.getText();
     const raw = result.text?.trim() ?? "";
@@ -63,6 +75,7 @@ async function extractDocxToResult(buffer: Buffer): Promise<{
   truncated: boolean;
   method: "docx";
 }> {
+  const mammoth = await import("mammoth");
   const result = await mammoth.extractRawText({ buffer });
   const raw = (result.value ?? "").trim();
   const { text, truncated } = truncateText(raw);
