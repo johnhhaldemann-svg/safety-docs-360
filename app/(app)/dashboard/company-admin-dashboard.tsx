@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityFeed,
   EmptyState,
@@ -134,6 +135,11 @@ function getPulseLabel(score: number) {
 
 const DASHBOARD_FILTER_STORAGE_KEY = "safety360:company-dashboard-filters";
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 export function CompanyAdminDashboard({
   loading,
   workspaceLoaded,
@@ -182,6 +188,47 @@ export function CompanyAdminDashboard({
   const [searchQuery, setSearchQuery] = useState("");
   const [filtersLoaded, setFiltersLoaded] = useState(false);
   const [referenceTime] = useState(() => Date.now());
+  const [hasCompanyMemory, setHasCompanyMemory] = useState(false);
+  const [memoryPresenceLoaded, setMemoryPresenceLoaded] = useState(false);
+
+  const refreshMemoryPresence = useCallback(async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setHasCompanyMemory(false);
+        setMemoryPresenceLoaded(true);
+        return;
+      }
+      const res = await fetch("/api/company/memory?limit=1", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const data = (await res.json().catch(() => null)) as { items?: unknown[] } | null;
+      if (res.ok && Array.isArray(data?.items)) {
+        setHasCompanyMemory(data.items.length > 0);
+      } else {
+        setHasCompanyMemory(false);
+      }
+    } catch {
+      setHasCompanyMemory(false);
+    } finally {
+      setMemoryPresenceLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!workspaceLoaded) return;
+    void refreshMemoryPresence();
+  }, [workspaceLoaded, refreshMemoryPresence]);
+
+  useEffect(() => {
+    const handler = () => {
+      void refreshMemoryPresence();
+    };
+    window.addEventListener("company-memory-changed", handler);
+    return () => window.removeEventListener("company-memory-changed", handler);
+  }, [refreshMemoryPresence]);
 
   useEffect(() => {
     try {
@@ -276,7 +323,7 @@ export function CompanyAdminDashboard({
           ))}
         </section>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div id="company-knowledge" className="grid gap-4 lg:grid-cols-2 scroll-mt-8">
           <CompanyAiAssistPanel surface="csep" title="CSEP workspace assistant" />
           <CompanyMemoryBankPanel />
         </div>
@@ -945,6 +992,14 @@ export function CompanyAdminDashboard({
       href: "/submit",
       done: documents.length > 0,
     },
+    {
+      id: "seed-company-knowledge",
+      title: "Add company knowledge",
+      detail:
+        "Add at least one snippet in Company knowledge so the operations assistant can use your site rules, PPE requirements, and customer-specific requirements—not just generic guidance.",
+      href: "/dashboard#company-knowledge",
+      done: memoryPresenceLoaded && hasCompanyMemory,
+    },
   ];
 
   return (
@@ -1020,7 +1075,7 @@ export function CompanyAdminDashboard({
           ) : null}
 
           {workspaceLoaded ? (
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div id="company-knowledge" className="grid scroll-mt-8 gap-4 lg:grid-cols-2">
               <CompanyAiAssistPanel
                 surface="dashboard"
                 title="Operations assistant"

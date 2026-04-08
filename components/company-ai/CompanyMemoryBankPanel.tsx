@@ -65,6 +65,9 @@ export function CompanyMemoryBankPanel({ className = "" }: Props) {
       }
       setItems(data?.items ?? []);
       setCanMutate(Boolean(data?.capabilities?.canMutate));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("company-memory-changed"));
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load.");
     } finally {

@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
+import { CompanyMemoryLessonPrompt } from "@/components/company-ai/CompanyMemoryLessonPrompt";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import {
   EmptyState,
@@ -137,6 +138,7 @@ export default function IncidentsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
+  const [memoryLessonNudge, setMemoryLessonNudge] = useState(false);
 
   async function loadIncidents() {
     setLoading(true);
@@ -251,6 +253,9 @@ export default function IncidentsPage() {
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) throw new Error(data?.error || "Failed to update incident.");
       await loadIncidents();
+      if (updates.status === "closed") {
+        setMemoryLessonNudge(true);
+      }
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to update incident.");
@@ -270,7 +275,7 @@ export default function IncidentsPage() {
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div id="company-knowledge" className="grid scroll-mt-8 gap-4 lg:grid-cols-2">
         <CompanyAiAssistPanel
           surface="incidents"
           title="Incident assistant"
@@ -283,6 +288,12 @@ export default function IncidentsPage() {
         />
         <CompanyMemoryBankPanel />
       </div>
+
+      <CompanyMemoryLessonPrompt
+        visible={memoryLessonNudge}
+        onDismiss={() => setMemoryLessonNudge(false)}
+        href="/incidents#company-knowledge"
+      />
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 

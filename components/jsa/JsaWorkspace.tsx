@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
+import { CompanyMemoryLessonPrompt } from "@/components/company-ai/CompanyMemoryLessonPrompt";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 
 const supabase = createClient(
@@ -310,6 +311,7 @@ export function JsaWorkspace() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [memoryLessonNudge, setMemoryLessonNudge] = useState(false);
   const [mainTab, setMainTab] = useState("header");
 
   const selected = useMemo(
@@ -669,6 +671,7 @@ export function JsaWorkspace() {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       if (!res.ok) throw new Error(data?.error || "Submit failed.");
       await loadRecords();
+      setMemoryLessonNudge(true);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Submit failed.");
     }
@@ -1005,7 +1008,7 @@ export function JsaWorkspace() {
   );
 
   const actionBar = selectedId ? (
-    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-700/80 bg-slate-950/95 px-4 py-3 backdrop-blur-md print:hidden">
+    <div className="fixed bottom-4 left-4 right-4 z-50 rounded-2xl border border-slate-700/80 bg-slate-950/95 px-4 py-3 shadow-[0_18px_40px_rgba(0,0,0,0.32)] backdrop-blur-md print:hidden lg:bottom-5 lg:left-6 lg:right-6">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           <button
@@ -1089,7 +1092,7 @@ export function JsaWorkspace() {
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2 print:hidden">
+        <div id="company-knowledge" className="grid scroll-mt-8 gap-4 lg:grid-cols-2 print:hidden">
           <CompanyAiAssistPanel
             surface="jsa"
             title="JSA assistant"
@@ -1100,6 +1103,14 @@ export function JsaWorkspace() {
             })}
           />
           <CompanyMemoryBankPanel />
+        </div>
+
+        <div className="print:hidden">
+          <CompanyMemoryLessonPrompt
+            visible={memoryLessonNudge}
+            onDismiss={() => setMemoryLessonNudge(false)}
+            href="/jsa#company-knowledge"
+          />
         </div>
 
         {message ? (
@@ -1591,10 +1602,10 @@ export function JsaWorkspace() {
             <Tabs.Content value="signoff" className="outline-none">
               <section className="rounded-2xl border border-emerald-500/25 bg-slate-900/95 p-5 shadow-[0_0_28px_-8px_rgba(52,211,153,0.2)]">
                 <div className="mb-4 flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-amber-400" aria-hidden />
-                  <h2 className="text-lg font-bold text-slate-50">Review & sign-off</h2>
-                </div>
-                <div className="grid gap-6 lg:grid-cols-2">
+              <AlertTriangle className="h-5 w-5 text-amber-400" aria-hidden />
+              <h2 className="text-lg font-bold text-slate-50">Review & sign-off</h2>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-2">
                   <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-700/60 bg-slate-950/40 p-4 text-sm text-slate-200">
                     <input
                       type="checkbox"
@@ -1635,6 +1646,48 @@ export function JsaWorkspace() {
                   Use the bar below to save, export, or submit. Primary submit applies a green highlight for final
                   sign-off.
                 </p>
+                <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-slate-950/55 p-4 print:hidden">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">
+                        Final actions
+                      </p>
+                      <p className="mt-1 text-sm text-slate-400">
+                        Save a draft first, export for a paper trail, or submit when the sign-off box is complete.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void saveDraft()}
+                        disabled={saving}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-600/90 bg-slate-900 px-4 py-3 text-sm font-bold text-slate-100 hover:border-slate-500 disabled:opacity-50"
+                      >
+                        <Save className="h-4 w-4 text-sky-400" aria-hidden />
+                        Save draft
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void persistHeaderAndOverlay().then(() => window.print());
+                        }}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-600/90 bg-slate-900 px-4 py-3 text-sm font-bold text-slate-100 hover:border-slate-500"
+                      >
+                        <Printer className="h-4 w-4 text-slate-400" aria-hidden />
+                        Export PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void submitJsa()}
+                        disabled={saving}
+                        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-5 py-3 text-sm font-black uppercase tracking-wide text-white shadow-[0_0_28px_rgba(52,211,153,0.45)] ring-1 ring-emerald-400/40 hover:from-emerald-500 hover:to-emerald-400 disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="h-5 w-5" aria-hidden />
+                        Submit JSA
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </section>
             </Tabs.Content>
           </Tabs.Root>
