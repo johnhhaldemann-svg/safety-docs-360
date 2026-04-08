@@ -93,6 +93,7 @@ export async function prepareMarketplaceLibraryPreview(
   request: Request,
   documentId: string
 ): Promise<MarketplaceLibraryPreviewResult> {
+  let stage = "authorize";
   const auth = await authorizeRequest(request);
 
   if ("error" in auth) {
@@ -105,19 +106,26 @@ export async function prepareMarketplaceLibraryPreview(
   try {
     return await runPrepareMarketplaceLibraryPreview(
       documentId,
+      (nextStage: string) => {
+        stage = nextStage;
+      },
       supabaseClient,
       user
     );
   } catch (e) {
     serverLog("error", "library_preview_prepare_unhandled", {
       documentId,
+      stage,
       message: e instanceof Error ? e.message : String(e),
       stack: e instanceof Error ? e.stack : undefined,
     });
     return {
       ok: false,
       response: NextResponse.json(
-        { error: "Preview temporarily unavailable. Please try again." },
+        {
+          error: `Preview temporarily unavailable while loading ${stage}. Please try again.`,
+          stage,
+        },
         {
           status: 500,
           headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -129,9 +137,11 @@ export async function prepareMarketplaceLibraryPreview(
 
 async function runPrepareMarketplaceLibraryPreview(
   documentId: string,
+  setStage: (stage: string) => void,
   supabaseClient: SupabaseClient,
   user: User
 ): Promise<MarketplaceLibraryPreviewResult> {
+  setStage("agreement");
   let agreementResult: Awaited<ReturnType<typeof getUserAgreementRecord>>;
   let agreementConfig: Awaited<ReturnType<typeof getAgreementConfig>>;
   try {
@@ -172,6 +182,7 @@ async function runPrepareMarketplaceLibraryPreview(
     };
   }
 
+  setStage("document");
   /** Prefer service-role read so marketplace rows are visible like the library catalog (avoids RLS edge cases with mixed policies). */
   const docClient = createSupabaseAdminClient() ?? supabaseClient;
   const { data: document, error: documentError } = await docClient
@@ -187,6 +198,7 @@ async function runPrepareMarketplaceLibraryPreview(
     };
   }
 
+  setStage("status");
   const doc = document as MarketplacePreviewDocument;
 
   if (doc.status?.trim().toLowerCase() === "archived") {
@@ -235,6 +247,7 @@ async function runPrepareMarketplaceLibraryPreview(
     };
   }
 
+  setStage("storage-path");
   const previewPathRaw = getMarketplacePreviewPath(doc.notes)?.trim() ?? "";
   const customPreviewOk =
     previewPathRaw.length > 0 &&
@@ -258,6 +271,7 @@ async function runPrepareMarketplaceLibraryPreview(
     };
   }
 
+  setStage("download");
   let excerptSource: "marketplace_preview" | "final_file" = customPreviewOk
     ? "marketplace_preview"
     : "final_file";
@@ -288,6 +302,7 @@ async function runPrepareMarketplaceLibraryPreview(
     };
   }
 
+  setStage("parse");
   let buffer = downloaded.buffer;
   let sourceFileName = fileNameFromPreviewPath(storagePath, doc.project_name ?? null);
 
