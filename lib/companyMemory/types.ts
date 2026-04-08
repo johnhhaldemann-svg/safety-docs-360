@@ -19,3 +19,17 @@ export type CompanyMemoryItemRow = {
 export type CompanyMemoryMatchRow = CompanyMemoryItemRow & {
   similarity?: number;
 };
+
+export type SimilarMemoryCandidateReason =
+  | "title_exact"
+  | "title_contains"
+  | "semantic"
+  | "keyword_overlap";
+
+export type SimilarMemoryCandidate = {
+  id: string;
+  title: string;
+  body: string;
+  score: number;
+  reason: SimilarMemoryCandidateReason;
+};

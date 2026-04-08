@@ -1,6 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createEmbedding } from "@/lib/companyMemory/embed";
-import type { CompanyMemoryItemRow, CompanyMemorySource } from "@/lib/companyMemory/types";
+import { KEYWORD_STOPWORDS } from "@/lib/companyMemory/stopwords";
+import type {
+  CompanyMemoryItemRow,
+  CompanyMemorySource,
+  SimilarMemoryCandidate,
+  SimilarMemoryCandidateReason,
+} from "@/lib/companyMemory/types";
+import {
+  jaccardTokenSets,
+  memoryContentTokenSet,
+  SIMILAR_MEMORY_JACCARD_MIN,
+  SIMILAR_MEMORY_SEMANTIC_MIN,
+  SIMILAR_MEMORY_SHOW_THRESHOLD,
+  titlesAreMutuallyContained,
+} from "@/lib/companyMemory/similarMemoryDraft";
 import { serverLog } from "@/lib/serverLog";
 
 const SOURCES = new Set<CompanyMemorySource>([
@@ -17,109 +31,6 @@ export function normalizeMemorySource(raw: string | null | undefined): CompanyMe
   }
   return "other";
 }
-
-/** Words too generic to use alone for memory ILIKE (keeps "lilly", "ppe", "gloves", etc.). */
-const KEYWORD_STOPWORDS = new Set([
-  "a",
-  "an",
-  "the",
-  "is",
-  "are",
-  "was",
-  "were",
-  "be",
-  "been",
-  "being",
-  "have",
-  "has",
-  "had",
-  "do",
-  "does",
-  "did",
-  "can",
-  "could",
-  "should",
-  "would",
-  "will",
-  "what",
-  "which",
-  "who",
-  "whom",
-  "whose",
-  "where",
-  "when",
-  "why",
-  "how",
-  "if",
-  "or",
-  "and",
-  "but",
-  "not",
-  "no",
-  "yes",
-  "to",
-  "of",
-  "in",
-  "on",
-  "at",
-  "by",
-  "for",
-  "with",
-  "from",
-  "as",
-  "into",
-  "onto",
-  "i",
-  "we",
-  "you",
-  "he",
-  "she",
-  "it",
-  "they",
-  "them",
-  "our",
-  "your",
-  "my",
-  "this",
-  "that",
-  "these",
-  "those",
-  "there",
-  "here",
-  "any",
-  "all",
-  "some",
-  "each",
-  "every",
-  "both",
-  "few",
-  "more",
-  "most",
-  "other",
-  "such",
-  "than",
-  "then",
-  "so",
-  "too",
-  "very",
-  "just",
-  "also",
-  "only",
-  "own",
-  "same",
-  "tell",
-  "about",
-  "through",
-  "during",
-  "before",
-  "after",
-  "above",
-  "below",
-  "between",
-  "under",
-  "again",
-  "once",
-]);
 
 function escapeIlikePattern(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
@@ -315,6 +226,122 @@ export async function retrieveMemoryForQuery(
   }
 
   return { chunks: [], method: "none" };
+}
+
+/**
+ * Finds the best existing memory row that looks like the draft (title + body).
+ * Used before insert to offer "replace existing" when the user is duplicating or updating a topic.
+ */
+export async function findSimilarCompanyMemoryDraft(
+  supabase: SupabaseClient,
+  companyId: string,
+  title: string,
+  body: string,
+  options?: { excludeId?: string }
+): Promise<{ candidate: SimilarMemoryCandidate | null; error?: string }> {
+  const t = title.trim();
+  const b = body.trim();
+  if (!t || !b) {
+    return { candidate: null };
+  }
+
+  const excludeId = options?.excludeId;
+  const draftCombined = `${t}\n${b}`;
+  const draftTokens = memoryContentTokenSet(draftCombined);
+
+  const candidates = new Map<
+    string,
+    { row: CompanyMemoryItemRow; score: number; reason: SimilarMemoryCandidateReason }
+  >();
+
+  const add = (row: CompanyMemoryItemRow, score: number, reason: SimilarMemoryCandidateReason) => {
+    if (excludeId && row.id === excludeId) return;
+    const prev = candidates.get(row.id);
+    if (!prev || score > prev.score) {
+      candidates.set(row.id, { row, score, reason });
+    }
+  };
+
+  const exactPattern = escapeIlikePattern(t);
+  const { data: exactRows, error: exErr } = await supabase
+    .from("company_memory_items")
+    .select(
+      "id, company_id, source, title, body, metadata, created_by, created_at, updated_at"
+    )
+    .eq("company_id", companyId)
+    .ilike("title", exactPattern);
+
+  if (exErr) {
+    return { candidate: null, error: exErr.message };
+  }
+  for (const row of exactRows ?? []) {
+    add(row as CompanyMemoryItemRow, 1, "title_exact");
+  }
+
+  const { items: recent, error: listErr } = await listCompanyMemoryItems(supabase, companyId, {
+    limit: 200,
+    offset: 0,
+  });
+  if (listErr) {
+    return { candidate: null, error: listErr };
+  }
+  for (const row of recent) {
+    if (titlesAreMutuallyContained(t, row.title)) {
+      add(row, 0.93, "title_contains");
+    }
+  }
+
+  try {
+    const emb = await createEmbedding(`${t}\n\n${b}`);
+    const { items: sem, error: semErr } = await matchCompanyMemorySemantic(supabase, companyId, emb, 10);
+    if (semErr) {
+      serverLog("warn", "company_memory_similar_semantic", { message: semErr.slice(0, 120) });
+    } else {
+      for (const row of sem) {
+        const { similarity, ...rest } = row;
+        if (similarity >= SIMILAR_MEMORY_SEMANTIC_MIN) {
+          add(rest, similarity, "semantic");
+        }
+      }
+    }
+  } catch (e) {
+    serverLog("warn", "company_memory_similar_embed_failed", {
+      message: e instanceof Error ? e.message.slice(0, 120) : "embed failed",
+    });
+  }
+
+  const kw = await searchCompanyMemoryKeyword(supabase, companyId, draftCombined, 28);
+  if (kw.error) {
+    return { candidate: null, error: kw.error };
+  }
+  for (const row of kw.items) {
+    const combined = `${row.title}\n${row.body}`;
+    const jac = jaccardTokenSets(draftTokens, memoryContentTokenSet(combined));
+    if (jac >= SIMILAR_MEMORY_JACCARD_MIN) {
+      const score = 0.68 + jac * 0.28;
+      add(row, score, "keyword_overlap");
+    }
+  }
+
+  let best: { row: CompanyMemoryItemRow; score: number; reason: SimilarMemoryCandidateReason } | null =
+    null;
+  for (const v of candidates.values()) {
+    if (!best || v.score > best.score) best = v;
+  }
+
+  if (!best || best.score < SIMILAR_MEMORY_SHOW_THRESHOLD) {
+    return { candidate: null };
+  }
+
+  return {
+    candidate: {
+      id: best.row.id,
+      title: best.row.title,
+      body: best.row.body,
+      score: best.score,
+      reason: best.reason,
+    },
+  };
 }
 
 export async function insertCompanyMemoryItem(

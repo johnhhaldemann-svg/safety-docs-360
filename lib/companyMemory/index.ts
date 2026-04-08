@@ -1,6 +1,12 @@
-export type { CompanyMemoryItemRow, CompanyMemorySource } from "@/lib/companyMemory/types";
+export type {
+  CompanyMemoryItemRow,
+  CompanyMemorySource,
+  SimilarMemoryCandidate,
+  SimilarMemoryCandidateReason,
+} from "@/lib/companyMemory/types";
 export {
   deleteCompanyMemoryItem,
+  findSimilarCompanyMemoryDraft,
   getCompanyMemoryItem,
   insertCompanyMemoryItem,
   listCompanyMemoryItems,

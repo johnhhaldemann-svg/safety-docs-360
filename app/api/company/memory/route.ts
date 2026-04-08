@@ -6,9 +6,11 @@ import {
   canMutateCompanyMemory,
 } from "@/lib/companyMemoryAccess";
 import {
+  getCompanyMemoryItem,
   insertCompanyMemoryItem,
   listCompanyMemoryItems,
   normalizeMemorySource,
+  updateCompanyMemoryItem,
 } from "@/lib/companyMemory";
 import { checkFixedWindowRateLimit } from "@/lib/rateLimit";
 import { serverLog } from "@/lib/serverLog";
@@ -111,10 +113,43 @@ export async function POST(request: Request) {
   }
 
   const source = normalizeMemorySource(typeof body.source === "string" ? body.source : "manual");
-  const metadata =
+  const metadataFromBody =
     body.metadata && typeof body.metadata === "object" && body.metadata !== null
       ? (body.metadata as Record<string, unknown>)
-      : {};
+      : undefined;
+  const metadata = metadataFromBody ?? {};
+
+  const replaceId =
+    typeof body.replaceMemoryItemId === "string" ? body.replaceMemoryItemId.trim() : "";
+
+  if (replaceId) {
+    const { item } = await getCompanyMemoryItem(auth.supabase, companyScope.companyId, replaceId);
+    if (!item) {
+      return NextResponse.json({ error: "Memory entry not found." }, { status: 404 });
+    }
+
+    const { error: upErr } = await updateCompanyMemoryItem(auth.supabase, {
+      companyId: companyScope.companyId,
+      id: replaceId,
+      title,
+      body: textBody,
+      source,
+      ...(metadataFromBody !== undefined ? { metadata: metadataFromBody } : {}),
+      embed: body.embed !== false,
+    });
+
+    if (upErr) {
+      return NextResponse.json({ error: upErr }, { status: 500 });
+    }
+
+    serverLog("info", "company_memory_replace", {
+      companyId: companyScope.companyId,
+      userId: auth.user.id,
+      memoryItemId: replaceId,
+    });
+
+    return NextResponse.json({ id: replaceId, replaced: true });
+  }
 
   const { id, error } = await insertCompanyMemoryItem(auth.supabase, {
     companyId: companyScope.companyId,
