@@ -61,7 +61,7 @@ export const companyAdminQuickLinks: NavItem[] = [
   { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/company-users", label: "Team", short: "TM" },
   { href: "/training-matrix", label: "Training", short: "TR" },
-  { href: "/field-id-exchange", label: "Corrective actions", short: "CA" },
+  { href: "/field-id-exchange", label: "Issues", short: "CA" },
   { href: "/analytics", label: "Analytics", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
@@ -74,7 +74,7 @@ export const companyManagerQuickLinks: NavItem[] = [
   { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/purchases", label: "My purchases", short: "MP" },
   { href: "/training-matrix", label: "Training", short: "TR" },
-  { href: "/field-id-exchange", label: "Corrective actions", short: "CA" },
+  { href: "/field-id-exchange", label: "Issues", short: "CA" },
   { href: "/analytics", label: "Analytics", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
@@ -96,8 +96,8 @@ export const userSideSections: NavSection[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/library", label: "Library", short: "LB" },
-      { href: "/submit", label: "Submit request", short: "SB" },
-      { href: "/upload", label: "Upload", short: "UP" },
+      { href: "/submit", label: "Submit document", short: "SB" },
+      { href: "/upload", label: "Upload file", short: "UP" },
       { href: "/search", label: "Search", short: "SR" },
     ],
   },
@@ -111,11 +111,11 @@ export const userSideSections: NavSection[] = [
   {
     title: "Account",
     items: [
-      { href: "/profile", label: "Construction profile", short: "CP" },
+      { href: "/profile", label: "Profile", short: "CP" },
       { href: "/purchases", label: "My purchases", short: "MP" },
       {
         href: "/marketplace-preview-approvals",
-        label: "Marketplace preview approvals",
+        label: "Preview review",
         short: "PA",
       },
     ],
@@ -166,7 +166,7 @@ export const adminSideSections: NavSection[] = [
     items: [
       { href: "/library", label: "Library", short: "LB" },
       { href: "/search", label: "Search", short: "SR" },
-      { href: "/profile", label: "Construction profile", short: "CP" },
+      { href: "/profile", label: "Profile", short: "CP" },
     ],
   },
 ];
@@ -185,7 +185,7 @@ export const companyAdminSideSections: NavSection[] = [
       { href: "/purchases", label: "Buy credits", short: "CR" },
       {
         href: "/marketplace-preview-approvals",
-        label: "Preview approvals",
+        label: "Preview review",
         short: "PA",
       },
       { href: "/search", label: "Search documents", short: "SR" },
@@ -196,15 +196,15 @@ export const companyAdminSideSections: NavSection[] = [
   {
     title: "People & account",
     items: [
-      { href: "/company-users", label: "Team & users", short: "US" },
-      { href: "/training-matrix", label: "Training matrix", short: "TM" },
-      { href: "/profile", label: "Construction profile", short: "CP" },
+      { href: "/company-users", label: "Team", short: "US" },
+      { href: "/training-matrix", label: "Training", short: "TM" },
+      { href: "/profile", label: "Profile", short: "CP" },
     ],
   },
   {
     title: "Safety & programs",
     items: [
-      { href: "/field-id-exchange", label: "Corrective actions", short: "CA" },
+      { href: "/field-id-exchange", label: "Issues", short: "CA" },
       { href: "/jsa", label: "JSA", short: "JA" },
       { href: "/permits", label: "Permits", short: "PM" },
       { href: "/incidents", label: "Incidents", short: "IN" },
@@ -245,16 +245,16 @@ export const companyManagerSideSections: NavSection[] = [
       { href: "/purchases", label: "My purchases", short: "MP" },
       {
         href: "/marketplace-preview-approvals",
-        label: "Preview approvals",
+        label: "Preview review",
         short: "PA",
       },
-      { href: "/training-matrix", label: "Training matrix", short: "TM" },
+      { href: "/training-matrix", label: "Training", short: "TM" },
     ],
   },
   {
     title: "Safety & programs",
     items: [
-      { href: "/field-id-exchange", label: "Corrective actions", short: "CA" },
+      { href: "/field-id-exchange", label: "Issues", short: "CA" },
       { href: "/jsa", label: "JSA", short: "JA" },
       { href: "/permits", label: "Permits", short: "PM" },
       { href: "/incidents", label: "Incidents", short: "IN" },
@@ -278,7 +278,7 @@ export const companyManagerSideSections: NavSection[] = [
   },
   {
     title: "People & account",
-    items: [{ href: "/profile", label: "Construction profile", short: "CP" }],
+    items: [{ href: "/profile", label: "Profile", short: "CP" }],
   },
 ];
 
@@ -298,7 +298,7 @@ export const companyUserSideSections: NavSection[] = [
       { href: "/purchases", label: "My purchases", short: "MP" },
       {
         href: "/marketplace-preview-approvals",
-        label: "Preview approvals",
+        label: "Preview review",
         short: "PA",
       },
     ],
@@ -313,8 +313,8 @@ export const companyUserSideSections: NavSection[] = [
   {
     title: "Learn & profile",
     items: [
-      { href: "/training-matrix", label: "Training matrix", short: "TM" },
-      { href: "/profile", label: "Construction profile", short: "CP" },
+      { href: "/training-matrix", label: "Training", short: "TM" },
+      { href: "/profile", label: "Profile", short: "CP" },
     ],
   },
 ];
@@ -323,22 +323,22 @@ export const accountSetupSideSections: NavSection[] = [
   {
     title: "Getting started",
     items: [
-      { href: "/profile", label: "Build construction profile", short: "CP" },
-      { href: "/company-setup", label: "Create company workspace", short: "CW" },
+      { href: "/profile", label: "Set up profile", short: "CP" },
+      { href: "/company-setup", label: "Create company", short: "CW" },
     ],
   },
 ];
 
 export const accountSetupQuickLinks: NavItem[] = [
-  { href: "/profile", label: "Build construction profile", short: "CP" },
-  { href: "/company-setup", label: "Create company workspace", short: "CW" },
+  { href: "/profile", label: "Set up profile", short: "CP" },
+  { href: "/company-setup", label: "Create company", short: "CW" },
 ];
 
 /** Appended in app layout when user has internal admin access outside /admin. */
 export const internalAdminAppendedSection: NavSection = {
   title: "Platform",
   items: [
-    { href: "/admin", label: "Admin panel", short: "AD" },
+    { href: "/admin", label: "Platform admin", short: "AD" },
     { href: "/billing", label: "Billing", short: "BI" },
   ],
 };

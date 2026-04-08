@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityFeed,
   EmptyState,
@@ -102,6 +102,8 @@ type CompanyProfile = {
   primary_contact_name: string | null;
   primary_contact_email: string | null;
   status: string | null;
+  pilot_trial_ends_at?: string | null;
+  pilot_converted_at?: string | null;
 };
 
 type CompanyJobsiteRow = {
@@ -269,6 +271,25 @@ export default function DashboardPage() {
   const [companyWorkspaceLoading, setCompanyWorkspaceLoading] = useState(false);
   const [companyWorkspaceError, setCompanyWorkspaceError] = useState<string | null>(null);
   const [workspaceProduct, setWorkspaceProduct] = useState<WorkspaceProduct>("full");
+
+  const refreshCompanyProfileFromMe = useCallback(async () => {
+    const sessionResult = await supabase.auth.getSession();
+    const accessToken = sessionResult.data.session?.access_token;
+    if (!accessToken) {
+      return;
+    }
+    const meResponse = await fetchWithTimeout(
+      "/api/auth/me",
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      15000
+    );
+    const meData = (await meResponse.json().catch(() => null)) as
+      | { user?: { companyProfile?: CompanyProfile | null } }
+      | null;
+    if (meResponse.ok) {
+      setCompanyProfile(meData?.user?.companyProfile ?? null);
+    }
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -1436,6 +1457,7 @@ export default function DashboardPage() {
         workspaceLoaded={companyWorkspaceLoaded}
         workspaceError={companyWorkspaceError}
         onRefreshWorkspace={loadCompanyWorkspace}
+        onCompanyProfileUpdated={refreshCompanyProfileFromMe}
         documents={activeDocuments}
         companyUsers={companyUsers}
         companyInvites={companyInvites}
@@ -1646,8 +1668,8 @@ export default function DashboardPage() {
         {showWelcomeState ? (
           <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
             <SectionCard
-              title="Welcome to your workspace"
-              description="Start with the core flow below so your first document moves cleanly from intake to approval."
+              title="Start here"
+              description="Follow these steps to set up your workspace, invite people, and move the first document through cleanly."
             >
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {(isManagerView
@@ -1686,7 +1708,7 @@ export default function DashboardPage() {
               </div>
             </SectionCard>
 
-            <StartChecklist title="Start Here Checklist" items={onboardingItems} />
+            <StartChecklist title="Your next steps" items={onboardingItems} />
           </section>
         ) : null}
 
@@ -1816,11 +1838,11 @@ export default function DashboardPage() {
             </div>
 
             <WorkflowPath
-              title="Workflow Path"
+              title="How documents move"
               description={
                 isManagerView
-                  ? "Company roles stay focused on completed documents and company access."
-                  : "The standard route for a document moving through the platform."
+                  ? "Company roles focus on completed files, team access, and approvals."
+                  : "The standard path for a document as it moves through the platform."
               }
               steps={
                 isManagerView

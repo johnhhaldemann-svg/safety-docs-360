@@ -12,6 +12,7 @@ import {
 } from "@/components/WorkspacePrimitives";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
+import { PilotAccountPanel } from "@/components/company-workspace/PilotAccountPanel";
 import {
   getDocumentStatusLabel,
   isApprovedDocumentStatus,
@@ -72,6 +73,8 @@ type CompanyProfile = {
   primary_contact_name: string | null;
   primary_contact_email: string | null;
   status: string | null;
+  pilot_trial_ends_at?: string | null;
+  pilot_converted_at?: string | null;
 };
 
 function formatRelative(timestamp?: string | null) {
@@ -145,6 +148,7 @@ export function CompanyAdminDashboard({
   workspaceLoaded,
   workspaceError,
   onRefreshWorkspace,
+  onCompanyProfileUpdated,
   documents,
   companyUsers,
   companyInvites,
@@ -162,6 +166,7 @@ export function CompanyAdminDashboard({
   workspaceLoaded: boolean;
   workspaceError?: string | null;
   onRefreshWorkspace: () => void;
+  onCompanyProfileUpdated?: () => void | Promise<void>;
   documents: DocumentRow[];
   workspaceProduct?: WorkspaceProduct;
   companyUsers: CompanyUser[];
@@ -284,6 +289,7 @@ export function CompanyAdminDashboard({
 
     return (
       <div className="space-y-6">
+        <PilotAccountPanel companyProfile={companyProfile} onUpdated={onCompanyProfileUpdated} />
         <section className="rounded-[1.9rem] border border-[#dbe9ff] bg-slate-900/90 p-6 shadow-[0_16px_36px_rgba(148,163,184,0.12)]">
           <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">CSEP workspace</div>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
@@ -291,7 +297,7 @@ export function CompanyAdminDashboard({
           </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
               This account is limited to the CSEP builder. Create and submit Construction Safety &amp; Environmental
-              Plans for admin review without the full company operations suite.
+              Plans for company review without the full company workspace yet.
             </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
@@ -1004,6 +1010,7 @@ export function CompanyAdminDashboard({
 
   return (
     <div className="space-y-8">
+      <PilotAccountPanel companyProfile={companyProfile} onUpdated={onCompanyProfileUpdated} />
       <section className="rounded-[1.9rem] border border-[#dbe9ff] bg-slate-900/90 p-6 shadow-[0_16px_36px_rgba(148,163,184,0.12)]">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -1019,7 +1026,7 @@ export function CompanyAdminDashboard({
                   {companyName}
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                  Run company operations from one place: jobsites, documents, company access, field reporting, and overdue actions.
+                  Keep jobsites, documents, team access, field reporting, and overdue items in one place.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <StatusBadge label={companyProfile?.status?.trim() || "Active"} tone="success" />
@@ -1044,10 +1051,10 @@ export function CompanyAdminDashboard({
               </div>
               <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
                 <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
-                  Workspace Lead
+                  Your company
                 </div>
                 <div className="mt-2 text-sm font-semibold text-slate-100">
-                  Manage company operations
+                  Manage your company
                 </div>
                 <div className="mt-1 text-xs text-slate-500">
                   Invite users, manage jobsites, and keep safety records moving
@@ -1232,7 +1239,7 @@ export function CompanyAdminDashboard({
       </section>
 
       <SectionCard
-        title="Priority Queue"
+        title="Today's focus"
         description="The items that need attention first in this workspace."
         aside={
           <StatusBadge
@@ -1278,8 +1285,8 @@ export function CompanyAdminDashboard({
       </SectionCard>
 
       <SectionCard
-        title="Workspace Pulse"
-        description="A lighthearted read on momentum, wins, and the next useful move."
+        title="Board health"
+        description="A quick read on momentum, wins, and the next useful move."
         aside={<StatusBadge label={workspacePulseLabel} tone={workspacePulseTone} />}
       >
         <div className="grid gap-3 lg:grid-cols-4">
@@ -1420,8 +1427,8 @@ export function CompanyAdminDashboard({
 
       <section id="jobsites" className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <SectionCard
-          title="Jobsites Overview"
-          description="Jobsite rows are grouped from the company documents you already have in the system, so you can organize the workspace before dedicated site assignment tables are added."
+          title="Jobsites"
+          description="Use this area to organize active sites and keep work grouped by location."
           aside={
             <div className="flex flex-wrap gap-2">
               <a
@@ -1475,10 +1482,10 @@ export function CompanyAdminDashboard({
                     </div>
                     <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
                       <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                        Team users
+                        Team
                       </div>
                       <div className="mt-2 text-sm font-semibold text-slate-100">
-                        {companyUsers.length} workspace users
+                        {companyUsers.length} team members
                       </div>
                     </div>
                     <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
@@ -1512,7 +1519,7 @@ export function CompanyAdminDashboard({
 
         <SectionCard
           title="Pending Documents"
-          description="The document queue that needs the company's attention today."
+          description="Documents that need review or follow-up today."
         >
           {pendingDocuments.length === 0 ? (
             <EmptyState
@@ -1546,8 +1553,8 @@ export function CompanyAdminDashboard({
 
       <section id="documents" className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <SectionCard
-          title="Document Control"
-          description="Track the full company document pipeline from draft through approval."
+          title="Documents"
+          description="Track drafts, submissions, approvals, and completed files."
           aside={
             <div className="flex flex-wrap gap-2">
               <Link
@@ -1636,14 +1643,14 @@ export function CompanyAdminDashboard({
         </SectionCard>
 
         <SectionCard
-          title="Users"
-          description="The company access snapshot: who is online, waiting, invited, or inactive."
+          title="Team"
+          description="See who is online, waiting, invited, or inactive."
           aside={
             <Link
               href="/company-users"
               className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300"
             >
-              Manage Users
+              Manage team
             </Link>
           }
         >
@@ -1707,13 +1714,13 @@ export function CompanyAdminDashboard({
                 href="/field-id-exchange"
                 className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white"
               >
-                Open Corrective Actions
+                Open issues
               </Link>
               <Link
                 href="/safety-submit"
                 className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300"
               >
-                Individual Safety Submission
+                Open safety submission
               </Link>
             </div>
           }
@@ -1721,7 +1728,7 @@ export function CompanyAdminDashboard({
           {liveMatrixSummary.length === 0 ? (
             <EmptyState
               title="No matrix items are live yet"
-              description="That’s a quiet board for now. As corrective actions are created and reviewed, rows will appear here by category."
+              description="That’s a quiet board for now. As issues are created and reviewed, rows will appear here by category."
             />
           ) : (
             <div className="overflow-hidden rounded-2xl border border-slate-700/80">
@@ -1845,14 +1852,14 @@ export function CompanyAdminDashboard({
 
       <section id="reports" className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <SectionCard
-          title="Reports & Trends"
-            description="High-level reporting blocks that help the workspace lead answer what needs action today."
+          title="Reports"
+          description="Simple reporting blocks that show what needs action today."
           aside={
             <Link
               href="/reports"
               className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300"
             >
-              Open Reports
+              Open reports
             </Link>
           }
         >
@@ -1870,8 +1877,8 @@ export function CompanyAdminDashboard({
         </SectionCard>
 
         <SectionCard
-          title="Alerts & Notifications"
-            description="Everything the workspace lead should keep an eye on in the current workspace."
+          title="Alerts"
+          description="Everything the company should keep an eye on in the current workspace."
         >
           <div className="space-y-3">
             {[
@@ -1908,5 +1915,3 @@ export function CompanyAdminDashboard({
     </div>
   );
 }
-
-
