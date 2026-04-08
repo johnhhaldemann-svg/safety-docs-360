@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import {
   acceptUserAgreement,
   getClientIpAddress,
@@ -8,9 +7,7 @@ import {
 import { getAgreementConfig } from "@/lib/legalSettings";
 import {
   createSupabaseAdminClient,
-  getSupabaseAnonKey,
   getSupabaseServerEnvStatus,
-  getSupabaseServerUrl,
 } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -31,31 +28,15 @@ type RegisterPayload = {
   agreed?: boolean;
 };
 
-function createPublicClient() {
-  const supabaseUrl = getSupabaseServerUrl();
-  const anonKey = getSupabaseAnonKey();
-
-  if (!supabaseUrl || !anonKey) {
-    return null;
-  }
-
-  return createClient(supabaseUrl, anonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
-}
-
 export async function POST(request: Request) {
-  const publicClient = createPublicClient();
   const adminClient = createSupabaseAdminClient();
   const envStatus = getSupabaseServerEnvStatus();
   const agreementConfig = await getAgreementConfig(adminClient ?? undefined).catch(() =>
     getDefaultAgreementConfig()
   );
 
-  if (!publicClient) {
+  /** Service role is required: public signUp can return before auth.users is visible to FK checks. */
+  if (!adminClient) {
     return NextResponse.json(
       {
         error: "Company registration is not configured correctly.",
@@ -126,19 +107,21 @@ export async function POST(request: Request) {
     company_country: country,
   };
 
-  const { data, error } = await publicClient.auth.signUp({
+  const { data: created, error: createError } = await adminClient.auth.admin.createUser({
     email,
     password,
-    options: {
-      data: pendingMetadata,
-    },
+    /** Ensures auth.users row is committed so user_roles.user_id FK succeeds in the same request. */
+    email_confirm: true,
+    user_metadata: pendingMetadata,
+    app_metadata: pendingMetadata,
   });
 
-  if (error) {
-    const errorMessage = error.message ?? "";
+  if (createError) {
+    const errorMessage = createError.message ?? "";
     if (
-      errorMessage.toLowerCase().includes("already registered") ||
-      errorMessage.toLowerCase().includes("user already registered")
+      errorMessage.toLowerCase().includes("already") ||
+      errorMessage.toLowerCase().includes("registered") ||
+      errorMessage.toLowerCase().includes("exists")
     ) {
       return NextResponse.json(
         {
@@ -149,53 +132,35 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: createError.message }, { status: 400 });
   }
 
-  if (!data.user?.id) {
+  if (!created.user?.id) {
     return NextResponse.json(
-      { error: "Account created, but no user record was returned." },
+      { error: "Account was not created. Please try again." },
       { status: 500 }
     );
   }
 
-  const userId = data.user.id;
-  const mergedUserMetadata = {
-    ...(data.user.user_metadata ?? {}),
-    ...pendingMetadata,
-  };
-  const mergedAppMetadata = {
-    ...(data.user.app_metadata ?? {}),
-    ...pendingMetadata,
-  };
+  const userId = created.user.id;
 
-  const metadataResult = adminClient
-    ? await adminClient.auth.admin.updateUserById(userId, {
-        user_metadata: mergedUserMetadata,
-        app_metadata: mergedAppMetadata,
-      })
-    : { error: null };
+  /** Self-signup: leave created_by/updated_by null — optional FK to auth.users. */
+  const roleResult = await adminClient.from("user_roles").upsert(
+    {
+      user_id: userId,
+      role: "viewer",
+      team: companyName,
+      company_id: null,
+      account_status: "pending",
+      created_by: null,
+      updated_by: null,
+    },
+    {
+      onConflict: "user_id",
+    }
+  );
 
-  /** Self-signup: leave created_by/updated_by null — they reference auth.users(id) and
-   *  using the brand-new user id can fail FK checks right after signUp in some environments. */
-  const roleResult = adminClient
-    ? await adminClient.from("user_roles").upsert(
-        {
-          user_id: userId,
-          role: "viewer",
-          team: companyName,
-          company_id: null,
-          account_status: "pending",
-          created_by: null,
-          updated_by: null,
-        },
-        {
-          onConflict: "user_id",
-        }
-      )
-    : { error: null };
-
-  const signupRequestResult = await (adminClient ?? publicClient)
+  const signupRequestResult = await adminClient
     .from("company_signup_requests")
     .insert({
       company_name: companyName,
@@ -252,22 +217,17 @@ export async function POST(request: Request) {
     );
   }
 
-  if (adminClient) {
-    await acceptUserAgreement({
-      supabase: adminClient,
-      userId,
-      ipAddress: getClientIpAddress(request),
-      termsVersion: agreementConfig.version,
-    });
-  }
+  await acceptUserAgreement({
+    supabase: adminClient,
+    userId,
+    ipAddress: getClientIpAddress(request),
+    termsVersion: agreementConfig.version,
+  });
 
   return NextResponse.json({
     success: true,
     message:
       "Company account created and sent for internal approval. After approval, sign in with this same email and the company workspace will attach automatically.",
-    warning:
-      metadataResult.error
-        ? "The owner account was created, but some profile details may finish syncing during internal approval."
-        : null,
+    warning: null,
   });
 }
