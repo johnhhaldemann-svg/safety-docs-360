@@ -1,5 +1,3 @@
-import { PDFParse } from "pdf-parse";
-import mammoth from "mammoth";
 import { sniffGcDocumentKind } from "@/lib/gcProgramAiReview";
 import {
   getMarketplacePreviewPath,
@@ -121,9 +119,24 @@ function clipExcerpt(raw: string): { excerpt: string; truncated: boolean } {
 }
 
 async function excerptFromPdf(buffer: Buffer): Promise<{ excerpt: string; truncated: boolean }> {
-  let parser: InstanceType<typeof PDFParse> | null = null;
+  let parser:
+    | {
+        getText: () => PromiseLike<{ text?: string | null }>;
+        destroy?: () => PromiseLike<void> | void;
+      }
+    | null = null;
   try {
-    parser = new PDFParse({ data: buffer });
+    const pdfParseModule = await import("pdf-parse");
+    const PdfParseCtor =
+      (pdfParseModule as { PDFParse?: new (options: { data: Buffer }) => typeof parser }).PDFParse ??
+      ((pdfParseModule as { default?: new (options: { data: Buffer }) => typeof parser }).default ??
+        null);
+
+    if (!PdfParseCtor) {
+      throw new Error("PDF preview parser is unavailable.");
+    }
+
+    parser = new PdfParseCtor({ data: buffer });
     const result = await parser.getText();
     const raw = result.text?.trim() ?? "";
     return clipExcerpt(raw);
@@ -139,6 +152,7 @@ async function excerptFromPdf(buffer: Buffer): Promise<{ excerpt: string; trunca
 }
 
 async function excerptFromDocx(buffer: Buffer): Promise<{ excerpt: string; truncated: boolean }> {
+  const mammoth = await import("mammoth");
   const result = await mammoth.extractRawText({ buffer });
   const raw = (result.value ?? "").trim();
   return clipExcerpt(raw);
