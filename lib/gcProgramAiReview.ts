@@ -76,14 +76,20 @@ class ServerDOMMatrix {
   }
 }
 
-function ensurePdfJsGlobals() {
-  const g = globalThis as typeof globalThis & {
-    DOMMatrix?: unknown;
-    DOMMatrixReadOnly?: unknown;
+type PdfJsGlobal = typeof globalThis & {
+  DOMMatrix?: {
+    new (init?: string | number[] | undefined): unknown;
   };
+  DOMMatrixReadOnly?: {
+    new (init?: string | number[] | undefined): unknown;
+  };
+};
+
+function ensurePdfJsGlobals() {
+  const g = globalThis as PdfJsGlobal;
 
   if (typeof g.DOMMatrix === "undefined") {
-    g.DOMMatrix = ServerDOMMatrix as unknown;
+    g.DOMMatrix = ServerDOMMatrix as unknown as PdfJsGlobal["DOMMatrix"];
   }
 
   if (typeof g.DOMMatrixReadOnly === "undefined") {
