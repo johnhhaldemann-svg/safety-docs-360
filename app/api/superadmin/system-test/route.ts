@@ -37,6 +37,41 @@ type SelectedUserRecord = {
   app_metadata: Record<string, unknown> | null;
 };
 
+type RoleRow = {
+  user_id: string;
+  role: string | null;
+  team: string | null;
+  company_id: string | null;
+  account_status: string | null;
+};
+
+type MembershipRow = {
+  user_id: string;
+  company_id: string | null;
+  role: string | null;
+  status: string | null;
+};
+
+type CompanyRow = {
+  id: string;
+  name: string | null;
+  status: string | null;
+  team_key: string | null;
+  primary_contact_email: string | null;
+  primary_contact_name: string | null;
+  archived_at: string | null;
+  restored_at: string | null;
+};
+
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  preferred_name: string | null;
+  job_title: string | null;
+  readiness_status: string | null;
+  profile_complete: boolean | null;
+};
+
 type QueryError = {
   message?: string | null;
 };
@@ -436,6 +471,208 @@ export async function GET(request: Request) {
       metric: selectedUserAgreement.data?.terms_version ?? "missing",
     });
   }
+
+  const [selectedUserRoleRow, selectedUserMembershipRow, selectedUserCompanyRow, selectedUserProfileRow] =
+    await Promise.all([
+      auth.supabase
+        .from("user_roles")
+        .select("user_id, role, team, company_id, account_status")
+        .eq("user_id", selectedUser.id)
+        .maybeSingle(),
+      auth.supabase
+        .from("company_memberships")
+        .select("user_id, company_id, role, status")
+        .eq("user_id", selectedUser.id)
+        .maybeSingle(),
+      selectedUser.companyId
+        ? auth.supabase
+            .from("companies")
+            .select(
+              "id, name, status, team_key, primary_contact_email, primary_contact_name, archived_at, restored_at"
+            )
+            .eq("id", selectedUser.companyId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      auth.supabase
+        .from("user_profiles")
+        .select("user_id, full_name, preferred_name, job_title, readiness_status, profile_complete")
+        .eq("user_id", selectedUser.id)
+        .maybeSingle(),
+    ]);
+
+  if (selectedUserRoleRow.error || !selectedUserRoleRow.data) {
+    addCheck(checks, {
+      id: "selected-user-role-row",
+      label: "Selected user role row",
+      status: "red",
+      detail:
+        selectedUserRoleRow.error?.message ??
+        "The selected user has no role row in user_roles.",
+    });
+  } else {
+    const roleRow = selectedUserRoleRow.data as RoleRow;
+    const roleMatches = (roleRow.role ?? "").trim() === selectedUser.role;
+    const companyMatches = (roleRow.company_id ?? null) === selectedUser.companyId;
+
+    addCheck(checks, {
+      id: "selected-user-role-row",
+      label: "Selected user role row",
+      status: roleMatches && companyMatches ? "green" : "yellow",
+      detail: roleMatches && companyMatches
+        ? `Role ${roleRow.role ?? "unknown"} points at the same company scope as the directory record.`
+        : "The user role row and the directory record do not fully match yet.",
+      metric: `${roleRow.role ?? "unknown"} / ${roleRow.account_status ?? "unknown"}`,
+    });
+  }
+
+  if (selectedUserMembershipRow.error) {
+    addCheck(checks, {
+      id: "selected-user-membership-row",
+      label: "Selected user membership",
+      status: "red",
+      detail:
+        selectedUserMembershipRow.error.message ??
+        "Failed to read the selected user's company membership.",
+    });
+  } else if (!selectedUserMembershipRow.data) {
+    addCheck(checks, {
+      id: "selected-user-membership-row",
+      label: "Selected user membership",
+      status: selectedUser.companyId ? "red" : "yellow",
+      detail: selectedUser.companyId
+        ? "The user is attached to a company in the directory but no membership row exists."
+        : "No company membership row exists, which is expected for internal-only users.",
+      metric: "missing",
+    });
+  } else {
+    const membershipRow = selectedUserMembershipRow.data as MembershipRow;
+    const membershipMatches =
+      (membershipRow.company_id ?? null) === selectedUser.companyId &&
+      (membershipRow.role ?? "").trim() === selectedUser.role;
+
+    addCheck(checks, {
+      id: "selected-user-membership-row",
+      label: "Selected user membership",
+      status: membershipMatches ? "green" : "yellow",
+      detail: membershipMatches
+        ? "Membership matches the selected user's company assignment."
+        : "The membership row differs from the selected user's directory state.",
+      metric: `${membershipRow.role ?? "unknown"} / ${membershipRow.status ?? "unknown"}`,
+    });
+  }
+
+  if (selectedUser.companyId) {
+    if (selectedUserCompanyRow.error) {
+      addCheck(checks, {
+        id: "selected-user-company-row",
+        label: "Selected user company",
+        status: "red",
+        detail:
+          selectedUserCompanyRow.error.message ??
+          "Failed to read the selected user's company record.",
+      });
+    } else if (!selectedUserCompanyRow.data) {
+      addCheck(checks, {
+        id: "selected-user-company-row",
+        label: "Selected user company",
+        status: "red",
+        detail: "The selected user's company workspace could not be found.",
+        metric: "missing",
+      });
+    } else {
+      const companyRow = selectedUserCompanyRow.data as CompanyRow;
+      const companyStatus = (companyRow.status ?? "active").trim().toLowerCase();
+      addCheck(checks, {
+        id: "selected-user-company-row",
+        label: "Selected user company",
+        status: companyStatus === "archived" ? "yellow" : "green",
+        detail:
+          companyStatus === "archived"
+            ? "The company exists but is archived."
+            : "The selected user's company workspace is active and readable.",
+        metric: companyStatus,
+      });
+    }
+  } else {
+    addCheck(checks, {
+      id: "selected-user-company-row",
+      label: "Selected user company",
+      status: "yellow",
+      detail: "The selected user is not assigned to a company workspace yet.",
+      metric: "unassigned",
+    });
+  }
+
+  if (selectedUserProfileRow.error) {
+    addCheck(checks, {
+      id: "selected-user-profile-row",
+      label: "Selected user profile",
+      status: "yellow",
+      detail:
+        selectedUserProfileRow.error.message ??
+        "The selected user's profile row could not be read.",
+    });
+  } else if (!selectedUserProfileRow.data) {
+    addCheck(checks, {
+      id: "selected-user-profile-row",
+      label: "Selected user profile",
+      status: "yellow",
+      detail: "No profile row exists yet for the selected user.",
+      metric: "missing",
+    });
+  } else {
+    const profileRow = selectedUserProfileRow.data as ProfileRow;
+    const profileComplete = Boolean(profileRow.profile_complete);
+    const hasCoreProfile = Boolean(profileRow.full_name?.trim() || profileRow.job_title?.trim());
+
+    addCheck(checks, {
+      id: "selected-user-profile-row",
+      label: "Selected user profile",
+      status: profileComplete && hasCoreProfile ? "green" : "yellow",
+      detail: profileComplete && hasCoreProfile
+        ? "The profile row is complete and ready."
+        : "The profile row exists, but it is not yet marked complete.",
+      metric: profileComplete ? "complete" : "incomplete",
+    });
+  }
+
+  const metadataCompanyId =
+    typeof selectedUser.app_metadata?.company_id === "string"
+      ? selectedUser.app_metadata.company_id.trim()
+      : typeof selectedUser.user_metadata?.company_id === "string"
+        ? selectedUser.user_metadata.company_id.trim()
+        : "";
+  const metadataRole =
+    typeof selectedUser.app_metadata?.role === "string"
+      ? selectedUser.app_metadata.role.trim()
+      : typeof selectedUser.user_metadata?.role === "string"
+        ? selectedUser.user_metadata.role.trim()
+        : "";
+  const metadataTeam =
+    typeof selectedUser.app_metadata?.team === "string"
+      ? selectedUser.app_metadata.team.trim()
+      : typeof selectedUser.user_metadata?.team === "string"
+        ? selectedUser.user_metadata.team.trim()
+        : "";
+
+  const metadataCompanyMatches =
+    !selectedUser.companyId || metadataCompanyId === selectedUser.companyId;
+  const metadataRoleMatches =
+    !metadataRole || metadataRole === selectedUser.role;
+  const metadataTeamMatches =
+    !metadataTeam || metadataTeam === selectedUser.team;
+
+  addCheck(checks, {
+    id: "selected-user-metadata-sync",
+    label: "Selected user metadata sync",
+    status:
+      metadataCompanyMatches && metadataRoleMatches && metadataTeamMatches ? "green" : "yellow",
+    detail:
+      metadataCompanyMatches && metadataRoleMatches && metadataTeamMatches
+        ? "Auth metadata matches the selected user directory state."
+        : "The auth metadata and the directory record are not fully aligned yet.",
+    metric: selectedUser.companyId ? selectedUser.companyId : "no company metadata",
+  });
 
   if (companiesProbe.error) {
     addCheck(checks, {
