@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -14,7 +14,13 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
-import { PageHero, SectionCard, InlineMessage, StatusBadge } from "@/components/WorkspacePrimitives";
+import {
+  PageHero,
+  SectionCard,
+  InlineMessage,
+  StatusBadge,
+  appNativeSelectClassName,
+} from "@/components/WorkspacePrimitives";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,6 +41,16 @@ type SystemTestResult = {
   ranAt: string;
   durationMs: number;
   mode: "service_role" | "fallback";
+  targetUser: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    team: string;
+    status: string;
+    companyId: string | null;
+    companyName: string | null;
+  };
   environment: {
     url: boolean;
     anonKey: boolean;
@@ -54,6 +70,17 @@ type SystemTestResult = {
   checks: SystemTestCheck[];
 };
 
+type DirectoryUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  team: string;
+  status: string;
+  companyId: string | null;
+  companyName: string;
+};
+
 function statusTone(status: CheckStatus): "success" | "warning" | "error" {
   if (status === "green") return "success";
   if (status === "yellow") return "warning";
@@ -61,9 +88,9 @@ function statusTone(status: CheckStatus): "success" | "warning" | "error" {
 }
 
 function statusLabel(status: CheckStatus) {
-  if (status === "green") return "Green light";
-  if (status === "yellow") return "Needs attention";
-  return "Blocked";
+  if (status === "green") return "Passed";
+  if (status === "yellow") return "Fallback";
+  return "Needs attention";
 }
 
 function checkIcon(id: string, status: CheckStatus) {
@@ -136,6 +163,86 @@ export default function SafetyObservationHub() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<SystemTestResult | null>(null);
   const [error, setError] = useState("");
+  const [users, setUsers] = useState<DirectoryUser[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState("");
+  const [usersWarning, setUsersWarning] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadUsers() {
+      setUsersLoading(true);
+      setUsersError("");
+      setUsersWarning("");
+
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) {
+          router.replace("/login");
+          return;
+        }
+
+        setSelectedUserId((current) => current || session.user.id || "");
+
+        const response = await fetch("/api/admin/users", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        const payload = (await response.json().catch(() => null)) as
+          | { users?: DirectoryUser[]; warning?: string; error?: string }
+          | null;
+
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Failed to load users.");
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        const directoryUsers = (payload?.users ?? []).map((user) => ({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          team: user.team,
+          status: user.status,
+          companyId: user.companyId ?? null,
+          companyName: user.companyName || "General",
+        }));
+
+        setUsers(directoryUsers);
+        setSelectedUserId((current) => current || session.user.id || directoryUsers[0]?.id || "");
+        setUsersWarning(payload?.warning ?? "");
+      } catch (loadError) {
+        if (!cancelled) {
+          setUsersError(loadError instanceof Error ? loadError.message : "Failed to load users.");
+        }
+      } finally {
+        if (!cancelled) {
+          setUsersLoading(false);
+        }
+      }
+    }
+
+    void loadUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  const selectedUser = useMemo(
+    () => users.find((user) => user.id === selectedUserId) ?? null,
+    [users, selectedUserId]
+  );
 
   const summaryTone = useMemo<"success" | "warning" | "error" | "neutral">(() => {
     if (!result) return "neutral";
@@ -144,7 +251,7 @@ export default function SafetyObservationHub() {
     return "success";
   }, [result]);
 
-  const runSystemTest = useCallback(async () => {
+  const runSystemTest = useCallback(async (userId?: string) => {
     setRunning(true);
     setError("");
 
@@ -158,7 +265,11 @@ export default function SafetyObservationHub() {
         return;
       }
 
-      const response = await fetch("/api/superadmin/system-test", {
+      const targetUserId = (userId ?? selectedUserId).trim() || session.user.id;
+      const url = new URL("/api/superadmin/system-test", window.location.origin);
+      url.searchParams.set("userId", targetUserId);
+
+      const response = await fetch(url.toString(), {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
@@ -182,24 +293,24 @@ export default function SafetyObservationHub() {
     } finally {
       setRunning(false);
     }
-  }, [router]);
+  }, [router, selectedUserId]);
 
   const summaryCards = useMemo(
     () => [
       {
-        title: "Green lights",
+        title: "Passed checks",
         value: result ? String(result.summary.green) : "-",
         note: "Checks that passed cleanly",
         tone: "success" as const,
       },
       {
-        title: "Warnings",
+        title: "Fallback checks",
         value: result ? String(result.summary.yellow) : "-",
         note: "Fallbacks or empty states",
         tone: "warning" as const,
       },
       {
-        title: "Red lights",
+        title: "Needs attention",
         value: result ? String(result.summary.red) : "-",
         note: "Functions that need attention",
         tone: "error" as const,
@@ -219,19 +330,117 @@ export default function SafetyObservationHub() {
       <PageHero
         eyebrow="Superadmin / System test"
         title="Full system function test"
-        description="Run a read-only smoke pass across session, environment, agreement settings, company data, user access, document queues, credit records, and archive history. Every function gets a green light when it is healthy."
+        description="Run a read-only smoke pass across session, environment, agreement settings, company data, user access, document queues, credit records, and archive history. Pick any user below and the test will evaluate that user's workspace context."
         actions={
           <button
             type="button"
-            onClick={runSystemTest}
-            disabled={running}
+            onClick={() => runSystemTest(selectedUserId)}
+            disabled={running || usersLoading}
             className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {running ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-            {running ? "Running test..." : "Run full system test"}
+            {running ? "Running test..." : "Run selected user test"}
           </button>
         }
       />
+
+      <SectionCard
+        title="Select user"
+        description="Choose any user from the directory, then run the smoke test against that account's scope."
+      >
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <label className="block">
+            <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              Test user
+            </span>
+            <select
+              className={`${appNativeSelectClassName} mt-2 w-full`}
+              value={selectedUserId}
+              onChange={(event) => {
+                setSelectedUserId(event.target.value);
+                setResult(null);
+                setError("");
+              }}
+              disabled={usersLoading || users.length === 0}
+            >
+              {usersLoading ? (
+                <option value="">Loading users…</option>
+              ) : users.length === 0 ? (
+                <option value="">No users available</option>
+              ) : (
+                users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} · {user.email || user.id} · {user.role}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            onClick={() => runSystemTest(selectedUserId)}
+            disabled={running || usersLoading || !selectedUserId}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {running ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+            {running ? "Running test..." : "Run selected user test"}
+          </button>
+        </div>
+
+        {selectedUser ? (
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                Selected user
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-100">{selectedUser.name}</p>
+              <p className="mt-1 text-sm leading-6 text-slate-400">{selectedUser.email || selectedUser.id}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                Role
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-100">{selectedUser.role}</p>
+              <p className="mt-1 text-sm leading-6 text-slate-400">{selectedUser.status}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                Company
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-100">
+                {selectedUser.companyName || "No company assigned"}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-slate-400">
+                {selectedUser.companyId ? selectedUser.companyId : "Workspace scope not attached yet"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                Ready
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-100">
+                {selectedUser.companyId ? "Company-scoped" : "Needs assignment"}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-slate-400">
+                {selectedUser.id === selectedUserId ? "Selected in the dropdown" : "Selection sync pending"}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {usersWarning ? (
+          <div className="mt-4">
+            <InlineMessage tone="warning">{usersWarning}</InlineMessage>
+          </div>
+        ) : null}
+
+        {usersError ? (
+          <div className="mt-4">
+            <InlineMessage tone="error">{usersError}</InlineMessage>
+          </div>
+        ) : null}
+      </SectionCard>
 
       <SectionCard
         title="Test instructions"
@@ -241,10 +450,10 @@ export default function SafetyObservationHub() {
             <StatusBadge
               label={
                 result.summary.red > 0
-                  ? "Blocked"
+                  ? "Needs attention"
                   : result.summary.yellow > 0
-                    ? "Attention"
-                    : "All green"
+                    ? "Fallbacks"
+                    : "All passed"
               }
               tone={summaryTone === "error" ? "error" : summaryTone === "warning" ? "warning" : "success"}
             />
@@ -278,8 +487,8 @@ export default function SafetyObservationHub() {
 
       {result ? (
         <SectionCard
-          title="Environment and summary"
-          description={`Last run at ${formatRunTime(result.ranAt)}. This pass completed in ${formatDuration(result.durationMs)}.`}
+          title={`Environment and summary for ${result.targetUser.name}`}
+          description={`Last run at ${formatRunTime(result.ranAt)} for ${result.targetUser.email || result.targetUser.id}. This pass completed in ${formatDuration(result.durationMs)}.`}
           aside={
             <StatusBadge
               label={
@@ -293,7 +502,16 @@ export default function SafetyObservationHub() {
             />
           }
         >
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                Target user
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-100">{result.targetUser.name}</p>
+              <p className="mt-1 text-sm leading-6 text-slate-400">
+                {result.targetUser.email || result.targetUser.id}
+              </p>
+            </div>
             <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
               <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
                 Supabase URL
@@ -339,7 +557,7 @@ export default function SafetyObservationHub() {
 
       <SectionCard
         title="Color guide"
-        description="These colors stay consistent across the test cards so it is easy to tell what needs attention."
+        description="These colors stay consistent across the test cards so it is easy to tell what needs attention for the selected user."
       >
         <div className="grid gap-3 md:grid-cols-3">
           {[
@@ -381,7 +599,7 @@ export default function SafetyObservationHub() {
       {result ? (
         <SectionCard
           title="Function checks"
-          description="Each card is a single function or system path. Green means the function answered successfully."
+          description={`Each card is a single function or system path for ${result.targetUser.name}. Green means the function answered successfully.`}
         >
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {result.checks.map((check) => (
