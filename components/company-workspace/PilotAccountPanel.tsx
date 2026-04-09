@@ -5,12 +5,17 @@ import { useEffect, useState } from "react";
 import { InlineMessage, SectionCard } from "@/components/WorkspacePrimitives";
 import type { CompanyProfile } from "@/components/company-workspace/useCompanyWorkspaceData";
 
+type PilotCompanyProfile = CompanyProfile & {
+  pilot_trial_ends_at?: string | null;
+  pilot_converted_at?: string | null;
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-function isPilotMode(profile: CompanyProfile | null): profile is CompanyProfile {
+function isPilotMode(profile: PilotCompanyProfile | null): profile is PilotCompanyProfile {
   if (!profile) return false;
   return Boolean(profile.pilot_trial_ends_at) && !profile.pilot_converted_at;
 }
@@ -37,7 +42,7 @@ export function PilotAccountPanel({
   companyProfile,
   onUpdated,
 }: {
-  companyProfile: CompanyProfile | null;
+  companyProfile: PilotCompanyProfile | null;
   onUpdated?: () => void | Promise<void>;
 }) {
   const [name, setName] = useState("");
