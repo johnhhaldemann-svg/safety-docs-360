@@ -337,6 +337,47 @@ export default function SafetyObservationHub() {
         </SectionCard>
       )}
 
+      <SectionCard
+        title="Color guide"
+        description="These colors stay consistent across the test cards so it is easy to tell what needs attention."
+      >
+        <div className="grid gap-3 md:grid-cols-3">
+          {[
+            {
+              label: "Green",
+              tone: "success" as const,
+              title: "Passed",
+              detail: "The check answered successfully and the path is working as expected.",
+            },
+            {
+              label: "Yellow",
+              tone: "warning" as const,
+              title: "Fallback or empty",
+              detail: "The check used a safe fallback or there is not enough data yet to mark it green.",
+            },
+            {
+              label: "Red",
+              tone: "error" as const,
+              title: "Needs attention",
+              detail: "The check failed or a required config or data path could not be read.",
+            },
+          ].map((item) => (
+            <div key={item.label} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                    {item.label}
+                  </div>
+                  <div className="mt-2 text-base font-bold text-slate-100">{item.title}</div>
+                </div>
+                <StatusBadge label={item.label} tone={item.tone} />
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-500">{item.detail}</p>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
       {result ? (
         <SectionCard
           title="Function checks"
