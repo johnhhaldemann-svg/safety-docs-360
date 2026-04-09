@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { getUserAgreementRecord } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
-import { authorizeRequest } from "@/lib/rbac";
+import { authorizeRequest, getUserRoleContext } from "@/lib/rbac";
+import { getCompanyScope } from "@/lib/companyScope";
 import {
   createSupabaseAdminClient,
   getSupabaseServerEnvStatus,
@@ -19,11 +21,20 @@ type SystemTestCheck = {
   metric?: string;
 };
 
-type CompanyProbeRow = {
+type SelectedUserRecord = {
   id: string;
-  name: string | null;
-  status: string | null;
+  email: string;
+  name: string;
+  role: string;
+  team: string;
+  status: string;
+  companyId: string | null;
+  companyName: string | null;
   created_at: string | null;
+  last_sign_in_at: string | null;
+  email_confirmed_at: string | null;
+  user_metadata: Record<string, unknown> | null;
+  app_metadata: Record<string, unknown> | null;
 };
 
 type QueryError = {
@@ -58,10 +69,50 @@ type ReadableSystemTestClient = {
 type AdminSystemTestClient = ReadableSystemTestClient & {
   auth: {
     admin: {
-      listUsers(): Promise<QueryResult<{ users: Array<{ id: string }> }>>;
+      listUsers(): Promise<
+        QueryResult<{
+          users: Array<{
+            id: string;
+            email?: string | null;
+            created_at?: string | null;
+            last_sign_in_at?: string | null;
+            email_confirmed_at?: string | null;
+            user_metadata?: Record<string, unknown> | null;
+            app_metadata?: Record<string, unknown> | null;
+          }>;
+        }>
+      >;
     };
   };
 };
+
+function getDisplayName(user: {
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+}) {
+  const metadataName =
+    typeof user.user_metadata?.full_name === "string"
+      ? user.user_metadata.full_name
+      : typeof user.user_metadata?.name === "string"
+        ? user.user_metadata.name
+        : "";
+
+  return metadataName.trim() || user.email?.split("@")[0] || "Unnamed User";
+}
+
+function getTeam(user: {
+  app_metadata?: Record<string, unknown> | null;
+  user_metadata?: Record<string, unknown> | null;
+}) {
+  const metadataTeam =
+    typeof user.app_metadata?.team === "string"
+      ? user.app_metadata.team
+      : typeof user.user_metadata?.team === "string"
+        ? user.user_metadata.team
+        : "";
+
+  return metadataTeam.trim() || "General";
+}
 
 function addCheck(
   checks: SystemTestCheck[],
@@ -98,6 +149,104 @@ async function runCountQuery(
   return {
     count: count ?? 0,
     error: error ?? null,
+  };
+}
+
+async function resolveSelectedUser(params: {
+  adminClient: AdminSystemTestClient | null;
+  dbClient: ReadableSystemTestClient;
+  currentUserId: string;
+  targetUserId: string;
+}): Promise<SelectedUserRecord | null> {
+  const { adminClient, dbClient, currentUserId, targetUserId } = params;
+  const effectiveTargetUserId = targetUserId || currentUserId;
+
+  if (adminClient) {
+    const { data, error } = await adminClient.auth.admin.listUsers();
+
+    if (!error) {
+      const rawUser = (data.users ?? []).find((user) => user.id === effectiveTargetUserId) ?? null;
+
+      if (rawUser) {
+        const roleContext = await getUserRoleContext({
+          supabase: adminClient,
+          user: {
+            ...rawUser,
+            app_metadata: rawUser.app_metadata ?? undefined,
+            user_metadata: rawUser.user_metadata ?? undefined,
+          },
+        });
+        const companyScope = await getCompanyScope({
+          supabase: adminClient,
+          userId: rawUser.id,
+          fallbackTeam: roleContext.team,
+          authUser: {
+            app_metadata: rawUser.app_metadata ?? undefined,
+            user_metadata: rawUser.user_metadata ?? undefined,
+          },
+        });
+
+        return {
+          id: rawUser.id,
+          email: rawUser.email ?? "",
+          name: getDisplayName(rawUser),
+          role: roleContext.role,
+          team: roleContext.team || getTeam(rawUser),
+          status: roleContext.accountStatus,
+          companyId: companyScope.companyId,
+          companyName: companyScope.companyName,
+          created_at: rawUser.created_at ?? null,
+          last_sign_in_at: rawUser.last_sign_in_at ?? null,
+          email_confirmed_at: rawUser.email_confirmed_at ?? null,
+          user_metadata: rawUser.user_metadata ?? null,
+          app_metadata: rawUser.app_metadata ?? null,
+        };
+      }
+    }
+  }
+
+  const { data, error } = await dbClient.rpc("admin_list_workspace_users");
+
+  if (error) {
+    return null;
+  }
+
+  const row = ((data as Array<{
+    id: string;
+    email: string | null;
+    name: string | null;
+    role: string | null;
+    team: string | null;
+    status: string | null;
+    created_at: string | null;
+    last_sign_in_at: string | null;
+    email_confirmed_at: string | null;
+  }> | null) ?? []).find((user) => user.id === effectiveTargetUserId) ?? null;
+
+  if (!row) {
+    return null;
+  }
+
+  const selectedUserCompanyScope = await getCompanyScope({
+    supabase: dbClient,
+    userId: row.id,
+    fallbackTeam: row.team,
+  });
+
+  return {
+    id: row.id,
+    email: row.email ?? "",
+    name: row.name?.trim() || (row.email ? row.email.split("@")[0] : "Unnamed User"),
+    role: row.role ?? "company_user",
+    team: row.team?.trim() || "General",
+    status: row.status ?? "Active",
+    companyId: selectedUserCompanyScope.companyId,
+    companyName: selectedUserCompanyScope.companyName,
+    created_at: row.created_at,
+    last_sign_in_at: row.last_sign_in_at,
+    email_confirmed_at: row.email_confirmed_at,
+    user_metadata: null,
+    app_metadata: null,
   };
 }
 
@@ -150,8 +299,10 @@ export async function GET(request: Request) {
     metric: usesServiceRole ? "service role" : "fallback mode",
   });
 
+  let loadedAgreementVersion = "";
   try {
     const agreementConfig = await getAgreementConfig(dbClient);
+    loadedAgreementVersion = agreementConfig.version;
     addCheck(checks, {
       id: "agreement-config",
       label: "Agreement settings",
@@ -172,6 +323,14 @@ export async function GET(request: Request) {
       metric: "default",
     });
   }
+
+  const targetUserId = new URL(request.url).searchParams.get("userId")?.trim() || auth.user.id;
+  const selectedUserPromise = resolveSelectedUser({
+    adminClient,
+    dbClient,
+    currentUserId: auth.user.id,
+    targetUserId,
+  });
 
   const companiesProbePromise = dbClient
     .from("companies")
@@ -203,8 +362,21 @@ export async function GET(request: Request) {
     ? adminClient.auth.admin.listUsers()
     : dbClient.rpc("admin_list_workspace_users");
 
-  const [companiesProbe, pendingRequests, memberships, roleAssignments, submittedDocs, approvedDocs, archivedDocs, archivedCompanies, creditLedger, usersDirectory] =
+  const [
+    selectedUser,
+    companiesProbe,
+    pendingRequests,
+    memberships,
+    roleAssignments,
+    submittedDocs,
+    approvedDocs,
+    archivedDocs,
+    archivedCompanies,
+    creditLedger,
+    usersDirectory,
+  ] =
     await Promise.all([
+      selectedUserPromise,
       companiesProbePromise,
       pendingRequestsPromise,
       membershipsPromise,
@@ -216,6 +388,54 @@ export async function GET(request: Request) {
       creditLedgerPromise,
       usersDirectoryPromise,
     ]);
+
+  if (!selectedUser) {
+    return NextResponse.json(
+      { error: "Selected user could not be found." },
+      { status: 404 }
+    );
+  }
+
+  addCheck(checks, {
+    id: "selected-user",
+    label: "Selected user",
+    status: "green",
+    detail: `Testing ${selectedUser.name} (${selectedUser.email || selectedUser.id}) in ${selectedUser.companyName || "General"} scope.`,
+    metric: selectedUser.role,
+  });
+
+  const selectedUserAgreement = await getUserAgreementRecord(
+    dbClient,
+    selectedUser.id,
+    selectedUser.user_metadata ?? undefined
+  );
+
+  if (selectedUserAgreement.error) {
+    addCheck(checks, {
+      id: "selected-user-agreement",
+      label: "Selected user agreement",
+      status: "red",
+      detail:
+        selectedUserAgreement.error.message ??
+        "Failed to read the selected user's agreement state.",
+    });
+  } else {
+    const selectedUserAccepted =
+      Boolean(loadedAgreementVersion) &&
+      Boolean(selectedUserAgreement.data?.accepted_terms) &&
+      (selectedUserAgreement.data?.terms_version ?? "") === loadedAgreementVersion;
+    addCheck(checks, {
+      id: "selected-user-agreement",
+      label: "Selected user agreement",
+      status: loadedAgreementVersion ? (selectedUserAccepted ? "green" : "yellow") : "yellow",
+      detail: loadedAgreementVersion
+        ? selectedUserAccepted
+          ? `Accepted terms version ${selectedUserAgreement.data?.terms_version ?? "current"}.`
+          : "The selected user still needs to accept the current agreement version."
+        : "Agreement settings could not be loaded, so acceptance was checked against the fallback state.",
+      metric: selectedUserAgreement.data?.terms_version ?? "missing",
+    });
+  }
 
   if (companiesProbe.error) {
     addCheck(checks, {
@@ -339,25 +559,23 @@ export async function GET(request: Request) {
     metric: creditLedger.error ? undefined : String(creditLedger.count),
   });
 
-  const newestCompany = ((companiesProbe.data as CompanyProbeRow[] | null) ?? [])[0] ?? null;
-
-  if (!newestCompany?.id) {
+  if (!selectedUser.companyId) {
     addCheck(checks, {
       id: "company-probe",
       label: "Company detail probe",
       status: "yellow",
-      detail: "No company workspace exists yet to probe end-to-end.",
+      detail: "The selected user is not attached to a company workspace yet.",
     });
   } else {
     const [members, invites, docs] = await Promise.all([
       runCountQuery(dbClient, "company_memberships", (query) =>
-        query.eq("company_id", newestCompany.id)
+        query.eq("company_id", selectedUser.companyId as string)
       ),
       runCountQuery(dbClient, "company_invites", (query) =>
-        query.eq("company_id", newestCompany.id)
+        query.eq("company_id", selectedUser.companyId as string)
       ),
       runCountQuery(dbClient, "documents", (query) =>
-        query.eq("company_id", newestCompany.id)
+        query.eq("company_id", selectedUser.companyId as string)
       ),
     ]);
 
@@ -377,8 +595,8 @@ export async function GET(request: Request) {
         id: "company-probe",
         label: "Company detail probe",
         status: "green",
-        detail: `${newestCompany.name ?? "Latest company"}: ${members.count} members, ${invites.count} invites, ${docs.count} documents.`,
-        metric: newestCompany.status ?? "active",
+        detail: `${selectedUser.companyName ?? "Selected company"}: ${members.count} members, ${invites.count} invites, ${docs.count} documents.`,
+        metric: selectedUser.status || "active",
       });
     }
   }
@@ -391,6 +609,16 @@ export async function GET(request: Request) {
     durationMs,
     mode: usesServiceRole ? ("service_role" as const) : ("fallback" as const),
     environment: envStatus,
+    targetUser: {
+      id: selectedUser.id,
+      email: selectedUser.email,
+      name: selectedUser.name,
+      role: selectedUser.role,
+      team: selectedUser.team,
+      status: selectedUser.status,
+      companyId: selectedUser.companyId,
+      companyName: selectedUser.companyName,
+    },
     summary,
     checks,
   };
