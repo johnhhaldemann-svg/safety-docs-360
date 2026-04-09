@@ -49,6 +49,7 @@ export const adminQuickLinks: NavItem[] = [
   { href: "/billing", label: "Billing", short: "BI" },
   { href: "/admin/sor-audit", label: "SOR audit", short: "SA" },
   { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },
+  { href: "/superadmin/system-test", label: "System test", short: "SY" },
   { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
   { href: "/superadmin/osha-ipa-lab", label: "Compliance tracker", short: "OA" },
 ];
@@ -144,6 +145,7 @@ export const adminSideSections: NavSection[] = [
   {
     title: "Tools & systems",
     items: [
+      { href: "/superadmin/system-test", label: "System test", short: "SY" },
       { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
       {
         href: "/superadmin/osha-ipa-lab",
