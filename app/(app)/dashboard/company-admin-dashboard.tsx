@@ -135,6 +135,19 @@ function getPulseLabel(score: number) {
   return "At risk";
 }
 
+function isRelationCacheIssue(message?: string | null) {
+  const lower = (message ?? "").toLowerCase();
+  return lower.includes("company_daps") || lower.includes("company_jsas") || lower.includes("schema cache");
+}
+
+function normalizeWorkspaceIssue(message?: string | null) {
+  if (!message) return null;
+  if (isRelationCacheIssue(message)) {
+    return "Workspace JSA data is still syncing behind the scenes. Refresh Workspace in a moment if you want the newest counts.";
+  }
+  return message.trim();
+}
+
 const DASHBOARD_FILTER_STORAGE_KEY = "safety360:company-dashboard-filters";
 
 export function CompanyAdminDashboard({
@@ -187,6 +200,13 @@ export function CompanyAdminDashboard({
   const [searchQuery, setSearchQuery] = useState("");
   const [filtersLoaded, setFiltersLoaded] = useState(false);
   const [referenceTime] = useState(() => Date.now());
+  const normalizedWorkspaceError = normalizeWorkspaceIssue(workspaceError);
+  const normalizedAnalyticsIssue = analyticsSummaryIssue
+    ? {
+        message: normalizeWorkspaceIssue(analyticsSummaryIssue.message) ?? analyticsSummaryIssue.message,
+        tone: isRelationCacheIssue(analyticsSummaryIssue.message) ? "warning" : analyticsSummaryIssue.tone,
+      }
+    : null;
 
   useEffect(() => {
     try {
@@ -805,22 +825,22 @@ export function CompanyAdminDashboard({
             </div>
           </div>
 
-          {!workspaceLoaded || workspaceError ? (
+          {!workspaceLoaded || normalizedWorkspaceError ? (
             <div
               className={`rounded-2xl border px-4 py-3 text-sm ${
-                workspaceError
+                normalizedWorkspaceError
                   ? "border-amber-500/35 bg-amber-950/40 text-amber-100"
                   : "border-sky-500/35 bg-sky-950/35 text-sky-100"
               }`}
             >
-              {workspaceError
-                ? workspaceError
+              {normalizedWorkspaceError
+                ? normalizedWorkspaceError
                 : "This workspace loads on demand. Click Refresh Workspace to pull the latest company data."}
             </div>
           ) : null}
 
-          {workspaceLoaded && analyticsSummaryIssue ? (
-            <InlineMessage tone={analyticsSummaryIssue.tone}>{analyticsSummaryIssue.message}</InlineMessage>
+          {workspaceLoaded && normalizedAnalyticsIssue ? (
+            <InlineMessage tone={normalizedAnalyticsIssue.tone}>{normalizedAnalyticsIssue.message}</InlineMessage>
           ) : null}
 
           {workspaceLoaded ? (
