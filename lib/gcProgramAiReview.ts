@@ -1,4 +1,95 @@
+import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
+
 const MAX_CHARS = 90_000;
+
+class ServerDOMMatrix {
+  a = 1;
+  b = 0;
+  c = 0;
+  d = 1;
+  e = 0;
+  f = 0;
+
+  constructor(init?: unknown) {
+    if (Array.isArray(init) && init.length >= 6) {
+      const [a, b, c, d, e, f] = init;
+      this.a = Number(a) || 1;
+      this.b = Number(b) || 0;
+      this.c = Number(c) || 0;
+      this.d = Number(d) || 1;
+      this.e = Number(e) || 0;
+      this.f = Number(f) || 0;
+    } else if (init && typeof init === "object") {
+      const obj = init as Partial<Record<"a" | "b" | "c" | "d" | "e" | "f", unknown>>;
+      if (typeof obj.a === "number") this.a = obj.a;
+      if (typeof obj.b === "number") this.b = obj.b;
+      if (typeof obj.c === "number") this.c = obj.c;
+      if (typeof obj.d === "number") this.d = obj.d;
+      if (typeof obj.e === "number") this.e = obj.e;
+      if (typeof obj.f === "number") this.f = obj.f;
+    }
+  }
+
+  translate(tx = 0, ty = 0) {
+    this.e += tx;
+    this.f += ty;
+    return this;
+  }
+
+  scale(scaleX = 1, scaleY = scaleX) {
+    this.a *= scaleX;
+    this.d *= scaleY;
+    this.e *= scaleX;
+    this.f *= scaleY;
+    return this;
+  }
+
+  multiply(other: unknown) {
+    const matrix = other instanceof ServerDOMMatrix ? other : new ServerDOMMatrix(other);
+    return new ServerDOMMatrix([
+      this.a * matrix.a + this.c * matrix.b,
+      this.b * matrix.a + this.d * matrix.b,
+      this.a * matrix.c + this.c * matrix.d,
+      this.b * matrix.c + this.d * matrix.d,
+      this.a * matrix.e + this.c * matrix.f + this.e,
+      this.b * matrix.e + this.d * matrix.f + this.f,
+    ]);
+  }
+
+  inverse() {
+    const determinant = this.a * this.d - this.b * this.c;
+    if (!determinant) {
+      return new ServerDOMMatrix();
+    }
+    return new ServerDOMMatrix([
+      this.d / determinant,
+      -this.b / determinant,
+      -this.c / determinant,
+      this.a / determinant,
+      (this.c * this.f - this.d * this.e) / determinant,
+      (this.b * this.e - this.a * this.f) / determinant,
+    ]);
+  }
+
+  toFloat32Array() {
+    return new Float32Array([this.a, this.b, this.c, this.d, this.e, this.f]);
+  }
+}
+
+function ensurePdfJsGlobals() {
+  const g = globalThis as typeof globalThis & {
+    DOMMatrix?: typeof ServerDOMMatrix;
+    DOMMatrixReadOnly?: typeof ServerDOMMatrix;
+  };
+
+  if (typeof g.DOMMatrix === "undefined") {
+    g.DOMMatrix = ServerDOMMatrix;
+  }
+
+  if (typeof g.DOMMatrixReadOnly === "undefined") {
+    g.DOMMatrixReadOnly = g.DOMMatrix;
+  }
+}
 
 export type GcProgramAiReview = {
   executiveSummary: string;
@@ -48,6 +139,8 @@ async function extractPdfToResult(buffer: Buffer): Promise<{
     destroy?: () => PromiseLike<void> | void;
   };
 
+  ensurePdfJsGlobals();
+
   const pdfParseModule = await import("pdf-parse");
   const PdfParseCtor =
     (pdfParseModule as { PDFParse?: new (options: { data: Buffer }) => PdfParserInstance }).PDFParse ??
@@ -65,7 +158,7 @@ async function extractPdfToResult(buffer: Buffer): Promise<{
     const { text, truncated } = truncateText(raw);
     return { ok: true, text, truncated, method: "pdf" };
   } finally {
-    await parser.destroy();
+    await parser.destroy?.();
   }
 }
 
@@ -206,14 +299,14 @@ export async function generateGcProgramAiReview(params: {
     contextBlock,
   ].join("\n\n");
 
-  const res = await fetch("https://api.openai.com/v1/responses", {
+  const res = await fetch(`${getOpenAiApiBaseUrl()}/responses`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-4.1",
+      model: resolveOpenAiCompatibleModelId("gpt-4.1"),
       input: prompt,
       text: {
         format: {
