@@ -78,12 +78,12 @@ class ServerDOMMatrix {
 
 function ensurePdfJsGlobals() {
   const g = globalThis as typeof globalThis & {
-    DOMMatrix?: typeof ServerDOMMatrix;
-    DOMMatrixReadOnly?: typeof ServerDOMMatrix;
+    DOMMatrix?: unknown;
+    DOMMatrixReadOnly?: unknown;
   };
 
   if (typeof g.DOMMatrix === "undefined") {
-    g.DOMMatrix = ServerDOMMatrix;
+    g.DOMMatrix = ServerDOMMatrix as unknown;
   }
 
   if (typeof g.DOMMatrixReadOnly === "undefined") {
