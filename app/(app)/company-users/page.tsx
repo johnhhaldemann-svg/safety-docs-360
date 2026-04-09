@@ -341,80 +341,6 @@ export default function CompanyUsersPage() {
   );
   const teamPulseLabel = getPulseLabel(teamPulseScore);
   const teamPulseTone = getPulseTone(teamPulseScore);
-  const teamSpotlight =
-    pendingUsers.length > 0
-      ? {
-          title: "Approve the next teammate",
-          detail: "There is already someone waiting, so this is the highest-value next click.",
-          href: "/company-users",
-          button: "Review approvals",
-          tone: "warning" as const,
-        }
-      : invites.length > 0
-        ? {
-            title: "Follow up on invites",
-            detail: "The invite lane already has activity, so now is a good time to keep the flow moving.",
-            href: "/company-users",
-            button: "Open invites",
-            tone: "info" as const,
-          }
-        : jobsites.length === 0
-          ? {
-              title: "Create the first jobsite",
-              detail: "A first site gives new team members a place to land and helps the workspace feel real.",
-              href: "/jobsites",
-              button: "Add jobsite",
-              tone: "success" as const,
-            }
-          : {
-              title: "Keep the team moving",
-              detail: "The workspace is in good shape, so the next best move is usually documents or field work.",
-              href: "/submit",
-              button: "Submit document",
-              tone: "success" as const,
-            };
-  const teamMilestones = [
-    {
-      id: "team-invite",
-      title: invites.length > 0 ? "First invite sent" : "Send the first invite",
-      detail:
-        invites.length > 0
-          ? "The onboarding lane is already active."
-          : "Inviting the first teammate makes the workspace feel alive.",
-      tone: invites.length > 0 ? ("success" as const) : ("neutral" as const),
-    },
-    {
-      id: "team-approval",
-      title:
-        pendingUsers.length === 0 && activeUsers.length > 0
-          ? "Approval flow moving"
-          : "Approve the first account",
-      detail:
-        pendingUsers.length === 0 && activeUsers.length > 0
-          ? "At least one account has already made it through approval."
-          : "Once the first user is approved, the team path feels real.",
-      tone: pendingUsers.length === 0 && activeUsers.length > 0 ? ("success" as const) : ("warning" as const),
-    },
-    {
-      id: "team-online",
-      title: onlineUsers.length > 0 ? "Someone is online" : "Get the team online",
-      detail:
-        onlineUsers.length > 0
-          ? "Live sign-ins are happening now."
-          : "A recent sign-in is a good sign that the workspace is in use.",
-      tone: onlineUsers.length > 0 ? ("info" as const) : ("neutral" as const),
-    },
-    {
-      id: "team-sites",
-      title: jobsites.length > 0 ? "Site map started" : "Create the first site",
-      detail:
-        jobsites.length > 0
-          ? "The team already has a place to organize field work."
-          : "Jobsites help users, documents, and safety work snap into place.",
-      tone: jobsites.length > 0 ? ("success" as const) : ("neutral" as const),
-    },
-  ];
-
   const activityItems = useMemo(() => {
     const userItems = users.map((user) => ({
         id: user.id,
@@ -735,17 +661,6 @@ export default function CompanyUsersPage() {
 
           <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
             <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
-              What&apos;s next
-            </div>
-            <div className="mt-3 text-lg font-bold text-slate-100">{teamSpotlight.title}</div>
-            <p className="mt-3 text-sm leading-6 text-slate-500">{teamSpotlight.detail}</p>
-            <Link href={teamSpotlight.href} className="mt-4 inline-flex text-sm font-semibold text-sky-300">
-              {teamSpotlight.button}
-            </Link>
-          </div>
-
-          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
               Team badges
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -772,35 +687,6 @@ export default function CompanyUsersPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
-              Milestones
-            </div>
-            <div className="mt-3 text-3xl font-black text-white">
-              {teamMilestones.filter((item) => item.tone === "success").length} unlocked
-            </div>
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              Small wins that make onboarding feel like progress instead of paperwork.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {teamMilestones.map((milestone) => (
-            <div key={milestone.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
-                Milestone
-              </div>
-              <div className="mt-3 text-lg font-bold text-slate-100">{milestone.title}</div>
-              <p className="mt-3 text-sm leading-6 text-slate-500">{milestone.detail}</p>
-              <div className="mt-4">
-                <StatusBadge
-                  label={milestone.tone === "success" ? "Unlocked" : milestone.tone === "warning" ? "Next" : "Locked"}
-                  tone={milestone.tone}
-                />
-              </div>
-            </div>
-          ))}
         </div>
       </SectionCard>
 
