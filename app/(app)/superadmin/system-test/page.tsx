@@ -37,6 +37,18 @@ type SystemTestCheck = {
   metric?: string;
 };
 
+type CheckGroupSummary = {
+  key: string;
+  label: string;
+  description: string;
+  icon: typeof ShieldCheck;
+  ids: string[];
+  checks: SystemTestCheck[];
+  green: number;
+  yellow: number;
+  red: number;
+};
+
 type SystemTestResult = {
   ranAt: string;
   durationMs: number;
@@ -154,6 +166,84 @@ function CheckCard({ check }: { check: SystemTestCheck }) {
           <span className="text-sm font-semibold text-slate-100">{check.metric}</span>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function groupedTone(red: number, yellow: number): "success" | "warning" | "error" {
+  if (red > 0) return "error";
+  if (yellow > 0) return "warning";
+  return "success";
+}
+
+function GroupedSummaryCard({ group }: { group: CheckGroupSummary }) {
+  const tone = groupedTone(group.red, group.yellow);
+
+  return (
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/55 p-4 shadow-sm transition hover:border-slate-600 hover:bg-slate-950/65">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700/80 bg-slate-900/90">
+            <group.icon className="h-5 w-5 text-sky-300" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-100">{group.label}</p>
+            <p className="mt-1 text-sm leading-6 text-slate-400">{group.description}</p>
+          </div>
+        </div>
+        <StatusBadge
+          label={group.red > 0 ? "Red flags" : group.yellow > 0 ? "Fallbacks" : "Clear"}
+          tone={tone}
+        />
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-200/80">
+            Green
+          </p>
+          <p className="mt-1 text-lg font-black text-emerald-100">{group.green}</p>
+        </div>
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-200/80">
+            Yellow
+          </p>
+          <p className="mt-1 text-lg font-black text-amber-100">{group.yellow}</p>
+        </div>
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-red-200/80">
+            Red
+          </p>
+          <p className="mt-1 text-lg font-black text-red-100">{group.red}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2 border-t border-slate-800/80 pt-3">
+        {group.checks.length > 0 ? (
+          group.checks.slice(0, 3).map((check) => (
+            <div
+              key={check.id}
+              className={`rounded-xl border px-3 py-2 ${
+                check.status === "red"
+                  ? "border-red-500/25 bg-red-500/10"
+                  : check.status === "yellow"
+                    ? "border-amber-500/25 bg-amber-500/10"
+                    : "border-emerald-500/25 bg-emerald-500/10"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-slate-100">{check.label}</p>
+                <StatusBadge label={statusLabel(check.status)} tone={statusTone(check.status)} />
+              </div>
+              <p className="mt-1 text-xs leading-5 text-slate-400">{check.detail}</p>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-3 text-sm text-emerald-100">
+            No red flags in this bucket.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -325,6 +415,73 @@ export default function SafetyObservationHub() {
     [result]
   );
 
+  const groupedSummary = useMemo<CheckGroupSummary[]>(
+    () => {
+      const groups = [
+        {
+          key: "auth",
+          label: "Auth errors",
+          description: "Session, runtime, and agreement checks.",
+          icon: ShieldCheck,
+          ids: ["super-admin-session", "runtime-env", "agreement-config", "selected-user-agreement"],
+        },
+        {
+          key: "company",
+          label: "Company mismatches",
+          description: "Company, membership, and assignment alignment.",
+          icon: Building2,
+          ids: [
+            "selected-user-role-row",
+            "selected-user-membership-row",
+            "selected-user-company-row",
+            "company-directory",
+            "pending-requests",
+            "company-memberships",
+            "role-assignments",
+            "company-probe",
+            "archived-companies",
+          ],
+        },
+        {
+          key: "data",
+          label: "Data integrity issues",
+          description: "Documents, credits, directories, and probes.",
+          icon: Database,
+          ids: [
+            "user-directory",
+            "documents-submitted",
+            "documents-approved",
+            "documents-archived",
+            "credit-ledger",
+            "selected-user-metadata-sync",
+          ],
+        },
+        {
+          key: "profile",
+          label: "Missing profile / setup",
+          description: "Selected user profile and workspace readiness.",
+          icon: Users,
+          ids: ["selected-user-profile-row", "selected-user"],
+        },
+      ];
+
+      return groups.map((group) => {
+        const checks = result
+          ? result.checks.filter((check) => group.ids.includes(check.id))
+          : [];
+
+        return {
+          ...group,
+          checks,
+          green: checks.filter((check) => check.status === "green").length,
+          yellow: checks.filter((check) => check.status === "yellow").length,
+          red: checks.filter((check) => check.status === "red").length,
+        };
+      });
+    },
+    [result]
+  );
+
   return (
     <div className="space-y-6">
       <PageHero
@@ -473,6 +630,31 @@ export default function SafetyObservationHub() {
           ))}
         </div>
       </SectionCard>
+
+      {result ? (
+        <SectionCard
+          title="Red flag summary"
+          description="Grouped by the main failure modes so you can spot the risky areas first."
+          aside={
+            <StatusBadge
+              label={
+                result.summary.red > 0
+                  ? "Action needed"
+                  : result.summary.yellow > 0
+                    ? "Review fallbacks"
+                    : "All clear"
+              }
+              tone={summaryTone === "error" ? "error" : summaryTone === "warning" ? "warning" : "success"}
+            />
+          }
+        >
+          <div className="grid gap-3 xl:grid-cols-2">
+            {groupedSummary.map((group) => (
+              <GroupedSummaryCard key={group.key} group={group} />
+            ))}
+          </div>
+        </SectionCard>
+      ) : null}
 
       {error ? (
         <InlineMessage tone="error">{error}</InlineMessage>
