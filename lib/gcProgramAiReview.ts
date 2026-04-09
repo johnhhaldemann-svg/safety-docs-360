@@ -1,4 +1,5 @@
 import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
+import { configurePdfParseWorker } from "@/lib/pdfParseWorker";
 
 const MAX_CHARS = 90_000;
 
@@ -156,6 +157,8 @@ async function extractPdfToResult(buffer: Buffer): Promise<{
   if (!PdfParseCtor) {
     throw new Error("PDF preview parser is unavailable.");
   }
+
+  configurePdfParseWorker(PdfParseCtor as unknown as { setWorker?: (workerSrc?: string) => string });
 
   const parser = new PdfParseCtor({ data: buffer });
   try {

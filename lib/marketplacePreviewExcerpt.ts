@@ -4,9 +4,10 @@ import {
   isBuyerMarketplacePreviewBlocked,
   isMarketplaceEnabled,
 } from "@/lib/marketplace";
+import { configurePdfParseWorker } from "@/lib/pdfParseWorker";
 
 /** Short on-screen preview only; full file is never sent to the client. */
-export const MARKETPLACE_PREVIEW_MAX_CHARS = 2000;
+export const MARKETPLACE_PREVIEW_MAX_CHARS = 3500;
 
 export function isPreviewableMarketplaceSource(source?: string | null) {
   const lower = source?.trim().toLowerCase();
@@ -135,6 +136,8 @@ async function excerptFromPdf(buffer: Buffer): Promise<{ excerpt: string; trunca
     if (!PdfParseCtor) {
       throw new Error("PDF preview parser is unavailable.");
     }
+
+    configurePdfParseWorker(PdfParseCtor as unknown as { setWorker?: (workerSrc?: string) => string });
 
     parser = new PdfParseCtor({ data: buffer });
     const result = await parser.getText();
