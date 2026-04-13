@@ -230,6 +230,40 @@ export function CommandCenterClient() {
       </div>
 
       <div className="space-y-6 px-5 py-6 sm:px-8 sm:py-8">
+        <details className="rounded-2xl border border-[rgba(79,125,243,0.22)] bg-[rgba(79,125,243,0.06)] px-4 py-3 text-[var(--app-text)] shadow-sm open:pb-4">
+          <summary className="cursor-pointer list-none text-sm font-bold text-[var(--app-text-strong)] [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex items-center gap-2">
+              How to use this page
+              <span className="text-xs font-normal text-slate-500">(click to expand)</span>
+            </span>
+          </summary>
+          <ol className="mt-3 list-decimal space-y-2.5 pl-5 text-sm leading-relaxed text-slate-600">
+            <li>
+              Click <strong className="text-[var(--app-text-strong)]">Refresh</strong> to pull the latest data. Choose{" "}
+              <strong className="text-[var(--app-text-strong)]">30d</strong> or <strong className="text-[var(--app-text-strong)]">90d</strong>{" "}
+              for the Risk Memory window (rollups and the analytics line below use that range).
+            </li>
+            <li>
+              Read <strong className="text-[var(--app-text-strong)]">Risk Memory</strong> for scope/hazard emphasis, then use{" "}
+              <strong className="text-[var(--app-text-strong)]">Full analytics</strong> for charts or{" "}
+              <strong className="text-[var(--app-text-strong)]">Risk Memory setup</strong> to tune fields.
+            </li>
+            <li>
+              Use <strong className="text-[var(--app-text-strong)]">Open work</strong> tiles—each links to the right module (Issues,
+              Incidents, Permits, JSA, Reports). Clear items there, then refresh here to see counts drop.
+            </li>
+            <li>
+              Scan <strong className="text-[var(--app-text-strong)]">Recommendations</strong> for company-only suggestions; expand the{" "}
+              <strong className="text-[var(--app-text-strong)]">Company memory bank</strong> to add context your team and copilots can reuse.
+            </li>
+          </ol>
+          <p className="mt-3 text-xs text-slate-500">
+            All data is scoped to your company. A longer guide for admins lives in the repository at{" "}
+            <code className="rounded bg-white/60 px-1 py-0.5 text-[11px] text-[var(--app-text-strong)]">docs/command-center.md</code>
+            (linked from the project README).
+          </p>
+        </details>
+
         {analytics?.warning ? <InlineMessage tone="neutral">{analytics.warning}</InlineMessage> : null}
         {analyticsErr ? <InlineMessage tone="error">{analyticsErr}</InlineMessage> : null}
         {workspaceErr ? <InlineMessage tone="warning">{workspaceErr}</InlineMessage> : null}

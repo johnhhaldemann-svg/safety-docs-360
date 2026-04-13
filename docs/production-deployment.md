@@ -97,7 +97,7 @@ If **any** of these secrets is missing, the workflow **skips** full E2E so forks
 ## 6. Post-deploy smoke
 
 - Open `/`, `/login`, `/terms`, `/privacy`.
-- Sign in as a production test user; exercise one company-scoped flow (e.g. workspace summary).
+- Sign in as a production test user; exercise one company-scoped flow (e.g. workspace summary or **Insights → Command center** — user-facing steps in [command-center.md](./command-center.md)).
 - Optional: `npm run smoke:safetyops` with `SMOKE_BASE_URL` and `SMOKE_BEARER_TOKEN` pointed at production (see README).
 
 ## 7. Security reminders

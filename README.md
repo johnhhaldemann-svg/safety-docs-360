@@ -18,6 +18,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+**Command center (end users):** after sign-in, open **Insights → Command center** for Risk Memory, open-work shortcuts, recommendations, and the company memory bank. Step-by-step usage: [`docs/command-center.md`](docs/command-center.md).
+
 Moving to a new Windows laptop? Use [`docs/new-laptop-setup.md`](docs/new-laptop-setup.md) and run `powershell -ExecutionPolicy Bypass -File .\scripts\setup-new-laptop.ps1`.
 
 ## Supabase + Vercel deploy (“push”)
