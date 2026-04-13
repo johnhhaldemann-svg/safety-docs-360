@@ -289,13 +289,13 @@ export default function MarketingPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-6 py-8 pb-12">
-        <div className="rounded-[2rem] bg-[linear-gradient(135deg,_#2f5fd5_0%,_#4f7df3_55%,_#7ea9ff_100%)] px-8 py-10 text-white shadow-[0_20px_40px_rgba(79,125,243,0.26)]">
+        <div className="rounded-[2rem] bg-[linear-gradient(135deg,_#1e3a8a_0%,_#1d4ed8_52%,_#2563eb_100%)] px-8 py-10 text-white shadow-[0_20px_40px_rgba(30,64,175,0.28)]">
           <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
             <div>
               <div className="text-3xl font-black tracking-tight">
                 Systems live. Secure. Document. Stay Safe.
               </div>
-              <div className="mt-3 max-w-3xl text-sm leading-7 text-sky-100">
+              <div className="mt-3 max-w-3xl text-sm leading-7 text-white/95">
                 Use this page as your platform overview, then guide prospects into a
                 live demo, role-based benefits, and the actual workspace flow.
               </div>
@@ -320,11 +320,11 @@ export default function MarketingPage() {
       </section>
 
       <footer className="mx-auto max-w-7xl px-6 pb-10">
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-[rgba(111,138,177,0.2)] pt-6 text-xs text-[#5f7a98]">
-          <Link href="/terms" className="font-semibold text-[#5f7a98] hover:text-[#143252]">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-[rgba(111,138,177,0.2)] pt-6 text-xs text-[#475569]">
+          <Link href="/terms" className="font-semibold text-[#475569] hover:text-[#143252]">
             Terms
           </Link>
-          <Link href="/privacy" className="font-semibold text-[#5f7a98] hover:text-[#143252]">
+          <Link href="/privacy" className="font-semibold text-[#475569] hover:text-[#143252]">
             Privacy
           </Link>
         </div>

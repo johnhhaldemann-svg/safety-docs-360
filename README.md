@@ -71,6 +71,7 @@ See [`docs/dev-setup.md`](docs/dev-setup.md) for Supabase workflow, cron, and su
 | `npm run test:links` | Broken link checker |
 | `npm run test:e2e` | Playwright (see [`playwright.config.ts`](playwright.config.ts)) |
 | `npx playwright test tests/a11y.spec.ts` | Accessibility (axe) on `/`, `/login`, `/privacy`, `/submit` |
+| `npm run stress:platform` | Load test: concurrent requests to public HTML pages plus anonymous GET `/api/legal/config` and `/api/auth/me` (401 OK). Requires a running server. `STRESS_SKIP_API=1` for HTML only. |
 | `npm run test:e2e:ci` | Build + production server + Playwright |
 | `npm run seed:csep-test` | Seed CSEP test user (needs service role) |
 | `npm run db:push` | `supabase db push --yes` (after `supabase link`) |

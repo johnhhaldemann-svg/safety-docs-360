@@ -1,5 +1,5 @@
 /**
- * Lightweight concurrent HTTP stress against public pages (no auth).
+ * Lightweight concurrent HTTP stress against public pages and anonymous API GETs.
  *
  * Requires a running server (e.g. after `npm run build` → `npm run start`).
  *
@@ -7,13 +7,16 @@
  *   STRESS_BASE_URL       default http://127.0.0.1:3000
  *   STRESS_CONCURRENCY    parallel clients (default 30)
  *   STRESS_DURATION_MS    how long each client runs (default 15000)
+ *   STRESS_SKIP_API       set to 1 to only hit HTML routes
  */
 
 const BASE = (process.env.STRESS_BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const CONCURRENCY = Math.max(1, Number(process.env.STRESS_CONCURRENCY || 30));
 const DURATION_MS = Math.max(1000, Number(process.env.STRESS_DURATION_MS || 15_000));
+const SKIP_API = process.env.STRESS_SKIP_API === "1" || process.env.STRESS_SKIP_API === "true";
 
-const ROUTES = [
+/** Public document routes (HTML). */
+const HTML_ROUTES = [
   "/",
   "/login",
   "/marketing",
@@ -23,6 +26,22 @@ const ROUTES = [
   "/company-signup",
 ];
 
+/**
+ * GET endpoints that do not require a bearer token (401/403 expected for some).
+ * Only safe, read-only paths — extend cautiously.
+ */
+const API_GET_ROUTES = [
+  "/api/legal/config",
+  "/api/auth/me",
+];
+
+const TARGETS = SKIP_API
+  ? HTML_ROUTES.map((path) => ({ path, accept: "text/html", kind: "html" }))
+  : [
+      ...HTML_ROUTES.map((path) => ({ path, accept: "text/html", kind: "html" })),
+      ...API_GET_ROUTES.map((path) => ({ path, accept: "application/json", kind: "api" })),
+    ];
+
 async function clientWorker(workerId) {
   const end = Date.now() + DURATION_MS;
   let requests = 0;
@@ -31,12 +50,12 @@ async function clientWorker(workerId) {
   const statusHistogram = Object.create(null);
 
   while (Date.now() < end) {
-    const path = ROUTES[Math.floor(Math.random() * ROUTES.length)];
+    const t = TARGETS[Math.floor(Math.random() * TARGETS.length)];
     requests++;
     try {
-      const res = await fetch(`${BASE}${path}`, {
+      const res = await fetch(`${BASE}${t.path}`, {
         redirect: "follow",
-        headers: { Accept: "text/html" },
+        headers: { Accept: t.accept },
       });
       const code = res.status;
       statusHistogram[code] = (statusHistogram[code] || 0) + 1;
@@ -61,7 +80,7 @@ function mergeHistograms(rows) {
 
 async function main() {
   console.log(
-    `[stress-platform] base=${BASE} concurrency=${CONCURRENCY} durationMs=${DURATION_MS} routes=${ROUTES.length}`
+    `[stress-platform] base=${BASE} concurrency=${CONCURRENCY} durationMs=${DURATION_MS} targets=${TARGETS.length} (api=${SKIP_API ? "off" : "on"})`
   );
 
   try {

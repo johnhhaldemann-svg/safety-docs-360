@@ -13,7 +13,7 @@ html {
   --background: #eef5ff;
   --foreground: #19324d;
   --app-canvas: #eef5ff;
-  --app-canvas-glow: radial-gradient(circle at top, rgba(79, 125, 243, 0.16), transparent 38%);
+  --app-canvas-glow: radial-gradient(circle at top, rgba(37, 99, 235, 0.14), transparent 38%);
   --app-surface: rgba(255, 255, 255, 0.86);
   --app-surface-solid: #f8fbff;
   --app-elevated: #ffffff;
@@ -24,9 +24,10 @@ html {
   --app-text-strong: #16324f;
   --app-text: #23415f;
   --app-muted: #647d99;
-  --app-accent-primary: #4f7df3;
-  --app-accent-primary-hover: #416ce0;
-  --app-accent-primary-active: #345cc9;
+  /* Meets WCAG 2 AA ~4.5:1 with white button text at text-sm; prior #4f7df3 did not. */
+  --app-accent-primary: #2563eb;
+  --app-accent-primary-hover: #1d4ed8;
+  --app-accent-primary-active: #1e40af;
   --app-accent-primary-soft: #eaf1ff;
   --app-accent-secondary: #d8e6ff;
   --app-shadow: 0 22px 56px rgba(61, 94, 148, 0.12);
@@ -37,13 +38,13 @@ html {
   --semantic-warning-bg: #fff4db;
   --semantic-danger: #d9534f;
   --semantic-danger-bg: #fdecec;
-  --semantic-info: #4f7df3;
+  --semantic-info: #2563eb;
   --semantic-info-bg: #eaf1ff;
   --semantic-neutral: #8a96a8;
   --semantic-neutral-bg: #f2f5f9;
   --app-radius-lg: 1.5rem;
   --app-radius-xl: 1.9rem;
-  --app-focus-ring: 0 0 0 4px rgba(79, 125, 243, 0.16);
+  --app-focus-ring: 0 0 0 4px rgba(37, 99, 235, 0.2);
 }
 
 @theme inline {
