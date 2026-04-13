@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PDFDocument } from "pdf-lib";
 import { authorizeRequest } from "@/lib/rbac";
 import {
   buildMarketplaceNotes,
@@ -16,6 +17,15 @@ const ALLOWED_TYPES = new Set([
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
+
+async function getPdfPageCount(buffer: Uint8Array) {
+  try {
+    const pdfDoc = await PDFDocument.load(buffer);
+    return pdfDoc.getPageCount();
+  } catch {
+    return null;
+  }
+}
 
 function normalizePreviewContentType(file: File): string | null {
   if (file.type && ALLOWED_TYPES.has(file.type)) {
@@ -35,7 +45,9 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const auth = await authorizeRequest(request, { requireAdmin: true });
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_approve_documents",
+  });
 
   if ("error" in auth) {
     return auth.error;
@@ -82,6 +94,7 @@ export async function POST(
     "preview";
   const storagePath = `${marketplacePreviewPathPrefix(id)}${safeName}`;
   const fileBuffer = new Uint8Array(await file.arrayBuffer());
+  const pageCount = contentType === "application/pdf" ? await getPdfPageCount(fileBuffer) : null;
 
   const upload = await uploadDocumentsBucketObject(storagePath, fileBuffer, contentType, {
     upsert: true,
@@ -116,6 +129,7 @@ export async function POST(
     success: true,
     notes,
     previewFilePath: storagePath,
+    pageCount,
     marketplaceUpdatedAt,
     marketplaceUpdatedByEmail: auth.user.email ?? null,
   });

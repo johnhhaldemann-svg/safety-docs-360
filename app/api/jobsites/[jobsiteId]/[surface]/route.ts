@@ -55,7 +55,7 @@ async function resolveJobsiteById(supabase: SupabaseLike, jobsiteId: string) {
 const SURFACES = new Set([
   "overview",
   "live-view",
-  "dap",
+  "jsa",
   "permits",
   "incidents",
   "reports",
@@ -131,9 +131,9 @@ export async function GET(
   }
   const jobsite = row;
 
-  const [daps, permits, incidents, reports, actions, users, documents, analytics, activities] =
+  const [jsas, permits, incidents, reports, actions, users, documents, analytics, activities] =
     await Promise.all([
-      fetchFromSameOrigin(request, "/api/company/daps"),
+      fetchFromSameOrigin(request, "/api/company/jsas"),
       fetchFromSameOrigin(request, "/api/company/permits"),
       fetchFromSameOrigin(request, "/api/company/incidents"),
       fetchFromSameOrigin(request, "/api/company/reports"),
@@ -141,10 +141,13 @@ export async function GET(
       fetchFromSameOrigin(request, "/api/company/users"),
       fetchFromSameOrigin(request, "/api/workspace/documents"),
       fetchFromSameOrigin(request, "/api/company/analytics/summary"),
-      fetchFromSameOrigin(request, `/api/company/dap-activities?workDate=${new Date().toISOString().slice(0, 10)}`),
+      fetchFromSameOrigin(request, `/api/company/jsa-activities?workDate=${new Date().toISOString().slice(0, 10)}`),
     ]);
 
-  const dapsRows = filterByJobsiteId(((daps.json?.daps as unknown[]) ?? []) as Array<{ jobsite_id?: string | null }>, jobsiteId);
+  const jsasRows = filterByJobsiteId(
+    ((jsas.json?.jsas as unknown[]) ?? []) as Array<{ jobsite_id?: string | null }>,
+    jobsiteId
+  );
   const permitsRows = filterByJobsiteId(((permits.json?.permits as unknown[]) ?? []) as Array<{ jobsite_id?: string | null }>, jobsiteId);
   const incidentsRows = filterByJobsiteId(((incidents.json?.incidents as unknown[]) ?? []) as Array<{ jobsite_id?: string | null }>, jobsiteId);
   const reportsRows = filterByJobsiteId(((reports.json?.reports as unknown[]) ?? []) as Array<{ jobsite_id?: string | null }>, jobsiteId);
@@ -158,7 +161,7 @@ export async function GET(
     jobsiteId
   );
 
-  if (surface === "dap") return NextResponse.json({ jobsite, daps: dapsRows });
+  if (surface === "jsa") return NextResponse.json({ jobsite, jsas: jsasRows });
   if (surface === "permits") return NextResponse.json({ jobsite, permits: permitsRows });
   if (surface === "incidents") return NextResponse.json({ jobsite, incidents: incidentsRows });
   if (surface === "reports") return NextResponse.json({ jobsite, reports: reportsRows });
@@ -227,7 +230,7 @@ export async function GET(
   return NextResponse.json({
     jobsite,
     overview: {
-      daps: dapsRows.length,
+      jsas: jsasRows.length,
       permits: permitsRows.length,
       incidents: incidentsRows.length,
       reports: reportsRows.length,
@@ -247,7 +250,7 @@ export async function GET(
     },
     links: {
       liveView: `/jobsites/${jobsiteId}/live-view`,
-      dap: `/jobsites/${jobsiteId}/dap`,
+      jsa: `/jobsites/${jobsiteId}/jsa`,
       permits: `/jobsites/${jobsiteId}/permits`,
       incidents: `/jobsites/${jobsiteId}/incidents`,
       reports: `/jobsites/${jobsiteId}/reports`,

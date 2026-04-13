@@ -241,7 +241,9 @@ export function AuditorDashboard({
         </p>
         <h2 className="mt-1 text-2xl font-black tracking-tight text-white">Field audit overview</h2>
         <p className="mt-1 max-w-2xl text-sm leading-relaxed text-emerald-50/95">
-          Charts reflect this device&apos;s saved checklist. Trend line fills in as you record monthly snapshots.
+          {
+            "Charts reflect this device's saved checklist. Trend line fills in as you record monthly snapshots."
+          }
         </p>
       </div>
 

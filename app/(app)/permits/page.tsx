@@ -1,11 +1,10 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
-import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
+import { PermitCopilotPanel } from "@/components/permits/PermitCopilotPanel";
 import {
   EmptyState,
   InlineMessage,
@@ -25,19 +24,95 @@ type PermitRow = {
   permit_type: string;
   status: string;
   severity: string;
-  escalation_level: string;
-  stop_work_status: string;
+  category: string;
+  jobsite_id: string | null;
+  owner_user_id: string | null;
+  due_at: string | null;
   sif_flag: boolean;
+  escalation_level: string;
+  escalation_reason: string | null;
+  stop_work_status: string;
+  stop_work_reason: string | null;
+  dap_activity_id: string | null;
+  observation_id: string | null;
   created_at: string;
+  updated_at: string;
 };
 
-const EMPTY_FORM = {
-  title: "",
-  permitType: "hot_work",
-  severity: "medium",
-  dapActivityId: "",
-  observationId: "",
+type JobsiteRow = {
+  id: string;
+  name: string;
+  project_number: string | null;
+  location: string | null;
+  status: string;
 };
+
+type JsaActivityRow = {
+  id: string;
+  jsa_id: string;
+  jobsite_id: string | null;
+  activity_name: string;
+  trade: string | null;
+  area: string | null;
+  permit_required: boolean | null;
+  permit_type: string | null;
+  planned_risk_level: string | null;
+};
+
+type PermitForm = {
+  title: string;
+  permitType: string;
+  severity: string;
+  category: string;
+  jobsiteId: string;
+  ownerUserId: string;
+  dueAt: string;
+  sifFlag: boolean;
+  escalationLevel: string;
+  escalationReason: string;
+  stopWorkStatus: string;
+  stopWorkReason: string;
+  jsaActivityId: string;
+  observationId: string;
+};
+
+const PERMIT_TYPES = [
+  ["hot_work", "Hot Work"],
+  ["confined_space", "Confined Space"],
+  ["electrical", "Electrical"],
+  ["excavation", "Excavation"],
+  ["work_at_heights", "Work at Heights"],
+  ["lockout_tagout", "Lockout / Tagout"],
+] as const;
+const SEVERITY_OPTIONS = ["low", "medium", "high", "critical"] as const;
+const CATEGORIES = [
+  ["corrective_action", "Corrective Action"],
+  ["safety", "Safety"],
+  ["operations", "Operations"],
+  ["maintenance", "Maintenance"],
+  ["environmental", "Environmental"],
+] as const;
+const ESCALATION_OPTIONS = ["none", "monitor", "urgent", "critical"] as const;
+const STOP_WORK_OPTIONS = ["normal", "stop_work_requested", "stop_work_active", "cleared"] as const;
+
+function buildEmptyForm(jobsiteId = ""): PermitForm {
+  return {
+    title: "",
+    permitType: "hot_work",
+    severity: "medium",
+    category: "corrective_action",
+    jobsiteId,
+    ownerUserId: "",
+    dueAt: "",
+    sifFlag: false,
+    escalationLevel: "none",
+    escalationReason: "",
+    stopWorkStatus: "normal",
+    stopWorkReason: "",
+    jsaActivityId: "",
+    observationId: "",
+  };
+}
 
 async function getAuthHeaders() {
   const {
@@ -52,44 +127,135 @@ async function getAuthHeaders() {
   };
 }
 
+function labelize(value: string | null | undefined) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "Not set";
+  return raw
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Not set";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(parsed);
+}
+
 export default function PermitsPage() {
   const searchParams = useSearchParams();
   const [permits, setPermits] = useState<PermitRow[]>([]);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [jobsites, setJobsites] = useState<JobsiteRow[]>([]);
+  const [jsaActivities, setJsaActivities] = useState<JsaActivityRow[]>([]);
+  const [form, setForm] = useState<PermitForm>(buildEmptyForm());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">(
-    "neutral"
-  );
+  const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  async function loadPermits() {
+  async function loadData() {
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
-      const query = statusFilter === "all" ? "" : `?status=${encodeURIComponent(statusFilter)}`;
-      const response = await fetch(`/api/company/permits${query}`, { headers });
-      const data = (await response.json().catch(() => null)) as { permits?: PermitRow[]; error?: string } | null;
-      if (!response.ok) throw new Error(data?.error || "Failed to load permits.");
-      setPermits(data?.permits ?? []);
+      const permitsQuery = statusFilter === "all" ? "" : `?status=${encodeURIComponent(statusFilter)}`;
+      const [permitsResponse, jobsitesResponse, activitiesResponse] = await Promise.all([
+        fetch(`/api/company/permits${permitsQuery}`, { headers }),
+        fetch("/api/company/jobsites", { headers }),
+        fetch("/api/company/jsa-activities", { headers }),
+      ]);
+
+      const permitsData = (await permitsResponse.json().catch(() => null)) as {
+        permits?: PermitRow[];
+        error?: string;
+        warning?: string;
+      } | null;
+      const jobsitesData = (await jobsitesResponse.json().catch(() => null)) as {
+        jobsites?: JobsiteRow[];
+        error?: string;
+        warning?: string;
+      } | null;
+      const activitiesData = (await activitiesResponse.json().catch(() => null)) as {
+        activities?: JsaActivityRow[];
+        error?: string;
+        warning?: string;
+      } | null;
+
+      if (!permitsResponse.ok) {
+        throw new Error(permitsData?.error || permitsData?.warning || "Failed to load permits.");
+      }
+
+      setPermits(permitsData?.permits ?? []);
+      setJobsites(jobsitesData?.jobsites ?? []);
+      setJsaActivities(activitiesData?.activities ?? []);
+
+      if (!jobsitesResponse.ok) {
+        const warning = jobsitesData?.error || jobsitesData?.warning || "Jobsites could not be loaded.";
+        setMessageTone("warning");
+        setMessage(warning);
+      }
+      if (!activitiesResponse.ok) {
+        const warning = activitiesData?.error || activitiesData?.warning || "JSA activities could not be loaded.";
+        setMessageTone((current) => (current === "error" ? current : "warning"));
+        setMessage(warning);
+      }
     } catch (error) {
+      setPermits([]);
+      setJobsites([]);
+      setJsaActivities([]);
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to load permits.");
-      setPermits([]);
     }
     setLoading(false);
   }
 
   useEffect(() => {
-    const dapActivityId = searchParams.get("dapActivityId")?.trim() ?? "";
-    if (dapActivityId) {
-      setForm((current) => ({ ...current, dapActivityId }));
-    }
-    void loadPermits();
+    const jsaActivityId = searchParams.get("jsaActivityId")?.trim() ?? "";
+    setForm((current) => ({
+      ...current,
+      ...(jsaActivityId ? { jsaActivityId } : {}),
+    }));
+    void loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, searchParams]);
 
+  useEffect(() => {
+    if (!form.jobsiteId && jobsites.length === 1) {
+      setForm((current) => ({ ...current, jobsiteId: jobsites[0].id }));
+    }
+  }, [jobsites, form.jobsiteId]);
+
+  const jobsiteById = useMemo(
+    () => new Map(jobsites.map((jobsite) => [jobsite.id, jobsite])),
+    [jobsites]
+  );
+  const activityById = useMemo(
+    () => new Map(jsaActivities.map((activity) => [activity.id, activity])),
+    [jsaActivities]
+  );
+  const selectedActivity = useMemo(
+    () => (form.jsaActivityId ? activityById.get(form.jsaActivityId) ?? null : null),
+    [form.jsaActivityId, activityById]
+  );
+  const selectedJobsite = useMemo(
+    () => {
+      const derivedJobsiteId = selectedActivity?.jobsite_id ?? "";
+      if (derivedJobsiteId) {
+        return jobsiteById.get(derivedJobsiteId) ?? null;
+      }
+      return form.jsaActivityId ? null : form.jobsiteId ? jobsiteById.get(form.jobsiteId) ?? null : null;
+    },
+    [form.jobsiteId, form.jsaActivityId, jobsiteById, selectedActivity?.jobsite_id]
+  );
+  const permitRows = useMemo(
+    () =>
+      permits.map((permit) => ({
+        ...permit,
+        jobsite: permit.jobsite_id ? jobsiteById.get(permit.jobsite_id) ?? null : null,
+      })),
+    [permits, jobsiteById]
+  );
   const counts = useMemo(
     () => ({
       total: permits.length,
@@ -100,11 +266,29 @@ export default function PermitsPage() {
     [permits]
   );
 
+  useEffect(() => {
+    if (!selectedActivity) return;
+    setForm((current) => {
+      const next: PermitForm = { ...current };
+      if (selectedActivity.jobsite_id) {
+        next.jobsiteId = selectedActivity.jobsite_id;
+      }
+      if (selectedActivity.permit_type) {
+        next.permitType = selectedActivity.permit_type;
+      }
+      if (!current.title.trim() && selectedActivity.activity_name.trim()) {
+        next.title = `${selectedActivity.activity_name} permit`;
+      }
+      return next;
+    });
+  }, [selectedActivity]);
+
   async function createPermit() {
-    if (!form.title.trim()) return;
+    if (!form.title.trim() || !form.jsaActivityId.trim()) return;
     setSaving(true);
     setMessage("");
     try {
+      const activity = activityById.get(form.jsaActivityId.trim()) ?? null;
       const headers = await getAuthHeaders();
       const response = await fetch("/api/company/permits", {
         method: "POST",
@@ -113,19 +297,26 @@ export default function PermitsPage() {
           title: form.title,
           permitType: form.permitType,
           severity: form.severity,
-          dapActivityId: form.dapActivityId || null,
+          category: form.category,
+          jobsiteId: form.jobsiteId || activity?.jobsite_id || null,
+          ownerUserId: form.ownerUserId || null,
+          dueAt: form.dueAt || null,
+          sifFlag: form.sifFlag,
+          escalationLevel: form.escalationLevel,
+          escalationReason: form.escalationReason,
+          stopWorkStatus: form.stopWorkStatus,
+          stopWorkReason: form.stopWorkReason,
+          jsaActivityId: form.jsaActivityId || null,
           observationId: form.observationId || null,
           status: "draft",
-          escalationLevel: "none",
-          stopWorkStatus: "normal",
         }),
       });
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) throw new Error(data?.error || "Failed to create permit.");
-      setForm(EMPTY_FORM);
+      setForm((current) => buildEmptyForm(current.jobsiteId));
       setMessageTone("success");
       setMessage("Permit created.");
-      await loadPermits();
+      await loadData();
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to create permit.");
@@ -143,7 +334,7 @@ export default function PermitsPage() {
       });
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) throw new Error(data?.error || "Failed to update permit.");
-      await loadPermits();
+      await loadData();
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to update permit.");
@@ -163,20 +354,6 @@ export default function PermitsPage() {
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <CompanyAiAssistPanel
-          surface="permits"
-          title="Permit assistant"
-          structuredContext={JSON.stringify({
-            total: counts.total,
-            active: counts.active,
-            sif: counts.sif,
-            stopWork: counts.stopWork,
-          })}
-        />
-        <CompanyMemoryBankPanel />
-      </div>
-
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 
       <section className="grid gap-4 sm:grid-cols-4">
@@ -186,38 +363,254 @@ export default function PermitsPage() {
         <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"><div className="text-xs text-slate-500">Stop Work</div><div className="mt-2 text-3xl font-black">{counts.stopWork}</div></div>
       </section>
 
-      <SectionCard title="Create Permit" description="Start with permit basics, then escalate/stop-work as needed.">
-        <div className="grid gap-3 md:grid-cols-3">
-          <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Permit title" className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]" />
-          <select value={form.permitType} onChange={(event) => setForm((prev) => ({ ...prev, permitType: event.target.value }))} className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]">
-            <option value="hot_work">Hot Work</option>
-            <option value="confined_space">Confined Space</option>
-            <option value="electrical">Electrical</option>
-            <option value="excavation">Excavation</option>
-          </select>
-          <select value={form.severity} onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))} className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]">
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-          </select>
-          <input
-            value={form.dapActivityId}
-            onChange={(event) => setForm((prev) => ({ ...prev, dapActivityId: event.target.value }))}
-            placeholder="DAP Activity ID (optional)"
-            className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
-          />
-          <input
-            value={form.observationId}
-            onChange={(event) => setForm((prev) => ({ ...prev, observationId: event.target.value }))}
-            placeholder="Observation ID (optional)"
-            className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
-          />
-        </div>
-        <div className="mt-4">
-          <button onClick={() => void createPermit()} disabled={saving || !form.title.trim()} className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
-            {saving ? "Creating..." : "Create Permit"}
-          </button>
+      <SectionCard title="Create Permit" description="Capture the jobsite, controls, and risk context so the permit appears in the right board.">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
+          <div className="space-y-4">
+            <PermitCopilotPanel
+              key={selectedActivity?.id ?? "no-jsa"}
+              selectedActivity={selectedActivity}
+              selectedJobsiteName={selectedJobsite?.name ?? null}
+              currentDraft={{
+                title: form.title,
+                permitType: form.permitType,
+                severity: form.severity,
+                category: form.category,
+                escalationLevel: form.escalationLevel,
+                escalationReason: form.escalationReason,
+                stopWorkStatus: form.stopWorkStatus,
+                stopWorkReason: form.stopWorkReason,
+                dueAt: form.dueAt,
+                ownerUserId: form.ownerUserId,
+                jsaActivityId: form.jsaActivityId,
+                observationId: form.observationId,
+              }}
+              onApply={(patch) => setForm((current) => ({ ...current, ...patch }))}
+            />
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Permit title</label>
+                <input
+                  value={form.title}
+                  onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                  placeholder="Permit title"
+                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Linked JSA step</label>
+                <select
+                  value={form.jsaActivityId}
+                  onChange={(event) => setForm((prev) => ({ ...prev, jsaActivityId: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                >
+                  <option value="">Choose the JSA step that needs a permit</option>
+                  {jsaActivities.map((activity) => {
+                    const jobsite = activity.jobsite_id ? jobsiteById.get(activity.jobsite_id) : null;
+                    return (
+                      <option key={activity.id} value={activity.id}>
+                        {activity.activity_name}
+                        {activity.trade ? ` - ${activity.trade}` : ""}
+                        {jobsite ? ` - ${jobsite.name}` : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  The permit inherits its jobsite and permit type from the selected JSA step.
+                </p>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Permit type</label>
+                <select
+                  value={form.permitType}
+                  onChange={(event) => setForm((prev) => ({ ...prev, permitType: event.target.value }))}
+                  disabled={Boolean(selectedActivity?.permit_type)}
+                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                >
+                  {PERMIT_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  {selectedActivity?.permit_type
+                    ? "This value is inherited from the linked JSA step."
+                    : "Set the permit type if the linked JSA step does not already define it."}
+                </p>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Severity</label>
+                <select
+                  value={form.severity}
+                  onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                >
+                  {SEVERITY_OPTIONS.map((value) => <option key={value} value={value}>{labelize(value)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Category</label>
+                <select
+                  value={form.category}
+                  onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                >
+                  {CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Due date</label>
+                <input
+                  type="datetime-local"
+                  value={form.dueAt}
+                  onChange={(event) => setForm((prev) => ({ ...prev, dueAt: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Owner user id</label>
+                <input
+                  value={form.ownerUserId}
+                  onChange={(event) => setForm((prev) => ({ ...prev, ownerUserId: event.target.value }))}
+                  placeholder="Optional owner user id"
+                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Escalation level</label>
+                <select
+                  value={form.escalationLevel}
+                  onChange={(event) => setForm((prev) => ({ ...prev, escalationLevel: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                >
+                  {ESCALATION_OPTIONS.map((value) => <option key={value} value={value}>{labelize(value)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Stop work status</label>
+                <select
+                  value={form.stopWorkStatus}
+                  onChange={(event) => setForm((prev) => ({ ...prev, stopWorkStatus: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                >
+                  {STOP_WORK_OPTIONS.map((value) => <option key={value} value={value}>{labelize(value)}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Escalation reason</label>
+                <textarea
+                  value={form.escalationReason}
+                  onChange={(event) => setForm((prev) => ({ ...prev, escalationReason: event.target.value }))}
+                  placeholder="Why this permit should escalate, if needed"
+                  className="min-h-28 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Stop work reason</label>
+                <textarea
+                  value={form.stopWorkReason}
+                  onChange={(event) => setForm((prev) => ({ ...prev, stopWorkReason: event.target.value }))}
+                  placeholder="Why this permit should stop work, if needed"
+                  className="min-h-28 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">JSA link</label>
+                <div className="rounded-xl border border-slate-700/80 bg-slate-950/60 p-3">
+                  <div className="text-sm font-semibold text-slate-100">
+                    {selectedActivity ? selectedActivity.activity_name : "No JSA step selected"}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {selectedActivity
+                      ? `${labelize(selectedActivity.permit_type)}${selectedActivity.trade ? ` · ${selectedActivity.trade}` : ""}${
+                          selectedActivity.area ? ` · ${selectedActivity.area}` : ""
+                        }`
+                      : "Pick the JSA step that requires the permit."}
+                  </div>
+                  <div className="mt-2 text-xs text-slate-500">
+                    {selectedActivity
+                      ? `Jobsite: ${
+                          selectedActivity.jobsite_id
+                            ? jobsiteById.get(selectedActivity.jobsite_id)?.name ?? selectedActivity.jobsite_id
+                            : "Not assigned"
+                        }`
+                      : "The permit cannot be saved until a JSA step is linked."}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Observation id</label>
+                <input
+                  value={form.observationId}
+                  onChange={(event) => setForm((prev) => ({ ...prev, observationId: event.target.value }))}
+                  placeholder="Observation id (optional)"
+                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="inline-flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-950/60 px-3 py-2 text-sm text-slate-200">
+                <input type="checkbox" checked={form.sifFlag} onChange={(event) => setForm((prev) => ({ ...prev, sifFlag: event.target.checked }))} className="h-4 w-4 rounded border-slate-500 bg-slate-950 text-sky-500" />
+                SIF flag
+              </label>
+              <button type="button" onClick={() => void createPermit()} disabled={saving || !form.title.trim() || !form.jsaActivityId.trim()} className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+                {saving ? "Creating..." : "Create Permit"}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/60 p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Permit snapshot</div>
+              <div className="mt-3 space-y-3">
+                <div>
+                  <div className="text-xs text-slate-500">Jobsite</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-100">
+                    {selectedJobsite ? selectedJobsite.name : form.jobsiteId ? "Selected jobsite" : "Company-wide / unassigned"}
+                  </div>
+                  {selectedJobsite ? (
+                    <div className="mt-1 text-xs text-slate-500">
+                      {selectedJobsite.project_number ? `${selectedJobsite.project_number} · ` : ""}
+                      {selectedJobsite.location ?? "No location listed"}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                    <div className="text-xs text-slate-500">Type</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-100">{PERMIT_TYPES.find(([value]) => value === form.permitType)?.[1] ?? form.permitType}</div>
+                  </div>
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                    <div className="text-xs text-slate-500">Severity</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-100">{labelize(form.severity)}</div>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                    <div className="text-xs text-slate-500">Escalation</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-100">{labelize(form.escalationLevel)}</div>
+                  </div>
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                    <div className="text-xs text-slate-500">Stop work</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-100">{labelize(form.stopWorkStatus)}</div>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3 text-sm text-slate-200">
+                  <div>JSA activity: {selectedActivity?.activity_name ?? "Not linked"}</div>
+                  <div className="mt-1">Observation: {form.observationId.trim() || "Not linked"}</div>
+                </div>
+              </div>
+            </div>
+            <InlineMessage tone="neutral">Select a jobsite if you want the permit to show up on that jobsite board after creation.</InlineMessage>
+          </div>
         </div>
       </SectionCard>
 
@@ -233,41 +626,84 @@ export default function PermitsPage() {
         </div>
         {loading ? (
           <InlineMessage>Loading permits...</InlineMessage>
-        ) : permits.length === 0 ? (
+        ) : permitRows.length === 0 ? (
           <EmptyState title="No permits yet" description="Create your first permit to start high-risk controls." />
         ) : (
           <div className="space-y-3">
-            {permits.map((permit) => (
+            {permitRows.map((permit) => (
               <div key={permit.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-1">
                     <div className="text-sm font-semibold text-slate-100">{permit.title}</div>
-                    <div className="mt-1 text-xs text-slate-500">{permit.permit_type} · {permit.severity}</div>
+                    <div className="text-xs text-slate-500">{labelize(permit.permit_type)} · {labelize(permit.category)}</div>
+                    <div className="text-xs text-slate-500">Jobsite: {permit.jobsite?.name ?? "Company-wide / unassigned"}</div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <StatusBadge label={permit.status} tone={permit.status === "active" ? "success" : permit.status === "closed" ? "neutral" : "info"} />
                     <StatusBadge label={permit.escalation_level} tone={permit.escalation_level === "critical" ? "warning" : "info"} />
-                    <StatusBadge label={permit.stop_work_status} tone={permit.stop_work_status === "stop_work_active" ? "warning" : "neutral"} />
+                    <StatusBadge label={permit.stop_work_status} tone={permit.stop_work_status === "stop_work_active" || permit.stop_work_status === "stop_work_requested" ? "warning" : "neutral"} />
+                    {permit.sif_flag ? <StatusBadge label="SIF" tone="warning" /> : null}
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button onClick={() => void updateRiskState(permit, { status: permit.status === "active" ? "closed" : "active" })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Severity</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-100">{labelize(permit.severity)}</div>
+                  </div>
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Due</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-100">{formatDateTime(permit.due_at)}</div>
+                  </div>
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Owner</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-100">{permit.owner_user_id ?? "Not assigned"}</div>
+                  </div>
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Created</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-100">{formatDateTime(permit.created_at)}</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Linked JSA activity</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-100">{permit.dap_activity_id ?? "Not linked"}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Linked observation</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-100">{permit.observation_id ?? "Not linked"}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Updated</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-100">{formatDateTime(permit.updated_at)}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Jobsite scope</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-100">{permit.jobsite?.location ?? "No location listed"}</div>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Control notes</div>
+                    <div className="mt-2 space-y-2 text-sm text-slate-300">
+                      <p>Escalation reason: {permit.escalation_reason ?? "Not provided"}</p>
+                      <p>Stop work reason: {permit.stop_work_reason ?? "Not provided"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void updateRiskState(permit, { status: permit.status === "active" ? "closed" : "active" })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
                     {permit.status === "active" ? "Close" : "Activate"}
                   </button>
-                  <button onClick={() => void updateRiskState(permit, { sifFlag: !permit.sif_flag })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
+                  <button type="button" onClick={() => void updateRiskState(permit, { sifFlag: !permit.sif_flag })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
                     {permit.sif_flag ? "Unset SIF" : "Set SIF"}
                   </button>
-                  <button onClick={() => void updateRiskState(permit, { escalationLevel: permit.escalation_level === "none" ? "urgent" : "none" })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
+                  <button type="button" onClick={() => void updateRiskState(permit, { escalationLevel: permit.escalation_level === "none" ? "urgent" : "none" })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
                     {permit.escalation_level === "none" ? "Escalate" : "Clear Escalation"}
                   </button>
-                  <button
-                    onClick={() =>
-                      void updateRiskState(permit, permit.stop_work_status === "stop_work_active"
-                        ? { stopWorkStatus: "cleared", stopWorkReason: "Cleared by manager." }
-                        : { stopWorkStatus: "stop_work_active", stopWorkReason: "High-risk condition detected." })
-                    }
-                    className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-700"
-                  >
+                  <button type="button" onClick={() => void updateRiskState(permit, permit.stop_work_status === "stop_work_active" ? { stopWorkStatus: "cleared", stopWorkReason: "Cleared by manager." } : { stopWorkStatus: "stop_work_active", stopWorkReason: "High-risk condition detected." })} className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-700">
                     {permit.stop_work_status === "stop_work_active" ? "Clear Stop Work" : "Stop Work"}
                   </button>
                 </div>

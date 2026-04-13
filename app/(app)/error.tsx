@@ -27,7 +27,7 @@ export default function AppSegmentError({
           <button
             type="button"
             onClick={() => reset()}
-            className="rounded-lg bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-4 py-2 text-sm font-medium text-white hover:opacity-95"
+            className="rounded-lg bg-[var(--app-accent-primary)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--app-accent-primary-hover)]"
           >
             Try again
           </button>

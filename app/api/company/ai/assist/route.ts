@@ -5,6 +5,7 @@ import { canAccessCompanyMemoryAssist } from "@/lib/companyMemoryAccess";
 import { runCompanyAiAssist, COMPANY_AI_ASSIST_DISCLAIMER } from "@/lib/companyMemory";
 import { checkFixedWindowRateLimit } from "@/lib/rateLimit";
 import { serverLog } from "@/lib/serverLog";
+import { augmentStructuredContextWithRiskMemory } from "@/lib/riskMemory/structuredContext";
 
 export const runtime = "nodejs";
 
@@ -60,11 +61,18 @@ export async function POST(request: Request) {
     typeof body.context === "string" ? body.context : body.context === null ? null : undefined;
   const topK = typeof body.topK === "number" ? body.topK : undefined;
 
+  const mergedContext = await augmentStructuredContextWithRiskMemory(
+    auth.supabase,
+    companyScope.companyId,
+    surface,
+    structuredContext ?? null
+  );
+
   try {
     const result = await runCompanyAiAssist(auth.supabase, companyScope.companyId, {
       surface,
       userMessage,
-      structuredContext: structuredContext ?? null,
+      structuredContext: mergedContext,
       topK,
     });
 

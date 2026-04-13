@@ -489,7 +489,7 @@ export default function AdminPage() {
 
           <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
             <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
-              What&apos;s next
+              {"What's next"}
             </div>
             <div className="mt-3 text-lg font-bold text-slate-100">{adminSpotlight.title}</div>
             <p className="mt-3 text-sm leading-6 text-slate-500">{adminSpotlight.detail}</p>

@@ -4,6 +4,7 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { canManageObservations } from "@/lib/companyPermissions";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
+import { buildCorrectiveActionFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
 
 export const runtime = "nodejs";
 
@@ -125,5 +126,11 @@ export async function POST(request: Request) {
   if (result.error) {
     return NextResponse.json({ error: result.error.message || "Failed to create observation." }, { status: 500 });
   }
+  const obsFacet = buildCorrectiveActionFacetRow(
+    companyScope.companyId,
+    result.data as Record<string, unknown>,
+    body
+  );
+  void upsertRiskMemoryFacetSafe(auth.supabase, obsFacet);
   return NextResponse.json({ success: true, observation: result.data });
 }

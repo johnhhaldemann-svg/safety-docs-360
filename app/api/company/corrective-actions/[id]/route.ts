@@ -10,6 +10,7 @@ import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
+import { buildCorrectiveActionFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
 
 export const runtime = "nodejs";
 
@@ -365,9 +366,7 @@ export async function PATCH(
     .update(updateValues)
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
-    .select(
-      "id, company_id, jobsite_id, title, description, severity, category, status, assigned_user_id, due_at, started_at, closed_at, manager_override_close, manager_override_reason, created_at, updated_at"
-    )
+    .select("*")
     .single();
 
   if (updateResult.error) {
@@ -376,6 +375,13 @@ export async function PATCH(
       { status: 500 }
     );
   }
+
+  const caFacet = buildCorrectiveActionFacetRow(
+    companyScope.companyId,
+    updateResult.data as Record<string, unknown>,
+    body as Record<string, unknown> | null
+  );
+  void upsertRiskMemoryFacetSafe(auth.supabase, caFacet);
 
   await auth.supabase.from("company_corrective_action_events").insert({
     action_id: id,

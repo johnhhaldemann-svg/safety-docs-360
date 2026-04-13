@@ -29,8 +29,8 @@ After pulling new migrations, re-run push before testing features that depend on
 
 ## Cron
 
-- Schedule is defined in [`vercel.json`](../vercel.json) for `/api/cron/injury-weather-refresh` and `/api/cron/company-billing-invoices`.
-- [`app/api/cron/injury-weather-refresh/route.ts`](../app/api/cron/injury-weather-refresh/route.ts) and [`app/api/cron/company-billing-invoices/route.ts`](../app/api/cron/company-billing-invoices/route.ts) require `CRON_SECRET`: either `Authorization: Bearer <secret>` or `?secret=<secret>`.
+- Schedule is defined in [`vercel.json`](../vercel.json) for `/api/cron/injury-weather-refresh`, `/api/cron/company-billing-invoices`, and `/api/cron/risk-memory-rollup`.
+- Cron handlers require `CRON_SECRET`: either `Authorization: Bearer <secret>` or `?secret=<secret>` (see [`lib/cronAuth.ts`](../lib/cronAuth.ts)). Risk Memory rollup: [`app/api/cron/risk-memory-rollup/route.ts`](../app/api/cron/risk-memory-rollup/route.ts) — optional `recommendations=1` and `days=90` query params.
 - In Vercel, set `CRON_SECRET` and ensure cron invocations include the secret (per Vercel cron + your security policy).
 
 ## Public vs authenticated API behavior

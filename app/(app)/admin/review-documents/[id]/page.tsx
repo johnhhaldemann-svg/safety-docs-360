@@ -162,6 +162,7 @@ export default function ReviewDocumentPage() {
     excerpt: string;
     truncated: boolean;
     empty: boolean;
+    pageCount?: number | null;
   } | null>(null);
   const [lifecycleLoading, setLifecycleLoading] = useState<
     "archive" | "restore" | "delete" | ""
@@ -208,6 +209,9 @@ export default function ReviewDocumentPage() {
   const [loadError, setLoadError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [feedbackTone, setFeedbackTone] = useState<FeedbackTone>("neutral");
+  const [marketplacePreviewPageCount, setMarketplacePreviewPageCount] = useState<number | null>(
+    null
+  );
 
   const setFeedbackMessage = useCallback(
     (message: string, tone: FeedbackTone = "neutral") => {
@@ -315,6 +319,7 @@ export default function ReviewDocumentPage() {
         excerpt?: string;
         truncated?: boolean;
         empty?: boolean;
+        pageCount?: number | null;
       };
       let data: PreviewExcerptJson | null = null;
       try {
@@ -341,6 +346,10 @@ export default function ReviewDocumentPage() {
         excerpt: data.excerpt,
         truncated: Boolean(data.truncated),
         empty: Boolean(data.empty),
+        pageCount:
+          typeof data.pageCount === "number" && Number.isFinite(data.pageCount)
+            ? data.pageCount
+            : null,
       });
     } catch (error) {
       setFeedbackMessage(
@@ -744,12 +753,28 @@ export default function ReviewDocumentPage() {
         }
       );
 
-      const data = (await res.json().catch(() => null)) as
-        | { error?: string; notes?: string }
-        | null;
+      const raw = await res.text();
+      const data = (() => {
+        try {
+          return raw
+            ? (JSON.parse(raw) as {
+                error?: string;
+                notes?: string;
+                previewFilePath?: string;
+                pageCount?: number | null;
+              })
+            : null;
+        } catch {
+          return null;
+        }
+      })();
 
       if (!res.ok) {
-        setFeedbackMessage(data?.error || "Failed to generate preview PDF.", "error");
+        const fallback =
+          raw.trim() && !raw.trim().startsWith("<")
+            ? raw.trim().slice(0, 240)
+            : `Preview failed (HTTP ${res.status}).`;
+        setFeedbackMessage(data?.error || fallback || "Failed to generate preview PDF.", "error");
         return;
       }
 
@@ -761,9 +786,16 @@ export default function ReviewDocumentPage() {
             }
           : prev
       );
+      setMarketplacePreviewPageCount(
+        typeof data?.pageCount === "number" && Number.isFinite(data.pageCount)
+          ? data.pageCount
+          : null
+      );
       await loadDocument();
       setFeedbackMessage(
-        "Preview PDF generated and sent to the document owner for approval.",
+        typeof data?.pageCount === "number" && Number.isFinite(data.pageCount)
+          ? `Preview PDF generated (${data.pageCount} pages) and sent to the document owner for approval.`
+          : "Preview PDF generated and sent to the document owner for approval.",
         "success"
       );
     } catch (error) {
@@ -802,7 +834,12 @@ export default function ReviewDocumentPage() {
       );
 
       const data = (await res.json().catch(() => null)) as
-        | { error?: string; notes?: string }
+        | {
+            error?: string;
+            notes?: string;
+            previewFilePath?: string;
+            pageCount?: number | null;
+          }
         | null;
 
       if (!res.ok) {
@@ -818,9 +855,19 @@ export default function ReviewDocumentPage() {
             }
           : prev
       );
+      setMarketplacePreviewPageCount(
+        typeof data?.pageCount === "number" && Number.isFinite(data.pageCount)
+          ? data.pageCount
+          : null
+      );
       setMarketplacePreviewFile(null);
       await loadDocument();
-      setFeedbackMessage("Marketplace preview uploaded.", "success");
+      setFeedbackMessage(
+        typeof data?.pageCount === "number" && Number.isFinite(data.pageCount)
+          ? `Marketplace preview uploaded (${data.pageCount} pages).`
+          : "Marketplace preview uploaded.",
+        "success"
+      );
     } catch (error) {
       console.error(error);
       setFeedbackMessage("Failed to upload preview.", "error");
@@ -878,6 +925,7 @@ export default function ReviewDocumentPage() {
             }
           : prev
       );
+      setMarketplacePreviewPageCount(null);
       await loadDocument();
       setFeedbackMessage("Marketplace preview removed.", "success");
     } catch (error) {
@@ -1887,6 +1935,46 @@ export default function ReviewDocumentPage() {
                   preview (no full-document download). Text-based PDFs work best; scanned
                   pages may show little or no excerpt until purchase.
                 </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      Listing
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-slate-100">
+                      {marketplaceEnabled ? "Visible in marketplace" : "Hidden from marketplace"}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {getDocumentCreditCost(documentItem.notes)} credits to unlock.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      Preview file
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-slate-100">
+                      {documentItem && getMarketplacePreviewPath(documentItem.notes)
+                        ? getMarketplacePreviewPath(documentItem.notes)?.split("/").pop()
+                        : "Not attached yet"}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Buyers see this file through an excerpt or preview, not the full download.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      Page count
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-slate-100">
+                      {typeof marketplacePreviewPageCount === "number" &&
+                      Number.isFinite(marketplacePreviewPageCount)
+                        ? `${marketplacePreviewPageCount} pages`
+                        : "Shown after generate/upload"}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Enough context to judge length without giving away the full file.
+                    </p>
+                  </div>
+                </div>
                 {documentItem && getMarketplacePreviewPath(documentItem.notes) ? (
                   <p className="mt-3 text-xs font-medium text-emerald-400">
                     Preview on file:{" "}
@@ -2131,6 +2219,7 @@ export default function ReviewDocumentPage() {
         excerpt={excerptModal?.excerpt ?? ""}
         truncated={excerptModal?.truncated ?? false}
         empty={excerptModal?.empty ?? false}
+        pageCount={excerptModal?.pageCount ?? null}
         variant="admin"
       />
     </div>

@@ -10,6 +10,7 @@ import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
+import { buildIncidentFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
 
 export const runtime = "nodejs";
 
@@ -274,6 +275,8 @@ export async function POST(request: Request) {
     },
     created_by: auth.user.id,
   });
+  const facetRow = buildIncidentFacetRow(companyScope.companyId, result.data as Record<string, unknown>, body);
+  void upsertRiskMemoryFacetSafe(auth.supabase, facetRow);
   return NextResponse.json({ success: true, incident: result.data });
 }
 
@@ -489,5 +492,7 @@ export async function PATCH(request: Request) {
     },
     created_by: auth.user.id,
   });
+  const facetPatch = buildIncidentFacetRow(companyScope.companyId, result.data as Record<string, unknown>, body);
+  void upsertRiskMemoryFacetSafe(auth.supabase, facetPatch);
   return NextResponse.json({ success: true, incident: result.data });
 }

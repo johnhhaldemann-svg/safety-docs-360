@@ -81,20 +81,20 @@ const companyAssignableRoles = new Set([
 ]);
 
 function statusClasses(status: string) {
-  if (status === "Active") return "bg-emerald-100 text-emerald-700";
-  if (status === "Pending") return "bg-amber-100 text-amber-700";
-  if (status === "Suspended") return "bg-red-100 text-red-200";
-  return "bg-slate-200 text-slate-300";
+  if (status === "Active") return "bg-[#d8f1e2] text-[#247c49]";
+  if (status === "Pending") return "bg-[#fdeabf] text-[#9b6b12]";
+  if (status === "Suspended") return "bg-[#fad9d8] text-[#b94440]";
+  return "bg-[#e7edf5] text-[#637387]";
 }
 
 function roleClasses(role: string) {
-  if (role === "Super Admin") return "bg-red-100 text-red-200";
-  if (role === "Admin") return "bg-sky-100 text-sky-300";
+  if (role === "Super Admin") return "bg-[#fad9d8] text-[#b94440]";
+  if (role === "Admin") return "bg-[#d8e6ff] text-[#325fda]";
   if (role === "Operations Manager") return "bg-violet-100 text-violet-700";
   if (role === "Company Admin") return "bg-indigo-100 text-indigo-700";
-  if (role === "Company User") return "bg-amber-100 text-amber-700";
-  if (role === "Editor") return "bg-amber-100 text-amber-700";
-  return "bg-slate-800/70 text-slate-300";
+  if (role === "Company User") return "bg-[#fdeabf] text-[#9b6b12]";
+  if (role === "Editor") return "bg-[#fdeabf] text-[#9b6b12]";
+  return "bg-[#e7edf5] text-[#637387]";
 }
 
 function formatRelative(timestamp?: string | null) {
@@ -714,7 +714,7 @@ export default function AdminUsersPage() {
           <>
             <Link
               href="/admin/companies"
-              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+              className="rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
             >
               Manage Companies
             </Link>
@@ -727,7 +727,7 @@ export default function AdminUsersPage() {
             </button>
             <Link
               href="/admin"
-              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+              className="rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
             >
               Back to Admin
             </Link>
@@ -737,12 +737,12 @@ export default function AdminUsersPage() {
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {userStats.map((item) => (
-          <div key={item.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">{item.title}</p>
-            <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">
+          <div key={item.title} className="rounded-2xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.95)] p-6 shadow-sm">
+            <p className="text-sm font-medium text-[var(--app-muted)]">{item.title}</p>
+            <p className="mt-3 text-4xl font-bold tracking-tight text-[var(--app-text-strong)]">
               {loading ? "-" : item.value}
             </p>
-            <p className="mt-2 text-sm text-slate-500">{item.note}</p>
+            <p className="mt-2 text-sm text-[var(--app-text)]">{item.note}</p>
           </div>
         ))}
       </section>
@@ -756,29 +756,29 @@ export default function AdminUsersPage() {
         }
       >
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-            <p className="text-sm font-semibold text-slate-100">Platform Staff</p>
-            <p className="mt-2 text-sm text-slate-400">
+          <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-4">
+            <p className="text-sm font-semibold text-[var(--app-text-strong)]">Platform Staff</p>
+            <p className="mt-2 text-sm text-[var(--app-text)]">
               Super Admin, Admin, Editor, and Viewer accounts for your internal employees
               are managed here.
             </p>
           </div>
-          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-            <p className="text-sm font-semibold text-slate-100">Companies</p>
-            <p className="mt-2 text-sm text-slate-400">
+          <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-4">
+            <p className="text-sm font-semibold text-[var(--app-text-strong)]">Companies</p>
+            <p className="mt-2 text-sm text-[var(--app-text)]">
               New customer company workspaces are reviewed and approved from the company oversight
               screen.
             </p>
             <Link
               href="/admin/companies"
-              className="mt-3 inline-flex text-sm font-semibold text-sky-300 transition hover:text-sky-600"
+              className="mt-3 inline-flex text-sm font-semibold text-[var(--app-accent-primary)] transition hover:text-[var(--app-accent-primary-hover)]"
             >
               Open Company Oversight
             </Link>
           </div>
-          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-            <p className="text-sm font-semibold text-slate-100">Company Employees</p>
-            <p className="mt-2 text-sm text-slate-400">
+          <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-4">
+            <p className="text-sm font-semibold text-[var(--app-text-strong)]">Company Employees</p>
+            <p className="mt-2 text-sm text-[var(--app-text)]">
               {capabilities.canViewAllUsers
                 ? "Super Admin can see company-scoped accounts here too. Company admins still manage their own employees from inside the company workspace."
                 : "Company admins invite, approve, and manage Company Admin, Operations Manager, and Company User roles from inside their own company workspace."}
@@ -797,21 +797,21 @@ export default function AdminUsersPage() {
             placeholder="Invite staff by email..."
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
-            className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+            className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
           />
           <input
             type="text"
             placeholder="Internal team"
             value={inviteTeam}
             onChange={(e) => setInviteTeam(e.target.value)}
-            className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+            className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
           />
           <input
             type="text"
             placeholder="Search platform staff..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+            className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
           />
             <select
               value={inviteRole}
@@ -840,7 +840,7 @@ export default function AdminUsersPage() {
                 setSearchTerm("");
                 setRoleFilter("All Roles");
               }}
-              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+              className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
             >
               Clear Filters
             </button>
@@ -864,15 +864,15 @@ export default function AdminUsersPage() {
           ) : (
             <div className="space-y-4">
               {pendingApprovals.slice(0, 6).map((user) => (
-                <div key={user.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                <div key={user.id} className="rounded-2xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.92)] p-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-100">{user.name}</p>
+                        <p className="text-sm font-semibold text-[var(--app-text-strong)]">{user.name}</p>
                         <StatusBadge label={user.status} tone="warning" />
                       </div>
-                      <p className="mt-1 text-sm text-slate-500">{user.email}</p>
-                      <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
+                      <p className="mt-1 text-sm text-[var(--app-text)]">{user.email}</p>
+                      <div className="mt-2 flex flex-wrap gap-4 text-xs text-[var(--app-muted)]">
                         <span>Role: {user.role}</span>
                         <span>Team: {user.team}</span>
                         <span>Created {formatRelative(user.created_at)}</span>
@@ -899,14 +899,14 @@ export default function AdminUsersPage() {
                         setModalMessage("");
                         setModalMessageTone("neutral");
                       }}
-                        className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
+                        className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
                       >
                         Review Details
                       </button>
                       <button
                         onClick={() => void handleQuickStatus(user, "Suspended")}
                         disabled={actionLoading === `${user.id}:Suspended`}
-                        className="rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-200 transition hover:bg-red-950/40 disabled:opacity-60"
+                        className="rounded-xl border border-[var(--semantic-danger)] bg-[var(--semantic-danger)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
                       >
                         {actionLoading === `${user.id}:Suspended` ? "Blocking..." : "Suspend"}
                       </button>
@@ -963,12 +963,12 @@ export default function AdminUsersPage() {
             {filteredUsers.map((user) => (
               <div
                 key={user.id}
-                className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4"
+                className="rounded-2xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.92)] p-4"
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-100">{user.name}</p>
+                      <p className="text-sm font-semibold text-[var(--app-text-strong)]">{user.name}</p>
                       <span
                         className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${roleClasses(
                           user.role
@@ -977,7 +977,7 @@ export default function AdminUsersPage() {
                         {user.role}
                       </span>
                       {hasPermissionOverrides(user.permissionOverrides) ? (
-                        <span className="inline-flex rounded-full bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-200 ring-1 ring-violet-400/25">
+                        <span className="inline-flex rounded-full bg-[#efe8ff] px-3 py-1 text-xs font-semibold text-[#6f4fc4] ring-1 ring-[rgba(120,96,196,0.22)]">
                           Function overrides
                         </span>
                       ) : null}
@@ -989,8 +989,8 @@ export default function AdminUsersPage() {
                         {user.status}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm text-slate-500">{user.email}</p>
-                    <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
+                    <p className="mt-1 text-sm text-[var(--app-text)]">{user.email}</p>
+                    <div className="mt-2 flex flex-wrap gap-4 text-xs text-[var(--app-muted)]">
                       <span>Team: {user.team}</span>
                       {capabilities.canViewAllUsers ? (
                         <span>
@@ -1019,7 +1019,7 @@ export default function AdminUsersPage() {
                         setModalMessage("");
                         setModalMessageTone("neutral");
                       }}
-                    className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
+                    className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
                   >
                     Manage
                   </button>

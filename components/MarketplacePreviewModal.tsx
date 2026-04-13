@@ -1,6 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import {
+  buildMarketplacePreviewSections,
+  normalizePreviewText,
+  splitPreviewLines,
+} from "@/lib/marketplacePreviewSections";
 
 type PreviewVariant = "marketplace" | "workspace" | "admin";
 
@@ -11,6 +16,7 @@ type Props = {
   excerpt: string;
   truncated: boolean;
   empty: boolean;
+  pageCount?: number | null;
   /** When set (e.g. marketplace PDF), show native browser PDF preview via blob URL - not a download link. */
   pdfObjectUrl?: string | null;
   /** Workspace = in-review / active library rows; marketplace = credit unlock listings; admin = review queue */
@@ -39,34 +45,6 @@ const PREVIEW_FIELD_LABELS = [
   "Document Status",
   "Document Purpose",
 ];
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function normalizePreviewText(value: string) {
-  return value
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .replace(/\u00a0/g, " ")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-function splitPreviewLines(value: string) {
-  if (!value.trim()) {
-    return [] as string[];
-  }
-
-  const labelPattern = PREVIEW_FIELD_LABELS.map(escapeRegExp).join("|");
-  const withLabelBreaks = value.replace(new RegExp(`\\b(${labelPattern})\\b`, "g"), "\n$1");
-
-  return withLabelBreaks
-    .split(/\n+/)
-    .map((line) => line.replace(/\s+/g, " ").trim())
-    .filter(Boolean);
-}
 
 function splitIntoSentences(value: string) {
   return value
@@ -152,7 +130,7 @@ function variantDescription(variant: PreviewVariant) {
       return "On-screen excerpt for your company workspace.";
     case "marketplace":
     default:
-      return "On-screen excerpt before unlock.";
+      return "On-screen preview with section teasers and blurred continuations before unlock.";
   }
 }
 
@@ -164,7 +142,7 @@ function variantPitch(variant: PreviewVariant) {
       return "Use this preview to confirm the record is polished and ready for your company library.";
     case "marketplace":
     default:
-      return "See the finished document style, section structure, and buyer value before you spend credits to unlock it.";
+      return "See a readable piece from each section, with the rest blurred out until a buyer unlocks the file.";
   }
 }
 
@@ -175,6 +153,7 @@ export function MarketplacePreviewModal({
   excerpt,
   truncated,
   empty,
+  pageCount,
   pdfObjectUrl,
   variant = "marketplace",
 }: Props) {
@@ -221,25 +200,54 @@ export function MarketplacePreviewModal({
     { label: "Lines", value: empty ? "0" : String(previewLines.length) },
     { label: "Preview", value: truncated ? "Sample view" : "Full sample" },
   ];
-  const previewLineLimit = isMarketplacePreview ? 30 : 9;
+  const excerptCardClass = isMarketplacePreview
+    ? "rounded-3xl border border-slate-300/80 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.12)]"
+    : "rounded-2xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.95)_100%)] p-4 shadow-[0_10px_24px_rgba(38,64,106,0.08)]";
+  const excerptTextClass = isMarketplacePreview ? "text-slate-900" : "text-[var(--app-text-strong)]";
+  const excerptMetaClass = "text-[var(--app-muted)]";
+  const focusPoints = !empty ? summaryPoints.slice(0, 3) : [];
+  const buyerHighlights = isMarketplacePreview
+    ? keyFields.slice(0, 5)
+    : keyFields.slice(0, 6);
+  const pageCountLabel =
+    typeof pageCount === "number" && Number.isFinite(pageCount) && pageCount > 0
+      ? `${pageCount} page${pageCount === 1 ? "" : "s"}`
+      : null;
+  const marketplaceSections =
+    isMarketplacePreview && !empty
+      ? buildMarketplacePreviewSections(previewLines, {
+          teaserLineCount: 3,
+          maxSections: showAllExcerpt ? 12 : 6,
+          fallbackGroupSize: 5,
+        })
+      : [];
+  const visibleMarketplaceSections = showAllExcerpt
+    ? marketplaceSections
+    : marketplaceSections.slice(0, 4);
+  const hasMoreMarketplaceSections =
+    marketplaceSections.length > visibleMarketplaceSections.length;
+  const previewLineLimit = isMarketplacePreview ? 36 : 9;
   const visibleExcerptLines = showAllExcerpt ? previewLines : previewLines.slice(0, previewLineLimit);
   const excerptChunks = chunkLines(visibleExcerptLines, 3);
   const hasMoreExcerpt = previewLines.length > visibleExcerptLines.length;
-  const excerptCardClass = isMarketplacePreview
-    ? "rounded-3xl border border-slate-300/80 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.12)]"
-    : "rounded-2xl border border-slate-700/80 bg-slate-950/80 p-4";
-  const excerptTextClass = isMarketplacePreview ? "text-slate-900" : "text-slate-100";
-  const excerptMetaClass = isMarketplacePreview
-    ? "text-slate-500"
-    : "text-slate-500";
-  const focusPoints = !empty ? summaryPoints.slice(0, 3) : [];
-  const buyerHighlights = isMarketplacePreview
-    ? keyFields.slice(0, 4)
-    : keyFields.slice(0, 6);
+  const previewSnapshotCards = isMarketplacePreview
+    ? [
+        {
+          label: "Visible lines",
+          value: empty ? "0" : String(Math.min(previewLines.length, previewLineLimit)),
+        },
+        { label: "Section teasers", value: String(visibleMarketplaceSections.length) },
+        ...(pageCountLabel ? [{ label: "Page count", value: pageCountLabel }] : []),
+        {
+          label: "Locked continuation",
+          value: empty ? "Hidden" : `${Math.max(0, previewLines.length - previewLineLimit)} lines`,
+        },
+      ]
+    : [];
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:items-center"
+      className="preview-modal-light fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-[rgba(223,233,247,0.78)] p-4 backdrop-blur-sm sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-labelledby="document-excerpt-preview-title"
@@ -251,32 +259,32 @@ export function MarketplacePreviewModal({
         onClick={onClose}
       />
       <div
-        className={`relative z-[101] flex w-full max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-[1.75rem] border border-slate-600 bg-slate-950 shadow-2xl sm:max-h-[calc(100dvh-3rem)] ${
+        className={`relative z-[101] flex w-full max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-[1.75rem] border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.96)_100%)] shadow-[0_28px_64px_rgba(38,64,106,0.18)] sm:max-h-[calc(100dvh-3rem)] ${
           pdfObjectUrl ? "max-w-[min(94vw,72rem)]" : "max-w-[min(94vw,64rem)]"
         }`}
         onClick={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.preventDefault()}
       >
-        <div className="shrink-0 border-b border-slate-800/80 px-5 py-5 sm:px-6">
+        <div className="shrink-0 border-b border-[var(--app-border)] px-5 py-5 sm:px-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sky-300/90">
+              <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[var(--app-accent-primary)]">
                 {previewScopeLabel} preview
               </p>
               <h2
                 id="document-excerpt-preview-title"
-                className="mt-2 text-xl font-black tracking-tight text-white sm:text-2xl"
+                className="mt-2 text-xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-2xl"
               >
                 {title}
               </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--app-text)]">
                 {previewScopeDescription}
               </p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
+              className="shrink-0 rounded-xl border border-[var(--app-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)] hover:text-[var(--app-text-strong)]"
             >
               Close
             </button>
@@ -285,7 +293,7 @@ export function MarketplacePreviewModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
           {isMarketplacePreview ? (
-            <section className="rounded-[1.75rem] border border-sky-500/20 bg-[linear-gradient(135deg,_rgba(15,23,42,0.96)_0%,_rgba(8,47,73,0.92)_100%)] p-5 shadow-[0_20px_60px_rgba(2,132,199,0.12)]">
+            <section className="rounded-[1.75rem] border border-[rgba(79,125,243,0.22)] bg-[linear-gradient(135deg,_rgba(248,251,255,0.98)_0%,_rgba(231,240,255,0.96)_58%,_rgba(223,235,255,0.96)_100%)] p-5 shadow-[0_20px_48px_rgba(79,125,243,0.12)]">
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_320px] xl:items-center">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -336,18 +344,42 @@ export function MarketplacePreviewModal({
                       {truncated ? "Teaser sample" : "Full preview"}
                     </p>
                   </div>
+                  <div className="rounded-3xl border border-white/10 bg-white/5 px-4 py-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                      Page count
+                    </p>
+                    <p className="mt-2 text-lg font-black text-white">
+                      {pageCountLabel ?? "Unavailable"}
+                    </p>
+                  </div>
                   <div className="rounded-3xl border border-white/10 bg-white/5 px-4 py-3 sm:col-span-2 xl:col-span-1">
                     <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
                       What buyers get
                     </p>
                     <p className="mt-2 text-sm leading-6 text-slate-300">
-                      A clean sample, clear structure, and enough context to decide whether the
-                      document is worth unlocking.
+                      A clean sample, clearer structure, and enough context to decide whether the
+                      document is worth unlocking{pageCountLabel ? ` after seeing the full ${pageCountLabel}.` : "."}
                     </p>
                   </div>
                 </div>
               </div>
             </section>
+          ) : null}
+
+          {previewSnapshotCards.length > 0 ? (
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {previewSnapshotCards.map((card) => (
+                <div
+                  key={card.label}
+                  className="rounded-2xl border border-slate-700/80 bg-slate-900/70 px-4 py-3"
+                >
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    {card.label}
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-white">{card.value}</p>
+                </div>
+              ))}
+            </div>
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -494,13 +526,27 @@ export function MarketplacePreviewModal({
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 px-5 py-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    Sample pages
+                    {isMarketplacePreview ? "Section previews" : "Sample pages"}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-400">
-                    The sample below is grouped into smaller cards so it is easier to scan.
+                    {isMarketplacePreview
+                      ? "Each section opens with a readable piece, then blurs the rest like a Quizlet-style teaser."
+                      : "The sample below is grouped into smaller cards so it is easier to scan."}
                   </p>
                 </div>
-                {!empty && previewLines.length > previewLineLimit ? (
+                {isMarketplacePreview ? (
+                  !empty && hasMoreMarketplaceSections ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllExcerpt((value) => !value)}
+                      className="rounded-xl border border-slate-700/80 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
+                    >
+                      {showAllExcerpt
+                        ? "Show less"
+                        : `Show more (${marketplaceSections.length - visibleMarketplaceSections.length})`}
+                    </button>
+                  ) : null
+                ) : !empty && previewLines.length > previewLineLimit ? (
                   <button
                     type="button"
                     onClick={() => setShowAllExcerpt((value) => !value)}
@@ -515,6 +561,25 @@ export function MarketplacePreviewModal({
               {empty ? (
                 <div className="px-5 py-6">
                   <p className="text-sm leading-6 text-slate-400">{emptyBody}</p>
+                </div>
+              ) : isMarketplacePreview ? (
+                <div className="max-h-[min(52vh,32rem)] overflow-y-auto p-4 sm:p-5">
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    {visibleMarketplaceSections.map((section, index) => (
+                      <PreviewSectionCard
+                        key={`${index}-${section.title}`}
+                        index={index}
+                        sectionTitle={section.title}
+                        teaserLines={section.teaserLines}
+                        blurredLines={section.blurredLines}
+                      />
+                    ))}
+                  </div>
+                  {hasMoreMarketplaceSections ? (
+                    <p className="mt-4 text-xs font-medium text-slate-500">
+                      Showing the first {visibleMarketplaceSections.length} section teasers. Expand to reveal more.
+                    </p>
+                  ) : null}
                 </div>
               ) : (
                 <div className="max-h-[min(42vh,24rem)] overflow-y-auto p-4 sm:p-5">
@@ -563,6 +628,71 @@ export function MarketplacePreviewModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function PreviewSectionCard({
+  index,
+  sectionTitle,
+  teaserLines,
+  blurredLines,
+}: {
+  index: number;
+  sectionTitle: string;
+  teaserLines: string[];
+  blurredLines: string[];
+}) {
+  return (
+    <article className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,_rgba(14,27,46,0.96)_0%,_rgba(7,14,26,0.96)_100%)] shadow-[0_14px_36px_rgba(0,0,0,0.22)]">
+      <div className="flex items-center justify-between gap-3 border-b border-white/8 px-4 py-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-sky-300/80">
+            Section {String(index + 1).padStart(2, "0")}
+          </p>
+          <h4 className="mt-1 text-base font-bold text-white">{sectionTitle}</h4>
+        </div>
+        <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-200">
+          Preview
+        </span>
+      </div>
+
+      <div className="px-4 py-4">
+        <div className="space-y-2">
+          {teaserLines.map((line, lineIndex) => (
+            <p key={`${index}-${lineIndex}-${line.slice(0, 18)}`} className="text-sm leading-6 text-slate-100">
+              {line}
+            </p>
+          ))}
+        </div>
+
+        <div className="relative mt-4 overflow-hidden rounded-[1.4rem] border border-white/10 bg-slate-950/60 px-4 py-4">
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-200/0 via-slate-200/10 to-slate-200/20" />
+          <div className="relative z-[1]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-300">
+                Blurred continuation
+              </span>
+              <span className="text-[11px] font-semibold text-slate-400">
+                {blurredLines.length > 0 ? `${blurredLines.length} lines blurred` : "No extra lines in this section"}
+              </span>
+            </div>
+            <div className="space-y-2 blur-[2.25px] select-none opacity-55">
+              {blurredLines.length > 0 ? (
+                blurredLines.slice(0, 4).map((line, lineIndex) => (
+                  <p key={`${index}-${lineIndex}-${line.slice(0, 18)}`} className="text-sm leading-6 text-slate-200">
+                    {line}
+                  </p>
+                ))
+              ) : (
+                <p className="text-sm leading-6 text-slate-300">
+                  Additional content for this section is hidden until unlock.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
 

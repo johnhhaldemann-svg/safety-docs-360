@@ -63,7 +63,8 @@ export const companyAdminQuickLinks: NavItem[] = [
   { href: "/company-users", label: "Team", short: "TM" },
   { href: "/training-matrix", label: "Training", short: "TR" },
   { href: "/field-id-exchange", label: "Issues", short: "CA" },
-  { href: "/analytics", label: "Analytics", short: "AN" },
+  { href: "/command-center", label: "Command center", short: "CC" },
+  { href: "/analytics", label: "Analytics · Risk Memory", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
@@ -76,7 +77,8 @@ export const companyManagerQuickLinks: NavItem[] = [
   { href: "/purchases", label: "My purchases", short: "MP" },
   { href: "/training-matrix", label: "Training", short: "TR" },
   { href: "/field-id-exchange", label: "Issues", short: "CA" },
-  { href: "/analytics", label: "Analytics", short: "AN" },
+  { href: "/command-center", label: "Command center", short: "CC" },
+  { href: "/analytics", label: "Analytics · Risk Memory", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
@@ -215,7 +217,9 @@ export const companyAdminSideSections: NavSection[] = [
   {
     title: "Insights",
     items: [
-      { href: "/analytics", label: "Analytics", short: "AN" },
+      { href: "/command-center", label: "Command center", short: "CC" },
+      { href: "/analytics", label: "Analytics · Risk Memory", short: "AN" },
+      { href: "/settings/risk-memory", label: "Risk Memory setup", short: "RM" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
   },
@@ -265,7 +269,9 @@ export const companyManagerSideSections: NavSection[] = [
   {
     title: "Insights",
     items: [
-      { href: "/analytics", label: "Analytics", short: "AN" },
+      { href: "/command-center", label: "Command center", short: "CC" },
+      { href: "/analytics", label: "Analytics · Risk Memory", short: "AN" },
+      { href: "/settings/risk-memory", label: "Risk Memory setup", short: "RM" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
   },

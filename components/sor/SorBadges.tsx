@@ -1,13 +1,17 @@
 export function SorStatusBadge({ status }: { status: string }) {
   const tone =
     status === "draft"
-      ? "bg-slate-800/70 text-slate-300"
+      ? "bg-[var(--semantic-neutral-bg)] text-[var(--semantic-neutral)] ring-1 ring-[rgba(138,150,168,0.16)]"
       : status === "submitted"
-        ? "bg-blue-100 text-blue-800"
+        ? "bg-[var(--semantic-warning-bg)] text-[var(--semantic-warning)] ring-1 ring-[rgba(217,164,65,0.18)]"
         : status === "locked"
-          ? "bg-purple-100 text-purple-800"
-          : "bg-amber-100 text-amber-100";
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{status}</span>;
+          ? "bg-[var(--semantic-success-bg)] text-[var(--semantic-success)] ring-1 ring-[rgba(46,158,91,0.18)]"
+          : "bg-[var(--semantic-info-bg)] text-[var(--semantic-info)] ring-1 ring-[rgba(79,125,243,0.18)]";
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>
+      {status}
+    </span>
+  );
 }
 
 export function SorVerificationBadge({ result }: { result: "valid" | "invalid" | "broken_chain" }) {
@@ -15,7 +19,9 @@ export function SorVerificationBadge({ result }: { result: "valid" | "invalid" |
   return (
     <span
       className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-        ok ? "bg-emerald-100 text-emerald-100" : "bg-red-100 text-red-100"
+        ok
+          ? "bg-[var(--semantic-success-bg)] text-[var(--semantic-success)] ring-1 ring-[rgba(46,158,91,0.18)]"
+          : "bg-[var(--semantic-danger-bg)] text-[var(--semantic-danger)] ring-1 ring-[rgba(217,83,79,0.18)]"
       }`}
     >
       {ok ? "Audit Verified" : "Audit Failed"}

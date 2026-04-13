@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/BrandLogo";
 
 const featureCards = [
   {
@@ -58,31 +59,26 @@ const proofTiles = [
 
 export default function MarketingPage() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(13,148,136,0.12),_transparent_35%),linear-gradient(180deg,_#121926_0%,_#0c1730_100%)] text-slate-100">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(79,125,243,0.14),_transparent_28%),linear-gradient(180deg,_#f7fbff_0%,_#eef5ff_46%,_#e7f0fb_100%)] text-[#496581]">
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-slate-700/80 bg-slate-900/85 px-6 py-4 shadow-lg backdrop-blur">
-          <div>
-            <div className="text-2xl font-black tracking-tight">Safety360Docs</div>
-            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">
-              Enterprise Safety Management Platform
-            </div>
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-[rgba(111,138,177,0.24)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(241,247,255,0.92)_100%)] px-6 py-4 shadow-[0_16px_36px_rgba(38,64,106,0.12)] backdrop-blur">
+          <BrandLogo className="h-[4.9rem] w-[23rem] max-w-full" imageClassName="p-0" />
           <div className="flex flex-wrap gap-3">
             <Link
               href="/#platform"
-              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300"
+              className="rounded-xl border border-[rgba(111,138,177,0.22)] bg-white px-4 py-2.5 text-sm font-semibold text-[#496581] transition hover:border-[rgba(79,125,243,0.28)] hover:bg-[rgba(79,125,243,0.08)] hover:text-[#143252]"
             >
               Platform
             </Link>
             <Link
               href="/#workflow"
-              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300"
+              className="rounded-xl border border-[rgba(111,138,177,0.22)] bg-white px-4 py-2.5 text-sm font-semibold text-[#496581] transition hover:border-[rgba(79,125,243,0.28)] hover:bg-[rgba(79,125,243,0.08)] hover:text-[#143252]"
             >
               Workflow
             </Link>
             <Link
               href="/login"
-              className="rounded-xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(13,148,136,0.25)]"
+              className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(79,125,243,0.22)] transition hover:bg-[var(--app-accent-primary-hover)]"
             >
               Login
             </Link>
@@ -94,14 +90,14 @@ export default function MarketingPage() {
         id="platform"
         className="mx-auto grid max-w-7xl gap-8 px-6 pb-10 pt-6 xl:grid-cols-[1.05fr_0.95fr]"
       >
-        <div className="rounded-[2.2rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-[0_20px_40px_rgba(148,163,184,0.14)] sm:p-10">
-          <div className="inline-flex rounded-full border border-sky-500/35 bg-sky-950/35 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-sky-300">
+        <div className="rounded-[2.2rem] border border-[rgba(111,138,177,0.24)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(241,247,255,0.94)_100%)] p-8 shadow-[0_20px_40px_rgba(38,64,106,0.1)] sm:p-10">
+          <div className="inline-flex rounded-full border border-[rgba(79,125,243,0.22)] bg-[rgba(234,241,255,0.9)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-[var(--app-accent-primary)]">
             Secure Safety Operations
           </div>
-          <h1 className="mt-5 max-w-4xl text-4xl font-black tracking-tight text-white sm:text-6xl">
+          <h1 className="mt-5 max-w-4xl text-4xl font-black tracking-tight text-[#143252] sm:text-6xl">
             Turn safety documents into a managed workflow, not a folder problem.
           </h1>
-          <p className="mt-6 max-w-3xl text-base leading-8 text-slate-300">
+          <p className="mt-6 max-w-3xl text-base leading-8 text-[#496581]">
             Safety360Docs brings uploads, reviews, approvals, builders, compliance
             records, admin oversight, and completed deliverables into one clean
             workspace built for active projects and growing teams.
@@ -110,13 +106,13 @@ export default function MarketingPage() {
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href="/login"
-              className="rounded-xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(13,148,136,0.28)]"
+              className="rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(79,125,243,0.24)] transition hover:bg-[var(--app-accent-primary-hover)]"
             >
               Open Workspace
             </Link>
             <Link
               href="mailto:john.h.haldemann@gmail.com"
-              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300"
+              className="rounded-xl border border-[rgba(111,138,177,0.22)] bg-white px-5 py-3 text-sm font-semibold text-[#496581] transition hover:border-[rgba(79,125,243,0.28)] hover:bg-[rgba(79,125,243,0.08)] hover:text-[#143252]"
             >
               Book a Demo
             </Link>
@@ -128,38 +124,43 @@ export default function MarketingPage() {
               ["Review", "Route work through controlled approvals"],
               ["Library", "Open completed documents from one place"],
             ].map(([title, body]) => (
-              <div key={title} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                <div className="text-lg font-bold text-slate-100">{title}</div>
-                <div className="mt-2 text-sm leading-6 text-slate-300">{body}</div>
+              <div
+                key={title}
+                className="rounded-2xl border border-[rgba(111,138,177,0.22)] bg-white/86 p-4 shadow-[0_10px_22px_rgba(38,64,106,0.08)]"
+              >
+                <div className="text-lg font-bold text-[#143252]">{title}</div>
+                <div className="mt-2 text-sm leading-6 text-[#496581]">{body}</div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="rounded-[2.2rem] border border-slate-800 bg-[linear-gradient(180deg,_#0f1f3b_0%,_#152e54_100%)] p-6 text-white shadow-[0_22px_48px_rgba(15,23,42,0.24)] sm:p-8">
+        <div className="rounded-[2.2rem] border border-[rgba(111,138,177,0.24)] bg-[linear-gradient(180deg,_rgba(234,241,255,0.96)_0%,_rgba(223,235,255,0.94)_100%)] p-6 text-[#143252] shadow-[0_22px_48px_rgba(38,64,106,0.12)] sm:p-8">
           <div className="flex items-center justify-between gap-4">
             <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-100">
+              <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--app-accent-primary)]">
                 Product Snapshot
               </div>
               <div className="mt-3 text-3xl font-black tracking-tight">
                 Professional control for safety documentation at scale.
               </div>
             </div>
-            <div className="rounded-full border border-emerald-400/25 bg-emerald-950/30 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
+            <div className="rounded-full border border-[rgba(46,158,91,0.2)] bg-[rgba(231,246,236,0.96)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#2e9e5b]">
               Systems Live
             </div>
           </div>
 
-          <div className="mt-8 rounded-[1.8rem] border border-white/10 bg-white/5 p-5">
+          <div className="mt-8 rounded-[1.8rem] border border-[rgba(111,138,177,0.22)] bg-white/82 p-5 shadow-[0_12px_28px_rgba(38,64,106,0.08)]">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b84a0]">
                   Admin View
                 </div>
-                <div className="mt-2 text-2xl font-black">Today&apos;s Operations</div>
+                <div className="mt-2 text-2xl font-black text-[#143252]">
+                  {"Today's Operations"}
+                </div>
               </div>
-              <div className="rounded-full bg-sky-400/15 px-3 py-1 text-xs font-semibold text-sky-200">
+              <div className="rounded-full bg-[rgba(79,125,243,0.12)] px-3 py-1 text-xs font-semibold text-[var(--app-accent-primary)]">
                 Live Workspace
               </div>
             </div>
@@ -171,21 +172,21 @@ export default function MarketingPage() {
               <MockStat label="Active Projects" value="17" note="Current workspace" />
             </div>
 
-            <div className="mt-5 rounded-2xl border border-white/10 bg-[#0d1830] p-4">
+            <div className="mt-5 rounded-2xl border border-[rgba(111,138,177,0.22)] bg-[rgba(234,241,255,0.9)] p-4">
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-white">Admin Queues</div>
-                <div className="text-xs text-slate-200">Review and access</div>
+                <div className="text-sm font-semibold text-[#143252]">Admin Queues</div>
+                <div className="text-xs text-[#6b84a0]">Review and access</div>
               </div>
               <div className="mt-4 space-y-3">
                 {proofTiles.map((tile, index) => (
                   <div
                     key={tile}
-                    className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3"
+                    className="flex items-center gap-3 rounded-2xl border border-[rgba(111,138,177,0.18)] bg-white/86 px-3 py-3"
                   >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-400/15 text-xs font-black text-sky-200">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(79,125,243,0.12)] text-xs font-black text-[var(--app-accent-primary)]">
                       {index + 1}
                     </div>
-                    <div className="text-sm text-slate-100">{tile}</div>
+                    <div className="text-sm text-[#143252]">{tile}</div>
                   </div>
                 ))}
               </div>
@@ -195,14 +196,14 @@ export default function MarketingPage() {
       </section>
 
       <section id="workflow" className="mx-auto max-w-7xl px-6 py-8">
-        <div className="rounded-[2rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
+        <div className="rounded-[2rem] border border-[rgba(111,138,177,0.24)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(241,247,255,0.94)_100%)] p-8 shadow-[0_12px_28px_rgba(38,64,106,0.08)]">
+          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--app-accent-primary)]">
             Core Workflow
           </div>
-          <div className="mt-3 text-3xl font-black tracking-tight text-white">
+          <div className="mt-3 text-3xl font-black tracking-tight text-[#143252]">
             One clear route from source file to approved document.
           </div>
-          <div className="mt-4 max-w-3xl text-sm leading-7 text-slate-300">
+          <div className="mt-4 max-w-3xl text-sm leading-7 text-[#496581]">
             The strongest part of the product story is the workflow itself. Show teams
             exactly how documents move, who approves them, and where completed files
             live when the job is done.
@@ -210,12 +211,15 @@ export default function MarketingPage() {
 
           <div className="mt-8 grid gap-5 lg:grid-cols-4">
             {workflowSteps.map((step, index) => (
-              <div key={step.title} className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-5">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">
+              <div
+                key={step.title}
+                className="rounded-3xl border border-[rgba(111,138,177,0.22)] bg-white/86 p-5 shadow-[0_10px_22px_rgba(38,64,106,0.08)]"
+              >
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b84a0]">
                   Step {index + 1}
                 </div>
-                <div className="mt-3 text-xl font-bold text-slate-100">{step.title}</div>
-                <div className="mt-3 text-sm leading-7 text-slate-300">{step.body}</div>
+                <div className="mt-3 text-xl font-bold text-[#143252]">{step.title}</div>
+                <div className="mt-3 text-sm leading-7 text-[#496581]">{step.body}</div>
               </div>
             ))}
           </div>
@@ -227,10 +231,10 @@ export default function MarketingPage() {
           {featureCards.map((feature) => (
             <div
               key={feature.title}
-              className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm"
+              className="rounded-3xl border border-[rgba(111,138,177,0.22)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(241,247,255,0.94)_100%)] p-6 shadow-[0_10px_22px_rgba(38,64,106,0.08)]"
             >
-              <div className="text-xl font-bold text-slate-100">{feature.title}</div>
-              <p className="mt-3 text-sm leading-7 text-slate-300">{feature.body}</p>
+              <div className="text-xl font-bold text-[#143252]">{feature.title}</div>
+              <p className="mt-3 text-sm leading-7 text-[#496581]">{feature.body}</p>
             </div>
           ))}
         </div>
@@ -238,31 +242,31 @@ export default function MarketingPage() {
 
       <section className="mx-auto max-w-7xl px-6 py-8">
         <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-[2rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
+          <div className="rounded-[2rem] border border-[rgba(111,138,177,0.22)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(241,247,255,0.94)_100%)] p-8 shadow-[0_10px_22px_rgba(38,64,106,0.08)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--app-accent-primary)]">
               Benefits By Role
             </div>
-            <div className="mt-3 text-3xl font-black tracking-tight text-white">
+            <div className="mt-3 text-3xl font-black tracking-tight text-[#143252]">
               One platform, clearer outcomes for every team touching the process.
             </div>
             <div className="mt-8 grid gap-5 lg:grid-cols-3">
               {roleBenefits.map((item) => (
                 <div
                   key={item.role}
-                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
+                  className="rounded-2xl border border-[rgba(111,138,177,0.22)] bg-white/86 p-5 shadow-[0_10px_22px_rgba(38,64,106,0.08)]"
                 >
-                  <div className="text-lg font-bold text-slate-100">{item.role}</div>
-                  <div className="mt-3 text-sm leading-7 text-slate-300">{item.text}</div>
+                  <div className="text-lg font-bold text-[#143252]">{item.role}</div>
+                  <div className="mt-3 text-sm leading-7 text-[#496581]">{item.text}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-700/80 bg-slate-950/60 p-8 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-300">
+          <div className="rounded-[2rem] border border-[rgba(111,138,177,0.22)] bg-[linear-gradient(180deg,_rgba(234,241,255,0.96)_0%,_rgba(223,235,255,0.94)_100%)] p-8 shadow-[0_10px_22px_rgba(38,64,106,0.1)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--app-accent-primary)]">
               Why It Wins
             </div>
-            <div className="mt-3 text-3xl font-black tracking-tight text-white">
+            <div className="mt-3 text-3xl font-black tracking-tight text-[#143252]">
               Better than shared drives, disconnected builders, and scattered approvals.
             </div>
             <div className="mt-6 space-y-4">
@@ -274,7 +278,7 @@ export default function MarketingPage() {
               ].map((line) => (
                 <div
                   key={line}
-                className="rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-4 text-sm leading-7 text-slate-300"
+                  className="rounded-2xl border border-[rgba(111,138,177,0.22)] bg-white/88 px-4 py-4 text-sm leading-7 text-[#496581]"
                 >
                   {line}
                 </div>
@@ -285,7 +289,7 @@ export default function MarketingPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-6 py-8 pb-12">
-        <div className="rounded-[2rem] bg-[linear-gradient(135deg,_#10213f_0%,_#0d9488_55%,_#059669_100%)] px-8 py-10 text-white shadow-[0_20px_40px_rgba(15,23,42,0.35)]">
+        <div className="rounded-[2rem] bg-[linear-gradient(135deg,_#2f5fd5_0%,_#4f7df3_55%,_#7ea9ff_100%)] px-8 py-10 text-white shadow-[0_20px_40px_rgba(79,125,243,0.26)]">
           <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
             <div>
               <div className="text-3xl font-black tracking-tight">
@@ -300,7 +304,7 @@ export default function MarketingPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <Link
                 href="/login"
-                className="rounded-xl bg-slate-900/90 px-5 py-3 text-center text-sm font-semibold text-slate-100"
+                className="rounded-xl bg-[rgba(20,50,82,0.92)] px-5 py-3 text-center text-sm font-semibold text-white"
               >
                 Open Workspace
               </Link>
@@ -316,11 +320,11 @@ export default function MarketingPage() {
       </section>
 
       <footer className="mx-auto max-w-7xl px-6 pb-10">
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-slate-700/60 pt-6 text-xs text-slate-300">
-          <Link href="/terms" className="font-semibold text-slate-300 hover:text-slate-100">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-[rgba(111,138,177,0.2)] pt-6 text-xs text-[#5f7a98]">
+          <Link href="/terms" className="font-semibold text-[#5f7a98] hover:text-[#143252]">
             Terms
           </Link>
-          <Link href="/privacy" className="font-semibold text-slate-300 hover:text-slate-100">
+          <Link href="/privacy" className="font-semibold text-[#5f7a98] hover:text-[#143252]">
             Privacy
           </Link>
         </div>
@@ -339,12 +343,12 @@ function MockStat({
   note: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
+    <div className="rounded-2xl border border-[rgba(111,138,177,0.18)] bg-white/88 p-4 shadow-[0_8px_20px_rgba(38,64,106,0.06)]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#6b84a0]">
         {label}
       </div>
-      <div className="mt-3 text-3xl font-black text-white">{value}</div>
-      <div className="mt-2 text-sm text-slate-300">{note}</div>
+      <div className="mt-3 text-3xl font-black text-[#143252]">{value}</div>
+      <div className="mt-2 text-sm text-[#496581]">{note}</div>
     </div>
   );
 }

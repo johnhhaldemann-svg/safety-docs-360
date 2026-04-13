@@ -25,6 +25,7 @@
 /build
 
 # misc
+.cursor/
 .DS_Store
 *.pem
 .npm-cache/
@@ -55,6 +56,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
+# Supabase CLI local cache (not migration history)
+supabase/.temp/
 
 .vercel

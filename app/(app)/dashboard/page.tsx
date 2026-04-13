@@ -161,32 +161,49 @@ function applyCompanyAnalyticsDashboardState(
   analyticsResponse: Response,
   analyticsData: CompanyAnalyticsSummaryPayload
 ) {
+  const isMissingJsaRelationError = (message?: string | null) => {
+    const lower = (message ?? "").toLowerCase();
+    return lower.includes("company_daps") || lower.includes("company_jsas") || lower.includes("schema cache");
+  };
+
   const ok = analyticsResponse.ok;
+  const err = typeof analyticsData?.error === "string" ? analyticsData.error.trim() : "";
+  const warn = typeof analyticsData?.warning === "string" ? analyticsData.warning.trim() : "";
+  const isRelationFallback = isMissingJsaRelationError(err) || isMissingJsaRelationError(warn);
 
   if (!ok) {
     setCompanyDashboardMetrics(null);
-    const err = typeof analyticsData?.error === "string" ? analyticsData.error.trim() : "";
-    const warn = typeof analyticsData?.warning === "string" ? analyticsData.warning.trim() : "";
     setAnalyticsSummaryIssue({
-      message: err || warn || "Company analytics summary could not be loaded.",
-      tone: err ? "error" : "warning",
+      message:
+        isRelationFallback
+          ? "JSA data is still syncing in the workspace summary. Refresh in a moment if you need the latest counts."
+          : err || warn || "Company analytics summary could not be loaded.",
+      tone: isRelationFallback ? "warning" : err ? "error" : "warning",
     });
     return;
   }
 
   const dash = analyticsData?.summary?.companyDashboard ?? null;
   setCompanyDashboardMetrics(dash);
-  const err = typeof analyticsData?.error === "string" ? analyticsData.error.trim() : "";
-  const warn = typeof analyticsData?.warning === "string" ? analyticsData.warning.trim() : "";
   if (dash != null) {
-    setAnalyticsSummaryIssue(null);
+    setAnalyticsSummaryIssue(
+      isRelationFallback
+        ? {
+            message:
+              "JSA data is still syncing in the workspace summary. Refresh in a moment if you need the latest counts.",
+            tone: "warning",
+          }
+        : null
+    );
   } else {
     setAnalyticsSummaryIssue({
       message:
-        err ||
-        warn ||
+        isRelationFallback
+          ? "JSA data is still syncing in the workspace summary. Refresh in a moment if you need the latest counts."
+          : err ||
+            warn ||
         "Company analytics summary is not available. Your account may not be linked to a company workspace yet.",
-      tone: err ? "error" : "warning",
+      tone: isRelationFallback ? "warning" : err ? "error" : "warning",
     });
   }
 }
@@ -545,7 +562,7 @@ export default function DashboardPage() {
       const accessToken = sessionResult.data.session?.access_token;
 
       if (!accessToken) {
-        setCompanyWorkspaceError("Sign in again to load the company workspace.");
+        setCompanyWorkspaceError("Sign in again to load your company workspace.");
         return;
       }
 
@@ -722,7 +739,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error("Company workspace load error:", error);
-      setCompanyWorkspaceError("Unable to load the company workspace right now. Please try Refresh Workspace again.");
+      setCompanyWorkspaceError("Unable to load the company workspace right now. Please click Refresh Workspace again.");
     } finally {
       setCompanyWorkspaceLoading(false);
     }
@@ -1579,18 +1596,18 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px] xl:gap-5">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_340px] xl:items-start xl:gap-6">
       <div className="space-y-4 xl:space-y-5">
-        <section className="rounded-[1.8rem] border border-[#d9e8ff] bg-slate-900/90 p-6 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
+        <section className="rounded-[1.8rem] border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(244,249,255,0.94)_100%)] p-6 shadow-[var(--app-shadow-soft)]">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">
+              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[var(--app-muted)]">
                 {isManagerView ? "Company Workspace" : "Construction Safety Hub"}
               </p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
                 {isManagerView ? `${userTeam} Company Workspace` : "Safety360Docs"}
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--app-text)]">
                 {isManagerView
                   ? "Open completed documents and keep company access organized from one clean workspace."
                   : "Manage submissions, approvals, uploads, and project safety documentation from one clean workspace."}
@@ -1606,30 +1623,30 @@ export default function DashboardPage() {
               </Link>
               <Link
                 href={isManagerView ? companyManagementHref : "/upload"}
-                className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300"
+                className="rounded-xl border border-[var(--app-border)] bg-[var(--app-accent-primary-soft)] px-5 py-3 text-sm font-semibold text-[var(--app-accent-primary)]"
               >
                 {isManagerView ? (canManageCompanyUsers ? "Manage Company Users" : "Completed Library") : "Upload Documents"}
               </Link>
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {countCards.map((card) => (
               <div
                 key={card.title}
-                className="rounded-[1.4rem] border border-slate-700/80 bg-slate-900/90 p-4 shadow-sm"
+                className="rounded-[1.4rem] border border-[var(--app-border)] bg-[var(--app-panel)] p-4 shadow-sm"
               >
-                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-muted)]">
                   {card.title}
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="text-4xl font-black tracking-tight text-white">
+                  <div className="text-4xl font-black tracking-tight text-[var(--app-text-strong)]">
                     {loading ? "-" : card.value}
                   </div>
                   <DashboardIcon kind={card.icon} />
                 </div>
-                <p className="mt-4 text-sm text-slate-500">{card.note}</p>
-                <div className="mt-3 text-sm font-semibold text-emerald-600">
+                <p className="mt-4 text-sm text-[var(--app-text)]">{card.note}</p>
+                <div className="mt-3 text-sm font-semibold text-[var(--semantic-success)]">
                   {card.trend}
                 </div>
               </div>
@@ -1641,21 +1658,21 @@ export default function DashboardPage() {
               <Link
                 key={card.title}
                 href={card.href}
-                className="rounded-[1.4rem] border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm transition hover:border-sky-500/35 hover:shadow-md"
+                className="rounded-[1.4rem] border border-[var(--app-border)] bg-[rgba(255,255,255,0.84)] p-5 shadow-sm transition hover:border-[rgba(79,125,243,0.28)] hover:shadow-md"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-sky-950/35 text-[11px] font-black text-sky-300">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-[rgba(79,125,243,0.12)] text-[11px] font-black text-[var(--app-accent-primary)]">
                       D
                     </span>
-                    <span className="text-lg font-bold text-slate-100">{card.title}</span>
+                    <span className="text-lg font-bold text-[var(--app-text-strong)]">{card.title}</span>
                   </div>
-                  <span className="text-sm font-medium text-slate-500">Open</span>
+                  <span className="text-sm font-medium text-[var(--app-muted)]">Open</span>
                 </div>
-                <div className="mt-5 text-4xl font-black tracking-tight text-white">
+                <div className="mt-5 text-4xl font-black tracking-tight text-[var(--app-text-strong)]">
                   {loading ? "-" : card.value}
                 </div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">{card.description}</p>
+                <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{card.description}</p>
               </Link>
             ))}
           </div>
@@ -1713,20 +1730,20 @@ export default function DashboardPage() {
         ) : null}
 
         <section className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr] xl:gap-5">
-          <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-slate-900/90 p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
+          <div className="rounded-[1.8rem] border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(244,249,255,0.92)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
             <div className="grid gap-4 sm:grid-cols-2">
               {actionCards.map((action) => (
                 <div
                   key={action.title}
-                  className="rounded-[1.4rem] border border-slate-700/80 bg-slate-900/90 p-4 shadow-sm"
+                  className="rounded-[1.4rem] border border-[var(--app-border)] bg-[var(--app-panel)] p-4 shadow-sm"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-sky-950/35 text-[11px] font-black text-sky-300">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-[rgba(79,125,243,0.12)] text-[11px] font-black text-[var(--app-accent-primary)]">
                       A
                     </span>
-                    <span className="text-lg font-bold text-slate-100">{action.title}</span>
+                    <span className="text-lg font-bold text-[var(--app-text-strong)]">{action.title}</span>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-500">{action.description}</p>
+                  <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">{action.description}</p>
                   <Link
                     href={action.href}
                     className="mt-5 inline-flex rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(91,108,255,0.18)]"
@@ -1738,32 +1755,32 @@ export default function DashboardPage() {
             </div>
 
             {isManagerView && companyProfile ? (
-              <div className="mt-5 rounded-[1.4rem] border border-slate-700/80 bg-slate-950/50 p-4">
-                <div className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">
+              <div className="mt-5 rounded-[1.4rem] border border-[var(--app-border)] bg-[rgba(255,255,255,0.84)] p-4">
+                <div className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--app-muted)]">
                   Company Profile
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div>
-                    <div className="text-sm font-semibold text-slate-100">
+                    <div className="text-sm font-semibold text-[var(--app-text-strong)]">
                       {companyProfile.name || userTeam}
                     </div>
-                    <div className="mt-1 text-sm text-slate-500">
+                    <div className="mt-1 text-sm text-[var(--app-text)]">
                       {companyProfile.industry || "Industry not set"}
                     </div>
                   </div>
-                  <div className="text-sm text-slate-500">
+                  <div className="text-sm text-[var(--app-text)]">
                     {companyProfile.primary_contact_name || "No contact set"}
                     {companyProfile.primary_contact_email
                       ? ` - ${companyProfile.primary_contact_email}`
                       : ""}
                   </div>
-                  <div className="text-sm text-slate-500">
+                  <div className="text-sm text-[var(--app-text)]">
                     {companyProfile.phone || "No phone on file"}
                   </div>
-                  <div className="text-sm text-slate-500">
+                  <div className="text-sm text-[var(--app-text)]">
                     {companyProfile.website || "No website on file"}
                   </div>
-                  <div className="text-sm text-slate-500 sm:col-span-2">
+                  <div className="text-sm text-[var(--app-text)] sm:col-span-2">
                     {[
                       companyProfile.address_line_1,
                       companyProfile.city,
@@ -1794,11 +1811,11 @@ export default function DashboardPage() {
           />
 
           <div className="space-y-5">
-            <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-slate-900/90 p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
-              <h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">
+            <div className="rounded-[1.8rem] border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(244,249,255,0.92)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
+              <h2 className="text-xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-2xl">
                 Workspace Status
               </h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-[var(--app-text)]">
                 Real-time view of the main tools in this portal.
               </p>
 
@@ -1806,20 +1823,20 @@ export default function DashboardPage() {
                 {systemStatus.map((item) => (
                   <div
                     key={item.label}
-                    className="flex items-center justify-between rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-4"
+                    className="flex items-center justify-between rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-4"
                   >
-                    <span className="text-sm font-medium text-slate-200">{item.label}</span>
+                    <span className="text-sm font-medium text-[var(--app-text)]">{item.label}</span>
                     <StatusBadge label={item.badge} tone={getStatusTone(item.badge)} />
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-[1.8rem] border border-[#d9e8ff] bg-slate-900/90 p-5 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
-              <h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">
+            <div className="rounded-[1.8rem] border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(244,249,255,0.92)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
+              <h2 className="text-xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-2xl">
                 Workspace Tools
               </h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-[var(--app-text)]">
                 Jump straight into the most-used parts of the app.
               </p>
 
@@ -1828,10 +1845,10 @@ export default function DashboardPage() {
                   <Link
                     key={tool.title}
                     href={tool.href}
-                    className="block rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-4 transition hover:border-sky-500/35 hover:shadow-sm"
+                    className="block rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-4 transition hover:border-[rgba(79,125,243,0.28)] hover:shadow-sm"
                   >
-                    <div className="text-sm font-semibold text-slate-100">{tool.title}</div>
-                    <div className="mt-1 text-sm text-slate-500">{tool.note}</div>
+                    <div className="text-sm font-semibold text-[var(--app-text-strong)]">{tool.title}</div>
+                    <div className="mt-1 text-sm text-[var(--app-text)]">{tool.note}</div>
                   </Link>
                 ))}
               </div>
@@ -1884,7 +1901,7 @@ export default function DashboardPage() {
                       },
                       {
                         label: "Library",
-                        detail: "Approved files become ready to open from one central place.",
+                        detail: "Approved files open from one central place.",
                         complete: approvedCount > 0,
                       },
                     ]
@@ -1903,7 +1920,7 @@ export default function DashboardPage() {
           aside={
             <Link
               href={isManagerView ? "/library" : "/upload"}
-              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+              className="rounded-xl border border-[var(--app-border)] px-4 py-2.5 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)]"
             >
               {isManagerView ? "Open Library" : "Open Uploads"}
             </Link>
@@ -1925,25 +1942,25 @@ export default function DashboardPage() {
               {latestUploaded.map((document) => (
                 <div
                   key={document.id}
-                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4"
+                  className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] p-4"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-slate-100">
+                      <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">
                         {getDocumentLabel(document)}
                       </div>
-                      <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
+                      <div className="mt-1 text-xs uppercase tracking-[0.14em] text-[var(--app-muted)]">
                         {document.document_type || "Document"}
                       </div>
                     </div>
-                    <span className="rounded-full bg-sky-950/35 px-3 py-1 text-xs font-semibold text-sky-300">
+                    <span className="rounded-full bg-[var(--semantic-info-bg)] px-3 py-1 text-xs font-semibold text-[var(--semantic-info)]">
                       {getStatusLabel(document)}
                     </span>
                   </div>
-                  <div className="mt-3 text-sm text-slate-500">
+                  <div className="mt-3 text-sm text-[var(--app-text)]">
                     {document.project_name || document.category || "General workspace file"}
                   </div>
-                  <div className="mt-2 text-xs text-slate-400">
+                  <div className="mt-2 text-xs text-[var(--app-muted)]">
                     Uploaded {formatRelative(document.created_at)}
                   </div>
                 </div>
@@ -1953,15 +1970,15 @@ export default function DashboardPage() {
         </SectionCard>
       </div>
 
-      <aside className="order-first rounded-[1.8rem] border border-slate-800 bg-[linear-gradient(180deg,_#20365f_0%,_#203455_100%)] p-5 text-white shadow-[0_16px_35px_rgba(15,23,42,0.22)] xl:order-none">
-        <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-300">
+      <aside className="order-first self-start rounded-[1.8rem] border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(244,249,255,0.92)_100%)] p-5 shadow-[var(--app-shadow-soft)] xl:order-none">
+        <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-muted)]">
           {isManagerView ? "Company Access Status" : "Site Safety Status"}
         </div>
-        <div className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">
-          {isManagerView ? "Today&apos;s Company Workspace" : "Today&apos;s Workspace"}
+        <div className="mt-3 text-2xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-3xl">
+          {isManagerView ? "Today's Company Workspace" : "Today's Workspace"}
         </div>
 
-        <div className="mt-3 text-sm leading-6 text-slate-300">
+        <div className="mt-3 text-sm leading-6 text-[var(--app-text)]">
           {isManagerView
             ? "Keep company access organized and open completed documents without exposing draft workflows."
             : "Keep submissions moving, review new activity, and open the tools your team uses most."}
@@ -1976,7 +1993,7 @@ export default function DashboardPage() {
           </Link>
           <Link
             href={isManagerView ? companyManagementHref : "/submit"}
-            className="rounded-xl border border-white/10 bg-white/8 px-4 py-2.5 text-xs font-semibold text-slate-100 sm:text-sm"
+            className="rounded-xl border border-[var(--app-border)] bg-[var(--app-accent-primary-soft)] px-4 py-2.5 text-xs font-semibold text-[var(--app-accent-primary)] sm:text-sm"
           >
             {isManagerView ? (canManageCompanyUsers ? "Manage Users" : "Open Library") : "Submit Request"}
           </Link>
@@ -1984,33 +2001,33 @@ export default function DashboardPage() {
 
         <div className="mt-8">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-semibold text-slate-200">
+            <div className="text-sm font-semibold text-[var(--app-text-strong)]">
               {isManagerView ? "Company Activity" : "Current Activity"}
             </div>
             <Link
               href={isManagerView ? companyManagementHref : "/submit"}
-              className="text-xs font-medium text-slate-300"
+              className="text-xs font-medium text-[var(--app-accent-primary)]"
             >
               {isManagerView ? (canManageCompanyUsers ? "Manage Users" : "Open Library") : "View Queue"}
             </Link>
           </div>
 
-          <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-white/6 p-4">
-            <div className="text-sm font-semibold text-white">
+          <div className="mt-4 rounded-[1.5rem] border border-[var(--app-border)] bg-[var(--app-panel)] p-4">
+            <div className="text-sm font-semibold text-[var(--app-text-strong)]">
               {isManagerView ? "Company Access Items" : "Items Waiting Review"}
             </div>
             <div className="mt-4 space-y-3">
               {reviewQueueItems.map((item, index) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/6 px-3 py-3"
+                  className="flex items-center gap-3 rounded-2xl border border-[var(--app-border)] bg-white/70 px-3 py-3"
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-400/15 text-xs font-black text-sky-200">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(79,125,243,0.12)] text-xs font-black text-[var(--app-accent-primary)]">
                     {index + 1}
                   </div>
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-white">{item.title}</div>
-                    <div className="mt-1 truncate text-xs text-slate-300">{item.detail}</div>
+                    <div className="truncate text-sm font-medium text-[var(--app-text-strong)]">{item.title}</div>
+                    <div className="mt-1 truncate text-xs text-[var(--app-text)]">{item.detail}</div>
                   </div>
                 </div>
               ))}

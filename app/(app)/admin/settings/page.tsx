@@ -267,7 +267,7 @@ export default function AdminSettingsPage() {
 
           <SectionCard
             title="Rollout Preview"
-            description="Current impact based on today&apos;s acceptance records."
+                description="Current impact based on today's acceptance records."
           >
             <div className="mt-6 space-y-4">
               <StatusRow

@@ -1,5 +1,19 @@
-import { describe, expect, it } from "vitest";
-import { sniffGcDocumentKind } from "@/lib/gcProgramAiReview";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("pdf-parse", () => {
+  class MockPdfParse {
+    constructor(options: { data: Buffer }) {
+      void options;
+    }
+
+    async getText() {
+      return { text: "GC program content" };
+    }
+  }
+  return { default: MockPdfParse, PDFParse: MockPdfParse };
+});
+
+import { extractGcProgramDocumentText, sniffGcDocumentKind } from "@/lib/gcProgramAiReview";
 
 describe("sniffGcDocumentKind", () => {
   it("detects PDF by magic bytes", () => {
@@ -14,5 +28,18 @@ describe("sniffGcDocumentKind", () => {
 
   it("returns null for unknown binary", () => {
     expect(sniffGcDocumentKind(Buffer.from("hello"))).toBe(null);
+  });
+});
+
+describe("extractGcProgramDocumentText", () => {
+  it("extracts PDF text even when the parser has no destroy method", async () => {
+    const result = await extractGcProgramDocumentText(Buffer.from("%PDF-1.4\n"), "sample.pdf");
+
+    expect(result).toEqual({
+      ok: true,
+      text: "GC program content",
+      truncated: false,
+      method: "pdf",
+    });
   });
 });

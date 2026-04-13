@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PDFDocument } from "pdf-lib";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { authorizeRequest } from "@/lib/rbac";
 import { getClientIpAddress } from "@/lib/legal";
@@ -13,6 +14,15 @@ import {
 import { checkFixedWindowRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
+
+async function getPdfPageCount(buffer: Buffer) {
+  try {
+    const pdfDoc = await PDFDocument.load(buffer);
+    return pdfDoc.getPageCount();
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(
   request: Request,
@@ -87,6 +97,10 @@ export async function GET(
       document.file_name?.trim() ||
       basenameFromStoragePath(storagePath) ||
       "document.bin";
+    const pageCount =
+      sourceName.toLowerCase().endsWith(".pdf") || storagePath.toLowerCase().endsWith(".pdf")
+        ? await getPdfPageCount(buffer)
+        : null;
 
     const extracted = await extractMarketplacePreviewExcerpt(buffer, sourceName);
 
@@ -128,6 +142,7 @@ export async function GET(
       excerpt: extracted.excerpt,
       truncated: extracted.truncated,
       empty,
+      pageCount,
     });
     res.headers.set("Cache-Control", "no-store, max-age=0");
     return res;

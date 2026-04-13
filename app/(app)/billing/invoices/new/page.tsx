@@ -342,8 +342,9 @@ export default function NewInvoicePage() {
         </div>
 
         <p className="mt-3 text-xs text-slate-500">
-          Company billing drafts pull in the selected workspace&apos;s subscription and seat pricing
-          automatically. You can still add manual line items on top.
+          {
+            "Company billing drafts pull in the selected workspace's subscription and seat pricing automatically. You can still add manual line items on top."
+          }
         </p>
       </SectionCard>
     </div>

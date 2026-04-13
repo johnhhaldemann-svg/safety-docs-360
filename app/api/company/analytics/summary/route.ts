@@ -5,12 +5,19 @@ import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
 import { isForecasterSyntheticIncident } from "@/lib/injuryWeather/excludeForecasterIncidents";
+import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
 
 export const runtime = "nodejs";
 
 function isMissingTable(message?: string | null) {
   return (message ?? "").toLowerCase().includes("company_analytics_snapshots");
 }
+
+function isMissingJsaRelationError(message?: string | null) {
+  const lower = (message ?? "").toLowerCase();
+  return lower.includes("company_daps") || lower.includes("company_jsas") || lower.includes("schema cache");
+}
+
 function canManage(role: string) {
   return isAdminRole(role) || role === "company_admin" || role === "manager";
 }
@@ -65,7 +72,7 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ error: result.error.message || "Failed to load analytics summary." }, { status: 500 });
   }
-  const [actionsRes, incidentsRes, permitsRes, dapsRes, activitiesRes, jobsitesRes, sorRes] = await Promise.all([
+  const [actionsRes, incidentsRes, permitsRes, jsasRes, jsaActivitiesRes, jobsitesRes, sorRes] = await Promise.all([
     auth.supabase
       .from("company_corrective_actions")
       .select(
@@ -86,13 +93,13 @@ export async function GET(request: Request) {
       .eq("company_id", companyScope.companyId)
       .gte("created_at", since),
     auth.supabase
-      .from("company_daps")
+      .from("company_jsas")
       .select("id, status, created_at, jobsite_id")
       .eq("company_id", companyScope.companyId)
       .gte("created_at", since),
     auth.supabase
-      .from("company_dap_activities")
-      .select("id, dap_id, status, hazard_category, created_at, work_date, jobsite_id")
+      .from("company_jsa_activities")
+      .select("id, jsa_id, status, hazard_category, created_at, work_date, jobsite_id")
       .eq("company_id", companyScope.companyId)
       .gte("created_at", since),
     auth.supabase
@@ -106,11 +113,14 @@ export async function GET(request: Request) {
       .eq("is_deleted", false)
       .gte("created_at", since),
   ]);
+  const jsasMissing = jsasRes.error && isMissingJsaRelationError(jsasRes.error.message);
+  const jsaActivitiesMissing = jsaActivitiesRes.error && isMissingJsaRelationError(jsaActivitiesRes.error.message);
+
   if (actionsRes.error) return NextResponse.json({ error: actionsRes.error.message || "Failed to load corrective actions." }, { status: 500 });
   if (incidentsRes.error) return NextResponse.json({ error: incidentsRes.error.message || "Failed to load incidents." }, { status: 500 });
   if (permitsRes.error) return NextResponse.json({ error: permitsRes.error.message || "Failed to load permits." }, { status: 500 });
-  if (dapsRes.error) return NextResponse.json({ error: dapsRes.error.message || "Failed to load daps." }, { status: 500 });
-  if (activitiesRes.error) return NextResponse.json({ error: activitiesRes.error.message || "Failed to load dap activities." }, { status: 500 });
+  if (jsasRes.error && !jsasMissing) return NextResponse.json({ error: jsasRes.error.message || "Failed to load JSAs." }, { status: 500 });
+  if (jsaActivitiesRes.error && !jsaActivitiesMissing) return NextResponse.json({ error: jsaActivitiesRes.error.message || "Failed to load JSA activities." }, { status: 500 });
   if (jobsitesRes.error) return NextResponse.json({ error: jobsitesRes.error.message || "Failed to load jobsites." }, { status: 500 });
 
   const actions = actionsRes.data ?? [];
@@ -119,8 +129,8 @@ export async function GET(request: Request) {
     return !isForecasterSyntheticIncident(r.title, r.description);
   });
   const permits = permitsRes.data ?? [];
-  const daps = dapsRes.data ?? [];
-  const activities = activitiesRes.data ?? [];
+  const jsas = jsasMissing ? [] : (jsasRes.data ?? []);
+  const activities = jsaActivitiesMissing ? [] : (jsaActivitiesRes.data ?? []);
   const jobsites = jobsitesRes.data ?? [];
   const sorRows = sorRes.data ?? [];
 
@@ -304,7 +314,7 @@ export async function GET(request: Request) {
       return !["near_miss", "hazard", "negative", "positive"].includes(ot);
     }).length,
     inspections: permits.length + activities.length,
-    daps: daps.length,
+    daps: jsas.length,
   };
 
   const injuryIncidentsInWindow = incidents.filter(
@@ -382,6 +392,31 @@ export async function GET(request: Request) {
     low: actions.filter((item) => String(item.severity ?? "").toLowerCase() === "low").length,
   };
 
+  const [riskMemoryRollup, riskRecRes] = await Promise.all([
+    buildRiskMemoryStructuredContext(auth.supabase, companyScope.companyId, {
+      days: Math.max(1, days),
+    }),
+    auth.supabase
+      .from("company_risk_ai_recommendations")
+      .select("id, kind, title, body, confidence, created_at")
+      .eq("company_id", companyScope.companyId)
+      .eq("dismissed", false)
+      .order("created_at", { ascending: false })
+      .limit(8),
+  ]);
+
+  let riskMemoryRecommendations: Array<{
+    id: string;
+    kind: string;
+    title: string;
+    body: string;
+    confidence: number;
+    created_at: string;
+  }> = [];
+  if (!riskRecRes.error) {
+    riskMemoryRecommendations = (riskRecRes.data ?? []) as typeof riskMemoryRecommendations;
+  }
+
   return NextResponse.json({
     snapshots: result.data ?? [],
     summary: {
@@ -389,7 +424,7 @@ export async function GET(request: Request) {
         correctiveActions: actions.length,
         incidents: incidents.length,
         permits: permits.length,
-        daps: daps.length,
+        daps: jsas.length,
         dapActivities: activities.length,
       },
       closureTimes: {
@@ -429,6 +464,8 @@ export async function GET(request: Request) {
       },
       benchmarking,
       injuryAnalytics,
+      riskMemory: riskMemoryRollup,
+      riskMemoryRecommendations,
       safetyLeadership: {
         trendOfObservationsByWeek: Array.from(weeklyObservations.entries())
           .sort((a, b) => a[0].localeCompare(b[0]))

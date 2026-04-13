@@ -597,7 +597,9 @@ async function handleAuthMeGet(request: Request) {
     companyScope.companyId
       ? await auth.supabase
           .from("companies")
-          .select("id, name, city, state_region, status")
+          .select(
+            "id, name, team_key, industry, phone, website, address_line_1, city, state_region, postal_code, country, primary_contact_name, primary_contact_email, status, pilot_trial_ends_at, pilot_converted_at"
+          )
           .eq("id", companyScope.companyId)
           .maybeSingle()
       : null;

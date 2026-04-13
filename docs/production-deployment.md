@@ -17,6 +17,7 @@ Run **Supabase migrations first** whenever migration files changed, then deploy 
 2. **Database**: apply migrations from [`supabase/migrations/`](../supabase/migrations/). **Vercel does not run migrations** — only the Next.js build. Typical order: **push migrations to Supabase**, then deploy (or redeploy) on Vercel so the app matches the schema.
    - **Local:** `supabase link --project-ref <ref>` then `supabase db push` (see [dev-setup.md](./dev-setup.md)).
    - **CI:** optional workflow [.github/workflows/supabase-db-push.yml](../.github/workflows/supabase-db-push.yml) runs `supabase db push` when migration files change on `main`/`master` (requires repo secrets below).
+   - **Risk Memory Engine** (if you use facets, contractors, crews, or stored recommendations): ensure these run in order on the target project: `20260413130000_company_risk_memory_engine.sql`, then `20260414120000_risk_memory_phase2.sql`, then `20260415103000_company_crews_risk_memory.sql`. All are applied automatically when you `db push` a linked project with an up-to-date migration history.
 3. **Auth → URL configuration**:
    - **Site URL**: your canonical app URL (e.g. `https://app.example.com`).
    - **Redirect URLs**: include the same origin plus any preview URLs you use (or restrict previews to staging only).
@@ -39,10 +40,13 @@ Run **Supabase migrations first** whenever migration files changed, then deploy 
    | `NEXT_PUBLIC_ADMIN_EMAILS` | Optional; platform admin list |
    | `CRON_SECRET` | Long random string; required for scheduled cron (see below) |
    | `OPENAI_API_KEY` | If AI features are enabled in prod |
+   | `OPENAI_BASE_URL` | Optional; use `https://ai-gateway.vercel.sh/v1` with a Vercel AI Gateway key (`vck_…`) |
    | `RESEND_FROM_EMAIL` | If sending invite email from your domain |
    | Stripe keys | Live keys + webhook secret only when billing is live |
 
    Full list and comments: [`.env.example`](../.env.example) and [README.md](../README.md).
+
+   **Injury Weather — deterministic vs AI:** Trade momentum, predicted injuries, risk levels, and trend series come from the **deterministic** engine ([`lib/injuryWeather/service.ts`](../lib/injuryWeather/service.ts), [`lib/injuryWeather/riskModel.ts`](../lib/injuryWeather/riskModel.ts)) and **do not** require `OPENAI_API_KEY`. OpenAI (or the gateway) is used only for **optional** layers: narrative insights, optional web-research bullets, and an optional structured forecast override when `INJURY_WEATHER_AI_FORECAST_OVERRIDE=1` — see [`lib/injuryWeather/ai.ts`](../lib/injuryWeather/ai.ts) and the Injury Weather block in [`.env.example`](../.env.example).
 
 3. **Custom domain**: attach domain in Vercel; ensure DNS and HTTPS complete. Update Supabase redirect URLs to match.
 4. **Build**: confirm `npm run build` succeeds locally (Vercel runs the same command for Next.js). This repo declares **`engines.node` ≥ 20.9** in [`package.json`](../package.json) so Vercel uses a compatible Node runtime.
@@ -61,11 +65,12 @@ Run **Supabase migrations first** whenever migration files changed, then deploy 
 
 ## 3. Scheduled crons
 
-[`vercel.json`](../vercel.json) schedules `GET /api/cron/injury-weather-refresh` and `GET /api/cron/company-billing-invoices` daily.
+[`vercel.json`](../vercel.json) schedules `GET /api/cron/injury-weather-refresh`, `GET /api/cron/company-billing-invoices`, and `GET /api/cron/risk-memory-rollup` daily.
 
 1. Set **`CRON_SECRET`** in Vercel **Production** (and Preview if crons run there).
 2. Vercel injects `Authorization: Bearer <CRON_SECRET>` on cron invocations when `CRON_SECRET` is defined. The handler also accepts `?secret=<CRON_SECRET>` for **manual** runs (do not share or log URLs containing the secret).
 3. If cron returns **401**: confirm `CRON_SECRET` has no accidental newlines; redeploy after changing env vars. See [lib/cronAuth.ts](../lib/cronAuth.ts).
+4. **Risk Memory rollup** needs **`SUPABASE_SERVICE_ROLE_KEY`** on Vercel (same as other admin jobs). It upserts `company_risk_memory_snapshots` for each company (skips CSEP-only plans). Optional second scheduled job or manual URL: same path with `&recommendations=1` to append deduped rule-based rows to `company_risk_ai_recommendations`. Optional env: **`RISK_MEMORY_CRON_MAX_COMPANIES`** (default 300, cap 2000).
 
 ## 4. GitHub Actions — Supabase migrations
 

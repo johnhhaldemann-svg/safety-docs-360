@@ -226,7 +226,7 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
 
   async function patchActivityStatus(id: string, status: "active" | "paused" | "completed") {
     const headers = await getAuthHeaders();
-    const response = await fetch("/api/company/dap-activities", {
+    const response = await fetch("/api/company/jsa-activities", {
       method: "PATCH",
       headers,
       body: JSON.stringify({ id, status }),
@@ -327,7 +327,7 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
         <div className="space-y-6">
           <SectionCard
             title="Today Activity Cards"
-            description="Auto-created from submitted DAP activities with direct observation creation."
+            description="Auto-created from submitted JSA activities with direct observation creation."
           >
             {activityCards.length < 1 ? (
               <InlineMessage tone="neutral">No activity cards for today yet.</InlineMessage>
@@ -421,7 +421,7 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
                       <td className="px-2 py-2">{new Date(row.created_at).toLocaleTimeString()}</td>
                       <td className="px-2 py-2">{area}</td>
                       <td className="px-2 py-2">{trade}</td>
-                      <td className="px-2 py-2">{row.dap_activity_id ? `DAP ${row.dap_activity_id.slice(0, 8)}` : "Ad-hoc"}</td>
+                      <td className="px-2 py-2">{row.dap_activity_id ? `JSA ${row.dap_activity_id.slice(0, 8)}` : "Ad-hoc"}</td>
                       <td className="px-2 py-2">{row.category}</td>
                       <td className="px-2 py-2">{row.category === "near_miss" ? "near_miss" : "negative"}</td>
                       <td className="px-2 py-2">{row.description ?? "-"}</td>
@@ -479,13 +479,13 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
                             className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-2 py-2 text-[11px] font-semibold text-slate-200"
                             onClick={() =>
                               void runAction(async () => {
-                                const dapActivityId = window.prompt("DAP activity id");
+                                const dapActivityId = window.prompt("JSA activity id");
                                 if (!dapActivityId) return;
                                 await patchObservation(row.id, { dapActivityId });
                               })
-                            }
-                          >
-                            Link DAP activity
+                          }
+                        >
+                            Link JSA activity
                           </button>
                         </div>
                       </td>

@@ -1,4 +1,5 @@
 import type { InjuryWeatherDashboardData, InjuryWeatherWebResearchSupplement } from "@/lib/injuryWeather/types";
+import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
 
 const SPARSE_SIGNAL_MAX = 5;
 
@@ -138,10 +139,12 @@ export async function injuryWeatherWebResearchSupplement(
     "If you cannot verify a fact from search results, omit it.",
   ].join("\n");
 
-  const model = process.env.INJURY_WEATHER_WEB_RESEARCH_MODEL?.trim() || "gpt-4o";
+  const model = resolveOpenAiCompatibleModelId(
+    process.env.INJURY_WEATHER_WEB_RESEARCH_MODEL?.trim() || "gpt-4o"
+  );
 
   try {
-    const res = await fetch("https://api.openai.com/v1/responses", {
+    const res = await fetch(`${getOpenAiApiBaseUrl()}/responses`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,

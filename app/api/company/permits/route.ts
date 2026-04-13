@@ -3,6 +3,7 @@ import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
+import { buildPermitFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
 
 export const runtime = "nodejs";
 
@@ -93,12 +94,17 @@ export async function GET(request: Request) {
   });
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status")?.trim().toLowerCase();
+  const requestedJobsiteId = searchParams.get("jobsiteId")?.trim() ?? "";
+  if (requestedJobsiteId && !isJobsiteAllowed(requestedJobsiteId, jobsiteScope)) {
+    return NextResponse.json({ permits: [] });
+  }
   let query = auth.supabase
     .from("compat_company_permits")
     .select("*")
     .eq("company_id", companyScope.companyId)
     .order("updated_at", { ascending: false });
   if (status) query = query.eq("status", status);
+  if (requestedJobsiteId) query = query.eq("jobsite_id", requestedJobsiteId);
   if (jobsiteScope.restricted) {
     if (jobsiteScope.jobsiteIds.length < 1) return NextResponse.json({ permits: [] });
     query = query.in("jobsite_id", jobsiteScope.jobsiteIds);
@@ -111,6 +117,7 @@ export async function GET(request: Request) {
       .eq("company_id", companyScope.companyId)
       .order("updated_at", { ascending: false });
     if (status) fallbackQuery = fallbackQuery.eq("status", status);
+    if (requestedJobsiteId) fallbackQuery = fallbackQuery.eq("jobsite_id", requestedJobsiteId);
     if (jobsiteScope.restricted) {
       if (jobsiteScope.jobsiteIds.length < 1) return NextResponse.json({ permits: [] });
       fallbackQuery = fallbackQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
@@ -133,9 +140,32 @@ export async function POST(request: Request) {
   const csepBlockPost = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
   if (csepBlockPost) return csepBlockPost;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-  const title = String(body?.title ?? "").trim();
-  const permitType = String(body?.permitType ?? "").trim();
-  if (!title || !permitType) return NextResponse.json({ error: "Title and permitType are required." }, { status: 400 });
+  const linkedActivityId = String(body?.jsaActivityId ?? body?.dapActivityId ?? "").trim();
+  if (!linkedActivityId) {
+    return NextResponse.json({ error: "A linked JSA step is required to create a permit." }, { status: 400 });
+  }
+  const linkedActivity = await auth.supabase
+    .from("company_jsa_activities")
+    .select("id, jobsite_id, jsa_id, activity_name, permit_required, permit_type, planned_risk_level")
+    .eq("company_id", companyScope.companyId)
+    .eq("id", linkedActivityId)
+    .maybeSingle();
+  if (linkedActivity.error) {
+    return NextResponse.json({ error: linkedActivity.error.message || "Failed to load linked JSA step." }, { status: 500 });
+  }
+  if (!linkedActivity.data) {
+    return NextResponse.json({ error: "Linked JSA step not found." }, { status: 404 });
+  }
+  const title = String(body?.title ?? "").trim() || `${linkedActivity.data.activity_name} permit`;
+  const permitType =
+    String(linkedActivity.data.permit_type ?? "").trim() ||
+    String(body?.permitType ?? "").trim();
+  if (!title || !permitType) {
+    return NextResponse.json(
+      { error: "The linked JSA step must provide a permit type or the permit type must be set." },
+      { status: 400 }
+    );
+  }
   const severity = String(body?.severity ?? "").trim().toLowerCase() || "medium";
   const sifFlag = Boolean(body?.sifFlag);
   const automated = applyPermitAutomation({
@@ -152,13 +182,19 @@ export async function POST(request: Request) {
   if (stopWorkStatus !== "normal" && !stopWorkReason) {
     return NextResponse.json({ error: "Stop work reason is required when stop work is requested or active." }, { status: 400 });
   }
-  const jobsiteId = String(body?.jobsiteId ?? "").trim() || null;
+  const jobsiteId = String(body?.jobsiteId ?? "").trim() || linkedActivity.data.jobsite_id || null;
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
     userId: auth.user.id,
     companyId: companyScope.companyId,
     role: auth.role,
   });
+  if (linkedActivity.data.jobsite_id && jobsiteId && jobsiteId !== linkedActivity.data.jobsite_id) {
+    return NextResponse.json(
+      { error: "The permit jobsite must match the linked JSA step jobsite." },
+      { status: 400 }
+    );
+  }
   if (!isJobsiteAllowed(jobsiteId, jobsiteScope)) {
     return NextResponse.json(
       { error: "You can only create permits for assigned jobsites." },
@@ -182,7 +218,7 @@ export async function POST(request: Request) {
     stop_work_reason: stopWorkReason,
     escalated_at: escalationLevel !== "none" ? new Date().toISOString() : null,
     stop_work_at: stopWorkStatus === "stop_work_active" ? new Date().toISOString() : null,
-    dap_activity_id: String(body?.dapActivityId ?? "").trim() || null,
+    dap_activity_id: linkedActivity.data.id,
     observation_id: String(body?.observationId ?? "").trim() || null,
     created_by: auth.user.id,
     updated_by: auth.user.id,
@@ -202,6 +238,12 @@ export async function POST(request: Request) {
     },
     created_by: auth.user.id,
   });
+  const permitFacet = buildPermitFacetRow(
+    companyScope.companyId,
+    result.data as Record<string, unknown>,
+    body
+  );
+  void upsertRiskMemoryFacetSafe(auth.supabase, permitFacet);
   return NextResponse.json({ success: true, permit: result.data });
 }
 
@@ -224,13 +266,31 @@ export async function PATCH(request: Request) {
   if (!existing.data) return NextResponse.json({ error: "Permit not found." }, { status: 404 });
   const targetJobsiteId =
     typeof body?.jobsiteId === "string" ? body.jobsiteId.trim() || null : existing.data.jobsite_id;
+  const linkedActivityId = typeof body?.jsaActivityId === "string"
+    ? body.jsaActivityId.trim() || null
+    : typeof body?.dapActivityId === "string"
+      ? body.dapActivityId.trim() || null
+      : null;
+  let linkedActivity: { id: string; jobsite_id: string | null; permit_type: string | null } | null = null;
+  if (linkedActivityId) {
+    const activityResult = await auth.supabase
+      .from("company_jsa_activities")
+      .select("id, jobsite_id, permit_type")
+      .eq("company_id", companyScope.companyId)
+      .eq("id", linkedActivityId)
+      .maybeSingle();
+    if (activityResult.error) return NextResponse.json({ error: activityResult.error.message || "Failed to load linked JSA step." }, { status: 500 });
+    linkedActivity = activityResult.data ?? null;
+    if (!linkedActivity) return NextResponse.json({ error: "Linked JSA step not found." }, { status: 404 });
+  }
+  const resolvedJobsiteId = linkedActivity?.jobsite_id ?? targetJobsiteId;
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
     userId: auth.user.id,
     companyId: companyScope.companyId,
     role: auth.role,
   });
-  if (!isJobsiteAllowed(targetJobsiteId, jobsiteScope)) {
+  if (!isJobsiteAllowed(resolvedJobsiteId, jobsiteScope)) {
     return NextResponse.json(
       { error: "You can only update permits for assigned jobsites." },
       { status: 403 }
@@ -267,16 +327,16 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Stop work reason is required when activating stop work." }, { status: 400 });
   }
   const result = await auth.supabase.from("company_permits").update({
-    ...(typeof body?.permitType === "string" ? { permit_type: body.permitType.trim() } : {}),
+    ...(linkedActivity?.permit_type ? { permit_type: linkedActivity.permit_type.trim() } : typeof body?.permitType === "string" ? { permit_type: body.permitType.trim() } : {}),
     ...(typeof body?.title === "string" ? { title: body.title.trim() } : {}),
     ...(nextStatus ? { status: nextStatus } : {}),
     ...(typeof body?.severity === "string" ? { severity } : {}),
     ...(typeof body?.category === "string" ? { category: body.category.trim().toLowerCase() } : {}),
     ...(typeof body?.ownerUserId === "string" ? { owner_user_id: body.ownerUserId.trim() || null } : {}),
-    ...(typeof body?.jobsiteId === "string" ? { jobsite_id: body.jobsiteId.trim() || null } : {}),
+    ...(linkedActivity ? { jobsite_id: linkedActivity.jobsite_id } : typeof body?.jobsiteId === "string" ? { jobsite_id: body.jobsiteId.trim() || null } : {}),
     ...(typeof body?.dueAt === "string" ? { due_at: body.dueAt.trim() || null } : {}),
-    ...(typeof body?.dapActivityId === "string"
-      ? { dap_activity_id: body.dapActivityId.trim() || null }
+    ...(linkedActivityId
+      ? { dap_activity_id: linkedActivityId }
       : {}),
     ...(typeof body?.observationId === "string"
       ? { observation_id: body.observationId.trim() || null }
@@ -312,5 +372,11 @@ export async function PATCH(request: Request) {
     },
     created_by: auth.user.id,
   });
+  const permitFacetPatch = buildPermitFacetRow(
+    companyScope.companyId,
+    result.data as Record<string, unknown>,
+    body
+  );
+  void upsertRiskMemoryFacetSafe(auth.supabase, permitFacetPatch);
   return NextResponse.json({ success: true, permit: result.data });
 }

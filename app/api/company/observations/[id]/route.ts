@@ -4,6 +4,7 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { canManageIncidents, canManageObservations } from "@/lib/companyPermissions";
+import { buildCorrectiveActionFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
 
 export const runtime = "nodejs";
 
@@ -140,6 +141,12 @@ export async function PATCH(
   if (result.error) {
     return NextResponse.json({ error: result.error.message || "Failed to update observation." }, { status: 500 });
   }
+  const facetRow = buildCorrectiveActionFacetRow(
+    scoped.companyId!,
+    result.data as Record<string, unknown>,
+    body
+  );
+  void upsertRiskMemoryFacetSafe(scoped.supabase, facetRow);
   if (body?.convertToIncident === true) {
     if (!canManageIncidents(scoped.role)) {
       return NextResponse.json({ error: "You do not have permission to create incidents." }, { status: 403 });

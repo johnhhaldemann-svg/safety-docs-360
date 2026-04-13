@@ -35,6 +35,12 @@ import {
   type InjuryTimeOfDay,
 } from "@/lib/incidents/injuryTimePatterns";
 import { INJURY_TYPES, INJURY_TYPE_LABELS, type InjuryType } from "@/lib/incidents/injuryType";
+import { RiskMemoryFormFields } from "@/components/risk-memory/RiskMemoryFormFields";
+import {
+  EMPTY_RISK_MEMORY_FORM,
+  buildRiskMemoryApiObject,
+  type RiskMemoryFormInput,
+} from "@/lib/riskMemory/form";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -116,6 +122,7 @@ const EMPTY_FORM = {
   occurredAt: "",
   observationId: "",
   dapActivityId: "",
+  riskMemory: { ...EMPTY_RISK_MEMORY_FORM } as RiskMemoryFormInput,
 };
 
 async function getAuthHeaders() {
@@ -139,6 +146,8 @@ export default function IncidentsPage() {
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
   const [memoryLessonNudge, setMemoryLessonNudge] = useState(false);
+  const [contractors, setContractors] = useState<Array<{ id: string; name: string }>>([]);
+  const [crews, setCrews] = useState<Array<{ id: string; name: string }>>([]);
 
   async function loadIncidents() {
     setLoading(true);
@@ -156,6 +165,24 @@ export default function IncidentsPage() {
     }
     setLoading(false);
   }
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const [cRes, crRes] = await Promise.all([
+          fetch("/api/company/contractors", { headers }),
+          fetch("/api/company/crews", { headers }),
+        ]);
+        const cData = (await cRes.json().catch(() => null)) as { contractors?: Array<{ id: string; name: string }> } | null;
+        const crData = (await crRes.json().catch(() => null)) as { crews?: Array<{ id: string; name: string }> } | null;
+        if (cRes.ok && cData?.contractors) setContractors(cData.contractors);
+        if (crRes.ok && crData?.crews) setCrews(crData.crews);
+      } catch {
+        /* optional directory */
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     const observationId = searchParams.get("observationId")?.trim() ?? "";
@@ -227,6 +254,10 @@ export default function IncidentsPage() {
           occurredAt: form.occurredAt.trim() ? new Date(form.occurredAt).toISOString() : null,
           observationId: form.observationId || null,
           dapActivityId: form.dapActivityId || null,
+          ...((): Record<string, unknown> => {
+            const rm = buildRiskMemoryApiObject(form.riskMemory);
+            return rm ? { riskMemory: rm } : {};
+          })(),
         }),
       });
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -267,7 +298,7 @@ export default function IncidentsPage() {
       <PageHero
         eyebrow="Safety Modules"
         title="Incidents"
-        description="Track incidents and near misses with SIF, escalation, and stop-work controls."
+        description="Track incidents and near misses with SIF, escalation, stop-work controls, and optional Risk Memory Engine facets for learning trends."
         actions={
           <Link href="/dashboard" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300">
             Back to Dashboard
@@ -488,9 +519,18 @@ export default function IncidentsPage() {
           <input
             value={form.dapActivityId}
             onChange={(event) => setForm((prev) => ({ ...prev, dapActivityId: event.target.value }))}
-            placeholder="DAP Activity ID (optional)"
+            placeholder="JSA Activity ID (optional)"
             className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
           />
+          <div className="col-span-full mt-2 rounded-2xl border border-slate-700/60 bg-slate-950/40 p-4">
+            <RiskMemoryFormFields
+              value={form.riskMemory}
+              onChange={(riskMemory) => setForm((prev) => ({ ...prev, riskMemory }))}
+              showOutcomeFields
+              contractors={contractors}
+              crews={crews}
+            />
+          </div>
         </div>
         <div className="mt-4">
           <button

@@ -100,6 +100,38 @@ type AnalyticsSummary = {
     observationToInjuryConversionRate: number | null;
     injuryPredictionModelUrl: string;
   };
+  riskMemory?: {
+    engine: string;
+    windowDays: number;
+    facetCount: number;
+    topScopes: Array<{ code: string | null; count: number }>;
+    topHazards: Array<{ code: string | null; count: number }>;
+    openCorrectiveFacetHints: { openStyleStatuses: number };
+    aggregated: {
+      score: number;
+      band: string;
+      sampleSize: number;
+      baselineContribution: number;
+    };
+    baselineHints: Array<{
+      scope_code: string;
+      hazard_code: string;
+      signals: Record<string, unknown>;
+    }>;
+    aggregatedWithBaseline: { score: number; band: string };
+    topLocationGrids?: Array<{ label: string; count: number }>;
+    topLocationAreas?: Array<{ label: string; count: number }>;
+    /** Heuristic trust in rollup as a forecast signal (not medical prediction). */
+    derivedRollupConfidence?: number;
+  } | null;
+  riskMemoryRecommendations?: Array<{
+    id: string;
+    kind: string;
+    title: string;
+    body: string;
+    confidence: number;
+    created_at: string;
+  }>;
 };
 
 type LikelyInjuryInsightPayload = {
@@ -161,11 +193,11 @@ function TrendSparkline({ points }: { points: Array<{ date: string; count: numbe
 }
 
 function heatColor(t: number) {
-  if (t >= 0.75) return "bg-rose-600/90";
-  if (t >= 0.5) return "bg-orange-500/85";
-  if (t >= 0.25) return "bg-amber-400/70";
-  if (t > 0) return "bg-emerald-950/30";
-  return "bg-slate-800/60";
+  if (t >= 0.75) return "border border-[rgba(209,98,98,0.24)] bg-[rgba(255,232,232,0.96)]";
+  if (t >= 0.5) return "border border-[rgba(217,164,65,0.26)] bg-[rgba(255,242,218,0.96)]";
+  if (t >= 0.25) return "border border-[rgba(79,125,243,0.22)] bg-[rgba(232,240,255,0.98)]";
+  if (t > 0) return "border border-[rgba(46,158,91,0.22)] bg-[rgba(232,247,237,0.96)]";
+  return "border border-[rgba(198,212,236,0.85)] bg-[rgba(246,249,255,0.96)]";
 }
 
 type FocusTabId = Exclude<TabId, "overview">;
@@ -209,7 +241,7 @@ function AnalyticsFocusedTab({
       ? "Observations tagged as near misses in your selected time range."
       : tab === "hazards"
         ? "Hazard and negative observations — prioritize corrective follow-up."
-        : "Permits, JSAs (DAPs), and recorded activity in the same window as your summary.";
+        : "Permits, JSAs, and recorded activity in the same window as your summary.";
 
   const heroStat =
     tab === "near_misses"
@@ -226,8 +258,8 @@ function AnalyticsFocusedTab({
 
   return (
     <div className="space-y-6" id={`analytics-tabpanel-${tab}`} role="tabpanel">
-      <div className="rounded-2xl border border-teal-500/25 bg-gradient-to-br from-teal-950/40 to-[#0d1424] p-6">
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-300/90">{title}</p>
+      <div className="rounded-2xl border border-[rgba(79,125,243,0.24)] bg-gradient-to-br from-[rgba(79,125,243,0.12)] to-[rgba(234,241,255,0.92)] p-6">
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">{title}</p>
         <h2 className="mt-2 text-3xl font-black text-white sm:text-4xl">{loading ? "—" : heroStat}</h2>
         <p className="mt-1 text-sm text-slate-400">{heroLabel}</p>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-500">{subtitle}</p>
@@ -238,18 +270,18 @@ function AnalyticsFocusedTab({
               <p className="mt-1 text-2xl font-black text-cyan-200">{loading ? "—" : totals?.permits ?? 0}</p>
             </div>
             <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-center">
-              <p className="text-[10px] font-bold uppercase text-slate-500">JSAs / DAPs</p>
+              <p className="text-[10px] font-bold uppercase text-slate-500">JSAs / Planned activity</p>
               <p className="mt-1 text-2xl font-black text-cyan-200">{loading ? "—" : totals?.daps ?? 0}</p>
             </div>
             <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-center">
-              <p className="text-[10px] font-bold uppercase text-slate-500">DAP activities</p>
+              <p className="text-[10px] font-bold uppercase text-slate-500">JSA activities</p>
               <p className="mt-1 text-2xl font-black text-cyan-200">{loading ? "—" : totals?.dapActivities ?? 0}</p>
             </div>
           </div>
         ) : null}
         {tab === "inspections" ? (
           <p className="mt-4 text-xs text-slate-500">
-            DAP completion today:{" "}
+            JSA completion today:{" "}
             <span className="font-semibold text-slate-300">
               {loading
                 ? "—"
@@ -372,6 +404,9 @@ export default function AnalyticsPage() {
     message: string;
     tone: "error" | "warning";
   } | null>(null);
+  const [riskRecWorking, setRiskRecWorking] = useState(false);
+  const [riskSnapWorking, setRiskSnapWorking] = useState(false);
+  const [dismissingRecId, setDismissingRecId] = useState<string | null>(null);
 
   const loadSummary = useCallback(async (windowDays: number) => {
     setLoading(true);
@@ -451,6 +486,72 @@ export default function AnalyticsPage() {
     setLoading(false);
   }, []);
 
+  async function refreshRiskRecommendations(mode: "rules" | "both") {
+    setRiskRecWorking(true);
+    setMessage("");
+    setMessageTone("error");
+    try {
+      const headers = { ...(await getAuthHeaders()), "Content-Type": "application/json" };
+      const timeoutMs = mode === "both" ? 45000 : 20000;
+      const res = await fetchWithTimeoutSafe(
+        "/api/company/risk-memory/recommendations/generate",
+        { method: "POST", headers, body: JSON.stringify({ days, mode }) },
+        timeoutMs,
+        "Risk recommendations"
+      );
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(data?.error || "Could not generate recommendations.");
+      await loadSummary(days);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Recommendation refresh failed.");
+      setMessageTone("error");
+    }
+    setRiskRecWorking(false);
+  }
+
+  async function saveRiskMemorySnapshot() {
+    setRiskSnapWorking(true);
+    setMessage("");
+    setMessageTone("error");
+    try {
+      const headers = { ...(await getAuthHeaders()), "Content-Type": "application/json" };
+      const res = await fetchWithTimeoutSafe(
+        "/api/company/risk-memory/snapshot",
+        { method: "POST", headers, body: JSON.stringify({ days }) },
+        20000,
+        "Risk memory snapshot"
+      );
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(data?.error || "Could not save snapshot.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Snapshot save failed.");
+      setMessageTone("error");
+    }
+    setRiskSnapWorking(false);
+  }
+
+  async function dismissRiskRecommendation(id: string) {
+    setDismissingRecId(id);
+    setMessage("");
+    setMessageTone("error");
+    try {
+      const headers = { ...(await getAuthHeaders()), "Content-Type": "application/json" };
+      const res = await fetchWithTimeoutSafe(
+        `/api/company/risk-memory/recommendations/${encodeURIComponent(id)}`,
+        { method: "PATCH", headers, body: JSON.stringify({ dismissed: true }) },
+        15000,
+        "Dismiss recommendation"
+      );
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(data?.error || "Could not dismiss recommendation.");
+      await loadSummary(days);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Dismiss failed.");
+      setMessageTone("error");
+    }
+    setDismissingRecId(null);
+  }
+
   useEffect(() => {
     const t = window.setTimeout(() => {
       void loadSummary(days);
@@ -469,6 +570,8 @@ export default function AnalyticsPage() {
   const breakdown = summary?.observationBreakdown;
   const heatmap = summary?.riskHeatmap;
   const bands = dash?.observationPriorityBands;
+  const riskMemory = summary?.riskMemory;
+  const riskMemoryRecommendations = summary?.riskMemoryRecommendations ?? [];
 
   const totalObs = totals.correctiveActions ?? 0;
   const openIssues = dash?.totalOpenObservations ?? 0;
@@ -499,21 +602,21 @@ export default function AnalyticsPage() {
     if (tab === "near_misses") return `Near misses in view: ${breakdown?.nearMiss ?? 0}`;
     if (tab === "hazards") return `Hazard-tagged observations: ${breakdown?.hazard ?? 0}`;
     if (tab === "inspections")
-      return `Permits + DAP activities in window: ${breakdown?.inspections ?? 0} · DAPs: ${breakdown?.daps ?? 0}`;
+      return `Permits + JSA activities in window: ${breakdown?.inspections ?? 0} · JSAs: ${breakdown?.daps ?? 0}`;
     return "Workspace-wide safety observation metrics";
   }, [tab, breakdown]);
 
   const tagChip = (tag: string) => {
     const t = tag.toUpperCase();
-    if (t === "HAZARD") return "border-rose-500/40 bg-rose-500/15 text-rose-200";
-    if (t === "NEAR MISS") return "border-amber-400/40 bg-amber-400/15 text-amber-100";
-    if (t === "POSITIVE") return "border-emerald-500/40 bg-emerald-500/15 text-emerald-100";
-    return "border-sky-500/35 bg-sky-500/10 text-sky-100";
+    if (t === "HAZARD") return "border-[rgba(209,98,98,0.24)] bg-[rgba(255,238,238,0.96)] text-[#b45353]";
+    if (t === "NEAR MISS") return "border-[rgba(217,164,65,0.26)] bg-[rgba(255,246,224,0.96)] text-[#9a680a]";
+    if (t === "POSITIVE") return "border-[rgba(46,158,91,0.24)] bg-[rgba(232,247,237,0.96)] text-[#207251]";
+    return "border-[rgba(79,125,243,0.22)] bg-[rgba(232,240,255,0.98)] text-[#285ea8]";
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] rounded-[1.5rem] border border-cyan-500/10 bg-[#070b12] text-slate-100 shadow-[0_0_0_1px_rgba(34,211,238,0.04)]">
-      <div className="border-b border-white/6 bg-[#0a1018]/95 px-5 py-6 sm:px-8">
+    <div className="analytics-workspace-light min-h-[calc(100vh-4rem)] rounded-[1.5rem] border border-[rgba(79,125,243,0.18)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(237,244,255,0.96)_100%)] text-[var(--app-text)] shadow-[0_20px_48px_rgba(79,125,243,0.12)]">
+      <div className="border-b border-[rgba(198,212,236,0.85)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.96)_100%)] px-5 py-6 sm:px-8">
         <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-cyan-400/90">
           Safety observation hub
         </p>
@@ -583,7 +686,7 @@ export default function AnalyticsPage() {
               type="button"
               onClick={() => void loadSummary(days)}
               disabled={loading}
-              className="rounded-full bg-cyan-400 px-4 py-2 text-xs font-black uppercase tracking-wide text-white shadow-[0_0_24px_rgba(34,211,238,0.25)] transition hover:bg-cyan-300 disabled:opacity-50"
+              className="rounded-full bg-[linear-gradient(135deg,#4f7df3_0%,#5b92ff_100%)] px-4 py-2 text-xs font-black uppercase tracking-wide text-white shadow-[0_16px_28px_rgba(79,125,243,0.24)] transition hover:brightness-105 disabled:opacity-50"
             >
               {loading ? "Refreshing…" : "Refresh view"}
             </button>
@@ -607,11 +710,11 @@ export default function AnalyticsPage() {
         ) : null}
 
         {!loading && injuryLikelihood ? (
-          <div className="rounded-xl border border-teal-500/40 bg-gradient-to-br from-teal-950/55 via-[#0a1218] to-slate-950/90 px-5 py-4 text-teal-50 shadow-[0_0_40px_rgba(20,184,166,0.12)]">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-300/95">
+          <div className="rounded-xl border border-[rgba(79,125,243,0.3)] bg-gradient-to-br from-[rgba(79,125,243,0.12)] via-white to-[rgba(234,241,255,0.94)] px-5 py-4 text-[var(--app-text-strong)] shadow-[0_0_40px_rgba(79,125,243,0.12)]">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">
               Predicted likely injury
             </p>
-            <p className="mt-1 text-[11px] leading-snug text-teal-200/80">
+            <p className="mt-1 text-[11px] leading-snug text-[var(--app-text)]">
               Blended model using incidents, SOR observations, and corrective actions in your selected window (
               {days} days). Same logic as Injury Weather; not a calibrated medical probability.
             </p>
@@ -621,7 +724,7 @@ export default function AnalyticsPage() {
               {injuryLikelihood.headline}
             </p>
             {injuryLikelihood.secondaryLine ? (
-              <p className="mt-2 text-sm font-medium text-teal-100/90">{injuryLikelihood.secondaryLine}</p>
+              <p className="mt-2 text-sm font-medium text-[var(--app-text-strong)]">{injuryLikelihood.secondaryLine}</p>
             ) : null}
             <p className="mt-3 text-xs leading-relaxed text-slate-400">{injuryLikelihood.detailNote}</p>
           </div>
@@ -832,6 +935,194 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
+        <div
+          id="safety-risk-memory"
+          className="scroll-mt-8 rounded-2xl border border-violet-500/25 bg-violet-950/20 p-5"
+        >
+            <p className="text-xs font-semibold uppercase tracking-wider text-violet-200/90">
+              Safety360 Risk Memory Engine
+            </p>
+            {riskMemory ? (
+              <>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Structured facets from incidents, observations, and JSAs (last {riskMemory.windowDays} days).
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <div className="rounded-xl border border-white/10 bg-[#080d18] p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Facet rows</p>
+                    <p className="mt-2 text-2xl font-black text-white">{riskMemory.facetCount}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-[#080d18] p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Score (facets only)</p>
+                    <p className="mt-2 text-2xl font-black text-white">{riskMemory.aggregated.score}</p>
+                  </div>
+                  <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/20 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-fuchsia-200/90">
+                      + baseline adjust
+                    </p>
+                    <p className="mt-2 text-2xl font-black text-white">
+                      {riskMemory.aggregatedWithBaseline?.score ?? riskMemory.aggregated.score}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-[#080d18] p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Band</p>
+                    <p className="mt-2 text-xl font-black capitalize text-violet-100">
+                      {riskMemory.aggregatedWithBaseline?.band ?? riskMemory.aggregated.band}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-[#080d18] p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Open CA hints</p>
+                    <p className="mt-2 text-2xl font-black text-white">
+                      {riskMemory.openCorrectiveFacetHints.openStyleStatuses}
+                    </p>
+                  </div>
+                </div>
+                {typeof riskMemory.derivedRollupConfidence === "number" ? (
+                  <div className="mt-3 rounded-xl border border-white/8 bg-[#080d18] px-3 py-2 text-xs text-slate-400">
+                    <span className="font-semibold text-slate-300">Rollup confidence (heuristic): </span>
+                    {(riskMemory.derivedRollupConfidence * 100).toFixed(0)}% — reflects score strength and
+                    how many facet rows sit in this window (not a medical forecast).
+                  </div>
+                ) : null}
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-500">Top scopes</p>
+                    <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                      {riskMemory.topScopes.length === 0 ? (
+                        <li className="text-slate-500">No scope tags yet</li>
+                      ) : (
+                        riskMemory.topScopes.map((row) => (
+                          <li key={`${row.code ?? "none"}-${row.count}`}>
+                            {row.code ? formatCategory(row.code) : "Unspecified"} · {row.count}
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-500">Top hazards (exposure codes)</p>
+                    <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                      {riskMemory.topHazards.length === 0 ? (
+                        <li className="text-slate-500">No hazard tags yet</li>
+                      ) : (
+                        riskMemory.topHazards.map((row) => (
+                          <li key={`${row.code ?? "none"}-${row.count}`}>
+                            {row.code ? formatCategory(row.code) : "Unspecified"} · {row.count}
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
+                </div>
+                {(riskMemory.topLocationGrids?.length ?? 0) > 0 || (riskMemory.topLocationAreas?.length ?? 0) > 0 ? (
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-slate-500">Location grid / map refs</p>
+                      <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                        {(riskMemory.topLocationGrids?.length ?? 0) === 0 ? (
+                          <li className="text-slate-500">No grid tags yet</li>
+                        ) : (
+                          riskMemory.topLocationGrids!.map((row) => (
+                            <li key={`${row.label}-${row.count}`}>
+                              {row.label} · {row.count}
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-slate-500">Areas / zones</p>
+                      <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                        {(riskMemory.topLocationAreas?.length ?? 0) === 0 ? (
+                          <li className="text-slate-500">No area labels yet</li>
+                        ) : (
+                          riskMemory.topLocationAreas!.map((row) => (
+                            <li key={`${row.label}-${row.count}`}>
+                              {row.label} · {row.count}
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+                ) : null}
+                {riskMemory.baselineHints && riskMemory.baselineHints.length > 0 ? (
+                  <div className="mt-4 rounded-xl border border-white/8 bg-[#080d18] px-3 py-2 text-xs text-slate-400">
+                    <span className="font-semibold text-slate-300">Baseline patterns matched: </span>
+                    {riskMemory.baselineHints.map((h) => `${h.scope_code}+${h.hazard_code}`).join(" · ")}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="mt-1 text-[11px] text-slate-500">
+                {riskMemoryRecommendations.length > 0
+                  ? "Facet rollups are not available yet. Stored recommendations from the workspace still appear below."
+                  : "Structured facets from incidents, observations, and JSAs. Complete optional Risk Memory fields on reports to populate scores; managers can refresh rule-based recommendations anytime."}
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={riskRecWorking || loading}
+                onClick={() => void refreshRiskRecommendations("rules")}
+                className="rounded-lg border border-violet-400/35 bg-violet-500/15 px-3 py-2 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/25 disabled:opacity-50"
+              >
+                {riskRecWorking ? "Generating…" : "Rule-based recommendations"}
+              </button>
+              <button
+                type="button"
+                disabled={riskRecWorking || loading}
+                onClick={() => void refreshRiskRecommendations("both")}
+                title="Uses OpenAI when OPENAI_API_KEY is set; merges with rule-based and dedupes titles."
+                className="rounded-lg border border-sky-500/35 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/20 disabled:opacity-50"
+              >
+                {riskRecWorking ? "Generating…" : "AI + rules"}
+              </button>
+              <button
+                type="button"
+                disabled={riskSnapWorking || loading}
+                onClick={() => void saveRiskMemorySnapshot()}
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10 disabled:opacity-50"
+              >
+                {riskSnapWorking ? "Saving…" : "Save today’s rollup snapshot"}
+              </button>
+              <Link
+                href="/settings/risk-memory"
+                className="inline-flex items-center rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/5"
+              >
+                Manage contractors & crews
+              </Link>
+            </div>
+          {riskMemoryRecommendations.length > 0 ? (
+            <div className="mt-4 space-y-3 rounded-xl border border-white/8 bg-[#080d18] p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Stored recommendations
+              </p>
+              <ul className="space-y-3 text-sm text-slate-300">
+                {riskMemoryRecommendations.map((rec) => (
+                  <li key={rec.id} className="border-b border-white/5 pb-3 last:border-0 last:pb-0">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="font-semibold text-slate-100">{rec.title}</p>
+                      <button
+                        type="button"
+                        disabled={dismissingRecId === rec.id || riskRecWorking || loading}
+                        onClick={() => void dismissRiskRecommendation(rec.id)}
+                        className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500 hover:text-rose-300 disabled:opacity-40"
+                      >
+                        {dismissingRecId === rec.id ? "…" : "Dismiss"}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-400">{rec.body}</p>
+                    <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-600">
+                      {rec.kind.replace(/_/g, " ")} · confidence {(rec.confidence * 100).toFixed(0)}%
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5">
             <div className="flex items-start justify-between gap-4">
@@ -1014,7 +1305,7 @@ export default function AnalyticsPage() {
                   </span>
                 </li>
                 <li className="flex justify-between py-2 text-slate-400">
-                  <span>DAP completion today</span>
+                  <span>JSA completion today</span>
                   <span className="font-bold text-white">
                     {loading
                       ? "—"
@@ -1080,7 +1371,7 @@ export default function AnalyticsPage() {
           />
         )}
 
-        <div className="flex flex-col gap-4 rounded-2xl border border-white/8 bg-[#0a0f18] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 rounded-2xl border border-[rgba(198,212,236,0.9)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(240,246,255,0.94)_100%)] px-5 py-4 shadow-[0_12px_28px_rgba(79,125,243,0.08)] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-3 text-slate-500">
             <Link
               href="/dashboard"
@@ -1098,13 +1389,13 @@ export default function AnalyticsPage() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/dashboard"
-              className="rounded-xl border border-white/15 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-200 transition hover:bg-white/5"
+              className="rounded-xl border border-[rgba(198,212,236,0.9)] px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)] transition hover:bg-[rgba(79,125,243,0.08)]"
             >
               Open dashboard
             </Link>
             <Link
               href="/reports"
-              className="rounded-xl bg-cyan-400 px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white shadow-[0_0_20px_rgba(34,211,238,0.2)] transition hover:bg-cyan-300"
+              className="rounded-xl bg-[linear-gradient(135deg,#4f7df3_0%,#5b92ff_100%)] px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white shadow-[0_16px_28px_rgba(79,125,243,0.22)] transition hover:brightness-105"
             >
               Open reports
             </Link>
@@ -1112,7 +1403,7 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <div className="rounded-b-[1.5rem] border-t border-[#0d1830] bg-[#0a1628] px-5 py-4 text-center text-sm font-semibold text-slate-300">
+      <div className="rounded-b-[1.5rem] border-t border-[rgba(198,212,236,0.9)] bg-[linear-gradient(180deg,_rgba(233,241,255,0.98)_0%,_rgba(223,235,255,0.96)_100%)] px-5 py-4 text-center text-sm font-semibold text-[var(--app-text-strong)]">
         Systems live. Secure. Document. Stay Safe.
       </div>
     </div>

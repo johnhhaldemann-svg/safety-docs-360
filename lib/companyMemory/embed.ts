@@ -1,3 +1,5 @@
+import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
+
 /**
  * OpenAI text embeddings for company memory semantic search (1536-dim).
  */
@@ -12,14 +14,14 @@ export async function createEmbedding(text: string): Promise<number[]> {
     throw new Error("Text to embed is empty.");
   }
 
-  const res = await fetch("https://api.openai.com/v1/embeddings", {
+  const res = await fetch(`${getOpenAiApiBaseUrl()}/embeddings`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "text-embedding-3-small",
+      model: resolveOpenAiCompatibleModelId("text-embedding-3-small"),
       input,
     }),
   });

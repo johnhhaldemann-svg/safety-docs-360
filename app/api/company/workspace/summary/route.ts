@@ -10,6 +10,11 @@ function isMissingCompatJobsitesView(message?: string | null) {
   return (message ?? "").toLowerCase().includes("compat_company_jobsites");
 }
 
+function isMissingJsaRelationError(message?: string | null) {
+  const lower = (message ?? "").toLowerCase();
+  return lower.includes("company_daps") || lower.includes("company_jsas") || lower.includes("schema cache");
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: [
@@ -63,7 +68,7 @@ export async function GET(request: Request) {
         .order("updated_at", { ascending: false })
         .limit(500),
       auth.supabase
-        .from("company_daps")
+        .from("company_jsas")
         .select("id, jobsite_id, status")
         .eq("company_id", companyScope.companyId)
         .order("updated_at", { ascending: false })
@@ -97,12 +102,20 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-  if (observationsRaw.error || dapsRaw.error || permitsRaw.error || incidentsRaw.error || reportsRaw.error) {
+  const dapsMissing = dapsRaw.error && isMissingJsaRelationError(dapsRaw.error.message);
+
+  if (
+    observationsRaw.error ||
+    (!dapsMissing && dapsRaw.error) ||
+    permitsRaw.error ||
+    incidentsRaw.error ||
+    reportsRaw.error
+  ) {
     return NextResponse.json(
       {
         error:
           observationsRaw.error?.message ||
-          dapsRaw.error?.message ||
+          (!dapsMissing ? dapsRaw.error?.message : null) ||
           permitsRaw.error?.message ||
           incidentsRaw.error?.message ||
           reportsRaw.error?.message ||
@@ -122,7 +135,8 @@ export async function GET(request: Request) {
   const observations = ((observationsRaw.data as Array<Record<string, unknown>> | null) ?? []).filter((row) =>
     canAccessJobsite(typeof row.jobsite_id === "string" ? row.jobsite_id : null)
   );
-  const daps = ((dapsRaw.data as Array<Record<string, unknown>> | null) ?? []).filter((row) =>
+  const dapsSource = dapsMissing ? [] : ((dapsRaw.data as Array<Record<string, unknown>> | null) ?? []);
+  const daps = dapsSource.filter((row) =>
     canAccessJobsite(typeof row.jobsite_id === "string" ? row.jobsite_id : null)
   );
   const permits = ((permitsRaw.data as Array<Record<string, unknown>> | null) ?? []).filter((row) =>

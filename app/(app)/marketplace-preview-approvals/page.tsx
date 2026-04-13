@@ -199,7 +199,7 @@ export default function MarketplacePreviewApprovalsPage() {
           approvedByYou.length > 0 ? (
             <div className="space-y-4">
               <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/30 px-5 py-6 text-sm text-emerald-100/95">
-                <p className="text-base font-semibold text-white">You&apos;re all caught up</p>
+              <p className="text-base font-semibold text-white">{"You're all caught up"}</p>
                 <p className="mt-2 text-slate-300">
                   Approving a preview removes it from this list on purpose — that preview is now allowed for buyers in the{" "}
                   <Link

@@ -324,10 +324,10 @@ export function JsaWorkspace() {
     setMessage("");
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch("/api/company/daps", { headers });
-      const data = (await response.json().catch(() => null)) as { daps?: JsaRecordRow[]; error?: string } | null;
+      const response = await fetch("/api/company/jsas", { headers });
+      const data = (await response.json().catch(() => null)) as { jsas?: JsaRecordRow[]; error?: string } | null;
       if (!response.ok) throw new Error(data?.error || "Failed to load JSAs.");
-      const list = data?.daps ?? [];
+      const list = data?.jsas ?? [];
       setRecords(list);
       setSelectedId((prev) => {
         if (prev && list.some((r) => r.id === prev)) return prev;
@@ -340,20 +340,20 @@ export function JsaWorkspace() {
     setLoading(false);
   }, []);
 
-  const loadActivitiesForDap = useCallback(async (dapId: string) => {
-    if (!dapId) {
+  const loadActivitiesForDap = useCallback(async (jsaId: string) => {
+    if (!jsaId) {
       setSteps([]);
       return;
     }
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/company/dap-activities?dapId=${encodeURIComponent(dapId)}`, {
+      const res = await fetch(`/api/company/jsa-activities?jsaId=${encodeURIComponent(jsaId)}`, {
         headers,
       });
       const data = (await res.json().catch(() => null)) as { activities?: ActivityRow[] } | null;
       const acts = res.ok ? data?.activities ?? [] : [];
       const allOverlays = readAllOverlays();
-      const ov = mergeOverlay(allOverlays[dapId]);
+      const ov = mergeOverlay(allOverlays[jsaId]);
       setOverlay(ov);
       setSteps(
         acts.map((a) => activityToStep(a, ov.ppeByStep[a.id] ?? []))
@@ -499,9 +499,18 @@ export function JsaWorkspace() {
     };
   }, [steps, jobSiteName]);
 
+  const activeJsaHint = selectedId
+    ? null
+    : jobSiteName.trim() || newTitle.trim() || selectedJobsiteId.trim() || newJobsiteId.trim()
+      ? "No active JSA is selected. Save draft or Submit JSA will create one from the current form."
+      : "No active JSA is selected yet. Enter a title or choose a jobsite, then save a draft to begin.";
+
   async function createJsa() {
-    const site = newJobsiteId ? jobsites.find((j) => j.id === newJobsiteId) : null;
-    const title = newTitle.trim() || site?.name?.trim() || "";
+    const site =
+      (newJobsiteId ? jobsites.find((j) => j.id === newJobsiteId) : null) ??
+      (selectedJobsiteId ? jobsites.find((j) => j.id === selectedJobsiteId) : null);
+    const title = newTitle.trim() || jobSiteName.trim() || site?.name?.trim() || "";
+    const jobsiteId = newJobsiteId.trim() || selectedJobsiteId.trim() || null;
     if (!title) {
       setMessage("Select a jobsite from the list or enter a title next to New JSA, then try again.");
       return;
@@ -510,22 +519,22 @@ export function JsaWorkspace() {
     setMessage("");
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch("/api/company/daps", {
+      const response = await fetch("/api/company/jsas", {
         method: "POST",
         headers,
         body: JSON.stringify({
           title,
-          status: "draft",
+          status: "active",
           severity: "medium",
           category: "corrective_action",
-          ...(newJobsiteId.trim() ? { jobsiteId: newJobsiteId.trim() } : {}),
+          ...(jobsiteId ? { jobsiteId } : {}),
         }),
       });
       const data = (await response.json().catch(() => null)) as
-        | { error?: string; dap?: { id?: string } }
+        | { error?: string; jsa?: { id?: string } }
         | null;
       if (!response.ok) throw new Error(data?.error || "Failed to create JSA.");
-      const newId = typeof data?.dap?.id === "string" ? data.dap.id : "";
+      const newId = typeof data?.jsa?.id === "string" ? data.jsa.id : "";
       setNewTitle("");
       setNewJobsiteId("");
       await loadRecords();
@@ -538,17 +547,58 @@ export function JsaWorkspace() {
     setSaving(false);
   }
 
+  async function ensureSelectedJsa(): Promise<string | null> {
+    if (selectedId) return selectedId;
+    const site =
+      (selectedJobsiteId ? jobsites.find((j) => j.id === selectedJobsiteId) : null) ??
+      (newJobsiteId ? jobsites.find((j) => j.id === newJobsiteId) : null);
+    const title = jobSiteName.trim() || newTitle.trim() || site?.name?.trim() || "";
+    const jobsiteId = selectedJobsiteId.trim() || newJobsiteId.trim() || null;
+    if (!title) {
+      setMessage("Create a JSA first by entering a title or choosing a jobsite, then try again.");
+      setMainTab("header");
+      return null;
+    }
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch("/api/company/jsas", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          title,
+          status: "active",
+          severity: "medium",
+          category: "corrective_action",
+          ...(jobsiteId ? { jobsiteId } : {}),
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string; jsa?: { id?: string } } | null;
+      if (!response.ok) throw new Error(data?.error || "Failed to create a draft JSA.");
+      const newId = typeof data?.jsa?.id === "string" ? data.jsa.id : "";
+      await loadRecords();
+      if (newId) {
+        setSelectedId(newId);
+        return newId;
+      }
+      throw new Error("Created a draft JSA, but could not select it.");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Failed to create a draft JSA.");
+      setMainTab("header");
+      return null;
+    }
+  }
+
   async function addStep() {
     if (!selectedId) return;
     setSaving(true);
     setMessage("");
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch("/api/company/dap-activities", {
+      const response = await fetch("/api/company/jsa-activities", {
         method: "POST",
         headers,
         body: JSON.stringify({
-          dapId: selectedId,
+          jsaId: selectedId,
           activityName: `Work step ${steps.length + 1}`,
           status: "planned",
           workDate: auditDate,
@@ -592,20 +642,20 @@ export function JsaWorkspace() {
     );
   }
 
-  async function persistHeaderAndOverlay() {
-    if (!selectedId) return;
+  async function persistHeaderAndOverlay(jsaId = selectedId) {
+    if (!jsaId) return;
     const nextOverlay: JsaOverlay = {
       ...overlay,
       ppeByStep: Object.fromEntries(steps.map((s) => [s.id, s.ppeTags])),
     };
-    saveOverlayForDap(selectedId, nextOverlay);
+    saveOverlayForDap(jsaId, nextOverlay);
     setOverlay(nextOverlay);
     const headers = await getAuthHeaders();
-    await fetch("/api/company/daps", {
+    await fetch("/api/company/jsas", {
       method: "PATCH",
       headers,
       body: JSON.stringify({
-        id: selectedId,
+        id: jsaId,
         title: jobSiteName.trim() || "Untitled JSA",
         jobsiteId: selectedJobsiteId.trim(),
       }),
@@ -615,7 +665,7 @@ export function JsaWorkspace() {
   async function persistAllSteps(): Promise<void> {
     const headers = await getAuthHeaders();
     for (const s of steps) {
-      const res = await fetch("/api/company/dap-activities", {
+      const res = await fetch("/api/company/jsa-activities", {
         method: "PATCH",
         headers,
         body: JSON.stringify({
@@ -641,32 +691,36 @@ export function JsaWorkspace() {
   }
 
   async function saveDraft() {
-    if (!selectedId) return;
     setSaving(true);
     setMessage("");
     try {
-      await persistHeaderAndOverlay();
+      const targetId = (selectedId && selected) ? selectedId : await ensureSelectedJsa();
+      if (!targetId) return;
+      await persistHeaderAndOverlay(targetId);
       await persistAllSteps();
       await loadRecords();
-      await loadActivitiesForDap(selectedId);
+      await loadActivitiesForDap(targetId);
+      setMessage(`Draft saved for ${selected?.title || jobSiteName.trim() || newTitle.trim() || "your JSA"}.`);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Save failed.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function submitJsa() {
-    if (!selected) return;
     setSaving(true);
     setMessage("");
     try {
-      await persistHeaderAndOverlay();
+      const targetId = (selectedId && selected) ? selectedId : await ensureSelectedJsa();
+      if (!targetId) return;
+      await persistHeaderAndOverlay(targetId);
       await persistAllSteps();
       const headers = await getAuthHeaders();
-      const res = await fetch("/api/company/daps", {
+      const res = await fetch("/api/company/jsas", {
         method: "PATCH",
         headers,
-        body: JSON.stringify({ id: selected.id, status: "submitted" }),
+        body: JSON.stringify({ id: targetId, status: "active" }),
       });
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       if (!res.ok) throw new Error(data?.error || "Submit failed.");
@@ -674,15 +728,16 @@ export function JsaWorkspace() {
       setMemoryLessonNudge(true);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Submit failed.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function setRecordStatus(status: string) {
     if (!selected) return;
     try {
       const headers = await getAuthHeaders();
-      await fetch("/api/company/daps", {
+      await fetch("/api/company/jsas", {
         method: "PATCH",
         headers,
         body: JSON.stringify({ id: selected.id, status }),
@@ -907,16 +962,16 @@ export function JsaWorkspace() {
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
               <Link
-                href={`/field-id-exchange?dapActivityId=${encodeURIComponent(s.id)}`}
+                href={`/field-id-exchange?jsaActivityId=${encodeURIComponent(s.id)}`}
                 className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-sky-500/40"
               >
                 Log observation
               </Link>
               <Link
-                href={`/permits?dapActivityId=${encodeURIComponent(s.id)}`}
+                href={`/permits?jsaActivityId=${encodeURIComponent(s.id)}`}
                 className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-sky-500/40"
               >
-                Link permit
+                Create permit
               </Link>
             </div>
           </div>
@@ -1007,7 +1062,7 @@ export function JsaWorkspace() {
     </aside>
   );
 
-  const actionBar = selectedId ? (
+  const actionBar = (
     <div className="fixed bottom-4 left-4 right-4 z-50 rounded-2xl border border-slate-700/80 bg-slate-950/95 px-4 py-3 shadow-[0_18px_40px_rgba(0,0,0,0.32)] backdrop-blur-md print:hidden lg:bottom-5 lg:left-6 lg:right-6">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
@@ -1051,10 +1106,10 @@ export function JsaWorkspace() {
         </button>
       </div>
     </div>
-  ) : null;
+  );
 
   return (
-    <div className="jsa-workspace relative min-h-full bg-[#050a12] pb-28 text-slate-100 antialiased print:bg-white print:text-black print:pb-0">
+    <div className="jsa-workspace jsa-workspace-light relative min-h-full bg-[#eef5ff] pb-28 text-slate-100 antialiased print:bg-white print:text-black print:pb-0">
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_90%_60%_at_50%_-15%,rgba(16,185,129,0.14),transparent_55%),radial-gradient(ellipse_70%_50%_at_100%_0%,rgba(56,189,248,0.06),transparent)] print:hidden"
         aria-hidden
@@ -1120,6 +1175,11 @@ export function JsaWorkspace() {
           >
             {message}
           </div>
+        ) : null}
+        {activeJsaHint ? (
+      <div className="rounded-xl border border-sky-500/30 bg-sky-950/35 px-4 py-3 text-sm text-sky-100 print:hidden">
+        {activeJsaHint}
+      </div>
         ) : null}
 
         <div className="flex flex-col gap-4 rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4 shadow-[0_0_40px_-12px_rgba(56,189,248,0.12)] print:hidden">
@@ -1660,7 +1720,7 @@ export function JsaWorkspace() {
                       <button
                         type="button"
                         onClick={() => void saveDraft()}
-                        disabled={saving}
+                        disabled={saving || !selectedId}
                         className="inline-flex items-center gap-2 rounded-xl border border-slate-600/90 bg-slate-900 px-4 py-3 text-sm font-bold text-slate-100 hover:border-slate-500 disabled:opacity-50"
                       >
                         <Save className="h-4 w-4 text-sky-400" aria-hidden />
@@ -1679,7 +1739,7 @@ export function JsaWorkspace() {
                       <button
                         type="button"
                         onClick={() => void submitJsa()}
-                        disabled={saving}
+                        disabled={saving || !selectedId}
                         className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-5 py-3 text-sm font-black uppercase tracking-wide text-white shadow-[0_0_28px_rgba(52,211,153,0.45)] ring-1 ring-emerald-400/40 hover:from-emerald-500 hover:to-emerald-400 disabled:opacity-50"
                       >
                         <CheckCircle2 className="h-5 w-5" aria-hidden />

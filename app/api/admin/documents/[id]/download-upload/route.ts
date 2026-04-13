@@ -17,7 +17,9 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const auth = await authorizeRequest(request, { requireAdmin: true });
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_approve_documents",
+  });
 
   if ("error" in auth) {
     return auth.error;

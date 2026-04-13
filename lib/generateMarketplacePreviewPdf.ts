@@ -5,7 +5,7 @@ import {
   normalizePreviewText,
   splitPreviewLines,
 } from "@/lib/marketplacePreviewSections";
-import { configurePdfParseWorker } from "@/lib/pdfParseWorker";
+import { ensurePdfParseWorkerHandler } from "@/lib/pdfParseWorker";
 
 const MAX_BODY_CHARS = 60_000;
 const PAGE_WIDTH = 612;
@@ -30,6 +30,7 @@ async function plainTextFromBuffer(
 
   try {
     if (kind === "pdf") {
+      await ensurePdfParseWorkerHandler();
       const pdfParseModule = await import("pdf-parse");
       const PdfParseCtor =
         (pdfParseModule as { PDFParse?: new (options: { data: Buffer }) => {
@@ -45,8 +46,6 @@ async function plainTextFromBuffer(
       if (!PdfParseCtor) {
         return { ok: false, error: "PDF preview parser is unavailable." };
       }
-
-      configurePdfParseWorker(PdfParseCtor as unknown as { setWorker?: (workerSrc?: string) => string });
 
       const parser = new PdfParseCtor({ data: buffer });
       try {

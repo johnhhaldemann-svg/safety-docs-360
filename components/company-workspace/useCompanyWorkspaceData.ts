@@ -60,6 +60,8 @@ export type CompanyProfile = {
   primary_contact_name: string | null;
   primary_contact_email: string | null;
   status: string | null;
+  pilot_trial_ends_at?: string | null;
+  pilot_converted_at?: string | null;
 };
 
 export type CompanyJobsite = {
@@ -254,13 +256,13 @@ export function useCompanyWorkspaceData() {
       void (async () => {
         const [
           correctiveActionsResponse,
-          dapsResponse,
+          jsasResponse,
           permitsResponse,
           incidentsResponse,
           reportsResponse,
         ] = await Promise.all([
           fetchWithTimeout("/api/company/observations", { headers: authHeaders }, 15000),
-          fetchWithTimeout("/api/company/daps", { headers: authHeaders }, 15000),
+          fetchWithTimeout("/api/company/jsas", { headers: authHeaders }, 15000),
           fetchWithTimeout("/api/company/permits", { headers: authHeaders }, 15000),
           fetchWithTimeout("/api/company/incidents", { headers: authHeaders }, 15000),
           fetchWithTimeout("/api/company/reports", { headers: authHeaders }, 15000),
@@ -270,14 +272,14 @@ export function useCompanyWorkspaceData() {
           | {
               actions?: Array<{ category?: string | null; status?: string | null; due_at?: string | null }>;
               observations?: Array<{ category?: string | null; status?: string | null; due_at?: string | null }>;
-              daps?: Array<{ status?: string | null }>;
+              jsas?: Array<{ status?: string | null }>;
               permits?: Array<{ status?: string | null }>;
               incidents?: Array<{ status?: string | null }>;
               reports?: Array<{ status?: string | null }>;
             }
           | null;
-        const dapsData = (await dapsResponse.json().catch(() => null)) as
-          | { daps?: Array<{ status?: string | null }> }
+        const jsasData = (await jsasResponse.json().catch(() => null)) as
+          | { jsas?: Array<{ status?: string | null }> }
           | null;
         const permitsData = (await permitsResponse.json().catch(() => null)) as
           | { permits?: Array<{ status?: string | null }> }
@@ -294,7 +296,7 @@ export function useCompanyWorkspaceData() {
             ? correctiveActionsData?.observations ?? correctiveActionsData?.actions ?? []
             : []
         );
-        setDaps(dapsResponse.ok ? dapsData?.daps ?? [] : []);
+        setDaps(jsasResponse.ok ? jsasData?.jsas ?? [] : []);
         setPermits(permitsResponse.ok ? permitsData?.permits ?? [] : []);
         setIncidents(incidentsResponse.ok ? incidentsData?.incidents ?? [] : []);
         setReports(reportsResponse.ok ? reportsData?.reports ?? [] : []);

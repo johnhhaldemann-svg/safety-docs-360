@@ -1045,8 +1045,8 @@ export default function ProfilePage() {
         </div>
 
         <div className="space-y-5">
-          <section className="rounded-[1.9rem] border border-slate-800 bg-[linear-gradient(180deg,_#0f1f39_0%,_#13284b_100%)] p-6 text-white shadow-[0_16px_35px_rgba(15,23,42,0.24)]">
-            <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-sky-200">
+          <section className="rounded-[1.9rem] border border-[rgba(198,212,236,0.9)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(236,244,255,0.96)_100%)] p-6 text-[var(--app-text-strong)] shadow-[0_20px_42px_rgba(79,125,243,0.12)]">
+            <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-[var(--app-accent-primary)]">
               Construction Profile
             </div>
 
@@ -1057,17 +1057,17 @@ export default function ProfilePage() {
                   alt={displayName}
                   width={96}
                   height={96}
-                  className="h-24 w-24 rounded-[1.8rem] border border-white/10 object-cover"
+                  className="h-24 w-24 rounded-[1.8rem] border border-[rgba(198,212,236,0.85)] object-cover shadow-[0_10px_24px_rgba(79,125,243,0.08)]"
                 />
               ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-[1.8rem] bg-sky-400/15 text-2xl font-black text-sky-100">
+                <div className="flex h-24 w-24 items-center justify-center rounded-[1.8rem] bg-[rgba(232,240,255,0.96)] text-2xl font-black text-[var(--app-accent-primary)] shadow-[0_10px_24px_rgba(79,125,243,0.08)]">
                   {getInitials(displayName)}
                 </div>
               )}
 
               <div className="min-w-0 flex-1">
-                <div className="text-2xl font-black tracking-tight text-white">{displayName}</div>
-                <div className="mt-1 text-sm font-semibold text-sky-100">
+                <div className="text-2xl font-black tracking-tight text-[var(--app-text-strong)]">{displayName}</div>
+                <div className="mt-1 text-sm font-semibold text-[var(--app-text)]">
                   {resolvedJobTitle || "Jobsite title"}
                   {resolvedJobTitle && resolvedTrade ? " · " : ""}
                   {resolvedTrade || ""}
@@ -1088,29 +1088,29 @@ export default function ProfilePage() {
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3">
-                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-300">
+              <div className="rounded-2xl border border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.92)] px-4 py-3">
+                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--app-muted)]">
                   Work Region
                 </div>
-                <div className="mt-2 text-sm font-semibold text-white">
+                <div className="mt-2 text-sm font-semibold text-[var(--app-text-strong)]">
                   {[city, stateRegion].filter(Boolean).join(", ") || "Set location"}
                 </div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3">
-                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-300">
+              <div className="rounded-2xl border border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.92)] px-4 py-3">
+                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--app-muted)]">
                   Work Mobile
                 </div>
-                <div className="mt-2 text-sm font-semibold text-white">
+                <div className="mt-2 text-sm font-semibold text-[var(--app-text-strong)]">
                   {phone || "Add phone"}
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/6 p-4">
-              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-300">
+            <div className="mt-6 rounded-2xl border border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.92)] p-4">
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-muted)]">
                 Experience Summary
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-200">
+              <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">
                 {bio ||
                   "Add a concise construction summary covering project types, field leadership, safety habits, and what this person is trusted to lead or support."}
               </p>

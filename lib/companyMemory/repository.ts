@@ -101,7 +101,8 @@ export async function searchCompanyMemoryKeyword(
   supabase: SupabaseClient,
   companyId: string,
   query: string,
-  limit: number
+  limit: number,
+  options?: { source?: CompanyMemorySource[] }
 ): Promise<{ items: CompanyMemoryItemRow[]; error?: string }> {
   const q = query.trim();
   if (q.length < 2) {
@@ -118,25 +119,28 @@ export async function searchCompanyMemoryKeyword(
   for (const term of searchTerms) {
     if (term.length < 2) continue;
     const pattern = `%${escapeIlikePattern(term)}%`;
+    const sourceFilter = options?.source && options.source.length > 0 ? options.source : null;
 
-    const [titleRes, bodyRes] = await Promise.all([
-      supabase
-        .from("company_memory_items")
-        .select(
-          "id, company_id, source, title, body, metadata, created_by, created_at, updated_at"
-        )
-        .eq("company_id", companyId)
-        .ilike("title", pattern)
-        .limit(cap),
-      supabase
-        .from("company_memory_items")
-        .select(
-          "id, company_id, source, title, body, metadata, created_by, created_at, updated_at"
-        )
-        .eq("company_id", companyId)
-        .ilike("body", pattern)
-        .limit(cap),
-    ]);
+    let titleQuery = supabase
+      .from("company_memory_items")
+      .select("id, company_id, source, title, body, metadata, created_by, created_at, updated_at")
+      .eq("company_id", companyId)
+      .ilike("title", pattern)
+      .limit(cap);
+
+    let bodyQuery = supabase
+      .from("company_memory_items")
+      .select("id, company_id, source, title, body, metadata, created_by, created_at, updated_at")
+      .eq("company_id", companyId)
+      .ilike("body", pattern)
+      .limit(cap);
+
+    if (sourceFilter) {
+      titleQuery = titleQuery.in("source", sourceFilter);
+      bodyQuery = bodyQuery.in("source", sourceFilter);
+    }
+
+    const [titleRes, bodyRes] = await Promise.all([titleQuery, bodyQuery]);
 
     if (titleRes.error) {
       return { items: [], error: titleRes.error.message };

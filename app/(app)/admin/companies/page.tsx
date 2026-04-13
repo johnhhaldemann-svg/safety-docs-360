@@ -31,6 +31,8 @@ type CompanySummary = {
   primaryContactName: string;
   primaryContactEmail: string;
   status: string;
+  pilotTrialEndsAt?: string | null;
+  pilotConvertedAt?: string | null;
   createdAt?: string | null;
   archivedAt?: string | null;
   archivedByEmail?: string;
@@ -89,6 +91,8 @@ export default function AdminCompaniesPage() {
   const [processingCompanyId, setProcessingCompanyId] = useState("");
   /** Per-request workspace plan sent on approve (`CSEP` = CSEP-only UI). */
   const [approvalPlanByRequestId, setApprovalPlanByRequestId] = useState<Record<string, string>>({});
+  /** Per-request: when true (default), approval starts a 30-day pilot trial on the new company. */
+  const [pilotTrialByRequestId, setPilotTrialByRequestId] = useState<Record<string, boolean>>({});
 
   const loadCompanies = useCallback(async () => {
     setLoading(true);
@@ -159,6 +163,8 @@ export default function AdminCompaniesPage() {
           return;
         }
 
+        const pilotTrial = pilotTrialByRequestId[requestId] !== false;
+
         const res = await fetch("/api/admin/companies", {
           method: "PATCH",
           headers: {
@@ -167,7 +173,7 @@ export default function AdminCompaniesPage() {
           },
           body: JSON.stringify(
             action === "approve"
-              ? { requestId, action, planName: planName ?? "Pro" }
+              ? { requestId, action, planName: planName ?? "Pro", pilotTrial }
               : { requestId, action }
           ),
         });
@@ -201,7 +207,7 @@ export default function AdminCompaniesPage() {
 
       setProcessingRequestId("");
     },
-    [loadCompanies]
+    [loadCompanies, pilotTrialByRequestId]
   );
 
   const handleCompanyAction = useCallback(
@@ -458,6 +464,24 @@ export default function AdminCompaniesPage() {
                         <option value="CSEP">CSEP-only (comped / limited UI)</option>
                       </select>
                     </div>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-700/80 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-500"
+                        checked={pilotTrialByRequestId[request.id] !== false}
+                        onChange={(event) =>
+                          setPilotTrialByRequestId((prev) => ({
+                            ...prev,
+                            [request.id]: event.target.checked,
+                          }))
+                        }
+                      />
+                      <span>
+                        Start a <span className="font-semibold text-slate-100">30-day pilot trial</span> for this
+                        workspace. Placeholder company details are OK until the owner confirms the full profile in
+                        the dashboard.
+                      </span>
+                    </label>
                     <div className="flex flex-wrap gap-3">
                       <button
                         type="button"
@@ -565,6 +589,9 @@ export default function AdminCompaniesPage() {
                               ) : null}
                               {company.hasPricingOverrides ? (
                                 <StatusBadge label="Pricing override" tone="warning" />
+                              ) : null}
+                              {company.pilotTrialEndsAt && !company.pilotConvertedAt ? (
+                                <StatusBadge label="Pilot trial" tone="warning" />
                               ) : null}
                             </div>
                             <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-500">

@@ -133,8 +133,10 @@ export function OshaIpaLabPage() {
               <strong>Vercel (this website):</strong> add the same variable under Project → Settings → Environment Variables
               for Production (and Preview if needed). It must be a <strong>public HTTPS URL</strong> where Streamlit is
               actually hosted (Streamlit Community Cloud, Railway, Render, your own server, etc.). Do{" "}
-              <strong>not</strong> use <code className="rounded bg-slate-900 px-1.5 py-0.5">127.0.0.1</code> there —
-              that points at each visitor&apos;s own computer, not your Streamlit server. Redeploy after saving env vars.
+              <strong>not</strong> use <code className="rounded bg-slate-900 px-1.5 py-0.5">127.0.0.1</code> there —{" "}
+              {
+                "that points at each visitor's own computer, not your Streamlit server. Redeploy after saving env vars."
+              }
             </p>
           </div>
         ) : null}

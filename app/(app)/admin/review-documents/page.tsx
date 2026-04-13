@@ -47,6 +47,7 @@ type ExcerptModalState = {
   excerpt: string;
   truncated: boolean;
   empty: boolean;
+  pageCount?: number | null;
 };
 
 function statusClasses(status?: string | null) {
@@ -112,6 +113,7 @@ export default function ReviewDocumentsPage() {
           excerpt?: string;
           truncated?: boolean;
           empty?: boolean;
+          pageCount?: number | null;
         };
         let data: PreviewExcerptJson | null = null;
         try {
@@ -138,6 +140,10 @@ export default function ReviewDocumentsPage() {
           excerpt: data.excerpt,
           truncated: Boolean(data.truncated),
           empty: Boolean(data.empty),
+          pageCount:
+            typeof data.pageCount === "number" && Number.isFinite(data.pageCount)
+              ? data.pageCount
+              : null,
         });
       } catch (error) {
         setMessage(
@@ -316,7 +322,7 @@ export default function ReviewDocumentsPage() {
           <>
             <Link
               href="/admin/archive"
-              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+              className="rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:border-[rgba(79,125,243,0.24)] hover:bg-[var(--app-accent-primary-soft)]"
             >
               Open Archive
             </Link>
@@ -347,7 +353,7 @@ export default function ReviewDocumentsPage() {
               type="button"
               onClick={() => void runBulkAction("archive")}
               disabled={selectedCount === 0 || Boolean(bulkLoading) || !canReviewDocuments}
-              className="rounded-xl border border-amber-300 bg-amber-950/40 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-[var(--semantic-warning)] bg-[var(--semantic-warning)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(217,164,65,0.2)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {bulkLoading === "archive" ? "Archiving..." : "Archive Selected"}
             </button>
@@ -355,7 +361,7 @@ export default function ReviewDocumentsPage() {
               type="button"
               onClick={() => void runBulkAction("delete")}
               disabled={selectedCount === 0 || Boolean(bulkLoading) || !canReviewDocuments}
-              className="rounded-xl border border-red-300 bg-red-950/40 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-[var(--semantic-danger)] bg-[var(--semantic-danger)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(217,83,79,0.18)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {bulkLoading === "delete" ? "Deleting..." : "Delete Selected"}
             </button>
@@ -363,7 +369,7 @@ export default function ReviewDocumentsPage() {
               type="button"
               onClick={() => setSelectedIds([])}
               disabled={selectedCount === 0 || Boolean(bulkLoading) || !canReviewDocuments}
-              className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               Clear Selection
             </button>
@@ -416,6 +422,7 @@ export default function ReviewDocumentsPage() {
         excerpt={excerptModal?.excerpt ?? ""}
         truncated={excerptModal?.truncated ?? false}
         empty={excerptModal?.empty ?? false}
+        pageCount={excerptModal?.pageCount ?? null}
         variant="admin"
       />
     </div>
@@ -459,7 +466,7 @@ function ReviewSection({
           description={`${documents.length} item${documents.length === 1 ? "" : "s"} in this queue.`}
           aside={
             documents.length > 0 ? (
-              <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-300">
+              <label className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--app-text-strong)]">
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -491,7 +498,7 @@ function ReviewSection({
             return (
               <div
                 key={doc.id}
-                className="rounded-2xl border border-slate-700/80 p-4 shadow-sm transition hover:bg-slate-950/50"
+                className="rounded-2xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.9)] p-4 shadow-sm transition hover:shadow-md"
               >
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <label className="flex items-start gap-3">
@@ -514,7 +521,7 @@ function ReviewSection({
                     className="block flex-1 cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
-                      <h3 className="text-lg font-semibold text-slate-100">
+                      <h3 className="text-lg font-semibold text-[var(--app-text-strong)]">
                         {titleText}
                       </h3>
                       <span
@@ -526,17 +533,17 @@ function ReviewSection({
                         {getDocumentStatusLabel(doc.status, Boolean(doc.final_file_path))}
                       </span>
                     </div>
-                    <p className="mt-2 text-sm text-slate-300">
+                    <p className="mt-2 text-sm text-[var(--app-text)]">
                       Type: {doc.document_type || "-"}
                     </p>
-                    <p className="text-sm text-slate-300">
+                    <p className="text-sm text-[var(--app-text)]">
                       User ID: {doc.user_id}
                     </p>
-                    <p className="text-sm text-slate-300">
+                    <p className="text-sm text-[var(--app-text)]">
                       Submitted: {new Date(doc.created_at).toLocaleString()}
                     </p>
                     {doc.review_notes ? (
-                      <p className="mt-1 text-sm text-slate-400">
+                      <p className="mt-1 text-sm text-[var(--app-muted)]">
                         Notes: {doc.review_notes}
                       </p>
                     ) : null}
@@ -549,7 +556,7 @@ function ReviewSection({
                         void onPreviewDraft(doc.id);
                       }}
                       disabled={!canReviewDocuments || previewLoadingId === doc.id}
-                      className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-600 bg-slate-900/90 px-4 text-sm font-extrabold text-slate-100 hover:bg-slate-800/70 disabled:opacity-60"
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-[var(--app-border-strong)] bg-white px-4 text-sm font-extrabold text-[var(--app-text-strong)] hover:bg-[var(--app-accent-primary-soft)] disabled:opacity-60"
                     >
                       {previewLoadingId === doc.id ? "Loading excerpt…" : "Preview excerpt"}
                     </button>
@@ -559,7 +566,7 @@ function ReviewSection({
                         void onDownloadFullDraft(doc.id);
                       }}
                       disabled={!canReviewDocuments || downloadLoadingId === doc.id}
-                      className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-600/50 bg-amber-950/30 px-4 text-sm font-extrabold text-amber-100 hover:bg-amber-950/50 disabled:opacity-60"
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-[var(--semantic-warning)] bg-[var(--semantic-warning)] px-4 text-sm font-extrabold text-white hover:brightness-95 disabled:opacity-60"
                     >
                       {downloadLoadingId === doc.id ? "Downloading…" : "Download full draft"}
                     </button>
@@ -568,8 +575,8 @@ function ReviewSection({
                       href={`/admin/review-documents/${doc.id}`}
                       className={`inline-flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-extrabold ${
                         canApproveDocuments
-                          ? "border-sky-500/35 bg-sky-950/35 !text-sky-900 hover:border-sky-300 hover:bg-sky-100"
-                          : "border-slate-700/80 bg-slate-800/70 !text-slate-500"
+                          ? "border-[var(--app-accent-primary)] bg-[var(--app-accent-primary)] !text-white hover:bg-[var(--app-accent-primary-hover)]"
+                          : "border-[var(--app-border-strong)] bg-[var(--semantic-neutral-bg)] !text-[var(--semantic-neutral)]"
                       }`}
                     >
                       {canApproveDocuments ? actionLabel : "View"}

@@ -32,4 +32,5 @@ Short guide for making **Company knowledge** and the **operations assistant** pa
 ## Technical note (retrieval quality)
 
 - **Semantic search** over memory uses embeddings. Ensure **`OPENAI_API_KEY`** is set on the server (e.g. Vercel Production) so new and edited snippets get embeddings. Without it, retrieval falls back to keyword matching only.
+- If you use **Vercel AI Gateway** (gateway keys look like `vck_…`), set **`OPENAI_BASE_URL=https://ai-gateway.vercel.sh/v1`** in the same environment as the key. The app routes OpenAI-compatible calls through that base URL (see `lib/openaiClient.ts`).
 - See [.env.example](../.env.example) for variable names and deployment notes.

@@ -68,6 +68,7 @@ type ExcerptModalState = {
   truncated: boolean;
   empty: boolean;
   variant: "marketplace" | "workspace";
+  pageCount?: number | null;
   /** Blob URL for in-modal PDF preview (revoked on close). */
   pdfObjectUrl?: string | null;
 };
@@ -121,7 +122,7 @@ function getStatusTone(status: string) {
 function getSubscriptionTone(status: string) {
   return status.trim().toLowerCase() === "active"
     ? "bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-500/30"
-    : "bg-slate-800/80 text-slate-300 ring-1 ring-slate-600/70";
+    : "bg-[rgba(232,240,255,0.98)] text-[var(--app-text-strong)] ring-1 ring-[rgba(198,212,236,0.9)]";
 }
 
 function LibraryPageContent() {
@@ -133,6 +134,9 @@ function LibraryPageContent() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [viewerRole, setViewerRole] = useState("viewer");
+  const [marketplacePreviewPageCounts, setMarketplacePreviewPageCounts] = useState<
+    Record<string, number | null>
+  >({});
   const [creditState, setCreditState] = useState<CreditState>({
     creditBalance: 0,
     purchasedDocumentIds: [],
@@ -374,6 +378,7 @@ function LibraryPageContent() {
           truncated?: boolean;
           empty?: boolean;
           showPdfInline?: boolean;
+          pageCount?: number | null;
         };
         let data: PreviewMeta | null = null;
         try {
@@ -432,6 +437,7 @@ function LibraryPageContent() {
             truncated: false,
             empty: false,
             variant: "marketplace",
+            pageCount: typeof data.pageCount === "number" ? data.pageCount : null,
             pdfObjectUrl,
           });
           return;
@@ -451,6 +457,7 @@ function LibraryPageContent() {
           truncated: Boolean(data.truncated),
           empty: Boolean(data.empty),
           variant: "marketplace",
+          pageCount: typeof data.pageCount === "number" ? data.pageCount : null,
         });
       } catch (error) {
         const msg =
@@ -525,6 +532,7 @@ function LibraryPageContent() {
           truncated: Boolean(payload.truncated),
           empty: Boolean(payload.empty),
           variant: "workspace",
+          pageCount: null,
         });
       } catch (error) {
         const msg =
@@ -721,6 +729,73 @@ function LibraryPageContent() {
   ]);
 
   useEffect(() => {
+    if (loading || marketplaceDocuments.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    const docsToProbe = marketplaceDocuments.filter(
+      (doc) =>
+        canRequestMarketplaceLibraryPreview(doc) &&
+        !Object.prototype.hasOwnProperty.call(marketplacePreviewPageCounts, doc.id)
+    );
+
+    if (docsToProbe.length === 0) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        await Promise.all(
+          docsToProbe.map(async (doc) => {
+            const res = await fetch(`/api/library/preview/${doc.id}`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: "application/json",
+              },
+            });
+
+            if (!res.ok) {
+              return;
+            }
+
+            const raw = await res.text();
+            let data: { showPdfInline?: boolean; pageCount?: number | null } | null = null;
+            try {
+              data = raw ? (JSON.parse(raw) as { showPdfInline?: boolean; pageCount?: number | null }) : null;
+            } catch {
+              data = null;
+            }
+
+            const pageCount =
+              data?.showPdfInline && typeof data.pageCount === "number" && Number.isFinite(data.pageCount)
+                ? data.pageCount
+                : null;
+
+            if (!cancelled) {
+              setMarketplacePreviewPageCounts((prev) =>
+                Object.prototype.hasOwnProperty.call(prev, doc.id)
+                  ? prev
+                  : {
+                      ...prev,
+                      [doc.id]: pageCount,
+                    }
+              );
+            }
+          })
+        );
+      } catch {
+        /* ignore background preview probing failures */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getAccessToken, loading, marketplaceDocuments, marketplacePreviewPageCounts]);
+
+  useEffect(() => {
     if (loading || typeof window === "undefined") {
       return;
     }
@@ -884,11 +959,11 @@ function LibraryPageContent() {
       ];
 
   return (
-    <div className="space-y-6">
+    <div className="library-workspace-light space-y-6">
       <section className="overflow-hidden rounded-[2rem] border border-slate-700/80 bg-slate-900/90 shadow-sm">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1.3fr)_360px]">
           <div className="bg-[radial-gradient(circle_at_top_left,_rgba(13,148,136,0.2),_transparent_45%),linear-gradient(180deg,_#0f172a_0%,_#1e293b_100%)] p-8 sm:p-10">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-300">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--app-accent-primary)]">
               {isManagerView ? "Completed Document Center" : "Document Center"}
             </p>
             <h1 className="mt-3 text-4xl font-black tracking-tight text-white">
@@ -903,7 +978,7 @@ function LibraryPageContent() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href={isManagerView ? companyPrimaryAction.href : "/upload"}
-                className="rounded-xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-95"
+                className="rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
               >
                 {isManagerView ? companyPrimaryAction.label : "Upload a document"}
               </Link>
@@ -920,7 +995,7 @@ function LibraryPageContent() {
                 <Link
                   key={item.label}
                   href={item.href}
-                  className="rounded-2xl border border-slate-700/80 bg-slate-900/70 p-4 transition hover:border-teal-400/40 hover:bg-slate-900/90"
+                  className="rounded-2xl border border-slate-700/80 bg-slate-900/70 p-4 transition hover:border-[rgba(79,125,243,0.34)] hover:bg-slate-900/90"
                 >
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
                     Quick jump
@@ -1216,6 +1291,7 @@ function LibraryPageContent() {
         creditBalance={creditState.creditBalance}
         actionLoadingId={actionLoadingId}
         previewLoadingId={previewLoadingId}
+        marketplacePreviewPageCounts={marketplacePreviewPageCounts}
         onPurchase={handlePurchaseDocument}
         onPreview={handleMarketplacePreview}
         highlightDocumentId={highlightDocId}
@@ -1264,6 +1340,7 @@ function LibraryPageContent() {
         excerpt={excerptModal?.excerpt ?? ""}
         truncated={excerptModal?.truncated ?? false}
         empty={excerptModal?.empty ?? false}
+        pageCount={excerptModal?.pageCount ?? null}
         pdfObjectUrl={excerptModal?.pdfObjectUrl ?? undefined}
         variant={excerptModal?.variant ?? "marketplace"}
       />
@@ -1400,7 +1477,7 @@ function DocumentCard({
       className={[
         "flex h-full flex-col rounded-3xl border bg-slate-900/80 p-5 shadow-sm",
         highlighted
-          ? "border-teal-400/70 ring-2 ring-teal-400/50 ring-offset-2 ring-offset-slate-950"
+          ? "border-[rgba(79,125,243,0.55)] ring-2 ring-[rgba(79,125,243,0.3)] ring-offset-2 ring-offset-slate-950"
           : "border-slate-700/80",
       ].join(" ")}
     >
@@ -1465,6 +1542,7 @@ function MarketplaceSection({
   creditBalance,
   actionLoadingId,
   previewLoadingId,
+  marketplacePreviewPageCounts,
   onPurchase,
   onPreview,
   highlightDocumentId,
@@ -1474,6 +1552,7 @@ function MarketplaceSection({
   creditBalance: number;
   actionLoadingId: string;
   previewLoadingId: string;
+  marketplacePreviewPageCounts: Record<string, number | null>;
   onPurchase: (documentId: string) => void;
   onPreview: (documentId: string) => void;
   highlightDocumentId?: string | null;
@@ -1553,6 +1632,7 @@ function MarketplaceSection({
             const cost = getDocumentCreditCost(doc.notes);
             const canAfford = creditBalance >= cost;
             const previewGate = getSubmitterPreviewStatus(doc.notes);
+            const previewPageCount = marketplacePreviewPageCounts[doc.id] ?? null;
             const previewGateMessage =
               isMarketplaceEnabled(doc.notes) && previewGate === "pending"
                 ? "The buyer sample is waiting for the document owner to approve it before it appears here."
@@ -1574,6 +1654,9 @@ function MarketplaceSection({
             const documentValueLine = canRequestMarketplaceLibraryPreview(doc)
               ? "See the structure first, then decide whether to buy."
               : "This listing is ready for purchase and will move to your ready shelf after unlock.";
+            const previewRevealLine = canRequestMarketplaceLibraryPreview(doc)
+              ? "You’ll see named sections, a readable sample, and a blurred continuation before unlocking."
+              : "The card stays brief here, but the full file still moves into your ready shelf after purchase.";
 
             const highlighted = highlightDocumentId === doc.id;
             return (
@@ -1613,7 +1696,7 @@ function MarketplaceSection({
                     <p className="mt-2 text-sm text-slate-400">
                       {doc.document_type || "Completed document"}
                     </p>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <div className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">
                         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                           Price
@@ -1628,16 +1711,49 @@ function MarketplaceSection({
                           {canAfford ? "Available now" : "Needs top-up"}
                         </p>
                       </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Preview
+                        </p>
+                        <p className="mt-1 text-base font-black text-white">
+                          {canRequestMarketplaceLibraryPreview(doc) ? "Sectioned sample" : "Gated"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Pages
+                        </p>
+                        <p className="mt-1 text-base font-black text-white">
+                          {typeof previewPageCount === "number" && Number.isFinite(previewPageCount)
+                            ? `${previewPageCount}`
+                            : canRequestMarketplaceLibraryPreview(doc)
+                              ? "Shown in sample"
+                              : "Not listed"}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-5 rounded-[1.5rem] border border-slate-700/80 bg-slate-950/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Listing summary
-                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Listing summary
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full border border-slate-700/80 bg-slate-900/80 px-3 py-1 text-[11px] font-semibold text-slate-300">
+                        Quick scan
+                      </span>
+                      {canRequestMarketplaceLibraryPreview(doc) ? (
+                        <span className="rounded-full border border-sky-500/25 bg-sky-950/45 px-3 py-1 text-[11px] font-semibold text-sky-200">
+                          Named sections
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
                   <p className="mt-2 text-sm leading-6 text-slate-300">{documentValueLine}</p>
                   <p className="mt-3 text-sm font-semibold text-slate-100">{teaserLine}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">{previewRevealLine}</p>
                 </div>
 
                 <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
@@ -1667,14 +1783,20 @@ function MarketplaceSection({
                     onClick={() => onPurchase(doc.id)}
                     disabled={actionLoadingId === doc.id || !canAfford}
                     className="inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_#38bdf8_0%,_#0ea5e9_55%,_#0284c7_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_28px_rgba(14,165,233,0.24)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
-                  >
-                    {actionLoadingId === doc.id
-                      ? "Unlocking..."
-                      : canAfford
-                        ? "Unlock document"
-                        : "Not enough credits"}
+                    >
+                      {actionLoadingId === doc.id
+                        ? "Unlocking..."
+                        : canAfford
+                          ? "Unlock document"
+                          : "Not enough credits"}
                   </button>
                 </div>
+
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  {canRequestMarketplaceLibraryPreview(doc)
+                    ? "Preview shows the structure, a few labels, and the page count if it is a PDF."
+                    : "This listing is still available to unlock even when a sample preview is not shown."}
+                </p>
               </article>
             );
           })}

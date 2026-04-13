@@ -52,12 +52,12 @@ async function buildEodReportPayload({
 }): Promise<EodReportPayload> {
   const dayStartIso = `${workDate}T00:00:00.000Z`;
   const dayEndIso = `${workDate}T23:59:59.999Z`;
-  const [jobsiteRes, dapsRes, actionsRes, permitsRes, incidentsRes] = await Promise.all([
+  const [jobsiteRes, jsasRes, actionsRes, permitsRes, incidentsRes] = await Promise.all([
     jobsiteId
       ? auth.supabase.from("company_jobsites").select("id, name").eq("id", jobsiteId).eq("company_id", companyId).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     auth.supabase
-      .from("company_daps")
+      .from("company_jsas")
       .select("*")
       .eq("company_id", companyId)
       .gte("created_at", dayStartIso)
@@ -88,12 +88,12 @@ async function buildEodReportPayload({
   if (jobsiteRes && "error" in jobsiteRes && jobsiteRes.error) {
     throw new Error(jobsiteRes.error.message || "Failed to load jobsite.");
   }
-  if (dapsRes.error) throw new Error(dapsRes.error.message || "Failed to load DAP data.");
+  if (jsasRes.error) throw new Error(jsasRes.error.message || "Failed to load JSA data.");
   if (actionsRes.error) throw new Error(actionsRes.error.message || "Failed to load observation data.");
   if (permitsRes.error) throw new Error(permitsRes.error.message || "Failed to load permit data.");
   if (incidentsRes.error) throw new Error(incidentsRes.error.message || "Failed to load incident data.");
 
-  const scopedDaps = (dapsRes.data ?? []).filter((row) => !jobsiteId || row.jobsite_id === jobsiteId);
+  const scopedJsas = (jsasRes.data ?? []).filter((row) => !jobsiteId || row.jobsite_id === jobsiteId);
   const scopedActions = (actionsRes.data ?? []).filter((row) => !jobsiteId || row.jobsite_id === jobsiteId);
   const scopedPermits = (permitsRes.data ?? []).filter((row) => !jobsiteId || row.jobsite_id === jobsiteId);
   const scopedIncidents = (incidentsRes.data ?? []).filter((row) => !jobsiteId || row.jobsite_id === jobsiteId);
@@ -113,11 +113,11 @@ async function buildEodReportPayload({
     String(row.incident_type ?? row.category ?? "").toLowerCase().includes("near")
   ).length;
 
-  const dapPlannedWork = scopedDaps
-    .map((dap) => String((dap as Record<string, unknown>).title ?? "").trim())
+  const jsaPlannedWork = scopedJsas
+    .map((jsa) => String((jsa as Record<string, unknown>).title ?? "").trim())
     .filter(Boolean);
-  const weatherSamples = scopedDaps
-    .map((dap) => String((dap as Record<string, unknown>).weather_summary ?? "").trim())
+  const weatherSamples = scopedJsas
+    .map((jsa) => String((jsa as Record<string, unknown>).weather_summary ?? "").trim())
     .filter(Boolean);
   const weatherSummary = weatherSamples[0] ?? "No weather summary submitted.";
 
@@ -133,7 +133,7 @@ async function buildEodReportPayload({
 
   const generatedNarrative =
     requestedNarrative?.trim() ||
-    `Work completed for ${formatDateLabel(workDate)} includes ${dapPlannedWork.length} planned activity groups with ${scopedActions.length} field observations. ` +
+    `Work completed for ${formatDateLabel(workDate)} includes ${jsaPlannedWork.length} planned activity groups with ${scopedActions.length} field observations. ` +
       `${openDeficiencies} deficiencies remain open and ${closedDeficiencies} were closed. ` +
       `${permitCount} permits were used, and ${incidentCount} incidents (${nearMissCount} near misses) were logged. ` +
       `${highRiskObservations} high-risk observations and ${sifCount} SIF-potential findings were tracked.`;
@@ -145,8 +145,8 @@ async function buildEodReportPayload({
     `- Date: ${formatDateLabel(workDate)}`,
     `- Jobsite: ${jobsiteName}`,
     ``,
-    `## DAP Planned Work`,
-    dapPlannedWork.length > 0 ? dapPlannedWork.map((item) => `- ${item}`).join("\n") : "- No DAP planned work submitted.",
+    `## JSA Planned Work`,
+    jsaPlannedWork.length > 0 ? jsaPlannedWork.map((item) => `- ${item}`).join("\n") : "- No JSA planned work submitted.",
     ``,
     `## Field Observations`,
     `- Total observations: ${scopedActions.length}`,
@@ -189,7 +189,7 @@ async function buildEodReportPayload({
       workDate,
       jobsiteId,
       jobsiteName,
-      dapPlannedWorkCount: dapPlannedWork.length,
+      jsaPlannedWorkCount: jsaPlannedWork.length,
       fieldObservations: scopedActions.length,
       openDeficiencies,
       closedDeficiencies,
@@ -208,7 +208,7 @@ async function buildEodReportPayload({
 
 async function loadOpsMetrics({ auth, companyId }: ScopeContext, days: number) {
   const sinceIso = new Date(Date.now() - Math.max(1, days) * 24 * 60 * 60 * 1000).toISOString();
-  const [actionsRes, incidentsRes, submissionsRes, permitsRes, dapsRes, activitiesRes] =
+  const [actionsRes, incidentsRes, submissionsRes, permitsRes, jsasRes, jsaActivitiesRes] =
     await Promise.all([
     auth.supabase
       .from("company_corrective_actions")
@@ -231,13 +231,13 @@ async function loadOpsMetrics({ auth, companyId }: ScopeContext, days: number) {
       .eq("company_id", companyId)
       .gte("created_at", sinceIso),
     auth.supabase
-      .from("company_daps")
+      .from("company_jsas")
       .select("id, status, created_at, jobsite_id")
       .eq("company_id", companyId)
       .gte("created_at", sinceIso),
     auth.supabase
-      .from("company_dap_activities")
-      .select("id, dap_id, activity_name, status, created_at")
+      .from("company_jsa_activities")
+      .select("id, jsa_id, activity_name, status, created_at")
       .eq("company_id", companyId)
       .gte("created_at", sinceIso),
     ]);
@@ -245,15 +245,15 @@ async function loadOpsMetrics({ auth, companyId }: ScopeContext, days: number) {
   if (incidentsRes.error) throw new Error(incidentsRes.error.message || "Failed loading incidents");
   if (submissionsRes.error) throw new Error(submissionsRes.error.message || "Failed loading submissions");
   if (permitsRes.error) throw new Error(permitsRes.error.message || "Failed loading permits");
-  if (dapsRes.error) throw new Error(dapsRes.error.message || "Failed loading daps");
-  if (activitiesRes.error) throw new Error(activitiesRes.error.message || "Failed loading dap activities");
+  if (jsasRes.error) throw new Error(jsasRes.error.message || "Failed loading JSAs");
+  if (jsaActivitiesRes.error) throw new Error(jsaActivitiesRes.error.message || "Failed loading JSA activities");
   return {
     actions: actionsRes.data ?? [],
     incidents: incidentsRes.data ?? [],
     submissions: submissionsRes.data ?? [],
     permits: permitsRes.data ?? [],
-    daps: dapsRes.data ?? [],
-    dapActivities: activitiesRes.data ?? [],
+    daps: jsasRes.data ?? [],
+    dapActivities: jsaActivitiesRes.data ?? [],
   };
 }
 

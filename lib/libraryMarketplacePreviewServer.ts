@@ -19,6 +19,7 @@ import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { serverLog } from "@/lib/serverLog";
 import { normalizeDocumentsBucketObjectPath } from "@/lib/documentsBucketPath";
 import { downloadDocumentsBucketObject } from "@/lib/supabaseStorageServer";
+import { PDFDocument } from "pdf-lib";
 
 export type MarketplacePreviewDocument = {
   id: string;
@@ -82,8 +83,18 @@ export type MarketplaceLibraryPreviewOk = {
   sourceFileName: string;
   excerptSource: "marketplace_preview" | "final_file";
   isPdfInline: boolean;
+  pageCount: number | null;
   textPreview: { excerpt: string; truncated: boolean; empty: boolean } | null;
 };
+
+async function getPdfPageCount(buffer: Buffer) {
+  try {
+    const pdfDoc = await PDFDocument.load(buffer);
+    return pdfDoc.getPageCount();
+  } catch {
+    return null;
+  }
+}
 
 export type MarketplaceLibraryPreviewResult =
   | MarketplaceLibraryPreviewOk
@@ -332,6 +343,7 @@ async function runPrepareMarketplaceLibraryPreview(
   let sourceFileName = fileNameFromPreviewPath(storagePath, doc.project_name ?? null);
 
   if (isLikelyPdfBuffer(buffer, sourceFileName)) {
+    const pageCount = await getPdfPageCount(buffer);
     return {
       ok: true,
       supabase: supabaseClient,
@@ -341,6 +353,7 @@ async function runPrepareMarketplaceLibraryPreview(
       sourceFileName,
       excerptSource,
       isPdfInline: true,
+      pageCount,
       textPreview: null,
     };
   }
@@ -376,6 +389,7 @@ async function runPrepareMarketplaceLibraryPreview(
     sourceFileName,
     excerptSource,
     isPdfInline: false,
+    pageCount: null,
     textPreview: {
       excerpt: extracted.excerpt,
       truncated: extracted.truncated,

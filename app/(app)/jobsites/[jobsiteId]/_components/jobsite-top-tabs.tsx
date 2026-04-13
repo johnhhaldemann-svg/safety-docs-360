@@ -17,7 +17,7 @@ export function JobsiteTopTabs({
   const tabs = [
     { href: `${base}/overview`, label: "Overview" },
     { href: `${base}/live-view`, label: "Live View" },
-    { href: `${base}/dap`, label: "DAP" },
+    { href: `${base}/jsa`, label: "JSA" },
     { href: `${base}/permits`, label: "Permits" },
     { href: `${base}/incidents`, label: "Incidents" },
     { href: `${base}/reports`, label: "Reports" },

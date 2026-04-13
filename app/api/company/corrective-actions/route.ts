@@ -3,6 +3,7 @@ import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
+import { buildCorrectiveActionFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
 
 export const runtime = "nodejs";
 
@@ -434,9 +435,7 @@ export async function POST(request: Request) {
       created_by: auth.user.id,
       updated_by: auth.user.id,
     })
-    .select(
-      "id, company_id, jobsite_id, title, description, severity, category, status, assigned_user_id, due_at, started_at, closed_at, manager_override_close, manager_override_reason, created_at, updated_at"
-    )
+    .select("*")
     .single();
 
   if (insertResult.error) {
@@ -491,6 +490,13 @@ export async function POST(request: Request) {
       created_by: auth.user.id,
     });
   }
+
+  const facetRow = buildCorrectiveActionFacetRow(
+    companyScope.companyId,
+    insertResult.data as Record<string, unknown>,
+    body as Record<string, unknown> | null
+  );
+  void upsertRiskMemoryFacetSafe(auth.supabase, facetRow);
 
   return NextResponse.json({
     success: true,

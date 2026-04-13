@@ -979,8 +979,8 @@ export default function TrainingMatrixPage() {
   }, [rows, requirements]);
 
   return (
-    <div className="space-y-8">
-      <section className="overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-6 shadow-xl ring-1 ring-zinc-700/50 sm:p-8">
+    <div className="training-matrix-light space-y-8">
+      <section className="overflow-hidden rounded-3xl border border-[rgba(198,212,236,0.9)] bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(236,244,255,0.96)_55%,rgba(228,239,255,0.96)_100%)] p-6 shadow-[0_20px_48px_rgba(79,125,243,0.12)] sm:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-400">
@@ -1010,7 +1010,7 @@ export default function TrainingMatrixPage() {
             </button>
             <Link
               href="/dashboard"
-              className="rounded-xl border border-zinc-600 bg-zinc-900/60 px-5 py-3 text-sm font-semibold text-zinc-200 transition hover:border-zinc-500 hover:bg-zinc-800"
+              className="rounded-xl border border-[rgba(198,212,236,0.9)] bg-[rgba(255,255,255,0.94)] px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[rgba(79,125,243,0.08)]"
             >
               Back to dashboard
             </Link>
@@ -1043,7 +1043,7 @@ export default function TrainingMatrixPage() {
           <button
             type="button"
             onClick={dismissDirectoryNotice}
-            className="shrink-0 self-end rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-2 text-xs font-semibold text-slate-300 shadow-sm hover:bg-slate-800/70 sm:mt-2 sm:self-start"
+            className="shrink-0 self-end rounded-lg border border-[rgba(198,212,236,0.9)] bg-[rgba(255,255,255,0.96)] px-3 py-2 text-xs font-semibold text-[var(--app-text)] shadow-sm hover:bg-[rgba(79,125,243,0.08)] sm:mt-2 sm:self-start"
           >
             Dismiss
           </button>
@@ -1350,7 +1350,7 @@ export default function TrainingMatrixPage() {
                       <PositionScopeSummary
                         rollup={positionRollup}
                         requirementsCount={requirements.length}
-                        theme="dark"
+                        theme="light"
                       />
                       <div className="mt-2 text-[11px] text-zinc-600">Workspace access: {row.role}</div>
                       <Link

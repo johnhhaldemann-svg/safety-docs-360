@@ -9,6 +9,7 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
 import { computeSorHash } from "@/lib/sor/hash";
 import { COMPANY_SOR_RECORD_SELECT } from "@/lib/sor/recordSelect";
+import { buildSorRecordFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
 
 export const runtime = "nodejs";
 
@@ -164,6 +165,9 @@ export async function POST(request: Request) {
   if (finalized.error) {
     return NextResponse.json({ error: finalized.error.message || "Failed to finalize SOR hash." }, { status: 500 });
   }
+
+  const sorFacet = buildSorRecordFacetRow(scope.companyId, finalized.data as Record<string, unknown>);
+  void upsertRiskMemoryFacetSafe(auth.supabase, sorFacet);
 
   return NextResponse.json({ success: true, record: finalized.data });
 }

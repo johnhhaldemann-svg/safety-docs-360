@@ -1,6 +1,6 @@
 # Safety360Docs
 
-Enterprise safety and compliance workspace: document control, company workspaces (jobsites, training, corrective actions), field workflows (observations, DAPs, permits, incidents), and admin tooling. Built with **Next.js** (App Router), **Supabase** (Postgres + Auth + RLS), deployed on **Vercel**.
+Enterprise safety and compliance workspace: document control, company workspaces (jobsites, training, corrective actions), field workflows (observations, JSAs, permits, incidents), and admin tooling. Built with **Next.js** (App Router), **Supabase** (Postgres + Auth + RLS), deployed on **Vercel**.
 
 ## Requirements
 
@@ -17,6 +17,8 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+Moving to a new Windows laptop? Use [`docs/new-laptop-setup.md`](docs/new-laptop-setup.md) and run `powershell -ExecutionPolicy Bypass -File .\scripts\setup-new-laptop.ps1`.
 
 ## Supabase + Vercel deploy (“push”)
 
@@ -38,12 +40,12 @@ Always do **step 1 before step 2** when migrations changed, so production code m
 | `SUPABASE_SERVICE_ROLE_KEY` | Server / scripts | Service role for admin API routes and seed scripts (never expose to the client) |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Optional | Server-side fallbacks read by [`lib/supabaseAdmin.ts`](lib/supabaseAdmin.ts) |
 | `OPENAI_API_KEY` | For AI features | Document / GC program AI review, injury-weather insights |
-| `CRON_SECRET` | Production cron | Bearer or `?secret=` for [`/api/cron/injury-weather-refresh`](app/api/cron/injury-weather-refresh/route.ts) and [`/api/cron/company-billing-invoices`](app/api/cron/company-billing-invoices/route.ts) |
+| `CRON_SECRET` | Production cron | Bearer or `?secret=` for [`injury-weather-refresh`](app/api/cron/injury-weather-refresh/route.ts), [`company-billing-invoices`](app/api/cron/company-billing-invoices/route.ts), [`risk-memory-rollup`](app/api/cron/risk-memory-rollup/route.ts) |
 | `NEXT_PUBLIC_ADMIN_EMAILS` | Optional | Comma-separated admin emails ([`lib/rbac.ts`](lib/rbac.ts), [`lib/admin.ts`](lib/admin.ts)) |
 | `NEXT_PUBLIC_SITE_URL` / `NEXT_PUBLIC_APP_URL` | Optional | Absolute URLs for redirects (e.g. invite links) |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | Optional | Shown on `/privacy` for data and privacy inquiries |
 
-**E2E / smoke**
+**E2E**
 
 | Variable | Purpose |
 |----------|---------|
@@ -51,8 +53,6 @@ Always do **step 1 before step 2** when migrations changed, so production code m
 | `E2E_NEXT_PUBLIC_SUPABASE_URL` / `E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase project for CI E2E (same as test user); all four values required for the `playwright-full` GitHub Actions job |
 | `PLAYWRIGHT_BASE_URL` | Override default `http://127.0.0.1:3000` |
 | `PLAYWRIGHT_SKIP_WEBSERVER` | Set to skip starting the dev server from Playwright |
-| `SMOKE_BASE_URL` / `SMOKE_BEARER_TOKEN` | [`scripts/smoke-safety-ops.mjs`](scripts/smoke-safety-ops.mjs) |
-
 See [`docs/dev-setup.md`](docs/dev-setup.md) for Supabase workflow, cron, and superadmin notes.
 
 **Production launch:** step-by-step checklist in [`docs/production-deployment.md`](docs/production-deployment.md). Operations and go-to-market alignment in [`docs/support-onboarding-runbook.md`](docs/support-onboarding-runbook.md).
@@ -70,7 +70,6 @@ See [`docs/dev-setup.md`](docs/dev-setup.md) for Supabase workflow, cron, and su
 | `npm run test:e2e` | Playwright (see [`playwright.config.ts`](playwright.config.ts)) |
 | `npx playwright test tests/a11y.spec.ts` | Accessibility (axe) on `/`, `/login`, `/privacy`, `/submit` |
 | `npm run test:e2e:ci` | Build + production server + Playwright |
-| `npm run smoke:safetyops` | HTTP smoke script |
 | `npm run seed:csep-test` | Seed CSEP test user (needs service role) |
 | `npm run db:push` | `supabase db push --yes` (after `supabase link`) |
 | `npm run vercel:prod` | Production deploy (`npx vercel deploy --prod`) |
@@ -97,7 +96,7 @@ RLS policies are defined in migrations. API routes should align with [`docs/api-
 
 ## Scheduled jobs (Vercel)
 
-[`vercel.json`](vercel.json) defines two daily crons: `/api/cron/injury-weather-refresh` and `/api/cron/company-billing-invoices`. Set `CRON_SECRET` in Vercel and configure the same value for the cron `Authorization: Bearer …` header (Vercel cron supports this pattern when documented in your deployment).
+[`vercel.json`](vercel.json) defines daily crons: `/api/cron/injury-weather-refresh`, `/api/cron/company-billing-invoices`, and `/api/cron/risk-memory-rollup`. Set `CRON_SECRET` in Vercel (Vercel sends `Authorization: Bearer …` when configured). See [`docs/production-deployment.md`](docs/production-deployment.md).
 
 ## License
 

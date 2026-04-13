@@ -131,49 +131,28 @@ function LoginPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.08),_transparent_22%),linear-gradient(180deg,_#0a1018_0%,_#0f1726_100%)] px-4 py-6 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(79,125,243,0.14),_transparent_24%),linear-gradient(180deg,_#f7fbff_0%,_#eef5ff_48%,_#e7f0fb_100%)] px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl items-center justify-center">
-        <div className="grid w-full overflow-hidden rounded-[2rem] border border-amber-500/18 bg-[#121826] shadow-[0_34px_90px_rgba(0,0,0,0.45)] lg:grid-cols-[1.08fr_0.92fr]">
-          <section className="relative overflow-hidden border-b border-amber-500/10 bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.10),_transparent_25%),linear-gradient(180deg,_rgba(8,15,26,0.92)_0%,_rgba(12,19,31,0.84)_100%)] px-6 py-7 sm:px-8 sm:py-8 lg:min-h-[760px] lg:border-b-0 lg:border-r lg:border-r-amber-500/12 lg:px-10 lg:py-10">
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,_rgba(255,255,255,0.04)_0%,_transparent_40%),radial-gradient(circle_at_bottom,_rgba(56,189,248,0.12),_transparent_26%)]" />
-            <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:38px_38px]" />
+        <div className="grid w-full overflow-hidden rounded-[2rem] border border-[rgba(111,138,177,0.28)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(241,247,255,0.96)_100%)] shadow-[0_28px_72px_rgba(38,64,106,0.16)] lg:grid-cols-[1.08fr_0.92fr]">
+          <section className="relative overflow-hidden border-b border-[rgba(111,138,177,0.2)] bg-[radial-gradient(circle_at_top_left,_rgba(79,125,243,0.12),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(235,243,255,0.92)_100%)] px-6 py-7 sm:px-8 sm:py-8 lg:min-h-[760px] lg:border-b-0 lg:border-r lg:border-r-[rgba(111,138,177,0.2)] lg:px-10 lg:py-10">
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,_rgba(255,255,255,0.36)_0%,_transparent_38%),radial-gradient(circle_at_bottom,_rgba(46,158,91,0.12),_transparent_26%)]" />
+            <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(111,138,177,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(111,138,177,0.08)_1px,transparent_1px)] [background-size:38px_38px]" />
 
             <div className="relative z-10 flex h-full flex-col">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-3 rounded-2xl border border-amber-400/20 bg-black/20 px-4 py-3 backdrop-blur">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400 text-base font-black text-white shadow-[0_8px_24px_rgba(245,158,11,0.3)]">
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      className="h-6 w-6"
-                      fill="currentColor"
-                    >
-                      <path d="M12 2 5 5v6c0 5.2 3.4 10 7 11 3.6-1 7-5.8 7-11V5l-7-3Z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-black tracking-tight text-white">
-                      Safety<span className="text-amber-400">360</span>Docs
-                    </div>
-                    <div className="mt-1 text-[11px] uppercase tracking-[0.28em] text-amber-300">
-                      Enterprise Safety Management Platform
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">
+                <div className="rounded-full border border-[rgba(46,158,91,0.2)] bg-[rgba(46,158,91,0.1)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#2e9e5b]">
                   Systems live
                 </div>
               </div>
 
               <div className="mt-10 max-w-xl">
-                <h1 className="text-4xl font-black leading-[0.95] tracking-tight text-white sm:text-5xl lg:text-[4.1rem]">
+                <h1 className="text-4xl font-black leading-[0.95] tracking-tight text-[#143252] sm:text-5xl lg:text-[4.1rem]">
                   <span className="block">Secure.</span>
-                  <span className="block text-amber-400">Document.</span>
+                  <span className="block text-[#2e9e5b]">Document.</span>
                   <span className="block">Stay Safe.</span>
                 </h1>
 
-                <p className="mt-6 max-w-lg text-base leading-8 text-slate-300">
+                <p className="mt-6 max-w-lg text-base leading-8 text-[#496581]">
                   The complete safety documentation platform trusted by industrial
                   leaders. Manage incidents, inspections, and compliance from one
                   secure command center.
@@ -184,7 +163,7 @@ function LoginPageContent() {
                 {capabilityTiles.map((tile, index) => (
                   <div
                     key={tile}
-                    className="group relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/35 p-3"
+                    className="group relative overflow-hidden rounded-2xl border border-[rgba(111,138,177,0.2)] bg-white/82 p-3 shadow-[0_10px_22px_rgba(38,64,106,0.08)]"
                   >
                     <div
                       className={[
@@ -196,8 +175,8 @@ function LoginPageContent() {
                             : "bg-[linear-gradient(135deg,_rgba(148,163,184,0.24),_rgba(245,158,11,0.20)),radial-gradient(circle_at_center,_rgba(255,255,255,0.22),_transparent_50%)]",
                       ].join(" ")}
                     />
-                    <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-xl bg-black/45 px-3 py-2 backdrop-blur">
-                      <div className="text-xs font-black uppercase tracking-[0.16em] text-white">
+                    <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-xl bg-[rgba(20,50,82,0.08)] px-3 py-2 backdrop-blur">
+                      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#143252]">
                         {tile}
                       </div>
                     </div>
@@ -210,7 +189,7 @@ function LoginPageContent() {
                   {securityPills.map((pill) => (
                     <div
                       key={pill}
-                      className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-200"
+                      className="rounded-xl border border-[rgba(111,138,177,0.18)] bg-white/78 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#496581]"
                     >
                       {pill}
                     </div>
@@ -220,41 +199,29 @@ function LoginPageContent() {
             </div>
           </section>
 
-          <section className="flex items-center justify-center bg-[linear-gradient(180deg,_#151d2c_0%,_#131b29_100%)] px-5 py-7 sm:px-8 lg:px-10">
+          <section className="flex items-center justify-center bg-[linear-gradient(180deg,_rgba(247,251,255,0.92)_0%,_rgba(234,241,255,0.94)_100%)] px-5 py-7 sm:px-8 lg:px-10">
             <div className="w-full max-w-md">
-              <div className="rounded-[1.8rem] border border-white/8 bg-white/[0.02] p-6 shadow-[0_22px_60px_rgba(0,0,0,0.32)] backdrop-blur sm:p-8">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-amber-400/25 bg-amber-400/10 text-amber-300">
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      className="h-5 w-5"
-                      fill="currentColor"
-                    >
-                      <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm1 14h-2v-2h2Zm0-4h-2V7h2Z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl">
-                      Secure Access
-                      <br />
-                      Portal
-                    </p>
-                    <p className="mt-3 text-sm leading-6 text-slate-400">
-                      Sign in to your Safety360Docs workspace.
-                    </p>
-                  </div>
+              <div className="rounded-[1.8rem] border border-[rgba(111,138,177,0.24)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.96)_100%)] p-6 shadow-[0_22px_54px_rgba(38,64,106,0.14)] backdrop-blur sm:p-8">
+                <div>
+                  <p className="text-3xl font-black leading-tight tracking-tight text-[#143252] sm:text-4xl">
+                    Secure Access
+                    <br />
+                    Portal
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-[#5f7a98]">
+                    Sign in to your Safety360Docs workspace.
+                  </p>
                 </div>
 
-                <div className="mt-8 grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-slate-900/30 p-1.5">
+                <div className="mt-8 grid grid-cols-2 gap-2 rounded-2xl border border-[rgba(111,138,177,0.2)] bg-[rgba(234,241,255,0.8)] p-1.5">
                   <button
                     type="button"
                     onClick={() => setMode("login")}
                     className={[
                       "rounded-xl px-4 py-3 text-sm font-semibold transition",
                       mode === "login"
-                        ? "bg-white/8 text-white ring-1 ring-white/10"
-                        : "text-slate-400 hover:text-slate-200",
+                        ? "bg-white text-[#143252] ring-1 ring-[rgba(111,138,177,0.16)] shadow-sm"
+                        : "text-[#6b84a0] hover:text-[#143252]",
                     ].join(" ")}
                   >
                     Login
@@ -275,19 +242,19 @@ function LoginPageContent() {
                     className={[
                       "rounded-xl px-4 py-3 text-sm font-semibold transition",
                       mode === "signup"
-                        ? "bg-white/8 text-white ring-1 ring-white/10"
-                        : "text-slate-400 hover:text-slate-200",
+                        ? "bg-white text-[#143252] ring-1 ring-[rgba(111,138,177,0.16)] shadow-sm"
+                        : "text-[#6b84a0] hover:text-[#143252]",
                     ].join(" ")}
                   >
                     Create Account
                   </button>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-white/8 bg-slate-900/28 px-4 py-3 text-sm text-slate-300">
-                  <div className="font-semibold text-white">
+                <div className="mt-4 rounded-2xl border border-[rgba(111,138,177,0.2)] bg-[rgba(234,241,255,0.76)] px-4 py-3 text-sm text-[#496581]">
+                  <div className="font-semibold text-[#143252]">
                     Create your own account first, then build your construction profile before company setup or employee access.
                   </div>
-                  <div className="mt-1 text-slate-400">
+                  <div className="mt-1 text-[#5f7a98]">
                     Internal employees, company owners, and invited employees all start from the same account-first entry point.
                   </div>
                 </div>
@@ -299,8 +266,8 @@ function LoginPageContent() {
                       className={[
                         "rounded-2xl border px-4 py-3 text-sm",
                         formTone === "error"
-                          ? "border-red-500/25 bg-red-500/10 text-red-200"
-                          : "border-emerald-500/25 bg-emerald-500/10 text-emerald-200",
+                          ? "border-[rgba(217,83,79,0.24)] bg-[rgba(253,236,236,0.96)] text-[#a33f3c]"
+                          : "border-[rgba(46,158,91,0.22)] bg-[rgba(231,246,236,0.96)] text-[#2e9e5b]",
                       ].join(" ")}
                     >
                       {formMessage}
@@ -310,26 +277,26 @@ function LoginPageContent() {
                   <div>
                     {mode === "signup" ? (
                       <>
-                        <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                        <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[#6b84a0]">
                           Full Name
                         </label>
-                        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-slate-300 shadow-inner transition focus-within:border-amber-400/35 focus-within:bg-[#0d1521]">
+                        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-[rgba(111,138,177,0.22)] bg-white px-4 py-3.5 text-[#6b84a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] transition focus-within:border-[rgba(79,125,243,0.35)] focus-within:bg-white">
                           <IconUser />
                           <input
                             type="text"
                             placeholder="Your full name"
                             value={fullName}
                             onChange={(e) => setFullName(e.target.value)}
-                            className="auth-input w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                            className="auth-input w-full bg-transparent text-sm text-[#143252] outline-none placeholder:text-[#8aa0b8]"
                           />
                         </div>
                       </>
                     ) : null}
 
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[#6b84a0]">
                       Employee ID / Email
                     </label>
-                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-slate-300 shadow-inner transition focus-within:border-amber-400/35 focus-within:bg-[#0d1521]">
+                    <div className="flex items-center gap-3 rounded-2xl border border-[rgba(111,138,177,0.22)] bg-white px-4 py-3.5 text-[#6b84a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] transition focus-within:border-[rgba(79,125,243,0.35)] focus-within:bg-white">
                       <IconMail />
                       <input
                         type="text"
@@ -338,23 +305,23 @@ function LoginPageContent() {
                         placeholder="name@company.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="auth-input w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                        className="auth-input w-full bg-transparent text-sm text-[#143252] outline-none placeholder:text-[#8aa0b8]"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[#6b84a0]">
                       Password
                     </label>
-                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-slate-300 shadow-inner transition focus-within:border-amber-400/35 focus-within:bg-[#0d1521]">
+                    <div className="flex items-center gap-3 rounded-2xl border border-[rgba(111,138,177,0.22)] bg-white px-4 py-3.5 text-[#6b84a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] transition focus-within:border-[rgba(79,125,243,0.35)] focus-within:bg-white">
                       <IconLock />
                       <input
                         type="password"
                         placeholder="Enter password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="auth-input w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                        className="auth-input w-full bg-transparent text-sm text-[#143252] outline-none placeholder:text-[#8aa0b8]"
                       />
                       <IconEye />
                     </div>
@@ -362,40 +329,40 @@ function LoginPageContent() {
 
                   {mode === "signup" ? (
                     <div>
-                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[#6b84a0]">
                         Confirm Password
                       </label>
-                      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#101827] px-4 py-3.5 text-slate-300 shadow-inner transition focus-within:border-amber-400/35 focus-within:bg-[#0d1521]">
+                      <div className="flex items-center gap-3 rounded-2xl border border-[rgba(111,138,177,0.22)] bg-white px-4 py-3.5 text-[#6b84a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] transition focus-within:border-[rgba(79,125,243,0.35)] focus-within:bg-white">
                         <IconLock />
                         <input
                           type="password"
                           placeholder="Confirm password"
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="auth-input w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                          className="auth-input w-full bg-transparent text-sm text-[#143252] outline-none placeholder:text-[#8aa0b8]"
                         />
                       </div>
                     </div>
                   ) : null}
 
                   <div className="flex items-center justify-between gap-4">
-                    <label className="inline-flex items-center gap-3 text-sm text-slate-400">
+                    <label className="inline-flex items-center gap-3 text-sm text-[#5f7a98]">
                       <input
                         type="checkbox"
                         checked={rememberDevice}
                         onChange={(e) => setRememberDevice(e.target.checked)}
-                        className="h-4 w-4 rounded border-white/20 bg-slate-900/40"
+                        className="h-4 w-4 rounded border-[rgba(111,138,177,0.28)] bg-white"
                       />
                       <span>Remember this device</span>
                     </label>
                   </div>
 
-                  <div className="rounded-2xl border border-white/8 bg-slate-900/30 px-4 py-3 text-sm text-slate-400">
-                    Need help accessing your workspace? Create your account first, complete your construction profile, and then the app will guide you into company setup or the company access flow tied to your invited email.
+                  <div className="rounded-2xl border border-[rgba(111,138,177,0.2)] bg-[rgba(234,241,255,0.76)] px-4 py-3 text-sm text-[#5f7a98]">
+                    Need help accessing your workspace? Create your account first, complete your construction profile, and the app will guide you through company setup or your invite flow.
                   </div>
 
                   {mode === "signup" ? (
-                    <div className="rounded-2xl border border-white/8 bg-slate-900/30 p-4">
+                    <div className="rounded-2xl border border-[rgba(111,138,177,0.2)] bg-[rgba(234,241,255,0.76)] p-4">
                       <LegalAcceptanceBlock checked={agreed} onChange={setAgreed} compact />
                     </div>
                   ) : null}
@@ -403,7 +370,7 @@ function LoginPageContent() {
                   <button
                     onClick={mode === "login" ? handleLogin : handleCreateAccount}
                     disabled={loading || (mode === "signup" && !agreed)}
-                    className="w-full rounded-2xl bg-amber-400 px-4 py-4 text-sm font-black uppercase tracking-[0.16em] text-slate-950 shadow-[0_16px_36px_rgba(245,158,11,0.26)] transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full rounded-2xl bg-[var(--app-accent-primary)] px-4 py-4 text-sm font-black uppercase tracking-[0.16em] text-white shadow-[0_16px_36px_rgba(79,125,243,0.24)] transition hover:bg-[var(--app-accent-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loading
                       ? mode === "login"
@@ -415,15 +382,15 @@ function LoginPageContent() {
                   </button>
                 </div>
 
-                <div className="mt-6 rounded-2xl border border-emerald-500/22 bg-emerald-500/10 px-4 py-4 text-sm text-emerald-300">
+                <div className="mt-6 rounded-2xl border border-[rgba(46,158,91,0.2)] bg-[rgba(231,246,236,0.96)] px-4 py-4 text-sm text-[#2e9e5b]">
                   TLS 1.3 encrypted. Zero-knowledge architecture ready. 2FA supported.
                 </div>
 
-                <div className="mt-5 rounded-2xl border border-sky-500/18 bg-sky-500/10 px-4 py-4 text-sm text-sky-100">
+                <div className="mt-5 rounded-2xl border border-[rgba(79,125,243,0.2)] bg-[rgba(234,241,255,0.92)] px-4 py-4 text-sm text-[#496581]">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="font-semibold text-sky-200">New here?</p>
-                      <p className="mt-1 text-sky-100/90">
+                      <p className="font-semibold text-[#143252]">New here?</p>
+                      <p className="mt-1 text-[#496581]">
                         Create your account first. After you sign in, the app will walk you through your construction profile, company setup, and employee invites.
                       </p>
                     </div>
@@ -436,35 +403,35 @@ function LoginPageContent() {
                           "Create your account first. After sign-in, you will build your construction profile, launch your company workspace, and then invite employees."
                         );
                       }}
-                      className="inline-flex items-center justify-center rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-600"
+                      className="inline-flex items-center justify-center rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)]"
                     >
                       Create Account
                     </button>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-amber-500/18 bg-amber-500/10 px-4 py-4 text-sm text-amber-100">
-                  If you are joining an existing company, create your account with the exact invited email. Your construction profile comes first, then the company access flow stays scoped to that company workspace.
+                <div className="mt-4 rounded-2xl border border-[rgba(217,164,65,0.2)] bg-[rgba(255,244,219,0.96)] px-4 py-4 text-sm text-[#805d17]">
+                  If you are joining an existing company, create your account with the exact invited email. Your construction profile comes first, and the app keeps access scoped to that company workspace.
                 </div>
               </div>
             </div>
           </section>
         </div>
       </div>
-      <footer className="mx-auto max-w-7xl px-4 pb-8 text-center text-xs text-slate-500 sm:px-6 lg:px-8">
-        <Link href="/terms" className="font-semibold text-slate-400 hover:text-slate-200">
+      <footer className="mx-auto max-w-7xl px-4 pb-8 text-center text-xs text-[#6b84a0] sm:px-6 lg:px-8">
+        <Link href="/terms" className="font-semibold text-[#5f7a98] hover:text-[#143252]">
           Terms
         </Link>
-        <span className="mx-2 text-slate-600" aria-hidden>
+        <span className="mx-2 text-[#8aa0b8]" aria-hidden>
           ·
         </span>
-        <Link href="/privacy" className="font-semibold text-slate-400 hover:text-slate-200">
+        <Link href="/privacy" className="font-semibold text-[#5f7a98] hover:text-[#143252]">
           Privacy
         </Link>
-        <span className="mx-2 text-slate-600" aria-hidden>
+        <span className="mx-2 text-[#8aa0b8]" aria-hidden>
           ·
         </span>
-        <Link href="/liability-waiver" className="font-semibold text-slate-400 hover:text-slate-200">
+        <Link href="/liability-waiver" className="font-semibold text-[#5f7a98] hover:text-[#143252]">
           Liability waiver
         </Link>
       </footer>
@@ -474,9 +441,9 @@ function LoginPageContent() {
 
 function LoginPageFallback() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.08),_transparent_22%),linear-gradient(180deg,_#0a1018_0%,_#0f1726_100%)] px-4 py-6 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(79,125,243,0.14),_transparent_24%),linear-gradient(180deg,_#f7fbff_0%,_#eef5ff_48%,_#e7f0fb_100%)] px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl items-center justify-center">
-        <div className="w-full max-w-md rounded-[1.8rem] border border-white/8 bg-[#121826] p-8 text-center text-slate-300 shadow-[0_22px_60px_rgba(0,0,0,0.32)]">
+        <div className="w-full max-w-md rounded-[1.8rem] border border-[rgba(111,138,177,0.24)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.96)_100%)] p-8 text-center text-[#496581] shadow-[0_22px_54px_rgba(38,64,106,0.14)]">
           Loading secure access portal...
         </div>
       </div>
@@ -513,7 +480,7 @@ function IconEye() {
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
-      className="h-5 w-5 text-slate-500"
+      className="h-5 w-5 text-[#8aa0b8]"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"

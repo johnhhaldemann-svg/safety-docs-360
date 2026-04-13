@@ -19,6 +19,12 @@ import {
   formatRelative,
   useCompanyWorkspaceData,
 } from "@/components/company-workspace/useCompanyWorkspaceData";
+import { RiskMemoryFormFields } from "@/components/risk-memory/RiskMemoryFormFields";
+import {
+  EMPTY_RISK_MEMORY_FORM,
+  buildRiskMemoryApiObject,
+  type RiskMemoryFormInput,
+} from "@/lib/riskMemory/form";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -94,6 +100,7 @@ type CreateActionState = {
     | "verified_closed"
     | "escalated"
     | "stop_work";
+  riskMemory: RiskMemoryFormInput;
 };
 
 type EvidenceComposerState = {
@@ -140,6 +147,7 @@ const EMPTY_CREATE_ACTION: CreateActionState = {
   dueAt: "",
   dapActivityId: "",
   workflowStatus: "open",
+  riskMemory: { ...EMPTY_RISK_MEMORY_FORM },
 };
 
 type DapActivityOption = {
@@ -272,6 +280,37 @@ export default function FieldIdExchangePage() {
   const [pendingSubmissions, setPendingSubmissions] = useState<SafetySubmissionRow[]>([]);
   const [reviewingSubmissionId, setReviewingSubmissionId] = useState<string | null>(null);
   const [dapActivities, setDapActivities] = useState<DapActivityOption[]>([]);
+  const [contractors, setContractors] = useState<Array<{ id: string; name: string }>>([]);
+  const [crews, setCrews] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetchWithTimeout("/api/company/contractors", { headers }, 12000);
+        const data = (await res.json().catch(() => null)) as { contractors?: Array<{ id: string; name: string }> } | null;
+        if (res.ok && data?.contractors) setContractors(data.contractors);
+      } catch {
+        /* optional */
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const q = composer.jobsiteId?.trim()
+          ? `?jobsiteId=${encodeURIComponent(composer.jobsiteId.trim())}`
+          : "";
+        const res = await fetchWithTimeout(`/api/company/crews${q}`, { headers }, 12000);
+        const data = (await res.json().catch(() => null)) as { crews?: Array<{ id: string; name: string }> } | null;
+        if (res.ok && data?.crews) setCrews(data.crews);
+      } catch {
+        /* optional */
+      }
+    })();
+  }, [composer.jobsiteId]);
 
   useEffect(() => {
     let ignore = false;
@@ -283,7 +322,7 @@ export default function FieldIdExchangePage() {
         const [actionsResponse, submissionsResponse, activitiesResponse] = await Promise.all([
           fetchWithTimeout("/api/company/observations", { headers }, 15000),
           fetchWithTimeout("/api/company/safety-submissions?status=pending", { headers }, 15000),
-          fetchWithTimeout("/api/company/dap-activities", { headers }, 15000),
+          fetchWithTimeout("/api/company/jsa-activities", { headers }, 15000),
         ]);
         const actionsPayload = (await actionsResponse.json().catch(() => null)) as
           | { actions?: CorrectiveActionRow[]; error?: string }
@@ -305,7 +344,7 @@ export default function FieldIdExchangePage() {
               submissionsResponse.ok ? submissionsPayload?.submissions ?? [] : []
             );
             setDapActivities(activitiesResponse.ok ? activitiesPayload?.activities ?? [] : []);
-            const preselectedActivity = searchParams.get("dapActivityId")?.trim() ?? "";
+    const preselectedActivity = searchParams.get("jsaActivityId")?.trim() ?? "";
             if (preselectedActivity) {
               const activity = (activitiesPayload?.activities ?? []).find(
                 (item) => item.id === preselectedActivity
@@ -498,7 +537,7 @@ export default function FieldIdExchangePage() {
       const [actionsResponse, submissionsResponse, activitiesResponse] = await Promise.all([
         fetchWithTimeout("/api/company/observations", { headers }, 15000),
         fetchWithTimeout("/api/company/safety-submissions?status=pending", { headers }, 15000),
-        fetchWithTimeout("/api/company/dap-activities", { headers }, 15000),
+        fetchWithTimeout("/api/company/jsa-activities", { headers }, 15000),
       ]);
       const actionsPayload = (await actionsResponse.json().catch(() => null)) as
         | { actions?: CorrectiveActionRow[]; observations?: CorrectiveActionRow[]; error?: string }
@@ -517,7 +556,7 @@ export default function FieldIdExchangePage() {
       setActions(actionsPayload?.observations ?? actionsPayload?.actions ?? []);
       setPendingSubmissions(submissionsResponse.ok ? submissionsPayload?.submissions ?? [] : []);
       setDapActivities(activitiesResponse.ok ? activitiesPayload?.activities ?? [] : []);
-      const preselectedActivity = searchParams.get("dapActivityId")?.trim() ?? "";
+      const preselectedActivity = searchParams.get("jsaActivityId")?.trim() ?? "";
       if (preselectedActivity) {
         const activity = (activitiesPayload?.activities ?? []).find(
           (item) => item.id === preselectedActivity
@@ -643,6 +682,10 @@ export default function FieldIdExchangePage() {
             composer.observationType === "negative" && composer.sifPotential === "yes"
               ? composer.sifCategory
               : undefined,
+          ...((): Record<string, unknown> => {
+            const rm = buildRiskMemoryApiObject(composer.riskMemory);
+            return rm ? { riskMemory: rm } : {};
+          })(),
         }),
       }, 15000);
       const payload = (await response.json().catch(() => null)) as
@@ -1224,7 +1267,7 @@ export default function FieldIdExchangePage() {
             </div>
             <div>
               <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                Link to DAP Activity (Optional)
+                Link to JSA Activity (Optional)
               </label>
               <select
                 value={composer.dapActivityId}
@@ -1233,7 +1276,7 @@ export default function FieldIdExchangePage() {
                 }
                 className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
               >
-                <option value="">Ad-hoc observation (not from DAP)</option>
+                <option value="">Ad-hoc observation (not from a JSA)</option>
                 {dapActivities.map((activity) => (
                   <option key={activity.id} value={activity.id}>
                     {activity.activity_name}
@@ -1241,7 +1284,9 @@ export default function FieldIdExchangePage() {
                 ))}
               </select>
               <p className="mt-2 text-xs text-slate-500">
-                Use this only when the observation is tied to planned work from today&apos;s DAP or Live View.
+                {
+                  "Use this only when the observation is tied to planned work from today's JSA or Live View."
+                }
               </p>
             </div>
             <div>
@@ -1266,6 +1311,15 @@ export default function FieldIdExchangePage() {
                 <option value="escalated">Escalated</option>
                 <option value="stop_work">Stop Work</option>
               </select>
+            </div>
+            <div className="sm:col-span-2">
+              <RiskMemoryFormFields
+                showOutcomeFields={false}
+                value={composer.riskMemory}
+                onChange={(riskMemory) => setComposer((current) => ({ ...current, riskMemory }))}
+                contractors={contractors}
+                crews={crews}
+              />
             </div>
               </>
             ) : null}
@@ -1353,7 +1407,7 @@ export default function FieldIdExchangePage() {
           {!hasLoaded ? (
             <EmptyState
               title="Load the field board"
-              description="Click Refresh Board to pull the latest corrective actions, pending submissions, and DAP activity."
+              description="Click Refresh Board to pull the latest corrective actions, pending submissions, and JSA activity."
             />
           ) : loadingActions ? (
             <EmptyState title="Loading corrective actions" description="Please wait..." />

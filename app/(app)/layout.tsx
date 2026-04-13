@@ -177,7 +177,7 @@ function ProfileAvatar({
 
   return (
     <span
-      className={`${sizeClass} inline-flex items-center justify-center rounded-2xl bg-teal-400/18 font-black text-teal-100 ${textClass}`}
+      className={`${sizeClass} inline-flex items-center justify-center rounded-2xl bg-[rgba(79,125,243,0.14)] font-black text-[var(--app-accent-primary)] ${textClass}`}
     >
       {getAvatarInitials(displayName)}
     </span>
@@ -218,7 +218,7 @@ export default function AppLayout({
   const [termsError, setTermsError] = useState("");
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [companyName, setCompanyName] = useState("");
+  const [, setCompanyName] = useState("");
   const [workspaceProduct, setWorkspaceProduct] = useState<WorkspaceProduct>("full");
   const [profileComplete, setProfileComplete] = useState(false);
   const [profileSummary, setProfileSummary] = useState<ProfileSummary | null>(null);
@@ -227,6 +227,7 @@ export default function AppLayout({
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [bootError, setBootError] = useState("");
   const isAdminArea = pathname.startsWith("/admin");
   const isSuperadminRoute = pathname.startsWith("/superadmin");
@@ -290,11 +291,6 @@ export default function AppLayout({
   const commandPaletteItems = useMemo(
     () => flattenNavItemsFromSections(sideSections),
     [sideSections]
-  );
-
-  const sidebarQuickItems = useMemo(
-    () => commandPaletteItems.slice(0, 4),
-    [commandPaletteItems]
   );
 
   const currentNavItem = useMemo(() => {
@@ -517,6 +513,7 @@ export default function AppLayout({
           "/companies",
           "/jobsites",
           "/analytics",
+          "/command-center",
         ];
         const inReadOnlyRoute = readOnlyAllowedRoutes.some(
           (route) => pathname === route || pathname.startsWith(`${route}/`)
@@ -580,11 +577,12 @@ export default function AppLayout({
           "/jobsites",
           "/field-id-exchange",
           "/safety-submit",
-          "/daps",
           "/jsa",
           "/permits",
           "/incidents",
           "/analytics",
+          "/command-center",
+          "/settings/risk-memory",
           "/reports"
         );
       }
@@ -624,7 +622,7 @@ export default function AppLayout({
         userRole !== "manager" &&
         userRole !== "safety_manager"
       ) {
-        for (const route of ["/companies", "/analytics"] as const) {
+        for (const route of ["/companies", "/analytics", "/command-center", "/settings/risk-memory"] as const) {
           if (!companyAllowedRoutes.includes(route)) {
             companyAllowedRoutes.push(route);
           }
@@ -683,6 +681,15 @@ export default function AppLayout({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [workspaceChromeReady]);
 
+  const handleHeaderSearchSubmit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const nextQuery = searchQuery.trim();
+      router.push(nextQuery ? `/search?q=${encodeURIComponent(nextQuery)}` : "/search");
+    },
+    [router, searchQuery]
+  );
+
   const workspaceLabel = showPlatformAdminShell
     ? "Admin Workspace"
     : needsProfileSetup
@@ -692,18 +699,6 @@ export default function AppLayout({
       : isCompanyScopedUser
         ? "Company Workspace"
         : "User Workspace";
-  const workspaceDescriptor = showPlatformAdminShell
-    ? "Safety management controls"
-    : needsProfileSetup
-      ? "Build your construction profile first"
-    : needsCompanySetup
-      ? "Finish company setup before inviting users"
-      : isCompanyScopedUser
-        ? isCompanyLeadershipUser
-          ? "Jobsites, documents, and field operations"
-          : "Company documents, uploads, and assigned work"
-        : "Project document workspace";
-
   async function handleLogout() {
     try {
       setLoading(true);
@@ -793,12 +788,13 @@ export default function AppLayout({
             locked until an administrator reviews and activates it.
           </p>
           <div className="mt-6 rounded-2xl border border-amber-500/35 bg-amber-950/50 px-4 py-3 text-sm text-amber-100/95">
-            We&apos;ll open the full workspace as soon as your account status is changed
-            from pending to active.
+            {
+              "We'll open the full workspace as soon as your account status is changed from pending to active."
+            }
           </div>
           <button
             onClick={handleLogout}
-            className="mt-6 rounded-xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(13,148,136,0.25)]"
+            className="mt-6 rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(79,125,243,0.22)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
           >
             Logout
           </button>
@@ -822,7 +818,7 @@ export default function AppLayout({
           </p>
           <button
             onClick={handleLogout}
-            className="mt-6 rounded-xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(13,148,136,0.25)]"
+            className="mt-6 rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(79,125,243,0.22)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
           >
             Logout
           </button>
@@ -834,40 +830,40 @@ export default function AppLayout({
   if (!acceptedTerms) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-app-canvas px-6 py-10">
-        <div className="w-full max-w-5xl rounded-[2rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-lg">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-300">
+        <div className="w-full max-w-5xl rounded-[2rem] border border-[var(--app-border)] bg-[rgba(248,251,255,0.96)] p-8 shadow-[var(--app-shadow)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--app-accent-primary)]">
             Agreement Required
           </p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-white">
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-[var(--app-text-strong)]">
             Accept the platform agreement before continuing
           </h1>
-          <p className="mt-3 text-sm leading-6 text-slate-400">
+          <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">
             You must accept the Terms of Service, Liability Waiver, and Licensing Agreement before using Safety360Docs. Version {agreementConfig.version}.
           </p>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
-            <div className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-5">
-              <h2 className="text-lg font-bold text-slate-100">
+            <div className="rounded-3xl border border-[var(--app-border)] bg-[var(--app-panel)] p-5">
+              <h2 className="text-lg font-bold text-[var(--app-text-strong)]">
                 {agreementConfig.termsOfService.title}
               </h2>
-              <div className="mt-3 max-h-64 space-y-4 overflow-y-auto pr-2 text-sm text-slate-400">
+              <div className="mt-3 max-h-64 space-y-4 overflow-y-auto pr-2 text-sm text-[var(--app-text)]">
                 {agreementConfig.termsOfService.sections.map((section) => (
                   <div key={section.heading}>
-                    <div className="font-semibold text-slate-200">{section.heading}</div>
+                    <div className="font-semibold text-[var(--app-text-strong)]">{section.heading}</div>
                     <p className="mt-1 leading-6">{section.body}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-5">
-              <h2 className="text-lg font-bold text-slate-100">
+            <div className="rounded-3xl border border-[var(--app-border)] bg-[var(--app-panel)] p-5">
+              <h2 className="text-lg font-bold text-[var(--app-text-strong)]">
                 {agreementConfig.liabilityWaiver.title}
               </h2>
-              <div className="mt-3 max-h-64 space-y-4 overflow-y-auto pr-2 text-sm text-slate-400">
+              <div className="mt-3 max-h-64 space-y-4 overflow-y-auto pr-2 text-sm text-[var(--app-text)]">
                 {agreementConfig.liabilityWaiver.sections.map((section) => (
                   <div key={section.heading}>
-                    <div className="font-semibold text-slate-200">{section.heading}</div>
+                    <div className="font-semibold text-[var(--app-text-strong)]">{section.heading}</div>
                     <p className="mt-1 leading-6">{section.body}</p>
                   </div>
                 ))}
@@ -876,33 +872,33 @@ export default function AppLayout({
           </div>
 
           {termsError ? (
-            <div className="mt-6 rounded-2xl border border-red-500/35 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+            <div className="mt-6 rounded-2xl border border-[rgba(217,83,79,0.28)] bg-[var(--semantic-danger-bg)] px-4 py-3 text-sm text-[var(--semantic-danger)]">
               {termsError}
             </div>
           ) : null}
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/terms" className="rounded-xl border border-slate-600 bg-slate-800/80 px-4 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800">
+            <Link href="/terms" className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)]">
               View Terms
             </Link>
-            <Link href="/privacy" className="rounded-xl border border-slate-600 bg-slate-800/80 px-4 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800">
+            <Link href="/privacy" className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)]">
               Privacy
             </Link>
-            <Link href="/liability-waiver" className="rounded-xl border border-slate-600 bg-slate-800/80 px-4 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800">
+            <Link href="/liability-waiver" className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)]">
               View Liability Waiver
             </Link>
             <button
               type="button"
               onClick={handleAcceptTerms}
               disabled={acceptingTerms}
-              className="rounded-xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(13,148,136,0.25)] disabled:opacity-60"
+              className="rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(79,125,243,0.22)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)] disabled:opacity-60"
             >
               {acceptingTerms ? "Accepting..." : "Accept & Continue"}
             </button>
             <button
               type="button"
               onClick={handleLogout}
-              className="rounded-xl border border-slate-600 bg-slate-800/80 px-5 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800"
+              className="rounded-xl border border-[var(--app-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)]"
             >
               Logout
             </button>
@@ -913,7 +909,7 @@ export default function AppLayout({
   }
 
   return (
-    <div className="app-shell-dark min-h-screen bg-app-canvas text-slate-100 [color-scheme:dark]">
+    <div className="app-shell-light min-h-screen bg-app-canvas text-[var(--app-text)]">
       <div className="flex min-h-screen">
         {mobileMenuOpen ? (
           <button
@@ -925,72 +921,21 @@ export default function AppLayout({
 
         <aside
           className={cx(
-            "fixed inset-y-0 left-0 z-50 w-[280px] max-w-[84vw] border-r border-slate-800 bg-[linear-gradient(180deg,_#0d1830_0%,_#13284b_60%,_#0c1730_100%)] text-white transition-transform duration-200 lg:static lg:w-[248px] lg:max-w-none lg:translate-x-0",
+            "fixed inset-y-0 left-0 z-50 w-[280px] max-w-[84vw] border-r border-[var(--app-border)] bg-[linear-gradient(180deg,_#f7fbff_0%,_#edf4ff_55%,_#e7f0fb_100%)] text-[var(--app-text-strong)] transition-transform duration-200 lg:static lg:w-[248px] lg:max-w-none lg:translate-x-0",
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
           <div className="flex h-full flex-col">
-            <div className="p-4">
-              <div className="rounded-[1.6rem] border border-white/10 bg-white/5 p-4 shadow-[0_16px_30px_rgba(2,8,23,0.22)]">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-400/18 text-sm font-black text-teal-100">
-                    S3
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-base font-black leading-tight text-white">
-                      Safety360
-                      <br />
-                      Docs
-                    </div>
-                    <div className="mt-1 text-[9px] uppercase tracking-[0.24em] text-teal-200/90">
-                      Safety Management Platform
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="px-4 pb-1">
-              <div className="rounded-[1.4rem] border border-white/10 bg-white/5 p-3 shadow-[0_12px_24px_rgba(2,8,23,0.14)]">
-                <div className="flex items-center justify-between gap-3 px-1">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">
-                    Quick access
-                  </div>
-                  <div className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                    {currentNavItem.short}
-                  </div>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  {sidebarQuickItems.map((item) => {
-                    const active = isActivePath(pathname, item.href);
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cx(
-                          "flex items-center gap-2 rounded-2xl border px-3 py-2.5 transition",
-                          active
-                            ? "border-teal-400/50 bg-teal-400/10 text-white"
-                            : "border-white/10 bg-white/5 text-slate-200 hover:bg-white/10 hover:text-white"
-                        )}
-                      >
-                        <span
-                          className={cx(
-                            "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-[10px] font-black",
-                            active
-                              ? "bg-teal-500/25 text-teal-100"
-                              : "bg-white/8 text-teal-200"
-                          )}
-                        >
-                          {item.short}
-                        </span>
-                        <span className="min-w-0 truncate text-xs font-semibold">
-                          {item.label}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
+            <div className="p-4 pb-1">
+              <div className="relative h-[5.8rem] w-full">
+                <Image
+                  src="/brand/safety360docs-reference-neon-tight.png"
+                  alt="Safety360Docs by Reliance EHS"
+                  fill
+                  priority
+                  sizes="248px"
+                  className="object-contain object-left"
+                />
               </div>
             </div>
 
@@ -1002,7 +947,7 @@ export default function AppLayout({
                 {sideSections.map((section, sectionIndex) => (
                   <div
                     key={`nav-section-${sectionIndex}-${section.title}`}
-                    className={sectionIndex > 0 ? "mt-5 border-t border-white/10 pt-5" : ""}
+                    className={sectionIndex > 0 ? "mt-5 border-t border-[var(--app-border)] pt-5" : ""}
                   >
                     <div className="px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">
                       {section.title}
@@ -1025,24 +970,14 @@ export default function AppLayout({
                               key={`${section.title}-${item.href}`}
                               href={item.href}
                               className={cx(
-                                "flex items-center gap-3 rounded-2xl border px-3 py-3 transition",
+                                "flex items-center rounded-2xl border px-4 py-3 transition",
                                 active
-                                  ? "border-teal-400/50 bg-[linear-gradient(135deg,_rgba(13,148,136,0.22)_0%,_rgba(5,150,105,0.14)_100%)] text-white shadow-[0_0_24px_rgba(45,212,191,0.12)]"
-                                  : "border-transparent text-slate-200 hover:bg-white/8 hover:text-white"
+                                  ? "border-[rgba(79,125,243,0.24)] bg-[linear-gradient(135deg,_rgba(79,125,243,0.14)_0%,_rgba(79,125,243,0.08)_100%)] text-[var(--app-text-strong)] shadow-[0_12px_24px_rgba(79,125,243,0.08)]"
+                                  : "border-transparent text-[var(--app-text)] hover:bg-white/70 hover:text-[var(--app-text-strong)]"
                               )}
                             >
-                              <span
-                                className={cx(
-                                  "inline-flex h-8 w-8 items-center justify-center rounded-xl text-[11px] font-black",
-                                  active
-                                    ? "bg-teal-500/30 text-teal-100 ring-1 ring-teal-400/40"
-                                    : "bg-white/8 text-teal-200"
-                                )}
-                              >
-                                {item.short}
-                              </span>
                               <div className="min-w-0">
-                                <div className="truncate text-sm font-semibold text-white">
+                                <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">
                                   {item.label}
                                 </div>
                               </div>
@@ -1056,31 +991,31 @@ export default function AppLayout({
             </nav>
 
             <div className="border-t border-white/10 p-3">
-              <div className="rounded-[1.6rem] border border-white/10 bg-white/5 p-4">
+              <div className="rounded-[1.6rem] border border-[var(--app-border)] bg-white/80 p-4">
                 <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
                   Signed In
                 </div>
                 <div className="mt-3 flex items-center gap-3">
                   <ProfileAvatar profile={profileSummary} email={userEmail} />
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-white">
+                    <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">
                       {getDisplayName(profileSummary, userEmail)}
                     </div>
-                    <div className="mt-1 truncate text-xs text-slate-300">
+                    <div className="mt-1 truncate text-xs text-[var(--app-text)]">
                       {profileSummary?.jobTitle || formatRole(userRole)}
                     </div>
                   </div>
                 </div>
-                <div className="mt-3 text-xs uppercase tracking-[0.16em] text-teal-200/90">
+                <div className="mt-3 text-xs uppercase tracking-[0.16em] text-[var(--app-accent-primary)]">
                   {profileSummary?.tradeSpecialty || formatRole(userRole)}
                 </div>
-                <div className="mt-4 flex items-center justify-between rounded-2xl bg-white/6 px-3 py-2 text-xs text-slate-200">
+                <div className="mt-4 flex items-center justify-between rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2 text-xs text-[var(--app-text)]">
                   <span>{workspaceLabel}</span>
                   <span className="capitalize">{accountStatus}</span>
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="mt-4 w-full rounded-2xl bg-[linear-gradient(135deg,_#0d9488_0%,_#059669_100%)] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_24px_rgba(13,148,136,0.28)]"
+                  className="mt-4 w-full rounded-2xl bg-[var(--app-accent-primary)] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_24px_rgba(79,125,243,0.24)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
                 >
                   Logout
                 </button>
@@ -1090,43 +1025,59 @@ export default function AppLayout({
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="border-b border-slate-700/80 bg-slate-950/90 backdrop-blur">
+          <header className="border-b border-[var(--app-border)] bg-[rgba(248,251,255,0.88)] backdrop-blur">
             <div className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6 xl:px-8">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="flex min-w-0 items-start gap-3">
+              <div className="flex flex-col gap-5">
+                <div className="flex min-w-0 items-start gap-3">
                     <button
                       type="button"
                       onClick={() => setMobileMenuOpen(true)}
                       aria-label="Open navigation menu"
-                      className="inline-flex h-11 min-h-11 w-11 min-w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-600 bg-slate-800/90 text-slate-200 shadow-sm lg:hidden"
+                      className="inline-flex h-11 min-h-11 w-11 min-w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--app-border)] bg-white text-[var(--app-text)] shadow-sm lg:hidden"
                     >
                       <MobileMenuIcon />
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setCommandPaletteOpen(true)}
-                      aria-label="Open go to page menu"
-                      className="inline-flex h-11 min-h-11 shrink-0 items-center gap-2 rounded-2xl border border-slate-600 bg-slate-800/90 px-3 text-xs font-semibold text-slate-200 shadow-sm sm:px-4 sm:text-sm"
-                    >
-                      <span className="hidden sm:inline">Go to</span>
-                      <span className="rounded-md bg-slate-950/60 px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
-                        Ctrl+K
-                      </span>
-                    </button>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">
+                      <form onSubmit={handleHeaderSearchSubmit} className="mb-3 max-w-xl">
+                        <div className="flex items-center gap-2 rounded-2xl border border-[var(--app-border-strong)] bg-white px-3 py-2.5 shadow-sm">
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            className="h-4 w-4 shrink-0 text-[var(--app-muted)]"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <circle cx="11" cy="11" r="7" />
+                            <path d="m20 20-3.5-3.5" />
+                          </svg>
+                          <input
+                            type="search"
+                            value={searchQuery}
+                            onChange={(event) => setSearchQuery(event.target.value)}
+                            placeholder="Search documents, records, projects, or pages"
+                            aria-label="Search workspace"
+                            className="w-full border-0 bg-transparent text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)]"
+                          />
+                          <button
+                            type="submit"
+                            className="inline-flex shrink-0 rounded-xl bg-[var(--app-accent-primary)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
+                          >
+                            Search
+                          </button>
+                        </div>
+                      </form>
+                      <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-[var(--app-muted)]">
                         {workspaceLabel}
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-3">
-                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-teal-500/20 text-[11px] font-black text-teal-100 ring-1 ring-teal-400/30">
-                          {currentNavItem.short}
-                        </span>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
                         <div>
-                          <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
+                          <h1 className="text-2xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-3xl">
                             {currentNavItem.label}
                           </h1>
-                          <p className="mt-1 text-sm text-slate-400">
+                          <p className="mt-1 text-sm text-[var(--app-text)]">
                             {showPlatformAdminShell
                               ? "Administrative tools and audit controls"
                               : needsProfileSetup
@@ -1141,72 +1092,35 @@ export default function AppLayout({
                           </p>
                         </div>
                       </div>
-                      <p className="mt-1 max-w-3xl text-[11px] font-medium uppercase tracking-[0.14em] text-slate-300 sm:text-sm">
+                      <p className="mt-2 max-w-3xl text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--app-muted)] sm:text-sm">
                         Enterprise Safety Management Platform
                       </p>
                     </div>
-                  </div>
-
-                  <div className="hidden gap-3 sm:grid sm:grid-cols-2 xl:min-w-[420px]">
-                    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/70 px-4 py-3 shadow-sm">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
-                        Signed In
-                      </div>
-                      <div className="mt-2 flex items-center gap-3">
-                        <ProfileAvatar
-                          profile={profileSummary}
-                          email={userEmail}
-                          sizeClass="h-10 w-10"
-                          textClass="text-xs"
-                        />
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-slate-100">
-                            {getDisplayName(profileSummary, userEmail)}
-                          </div>
-                          <div className="mt-1 truncate text-xs text-slate-400">
-                            {profileSummary?.jobTitle || userEmail}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/60 px-4 py-3 shadow-sm">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
-                        Workspace
-                      </div>
-                      <div className="mt-1 text-sm font-semibold text-slate-100">{workspaceLabel}</div>
-                      <div className="mt-1 text-xs text-slate-400">
-                        {needsProfileSetup
-                          ? "Construction profile required"
-                          : needsCompanySetup
-                          ? companyName || workspaceDescriptor
-                          : workspaceDescriptor}
-                      </div>
-                    </div>
-                  </div>
                 </div>
-
               </div>
             </div>
           </header>
 
-          <main className="flex-1 px-4 py-5 sm:px-6 xl:px-8">
+          <main className="flex-1 px-4 py-6 sm:px-6 sm:py-7 xl:px-8">
             <div className="mx-auto w-full max-w-[1600px] space-y-5">
               {bootError ? (
-                <div className="rounded-2xl border border-amber-500/35 bg-amber-950/40 px-4 py-3 text-sm text-amber-100/95 shadow-sm">
+                <div className="rounded-2xl border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] px-4 py-3 text-sm text-[var(--semantic-warning)] shadow-sm">
                   {bootError}
                 </div>
               ) : null}
-              <div className="rounded-[1.6rem] border border-slate-700/60 bg-slate-950/30 p-3 shadow-[0_18px_40px_rgba(0,0,0,0.25)] sm:rounded-[2rem] sm:p-4">
+              <div className="workspace-frame rounded-[1.6rem] p-3 sm:rounded-[2rem] sm:p-4">
+                <div className="workspace-content">
                 {children}
+                </div>
               </div>
-              <div className="rounded-[1.3rem] bg-[linear-gradient(135deg,_#10213f_0%,_#13284b_100%)] px-4 py-4 text-center text-xl font-black tracking-tight text-white shadow-[0_16px_30px_rgba(15,23,42,0.18)] sm:rounded-[1.6rem] sm:px-6 sm:py-5 sm:text-[1.85rem]">
+              <div className="rounded-[1.3rem] bg-[linear-gradient(135deg,_#4f7df3_0%,_#6ea0ff_100%)] px-4 py-4 text-center text-xl font-black tracking-tight text-white shadow-[0_16px_30px_rgba(79,125,243,0.2)] sm:rounded-[1.6rem] sm:px-6 sm:py-5 sm:text-[1.85rem]">
                 Systems live. Secure. Document. Stay Safe.
               </div>
             </div>
           </main>
         </div>
       </div>
-      <Toaster richColors theme="dark" position="top-center" closeButton />
+      <Toaster richColors theme="light" position="top-center" closeButton />
       <AppCommandPalette
         open={commandPaletteOpen}
         onOpenChange={setCommandPaletteOpen}

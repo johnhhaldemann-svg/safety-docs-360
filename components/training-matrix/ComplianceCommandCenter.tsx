@@ -22,7 +22,7 @@ function KpiCard({
 }) {
   return (
     <div
-      className={`rounded-2xl border bg-zinc-900/80 p-4 shadow-lg ${borderAccent} backdrop-blur-sm`}
+      className={`rounded-2xl border bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(240,246,255,0.94)_100%)] p-4 shadow-[0_12px_28px_rgba(79,125,243,0.08)] ${borderAccent}`}
     >
       <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{label}</p>
       <p className="mt-2 font-mono text-2xl font-bold tracking-tight text-white">{value}</p>
@@ -159,8 +159,8 @@ export function ComplianceCommandCenter({
   const flatCreds = useMemo(() => flattenCredentialLedger(rows), [rows]);
 
   const shell = (inner: React.ReactNode) => (
-    <div className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 text-zinc-100 shadow-2xl ring-1 ring-zinc-700/40">
-      <div className="border-b border-zinc-800 bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 px-6 py-5">
+    <div className="overflow-hidden rounded-3xl border border-[rgba(198,212,236,0.9)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(240,246,255,0.94)_100%)] text-[var(--app-text)] shadow-[0_20px_48px_rgba(79,125,243,0.12)] ring-1 ring-[rgba(198,212,236,0.55)]">
+      <div className="border-b border-[rgba(198,212,236,0.9)] bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(236,244,255,0.96)_60%,rgba(228,239,255,0.96)_100%)] px-6 py-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-400">
@@ -178,7 +178,7 @@ export function ComplianceCommandCenter({
             type="button"
             onClick={onRefresh}
             disabled={loading}
-            className="shrink-0 rounded-xl bg-gradient-to-r from-cyan-500 to-fuchsia-500 px-5 py-2.5 text-sm font-bold text-zinc-950 shadow-lg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+            className="shrink-0 rounded-xl bg-[linear-gradient(135deg,#4f7df3_0%,#5b92ff_100%)] px-5 py-2.5 text-sm font-bold text-white shadow-[0_16px_28px_rgba(79,125,243,0.24)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading
               ? workspaceDataLoaded
@@ -195,7 +195,7 @@ export function ComplianceCommandCenter({
   if (!workspaceDataLoaded && !loading) {
     return shell(
       <div className="px-6 py-16">
-        <div className="mx-auto max-w-lg rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/40 p-10 text-center">
+        <div className="mx-auto max-w-lg rounded-2xl border border-dashed border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.94)] p-10 text-center">
           <p className="text-lg font-semibold text-white">Compliance data not loaded</p>
           <p className="mt-2 text-sm text-zinc-400">
             Use <span className="font-semibold text-fuchsia-400">Refresh data</span> in the page header or
@@ -219,7 +219,7 @@ export function ComplianceCommandCenter({
   if (rows.length === 0) {
     return shell(
       <div className="px-6 py-14">
-        <div className="mx-auto max-w-lg rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/50 p-10 text-center">
+        <div className="mx-auto max-w-lg rounded-2xl border border-dashed border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.94)] p-10 text-center">
           <p className="text-lg font-semibold text-white">No team members to show</p>
           <p className="mt-2 text-sm leading-relaxed text-zinc-400">
             {warning
@@ -234,7 +234,7 @@ export function ComplianceCommandCenter({
   return shell(
     <>
       {loading && workspaceDataLoaded ? (
-        <div className="border-b border-cyan-500/20 bg-cyan-950/40 px-6 py-2 text-center text-sm text-cyan-200">
+        <div className="border-b border-[rgba(79,125,243,0.22)] bg-[rgba(232,240,255,0.96)] px-6 py-2 text-center text-sm text-[var(--app-accent-primary)]">
           Refreshing summaries and matrix…
         </div>
       ) : null}
@@ -273,13 +273,13 @@ export function ComplianceCommandCenter({
           </div>
 
           <div className="grid gap-6 px-6 pb-6 lg:grid-cols-12">
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 lg:col-span-5">
+            <div className="rounded-2xl border border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.94)] p-4 lg:col-span-5">
               <p className="text-xs font-bold uppercase tracking-wide text-zinc-500">Gaps by requirement</p>
               <p className="mt-1 text-[11px] text-zinc-500">People missing each rule (in scope), static bars</p>
               <StaticGapsByRequirement bars={model.requirementBars} />
             </div>
 
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 lg:col-span-4">
+            <div className="rounded-2xl border border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.94)] p-4 lg:col-span-4">
               <p className="text-xs font-bold uppercase tracking-wide text-zinc-500">Check outcomes</p>
               <p className="mt-1 text-[11px] text-zinc-500">All person × requirement cells (CSS only)</p>
               <StaticOutcomeSummary
@@ -290,7 +290,7 @@ export function ComplianceCommandCenter({
               />
             </div>
 
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 lg:col-span-3">
+            <div className="rounded-2xl border border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.94)] p-4 lg:col-span-3">
               <p className="text-xs font-bold uppercase tracking-wide text-zinc-500">By trade</p>
               <p className="mt-1 text-[11px] text-zinc-500">% of in-scope checks met</p>
               <div className="mt-4 max-h-[280px] space-y-3 overflow-y-auto pr-1">
@@ -329,7 +329,7 @@ export function ComplianceCommandCenter({
         </div>
       )}
 
-      <div className="border-t border-zinc-800 bg-zinc-950 px-4 py-5 sm:px-6">
+      <div className="border-t border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.96)] px-4 py-5 sm:px-6">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Requirement matrix</p>
         <p className="mt-1 text-sm text-zinc-500">
           Per-person grid with position/trade rollups and requirement columns.
@@ -339,15 +339,15 @@ export function ComplianceCommandCenter({
       </div>
 
       {flatCreds.length > 0 ? (
-        <div className="border-t border-zinc-800 bg-zinc-900/30 px-4 py-6 sm:px-6">
+        <div className="border-t border-[rgba(198,212,236,0.9)] bg-[rgba(240,246,255,0.9)] px-4 py-6 sm:px-6">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Credential ledger</p>
           <p className="mt-1 text-sm text-zinc-500">
             Every certification on file with expiry health (sortable view of profile credentials).
           </p>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-zinc-800">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-[rgba(198,212,236,0.9)] bg-white/70">
             <table className="min-w-full border-collapse text-left text-sm">
               <thead>
-                <tr className="border-b border-zinc-800 bg-zinc-900/90">
+                <tr className="border-b border-[rgba(198,212,236,0.9)] bg-[rgba(240,246,255,0.94)]">
                   <th className="px-4 py-3 font-semibold text-zinc-300">Person</th>
                   <th className="px-4 py-3 font-semibold text-zinc-300">Certification</th>
                   <th className="px-4 py-3 font-semibold text-zinc-300">Expiration</th>
@@ -359,7 +359,7 @@ export function ComplianceCommandCenter({
                 {flatCreds.map((c, idx) => (
                   <tr
                     key={`${c.userId}-${c.cert}-${idx}`}
-                    className="border-b border-zinc-800/80 bg-zinc-950/40 hover:bg-zinc-800/30"
+                    className="border-b border-[rgba(198,212,236,0.85)] bg-[rgba(255,255,255,0.72)] hover:bg-[rgba(79,125,243,0.06)]"
                   >
                     <td className="px-4 py-2.5 font-medium text-white">{c.person}</td>
                     <td className="max-w-[220px] px-4 py-2.5 text-zinc-300">{c.cert}</td>

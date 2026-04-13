@@ -23,6 +23,8 @@ type CompanyRow = {
   primary_contact_email: string | null;
   status: string | null;
   created_at: string | null;
+  pilot_trial_ends_at?: string | null;
+  pilot_converted_at?: string | null;
   archived_at?: string | null;
   archived_by_email?: string | null;
   restored_at?: string | null;
@@ -83,6 +85,8 @@ type CompanyActionPayload = {
   notes?: string;
   /** Stored on `company_subscriptions.plan_name` (e.g. `CSEP` for CSEP-only tier). */
   planName?: string;
+  /** When true (default), new approved workspace gets a 30-day pilot trial window. */
+  pilotTrial?: boolean;
 };
 
 type SupabaseWriteClient = {
@@ -347,6 +351,8 @@ export async function GET(request: Request) {
       primaryContactEmail: company.primary_contact_email?.trim() || "",
       status: company.status?.trim() || "approved",
       createdAt: company.created_at,
+      pilotTrialEndsAt: company.pilot_trial_ends_at ?? null,
+      pilotConvertedAt: company.pilot_converted_at ?? null,
       archivedAt: company.archived_at ?? null,
       archivedByEmail: company.archived_by_email?.trim() || "",
       restoredAt: company.restored_at ?? null,
@@ -394,6 +400,7 @@ export async function PATCH(request: Request) {
   const action = body?.action?.trim().toLowerCase() ?? "";
   const notes = body?.notes?.trim() ?? null;
   const approvalPlanName = normalizeApprovalPlanName(body?.planName ?? null);
+  const enablePilotTrial = body?.pilotTrial !== false;
 
   if (action === "archive" || action === "restore") {
     if (!companyId) {
@@ -583,6 +590,10 @@ export async function PATCH(request: Request) {
     | null = null;
   let companyInsertError: string | null = null;
 
+  const pilotTrialEndsAt = enablePilotTrial
+    ? new Date(Date.now() + 30 * 86400000).toISOString()
+    : null;
+
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const insertResult = await supabase
       .from("companies")
@@ -600,6 +611,8 @@ export async function PATCH(request: Request) {
         primary_contact_name: primaryContactName,
         primary_contact_email: primaryContactEmail,
         status: "approved",
+        pilot_trial_ends_at: pilotTrialEndsAt,
+        pilot_converted_at: null,
         created_by: auth.user.id,
         updated_by: auth.user.id,
       })

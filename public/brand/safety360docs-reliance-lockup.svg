@@ -1,0 +1,45 @@
+<svg width="860" height="320" viewBox="0 0 860 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="shieldFill" x1="24" y1="36" x2="198" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38A7F2"/>
+      <stop offset="1" stop-color="#1368C7"/>
+    </linearGradient>
+    <linearGradient id="shieldEdge" x1="46" y1="42" x2="186" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2C88DD"/>
+      <stop offset="1" stop-color="#0C4F9E"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="82" y1="134" x2="214" y2="244" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7F9FC"/>
+      <stop offset="1" stop-color="#A2AEBF"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="16" width="860" height="288" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="8"/>
+      <feGaussianBlur stdDeviation="10"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.0431 0 0 0 0 0.1961 0 0 0 0 0.3843 0 0 0 0.18 0"/>
+      <feBlend in2="SourceGraphic" result="shape"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <path d="M108 34L195 62V139C195 195 161 238 108 267C55 238 21 195 21 139V62L108 34Z" fill="url(#shieldFill)"/>
+    <path d="M108 48L182 72V138C182 187 153 224 108 249C63 224 34 187 34 138V72L108 48Z" fill="#1D7ED9"/>
+    <path d="M108 34L195 62V139C195 195 161 238 108 267C55 238 21 195 21 139V62L108 34Z" stroke="url(#shieldEdge)" stroke-width="10"/>
+    <path d="M107.5 63L168.5 82.5V139C168.5 178.5 145.5 210 107.5 232C69.5 210 46.5 178.5 46.5 139V82.5L107.5 63Z" stroke="#0C4F9E" stroke-width="7"/>
+    <path d="M68 142L92 168L151 91" stroke="url(#steel)" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <rect x="138" y="174" width="72" height="72" rx="6" transform="rotate(45 138 174)" fill="#F5F7FB" stroke="#8A93A3" stroke-width="8"/>
+    <rect x="151" y="187" width="46" height="46" rx="3" transform="rotate(45 151 187)" fill="#FFFFFF" stroke="#B0B7C4" stroke-width="2"/>
+    <path d="M156 210H188" stroke="#7E8798" stroke-width="6" stroke-linecap="round"/>
+    <path d="M172 194V226" stroke="#7E8798" stroke-width="6" stroke-linecap="round"/>
+  </g>
+
+  <text x="242" y="136" font-family="Arial, Helvetica, sans-serif" font-size="74" font-style="italic" font-weight="700" fill="#1977CF">Safety</text>
+  <text x="453" y="136" font-family="Arial, Helvetica, sans-serif" font-size="74" font-style="italic" font-weight="700" fill="#7BC043">360</text>
+  <text x="562" y="136" font-family="Arial, Helvetica, sans-serif" font-size="74" font-style="italic" font-weight="700" fill="#1977CF">Docs</text>
+
+  <text x="461" y="184" font-family="Arial, Helvetica, sans-serif" font-size="44" font-style="italic" font-weight="400" fill="#6E7683">by Reliance EHS</text>
+
+  <line x1="234" y1="230" x2="790" y2="230" stroke="#C52828" stroke-width="8"/>
+
+  <text x="232" y="284" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700" letter-spacing="1.4" fill="#C52828">ENVIRONMENT &#8226; HEALTH &#8226; SAFETY</text>
+</svg>

@@ -183,8 +183,10 @@ function ExternalHistoricalSourcesPanel({
   }
 
   return (
-    <div className="rounded-lg border border-teal-600/45 bg-teal-950/25 p-4 text-sm leading-relaxed text-slate-200">
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-300/95">Outside-source data (in this app)</p>
+    <div className="rounded-lg border border-[rgba(79,125,243,0.24)] bg-[var(--semantic-info-bg)] p-4 text-sm leading-relaxed text-[var(--app-text)]">
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--app-accent-primary)]">
+        Outside-source data (in this app)
+      </p>
       <p className="mt-2 text-xs text-slate-400">
         These values are <strong className="text-slate-300">not</strong> your jobsite’s logged observations. They explain why the
         model can still show risk when in-window signals are empty: sector and national context plus built-in priors (calendar
@@ -861,7 +863,7 @@ export function InjuryWeatherDashboard() {
     Boolean(month.trim()) && Boolean(appliedMonth.trim()) && month.trim() !== appliedMonth.trim();
 
   return (
-    <div className="space-y-5 text-slate-100">
+    <div className="injury-weather-light space-y-5 text-slate-100">
       {monthPickerDiffersFromApplied ? (
         <div
           className="rounded-2xl border border-amber-500/45 bg-amber-950/35 px-4 py-3 text-sm leading-snug text-amber-100/95"
@@ -923,13 +925,13 @@ export function InjuryWeatherDashboard() {
               {forecastModeDisplayLabel(data.summary.forecastMode)}
             </p>
           </div>
-          <div className="rounded-xl border border-teal-500/35 bg-slate-900/70 p-3 text-center lg:text-left">
-            <p className="text-xs uppercase tracking-[0.2em] text-teal-300/90">Predicted likely injury</p>
+          <div className="rounded-xl border border-[rgba(79,125,243,0.24)] bg-[var(--semantic-info-bg)] p-3 text-center lg:text-left">
+            <p className="text-xs uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">Predicted likely injury</p>
             <p className="mt-0.5 text-[10px] text-slate-500">
               Blended from incidents, SOR hazard class, and corrective actions—same record window and trade filter as the headline
               metrics and trade cards.
             </p>
-            <p className="mt-2 text-xl font-black leading-tight text-teal-100 sm:text-2xl">
+            <p className="mt-2 text-xl font-black leading-tight text-[var(--app-text-strong)] sm:text-2xl">
               {data.summary.likelyInjuryInsight.headline}
             </p>
             {data.summary.likelyInjuryInsight.secondaryLine ? (
@@ -1099,7 +1101,7 @@ export function InjuryWeatherDashboard() {
                       </div>
                       <div>
                         <p className="text-[10px] uppercase text-slate-500">Predicted likely injury (model)</p>
-                        <p className="mt-1 font-semibold text-teal-100/90">{deterministicBaseline.summary.likelyInjuryInsight.headline}</p>
+                        <p className="mt-1 font-semibold text-[var(--app-text-strong)]">{deterministicBaseline.summary.likelyInjuryInsight.headline}</p>
                         {deterministicBaseline.summary.likelyInjuryInsight.secondaryLine ? (
                           <p className="mt-0.5 text-xs text-slate-400">{deterministicBaseline.summary.likelyInjuryInsight.secondaryLine}</p>
                         ) : null}

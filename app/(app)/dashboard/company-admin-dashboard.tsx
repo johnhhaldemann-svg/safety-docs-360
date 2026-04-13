@@ -8,6 +8,7 @@ import {
   InlineMessage,
   SectionCard,
   StatusBadge,
+  appNativeSelectClassName,
 } from "@/components/WorkspacePrimitives";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
@@ -621,6 +622,8 @@ export function CompanyAdminDashboard({
       tone: "info" as const,
     },
   ];
+  const headlineKpiCards = kpiCards.slice(0, 4);
+  const supportingKpiCards = kpiCards.slice(4);
 
   const documentSnapshotCards = [
     {
@@ -771,23 +774,23 @@ export function CompanyAdminDashboard({
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="company-admin-dashboard space-y-8">
       <PilotAccountPanel companyProfile={companyProfile} onUpdated={onCompanyProfileUpdated} />
-      <section className="rounded-[1.9rem] border border-[#dbe9ff] bg-slate-900/90 p-6 shadow-[0_16px_36px_rgba(148,163,184,0.12)]">
+      <section className="rounded-[2rem] border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.95)_100%)] p-6 shadow-[var(--app-shadow)]">
         <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.6rem] bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-xl font-black text-sky-300">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+            <div className="flex items-start gap-4 rounded-[1.7rem] border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-5 shadow-[var(--app-shadow-soft)]">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.6rem] bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-xl font-black text-[var(--app-accent-primary)]">
                 {companyInitials || "CO"}
               </div>
               <div>
-                <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">
+                <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-[var(--app-text-soft)]">
                   Company Workspace
                 </div>
-                <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+                <h1 className="mt-2 text-3xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
                   {companyName}
                 </h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--app-text)]">
                   Keep jobsites, documents, team access, field reporting, and overdue items in one place.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -801,25 +804,29 @@ export function CompanyAdminDashboard({
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px]">
-              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
-                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[1.7rem] border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-4 shadow-[var(--app-shadow-soft)]">
+                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-text-soft)]">
                   Notifications
                 </div>
-                <div className="mt-2 text-xl font-black text-white">{notificationCount}</div>
-                <div className="mt-1 text-xs text-slate-500">
+                <div className="mt-2 text-2xl font-black text-[var(--app-text-strong)]">{notificationCount}</div>
+                <div className="mt-1 text-xs leading-5 text-[var(--app-text)]">
                   Pending approvals, invites, and review items
                 </div>
               </div>
-              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
-                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
-                  Your company
+              <div className="rounded-[1.7rem] border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-4 shadow-[var(--app-shadow-soft)]">
+                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-text-soft)]">
+                  Workspace status
                 </div>
-                <div className="mt-2 text-sm font-semibold text-slate-100">
-                  Manage your company
+                <div className="mt-2 text-sm font-semibold text-[var(--app-text-strong)]">
+                  {priorityQueueItems.length > 0
+                    ? `${priorityQueueItems.length} action item${priorityQueueItems.length === 1 ? "" : "s"} waiting`
+                    : "Board is clear"}
                 </div>
-                <div className="mt-1 text-xs text-slate-500">
-                  Invite users, manage jobsites, and keep safety records moving
+                <div className="mt-1 text-xs leading-5 text-[var(--app-text)]">
+                  {priorityQueueItems.length > 0
+                    ? "Start with Today's focus to clear reviews, approvals, and escalations."
+                    : "Use the sections below to review documents, team access, and field activity."}
                 </div>
               </div>
             </div>
@@ -862,18 +869,18 @@ export function CompanyAdminDashboard({
             </div>
           ) : null}
 
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_170px_auto]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_190px_auto]">
             <input
               type="text"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search jobsites, documents, or employees..."
-              className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-400"
+              className={`${appNativeSelectClassName} placeholder:text-[var(--app-text-soft)]`}
             />
             <select
               value={selectedJobsite}
               onChange={(event) => setSelectedJobsite(event.target.value)}
-              className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm font-semibold text-slate-300 [color-scheme:dark] outline-none focus:border-sky-400"
+              className={appNativeSelectClassName}
             >
               {jobsiteOptions.map((option) => (
                 <option key={option} value={option}>
@@ -885,21 +892,21 @@ export function CompanyAdminDashboard({
               type="button"
               onClick={onRefreshWorkspace}
               disabled={loading}
-              className="inline-flex items-center justify-center rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex items-center justify-center rounded-xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] shadow-[var(--app-shadow-soft)] transition hover:border-[var(--app-accent-primary)] hover:text-[var(--app-accent-primary)] disabled:cursor-not-allowed disabled:opacity-70"
             >
               {loading ? "Loading..." : workspaceLoaded ? "Refresh Workspace" : "Load Workspace"}
             </button>
             <Link
               href="/company-users"
-              className="inline-flex items-center justify-center rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
+              className="inline-flex items-center justify-center rounded-xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] shadow-[var(--app-shadow-soft)] transition hover:border-[var(--app-accent-primary)] hover:text-[var(--app-accent-primary)]"
             >
               {pendingUsers.length} pending approvals
             </Link>
             <details className="relative">
-              <summary className="flex cursor-pointer list-none items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(79,124,255,0.24)]">
+              <summary className="flex cursor-pointer list-none items-center justify-center rounded-xl bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(79,124,255,0.24)]">
                 Add New
               </summary>
-              <div className="absolute right-0 top-[calc(100%+0.75rem)] z-10 w-64 rounded-2xl border border-slate-700/80 bg-slate-900/90 p-2 shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
+              <div className="absolute right-0 top-[calc(100%+0.75rem)] z-10 w-64 rounded-2xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.98)] p-2 shadow-[0_18px_40px_rgba(76,108,161,0.18)]">
                 {[
                   { href: "/jobsites", label: "Add Jobsite", note: "Set up the next active project." },
                   { href: "/company-users", label: "Add User", note: "Invite and approve employees." },
@@ -910,17 +917,17 @@ export function CompanyAdminDashboard({
                   <Link
                     key={item.label}
                     href={item.href}
-                    className="block rounded-xl px-3 py-3 transition hover:bg-slate-950/50"
+                    className="block rounded-xl px-3 py-3 transition hover:bg-[rgba(79,125,243,0.08)]"
                   >
-                    <div className="text-sm font-semibold text-slate-100">{item.label}</div>
-                    <div className="mt-1 text-xs text-slate-500">{item.note}</div>
+                    <div className="text-sm font-semibold text-[var(--app-text-strong)]">{item.label}</div>
+                    <div className="mt-1 text-xs text-[var(--app-text)]">{item.note}</div>
                   </Link>
                 ))}
               </div>
             </details>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--app-text-soft)]">
             <span>{filteredDocuments.length} documents match</span>
             <span>•</span>
             <span>{filteredJobsites.length} jobsites match</span>
@@ -932,7 +939,7 @@ export function CompanyAdminDashboard({
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="font-semibold text-sky-300 transition hover:text-sky-200"
+                  className="font-semibold text-[var(--app-accent-primary)] transition hover:text-[var(--app-accent-primary-hover)]"
                 >
                   Clear filters
                 </button>
@@ -942,6 +949,7 @@ export function CompanyAdminDashboard({
         </div>
       </section>
 
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
       <SectionCard
         title="Today's focus"
         description="The items that need attention first in this workspace."
@@ -955,6 +963,7 @@ export function CompanyAdminDashboard({
             tone={priorityQueueItems.length > 0 ? "warning" : "success"}
           />
         }
+        className="h-full"
       >
         {priorityQueueItems.length === 0 ? (
           <EmptyState
@@ -993,7 +1002,7 @@ export function CompanyAdminDashboard({
         description="A quick read on momentum, wins, and the next useful move."
         aside={<StatusBadge label={workspacePulseLabel} tone={workspacePulseTone} />}
       >
-        <div className="grid gap-3 lg:grid-cols-4">
+        <div className="grid gap-3 lg:grid-cols-3">
           <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
             <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
               Pulse score
@@ -1037,9 +1046,10 @@ export function CompanyAdminDashboard({
 
         </div>
       </SectionCard>
+      </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {kpiCards.map((card) => (
+        {headlineKpiCards.map((card) => (
           <Link
             key={card.title}
             href={card.href}
@@ -1058,6 +1068,30 @@ export function CompanyAdminDashboard({
           </Link>
         ))}
       </section>
+
+      <SectionCard
+        title="Operations radar"
+        description="Track the rest of the active field, incident, and completion metrics without burying the page."
+      >
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {supportingKpiCards.map((card) => (
+            <Link
+              key={card.title}
+              href={card.href}
+              className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 transition hover:border-sky-500/35 hover:bg-sky-950/30"
+            >
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                {card.title}
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <div className="text-3xl font-black text-white">{loading ? "-" : card.value}</div>
+                <StatusBadge label={card.title.split(" ")[0]} tone={card.tone} />
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-500">{card.note}</p>
+            </Link>
+          ))}
+        </div>
+      </SectionCard>
 
       <section id="jobsites" className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <SectionCard
