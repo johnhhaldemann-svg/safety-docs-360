@@ -88,4 +88,27 @@ describe("runCompanyAiAssist", () => {
     expect(result.text).toContain("poor lighting or visibility as a contributing condition");
     expect(result.text).toContain("rolled or twisted ankle");
   });
+
+  it("adds checklist guardrails for csep/peshep surfaces", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    retrieveMemoryForQuery.mockResolvedValue({ method: "semantic", chunks: [] });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ output_text: "Checklist-aware response" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await runCompanyAiAssist({} as never, "company-1", {
+      surface: "csep",
+      userMessage: "What should I fix before submit?",
+      structuredContext: JSON.stringify({
+        checklistEvaluationSummary: { needsUserInput: 3 },
+        checklistNeedsUserInput: [{ item: "Formal safety policy statement" }],
+      }),
+    });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}")) as { input?: string };
+    expect(body.input).toContain("Checklist evaluation signals are provided in structured context");
+    expect(body.input).toContain("Coverage, Missing Inputs, Conditional Programs");
+  });
 });

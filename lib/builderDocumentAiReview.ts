@@ -12,6 +12,8 @@ export type BuilderProgramAiReview = {
   gapsRisksOrClarifications: string[];
   /** Concrete edits or follow-ups for the reviewer */
   recommendedEditsBeforeApproval: string[];
+  /** Optional checklist delta for required planning controls that appear missing or partial */
+  checklistDelta?: string[];
   overallAssessment: "sufficient" | "needs_work" | "insufficient_context";
 };
 
@@ -20,6 +22,29 @@ const DISCLAIMER =
 
 function includesAny(text: string, tokens: string[]) {
   return tokens.some((token) => text.includes(token));
+}
+
+function buildChecklistDeltaSignals(text: string) {
+  const delta: string[] = [];
+  if (!includesAny(text, ["corrective action", "disciplinary"])) {
+    delta.push("Baseline: corrective action and disciplinary process language is missing or unclear.");
+  }
+  if (!includesAny(text, ["responsibilit", "competent person", "supervisor"])) {
+    delta.push("Baseline: defined safety responsibilities should be made explicit.");
+  }
+  if (!includesAny(text, ["incident", "investigation", "event management"])) {
+    delta.push("Baseline: incident investigation/event-management workflow appears incomplete.");
+  }
+  if (!includesAny(text, ["hazard communication", "ghs", "sds"])) {
+    delta.push("Baseline: HazCom/GHS controls are not clearly documented.");
+  }
+  if (!includesAny(text, ["spill", "storm water", "swppp", "waste"])) {
+    delta.push("Environmental: spill, stormwater, or waste controls may be missing.");
+  }
+  if (!includesAny(text, ["training", "osha 10", "orientation"])) {
+    delta.push("Training: workforce/supervisor training evidence is weak or absent.");
+  }
+  return delta.slice(0, 6);
 }
 
 function buildDeterministicBuilderProgramReview(params: {
@@ -36,6 +61,7 @@ function buildDeterministicBuilderProgramReview(params: {
   const strengths: string[] = [];
   const gaps: string[] = [];
   const edits: string[] = [];
+  const checklistDelta = buildChecklistDeltaSignals(draftText);
 
   if (includesAny(draftText, ["ppe", "hard hat", "gloves", "respirator", "safety glasses"])) {
     strengths.push("The draft appears to include at least some PPE expectations for field crews.");
@@ -100,6 +126,7 @@ function buildDeterministicBuilderProgramReview(params: {
     regulatoryAndProgramStrengths: strengths.slice(0, 6),
     gapsRisksOrClarifications: gaps.slice(0, 8),
     recommendedEditsBeforeApproval: edits.slice(0, 6),
+    checklistDelta,
     overallAssessment: hasBody ? "needs_work" : "insufficient_context",
   };
 }
@@ -171,6 +198,7 @@ export async function generateBuilderProgramAiReview(params: {
     "3) When company knowledge excerpts are provided, treat them as the company's own rules and priorities—align the draft and flag conflicts. When a site/owner/GC reference document is provided, compare the draft to that reference: note matches, omissions, and conflicts, in addition to OSHA-oriented gaps.",
     "4) Identify gaps, ambiguities, or risks a reviewer should address before approving (missing sections, vague controls, inconsistent PPE, etc.).",
     "5) Recommend concrete edits or follow-up questions for the reviewer.",
+    "6) Include an optional checklistDelta array for checklist-required planning controls that appear missing/partial (baseline, company policy, work-specific, environmental).",
     "Do NOT invent citations, inspections, or compliance determinations. If text is unreadable or too thin, set overallAssessment to insufficient_context.",
     "Output strict JSON matching the schema.",
     contextBlock,
@@ -212,6 +240,11 @@ export async function generateBuilderProgramAiReview(params: {
                 items: { type: "string" },
                 minItems: 2,
                 maxItems: 6,
+              },
+              checklistDelta: {
+                type: "array",
+                items: { type: "string" },
+                maxItems: 8,
               },
               overallAssessment: {
                 type: "string",
@@ -262,6 +295,9 @@ export async function generateBuilderProgramAiReview(params: {
     recommendedEditsBeforeApproval: Array.isArray(parsed.recommendedEditsBeforeApproval)
       ? parsed.recommendedEditsBeforeApproval.filter((x) => typeof x === "string" && x.trim())
       : [],
+    checklistDelta: Array.isArray(parsed.checklistDelta)
+      ? parsed.checklistDelta.filter((x) => typeof x === "string" && x.trim())
+      : buildChecklistDeltaSignals(String(params.documentText ?? "").toLowerCase()),
     overallAssessment:
       parsed.overallAssessment === "sufficient" ||
       parsed.overallAssessment === "needs_work" ||

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/components/WorkspacePrimitives";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
+import { ChecklistCoveragePanel } from "@/components/compliance/ChecklistCoveragePanel";
 import { GcRequiredProgramUpload } from "@/components/csep/GcRequiredProgramUpload";
 import {
   buildCsepProgramSelections,
@@ -19,6 +20,7 @@ import {
   listProgramTitles,
 } from "@/lib/csepPrograms";
 import { buildCsepTradeSelection, getCsepTradeOptions } from "@/lib/csepTradeSelection";
+import type { ChecklistEvaluationResponse } from "@/lib/compliance/evaluation";
 import type { PermissionMap } from "@/lib/rbac";
 import { buildCsepGenerationContext } from "@/lib/safety-intelligence/documentIntake";
 import type { CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue } from "@/types/csep-programs";
@@ -153,6 +155,13 @@ export default function CSEPPage() {
   const [agreedToSubmissionTerms, setAgreedToSubmissionTerms] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "warning" | "error">("success");
+  const [checklistEvaluation, setChecklistEvaluation] = useState<ChecklistEvaluationResponse | null>(
+    null
+  );
+  const [checklistLoading, setChecklistLoading] = useState(false);
+  const [checklistError, setChecklistError] = useState("");
+  const checklistRequestRef = useRef(0);
+  const checklistAbortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     async function loadUser() {
@@ -486,6 +495,89 @@ export default function CSEPPage() {
     form.selected_hazards.length > 0 &&
     missingProgramSubtypeGroups.length === 0;
 
+  const checklistFormData = useMemo(
+    () => ({
+      ...form,
+      trade: selectedTrade?.tradeLabel ?? form.trade,
+      subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
+      tradeItems: displayedTradeItems,
+      selected_hazards: form.selected_hazards,
+      additional_permits: selectedPermitItems,
+      required_ppe: form.required_ppe,
+      overlapPermitHints,
+      common_overlapping_trades: commonOverlappingTrades,
+    }),
+    [
+      commonOverlappingTrades,
+      displayedTradeItems,
+      form,
+      overlapPermitHints,
+      selectedPermitItems,
+      selectedTrade?.subTradeLabel,
+      selectedTrade?.tradeLabel,
+    ]
+  );
+
+  const refreshChecklistEvaluation = useCallback(async () => {
+    if (authLoading || !canUseBuilder) return;
+    const requestId = checklistRequestRef.current + 1;
+    checklistRequestRef.current = requestId;
+    checklistAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    checklistAbortControllerRef.current = controller;
+    setChecklistLoading(true);
+    setChecklistError("");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("Sign in to evaluate checklist coverage.");
+      }
+      const response = await fetch("/api/company/checklist/evaluate", {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          surface: "csep",
+          formData: checklistFormData,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | ChecklistEvaluationResponse
+        | null;
+      if (!response.ok) {
+        throw new Error((payload as { error?: string } | null)?.error || "Checklist evaluation failed.");
+      }
+      if (requestId !== checklistRequestRef.current) return;
+      setChecklistEvaluation(payload as ChecklistEvaluationResponse);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        return;
+      }
+      if (requestId !== checklistRequestRef.current) return;
+      setChecklistError(error instanceof Error ? error.message : "Checklist evaluation failed.");
+    } finally {
+      if (requestId !== checklistRequestRef.current) return;
+      setChecklistLoading(false);
+    }
+  }, [authLoading, canUseBuilder, checklistFormData]);
+
+  useEffect(() => {
+    if (authLoading || !canUseBuilder) return;
+    const timeout = window.setTimeout(() => {
+      void refreshChecklistEvaluation();
+    }, 700);
+    return () => {
+      window.clearTimeout(timeout);
+      checklistAbortControllerRef.current?.abort();
+    };
+  }, [authLoading, canUseBuilder, refreshChecklistEvaluation]);
+
   return (
     <div className="space-y-6 px-1 py-2 sm:px-2 sm:py-4">
       <div className="mx-auto max-w-7xl">
@@ -531,9 +623,30 @@ export default function CSEPPage() {
               tasks: form.tasks,
               project_name: form.project_name,
               selected_hazards: form.selected_hazards,
+              checklistEvaluationSummary: checklistEvaluation?.summary ?? null,
+              checklistNeedsUserInput:
+                checklistEvaluation?.rows
+                  .filter((row) => row.coverage === "needs_user_input")
+                  .slice(0, 10)
+                  .map((row) => ({
+                    item: row.item,
+                    missingFields: row.missingFields,
+                  })) ?? [],
             })}
           />
           <CompanyMemoryBankPanel />
+        </div>
+
+        <div className="mt-4">
+          <ChecklistCoveragePanel
+            title="Checklist Coverage (CSEP)"
+            loading={checklistLoading}
+            error={checklistError}
+            data={checklistEvaluation}
+            onRefresh={() => {
+              void refreshChecklistEvaluation();
+            }}
+          />
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">

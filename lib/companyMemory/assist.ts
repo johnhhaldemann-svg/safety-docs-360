@@ -197,6 +197,37 @@ function isDocumentIntent(message: string) {
   );
 }
 
+function buildChecklistAssistGuardrails(surface: string, structuredContext?: string | null) {
+  const key = surface.trim().toLowerCase();
+  if (key !== "csep" && key !== "peshep") {
+    return null;
+  }
+
+  let hasChecklistSignals = false;
+  try {
+    const parsed = JSON.parse(structuredContext || "null") as Record<string, unknown> | null;
+    hasChecklistSignals = Boolean(
+      parsed &&
+        (parsed.checklistEvaluationSummary ||
+          (Array.isArray(parsed.checklistNeedsUserInput) &&
+            parsed.checklistNeedsUserInput.length > 0))
+    );
+  } catch {
+    hasChecklistSignals = false;
+  }
+
+  const checklistLine = hasChecklistSignals
+    ? "Checklist evaluation signals are provided in structured context. Treat them as required planning checks."
+    : "Use checklist-style coverage logic for baseline, company, work-specific, and environmental controls.";
+
+  return [
+    checklistLine,
+    "Do not draft every checklist item by default. Determine relevance from scope, hazards, permits, and explicit user inputs.",
+    "If data is missing, return needs user input and list the exact missing fields.",
+    "When checklist context exists, format your answer with sections: Coverage, Missing Inputs, Conditional Programs, Recommended Narratives, and Manual Review Flags.",
+  ].join(" ");
+}
+
 export type CompanyAiAssistInput = {
   surface: string;
   userMessage: string;
@@ -269,9 +300,11 @@ export async function runCompanyAiAssist(
 
   const structured =
     input.structuredContext?.trim().slice(0, 12_000) || null;
+  const checklistGuardrails = buildChecklistAssistGuardrails(input.surface, structured);
 
   const system = [
     buildSurfaceSystemPrompt(input.surface),
+    checklistGuardrails,
     "Never output JSON unless the user explicitly asks for JSON.",
     "Keep answers concise and actionable. Use bullet lists when helpful.",
     "If a memory excerpt is a document upload, treat it as the stronger source than a shorter note-style memory row.",
