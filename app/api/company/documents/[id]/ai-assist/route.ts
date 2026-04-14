@@ -39,13 +39,6 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  if (!process.env.OPENAI_API_KEY?.trim()) {
-    return NextResponse.json(
-      { error: "OPENAI_API_KEY is not configured on the server." },
-      { status: 503 }
-    );
-  }
-
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
     userId: auth.user.id,

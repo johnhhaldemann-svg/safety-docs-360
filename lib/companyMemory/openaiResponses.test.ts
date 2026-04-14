@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { extractResponsesApiOutputText } from "@/lib/companyMemory/openaiResponses";
+import { extractResponsesApiOutputText as extractResponsesFromAi } from "@/lib/ai/responses";
+import { extractResponsesApiOutputText as extractResponsesFromCompanyMemory } from "@/lib/companyMemory/openaiResponses";
 
-describe("extractResponsesApiOutputText", () => {
-  it("reads output_text", () => {
-    expect(extractResponsesApiOutputText({ output_text: "  hello  " })).toBe("hello");
-  });
-
-  it("reads nested output_text chunks", () => {
+describe("companyMemory/openaiResponses", () => {
+  it("re-exports the shared Responses API parser", () => {
+    expect(extractResponsesFromCompanyMemory).toBe(extractResponsesFromAi);
+    expect(extractResponsesFromCompanyMemory({ output_text: "  hello  " })).toBe("hello");
     expect(
-      extractResponsesApiOutputText({
+      extractResponsesFromCompanyMemory({
         output: [{ content: [{ type: "output_text", text: "a" }] }],
       })
     ).toBe("a");

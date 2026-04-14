@@ -28,13 +28,6 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: DOCUMENT_AI_REVIEW_ROLE_FORBIDDEN_ERROR }, { status: 403 });
   }
 
-  if (!process.env.OPENAI_API_KEY?.trim()) {
-    return NextResponse.json(
-      { error: "OPENAI_API_KEY is not configured on the server." },
-      { status: 503 }
-    );
-  }
-
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return NextResponse.json({ error: "Server storage is not configured." }, { status: 500 });

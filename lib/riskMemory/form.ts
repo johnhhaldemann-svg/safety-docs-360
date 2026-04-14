@@ -1,6 +1,8 @@
 export type RiskMemoryFormInput = {
   scopeOfWork: string;
   trade: string;
+  subTrade: string;
+  task: string;
   primaryHazard: string;
   secondaryHazard1: string;
   secondaryHazard2: string;
@@ -34,6 +36,8 @@ export type RiskMemoryFormInput = {
 export const EMPTY_RISK_MEMORY_FORM: RiskMemoryFormInput = {
   scopeOfWork: "",
   trade: "",
+  subTrade: "",
+  task: "",
   primaryHazard: "",
   secondaryHazard1: "",
   secondaryHazard2: "",
@@ -69,6 +73,8 @@ export function buildRiskMemoryApiObject(f: RiskMemoryFormInput): Record<string,
   const has =
     f.scopeOfWork ||
     f.trade ||
+    f.subTrade ||
+    f.task ||
     f.primaryHazard ||
     secondaryHazards.length > 0 ||
     f.rootCauseLevel1 ||
@@ -96,6 +102,8 @@ export function buildRiskMemoryApiObject(f: RiskMemoryFormInput): Record<string,
   return {
     scopeOfWork: f.scopeOfWork || undefined,
     trade: f.trade || undefined,
+    subTrade: f.subTrade || undefined,
+    task: f.task || undefined,
     primaryHazard: f.primaryHazard || undefined,
     secondaryHazards: secondaryHazards.length ? secondaryHazards : undefined,
     rootCauseLevel1: f.rootCauseLevel1 || undefined,

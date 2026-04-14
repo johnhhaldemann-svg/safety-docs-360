@@ -12,6 +12,8 @@ import {
   TRADE_CODES,
   TRADE_LABELS,
   WEATHER_CONDITION_CODES,
+  getSubTradeOptionsForTrade,
+  getTaskOptionsForTradeAndSubTrade,
   type RootCauseLevel1,
   type ScopeOfWorkCode,
   type TradeCode,
@@ -66,6 +68,8 @@ export function RiskMemoryFormFields({
 }: Props) {
   const l1 = (value.rootCauseLevel1 || "") as RootCauseLevel1 | "";
   const l2Options = l1 && l1 in ROOT_CAUSE_LEVEL2_BY_L1 ? ROOT_CAUSE_LEVEL2_BY_L1[l1 as RootCauseLevel1] : [];
+  const subTradeOptions = getSubTradeOptionsForTrade(value.trade);
+  const taskOptions = getTaskOptionsForTradeAndSubTrade(value.trade, value.subTrade);
 
   function patch(p: Partial<RiskMemoryFormInput>) {
     onChange({ ...value, ...p });
@@ -91,7 +95,7 @@ export function RiskMemoryFormFields({
       </select>
       <select
         value={value.trade}
-        onChange={(e) => patch({ trade: e.target.value })}
+        onChange={(e) => patch({ trade: e.target.value, subTrade: "", task: "" })}
         className={selectClass}
         aria-label="Trade"
       >
@@ -99,6 +103,34 @@ export function RiskMemoryFormFields({
         {TRADE_CODES.map((code) => (
           <option key={code} value={code}>
             {TRADE_LABELS[code as TradeCode]}
+          </option>
+        ))}
+      </select>
+      <select
+        value={value.subTrade}
+        onChange={(e) => patch({ subTrade: e.target.value, task: "" })}
+        className={selectClass}
+        disabled={!value.trade}
+        aria-label="Sub-trade"
+      >
+        <option value="">Sub-trade</option>
+        {subTradeOptions.map((subTrade) => (
+          <option key={subTrade.code} value={subTrade.code}>
+            {subTrade.label}
+          </option>
+        ))}
+      </select>
+      <select
+        value={value.task}
+        onChange={(e) => patch({ task: e.target.value })}
+        className={selectClass}
+        disabled={!value.subTrade}
+        aria-label="Task"
+      >
+        <option value="">Task</option>
+        {taskOptions.map((task) => (
+          <option key={task.code} value={task.code}>
+            {task.label}
           </option>
         ))}
       </select>

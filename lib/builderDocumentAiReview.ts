@@ -1,3 +1,4 @@
+import { extractResponsesApiOutputText } from "@/lib/ai/responses";
 import { extractGcProgramDocumentText } from "@/lib/gcProgramAiReview";
 import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
 
@@ -17,27 +18,90 @@ export type BuilderProgramAiReview = {
 const DISCLAIMER =
   "This AI review is for internal triage only. It is not legal advice, does not replace a competent safety professional or the AHJ, and may omit or misread content. Verify against current OSHA / state rules, environmental obligations where applicable, and the contract documents.";
 
-function extractResponsesApiOutputText(json: unknown): string | null {
-  if (!json || typeof json !== "object") return null;
-  const o = json as Record<string, unknown>;
-  if (typeof o.output_text === "string" && o.output_text.trim()) return o.output_text.trim();
+function includesAny(text: string, tokens: string[]) {
+  return tokens.some((token) => text.includes(token));
+}
 
-  const output = o.output;
-  if (!Array.isArray(output)) return null;
-  const chunks: string[] = [];
-  for (const item of output) {
-    if (!item || typeof item !== "object") continue;
-    const itemObj = item as Record<string, unknown>;
-    const content = itemObj.content;
-    if (!Array.isArray(content)) continue;
-    for (const part of content) {
-      if (!part || typeof part !== "object") continue;
-      const p = part as Record<string, unknown>;
-      if (p.type === "output_text" && typeof p.text === "string") chunks.push(p.text);
+function buildDeterministicBuilderProgramReview(params: {
+  documentText: string;
+  programLabel: string;
+  projectName: string;
+  additionalReviewerContext?: string | null;
+  siteReferenceText?: string | null;
+  companyMemoryExcerpts?: string | null;
+}): BuilderProgramAiReview {
+  const draftText = params.documentText.trim().toLowerCase();
+  const referenceText = `${params.additionalReviewerContext ?? ""}\n${params.siteReferenceText ?? ""}\n${params.companyMemoryExcerpts ?? ""}`.toLowerCase();
+  const hasBody = draftText.length >= 80;
+  const strengths: string[] = [];
+  const gaps: string[] = [];
+  const edits: string[] = [];
+
+  if (includesAny(draftText, ["ppe", "hard hat", "gloves", "respirator", "safety glasses"])) {
+    strengths.push("The draft appears to include at least some PPE expectations for field crews.");
+  } else {
+    gaps.push("PPE expectations are not clearly described and should be made explicit for the planned work.");
+    edits.push("Add a dedicated PPE section tied to the active trades, tasks, and site conditions.");
+  }
+
+  if (includesAny(draftText, ["permit", "hot work", "confined space", "loto", "excavat", "trench"])) {
+    strengths.push("The draft references permit-sensitive work or approval triggers that usually require closer field coordination.");
+  } else {
+    gaps.push("Permit-triggering activities are not clearly mapped, so reviewers should confirm whether hot work, excavation, electrical, or confined-space permits apply.");
+    edits.push("Add a permit matrix listing each task and the required permit, notice, or pre-task authorization.");
+  }
+
+  if (includesAny(draftText, ["hazard", "risk", "control", "mitigation"])) {
+    strengths.push("The submission includes hazard or control language that can be used to support task-level review.");
+  } else {
+    gaps.push("Hazards and controls are too thin for a reliable pre-approval review.");
+    edits.push("Add a task-by-task hazard and control table before approval.");
+  }
+
+  if (includesAny(draftText, ["emergency", "medical", "evacuation", "first aid"])) {
+    strengths.push("Emergency-response content appears to be present.");
+  } else {
+    gaps.push("Emergency procedures are not clearly stated for crews working under this plan.");
+    edits.push("Add emergency response, evacuation, and incident-reporting steps for the site.");
+  }
+
+  if (referenceText.trim()) {
+    if (!hasBody) {
+      gaps.push("Reference material was provided, but the draft text is too limited to confirm alignment.");
+      edits.push("Compare the uploaded site or GC requirements against the final draft after expanding the body content.");
+    } else {
+      strengths.push("Reviewer-supplied site, GC, or company reference context is available for comparison during final approval.");
+      edits.push("Verify that site-specific restrictions, owner exhibits, and GC-required controls are carried into the final approved version.");
     }
   }
-  const joined = chunks.join("").trim();
-  return joined || null;
+
+  if (!hasBody) {
+    gaps.unshift("The uploaded draft has little extractable text, so this review is based on limited content.");
+    edits.unshift("Re-export the draft after confirming the document body is present and readable.");
+  }
+
+  while (strengths.length < 2) {
+    strengths.push("The draft establishes enough structure to support a human approval review, even if several details still need tightening.");
+  }
+  while (gaps.length < 2) {
+    gaps.push("Reviewer clarification is needed before treating the draft as approval-ready.");
+  }
+  while (edits.length < 2) {
+    edits.push("Have the reviewer confirm trade scope, hazards, controls, and permit triggers before final approval.");
+  }
+
+  return {
+    executiveSummary: hasBody
+      ? `${params.programLabel} draft for ${params.projectName || "the project"} was reviewed using deterministic fallback logic because no server OpenAI key is configured. The document appears to include some structured safety content, but it still needs human confirmation before approval.`
+      : `${params.programLabel} draft for ${params.projectName || "the project"} could not be deeply reviewed because the extracted text is too limited and no server OpenAI key is configured.`,
+    scopeTradeAndHazardCoverage: hasBody
+      ? "The draft includes enough readable content to flag likely strengths and gaps, but trade scope, task hazards, controls, PPE, permits, and site-specific restrictions still need reviewer confirmation."
+      : "The draft text is too limited to confirm trade scope, hazards, controls, and permit coverage with confidence.",
+    regulatoryAndProgramStrengths: strengths.slice(0, 6),
+    gapsRisksOrClarifications: gaps.slice(0, 8),
+    recommendedEditsBeforeApproval: edits.slice(0, 6),
+    overallAssessment: hasBody ? "needs_work" : "insufficient_context",
+  };
 }
 
 export { extractGcProgramDocumentText as extractBuilderReviewDocumentText };
@@ -59,7 +123,10 @@ export async function generateBuilderProgramAiReview(params: {
 }): Promise<{ review: BuilderProgramAiReview; disclaimer: string }> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not configured.");
+    return {
+      review: buildDeterministicBuilderProgramReview(params),
+      disclaimer: DISCLAIMER,
+    };
   }
 
   const label = params.programLabel.trim().toUpperCase();

@@ -19,7 +19,10 @@ import {
   injuryWeatherWebResearchSupplement,
   isInjuryWeatherSparseWebResearchEnabled,
 } from "@/lib/injuryWeather/sparseDataWebResearch";
-import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
+import {
+  extractResponsesApiOutputText as extractSharedResponsesApiOutputText,
+  requestAiResponsesText,
+} from "@/lib/ai/responses";
 
 const RISK_LEVELS: RiskLevel[] = ["LOW", "MODERATE", "HIGH", "CRITICAL"];
 
@@ -543,26 +546,7 @@ function fallbackInsights(data: InjuryWeatherDashboardData): InjuryWeatherAiInsi
  * Aggregate assistant `output_text` segments from `output[].content[]` for raw `fetch` callers.
  */
 export function extractResponsesApiOutputText(body: unknown): string | null {
-  if (!body || typeof body !== "object") return null;
-  const o = body as Record<string, unknown>;
-  if (typeof o.output_text === "string" && o.output_text.trim()) return o.output_text.trim();
-
-  const output = o.output;
-  if (!Array.isArray(output)) return null;
-  const chunks: string[] = [];
-  for (const item of output) {
-    if (!item || typeof item !== "object") continue;
-    const itemObj = item as Record<string, unknown>;
-    const content = itemObj.content;
-    if (!Array.isArray(content)) continue;
-    for (const part of content) {
-      if (!part || typeof part !== "object") continue;
-      const p = part as Record<string, unknown>;
-      if (p.type === "output_text" && typeof p.text === "string") chunks.push(p.text);
-    }
-  }
-  const joined = chunks.join("").trim();
-  return joined || null;
+  return extractSharedResponsesApiOutputText(body);
 }
 
 export type GenerateInjuryWeatherAiInsightsOptions = {
@@ -803,15 +787,11 @@ export async function generateInjuryWeatherAiInsights(
       };
 
   try {
-    const res = await fetch(`${getOpenAiApiBaseUrl()}/responses`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: resolveOpenAiCompatibleModelId("gpt-4.1"),
-        input: prompt,
+    const response = await requestAiResponsesText({
+      apiKey,
+      model: "gpt-4.1",
+      input: prompt,
+      body: {
         text: {
           format: {
             type: "json_schema",
@@ -819,12 +799,10 @@ export async function generateInjuryWeatherAiInsights(
             schema,
           },
         },
-      }),
+      },
     });
 
-    if (!res.ok) return empty();
-    const json: unknown = await res.json();
-    const rawText = extractResponsesApiOutputText(json);
+    const rawText = response.text;
     if (!rawText) return empty();
     let parsed: Record<string, unknown>;
     try {

@@ -86,4 +86,29 @@ describe("App Navigation Integrity", () => {
       expect(new Set(hrefs).size, `${name}: duplicate href`).toBe(hrefs.length);
     }
   });
+
+  it("keeps the AI hub ordering centered on Command Center first", () => {
+    expect(companyAdminQuickLinks.slice(0, 3).map((item) => item.href)).toEqual([
+      "/dashboard",
+      "/command-center",
+      "/safety-intelligence",
+    ]);
+    expect(companyManagerQuickLinks.slice(0, 3).map((item) => item.href)).toEqual([
+      "/dashboard",
+      "/command-center",
+      "/safety-intelligence",
+    ]);
+
+    const adminAiSection = companyAdminSideSections.find((section) => section.title === "AI hub & reporting");
+    const managerAiSection = companyManagerSideSections.find((section) => section.title === "AI hub & reporting");
+
+    expect(adminAiSection?.items.slice(0, 2).map((item) => item.href)).toEqual([
+      "/command-center",
+      "/safety-intelligence",
+    ]);
+    expect(managerAiSection?.items.slice(0, 2).map((item) => item.href)).toEqual([
+      "/command-center",
+      "/safety-intelligence",
+    ]);
+  });
 });

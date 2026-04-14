@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CONSTRUCTION_TRADE_DEFINITIONS } from "@/lib/sharedTradeTaxonomy";
 import {
   CORE_FIELD_AUDIT_SECTION_IDS,
   countFieldAuditItemsInSections,
@@ -36,5 +37,16 @@ describe("fieldAuditTradeScope", () => {
     expect(countFieldAuditItemsInSections(scoped)).toBe(
       scoped.reduce((n, s) => n + s.items.length, 0)
     );
+  });
+
+  it("returns at least the core checklist for every supported top-level trade", () => {
+    for (const trade of CONSTRUCTION_TRADE_DEFINITIONS) {
+      const scoped = getFieldAuditSectionsForTrade(trade.slug);
+      expect(scoped.length).toBeGreaterThan(0);
+      const ids = new Set(scoped.map((section) => section.id));
+      for (const coreId of CORE_FIELD_AUDIT_SECTION_IDS) {
+        expect(ids.has(coreId)).toBe(true);
+      }
+    }
   });
 });

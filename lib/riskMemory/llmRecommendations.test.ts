@@ -1,26 +1,72 @@
-import { describe, expect, it } from "vitest";
-import { parseRecommendationDraftsFromModelText } from "./llmRecommendations";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const serverLog = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/serverLog", () => ({
+  serverLog,
+}));
+
+import { buildLlmRiskRecommendations, parseRecommendationDraftsFromModelText } from "@/lib/riskMemory/llmRecommendations";
 
 describe("parseRecommendationDraftsFromModelText", () => {
-  it("parses a bare JSON array", () => {
-    const raw = `[{"kind":"test","title":"T1","body":"B1","confidence":0.7}]`;
-    const out = parseRecommendationDraftsFromModelText(raw);
-    expect(out).toHaveLength(1);
-    expect(out[0]?.title).toBe("T1");
-    expect(out[0]?.confidence).toBe(0.7);
+  it("parses a JSON array into recommendation drafts", () => {
+    const drafts = parseRecommendationDraftsFromModelText(
+      JSON.stringify([
+        { kind: "priority_focus", title: "Tighten permit review", body: "Review active permits this week.", confidence: 0.9 },
+      ])
+    );
+
+    expect(drafts).toEqual([
+      {
+        kind: "priority_focus",
+        title: "Tighten permit review",
+        body: "Review active permits this week.",
+        confidence: 0.9,
+      },
+    ]);
+  });
+});
+
+describe("buildLlmRiskRecommendations", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
-  it("strips markdown fences", () => {
-    const raw = "```json\n[{\"kind\":\"x\",\"title\":\"Hi\",\"body\":\"There.\",\"confidence\":0.5}]\n```";
-    const out = parseRecommendationDraftsFromModelText(raw);
-    expect(out).toHaveLength(1);
-    expect(out[0]?.kind).toBe("x");
-  });
+  it("uses the shared response helper flow and returns metadata", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          output_text: JSON.stringify([
+            {
+              kind: "llm_insight",
+              title: "Verify top hazards",
+              body: "Cross-check the recurring hazard families before the next shift.",
+              confidence: 0.72,
+            },
+          ]),
+        }),
+      })
+    );
 
-  it("drops invalid rows and clamps confidence", () => {
-    const raw = `[{"title":"","body":"x"},{"title":"Ok","body":"Body","confidence":99}]`;
-    const out = parseRecommendationDraftsFromModelText(raw);
-    expect(out).toHaveLength(1);
-    expect(out[0]?.confidence).toBe(1);
+    const result = await buildLlmRiskRecommendations({
+      facetCount: 3,
+      windowDays: 90,
+      aggregatedWithBaseline: { band: "Moderate", score: 52 },
+      topScopes: [],
+      topHazards: [],
+      topLocationGrids: [],
+      topLocationAreas: [],
+      openCorrectiveFacetHints: { openStyleStatuses: [] },
+      baselineHints: [],
+      derivedRollupConfidence: "medium",
+    } as never);
+
+    expect(result.drafts).toHaveLength(1);
+    expect(result.meta?.model).toBe("gpt-4o-mini");
+    expect(result.meta?.fallbackUsed).toBe(false);
   });
 });

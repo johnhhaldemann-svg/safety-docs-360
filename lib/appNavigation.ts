@@ -56,6 +56,8 @@ export const adminQuickLinks: NavItem[] = [
 
 export const companyAdminQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
+  { href: "/command-center", label: "Command Center", short: "CC" },
+  { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
   { href: "/jobsites", label: "Jobsites", short: "JS" },
   { href: "/library", label: "Documents", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
@@ -63,13 +65,15 @@ export const companyAdminQuickLinks: NavItem[] = [
   { href: "/company-users", label: "Team", short: "TM" },
   { href: "/training-matrix", label: "Training", short: "TR" },
   { href: "/field-id-exchange", label: "Issues", short: "CA" },
-  { href: "/command-center", label: "Command center", short: "CC" },
+  { href: "/analytics/safety-intelligence", label: "Analytics Â· Safety Intelligence", short: "SA" },
   { href: "/analytics", label: "Analytics · Risk Memory", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
 export const companyManagerQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
+  { href: "/command-center", label: "Command Center", short: "CC" },
+  { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
   { href: "/jobsites", label: "Jobsites", short: "JS" },
   { href: "/library", label: "Documents", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
@@ -77,7 +81,7 @@ export const companyManagerQuickLinks: NavItem[] = [
   { href: "/purchases", label: "My purchases", short: "MP" },
   { href: "/training-matrix", label: "Training", short: "TR" },
   { href: "/field-id-exchange", label: "Issues", short: "CA" },
-  { href: "/command-center", label: "Command center", short: "CC" },
+  { href: "/analytics/safety-intelligence", label: "Analytics Â· Safety Intelligence", short: "SA" },
   { href: "/analytics", label: "Analytics · Risk Memory", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
@@ -206,8 +210,9 @@ export const companyAdminSideSections: NavSection[] = [
     ],
   },
   {
-    title: "Safety & programs",
+    title: "Workflow actions",
     items: [
+      { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
       { href: "/field-id-exchange", label: "Issues", short: "CA" },
       { href: "/jsa", label: "JSA", short: "JA" },
       { href: "/permits", label: "Permits", short: "PM" },
@@ -215,10 +220,12 @@ export const companyAdminSideSections: NavSection[] = [
     ],
   },
   {
-    title: "Insights",
+    title: "AI hub & reporting",
     items: [
-      { href: "/command-center", label: "Command center", short: "CC" },
+      { href: "/command-center", label: "Command Center", short: "CC" },
+      { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
       { href: "/analytics", label: "Analytics · Risk Memory", short: "AN" },
+      { href: "/analytics/safety-intelligence", label: "Analytics · Safety Intelligence", short: "SA" },
       { href: "/settings/risk-memory", label: "Risk Memory setup", short: "RM" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
@@ -258,8 +265,9 @@ export const companyManagerSideSections: NavSection[] = [
     ],
   },
   {
-    title: "Safety & programs",
+    title: "Workflow actions",
     items: [
+      { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
       { href: "/field-id-exchange", label: "Issues", short: "CA" },
       { href: "/jsa", label: "JSA", short: "JA" },
       { href: "/permits", label: "Permits", short: "PM" },
@@ -267,10 +275,12 @@ export const companyManagerSideSections: NavSection[] = [
     ],
   },
   {
-    title: "Insights",
+    title: "AI hub & reporting",
     items: [
-      { href: "/command-center", label: "Command center", short: "CC" },
+      { href: "/command-center", label: "Command Center", short: "CC" },
+      { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
       { href: "/analytics", label: "Analytics · Risk Memory", short: "AN" },
+      { href: "/analytics/safety-intelligence", label: "Analytics · Safety Intelligence", short: "SA" },
       { href: "/settings/risk-memory", label: "Risk Memory setup", short: "RM" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],

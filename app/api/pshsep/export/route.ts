@@ -20,6 +20,9 @@ import {
 } from "docx";
 import { DOCUMENT_DISCLAIMER_LINES } from "@/lib/legal";
 import { authorizeRequest } from "@/lib/rbac";
+import { loadGeneratedDocumentDraft } from "@/lib/safety-intelligence/repository";
+import { renderSafetyPlanDocx } from "@/lib/safety-intelligence/documents/render";
+import type { GeneratedSafetyPlanDraft } from "@/types/safety-intelligence";
 
 type DocChild = Paragraph | Table;
 
@@ -3842,8 +3845,32 @@ export function normalizePshsepForm(form: PSHSEPInput): PSHSEPInput {
   return normalized;
 }
 
-export async function generatePshsepDocx(form: PSHSEPInput) {
-  const normalized = normalizePshsepForm(form);
+function isGeneratedDraft(value: unknown): value is GeneratedSafetyPlanDraft {
+  return Boolean(value) && typeof value === "object" && "sectionMap" in (value as Record<string, unknown>);
+}
+
+export async function generatePshsepDocx(
+  form: PSHSEPInput | { generatedDocumentId?: string | null; draft?: GeneratedSafetyPlanDraft | null },
+  options?: { supabase?: any }
+) {
+  if (form && typeof form === "object" && isGeneratedDraft((form as { draft?: unknown }).draft)) {
+    return renderSafetyPlanDocx((form as { draft: GeneratedSafetyPlanDraft }).draft);
+  }
+
+  if (
+    form &&
+    typeof form === "object" &&
+    typeof (form as { generatedDocumentId?: unknown }).generatedDocumentId === "string" &&
+    options?.supabase
+  ) {
+    const draft = await loadGeneratedDocumentDraft(
+      options.supabase,
+      (form as { generatedDocumentId: string }).generatedDocumentId
+    );
+    return renderSafetyPlanDocx(draft);
+  }
+
+  const normalized = normalizePshsepForm(form as PSHSEPInput);
   const doc = buildDoc(normalized);
   const buffer = await Packer.toBuffer(doc);
 
@@ -3864,8 +3891,11 @@ export async function POST(req: Request) {
       return auth.error;
     }
 
-    const form = (await req.json()) as PSHSEPInput;
-    const { body, filename } = await generatePshsepDocx(form);
+    const form = (await req.json()) as PSHSEPInput | {
+      generatedDocumentId?: string | null;
+      draft?: GeneratedSafetyPlanDraft | null;
+    };
+    const { body, filename } = await generatePshsepDocx(form, { supabase: auth.supabase });
 
     return new NextResponse(body, {
       status: 200,

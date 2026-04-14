@@ -1,7 +1,7 @@
 "use client";
 
-import { CommandCenterClient } from "@/components/command-center/CommandCenterClient";
+import { CommandCenterWorkspace } from "@/components/command-center/CommandCenterWorkspace";
 
 export default function CommandCenterPage() {
-  return <CommandCenterClient />;
+  return <CommandCenterWorkspace />;
 }

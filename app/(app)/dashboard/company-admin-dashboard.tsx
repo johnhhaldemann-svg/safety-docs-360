@@ -773,65 +773,149 @@ export function CompanyAdminDashboard({
     },
   ];
 
+  const workspaceSummarySection = (
+    <section className="rounded-[2rem] border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.95)_100%)] p-6 shadow-[var(--app-shadow)]">
+      <div className="flex flex-col gap-6">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+          <div className="flex items-start gap-4 rounded-[1.7rem] border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-5 shadow-[var(--app-shadow-soft)]">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.6rem] bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-xl font-black text-[var(--app-accent-primary)]">
+              {companyInitials || "CO"}
+            </div>
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-[var(--app-text-soft)]">
+                Company Workspace
+              </div>
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
+                {companyName}
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--app-text)]">
+                Keep jobsites, documents, team access, field reporting, and overdue items in one place.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <StatusBadge label={companyProfile?.status?.trim() || "Active"} tone="success" />
+                <StatusBadge label={companyLocation} tone="info" />
+                <StatusBadge
+                  label={creditBalance === null ? "Credits pending" : `${creditBalance} credits`}
+                  tone={creditBalance && creditBalance > 0 ? "success" : "neutral"}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[1.7rem] border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-4 shadow-[var(--app-shadow-soft)]">
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-text-soft)]">
+                Notifications
+              </div>
+              <div className="mt-2 text-2xl font-black text-[var(--app-text-strong)]">{notificationCount}</div>
+              <div className="mt-1 text-xs leading-5 text-[var(--app-text)]">
+                Pending approvals, invites, and review items
+              </div>
+            </div>
+            <div className="rounded-[1.7rem] border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-4 shadow-[var(--app-shadow-soft)]">
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-text-soft)]">
+                Workspace status
+              </div>
+              <div className="mt-2 text-sm font-semibold text-[var(--app-text-strong)]">
+                {priorityQueueItems.length > 0
+                  ? `${priorityQueueItems.length} action item${priorityQueueItems.length === 1 ? "" : "s"} waiting`
+                  : "Board is clear"}
+              </div>
+              <div className="mt-1 text-xs leading-5 text-[var(--app-text)]">
+                {priorityQueueItems.length > 0
+                  ? "Start with Today's focus to clear reviews, approvals, and escalations."
+                  : "Use the sections below to review documents, team access, and field activity."}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_190px_auto]">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search jobsites, documents, or employees..."
+            className={`${appNativeSelectClassName} placeholder:text-[var(--app-text-soft)]`}
+          />
+          <select
+            value={selectedJobsite}
+            onChange={(event) => setSelectedJobsite(event.target.value)}
+            className={appNativeSelectClassName}
+          >
+            {jobsiteOptions.map((option) => (
+              <option key={option} value={option}>
+                {option === "all" ? "All jobsites" : option}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={onRefreshWorkspace}
+            disabled={loading}
+            className="inline-flex items-center justify-center rounded-xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] shadow-[var(--app-shadow-soft)] transition hover:border-[var(--app-accent-primary)] hover:text-[var(--app-accent-primary)] disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {loading ? "Loading..." : workspaceLoaded ? "Refresh Workspace" : "Load Workspace"}
+          </button>
+          <Link
+            href="/company-users"
+            className="inline-flex items-center justify-center rounded-xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] shadow-[var(--app-shadow-soft)] transition hover:border-[var(--app-accent-primary)] hover:text-[var(--app-accent-primary)]"
+          >
+            {pendingUsers.length} pending approvals
+          </Link>
+          <details className="relative">
+            <summary className="flex cursor-pointer list-none items-center justify-center rounded-xl bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(79,124,255,0.24)]">
+              Add New
+            </summary>
+            <div className="absolute right-0 top-[calc(100%+0.75rem)] z-10 w-64 rounded-2xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.98)] p-2 shadow-[0_18px_40px_rgba(76,108,161,0.18)]">
+              {[
+                { href: "/jobsites", label: "Add Jobsite", note: "Set up the next active project." },
+                { href: "/company-users", label: "Add User", note: "Invite and approve employees." },
+                { href: "/submit", label: "Submit New Document", note: "Start a document workflow." },
+                { href: "/field-id-exchange", label: "Report Safety Issue", note: "Track site concerns and actions." },
+                { href: "/upload", label: "Upload File", note: "Add field files or supporting records." },
+              ].map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className="block rounded-xl px-3 py-3 transition hover:bg-[rgba(79,125,243,0.08)]"
+                >
+                  <div className="text-sm font-semibold text-[var(--app-text-strong)]">{item.label}</div>
+                  <div className="mt-1 text-xs text-[var(--app-text)]">{item.note}</div>
+                </Link>
+              ))}
+            </div>
+          </details>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--app-text-soft)]">
+          <span>{filteredDocuments.length} documents match</span>
+          <span>|</span>
+          <span>{filteredJobsites.length} jobsites match</span>
+          <span>|</span>
+          <span>{filteredUsers.length} users match</span>
+          {hasActiveFilters ? (
+            <>
+              <span>|</span>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="font-semibold text-[var(--app-accent-primary)] transition hover:text-[var(--app-accent-primary-hover)]"
+              >
+                Clear filters
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  );
+
   return (
     <div className="company-admin-dashboard space-y-8">
       <PilotAccountPanel companyProfile={companyProfile} onUpdated={onCompanyProfileUpdated} />
       <section className="rounded-[2rem] border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.95)_100%)] p-6 shadow-[var(--app-shadow)]">
         <div className="flex flex-col gap-6">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-            <div className="flex items-start gap-4 rounded-[1.7rem] border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-5 shadow-[var(--app-shadow-soft)]">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.6rem] bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-xl font-black text-[var(--app-accent-primary)]">
-                {companyInitials || "CO"}
-              </div>
-              <div>
-                <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-[var(--app-text-soft)]">
-                  Company Workspace
-                </div>
-                <h1 className="mt-2 text-3xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
-                  {companyName}
-                </h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--app-text)]">
-                  Keep jobsites, documents, team access, field reporting, and overdue items in one place.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <StatusBadge label={companyProfile?.status?.trim() || "Active"} tone="success" />
-                  <StatusBadge label={companyLocation} tone="info" />
-                  <StatusBadge
-                    label={creditBalance === null ? "Credits pending" : `${creditBalance} credits`}
-                    tone={creditBalance && creditBalance > 0 ? "success" : "neutral"}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[1.7rem] border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-4 shadow-[var(--app-shadow-soft)]">
-                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-text-soft)]">
-                  Notifications
-                </div>
-                <div className="mt-2 text-2xl font-black text-[var(--app-text-strong)]">{notificationCount}</div>
-                <div className="mt-1 text-xs leading-5 text-[var(--app-text)]">
-                  Pending approvals, invites, and review items
-                </div>
-              </div>
-              <div className="rounded-[1.7rem] border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-4 shadow-[var(--app-shadow-soft)]">
-                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-text-soft)]">
-                  Workspace status
-                </div>
-                <div className="mt-2 text-sm font-semibold text-[var(--app-text-strong)]">
-                  {priorityQueueItems.length > 0
-                    ? `${priorityQueueItems.length} action item${priorityQueueItems.length === 1 ? "" : "s"} waiting`
-                    : "Board is clear"}
-                </div>
-                <div className="mt-1 text-xs leading-5 text-[var(--app-text)]">
-                  {priorityQueueItems.length > 0
-                    ? "Start with Today's focus to clear reviews, approvals, and escalations."
-                    : "Use the sections below to review documents, team access, and field activity."}
-                </div>
-              </div>
-            </div>
-          </div>
-
           {!workspaceLoaded || normalizedWorkspaceError ? (
             <div
               className={`rounded-2xl border px-4 py-3 text-sm ${
@@ -851,7 +935,7 @@ export function CompanyAdminDashboard({
           ) : null}
 
           {workspaceLoaded ? (
-            <div id="company-knowledge" className="grid scroll-mt-8 gap-4 lg:grid-cols-2">
+            <div id="company-knowledge" className="grid scroll-mt-8 gap-4 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
               <CompanyAiAssistPanel
                 surface="dashboard"
                 title="Operations assistant"
@@ -869,7 +953,7 @@ export function CompanyAdminDashboard({
             </div>
           ) : null}
 
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_190px_auto]">
+          <div className="hidden grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_190px_auto]">
             <input
               type="text"
               value={searchQuery}
@@ -927,7 +1011,7 @@ export function CompanyAdminDashboard({
             </details>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--app-text-soft)]">
+          <div className="hidden mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--app-text-soft)]">
             <span>{filteredDocuments.length} documents match</span>
             <span>•</span>
             <span>{filteredJobsites.length} jobsites match</span>
@@ -1092,6 +1176,8 @@ export function CompanyAdminDashboard({
           ))}
         </div>
       </SectionCard>
+
+      {workspaceSummarySection}
 
       <section id="jobsites" className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <SectionCard

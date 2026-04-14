@@ -1,5 +1,4 @@
-import { extractResponsesApiOutputText } from "@/lib/companyMemory/openaiResponses";
-import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
+import { requestAiResponsesText, type AiExecutionMeta } from "@/lib/ai/responses";
 import type { RiskRecommendationDraft } from "@/lib/riskMemory/recommendations";
 import type { RiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
 import { serverLog } from "@/lib/serverLog";
@@ -54,7 +53,7 @@ export function parseRecommendationDraftsFromModelText(text: string): RiskRecomm
  */
 export async function buildLlmRiskRecommendations(
   ctx: RiskMemoryStructuredContext | null
-): Promise<{ drafts: RiskRecommendationDraft[]; error?: string }> {
+): Promise<{ drafts: RiskRecommendationDraft[]; error?: string; meta?: AiExecutionMeta }> {
   if (!ctx) {
     return { drafts: [], error: "no_context" };
   }
@@ -63,11 +62,10 @@ export async function buildLlmRiskRecommendations(
     return { drafts: [], error: "no_openai_key" };
   }
 
-  const model = resolveOpenAiCompatibleModelId(
+  const model =
     process.env.RISK_MEMORY_LLM_MODEL?.trim() ||
-      process.env.COMPANY_AI_MODEL?.trim() ||
-      "gpt-4o-mini"
-  );
+    process.env.COMPANY_AI_MODEL?.trim() ||
+    "gpt-4o-mini";
 
   const summary = {
     facetCount: ctx.facetCount,
@@ -95,35 +93,20 @@ export async function buildLlmRiskRecommendations(
   const user = `Risk Memory summary (JSON):\n${JSON.stringify(summary)}`;
 
   try {
-    const res = await fetch(`${getOpenAiApiBaseUrl()}/responses`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        input: `${system}\n\n---\n\n${user}`,
-      }),
+    const response = await requestAiResponsesText({
+      apiKey,
+      model,
+      input: `${system}\n\n---\n\n${user}`,
     });
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
+    if (!response.text) {
       serverLog("warn", "risk_memory_llm_recommendations_http", {
-        status: res.status,
-        snippet: errText.slice(0, 200),
+        model: response.meta.model,
       });
-      return { drafts: [], error: "openai_http" };
+      return { drafts: [], error: "openai_http", meta: response.meta };
     }
-
-    const json: unknown = await res.json();
-    const text = extractResponsesApiOutputText(json);
-    if (!text?.trim()) {
-      return { drafts: [], error: "empty_model_output" };
-    }
-
-    const drafts = parseRecommendationDraftsFromModelText(text);
-    return { drafts };
+    const drafts = parseRecommendationDraftsFromModelText(response.text);
+    return { drafts, meta: response.meta };
   } catch (e) {
     serverLog("warn", "risk_memory_llm_recommendations_exception", {
       message: e instanceof Error ? e.message.slice(0, 160) : "unknown",

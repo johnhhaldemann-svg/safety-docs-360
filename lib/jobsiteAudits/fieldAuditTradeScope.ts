@@ -6,7 +6,7 @@
 import {
   CONSTRUCTION_TRADE_DEFINITIONS,
   type FieldAuditScopeKey,
-} from "@/lib/constructionTradeTaxonomy";
+} from "@/lib/sharedTradeTaxonomy";
 import {
   type FieldAuditSection,
   OSHA_FIELD_AUDIT_SECTIONS,

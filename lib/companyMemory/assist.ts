@@ -46,6 +46,131 @@ export function buildSurfaceSystemPrompt(surface: string): string {
   return SURFACE_SYSTEM[key] ?? SURFACE_SYSTEM.default;
 }
 
+function formatSurfaceLabel(value: string) {
+  return value
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function truncateForFallback(value: string, max: number) {
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (compact.length <= max) {
+    return compact;
+  }
+  return `${compact.slice(0, Math.max(max - 3, 1)).trimEnd()}...`;
+}
+
+function summarizeStructuredContextForFallback(structuredContext?: string | null) {
+  const raw = structuredContext?.trim();
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return truncateForFallback(raw, 220);
+    }
+
+    const entries = Object.entries(parsed as Record<string, unknown>)
+      .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value))
+      .slice(0, 4)
+      .map(([key, value]) => `${formatSurfaceLabel(key)}: ${String(value)}`);
+
+    if (entries.length > 0) {
+      return entries.join(" | ");
+    }
+  } catch {
+    // Use the raw text when the caller passes prose instead of JSON.
+  }
+
+  return truncateForFallback(raw, 220);
+}
+
+function buildSurfaceFallbackChecklist(surface: string, message: string) {
+  const key = (surface || "default").trim().toLowerCase();
+  const lowerMessage = message.toLowerCase();
+
+  if (key === "incidents") {
+    const items = [
+      "Record the event / exposure type, equipment or object involved, exact area, and time of the event.",
+      "Capture the affected body part and injury type if anyone was hurt, then confirm whether medical evaluation, restricted work, or days away are involved.",
+      "Document immediate controls, witness statements, scene conditions, and whether the hazard should stay under stop-work or escalation review.",
+    ];
+
+    if (/(poor lighting|lighting|visibility|dark|dim)/i.test(lowerMessage)) {
+      items.splice(
+        2,
+        0,
+        "List poor lighting or visibility as a contributing condition and note what temporary or permanent lighting controls were in place."
+      );
+    }
+
+    if (/(ankle|foot|twist|rolled|roll|sprain|trip|slip|fall)/i.test(lowerMessage)) {
+      items.splice(
+        1,
+        0,
+        "For a rolled or twisted ankle, verify the body-part selection and choose the event category that best matches the mechanism, such as slip/trip, same-level fall, or overexertion."
+      );
+    }
+
+    return items.slice(0, 4);
+  }
+
+  if (key === "permits") {
+    return [
+      "Confirm the permit type, work scope, area, and timing before drafting controls.",
+      "List the main hazards, isolations, PPE, and hold points that must be verified before work starts.",
+      "Call out anything that should trigger escalation, stop-work, or additional approvals.",
+    ];
+  }
+
+  if (key === "jsa") {
+    return [
+      "Break the work into clear steps before assigning hazards and controls.",
+      "For each step, note the exposure, the preventive control, and the crew communication or verification point.",
+      "Flag any permits, simultaneous operations, or conditions that could change the work plan mid-task.",
+    ];
+  }
+
+  return [
+    "Use the saved company memory below as the starting point for a company-specific answer.",
+    "If the current memory is too thin, add the relevant procedure, lesson learned, or uploaded document and ask again.",
+  ];
+}
+
+function buildCompanyAiAssistFallback(params: {
+  surface: string;
+  userMessage: string;
+  structuredContext?: string | null;
+  assistantChunks: CompanyMemoryItemRow[];
+  apiAvailable: boolean;
+}) {
+  const contextSummary = summarizeStructuredContextForFallback(params.structuredContext);
+  const memoryLines = params.assistantChunks.slice(0, 3).map((chunk) => {
+    const snippet = truncateForFallback(chunk.body, 180);
+    return `- ${chunk.title}: ${snippet}`;
+  });
+  const checklist = buildSurfaceFallbackChecklist(params.surface, params.userMessage);
+
+  return [
+    params.apiAvailable
+      ? "AI drafting is temporarily unavailable, so this answer is based on your company memory and the page context only."
+      : "AI drafting is not enabled on this server right now, so this answer is based on your company memory and the page context only.",
+    contextSummary ? `Current context: ${contextSummary}` : null,
+    memoryLines.length > 0 ? `Relevant company memory:\n${memoryLines.join("\n")}` : null,
+    checklist.length > 0 ? `Suggested next steps:\n${checklist.map((item) => `- ${item}`).join("\n")}` : null,
+    memoryLines.length === 0
+      ? `If you want a company-specific answer for ${formatSurfaceLabel(params.surface || "this workspace")}, add a note or upload to the memory bank and ask again.`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 function orderMemoryChunksForAssistant(chunks: CompanyMemoryItemRow[]) {
   const priority = (source: string) => {
     if (source === "document_upload") return 0;
@@ -164,7 +289,17 @@ export async function runCompanyAiAssist(
 
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not configured.");
+    return {
+      text: buildCompanyAiAssistFallback({
+        surface: input.surface,
+        userMessage: msg,
+        structuredContext: input.structuredContext,
+        assistantChunks,
+        apiAvailable: false,
+      }),
+      disclaimer: COMPANY_AI_ASSIST_DISCLAIMER,
+      retrieval: method,
+    };
   }
 
   const model = resolveOpenAiCompatibleModelId(
@@ -190,15 +325,30 @@ export async function runCompanyAiAssist(
       status: res.status,
       snippet: errText.slice(0, 200),
     });
-    throw new Error(`AI request failed (${res.status}).`);
+    return {
+      text: buildCompanyAiAssistFallback({
+        surface: input.surface,
+        userMessage: msg,
+        structuredContext: input.structuredContext,
+        assistantChunks,
+        apiAvailable: true,
+      }),
+      disclaimer: COMPANY_AI_ASSIST_DISCLAIMER,
+      retrieval: method,
+    };
   }
 
   const json: unknown = await res.json();
   const rawText = extractResponsesApiOutputText(json);
   const text =
     rawText?.trim() ||
-    "The model returned an empty response. Please try again with a shorter question.";
+    buildCompanyAiAssistFallback({
+      surface: input.surface,
+      userMessage: msg,
+      structuredContext: input.structuredContext,
+      assistantChunks,
+      apiAvailable: true,
+    });
 
   return { text, disclaimer: COMPANY_AI_ASSIST_DISCLAIMER, retrieval: method };
 }
-

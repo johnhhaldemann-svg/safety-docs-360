@@ -4,6 +4,15 @@
  */
 
 import { EXPOSURE_EVENT_TYPES, type ExposureEventType, normalizeExposureEventType } from "@/lib/incidents/exposureEventType";
+import {
+  SHARED_TRADE_DEFINITIONS,
+  getSelectableSharedTasks,
+  getSharedSubTradesForTrade,
+  getSharedTaskDefinition,
+  resolveSharedSubTradeCode,
+  resolveSharedTaskCode,
+  resolveSharedTradeCode,
+} from "@/lib/sharedTradeTaxonomy";
 
 export const PRIMARY_HAZARD_CODES = EXPOSURE_EVENT_TYPES;
 export type PrimaryHazardCode = ExposureEventType;
@@ -68,59 +77,15 @@ export const SCOPE_OF_WORK_LABELS: Record<ScopeOfWorkCode, string> = {
   maintenance_work: "Maintenance work",
 };
 
-export const TRADE_CODES = [
-  "laborers",
-  "operators",
-  "ironworkers",
-  "electricians",
-  "pipefitters",
-  "plumbers",
-  "carpenters",
-  "roofers",
-  "masons",
-  "millwrights",
-  "welders",
-  "painters_coatings",
-  "hvac",
-  "insulators",
-  "scaffold_builders",
-  "demo_crews",
-  "concrete_crews",
-  "truck_drivers",
-  "riggers_signal_persons",
-  "safety_staff",
-  "supervisors_foremen",
-  "subcontractor_management",
-  "other",
-] as const;
+export type TradeCode = (typeof SHARED_TRADE_DEFINITIONS)[number]["code"];
+export type SubTradeCode = string;
+export type TaskCode = string;
 
-export type TradeCode = (typeof TRADE_CODES)[number];
+export const TRADE_CODES: readonly TradeCode[] = SHARED_TRADE_DEFINITIONS.map((trade) => trade.code) as TradeCode[];
 
-export const TRADE_LABELS: Record<TradeCode, string> = {
-  laborers: "Laborers",
-  operators: "Operators",
-  ironworkers: "Ironworkers",
-  electricians: "Electricians",
-  pipefitters: "Pipefitters",
-  plumbers: "Plumbers",
-  carpenters: "Carpenters",
-  roofers: "Roofers",
-  masons: "Masons",
-  millwrights: "Millwrights",
-  welders: "Welders",
-  painters_coatings: "Painters / coatings",
-  hvac: "HVAC",
-  insulators: "Insulators",
-  scaffold_builders: "Scaffold builders",
-  demo_crews: "Demo crews",
-  concrete_crews: "Concrete crews",
-  truck_drivers: "Truck drivers",
-  riggers_signal_persons: "Riggers / signal persons",
-  safety_staff: "Safety staff",
-  supervisors_foremen: "Supervisors / foremen",
-  subcontractor_management: "Subcontractor management",
-  other: "Other / mixed",
-};
+export const TRADE_LABELS: Record<TradeCode, string> = Object.fromEntries(
+  SHARED_TRADE_DEFINITIONS.map((trade) => [trade.code, trade.label])
+) as Record<TradeCode, string>;
 
 export const ROOT_CAUSE_LEVEL1 = [
   "human_factors",
@@ -254,7 +219,6 @@ export const PPE_STATUS_SUMMARY_CODES = ["aligned", "deficient", "not_assessed",
 export type PpeStatusSummaryCode = (typeof PPE_STATUS_SUMMARY_CODES)[number];
 
 const SCOPE_SET = new Set<string>(SCOPE_OF_WORK_CODES);
-const TRADE_SET = new Set<string>(TRADE_CODES);
 const ROOT_L1_SET = new Set<string>(ROOT_CAUSE_LEVEL1);
 const FAILED_SET = new Set<string>(FAILED_CONTROL_CODES);
 const WEATHER_SET = new Set<string>(WEATHER_CONDITION_CODES);
@@ -268,9 +232,40 @@ export function normalizeScopeOfWorkCode(input: unknown): ScopeOfWorkCode | null
 }
 
 export function normalizeTradeCode(input: unknown): TradeCode | null {
-  const v = String(input ?? "").trim().toLowerCase().replace(/[/\s-]+/g, "_");
-  if (TRADE_SET.has(v)) return v as TradeCode;
-  return null;
+  const code = resolveSharedTradeCode(String(input ?? ""));
+  return code ? (code as TradeCode) : null;
+}
+
+export function getSubTradeOptionsForTrade(tradeCode: string | null | undefined) {
+  return getSharedSubTradesForTrade(tradeCode).map((subTrade) => ({
+    code: subTrade.code,
+    label: subTrade.label,
+  }));
+}
+
+export function getTaskOptionsForTradeAndSubTrade(tradeCode: string | null | undefined, subTradeCode: string | null | undefined) {
+  return getSelectableSharedTasks(tradeCode, subTradeCode).map((task) => ({
+    code: task.code,
+    label: task.label,
+  }));
+}
+
+export function normalizeSubTradeCode(tradeCode: string | null | undefined, input: unknown): SubTradeCode | null {
+  const code = resolveSharedSubTradeCode(tradeCode, String(input ?? ""));
+  return code ?? null;
+}
+
+export function normalizeTaskCode(
+  tradeCode: string | null | undefined,
+  subTradeCode: string | null | undefined,
+  input: unknown
+): TaskCode | null {
+  const code = resolveSharedTaskCode(tradeCode, subTradeCode, String(input ?? ""));
+  return code ?? null;
+}
+
+export function getTaskLabel(tradeCode: string | null | undefined, subTradeCode: string | null | undefined, taskCode: string | null | undefined) {
+  return getSharedTaskDefinition(tradeCode, subTradeCode, taskCode)?.label ?? null;
 }
 
 export function normalizeRootCauseLevel1(input: unknown): RootCauseLevel1 | null {

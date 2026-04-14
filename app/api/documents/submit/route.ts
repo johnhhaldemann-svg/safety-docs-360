@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { generatePshsepDocx, type PSHSEPInput } from "@/app/api/pshsep/export/route";
-import { generateCsepDocx } from "@/app/api/csep/export/route";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getDefaultAgreementConfig, getUserAgreementRecord } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 import { authorizeRequest } from "@/lib/rbac";
+import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
 import { serverLog } from "@/lib/serverLog";
+import { ensureSafetyPlanGenerationContext } from "@/lib/safety-intelligence/documentIntake";
+import { runSafetyPlanDocumentPipeline } from "@/lib/safety-intelligence/documents/pipeline";
+import { renderSafetyPlanDocx } from "@/lib/safety-intelligence/documents/render";
+import { generateCsepDocx } from "@/app/api/csep/export/route";
+import { generatePshsepDocx } from "@/app/api/pshsep/export/route";
 
 export const runtime = "nodejs";
 
@@ -20,7 +24,109 @@ function normalizeRequiredString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
 }
 
+function extractErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error ?? "");
+}
+
+function isMissingSafetyIntelligenceSchemaError(error: unknown) {
+  const message = extractErrorMessage(error).toLowerCase();
+  if (!message) return false;
+
+  const schemaTokens = [
+    "company_bucket_runs",
+    "company_bucket_items",
+    "company_ai_reviews",
+    "company_generated_documents",
+    "company_conflict_pairs",
+    "generated_document_id",
+    "source_document_id",
+  ];
+
+  return (
+    schemaTokens.some((token) => message.includes(token)) &&
+    (message.includes("does not exist") ||
+      message.includes("could not find") ||
+      message.includes("schema cache") ||
+      message.includes("column") ||
+      message.includes("relation"))
+  );
+}
+
+function isRecoverableSafetyPlanPipelineError(error: unknown) {
+  if (isMissingSafetyIntelligenceSchemaError(error)) {
+    return true;
+  }
+
+  const message = extractErrorMessage(error).toLowerCase();
+  if (!message) return false;
+
+  const permissionTokens = [
+    "row-level security",
+    "permission denied",
+    "insufficient privilege",
+    "not allowed",
+    "jwt",
+    "policy",
+  ];
+
+  const pipelineTokens = [
+    "company_bucket_runs",
+    "company_bucket_items",
+    "company_conflict_pairs",
+    "company_ai_reviews",
+    "company_generated_documents",
+    "platform_rule_templates",
+    "company_rule_overrides",
+    "jobsite_rule_overrides",
+  ];
+
+  return (
+    permissionTokens.some((token) => message.includes(token)) &&
+    pipelineTokens.some((token) => message.includes(token))
+  );
+}
+
+function parseContentDispositionFilename(value: string | null) {
+  if (!value) return null;
+  const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+  const quotedMatch = value.match(/filename=\"([^\"]+)\"/i);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+  const bareMatch = value.match(/filename=([^;]+)/i);
+  return bareMatch?.[1]?.trim() ?? null;
+}
+
+async function renderLegacyDraftFile(params: {
+  normalizedType: string;
+  formData: Record<string, unknown>;
+  supabase: any;
+}) {
+  if (params.normalizedType === "CSEP") {
+    const response = await generateCsepDocx(params.formData as Record<string, unknown>, {
+      supabase: params.supabase,
+    });
+    const body = new Uint8Array(await response.arrayBuffer());
+    const filename =
+      parseContentDispositionFilename(response.headers.get("Content-Disposition")) ??
+      "Project_CSEP.docx";
+    return { body, filename };
+  }
+
+  const rendered = await generatePshsepDocx(params.formData as Record<string, unknown>, {
+    supabase: params.supabase,
+  });
+  return {
+    body: rendered.body,
+    filename: rendered.filename,
+  };
+}
+
 export async function POST(request: Request) {
+  let createdDocumentId: string | null = null;
   try {
     const auth = await authorizeRequest(request, {
       requirePermission: "can_submit_documents",
@@ -78,26 +184,11 @@ export async function POST(request: Request) {
       fallbackTeam: auth.team,
       authUser: user,
     });
-    let fileData: BodyInit | null = null;
 
-    if (normalizedType === "CSEP") {
-      const response = await generateCsepDocx({
-        project_name,
-        ...form_data,
-      } as Parameters<typeof generateCsepDocx>[0]);
-      fileData = response.body;
-    } else {
-      const response = await generatePshsepDocx({
-        project_name,
-        ...form_data,
-      } as PSHSEPInput);
-      fileData = response.body;
-    }
-
-    if (!fileData) {
+    if (!companyScope.companyId) {
       return NextResponse.json(
-        { error: "Failed to generate the review draft." },
-        { status: 500 }
+        { error: "No company workspace linked." },
+        { status: 400 }
       );
     }
 
@@ -131,6 +222,86 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+    createdDocumentId = insertedDoc.id;
+
+    const canonicalDocumentType = normalizedType === "CSEP" ? "csep" : "pshsep";
+    const generationContext = ensureSafetyPlanGenerationContext({
+      documentType: canonicalDocumentType,
+      formData: {
+        ...form_data,
+        project_name,
+      },
+      companyId: companyScope.companyId,
+      jobsiteId:
+        typeof form_data.jobsite_id === "string" && form_data.jobsite_id.trim()
+          ? form_data.jobsite_id.trim()
+          : null,
+    });
+    const riskMemory = await buildRiskMemoryStructuredContext(
+      supabase,
+      companyScope.companyId,
+      {
+        jobsiteId: generationContext.siteContext.jobsiteId ?? null,
+        days: 90,
+      }
+    ).catch((riskMemoryError) => {
+      serverLog("warn", "document_submit_risk_memory_fallback", {
+        userId: user.id,
+        companyId: companyScope.companyId,
+        documentType: normalizedType,
+        message: extractErrorMessage(riskMemoryError).slice(0, 200),
+      });
+      return null;
+    });
+    let fileData: Uint8Array;
+    let generatedDocumentId: string | null = null;
+    let bucketRunId: string | null = null;
+
+    try {
+      const pipeline = await runSafetyPlanDocumentPipeline({
+        supabase,
+        actorUserId: user.id,
+        companyId: companyScope.companyId,
+        jobsiteId: generationContext.siteContext.jobsiteId ?? null,
+        sourceDocumentId: insertedDoc.id,
+        generationContext,
+        intakePayload: {
+          document_type: document_type.trim(),
+          project_name: project_name.trim(),
+          form_data,
+        },
+        riskMemorySummary: (riskMemory ?? null) as any,
+      });
+      const rendered = await renderSafetyPlanDocx(pipeline.draft);
+      fileData = rendered.body;
+      generatedDocumentId = pipeline.generatedDocumentId;
+      bucketRunId = pipeline.bucketRunId;
+
+      await supabase
+        .from("documents")
+        .update({
+          generated_document_id: pipeline.generatedDocumentId,
+        })
+        .eq("id", insertedDoc.id);
+    } catch (pipelineError) {
+      if (!isRecoverableSafetyPlanPipelineError(pipelineError)) {
+        throw pipelineError;
+      }
+
+      serverLog("warn", "document_submit_pipeline_schema_fallback", {
+        userId: user.id,
+        companyId: companyScope.companyId,
+        documentType: normalizedType,
+        message: extractErrorMessage(pipelineError).slice(0, 200),
+      });
+
+      const legacyDraft = await renderLegacyDraftFile({
+        normalizedType,
+        formData: form_data,
+        supabase,
+      });
+      fileData = legacyDraft.body;
+    }
 
     const { error: uploadError } = await supabase.storage
       .from("documents")
@@ -157,10 +328,23 @@ export async function POST(request: Request) {
       success: true,
       document_id: insertedDoc.id,
       draft_file_path: filePath,
+      generated_document_id: generatedDocumentId,
+      bucket_run_id: bucketRunId,
     });
   } catch (error) {
+    if (createdDocumentId) {
+      await authorizeRequest(request, {
+        requirePermission: "can_submit_documents",
+      })
+        .then(async (auth) => {
+          if ("error" in auth) return;
+          await auth.supabase.from("documents").delete().eq("id", createdDocumentId);
+        })
+        .catch(() => undefined);
+    }
     serverLog("error", "document_submit_unexpected_error", {
       errorKind: error instanceof Error ? error.name : "unknown",
+      message: extractErrorMessage(error).slice(0, 200),
     });
 
     return NextResponse.json(

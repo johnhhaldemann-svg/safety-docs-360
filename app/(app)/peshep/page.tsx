@@ -14,6 +14,7 @@ import {
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
 import type { PermissionMap } from "@/lib/rbac";
+import { buildPshsepGenerationContext } from "@/lib/safety-intelligence/documentIntake";
 
 type Answers = {
   company_name: string;
@@ -262,6 +263,18 @@ export default function PESHEPUniversalPage() {
       } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Your session has expired. Please log in again.");
 
+      const submissionFormData = {
+        ...answers,
+        emergency_map: {
+          aed_location: aedLocation,
+          first_aid_location: firstAidLocation,
+          assembly_point: assemblyPoint,
+          nearest_hospital: nearestHospital,
+          emergency_contact: emergencyContact,
+          site_map: siteMap,
+        },
+      };
+
       const res = await fetch("/api/documents/submit", {
         method: "POST",
         headers: {
@@ -272,15 +285,8 @@ export default function PESHEPUniversalPage() {
           document_type: "PSHSEP",
           project_name: answers.project_name,
           form_data: {
-            ...answers,
-            emergency_map: {
-              aed_location: aedLocation,
-              first_aid_location: firstAidLocation,
-              assembly_point: assemblyPoint,
-              nearest_hospital: nearestHospital,
-              emergency_contact: emergencyContact,
-              site_map: siteMap,
-            },
+            ...submissionFormData,
+            generationContext: buildPshsepGenerationContext(submissionFormData),
           },
         }),
       });

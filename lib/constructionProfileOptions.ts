@@ -5,7 +5,7 @@
 import {
   CONSTRUCTION_TRADE_LABELS,
   LEGACY_CONSTRUCTION_TRADE_LABELS,
-} from "@/lib/constructionTradeTaxonomy";
+} from "@/lib/sharedTradeTaxonomy";
 
 export const CONSTRUCTION_TRADES = [...CONSTRUCTION_TRADE_LABELS] as unknown as readonly string[];
 

@@ -1,4 +1,4 @@
-import { JOBSITE_AUDIT_TRADE_SLUGS } from "@/lib/constructionTradeTaxonomy";
+import { JOBSITE_AUDIT_TRADE_SLUGS } from "@/lib/sharedTradeTaxonomy";
 
 export const AUDIT_SYSTEM_BLUEPRINT = {
   audit_system: {

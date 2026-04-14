@@ -3,7 +3,7 @@
  * SOR `trade` is primary; category-text inference is fallback only (see `resolveTradeForRow`).
  */
 
-import { CONSTRUCTION_TRADE_DEFINITIONS } from "@/lib/constructionTradeTaxonomy";
+import { CONSTRUCTION_TRADE_DEFINITIONS } from "@/lib/sharedTradeTaxonomy";
 
 export type TradeCanonical = {
   id: string;
@@ -13,30 +13,30 @@ export type TradeCanonical = {
 
 /** Older profile / SOR free-text values → current taxonomy slug id */
 const LEGACY_TRADE_TO_SLUG: Record<string, string> = {
-  "general / multi-trade": "general_contractor",
-  "survey / layout": "site_preparation_clearing",
-  demolition: "demolition",
-  earthwork: "earthwork",
-  "excavation / utilities": "utility_underground_work",
-  concrete: "concrete_forming_placement",
-  "steel / ironwork": "steel_framing_structural_steel",
-  masonry: "masonry_brick_block_stone",
-  drywall: "drywall_metal_stud_framing",
-  painting: "painting_wall_covering",
-  flooring: "flooring_tile_carpet_hardwood_concrete_polishing",
+  "general / multi-trade": "general_conditions_site_management",
+  "survey / layout": "survey_layout",
+  demolition: "demolition_abatement",
+  earthwork: "earthwork_civil_sitework",
+  "excavation / utilities": "underground_utilities",
+  concrete: "foundations_concrete",
+  "steel / ironwork": "structural_steel_metals",
+  masonry: "masonry",
+  drywall: "drywall_ceilings_interior_systems",
+  painting: "painting_coatings",
+  flooring: "flooring",
   roofing: "roofing",
   electrical: "electrical",
   "mechanical / hvac": "hvac_mechanical",
   plumbing: "plumbing",
-  "low voltage": "low_voltage_data_communications",
-  "fire protection": "fire_protection_sprinklers",
-  elevator: "elevators_escalators",
-  landscaping: "landscaping_irrigation",
-  "asphalt / paving": "asphalt_paving",
-  "traffic control": "road_highway_construction",
-  scaffolding: "scaffolding_hoisting",
-  insulation: "insulation",
-  other: "other_not_listed",
+  "low voltage": "low_voltage_technology",
+  "fire protection": "fire_protection",
+  elevator: "specialties",
+  landscaping: "landscaping_exterior_finishes",
+  "asphalt / paving": "earthwork_civil_sitework",
+  "traffic control": "general_conditions_site_management",
+  scaffolding: "scaffolding_access",
+  insulation: "insulation_fireproofing",
+  other: "specialties",
 };
 
 function uniqAliases(base: string[]): string[] {
@@ -91,15 +91,15 @@ function slugId(raw: string): string {
 export function inferTradeFromCategoryText(text: string): { id: string; label: string } {
   const haystack = text.toLowerCase();
   if (haystack.includes("carpent") || haystack.includes("framing") || haystack.includes("millwork"))
-    return { id: "wood_framing", label: "Wood Framing" };
+    return { id: "carpentry_framing", label: "Carpentry / Framing" };
   if (haystack.includes("roof")) return { id: "roofing", label: "Roofing" };
   if (haystack.includes("electrical") || haystack.includes("loto") || haystack.includes("arc flash") || haystack.includes("temporary power"))
     return { id: "electrical", label: "Electrical" };
   if (haystack.includes("concrete") || haystack.includes("formwork") || haystack.includes("rebar"))
-    return { id: "concrete_forming_placement", label: "Concrete Forming & Placement" };
+    return { id: "foundations_concrete", label: "Foundations / Concrete" };
   if (haystack.includes("rigging") || haystack.includes("steel") || haystack.includes("welding") || haystack.includes("crane"))
-    return { id: "steel_framing_structural_steel", label: "Steel Framing / Structural Steel" };
-  return { id: "general_contractor", label: "General Contractor / Construction Manager" };
+    return { id: "structural_steel_metals", label: "Structural Steel / Metals" };
+  return { id: "general_conditions_site_management", label: "General Conditions / Site Management" };
 }
 
 /**

@@ -1,3 +1,4 @@
+import { extractResponsesApiOutputText } from "@/lib/ai/responses";
 import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
 import { ensurePdfParseWorkerHandler } from "@/lib/pdfParseWorker";
 
@@ -226,31 +227,74 @@ export async function extractGcProgramDocumentText(
   }
 }
 
-function extractResponsesApiOutputText(json: unknown): string | null {
-  if (!json || typeof json !== "object") return null;
-  const o = json as Record<string, unknown>;
-  if (typeof o.output_text === "string" && o.output_text.trim()) return o.output_text.trim();
-
-  const output = o.output;
-  if (!Array.isArray(output)) return null;
-  const chunks: string[] = [];
-  for (const item of output) {
-    if (!item || typeof item !== "object") continue;
-    const itemObj = item as Record<string, unknown>;
-    const content = itemObj.content;
-    if (!Array.isArray(content)) continue;
-    for (const part of content) {
-      if (!part || typeof part !== "object") continue;
-      const p = part as Record<string, unknown>;
-      if (p.type === "output_text" && typeof p.text === "string") chunks.push(p.text);
-    }
-  }
-  const joined = chunks.join("").trim();
-  return joined || null;
-}
-
 const DISCLAIMER =
   "This AI review is for internal triage only. It is not legal advice, does not replace a competent safety professional or the AHJ, and may omit or misread content. Verify against current OSHA / state rules and the contract documents.";
+
+function includesAny(text: string, tokens: string[]) {
+  return tokens.some((token) => text.includes(token));
+}
+
+function buildDeterministicGcProgramReview(params: {
+  documentText: string;
+  documentTitle: string;
+  fileName: string;
+  additionalGcContext?: string | null;
+  siteReferenceText?: string | null;
+}): GcProgramAiReview {
+  const draftText = params.documentText.trim().toLowerCase();
+  const contextText = `${params.additionalGcContext ?? ""}\n${params.siteReferenceText ?? ""}`.toLowerCase();
+  const hasBody = draftText.length >= 80;
+  const strengths: string[] = [];
+  const gaps: string[] = [];
+  const followUps: string[] = [];
+
+  if (includesAny(draftText, ["fall protection", "ppe", "training", "inspection", "emergency"])) {
+    strengths.push("The submission appears to address at least some core construction safety program elements expected during GC review.");
+  } else {
+    gaps.push("Core construction safety elements such as PPE, training, inspections, or emergency response are not clearly described.");
+    followUps.push("Request a fuller program narrative covering PPE, training, inspections, and emergency responsibilities.");
+  }
+
+  if (includesAny(draftText, ["hazard", "control", "permit", "loto", "hot work", "excavat"])) {
+    strengths.push("The document includes language tied to hazard recognition, controls, or permit-sensitive work.");
+  } else {
+    gaps.push("Hazard controls and permit-triggering work are not explained with enough detail for reliable GC review.");
+    followUps.push("Ask the subcontractor to add task-specific hazards, controls, and permit triggers.");
+  }
+
+  if (contextText.trim()) {
+    strengths.push("GC or site reference context is available for manual comparison against the submission.");
+    followUps.push("Verify the submission against the GC or site reference requirements before approval.");
+  }
+
+  if (!hasBody) {
+    gaps.unshift("The uploaded submission contains too little extractable text for a strong document comparison.");
+    followUps.unshift("Re-upload a readable PDF or DOCX before relying on this review.");
+  }
+
+  while (strengths.length < 2) {
+    strengths.push("The submission provides at least a basic starting point for human GC review.");
+  }
+  while (gaps.length < 2) {
+    gaps.push("Additional clarification is required before this submission should be treated as approval-ready.");
+  }
+  while (followUps.length < 2) {
+    followUps.push("Have the reviewer confirm alignment with site rules and applicable OSHA-oriented expectations.");
+  }
+
+  return {
+    executiveSummary: hasBody
+      ? `Review for ${params.documentTitle || params.fileName} used deterministic fallback logic because no server OpenAI key is configured. The submission appears partially structured, but it still requires manual validation before approval.`
+      : `Review for ${params.documentTitle || params.fileName} could not be completed in depth because the extracted text is limited and no server OpenAI key is configured.`,
+    alignmentWithGcSiteRequirements: hasBody
+      ? "The document can be compared manually against GC and site requirements, but alignment should not be assumed without reviewer confirmation."
+      : "There is not enough readable content to confirm alignment with GC or site requirements.",
+    oshaRelatedStrengths: strengths.slice(0, 6),
+    oshaRelatedGapsOrRisks: gaps.slice(0, 8),
+    recommendedFollowUps: followUps.slice(0, 6),
+    overallAssessment: hasBody ? "needs_work" : "insufficient_context",
+  };
+}
 
 export async function generateGcProgramAiReview(params: {
   documentText: string;
@@ -266,7 +310,10 @@ export async function generateGcProgramAiReview(params: {
 }): Promise<{ review: GcProgramAiReview; disclaimer: string }> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not configured.");
+    return {
+      review: buildDeterministicGcProgramReview(params),
+      disclaimer: DISCLAIMER,
+    };
   }
 
   const hasBody = params.documentText.trim().length >= 80;

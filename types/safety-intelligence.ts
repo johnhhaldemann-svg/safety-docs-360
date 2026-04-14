@@ -1,0 +1,591 @@
+import type { CSEPProgramSelection } from "@/types/csep-programs";
+
+export type SafetyIntelligenceDocumentType =
+  | "jsa"
+  | "csep"
+  | "peshep"
+  | "pshsep"
+  | "permit"
+  | "sop"
+  | "work_plan"
+  | "safety_narrative";
+
+export type SafetyPlanDocumentType = "csep" | "pshsep";
+
+export type HazardFamily =
+  | "hot_work"
+  | "fire"
+  | "fumes"
+  | "electrical"
+  | "arc_flash"
+  | "excavation"
+  | "collapse"
+  | "utility_strike"
+  | "fall"
+  | "overhead_work"
+  | "line_of_fire"
+  | "flammables"
+  | "struck_by"
+  | "weather"
+  | "unknown";
+
+export type PermitTriggerType =
+  | "hot_work_permit"
+  | "energized_electrical_permit"
+  | "excavation_permit"
+  | "confined_space_permit"
+  | "lift_plan"
+  | "elevated_work_notice"
+  | "hot_work_exclusion_zone"
+  | "none";
+
+export type WeatherSensitivity = "low" | "medium" | "high";
+export type ConflictSeverity = "low" | "medium" | "high" | "critical";
+export type RiskBand = "low" | "moderate" | "high" | "critical";
+export type TrainingScope = "trade" | "task" | "position" | "equipment";
+export type RuleSourceType = "platform" | "company" | "jobsite" | "input";
+export type RuleMergeBehavior = "extend" | "override" | "block";
+export type ConflictSourceScope = "intra_document" | "external_jobsite";
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+export type JsonObject = { [key: string]: JsonValue };
+
+export type TradeLibraryEntry = {
+  id?: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  subTrades: Array<{
+    code: string;
+    name: string;
+    description?: string | null;
+  }>;
+  taskTemplates: TaskTemplateDefinition[];
+  equipmentUsed: string[];
+  workConditions: string[];
+  hazardFamilies: HazardFamily[];
+  requiredControls: string[];
+  permitTriggers: PermitTriggerType[];
+  trainingRequirements: string[];
+  metadata?: JsonObject;
+};
+
+export type TaskTemplateDefinition = {
+  code: string;
+  name: string;
+  tradeCode?: string | null;
+  subTradeCode?: string | null;
+  equipmentUsed: string[];
+  workConditions: string[];
+  hazardFamilies: HazardFamily[];
+  requiredControls: string[];
+  permitTriggers: PermitTriggerType[];
+  trainingRequirements: string[];
+  weatherSensitivity: WeatherSensitivity;
+  metadata?: JsonObject;
+};
+
+export type SafetyPlanOperationInput = {
+  operationId: string;
+  tradeCode?: string | null;
+  tradeLabel?: string | null;
+  subTradeCode?: string | null;
+  subTradeLabel?: string | null;
+  taskCode?: string | null;
+  taskTitle: string;
+  description?: string | null;
+  equipmentUsed: string[];
+  workConditions: string[];
+  hazardHints: HazardFamily[];
+  requiredControlHints: string[];
+  permitHints: PermitTriggerType[];
+  ppeHints: string[];
+  workAreaLabel?: string | null;
+  locationGrid?: string | null;
+  locationLabel?: string | null;
+  weatherConditionCode?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  crewSize?: number | null;
+  metadata?: JsonObject;
+};
+
+export type SafetyPlanGenerationContext = {
+  project: {
+    projectName: string;
+    projectNumber?: string | null;
+    projectAddress?: string | null;
+    ownerClient?: string | null;
+    gcCm?: string | null;
+    contractorCompany?: string | null;
+    contractorContact?: string | null;
+    contractorPhone?: string | null;
+    contractorEmail?: string | null;
+  };
+  scope: {
+    trades: string[];
+    subTrades: string[];
+    tasks: string[];
+    equipment: string[];
+    location?: string | null;
+    schedule?: {
+      startAt?: string | null;
+      endAt?: string | null;
+      label?: string | null;
+    };
+  };
+  operations: SafetyPlanOperationInput[];
+  siteContext: {
+    jobsiteId?: string | null;
+    location?: string | null;
+    workConditions: string[];
+    siteRestrictions: string[];
+    simultaneousOperations: string[];
+    weather?: {
+      conditionCode?: string | null;
+      summary?: string | null;
+    };
+    metadata?: JsonObject;
+  };
+  programSelections?: CSEPProgramSelection[];
+  documentProfile: {
+    documentType: SafetyPlanDocumentType;
+    requestedLabel?: string | null;
+    title?: string | null;
+    companyId?: string | null;
+    jobsiteId?: string | null;
+    source: "builder_submit" | "api" | "legacy_adapter";
+  };
+  legacyFormSnapshot: JsonObject;
+};
+
+export type RawTaskInput = {
+  companyId: string;
+  jobsiteId?: string | null;
+  sourceModule: "manual" | "company_jsa_activity" | "company_permit" | "company_incident";
+  sourceId?: string | null;
+  operationId?: string | null;
+  tradeCode?: string | null;
+  subTradeCode?: string | null;
+  taskCode?: string | null;
+  taskTitle: string;
+  description?: string | null;
+  equipmentUsed?: string[];
+  workConditions?: string[];
+  hazardFamilies?: HazardFamily[];
+  hazardCategories?: string[];
+  requiredControls?: string[];
+  permitTriggers?: PermitTriggerType[];
+  ppeRequirements?: string[];
+  trainingRequirementCodes?: string[];
+  siteRestrictions?: string[];
+  prohibitedEquipment?: string[];
+  workAreaLabel?: string | null;
+  locationGrid?: string | null;
+  weatherConditionCode?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  crewSize?: number | null;
+  metadata?: JsonObject;
+};
+
+export type BucketedWorkItem = {
+  bucketKey: string;
+  bucketType: "task_execution" | "permit_context" | "incident_signal";
+  companyId: string;
+  jobsiteId?: string | null;
+  operationId?: string | null;
+  taskTitle: string;
+  tradeCode?: string | null;
+  subTradeCode?: string | null;
+  taskCode?: string | null;
+  workAreaLabel?: string | null;
+  locationGrid?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  weatherConditionCode?: string | null;
+  equipmentUsed: string[];
+  workConditions: string[];
+  siteRestrictions: string[];
+  prohibitedEquipment: string[];
+  hazardFamilies: HazardFamily[];
+  permitTriggers: PermitTriggerType[];
+  requiredControls: string[];
+  ppeRequirements: string[];
+  trainingRequirementCodes: string[];
+  payload: JsonObject;
+  source: {
+    module: RawTaskInput["sourceModule"];
+    id?: string | null;
+  };
+};
+
+export type RuleSelector = {
+  tradeCodes?: string[];
+  subTradeCodes?: string[];
+  taskCodes?: string[];
+  taskKeywords?: string[];
+  equipmentTokens?: string[];
+  workConditionTokens?: string[];
+  locationTokens?: string[];
+  weatherTokens?: string[];
+  scheduleLabels?: string[];
+};
+
+export type RuleOutputSet = {
+  permitTriggers?: PermitTriggerType[];
+  ppeRequirements?: string[];
+  requiredControls?: string[];
+  hazardFamilies?: HazardFamily[];
+  hazardCategories?: string[];
+  siteRestrictions?: string[];
+  prohibitedEquipment?: string[];
+  trainingRequirements?: string[];
+  weatherRestrictions?: string[];
+  equipmentChecks?: string[];
+};
+
+export type RuleTemplateRecord = {
+  id?: string | null;
+  code: string;
+  label: string;
+  sourceType: RuleSourceType;
+  sourceId?: string | null;
+  precedence: number;
+  version: string;
+  mergeBehavior: RuleMergeBehavior;
+  selectors: RuleSelector;
+  outputs: RuleOutputSet;
+  metadata?: JsonObject;
+};
+
+export type RulesFinding = {
+  code: string;
+  label: string;
+  severity: ConflictSeverity;
+  detail: string;
+  requirementType:
+    | "permit_trigger"
+    | "hazard_family"
+    | "hazard_category"
+    | "ppe_requirement"
+    | "equipment_check"
+    | "weather_restriction"
+    | "required_control"
+    | "training_requirement"
+    | "site_restriction"
+    | "prohibited_equipment";
+  requirementCode?: string | null;
+  sourceType?: RuleSourceType;
+  sourceRuleCode?: string | null;
+  metadata?: JsonObject;
+};
+
+export type RulesEvaluation = {
+  bucketKey: string;
+  operationId?: string | null;
+  findings: RulesFinding[];
+  permitTriggers: PermitTriggerType[];
+  hazardFamilies: HazardFamily[];
+  hazardCategories: string[];
+  ppeRequirements: string[];
+  equipmentChecks: string[];
+  weatherRestrictions: string[];
+  requiredControls: string[];
+  siteRestrictions: string[];
+  prohibitedEquipment: string[];
+  trainingRequirements: string[];
+  score: number;
+  band: RiskBand;
+  evaluationVersion: string;
+  sourceBreakdown?: Array<{
+    sourceType: RuleSourceType;
+    sourceId?: string | null;
+    ruleCodes: string[];
+  }>;
+};
+
+export type ResolvedRuleSet = RulesEvaluation;
+
+export type ConflictMatrixItem = {
+  code: string;
+  type:
+    | "trade_vs_trade"
+    | "task_vs_task"
+    | "location_overlap"
+    | "schedule_overlap"
+    | "weather_sensitive"
+    | "permit_conflict"
+    | "hazard_propagation";
+  severity: ConflictSeverity;
+  sourceScope: ConflictSourceScope;
+  rationale: string;
+  operationIds: string[];
+  relatedBucketKeys: string[];
+  requiredMitigations: string[];
+  permitDependencies: string[];
+  resequencingSuggestion?: string | null;
+  metadata?: JsonObject;
+};
+
+export type ConflictEvaluation = {
+  bucketKey: string;
+  operationId?: string | null;
+  conflicts: Array<{
+    code: string;
+    type:
+      | "trade_vs_trade"
+      | "task_vs_task"
+      | "location_overlap"
+      | "time_overlap"
+      | "weather_sensitive"
+      | "permit_conflict"
+      | "hazard_propagation";
+    severity: ConflictSeverity;
+    rationale: string;
+    relatedBucketKeys: string[];
+    recommendedControls: string[];
+    metadata?: JsonObject;
+  }>;
+  score: number;
+  band: RiskBand;
+  matrix?: ConflictMatrixItem[];
+};
+
+export type ConflictMatrix = {
+  items: ConflictMatrixItem[];
+  score: number;
+  band: RiskBand;
+  intraDocumentConflictCount: number;
+  externalConflictCount: number;
+};
+
+export type GeneratedSafetyPlanSection = {
+  key: string;
+  title: string;
+  summary?: string | null;
+  body?: string | null;
+  bullets?: string[];
+  subsections?: Array<{
+    title: string;
+    bullets: string[];
+  }>;
+  table?: {
+    columns: string[];
+    rows: string[][];
+  } | null;
+};
+
+export type GeneratedSafetyPlanDraft = {
+  documentType: SafetyPlanDocumentType;
+  title: string;
+  projectOverview: {
+    projectName: string;
+    projectNumber?: string | null;
+    projectAddress?: string | null;
+    ownerClient?: string | null;
+    gcCm?: string | null;
+    contractorCompany?: string | null;
+    schedule?: string | null;
+    location?: string | null;
+  };
+  operations: Array<{
+    operationId: string;
+    tradeCode?: string | null;
+    tradeLabel?: string | null;
+    subTradeCode?: string | null;
+    subTradeLabel?: string | null;
+    taskTitle: string;
+    workAreaLabel?: string | null;
+    locationGrid?: string | null;
+    equipmentUsed: string[];
+    workConditions: string[];
+    hazardCategories: string[];
+    permitTriggers: string[];
+    ppeRequirements: string[];
+    requiredControls: string[];
+    siteRestrictions: string[];
+    prohibitedEquipment: string[];
+    conflicts: string[];
+  }>;
+  ruleSummary: {
+    permitTriggers: string[];
+    ppeRequirements: string[];
+    requiredControls: string[];
+    hazardCategories: string[];
+    siteRestrictions: string[];
+    prohibitedEquipment: string[];
+    trainingRequirements: string[];
+    weatherRestrictions: string[];
+  };
+  conflictSummary: {
+    total: number;
+    intraDocument: number;
+    external: number;
+    highestSeverity: ConflictSeverity | "none";
+    items: ConflictMatrixItem[];
+  };
+  riskSummary: {
+    score: number;
+    band: RiskBand;
+    priorities: string[];
+  };
+  narrativeSections: Record<string, string>;
+  sectionMap: GeneratedSafetyPlanSection[];
+  provenance: JsonObject;
+};
+
+export type RiskOutputRecord = {
+  summary: string;
+  exposures: string[];
+  missingControls: string[];
+  trendPatterns: string[];
+  riskScores: Array<{
+    scope: string;
+    score: number;
+    band: RiskBand;
+  }>;
+  forecastConflicts: string[];
+  correctiveActions: string[];
+};
+
+export type AiReviewContext = {
+  companyId: string;
+  jobsiteId?: string | null;
+  bucketRunId?: string | null;
+  documentType?: SafetyIntelligenceDocumentType | null;
+  buckets: BucketedWorkItem[];
+  rulesEvaluations: RulesEvaluation[];
+  conflictEvaluations: ConflictEvaluation[];
+  riskMemorySummary?: JsonObject | null;
+  companyContext?: JsonObject | null;
+  templateContext?: JsonObject | null;
+};
+
+export type DocumentGenerationRequest = {
+  reviewContext: AiReviewContext;
+  documentType: SafetyIntelligenceDocumentType;
+  title?: string | null;
+};
+
+export type DocumentRenderRequest = {
+  generatedDocumentId?: string | null;
+  draft?: GeneratedSafetyPlanDraft | null;
+  legacyPayload?: JsonObject | null;
+  documentType?: SafetyIntelligenceDocumentType | null;
+};
+
+export type GeneratedDocumentRecord = {
+  documentType: SafetyIntelligenceDocumentType;
+  title: string;
+  sections: Array<{
+    heading: string;
+    body: string;
+  }>;
+  htmlPreview: string;
+  draftJson: JsonObject;
+  provenance: JsonObject;
+};
+
+export type RiskIntelligenceRequest = {
+  reviewContext: AiReviewContext;
+};
+
+export type SafetyIngestionSourceType =
+  | "sor"
+  | "jsa"
+  | "incident_report"
+  | "corrective_action"
+  | "permit"
+  | "observation"
+  | "other";
+
+export type StandardSeverity = "low" | "medium" | "high" | "critical";
+export type SafetyIngestionValidationStatus = "accepted" | "rejected";
+export type SafetyIngestionInsertStatus = "pending" | "inserted" | "skipped" | "failed";
+
+export type SafetyIntakeValidationError = {
+  field: string;
+  code: string;
+  message: string;
+};
+
+export type NormalizedSafetyIntakeRecord = {
+  companyId: string;
+  jobsiteId?: string | null;
+  sourceType: SafetyIngestionSourceType;
+  sourceRecordId?: string | null;
+  title: string;
+  summary?: string | null;
+  description?: string | null;
+  severity: StandardSeverity;
+  trade?: string | null;
+  category?: string | null;
+  sourceCreatedAt: string;
+  eventAt?: string | null;
+  reportedAt?: string | null;
+  dueAt?: string | null;
+  validFrom?: string | null;
+  validTo?: string | null;
+  payload: JsonObject;
+  metadata: JsonObject;
+};
+
+export type PreparedSafetyIntake = {
+  companyId: string;
+  jobsiteId?: string | null;
+  sourceType: SafetyIngestionSourceType;
+  sourceRecordId?: string | null;
+  rawPayloadHash: string;
+  validationStatus: SafetyIngestionValidationStatus;
+  validationErrors: SafetyIntakeValidationError[];
+  removedCompanyTokens: string[];
+  sanitizedPayload: JsonObject;
+  normalizedRecord: NormalizedSafetyIntakeRecord | null;
+};
+
+export type SafetyDataBucketRecord = {
+  id: string;
+  companyId: string;
+  jobsiteId?: string | null;
+  ingestionAuditLogId: string;
+  sourceType: SafetyIngestionSourceType;
+  sourceRecordId?: string | null;
+  title: string;
+  summary?: string | null;
+  description?: string | null;
+  severity: StandardSeverity;
+  trade?: string | null;
+  category?: string | null;
+  sourceCreatedAt: string;
+  eventAt?: string | null;
+  reportedAt?: string | null;
+  dueAt?: string | null;
+  validFrom?: string | null;
+  validTo?: string | null;
+  rawPayloadHash: string;
+  removedCompanyTokens: string[];
+  sanitizedPayload: JsonObject;
+  normalizedPayload: JsonObject;
+  aiReady: boolean;
+};
+
+export type IngestionAuditLogRecord = {
+  id: string;
+  companyId: string;
+  jobsiteId?: string | null;
+  sourceType: SafetyIngestionSourceType;
+  sourceRecordId?: string | null;
+  validationStatus: SafetyIngestionValidationStatus;
+  insertStatus: SafetyIngestionInsertStatus;
+  validationErrors: SafetyIntakeValidationError[];
+  rawPayloadHash: string;
+  sanitizedPayload: JsonObject;
+  removedCompanyTokens: string[];
+  bucketId?: string | null;
+  insertError?: string | null;
+  actorUserId?: string | null;
+  receivedAt: string;
+  processedAt?: string | null;
+};

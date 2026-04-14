@@ -15,18 +15,14 @@ import {
   WidthType,
 } from "docx";
 import { NextResponse } from "next/server";
+import type { CSEPRiskItem } from "@/lib/csepTradeSelection";
+import { buildCsepProgramSections, buildCsepProgramSelections } from "@/lib/csepPrograms";
 import { DOCUMENT_DISCLAIMER_LINES } from "@/lib/legal";
 import { authorizeRequest } from "@/lib/rbac";
-
-type RiskLevel = "Low" | "Medium" | "High";
-
-type CSEPRiskItem = {
-  activity: string;
-  hazard: string;
-  risk: RiskLevel;
-  controls: string[];
-  permit: string;
-};
+import { loadGeneratedDocumentDraft } from "@/lib/safety-intelligence/repository";
+import { renderSafetyPlanDocx } from "@/lib/safety-intelligence/documents/render";
+import type { CSEPProgramSection, CSEPProgramSelection, CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue } from "@/types/csep-programs";
+import type { GeneratedSafetyPlanDraft } from "@/types/safety-intelligence";
 
 type HazardProgram = {
   title: string;
@@ -45,6 +41,7 @@ type IncludedContent = {
   emergency_procedures?: boolean;
   required_ppe?: boolean;
   additional_permits?: boolean;
+  common_overlapping_trades?: boolean;
   osha_references?: boolean;
   selected_hazards?: boolean;
   activity_hazard_matrix?: boolean;
@@ -63,6 +60,8 @@ type CSEPInput = {
   contractor_email: string;
 
   trade: string;
+  subTrade?: string;
+  tasks?: string[];
   scope_of_work: string;
   site_specific_notes: string;
   emergency_procedures: string;
@@ -70,6 +69,8 @@ type CSEPInput = {
   required_ppe: string[];
   additional_permits: string[];
   selected_hazards?: string[];
+  programSelections?: CSEPProgramSelection[];
+  program_subtype_selections?: Partial<Record<CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue>>;
   included_sections?: string[];
 
   tradeSummary?: string;
@@ -77,6 +78,8 @@ type CSEPInput = {
   tradeItems?: CSEPRiskItem[];
   derivedHazards?: string[];
   derivedPermits?: string[];
+  overlapPermitHints?: string[];
+  common_overlapping_trades?: string[];
   includedContent?: IncludedContent;
 };
 
@@ -163,6 +166,20 @@ function buildProjectInfoTable(form: CSEPInput) {
           tableCell(valueOrNA(form.gc_cm), false, 25),
           tableCell("Trade", true, 25),
           tableCell(valueOrNA(form.trade), false, 25),
+        ],
+      }),
+      new TableRow({
+        children: [
+          tableCell("Sub-trade", true, 25),
+          tableCell(valueOrNA(form.subTrade), false, 25),
+          tableCell("Selected Tasks", true, 25),
+          tableCell(
+            Array.isArray(form.tasks) && form.tasks.length
+              ? form.tasks.join(", ")
+              : "N/A",
+            false,
+            25
+          ),
         ],
       }),
     ],
@@ -284,15 +301,35 @@ function buildTrainingBullets(form: CSEPInput) {
     "Workers shall be trained on emergency procedures, evacuation routes, and incident reporting expectations.",
   ];
 
+  const textSeed = [
+    form.trade,
+    form.subTrade,
+    ...(Array.isArray(form.tasks) ? form.tasks : []),
+    ...(Array.isArray(form.selected_hazards) ? form.selected_hazards : []),
+    form.scope_of_work,
+    form.site_specific_notes,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const utilityScope = /\butility\b|locator wire|manhole|vault|duct bank|catch basin|storm structure|site drainage|pipe laying|install pipe/.test(
+    textSeed
+  );
+  const excavationScope = /\bexcavat|\btrench|shoring|bench\/shore|backfill|trench support|\bdig|groundbreaking|ground[\s-]?breaking|ground disturb/.test(
+    textSeed
+  );
+
   if ((form.trade || "").toLowerCase().includes("electrical")) {
     bullets.push(
       "Electrical workers shall be trained on LOTO, temporary power, and energized work restrictions."
     );
   }
 
-  if ((form.trade || "").toLowerCase().includes("excavation")) {
+  if (excavationScope) {
     bullets.push(
-      "Excavation workers shall be trained on trench hazards, soil conditions, utility awareness, and protective systems."
+      utilityScope
+        ? "Excavation workers shall be trained on trench hazards, soil conditions, utility awareness, and protective systems."
+        : "Excavation workers shall be trained on trench hazards, soil conditions, protective systems, and safe access / egress."
     );
   }
 
@@ -305,6 +342,24 @@ function buildTrainingBullets(form: CSEPInput) {
   return bullets;
 }
 
+function hasUtilityScope(form: CSEPInput) {
+  const textSeed = [
+    form.trade,
+    form.subTrade,
+    ...(Array.isArray(form.tasks) ? form.tasks : []),
+    ...(Array.isArray(form.selected_hazards) ? form.selected_hazards : []),
+    form.scope_of_work,
+    form.site_specific_notes,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return /\butility\b|locator wire|manhole|vault|duct bank|catch basin|storm structure|site drainage|pipe laying|install pipe/.test(
+    textSeed
+  );
+}
+
 function normalizeIncludedContent(form: CSEPInput): Required<IncludedContent> {
   const defaults: Required<IncludedContent> = {
     project_information: true,
@@ -315,6 +370,7 @@ function normalizeIncludedContent(form: CSEPInput): Required<IncludedContent> {
     emergency_procedures: true,
     required_ppe: true,
     additional_permits: true,
+    common_overlapping_trades: true,
     osha_references: true,
     selected_hazards: true,
     activity_hazard_matrix: true,
@@ -326,6 +382,7 @@ function normalizeIncludedContent(form: CSEPInput): Required<IncludedContent> {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const HAZARD_PROGRAM_LIBRARY: HazardProgram[] = [
   {
     title: "Fall Protection Program",
@@ -377,7 +434,7 @@ const HAZARD_PROGRAM_LIBRARY: HazardProgram[] = [
   },
   {
     title: "Excavation and Trenching Safety Program",
-    triggerHazards: ["Confined spaces"],
+    triggerHazards: ["Excavation collapse"],
     oshaRefs: ["OSHA 1926 Subpart P – Excavations"],
     purpose:
       "This program provides minimum controls for trenching, excavation support activities, underground utility work, and changing soil conditions.",
@@ -507,12 +564,30 @@ const HAZARD_PROGRAM_LIBRARY: HazardProgram[] = [
   },
 ];
 
-function getTriggeredPrograms(selectedHazards: string[]) {
-  return HAZARD_PROGRAM_LIBRARY.filter((program) =>
-    program.triggerHazards.some((hazard) => selectedHazards.includes(hazard))
-  );
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function getTriggeredPrograms(selectedHazards: string[], form: CSEPInput) {
+  const utilityScope = hasUtilityScope(form);
+  return HAZARD_PROGRAM_LIBRARY
+    .filter((program) =>
+      program.triggerHazards.some((hazard) => selectedHazards.includes(hazard))
+    )
+    .map((program) => {
+      if (program.title !== "Excavation and Trenching Safety Program" || utilityScope) {
+        return program;
+      }
+
+      return {
+        ...program,
+        purpose:
+          "This program provides minimum controls for trenching, excavation support activities, and changing soil conditions.",
+        controls: program.controls.filter(
+          (control) => control !== "Underground utilities shall be identified before excavation begins."
+        ),
+      };
+    });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function addProgramSection(
   children: (Paragraph | Table)[],
   sectionNumber: number,
@@ -530,16 +605,59 @@ function addProgramSection(
   program.controls.forEach((control) => children.push(bullet(control)));
 }
 
+function resolveProgramSelections(
+  form: CSEPInput,
+  selectedHazards: string[],
+  selectedPermits: string[],
+  requiredPPE: string[],
+  tradeItems: CSEPRiskItem[],
+  selectedTasks: string[]
+) {
+  if (Array.isArray(form.programSelections) && form.programSelections.length > 0) {
+    return form.programSelections;
+  }
+
+  return buildCsepProgramSelections({
+    selectedHazards,
+    selectedPermits,
+    selectedPpe: requiredPPE,
+    tradeItems,
+    selectedTasks,
+    subtypeSelections: form.program_subtype_selections,
+  }).selections;
+}
+
+function addCatalogProgramSection(
+  children: (Paragraph | Table)[],
+  sectionNumber: number,
+  program: CSEPProgramSection
+) {
+  children.push(heading1(`${sectionNumber}. ${program.title}`));
+  children.push(body(program.summary));
+
+  program.subsections.forEach((subsection) => {
+    children.push(heading2(subsection.title));
+    subsection.bullets.forEach((item) => children.push(bullet(item)));
+  });
+}
+
 function buildDoc(form: CSEPInput) {
   const includedContent = normalizeIncludedContent(form);
 
   const tradeItems = Array.isArray(form.tradeItems) ? form.tradeItems : [];
+  const selectedTasks = Array.isArray(form.tasks) ? form.tasks : [];
   const oshaRefs = Array.isArray(form.oshaRefs) ? form.oshaRefs : [];
   const derivedHazards = Array.isArray(form.derivedHazards)
     ? form.derivedHazards
     : [];
   const derivedPermits = Array.isArray(form.derivedPermits)
     ? form.derivedPermits
+    : [];
+  const overlapPermitHints = Array.isArray(form.overlapPermitHints)
+    ? form.overlapPermitHints
+    : [];
+  const commonOverlappingTrades = Array.isArray(form.common_overlapping_trades)
+    ? form.common_overlapping_trades
     : [];
   const requiredPPE = Array.isArray(form.required_ppe) ? form.required_ppe : [];
   const additionalPermits = Array.isArray(form.additional_permits)
@@ -548,14 +666,25 @@ function buildDoc(form: CSEPInput) {
   const selectedHazards = Array.isArray(form.selected_hazards)
     ? form.selected_hazards
     : [];
+  const selectedPermits = Array.from(
+    new Set([...additionalPermits, ...derivedPermits, ...overlapPermitHints].filter(Boolean))
+  );
   const permitList = Array.from(
-    new Set([...additionalPermits, ...derivedPermits].filter(Boolean))
+    new Set([...selectedPermits].filter(Boolean))
   );
 
   const activeHazards = selectedHazards.length
     ? selectedHazards
     : derivedHazards;
-  const triggeredPrograms = getTriggeredPrograms(activeHazards);
+  const programSelections = resolveProgramSelections(
+    form,
+    activeHazards,
+    selectedPermits,
+    requiredPPE,
+    tradeItems,
+    selectedTasks
+  );
+  const programSections = buildCsepProgramSections(programSelections);
 
   const children: (Paragraph | Table)[] = [];
 
@@ -589,6 +718,14 @@ function buildDoc(form: CSEPInput) {
   children.push(
     body(`Trade: ${valueOrNA(form.trade)}`, AlignmentType.CENTER)
   );
+  children.push(
+    body(`Sub-trade: ${valueOrNA(form.subTrade)}`, AlignmentType.CENTER)
+  );
+  if (selectedTasks.length) {
+    children.push(
+      body(`Selected tasks: ${selectedTasks.join(", ")}`, AlignmentType.CENTER)
+    );
+  }
   children.push(
     body(
       `Contractor: ${valueOrNA(form.contractor_company)}`,
@@ -669,6 +806,25 @@ function buildDoc(form: CSEPInput) {
     sectionNumber++;
   }
 
+  if (includedContent.common_overlapping_trades) {
+    children.push(heading1(`${sectionNumber}. Common Overlapping Trades in Same Areas`));
+    if (commonOverlappingTrades.length) {
+      commonOverlappingTrades.forEach((item) => children.push(bullet(item)));
+      if (overlapPermitHints.length) {
+        children.push(
+          body(
+            `High-risk overlap permit/program hints: ${overlapPermitHints.join(", ")}.`
+          )
+        );
+      }
+    } else {
+      children.push(
+        body("No overlapping-trade indicators were inferred for the current scope selection.")
+      );
+    }
+    sectionNumber++;
+  }
+
   if (includedContent.osha_references) {
     children.push(heading1(`${sectionNumber}. Applicable OSHA References`));
     if (oshaRefs.length) {
@@ -685,6 +841,12 @@ function buildDoc(form: CSEPInput) {
 
   if (includedContent.trade_summary) {
     children.push(heading1(`${sectionNumber}. Trade Summary`));
+    if (valueOrNA(form.subTrade) !== "N/A") {
+      children.push(body(`Active sub-trade: ${valueOrNA(form.subTrade)}`));
+    }
+    if (selectedTasks.length) {
+      children.push(body(`Selected tasks: ${selectedTasks.join(", ")}`));
+    }
     children.push(
       body(
         valueOrNA(form.tradeSummary) === "N/A"
@@ -736,18 +898,18 @@ function buildDoc(form: CSEPInput) {
     } else {
       children.push(
         body(
-          "No trade activity matrix was provided. Select a trade and hazards on the CSEP page to load activities, hazards, controls, and permit triggers."
+          "No trade activity matrix was provided. Select a trade, sub-trade, tasks, and hazards on the CSEP page to load activities, hazards, controls, and permit triggers."
         )
       );
     }
     sectionNumber++;
   }
 
-  if (triggeredPrograms.length) {
+  if (programSections.length) {
     children.push(new Paragraph({ children: [new PageBreak()] }));
 
-    triggeredPrograms.forEach((program) => {
-      addProgramSection(children, sectionNumber, program);
+    programSections.forEach((program) => {
+      addCatalogProgramSection(children, sectionNumber, program);
       sectionNumber++;
     });
   }
@@ -796,21 +958,51 @@ function buildDoc(form: CSEPInput) {
   });
 }
 
-export async function generateCsepDocx(form: CSEPInput) {
-  const doc = buildDoc(form);
-  const buffer = await Packer.toBuffer(doc);
-  const fileData = new Uint8Array(buffer);
+function isGeneratedDraft(value: unknown): value is GeneratedSafetyPlanDraft {
+  return Boolean(value) && typeof value === "object" && "sectionMap" in (value as Record<string, unknown>);
+}
 
-  const safeProject = valueOrNA(form.project_name).replace(/[^\w\-]+/g, "_");
-  const safeTrade = valueOrNA(form.trade).replace(/[^\w\-]+/g, "_");
-  const filename = `${safeProject}_${safeTrade}_CSEP.docx`;
+export async function generateCsepDocx(
+  form: CSEPInput | { generatedDocumentId?: string | null; draft?: GeneratedSafetyPlanDraft | null },
+  options?: { supabase?: any }
+) {
+  let rendered: { body: Uint8Array; filename: string } | null = null;
 
-  return new NextResponse(fileData, {
+  if (form && typeof form === "object" && isGeneratedDraft((form as { draft?: unknown }).draft)) {
+    rendered = await renderSafetyPlanDocx((form as { draft: GeneratedSafetyPlanDraft }).draft);
+  } else if (
+    form &&
+    typeof form === "object" &&
+    typeof (form as { generatedDocumentId?: unknown }).generatedDocumentId === "string" &&
+    options?.supabase
+  ) {
+    const draft = await loadGeneratedDocumentDraft(
+      options.supabase,
+      (form as { generatedDocumentId: string }).generatedDocumentId
+    );
+    rendered = await renderSafetyPlanDocx(draft);
+  }
+
+  if (!rendered) {
+    const doc = buildDoc(form as CSEPInput);
+    const buffer = await Packer.toBuffer(doc);
+    const fileData = new Uint8Array(buffer);
+    const safeProject = valueOrNA((form as CSEPInput).project_name).replace(/[^\w\-]+/g, "_");
+    const safeTrade = valueOrNA((form as CSEPInput).trade).replace(/[^\w\-]+/g, "_");
+    rendered = {
+      body: fileData,
+      filename: `${safeProject}_${safeTrade}_CSEP.docx`,
+    };
+  }
+
+  const responseBody = Buffer.from(rendered.body);
+
+  return new NextResponse(responseBody, {
     status: 200,
     headers: {
       "Content-Type":
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Disposition": `attachment; filename="${rendered.filename}"`,
     },
   });
 }
@@ -823,8 +1015,11 @@ export async function POST(req: Request) {
       return auth.error;
     }
 
-    const form = (await req.json()) as CSEPInput;
-    return await generateCsepDocx(form);
+    const form = (await req.json()) as CSEPInput | {
+      generatedDocumentId?: string | null;
+      draft?: GeneratedSafetyPlanDraft | null;
+    };
+    return await generateCsepDocx(form, { supabase: auth.supabase });
   } catch (error) {
     console.error("CSEP export error:", error);
 

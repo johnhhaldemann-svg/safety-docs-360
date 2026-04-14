@@ -20,7 +20,7 @@ import {
   AUDIT_SYSTEM_BLUEPRINT,
   AUDIT_SYSTEM_BLUEPRINT_TEXT,
 } from "@/lib/jobsiteAudits/auditSystemBlueprint";
-import { CONSTRUCTION_TRADE_LABEL_BY_SLUG } from "@/lib/constructionTradeTaxonomy";
+import { CONSTRUCTION_TRADE_LABEL_BY_SLUG } from "@/lib/sharedTradeTaxonomy";
 import {
   fieldCompliancePercentForSections,
   getFieldAuditSectionsForTrade,

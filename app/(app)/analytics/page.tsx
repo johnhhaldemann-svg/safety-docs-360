@@ -1065,7 +1065,7 @@ export default function AnalyticsPage() {
                 type="button"
                 disabled={riskRecWorking || loading}
                 onClick={() => void refreshRiskRecommendations("rules")}
-                className="rounded-lg border border-violet-400/35 bg-violet-500/15 px-3 py-2 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/25 disabled:opacity-50"
+                className="rounded-lg border border-violet-400 bg-violet-600 px-3 py-2 text-xs font-semibold text-white shadow-[0_10px_22px_rgba(109,40,217,0.28)] transition hover:bg-violet-500 disabled:opacity-50"
               >
                 {riskRecWorking ? "Generating…" : "Rule-based recommendations"}
               </button>
@@ -1074,7 +1074,7 @@ export default function AnalyticsPage() {
                 disabled={riskRecWorking || loading}
                 onClick={() => void refreshRiskRecommendations("both")}
                 title="Uses OpenAI when OPENAI_API_KEY is set; merges with rule-based and dedupes titles."
-                className="rounded-lg border border-sky-500/35 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/20 disabled:opacity-50"
+                className="rounded-lg border border-sky-400 bg-sky-600 px-3 py-2 text-xs font-semibold text-white shadow-[0_10px_22px_rgba(2,132,199,0.28)] transition hover:bg-sky-500 disabled:opacity-50"
               >
                 {riskRecWorking ? "Generating…" : "AI + rules"}
               </button>
@@ -1082,13 +1082,13 @@ export default function AnalyticsPage() {
                 type="button"
                 disabled={riskSnapWorking || loading}
                 onClick={() => void saveRiskMemorySnapshot()}
-                className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10 disabled:opacity-50"
+                className="rounded-lg border border-slate-500 bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-[0_10px_22px_rgba(15,23,42,0.24)] transition hover:bg-slate-800 disabled:opacity-50"
               >
                 {riskSnapWorking ? "Saving…" : "Save today’s rollup snapshot"}
               </button>
               <Link
                 href="/settings/risk-memory"
-                className="inline-flex items-center rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/5"
+                className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-[0_10px_22px_rgba(255,255,255,0.12)] transition hover:bg-slate-100"
               >
                 Manage contractors & crews
               </Link>

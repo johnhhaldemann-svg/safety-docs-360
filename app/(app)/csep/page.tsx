@@ -14,31 +14,14 @@ import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPan
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import { GcRequiredProgramUpload } from "@/components/csep/GcRequiredProgramUpload";
 import {
-  csepDefaultPpeForKind,
-  csepOshaRefsForKind,
-  csepSummaryForKind,
-} from "@/lib/csepTradeTemplates";
-import { CONSTRUCTION_TRADE_LABELS, csepKindForTradeLabel } from "@/lib/constructionTradeTaxonomy";
+  buildCsepProgramSelections,
+  getSubtypeConfig,
+  listProgramTitles,
+} from "@/lib/csepPrograms";
+import { buildCsepTradeSelection, getCsepTradeOptions } from "@/lib/csepTradeSelection";
 import type { PermissionMap } from "@/lib/rbac";
-
-type RiskLevel = "Low" | "Medium" | "High";
-
-type CSEPRiskItem = {
-  activity: string;
-  hazard: string;
-  risk: RiskLevel;
-  controls: string[];
-  permit: string;
-};
-
-type CSEPTradeLibraryItem = {
-  trade: string;
-  sectionTitle: string;
-  summary: string;
-  oshaRefs: string[];
-  defaultPPE: string[];
-  items: CSEPRiskItem[];
-};
+import { buildCsepGenerationContext } from "@/lib/safety-intelligence/documentIntake";
+import type { CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue } from "@/types/csep-programs";
 
 type CSEPForm = {
   project_name: string;
@@ -53,6 +36,8 @@ type CSEPForm = {
   contractor_email: string;
 
   trade: string;
+  subTrade: string;
+  tasks: string[];
   scope_of_work: string;
   site_specific_notes: string;
   emergency_procedures: string;
@@ -60,10 +45,11 @@ type CSEPForm = {
   required_ppe: string[];
   additional_permits: string[];
   selected_hazards: string[];
+  program_subtype_selections: Partial<Record<CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue>>;
   included_sections: string[];
 };
 
-const tradeOptions = [...CONSTRUCTION_TRADE_LABELS];
+const tradeOptions = getCsepTradeOptions();
 
 const ppeOptions = [
   "Hard Hat",
@@ -83,6 +69,7 @@ const permitOptions = [
   "LOTO Permit",
   "Ladder Permit",
   "AWP/MEWP Permit",
+  "Ground Disturbance Permit",
   "Trench Inspection Permit",
   "Chemical Permit",
   "Motion Permit",
@@ -99,6 +86,7 @@ const csepSectionOptions = [
   "Emergency Procedures",
   "Required PPE",
   "Additional Permits",
+  "Common Overlapping Trades",
   "OSHA References",
   "Selected Hazards",
   "Activity / Hazard Matrix",
@@ -117,6 +105,8 @@ const initialForm: CSEPForm = {
   contractor_email: "",
 
   trade: "",
+  subTrade: "",
+  tasks: [],
   scope_of_work: "",
   site_specific_notes: "",
   emergency_procedures: "",
@@ -124,83 +114,12 @@ const initialForm: CSEPForm = {
   required_ppe: [],
   additional_permits: [],
   selected_hazards: [],
+  program_subtype_selections: {},
   included_sections: [...csepSectionOptions],
 };
 
-const BASE_ITEMS: CSEPRiskItem[] = [
-  {
-    activity: "General work access",
-    hazard: "Slips trips falls",
-    risk: "High",
-    controls: ["Housekeeping", "Maintain clear access", "Anti-slip footwear"],
-    permit: "None",
-  },
-  {
-    activity: "Material handling",
-    hazard: "Struck by equipment",
-    risk: "High",
-    controls: ["Spotters", "Equipment alarms", "Exclusion zones"],
-    permit: "Motion Permit",
-  },
-  {
-    activity: "Elevated task work",
-    hazard: "Falls from height",
-    risk: "High",
-    controls: ["Guardrails", "PFAS", "Pre-task planning"],
-    permit: "Ladder Permit",
-  },
-  {
-    activity: "Temporary power / tools",
-    hazard: "Electrical shock",
-    risk: "High",
-    controls: ["LOTO", "GFCI protection", "Inspect cords and tools"],
-    permit: "LOTO Permit",
-  },
-  {
-    activity: "Spark-producing work",
-    hazard: "Hot work / fire",
-    risk: "Medium",
-    controls: ["Fire watch", "Extinguishers", "Remove combustibles"],
-    permit: "Hot Work Permit",
-  },
-  {
-    activity: "Overhead work",
-    hazard: "Falling objects",
-    risk: "High",
-    controls: ["Toe boards", "Barricades", "Overhead protection"],
-    permit: "Gravity Permit",
-  },
-  {
-    activity: "Lifting support",
-    hazard: "Crane lift hazards",
-    risk: "Medium",
-    controls: ["Lift plans", "Signal persons", "Tag lines"],
-    permit: "Motion Permit",
-  },
-  {
-    activity: "Portable access",
-    hazard: "Ladder misuse",
-    risk: "Medium",
-    controls: ["Ladder inspections", "Proper setup", "3 points of contact"],
-    permit: "Ladder Permit",
-  },
-  {
-    activity: "Entry support",
-    hazard: "Confined spaces",
-    risk: "Medium",
-    controls: ["Air monitoring", "Entry review", "Rescue planning"],
-    permit: "Confined Space Permit",
-  },
-  {
-    activity: "Chemical use",
-    hazard: "Chemical exposure",
-    risk: "Medium",
-    controls: ["PPE", "SDS review", "Proper storage"],
-    permit: "Chemical Permit",
-  },
-];
 
-function buildTradeLibraryItem(trade: string): CSEPTradeLibraryItem {
+/*
   const kind = csepKindForTradeLabel(trade);
   return {
     trade,
@@ -210,7 +129,7 @@ function buildTradeLibraryItem(trade: string): CSEPTradeLibraryItem {
     defaultPPE: csepDefaultPpeForKind(kind),
     items: BASE_ITEMS,
   };
-}
+*/
 
 function inputClassName() {
   return "w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-slate-500 focus:border-sky-500";
@@ -280,27 +199,86 @@ export default function CSEPPage() {
 
   const selectedTrade = useMemo(() => {
     if (!form.trade) return null;
-    return buildTradeLibraryItem(form.trade);
-  }, [form.trade]);
+    return buildCsepTradeSelection(form.trade, form.subTrade, form.tasks);
+  }, [form.subTrade, form.tasks, form.trade]);
 
   const derivedPermits = useMemo(() => {
-    if (!selectedTrade) return [];
-    return Array.from(
-      new Set(
-        selectedTrade.items
-          .map((item) => item.permit)
-          .filter((permit) => permit && permit !== "None")
-      )
-    );
+    return selectedTrade?.derivedPermits ?? [];
+  }, [selectedTrade]);
+
+  const overlapPermitHints = useMemo(() => {
+    return selectedTrade?.overlapPermitHints ?? [];
+  }, [selectedTrade]);
+
+  const commonOverlappingTrades = useMemo(() => {
+    return selectedTrade?.commonOverlappingTrades ?? [];
   }, [selectedTrade]);
 
   const derivedHazards = useMemo(() => {
-    if (!selectedTrade) return [];
-    return Array.from(new Set(selectedTrade.items.map((item) => item.hazard)));
+    return selectedTrade?.derivedHazards ?? [];
   }, [selectedTrade]);
+
+  const displayedTradeItems = useMemo(() => {
+    if (!selectedTrade) return [];
+    if (form.selected_hazards.length === 0) return selectedTrade.items;
+    return selectedTrade.items.filter((item) =>
+      form.selected_hazards.includes(item.hazard)
+    );
+  }, [form.selected_hazards, selectedTrade]);
+
+  const selectedPermitItems = useMemo(() => {
+    return Array.from(new Set([...form.additional_permits, ...derivedPermits, ...overlapPermitHints]));
+  }, [derivedPermits, form.additional_permits, overlapPermitHints]);
+
+  const programSelectionState = useMemo(() => {
+    return buildCsepProgramSelections({
+      selectedHazards: form.selected_hazards,
+      selectedPermits: selectedPermitItems,
+      selectedPpe: form.required_ppe,
+      tradeItems: displayedTradeItems,
+      selectedTasks: form.tasks,
+      subtypeSelections: form.program_subtype_selections,
+    });
+  }, [
+    displayedTradeItems,
+    form.program_subtype_selections,
+    form.required_ppe,
+    form.selected_hazards,
+    form.tasks,
+    selectedPermitItems,
+  ]);
+
+  const programSelections = useMemo(() => {
+    return programSelectionState.selections;
+  }, [programSelectionState.selections]);
+
+  const missingProgramSubtypeGroups = useMemo(() => {
+    return programSelectionState.missingSubtypeGroups;
+  }, [programSelectionState.missingSubtypeGroups]);
+
+  const autoPrograms = useMemo(() => {
+    return listProgramTitles(programSelections);
+  }, [programSelections]);
+
+  const totalPermitCount = useMemo(() => {
+    return new Set([...form.additional_permits, ...derivedPermits]).size;
+  }, [derivedPermits, form.additional_permits]);
 
   function updateField<K extends keyof CSEPForm>(field: K, value: CSEPForm[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function updateProgramSubtypeSelection(
+    group: CSEPProgramSubtypeGroup,
+    value: CSEPProgramSubtypeValue | ""
+  ) {
+    setForm((prev) => ({
+      ...prev,
+      program_subtype_selections: {
+        ...prev.program_subtype_selections,
+        [group]: value || undefined,
+      },
+    }));
   }
 
   function toggleArrayValue(
@@ -308,7 +286,8 @@ export default function CSEPPage() {
       | "required_ppe"
       | "additional_permits"
       | "selected_hazards"
-      | "included_sections",
+      | "included_sections"
+      | "tasks",
     value: string
   ) {
     setForm((prev) => {
@@ -369,10 +348,20 @@ export default function CSEPPage() {
         return;
       }
 
-      if (!form.trade?.trim() || form.selected_hazards.length === 0) {
+      if (!form.trade?.trim() || !form.subTrade?.trim() || form.tasks.length === 0 || form.selected_hazards.length === 0) {
         setMessageTone("warning");
         setMessage(
-          "Select a trade and at least one hazard before submitting for review."
+          "Select a trade, sub-trade, at least one task, and at least one hazard before submitting for review."
+        );
+        return;
+      }
+
+      if (missingProgramSubtypeGroups.length > 0) {
+        setMessageTone("warning");
+        setMessage(
+          `Choose a value for ${missingProgramSubtypeGroups
+            .map((group) => group.label.toLowerCase())
+            .join(", ")} before submitting your CSEP.`
         );
         return;
       }
@@ -386,10 +375,45 @@ export default function CSEPPage() {
         throw new Error("Your session has expired. Please log in again.");
       }
 
-      const selectedTradeItems =
-        selectedTrade?.items.filter((item) =>
-          form.selected_hazards.includes(item.hazard)
-        ) ?? [];
+      const selectedTradeItems = displayedTradeItems;
+
+      const submissionFormData = {
+        ...form,
+        trade: selectedTrade?.tradeLabel ?? form.trade,
+        subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
+        tradeSummary: selectedTrade?.summary ?? "",
+        oshaRefs: selectedTrade?.oshaRefs ?? [],
+        tasks: [...form.tasks],
+        tradeItems: selectedTradeItems,
+        derivedHazards,
+        derivedPermits,
+        overlapPermitHints,
+        common_overlapping_trades: commonOverlappingTrades,
+        programSelections,
+        program_subtype_selections: form.program_subtype_selections,
+        includedContent: {
+          project_information:
+            form.included_sections.includes("Project Information"),
+          contractor_information:
+            form.included_sections.includes("Contractor Information"),
+          trade_summary: form.included_sections.includes("Trade Summary"),
+          scope_of_work: form.included_sections.includes("Scope of Work"),
+          site_specific_notes:
+            form.included_sections.includes("Site Specific Notes"),
+          emergency_procedures:
+            form.included_sections.includes("Emergency Procedures"),
+          required_ppe: form.included_sections.includes("Required PPE"),
+          additional_permits:
+            form.included_sections.includes("Additional Permits"),
+          common_overlapping_trades:
+            form.included_sections.includes("Common Overlapping Trades"),
+          osha_references: form.included_sections.includes("OSHA References"),
+          selected_hazards:
+            form.included_sections.includes("Selected Hazards"),
+          activity_hazard_matrix:
+            form.included_sections.includes("Activity / Hazard Matrix"),
+        },
+      };
 
       const res = await fetch("/api/documents/submit", {
         method: "POST",
@@ -401,32 +425,8 @@ export default function CSEPPage() {
           document_type: "CSEP",
           project_name: form.project_name,
           form_data: {
-            ...form,
-            tradeSummary: selectedTrade?.summary ?? "",
-            oshaRefs: selectedTrade?.oshaRefs ?? [],
-            tradeItems: selectedTradeItems,
-            derivedHazards,
-            derivedPermits,
-            includedContent: {
-              project_information:
-                form.included_sections.includes("Project Information"),
-              contractor_information:
-                form.included_sections.includes("Contractor Information"),
-              trade_summary: form.included_sections.includes("Trade Summary"),
-              scope_of_work: form.included_sections.includes("Scope of Work"),
-              site_specific_notes:
-                form.included_sections.includes("Site Specific Notes"),
-              emergency_procedures:
-                form.included_sections.includes("Emergency Procedures"),
-              required_ppe: form.included_sections.includes("Required PPE"),
-              additional_permits:
-                form.included_sections.includes("Additional Permits"),
-              osha_references: form.included_sections.includes("OSHA References"),
-              selected_hazards:
-                form.included_sections.includes("Selected Hazards"),
-              activity_hazard_matrix:
-                form.included_sections.includes("Activity / Hazard Matrix"),
-            },
+            ...submissionFormData,
+            generationContext: buildCsepGenerationContext(submissionFormData),
           },
         }),
       });
@@ -453,39 +453,6 @@ export default function CSEPPage() {
     }
   }
 
-  const autoPrograms = [
-    form.selected_hazards.includes("Falls from height")
-      ? "Fall Protection Program"
-      : null,
-    form.selected_hazards.includes("Electrical shock")
-      ? "Electrical Safety Program"
-      : null,
-    form.selected_hazards.includes("Hot work / fire")
-      ? "Hot Work Program"
-      : null,
-    form.selected_hazards.includes("Struck by equipment")
-      ? "Struck-By / Equipment Safety"
-      : null,
-    form.selected_hazards.includes("Ladder misuse")
-      ? "Ladder Safety Program"
-      : null,
-    form.selected_hazards.includes("Confined spaces")
-      ? "Confined Space Program"
-      : null,
-    form.selected_hazards.includes("Chemical exposure")
-      ? "Hazard Communication Program"
-      : null,
-    form.selected_hazards.includes("Falling objects")
-      ? "Falling Object Safety Program"
-      : null,
-    form.selected_hazards.includes("Crane lift hazards")
-      ? "Crane / Rigging Safety Program"
-      : null,
-    form.selected_hazards.includes("Slips trips falls")
-      ? "Housekeeping / STF Program"
-      : null,
-  ].filter(Boolean) as string[];
-
   const workflowSteps = [
     {
       label: "Project Info",
@@ -495,12 +462,12 @@ export default function CSEPPage() {
     {
       label: "Trade Setup",
       detail: "Load trade defaults and site-specific content.",
-      complete: Boolean(form.trade && form.scope_of_work),
+      complete: Boolean(form.trade && form.subTrade && form.tasks.length > 0 && form.scope_of_work),
     },
     {
       label: "Hazards & Controls",
       detail: "Choose hazards, PPE, and permit coverage.",
-      complete: form.selected_hazards.length > 0,
+      complete: form.selected_hazards.length > 0 && missingProgramSubtypeGroups.length === 0,
     },
     {
       label: "Review & Submit",
@@ -513,7 +480,11 @@ export default function CSEPPage() {
   );
   const canSubmitDocuments = Boolean(permissionMap?.can_submit_documents);
   const csepHandoffReady =
-    Boolean(form.trade?.trim()) && form.selected_hazards.length > 0;
+    Boolean(form.trade?.trim()) &&
+    Boolean(form.subTrade?.trim()) &&
+    form.tasks.length > 0 &&
+    form.selected_hazards.length > 0 &&
+    missingProgramSubtypeGroups.length === 0;
 
   return (
     <div className="space-y-6 px-1 py-2 sm:px-2 sm:py-4">
@@ -555,7 +526,9 @@ export default function CSEPPage() {
           <CompanyAiAssistPanel
             surface="csep"
             structuredContext={JSON.stringify({
-              trade: form.trade,
+              trade: selectedTrade?.tradeLabel ?? form.trade,
+              subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
+              tasks: form.tasks,
               project_name: form.project_name,
               selected_hazards: form.selected_hazards,
             })}
@@ -657,7 +630,7 @@ export default function CSEPPage() {
                     Trade Selection
                   </h2>
                   <p className="mt-1 text-sm text-slate-300">
-                    Selecting a trade loads that trade’s default hazards,
+                    Selecting a trade, sub-trade, and task set loads taxonomy-driven hazards,
                     activities, controls, and permit triggers.
                   </p>
                 </div>
@@ -680,7 +653,10 @@ export default function CSEPPage() {
                   setForm((prev) => ({
                     ...prev,
                     trade: newTrade,
+                    subTrade: "",
+                    tasks: [],
                     selected_hazards: [],
+                    program_subtype_selections: {},
                   }));
                 }}
               >
@@ -691,6 +667,61 @@ export default function CSEPPage() {
                   </option>
                 ))}
               </select>
+
+              <select
+                className={`${inputClassName()} mt-4`}
+                value={form.subTrade}
+                disabled={!form.trade}
+                onChange={(e) => {
+                  const newSubTrade = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    subTrade: newSubTrade,
+                    tasks: [],
+                    selected_hazards: [],
+                    program_subtype_selections: {},
+                  }));
+                }}
+              >
+                <option value="">Select Sub-trade</option>
+                {(selectedTrade?.availableSubTrades ?? []).map((subTrade) => (
+                  <option key={subTrade} value={subTrade}>
+                    {subTrade}
+                  </option>
+                ))}
+              </select>
+
+              <div className="mt-4 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+                  Selectable Tasks
+                </h3>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {(selectedTrade?.availableTasks ?? []).length > 0 ? (
+                    selectedTrade!.availableTasks.map((task) => (
+                      <label
+                        key={task}
+                        className="flex items-center gap-3 rounded-2xl border border-slate-700/80 px-4 py-3 text-sm text-slate-300"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={form.tasks.includes(task)}
+                          onChange={() => toggleArrayValue("tasks", task)}
+                        />
+                        <span>{task}</span>
+                      </label>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-300">
+                      Select a sub-trade to load selectable tasks.
+                    </p>
+                  )}
+                </div>
+                {(selectedTrade?.referenceTasks?.length ?? 0) > 0 ? (
+                  <p className="mt-3 text-xs text-slate-400">
+                    Reference-only tasks for this sub-trade: {selectedTrade!.referenceTasks.join(", ")}
+                  </p>
+                ) : null}
+              </div>
 
               {selectedTrade && (
                 <div className="mt-4 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
@@ -822,9 +853,70 @@ export default function CSEPPage() {
                       <span>{hazard}</span>
                     </label>
                   ))
+                  ) : (
+                    <p className="text-sm text-slate-300">
+                      Select a trade, sub-trade, and task to load hazards.
+                    </p>
+                  )}
+              </div>
+            </section>
+
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="mb-4 text-xl font-semibold text-slate-100">
+                Program Classifications
+              </h2>
+              <div className="space-y-4">
+                {programSelectionState.selections.length ? (
+                  missingProgramSubtypeGroups.length > 0 ? (
+                    missingProgramSubtypeGroups.map((group) => {
+                      const config = getSubtypeConfig(group.group);
+                      return (
+                        <div
+                          key={group.group}
+                          className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-4"
+                        >
+                          <div className="text-sm font-semibold text-amber-100">
+                            {config.label}
+                          </div>
+                          <p className="mt-1 text-sm text-amber-50/90">
+                            {config.prompt}
+                          </p>
+                          <select
+                            className={`${inputClassName()} mt-3`}
+                            value={form.program_subtype_selections[group.group] ?? ""}
+                            onChange={(event) =>
+                              updateProgramSubtypeSelection(
+                                group.group,
+                                event.target.value as CSEPProgramSubtypeValue | ""
+                              )
+                            }
+                          >
+                            <option value="">Select classification</option>
+                            {config.options.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="mt-3 space-y-2 text-xs text-amber-50/80">
+                            {config.options.map((option) => (
+                              <p key={option.value}>
+                                <span className="font-semibold">{option.label}:</span>{" "}
+                                {option.description}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-slate-300">
+                      No additional program classifications are required for the current selection set.
+                    </p>
+                  )
                 ) : (
                   <p className="text-sm text-slate-300">
-                    Select a trade to load hazards.
+                    Select hazards, permits, or PPE items to reveal any required program classifications.
                   </p>
                 )}
               </div>
@@ -892,8 +984,18 @@ export default function CSEPPage() {
                 />
                 <SnapshotRow
                   label="Trade"
-                  value={form.trade || "No trade selected"}
+                  value={(selectedTrade?.tradeLabel ?? form.trade) || "No trade selected"}
                   missing={!form.trade}
+                />
+                <SnapshotRow
+                  label="Sub-trade"
+                  value={(selectedTrade?.subTradeLabel ?? form.subTrade) || "No sub-trade selected"}
+                  missing={!form.subTrade}
+                />
+                <SnapshotRow
+                  label="Tasks"
+                  value={form.tasks.length ? `${form.tasks.length} selected` : "None selected"}
+                  missing={!form.tasks.length}
                 />
                 <SnapshotRow
                   label="Hazards"
@@ -903,6 +1005,15 @@ export default function CSEPPage() {
                       : "None selected"
                   }
                   missing={!form.selected_hazards.length}
+                />
+                <SnapshotRow
+                  label="Programs"
+                  value={
+                    autoPrograms.length
+                      ? `${autoPrograms.length} generated`
+                      : "None generated"
+                  }
+                  missing={!autoPrograms.length}
                 />
                 <SnapshotRow
                   label="PPE"
@@ -915,9 +1026,7 @@ export default function CSEPPage() {
                 <SnapshotRow
                   label="Permits"
                   value={
-                    form.additional_permits.length
-                      ? `${form.additional_permits.length} selected`
-                      : "None selected"
+                    totalPermitCount ? `${totalPermitCount} selected or derived` : "None selected"
                   }
                 />
               </div>
@@ -959,7 +1068,7 @@ export default function CSEPPage() {
                   ))
                 ) : (
                   <p className="text-sm text-slate-300">
-                    Select a trade to load OSHA references.
+                    Select a trade, sub-trade, and task to load OSHA references.
                   </p>
                 )}
               </div>
@@ -991,6 +1100,11 @@ export default function CSEPPage() {
               <h2 className="text-xl font-semibold text-slate-100">
                 Auto-Generated Safety Programs
               </h2>
+              {missingProgramSubtypeGroups.length ? (
+                <p className="mt-2 text-sm text-amber-200/90">
+                  Classification details are still required before all program pages are finalized.
+                </p>
+              ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
                 {autoPrograms.length ? (
                   autoPrograms.map((program) => (
@@ -1025,10 +1139,37 @@ export default function CSEPPage() {
                   ))
                 ) : (
                   <p className="text-sm text-slate-300">
-                    Select a trade to load permits.
+                    Select a trade, sub-trade, and task to load permit triggers.
                   </p>
                 )}
               </div>
+            </section>
+
+            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
+              <h2 className="text-xl font-semibold text-slate-100">
+                Common Overlapping Trades (Same Area)
+              </h2>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {commonOverlappingTrades.length ? (
+                  commonOverlappingTrades.map((trade) => (
+                    <span
+                      key={trade}
+                      className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-medium text-slate-300"
+                    >
+                      {trade}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-300">
+                    Select a trade scope to infer likely overlapping trades in shared work areas.
+                  </p>
+                )}
+              </div>
+              {overlapPermitHints.length ? (
+                <p className="mt-3 text-xs text-slate-400">
+                  High-risk overlap permit hints: {overlapPermitHints.join(", ")}
+                </p>
+              ) : null}
             </section>
 
             <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
@@ -1037,9 +1178,8 @@ export default function CSEPPage() {
               </h2>
               <div className="mt-4 space-y-3">
                 {selectedTrade ? (
-                  selectedTrade.items
-                    .filter((item) => form.selected_hazards.includes(item.hazard))
-                    .map((item, index) => (
+                  displayedTradeItems.length > 0 ? (
+                    displayedTradeItems.map((item, index) => (
                       <div
                         key={`${item.activity}-${item.hazard}-${index}`}
                         className="rounded-2xl border border-slate-700/80 p-4"
@@ -1064,9 +1204,14 @@ export default function CSEPPage() {
                         </div>
                       </div>
                     ))
+                  ) : (
+                    <p className="text-sm text-slate-300">
+                      Select at least one generated hazard to preview the matrix rows that will be sent with this CSEP.
+                    </p>
+                  )
                 ) : (
                   <p className="text-sm text-slate-300">
-                    Select a trade to load the activity / hazard matrix.
+                    Select a trade, sub-trade, and task to load the activity / hazard matrix.
                   </p>
                 )}
               </div>
@@ -1087,14 +1232,26 @@ export default function CSEPPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 <StatusBadge
-                  label={form.trade ? "Trade ready" : "Trade needed"}
-                  tone={form.trade ? "success" : "warning"}
+                  label={form.trade && form.subTrade ? "Trade scope ready" : "Trade scope needed"}
+                  tone={form.trade && form.subTrade ? "success" : "warning"}
+                />
+                <StatusBadge
+                  label={form.tasks.length ? "Tasks selected" : "Tasks needed"}
+                  tone={form.tasks.length ? "success" : "warning"}
                 />
                 <StatusBadge
                   label={
                     form.selected_hazards.length ? "Hazards selected" : "Hazards needed"
                   }
                   tone={form.selected_hazards.length ? "success" : "warning"}
+                />
+                <StatusBadge
+                  label={
+                    missingProgramSubtypeGroups.length === 0
+                      ? "Program details ready"
+                      : "Program details needed"
+                  }
+                  tone={missingProgramSubtypeGroups.length === 0 ? "success" : "warning"}
                 />
                 <button
                   type="button"

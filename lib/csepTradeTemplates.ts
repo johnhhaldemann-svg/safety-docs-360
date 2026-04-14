@@ -1,4 +1,4 @@
-import type { CsepKind } from "@/lib/constructionTradeTaxonomy";
+import type { CsepKind } from "@/lib/sharedTradeTaxonomy";
 
 const DEFAULT_SUMMARY_FALLBACK =
   "Trade-specific work exposes workers to changing site conditions, equipment interaction, access challenges, and task-specific hazards that must be managed through planning, controls, and coordination.";
@@ -99,12 +99,12 @@ const CSEP_BY_KIND: Record<
   },
   heavy_civil: {
     summary:
-      "Heavy civil and infrastructure work involves live traffic interfaces, trenches, large equipment, bridge work at height, asphalt heat hazards, and long utility runs.",
+      "Heavy civil and equipment operations involve large mobile equipment, haul routes, changing grades, material handling, traffic interfaces, and evolving site conditions that must be coordinated before work starts.",
     oshaRefs: [
       "OSHA 1926 Subpart E – PPE",
-      "OSHA 1926 Subpart P – Excavations",
+      "OSHA 1926 Subpart O – Motor Vehicles, Mechanized Equipment, and Marine Operations",
       "OSHA 1926 Subpart M – Fall Protection",
-      "OSHA 1926 Subpart K – Electrical",
+      "OSHA 1926 Subpart C – General Safety and Health Provisions",
     ],
     defaultPPE: [...DEFAULT_PPE_BASE, "Hearing Protection", "Respiratory Protection"],
   },

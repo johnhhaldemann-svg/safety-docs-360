@@ -17,6 +17,8 @@ import {
   normalizeScopeOfWorkCode,
   normalizeSecondaryHazardCodes,
   normalizeSeverityPotentialCode,
+  normalizeSubTradeCode,
+  normalizeTaskCode,
   normalizeTradeCode,
   normalizeWeatherConditionCode,
   normalizePrimaryHazardCode,
@@ -56,6 +58,8 @@ export type CompanyRiskMemoryFacetInsert = {
   source_id: string;
   scope_of_work_code: string | null;
   trade_code: string | null;
+  sub_trade_code: string | null;
+  task_code: string | null;
   primary_hazard_code: string | null;
   secondary_hazard_codes: string[];
   root_cause_level1: string | null;
@@ -87,10 +91,22 @@ function str(input: unknown): string | null {
   return s || null;
 }
 
+function shouldRetryFacetUpsertWithoutHierarchyColumns(message?: string | null) {
+  const msg = (message ?? "").toLowerCase();
+  return (
+    (msg.includes("sub_trade_code") || msg.includes("task_code")) &&
+    (msg.includes("schema cache") ||
+      (msg.includes("column") && msg.includes("does not exist")))
+  );
+}
+
 export function parseRiskMemoryPayload(body: Record<string, unknown> | null | undefined): Partial<CompanyRiskMemoryFacetInsert> | null {
   const raw = body?.riskMemory;
   if (!raw || typeof raw !== "object") return null;
   const m = raw as Record<string, unknown>;
+  const tradeCode = normalizeTradeCode(m.trade);
+  const subTradeCode = normalizeSubTradeCode(tradeCode, m.subTrade);
+  const taskCode = normalizeTaskCode(tradeCode, subTradeCode, m.task);
   const l1 = normalizeRootCauseLevel1(m.rootCauseLevel1);
   const l2 = normalizeRootCauseLevel2(l1, m.rootCauseLevel2);
   const secondary = normalizeSecondaryHazardCodes(m.secondaryHazards);
@@ -98,7 +114,9 @@ export function parseRiskMemoryPayload(body: Record<string, unknown> | null | un
   const crewId = parseCrewUuid(m.crewId);
   return {
     scope_of_work_code: normalizeScopeOfWorkCode(m.scopeOfWork),
-    trade_code: normalizeTradeCode(m.trade),
+    trade_code: tradeCode,
+    sub_trade_code: subTradeCode,
+    task_code: taskCode,
     primary_hazard_code: normalizePrimaryHazardCode(m.primaryHazard),
     secondary_hazard_codes: secondary.length ? secondary : [],
     root_cause_level1: l1,
@@ -138,6 +156,8 @@ function mergeFacet(
     ...base,
     scope_of_work_code: partial.scope_of_work_code ?? base.scope_of_work_code,
     trade_code: partial.trade_code ?? base.trade_code,
+    sub_trade_code: partial.sub_trade_code ?? base.sub_trade_code,
+    task_code: partial.task_code ?? base.task_code,
     primary_hazard_code: partial.primary_hazard_code ?? base.primary_hazard_code,
     secondary_hazard_codes:
       partial.secondary_hazard_codes && partial.secondary_hazard_codes.length > 0
@@ -182,6 +202,8 @@ export function buildIncidentFacetRow(
     source_id: String(incident.id),
     scope_of_work_code: null,
     trade_code: null,
+    sub_trade_code: null,
+    task_code: null,
     primary_hazard_code: exposure,
     secondary_hazard_codes: [],
     root_cause_level1: null,
@@ -226,6 +248,8 @@ export function buildCorrectiveActionFacetRow(
     source_id: String(row.id),
     scope_of_work_code: null,
     trade_code: null,
+    sub_trade_code: null,
+    task_code: null,
     primary_hazard_code: fromSif,
     secondary_hazard_codes: [],
     root_cause_level1: null,
@@ -270,6 +294,8 @@ export function buildPermitFacetRow(
     source_id: String(row.id),
     scope_of_work_code: null,
     trade_code: null,
+    sub_trade_code: null,
+    task_code: null,
     primary_hazard_code: null,
     secondary_hazard_codes: [],
     root_cause_level1: null,
@@ -316,6 +342,8 @@ export function buildSorRecordFacetRow(companyId: string, row: Record<string, un
     source_id: String(row.id),
     scope_of_work_code: null,
     trade_code: tradeCode,
+    sub_trade_code: null,
+    task_code: null,
     primary_hazard_code: primary,
     secondary_hazard_codes: [],
     root_cause_level1: null,
@@ -365,6 +393,8 @@ export function buildJsaActivityFacetRow(
     source_id: String(row.id),
     scope_of_work_code: null,
     trade_code: tradeCode,
+    sub_trade_code: null,
+    task_code: null,
     primary_hazard_code: primaryFromJsa,
     secondary_hazard_codes: [],
     root_cause_level1: null,
@@ -417,6 +447,8 @@ export async function upsertRiskMemoryFacet(
     source_id: row.source_id,
     scope_of_work_code: row.scope_of_work_code,
     trade_code: row.trade_code,
+    sub_trade_code: row.sub_trade_code,
+    task_code: row.task_code,
     primary_hazard_code: row.primary_hazard_code,
     secondary_hazard_codes: row.secondary_hazard_codes,
     root_cause_level1: row.root_cause_level1,
@@ -443,9 +475,24 @@ export async function upsertRiskMemoryFacet(
     details: row.details,
   };
 
-  const { error } = await supabase.from("company_risk_memory_facets").upsert(payload, {
-    onConflict: "company_id,source_module,source_id",
-  });
+  const write = async (candidate: Record<string, unknown>) =>
+    supabase.from("company_risk_memory_facets").upsert(candidate, {
+      onConflict: "company_id,source_module,source_id",
+    });
+
+  let { error } = await write(payload);
+
+  if (error && shouldRetryFacetUpsertWithoutHierarchyColumns(error.message)) {
+    const {
+      sub_trade_code: _subTradeCode,
+      task_code: _taskCode,
+      ...fallbackPayload
+    } = payload;
+    void _subTradeCode;
+    void _taskCode;
+    const retry = await write(fallbackPayload);
+    error = retry.error;
+  }
 
   if (error) {
     const msg = error.message ?? "";
