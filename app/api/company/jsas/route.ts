@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { authorizeRequest, isAdminRole } from "@/lib/rbac";
+import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { canManageCompanyJsa } from "@/lib/companyFeatureAccess";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 
@@ -17,17 +18,6 @@ function normalizeJsaStatus(input: unknown, fallback = "draft") {
 function isMissingTable(message?: string | null) {
   const lower = (message ?? "").toLowerCase();
   return lower.includes("company_jsas") || lower.includes("company_daps") || lower.includes("schema cache");
-}
-
-function canManage(role: string) {
-  return (
-    isAdminRole(role) ||
-    role === "company_admin" ||
-    role === "manager" ||
-    role === "safety_manager" ||
-    role === "project_manager" ||
-    role === "foreman"
-  );
 }
 
 export async function GET(request: Request) {
@@ -91,7 +81,7 @@ export async function POST(request: Request) {
     requireAnyPermission: ["can_create_documents", "can_view_all_company_data"],
   });
   if ("error" in auth) return auth.error;
-  if (!canManage(auth.role)) {
+  if (!canManageCompanyJsa(auth.role, auth.permissionMap)) {
     return NextResponse.json({ error: "Only company admins and managers can create JSAs." }, { status: 403 });
   }
 
@@ -161,7 +151,7 @@ export async function PATCH(request: Request) {
     requireAnyPermission: ["can_edit_documents", "can_view_all_company_data"],
   });
   if ("error" in auth) return auth.error;
-  if (!canManage(auth.role)) {
+  if (!canManageCompanyJsa(auth.role, auth.permissionMap)) {
     return NextResponse.json({ error: "Only company admins and managers can update JSAs." }, { status: 403 });
   }
 

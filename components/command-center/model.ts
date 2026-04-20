@@ -14,6 +14,14 @@ export type CommandCenterNotice = {
   message: string;
 };
 
+export type WorkflowRail = {
+  title: string;
+  description: string;
+  href: string;
+  actionLabel: string;
+  tone: "neutral" | "warning" | "info";
+};
+
 function str(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -99,4 +107,54 @@ export function getRiskMemoryEmptyMessage(loading: boolean) {
 
 export function getRecommendationsEmptyMessage(count: number) {
   return count > 0 ? null : "No active recommendations yet. They appear as Risk Memory and other AI workflows generate them.";
+}
+
+export function buildSafetyManagerWorkflowRails(summary: ReturnType<typeof summarizeOpenWork>): WorkflowRail[] {
+  const submissionTone =
+    summary.openJsas > 0 || summary.activePermits > 0 || summary.openReports > 0 ? "warning" : "info";
+  const readinessTone = summary.overdueObservations > 0 ? "warning" : "info";
+  const complianceTone = summary.stopWorkPermits > 0 || summary.openObservations > 0 ? "warning" : "neutral";
+
+  return [
+    {
+      title: "Start a jobsite",
+      description:
+        summary.openObservations > 0
+          ? `${summary.openObservations} open issue${summary.openObservations === 1 ? "" : "s"} should be reviewed before new scopes mobilize.`
+          : "Open the active jobsite list and launch the next project-scoped workspace from one place.",
+      href: "/jobsites",
+      actionLabel: "Open jobsites",
+      tone: summary.openObservations > 0 ? "warning" : "info",
+    },
+    {
+      title: "Prepare a submission",
+      description:
+        summary.openJsas > 0 || summary.openReports > 0
+          ? `${summary.openJsas} JSA${summary.openJsas === 1 ? "" : "s"} and ${summary.openReports} report draft${summary.openReports === 1 ? "" : "s"} are already in flight.`
+          : "Launch document preparation, gather source files, and move the next package toward review.",
+      href: "/submit",
+      actionLabel: "Submit package",
+      tone: submissionTone,
+    },
+    {
+      title: "Verify worker readiness",
+      description:
+        summary.overdueObservations > 0
+          ? `${summary.overdueObservations} overdue issue${summary.overdueObservations === 1 ? "" : "s"} may block clean worker readiness.`
+          : "Use training and profile readiness to confirm the right people are clear for site access.",
+      href: "/training-matrix",
+      actionLabel: "Review gaps",
+      tone: readinessTone,
+    },
+    {
+      title: "Resolve a compliance gap",
+      description:
+        summary.stopWorkPermits > 0
+          ? `${summary.stopWorkPermits} permit${summary.stopWorkPermits === 1 ? "" : "s"} include stop-work status and need immediate follow-up.`
+          : "Review open issues, permits, and incidents that still need human closure before work can move forward.",
+      href: summary.stopWorkPermits > 0 ? "/permits" : "/field-id-exchange",
+      actionLabel: summary.stopWorkPermits > 0 ? "Review permits" : "Resolve issues",
+      tone: complianceTone,
+    },
+  ];
 }

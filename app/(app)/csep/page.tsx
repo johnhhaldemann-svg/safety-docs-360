@@ -1,58 +1,134 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
   InlineMessage,
   PageHero,
   SectionCard,
+  StartChecklist,
   StatusBadge,
   WorkflowPath,
+  appNativeSelectClassName,
 } from "@/components/WorkspacePrimitives";
-import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
-import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
-import { ChecklistCoveragePanel } from "@/components/compliance/ChecklistCoveragePanel";
-import { GcRequiredProgramUpload } from "@/components/csep/GcRequiredProgramUpload";
+import {
+  CSEP_BUILDER_BLOCK_OPTIONS,
+  CSEP_FORMAT_SECTION_OPTIONS,
+  buildLegacyIncludedSectionLabelsFromFormatSections,
+  buildCsepBuilderAiPrompt,
+  hasBlockingCsepCoverageAudit,
+  getCsepBuilderAiSectionConfig,
+  parseCsepAiTextResponse,
+  parseCsepWeatherSectionAiResponse,
+  type CsepBuilderAiSectionId,
+} from "@/lib/csepBuilder";
 import {
   buildCsepProgramSelections,
   getSubtypeConfig,
   listProgramTitles,
 } from "@/lib/csepPrograms";
+import {
+  deriveEligibleCsepPricedItems,
+  formatCsepPrice,
+  resolveSelectedCsepPricedItems,
+} from "@/lib/csepEnrichmentPricing";
 import { buildCsepTradeSelection, getCsepTradeOptions } from "@/lib/csepTradeSelection";
-import type { ChecklistEvaluationResponse } from "@/lib/compliance/evaluation";
+import { getJurisdictionStateOptions, resolveBuilderJurisdiction } from "@/lib/jurisdictionStandards/catalog";
 import type { PermissionMap } from "@/lib/rbac";
+import {
+  CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL,
+  CONTRACTOR_SAFETY_BLUEPRINT_TITLE,
+} from "@/lib/safetyBlueprintLabels";
 import { buildCsepGenerationContext } from "@/lib/safety-intelligence/documentIntake";
+import type { CsepFormatSectionKey, CsepWeatherSectionInput } from "@/types/csep-builder";
+import type { CSEPPricedItemCatalogEntry } from "@/types/csep-priced-items";
 import type { CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue } from "@/types/csep-programs";
+import type { GeneratedSafetyPlanDraft } from "@/types/safety-intelligence";
 
 type CSEPForm = {
   project_name: string;
   project_number: string;
   project_address: string;
+  governing_state: string;
+  project_delivery_type: string;
   owner_client: string;
   gc_cm: string;
-
   contractor_company: string;
   contractor_contact: string;
   contractor_phone: string;
   contractor_email: string;
-
   trade: string;
   subTrade: string;
   tasks: string[];
   scope_of_work: string;
   site_specific_notes: string;
   emergency_procedures: string;
-
+  weather_requirements: CsepWeatherSectionInput;
   required_ppe: string[];
   additional_permits: string[];
+  priced_attachment_keys: string[];
   selected_hazards: string[];
   program_subtype_selections: Partial<Record<CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue>>;
+  selected_format_sections: CsepFormatSectionKey[];
   included_sections: string[];
+  document_number: string;
+  document_revision: string;
+  issue_date: string;
+  prepared_by: string;
+  reviewed_by: string;
+  approved_by: string;
+  roles_and_responsibilities_text: string;
+  security_and_access_text: string;
+  health_and_wellness_text: string;
+  incident_reporting_and_investigation_text: string;
+  training_and_instruction_text: string;
+  drug_and_alcohol_testing_text: string;
+  enforcement_and_corrective_action_text: string;
+  recordkeeping_text: string;
+  continuous_improvement_text: string;
 };
 
-const tradeOptions = getCsepTradeOptions();
+type MultiSelectField =
+  | "required_ppe"
+  | "additional_permits"
+  | "priced_attachment_keys"
+  | "selected_hazards"
+  | "tasks";
 
+type OptionGridItem = {
+  value: string;
+  label: string;
+  description?: string;
+  badge?: string;
+};
+
+type CsepPreviewState = {
+  generatedDocumentId: string;
+  builderInputHash: string;
+  draft: GeneratedSafetyPlanDraft;
+  payloadSignature: string;
+};
+
+type BuilderAiMessageTone = "success" | "warning" | "error";
+
+type BuilderAiSectionState = {
+  loading: boolean;
+  message: string;
+  tone: BuilderAiMessageTone;
+};
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+const tradeOptions = getCsepTradeOptions();
+const jurisdictionStateOptions = getJurisdictionStateOptions();
+const projectDeliveryOptions = [
+  { value: "ground_up", label: "Ground-Up New Build" },
+  { value: "renovation", label: "Building Refurbishment / Renovation" },
+];
 const ppeOptions = [
   "Hard Hat",
   "Safety Glasses",
@@ -64,7 +140,6 @@ const ppeOptions = [
   "Respiratory Protection",
   "Fall Protection Harness",
 ];
-
 const permitOptions = [
   "Hot Work Permit",
   "Confined Space Permit",
@@ -78,90 +153,120 @@ const permitOptions = [
   "Temperature Permit",
   "Gravity Permit",
 ];
-
-const csepSectionOptions = [
-  "Project Information",
-  "Contractor Information",
-  "Trade Summary",
-  "Scope of Work",
-  "Site Specific Notes",
-  "Emergency Procedures",
-  "Required PPE",
-  "Additional Permits",
-  "Common Overlapping Trades",
-  "OSHA References",
-  "Selected Hazards",
-  "Activity / Hazard Matrix",
+const legacyCsepSectionLabels = CSEP_BUILDER_BLOCK_OPTIONS.map((option) => option.label);
+const csepFormatSectionOptionItems: OptionGridItem[] = CSEP_FORMAT_SECTION_OPTIONS.map((option) => ({
+  value: option.value,
+  label: option.label,
+  description: option.description,
+}));
+const workflowDefinition = [
+  {
+    title: "Trade selection",
+    detail: "Choose the live trade path this CSEP will follow.",
+  },
+  {
+    title: "Sub-trade",
+    detail: "Lock the builder to the active sub-trade before tasks are picked.",
+  },
+  {
+    title: "Select sections",
+    detail: "Choose which 19-section CSEP package sections belong in the final format.",
+  },
+  {
+    title: "Selectable tasks",
+    detail: "Pick the exact work tasks that drive hazards and controls.",
+  },
+  {
+    title: "AI enrichment",
+    detail: "Review derived OSHA, permits, hazards, PPE, and program outputs.",
+  },
+  {
+    title: "AI review",
+    detail: "Load the live draft, check the selected sections, and approve the current version.",
+  },
+  {
+    title: "Finish document",
+    detail: "Accept the terms and submit the live CSEP into review.",
+  },
 ];
 
 const initialForm: CSEPForm = {
   project_name: "",
   project_number: "",
   project_address: "",
+  governing_state: "",
+  project_delivery_type: "",
   owner_client: "",
   gc_cm: "",
-
   contractor_company: "",
   contractor_contact: "",
   contractor_phone: "",
   contractor_email: "",
-
   trade: "",
   subTrade: "",
   tasks: [],
   scope_of_work: "",
   site_specific_notes: "",
   emergency_procedures: "",
-
+  weather_requirements: {},
   required_ppe: [],
   additional_permits: [],
+  priced_attachment_keys: [],
   selected_hazards: [],
   program_subtype_selections: {},
-  included_sections: [...csepSectionOptions],
+  selected_format_sections: CSEP_FORMAT_SECTION_OPTIONS.map((option) => option.value),
+  included_sections: [...legacyCsepSectionLabels],
+  document_number: "",
+  document_revision: "1.0",
+  issue_date: "",
+  prepared_by: "",
+  reviewed_by: "",
+  approved_by: "",
+  roles_and_responsibilities_text: "",
+  security_and_access_text: "",
+  health_and_wellness_text: "",
+  incident_reporting_and_investigation_text: "",
+  training_and_instruction_text: "",
+  drug_and_alcohol_testing_text: "",
+  enforcement_and_corrective_action_text: "",
+  recordkeeping_text: "",
+  continuous_improvement_text: "",
 };
 
-
-/*
-  const kind = csepKindForTradeLabel(trade);
-  return {
-    trade,
-    sectionTitle: `Site-Specific Safety Requirements – ${trade}`,
-    summary: csepSummaryForKind(kind),
-    oshaRefs: csepOshaRefsForKind(kind),
-    defaultPPE: csepDefaultPpeForKind(kind),
-    items: BASE_ITEMS,
-  };
-*/
-
-function inputClassName() {
-  return "w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-slate-500 focus:border-sky-500";
+function uniq(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
 }
 
-function textareaClassName() {
-  return "min-h-[120px] w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-slate-500 focus:border-sky-500";
+function toOptionGridItems(items: string[]): OptionGridItem[] {
+  return items.map((item) => ({
+    value: item,
+    label: item,
+  }));
 }
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function parseCommaSeparatedList(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 
 export default function CSEPPage() {
   const [form, setForm] = useState<CSEPForm>(initialForm);
-  const [submitLoading, setSubmitLoading] = useState(false);
-  const [userId, setUserId] = useState("");
+  const [step, setStep] = useState(0);
   const [authLoading, setAuthLoading] = useState(true);
+  const [userId, setUserId] = useState("");
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [previewState, setPreviewState] = useState<CsepPreviewState | null>(null);
+  const [previewApproved, setPreviewApproved] = useState(false);
   const [agreedToSubmissionTerms, setAgreedToSubmissionTerms] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "warning" | "error">("success");
-  const [checklistEvaluation, setChecklistEvaluation] = useState<ChecklistEvaluationResponse | null>(
-    null
-  );
-  const [checklistLoading, setChecklistLoading] = useState(false);
-  const [checklistError, setChecklistError] = useState("");
-  const checklistRequestRef = useRef(0);
-  const checklistAbortControllerRef = useRef<AbortController | null>(null);
+  const [sectionAiState, setSectionAiState] = useState<
+    Partial<Record<CsepBuilderAiSectionId, BuilderAiSectionState>>
+  >({});
 
   useEffect(() => {
     async function loadUser() {
@@ -176,25 +281,35 @@ export default function CSEPPage() {
           return;
         }
 
-        if (user) {
-          setUserId(user.id);
-          const sessionResult = await supabase.auth.getSession();
-          const accessToken = sessionResult.data.session?.access_token;
+        if (!user) return;
 
-          if (accessToken) {
-            const meResponse = await fetch("/api/auth/me", {
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-              },
-            });
-            const meData = (await meResponse.json().catch(() => null)) as
-              | { user?: { permissionMap?: PermissionMap } }
-              | null;
+        setUserId(user.id);
 
-            if (meResponse.ok) {
-              setPermissionMap(meData?.user?.permissionMap ?? null);
+        const sessionResult = await supabase.auth.getSession();
+        const accessToken = sessionResult.data.session?.access_token;
+        if (!accessToken) return;
+
+        const meResponse = await fetch("/api/auth/me", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        const meData = (await meResponse.json().catch(() => null)) as
+          | {
+              user?: {
+                permissionMap?: PermissionMap;
+                companyProfile?: { state_region?: string | null } | null;
+              };
             }
-          }
+          | null;
+
+        if (!meResponse.ok) return;
+
+        setPermissionMap(meData?.user?.permissionMap ?? null);
+
+        const companyState = meData?.user?.companyProfile?.state_region?.trim() ?? "";
+        if (companyState) {
+          setForm((prev) => (prev.governing_state ? prev : { ...prev, governing_state: companyState }));
         }
       } catch (error) {
         console.error("Unexpected auth error:", error);
@@ -211,70 +326,335 @@ export default function CSEPPage() {
     return buildCsepTradeSelection(form.trade, form.subTrade, form.tasks);
   }, [form.subTrade, form.tasks, form.trade]);
 
-  const derivedPermits = useMemo(() => {
-    return selectedTrade?.derivedPermits ?? [];
-  }, [selectedTrade]);
-
-  const overlapPermitHints = useMemo(() => {
-    return selectedTrade?.overlapPermitHints ?? [];
-  }, [selectedTrade]);
-
-  const commonOverlappingTrades = useMemo(() => {
-    return selectedTrade?.commonOverlappingTrades ?? [];
-  }, [selectedTrade]);
-
-  const derivedHazards = useMemo(() => {
-    return selectedTrade?.derivedHazards ?? [];
-  }, [selectedTrade]);
-
+  const derivedHazards = useMemo(() => selectedTrade?.derivedHazards ?? [], [selectedTrade]);
+  const derivedPermits = useMemo(() => selectedTrade?.derivedPermits ?? [], [selectedTrade]);
+  const overlapPermitHints = useMemo(() => selectedTrade?.overlapPermitHints ?? [], [selectedTrade]);
+  const commonOverlappingTrades = useMemo(
+    () => selectedTrade?.commonOverlappingTrades ?? [],
+    [selectedTrade]
+  );
   const displayedTradeItems = useMemo(() => {
     if (!selectedTrade) return [];
     if (form.selected_hazards.length === 0) return selectedTrade.items;
-    return selectedTrade.items.filter((item) =>
-      form.selected_hazards.includes(item.hazard)
-    );
+    return selectedTrade.items.filter((item) => form.selected_hazards.includes(item.hazard));
   }, [form.selected_hazards, selectedTrade]);
+  const selectedPermitItems = useMemo(
+    () => uniq([...form.additional_permits, ...derivedPermits, ...overlapPermitHints]),
+    [derivedPermits, form.additional_permits, overlapPermitHints]
+  );
+  const eligiblePricedAttachments = useMemo<CSEPPricedItemCatalogEntry[]>(
+    () =>
+      deriveEligibleCsepPricedItems({
+        trade: selectedTrade?.tradeLabel ?? form.trade,
+        subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
+        tasks: form.tasks,
+        selectedHazards: form.selected_hazards,
+        derivedHazards,
+        selectedPermits: selectedPermitItems,
+      }),
+    [
+      derivedHazards,
+      form.selected_hazards,
+      form.subTrade,
+      form.tasks,
+      form.trade,
+      selectedPermitItems,
+      selectedTrade?.subTradeLabel,
+      selectedTrade?.tradeLabel,
+    ]
+  );
+  const selectedPricedAttachments = useMemo(
+    () =>
+      resolveSelectedCsepPricedItems({
+        selectedKeys: form.priced_attachment_keys,
+        eligibleItems: eligiblePricedAttachments,
+      }),
+    [eligiblePricedAttachments, form.priced_attachment_keys]
+  );
+  const pricedAttachmentOptions = useMemo<OptionGridItem[]>(
+    () =>
+      eligiblePricedAttachments.map((item) => ({
+        value: item.key,
+        label: item.label,
+        description:
+          item.category === "permit" ? "Permit pricing" : "Trade-linked add-on pricing",
+        badge: formatCsepPrice(item.price),
+      })),
+    [eligiblePricedAttachments]
+  );
+  const selectedPricedAttachmentTotal = useMemo(
+    () => selectedPricedAttachments.reduce((total, item) => total + item.price, 0),
+    [selectedPricedAttachments]
+  );
+  const eligiblePricedAttachmentTotal = useMemo(
+    () => eligiblePricedAttachments.reduce((total, item) => total + item.price, 0),
+    [eligiblePricedAttachments]
+  );
+  const programSelectionState = useMemo(
+    () =>
+      buildCsepProgramSelections({
+        selectedHazards: form.selected_hazards,
+        selectedPermits: selectedPermitItems,
+        selectedPpe: form.required_ppe,
+        tradeItems: displayedTradeItems,
+        selectedTasks: form.tasks,
+        subtypeSelections: form.program_subtype_selections,
+      }),
+    [
+      displayedTradeItems,
+      form.program_subtype_selections,
+      form.required_ppe,
+      form.selected_hazards,
+      form.tasks,
+      selectedPermitItems,
+    ]
+  );
+  const autoPrograms = useMemo(() => listProgramTitles(programSelectionState.selections), [programSelectionState.selections]);
+  const missingProgramSubtypeGroups = useMemo(
+    () => programSelectionState.missingSubtypeGroups,
+    [programSelectionState.missingSubtypeGroups]
+  );
 
-  const selectedPermitItems = useMemo(() => {
-    return Array.from(new Set([...form.additional_permits, ...derivedPermits, ...overlapPermitHints]));
-  }, [derivedPermits, form.additional_permits, overlapPermitHints]);
+  useEffect(() => {
+    const eligibleKeys = new Set(eligiblePricedAttachments.map((item) => item.key));
 
-  const programSelectionState = useMemo(() => {
-    return buildCsepProgramSelections({
-      selectedHazards: form.selected_hazards,
-      selectedPermits: selectedPermitItems,
-      selectedPpe: form.required_ppe,
-      tradeItems: displayedTradeItems,
-      selectedTasks: form.tasks,
-      subtypeSelections: form.program_subtype_selections,
+    setForm((prev) => {
+      const nextKeys = prev.priced_attachment_keys.filter((key) => eligibleKeys.has(key));
+      return nextKeys.length === prev.priced_attachment_keys.length
+        ? prev
+        : { ...prev, priced_attachment_keys: nextKeys };
     });
-  }, [
-    displayedTradeItems,
-    form.program_subtype_selections,
-    form.required_ppe,
-    form.selected_hazards,
-    form.tasks,
-    selectedPermitItems,
-  ]);
+  }, [eligiblePricedAttachments]);
 
-  const programSelections = useMemo(() => {
-    return programSelectionState.selections;
-  }, [programSelectionState.selections]);
+  const jurisdictionProfile = useMemo(
+    () => resolveBuilderJurisdiction({ governingState: form.governing_state }),
+    [form.governing_state]
+  );
 
-  const missingProgramSubtypeGroups = useMemo(() => {
-    return programSelectionState.missingSubtypeGroups;
-  }, [programSelectionState.missingSubtypeGroups]);
+  const canUseBuilder = Boolean(permissionMap?.can_create_documents && permissionMap?.can_edit_documents);
+  const canSubmitDocuments = Boolean(permissionMap?.can_submit_documents);
+  const csepReady =
+    Boolean(form.trade.trim()) &&
+    Boolean(form.project_delivery_type) &&
+    Boolean(form.subTrade.trim()) &&
+    form.tasks.length > 0 &&
+    form.selected_hazards.length > 0 &&
+    missingProgramSubtypeGroups.length === 0;
 
-  const autoPrograms = useMemo(() => {
-    return listProgramTitles(programSelections);
-  }, [programSelections]);
+  const submissionFormData = useMemo(
+    () => ({
+      ...form,
+      governing_state: form.governing_state,
+      jurisdiction_code: jurisdictionProfile.jurisdictionCode,
+      jurisdiction_plan_type: jurisdictionProfile.jurisdictionPlanType,
+      trade: selectedTrade?.tradeLabel ?? form.trade,
+      subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
+      tradeSummary: selectedTrade?.summary ?? "",
+      oshaRefs: selectedTrade?.oshaRefs ?? [],
+      tasks: [...form.tasks],
+      tradeItems: displayedTradeItems,
+      derivedHazards,
+      derivedPermits,
+      overlapPermitHints,
+      priced_attachment_keys: [...form.priced_attachment_keys],
+      priced_attachments: selectedPricedAttachments,
+      common_overlapping_trades: commonOverlappingTrades,
+      selected_format_sections: form.selected_format_sections,
+      programSelections: programSelectionState.selections,
+      program_subtype_selections: form.program_subtype_selections,
+      weather_requirements: form.weather_requirements,
+      document_number: form.document_number,
+      document_revision: form.document_revision,
+      issue_date: form.issue_date,
+      prepared_by: form.prepared_by,
+      reviewed_by: form.reviewed_by,
+      approved_by: form.approved_by,
+      roles_and_responsibilities_text: form.roles_and_responsibilities_text,
+      security_and_access_text: form.security_and_access_text,
+      health_and_wellness_text: form.health_and_wellness_text,
+      incident_reporting_and_investigation_text: form.incident_reporting_and_investigation_text,
+      training_and_instruction_text: form.training_and_instruction_text,
+      drug_and_alcohol_testing_text: form.drug_and_alcohol_testing_text,
+      enforcement_and_corrective_action_text: form.enforcement_and_corrective_action_text,
+      recordkeeping_text: form.recordkeeping_text,
+      continuous_improvement_text: form.continuous_improvement_text,
+      includedContent: {
+        project_information: form.included_sections.includes("Project Information"),
+        contractor_information: form.included_sections.includes("Contractor Information"),
+        trade_summary: form.included_sections.includes("Trade Summary"),
+        scope_of_work: form.included_sections.includes("Scope of Work"),
+        site_specific_notes: form.included_sections.includes("Site Specific Notes"),
+        emergency_procedures: form.included_sections.includes("Emergency Procedures"),
+        weather_requirements_and_severe_weather_response: form.included_sections.includes(
+          "Weather Requirements and Severe Weather Response"
+        ),
+        required_ppe: form.included_sections.includes("Required PPE"),
+        additional_permits: form.included_sections.includes("Additional Permits"),
+        common_overlapping_trades: form.included_sections.includes("Common Overlapping Trades"),
+        osha_references: form.included_sections.includes("OSHA References"),
+        selected_hazards: form.included_sections.includes("Selected Hazards"),
+        activity_hazard_matrix: form.included_sections.includes("Activity / Hazard Matrix"),
+        roles_and_responsibilities: form.included_sections.includes("Roles and Responsibilities"),
+        security_and_access: form.included_sections.includes("Security and Access"),
+        health_and_wellness: form.included_sections.includes("Health and Wellness"),
+        incident_reporting_and_investigation: form.included_sections.includes(
+          "Incident Reporting and Investigation"
+        ),
+        training_and_instruction: form.included_sections.includes("Training and Instruction"),
+        drug_and_alcohol_testing: form.included_sections.includes("Drug and Alcohol Testing"),
+        enforcement_and_corrective_action: form.included_sections.includes(
+          "Enforcement and Corrective Action"
+        ),
+        recordkeeping: form.included_sections.includes("Recordkeeping"),
+        continuous_improvement: form.included_sections.includes("Continuous Improvement"),
+      },
+    }),
+    [
+      commonOverlappingTrades,
+      derivedHazards,
+      derivedPermits,
+      displayedTradeItems,
+      form,
+      jurisdictionProfile.jurisdictionCode,
+      jurisdictionProfile.jurisdictionPlanType,
+      overlapPermitHints,
+      selectedPricedAttachments,
+      programSelectionState.selections,
+      selectedTrade?.oshaRefs,
+      selectedTrade?.subTradeLabel,
+      selectedTrade?.summary,
+      selectedTrade?.tradeLabel,
+    ]
+  );
 
-  const totalPermitCount = useMemo(() => {
-    return new Set([...form.additional_permits, ...derivedPermits]).size;
-  }, [derivedPermits, form.additional_permits]);
+  const payloadSignature = useMemo(() => JSON.stringify(submissionFormData), [submissionFormData]);
+  const previewIsCurrent = previewState?.payloadSignature === payloadSignature;
+  const previewHasBlockingCoverageGaps = hasBlockingCsepCoverageAudit(
+    previewState?.draft.coverageAudit
+  );
+  const previewReadyForSubmit = Boolean(
+    previewState && previewIsCurrent && previewApproved && !previewHasBlockingCoverageGaps
+  );
+  const csepAiBaseContext = useMemo(
+    () => ({
+      surface: "csep_builder",
+      currentStep: workflowDefinition[step]?.title ?? null,
+      project_name: form.project_name,
+      project_number: form.project_number,
+      project_address: form.project_address,
+      governing_state: form.governing_state,
+      project_delivery_type: form.project_delivery_type,
+      owner_client: form.owner_client,
+      gc_cm: form.gc_cm,
+      contractor_company: form.contractor_company,
+      contractor_contact: form.contractor_contact,
+      contractor_phone: form.contractor_phone,
+      contractor_email: form.contractor_email,
+      trade: selectedTrade?.tradeLabel ?? form.trade,
+      subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
+      tasks: form.tasks,
+      selected_hazards: form.selected_hazards,
+      required_ppe: form.required_ppe,
+      selected_permits: selectedPermitItems,
+      weather_requirements: form.weather_requirements,
+      ai_task_first_rule:
+        "Selected tasks are the primary drafting anchor. Broader trade or project content should only be used when it directly supports those tasks.",
+    }),
+    [
+      form.contractor_company,
+      form.contractor_contact,
+      form.contractor_email,
+      form.contractor_phone,
+      form.gc_cm,
+      form.governing_state,
+      form.owner_client,
+      form.project_address,
+      form.project_delivery_type,
+      form.project_name,
+      form.project_number,
+      form.required_ppe,
+      form.selected_hazards,
+      form.subTrade,
+      form.tasks,
+      form.trade,
+      form.weather_requirements,
+      selectedPermitItems,
+      selectedTrade?.subTradeLabel,
+      selectedTrade?.tradeLabel,
+      step,
+    ]
+  );
+
+  useEffect(() => {
+    if (!previewState) return;
+    if (previewState.payloadSignature === payloadSignature) return;
+    setPreviewApproved(false);
+  }, [payloadSignature, previewState]);
 
   function updateField<K extends keyof CSEPForm>(field: K, value: CSEPForm[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function updateWeatherField<K extends keyof CsepWeatherSectionInput>(
+    field: K,
+    value: CsepWeatherSectionInput[K]
+  ) {
+    setForm((prev) => ({
+      ...prev,
+      weather_requirements: {
+        ...prev.weather_requirements,
+        [field]: value,
+      },
+    }));
+  }
+
+  function setArrayValues(field: MultiSelectField, values: string[]) {
+    setForm((prev) => ({ ...prev, [field]: uniq(values) }));
+  }
+
+  function toggleArrayValue(field: MultiSelectField, value: string) {
+    setForm((prev) => {
+      const current = prev[field];
+      const exists = current.includes(value);
+
+      return {
+        ...prev,
+        [field]: exists ? current.filter((item) => item !== value) : [...current, value],
+      };
+    });
+  }
+
+  function applyAllValues(field: MultiSelectField, values: string[]) {
+    setArrayValues(field, values);
+  }
+
+  function clearAllValues(field: MultiSelectField) {
+    setArrayValues(field, []);
+  }
+
+  function applySelectedFormatSections(values: CsepFormatSectionKey[]) {
+    const nextLegacySections = buildLegacyIncludedSectionLabelsFromFormatSections(values);
+    setForm((prev) => ({
+      ...prev,
+      selected_format_sections: values,
+      included_sections: nextLegacySections,
+    }));
+  }
+
+  function toggleSelectedFormatSection(value: string) {
+    setForm((prev) => {
+      const key = value as CsepFormatSectionKey;
+      const exists = prev.selected_format_sections.includes(key);
+      const nextFormatSections = exists
+        ? prev.selected_format_sections.filter((item) => item !== key)
+        : [...prev.selected_format_sections, key];
+
+      return {
+        ...prev,
+        selected_format_sections: nextFormatSections,
+        included_sections: buildLegacyIncludedSectionLabelsFromFormatSections(nextFormatSections),
+      };
+    });
   }
 
   function updateProgramSubtypeSelection(
@@ -290,92 +670,264 @@ export default function CSEPPage() {
     }));
   }
 
-  function toggleArrayValue(
-    field:
-      | "required_ppe"
-      | "additional_permits"
-      | "selected_hazards"
-      | "included_sections"
-      | "tasks",
-    value: string
-  ) {
-    setForm((prev) => {
-      const current = prev[field];
-      const exists = current.includes(value);
-
-      return {
-        ...prev,
-        [field]: exists
-          ? current.filter((item) => item !== value)
-          : [...current, value],
-      };
-    });
-  }
-
   function applyTradeDefaults() {
     if (!selectedTrade) return;
 
     setForm((prev) => ({
       ...prev,
-      required_ppe: Array.from(
-        new Set([...prev.required_ppe, ...selectedTrade.defaultPPE])
-      ),
-      additional_permits: Array.from(
-        new Set([...prev.additional_permits, ...derivedPermits])
-      ),
-      selected_hazards: Array.from(
-        new Set([...prev.selected_hazards, ...derivedHazards])
-      ),
+      required_ppe: uniq([...prev.required_ppe, ...selectedTrade.defaultPPE]),
+      additional_permits: uniq([...prev.additional_permits, ...derivedPermits]),
+      selected_hazards: uniq([...prev.selected_hazards, ...derivedHazards]),
     }));
   }
 
-  async function handleSubmitForReview() {
+  function resetBuilder() {
+    setForm(initialForm);
+    setStep(0);
+    setPreviewState(null);
+    setPreviewApproved(false);
+    setAgreedToSubmissionTerms(false);
+    setMessage("");
+    setSectionAiState({});
+  }
+
+  function setBuilderAiSectionState(
+    sectionId: CsepBuilderAiSectionId,
+    next: Partial<BuilderAiSectionState>
+  ) {
+    setSectionAiState((prev) => ({
+      ...prev,
+      [sectionId]: {
+        loading: false,
+        message: "",
+        tone: "success",
+        ...prev[sectionId],
+        ...next,
+      },
+    }));
+  }
+
+  function getBuilderAiSectionState(sectionId: CsepBuilderAiSectionId): BuilderAiSectionState {
+    return (
+      sectionAiState[sectionId] ?? {
+        loading: false,
+        message: "",
+        tone: "success",
+      }
+    );
+  }
+
+  function canUseBuilderAi(sectionId: CsepBuilderAiSectionId) {
+    const config = getCsepBuilderAiSectionConfig(sectionId);
+    return canUseBuilder && form.tasks.length > 0 && form.included_sections.includes(config.includedSectionLabel);
+  }
+
+  function shouldShowBuilderAiAction(sectionId: CsepBuilderAiSectionId) {
+    const config = getCsepBuilderAiSectionConfig(sectionId);
+    return form.included_sections.includes(config.includedSectionLabel);
+  }
+
+  function renderBuilderAiAction(sectionId: CsepBuilderAiSectionId, idleLabel?: string) {
+    const config = getCsepBuilderAiSectionConfig(sectionId);
+    const aiState = getBuilderAiSectionState(sectionId);
+    const aiEnabled = canUseBuilderAi(sectionId);
+
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void handleAiFillSection(sectionId)}
+            disabled={aiState.loading || !aiEnabled}
+            className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)] disabled:opacity-50"
+          >
+            {aiState.loading
+              ? `Drafting ${config.title.toLowerCase()}...`
+              : idleLabel ?? `AI draft ${config.title.toLowerCase()}`}
+          </button>
+          {!form.tasks.length ? (
+            <span className="text-xs text-[var(--app-text)]">
+              Select at least one task in Step 4 to enable AI drafting for this section.
+            </span>
+          ) : null}
+        </div>
+        {aiState.message ? <InlineMessage tone={aiState.tone}>{aiState.message}</InlineMessage> : null}
+      </div>
+    );
+  }
+
+  async function handleAiFillSection(sectionId: CsepBuilderAiSectionId) {
+    try {
+      const config = getCsepBuilderAiSectionConfig(sectionId);
+      setMessage("");
+      setBuilderAiSectionState(sectionId, { loading: true, message: "", tone: "success" });
+
+      if (!canUseBuilder) {
+        const warningMessage = `Your current role cannot edit ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} builder fields.`;
+        setMessageTone("warning");
+        setMessage(warningMessage);
+        setBuilderAiSectionState(sectionId, {
+          loading: false,
+          message: warningMessage,
+          tone: "warning",
+        });
+        return;
+      }
+
+      if (form.tasks.length === 0) {
+        const warningMessage = "Select at least one task before using AI drafting for this section.";
+        setMessageTone("warning");
+        setMessage(warningMessage);
+        setBuilderAiSectionState(sectionId, {
+          loading: false,
+          message: warningMessage,
+          tone: "warning",
+        });
+        return;
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Sign in to use AI drafting.");
+      }
+
+      const currentValue =
+        config.kind === "weather" ? form.weather_requirements : form[config.fieldKey];
+      const prompt = buildCsepBuilderAiPrompt({
+        sectionId,
+        currentValue,
+        context: {
+          project_name: form.project_name,
+          project_number: form.project_number,
+          project_address: form.project_address,
+          governing_state: form.governing_state,
+          project_delivery_type: form.project_delivery_type,
+          owner_client: form.owner_client,
+          gc_cm: form.gc_cm,
+          contractor_company: form.contractor_company,
+          contractor_contact: form.contractor_contact,
+          contractor_phone: form.contractor_phone,
+          contractor_email: form.contractor_email,
+          trade: selectedTrade?.tradeLabel ?? form.trade,
+          subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
+          tasks: form.tasks,
+          selected_hazards: form.selected_hazards,
+          required_ppe: form.required_ppe,
+          selected_permits: selectedPermitItems,
+        },
+      });
+      const structuredContext = JSON.stringify({
+        ...csepAiBaseContext,
+        ai_section: {
+          id: config.id,
+          title: config.title,
+          kind: config.kind,
+          included_section_label: config.includedSectionLabel,
+          current_value: currentValue,
+          selected_tasks_are_primary: true,
+        },
+      });
+
+      const response = await fetch("/api/company/ai/assist", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          surface: "csep",
+          message: prompt,
+          context: structuredContext,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; text?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "AI drafting failed.");
+      }
+
+      if (config.kind === "weather") {
+        const parsed = parseCsepWeatherSectionAiResponse(payload?.text ?? "");
+
+        if (!parsed) {
+          throw new Error(
+            "The AI returned text, but it was not in a usable weather-section format. Please try again."
+          );
+        }
+
+        if (Object.keys(parsed).length === 0) {
+          throw new Error("The AI response did not include usable weather-section content.");
+        }
+
+        setForm((prev) => ({
+          ...prev,
+          weather_requirements: {
+            ...prev.weather_requirements,
+            ...parsed,
+          },
+        }));
+      } else {
+        const parsed = parseCsepAiTextResponse(payload?.text ?? "", config.title);
+        if (!parsed) {
+          throw new Error(`The AI response did not include usable ${config.title.toLowerCase()} content.`);
+        }
+
+        setForm((prev) => ({
+          ...prev,
+          [config.fieldKey]: parsed,
+        }));
+      }
+
+      setMessageTone("success");
+      setMessage(`AI updated the ${config.title.toLowerCase()} section.`);
+      setBuilderAiSectionState(sectionId, {
+        loading: false,
+        message: `${config.title} was updated.`,
+        tone: "success",
+      });
+    } catch (error) {
+      setMessageTone("error");
+      const errorMessage = error instanceof Error ? error.message : "AI drafting failed.";
+      setMessage(errorMessage);
+      setBuilderAiSectionState(sectionId, {
+        loading: false,
+        message: errorMessage,
+        tone: "error",
+      });
+    } finally {
+      setSectionAiState((prev) => ({
+        ...prev,
+        [sectionId]: {
+          loading: false,
+          message: prev[sectionId]?.message ?? "",
+          tone: prev[sectionId]?.tone ?? "success",
+        },
+      }));
+    }
+  }
+
+  async function handleGenerateDraft() {
     try {
       setMessage("");
-      if (!permissionMap?.can_submit_documents) {
+
+      if (!canUseBuilder) {
         setMessageTone("warning");
-        setMessage("Your current role cannot submit CSEP records into review.");
-        return;
-      }
-      if (authLoading) {
-        setMessageTone("warning");
-        setMessage("Your account is still loading. Please wait a moment and try again.");
+        setMessage(`Your current role cannot generate ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} drafts.`);
         return;
       }
 
-      if (!userId) {
-        setMessageTone("error");
-        setMessage("No logged-in user found. Please log in again.");
-        return;
-      }
-
-      if (!agreedToSubmissionTerms) {
+      if (!csepReady) {
         setMessageTone("warning");
-        setMessage(
-          "You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before submitting your CSEP."
-        );
+        setMessage("Complete the trade, tasks, hazards, and program setup before generating the draft.");
         return;
       }
 
-      if (!form.trade?.trim() || !form.subTrade?.trim() || form.tasks.length === 0 || form.selected_hazards.length === 0) {
-        setMessageTone("warning");
-        setMessage(
-          "Select a trade, sub-trade, at least one task, and at least one hazard before submitting for review."
-        );
-        return;
-      }
-
-      if (missingProgramSubtypeGroups.length > 0) {
-        setMessageTone("warning");
-        setMessage(
-          `Choose a value for ${missingProgramSubtypeGroups
-            .map((group) => group.label.toLowerCase())
-            .join(", ")} before submitting your CSEP.`
-        );
-        return;
-      }
-
-      setSubmitLoading(true);
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -384,54 +936,15 @@ export default function CSEPPage() {
         throw new Error("Your session has expired. Please log in again.");
       }
 
-      const selectedTradeItems = displayedTradeItems;
+      setPreviewLoading(true);
 
-      const submissionFormData = {
-        ...form,
-        trade: selectedTrade?.tradeLabel ?? form.trade,
-        subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
-        tradeSummary: selectedTrade?.summary ?? "",
-        oshaRefs: selectedTrade?.oshaRefs ?? [],
-        tasks: [...form.tasks],
-        tradeItems: selectedTradeItems,
-        derivedHazards,
-        derivedPermits,
-        overlapPermitHints,
-        common_overlapping_trades: commonOverlappingTrades,
-        programSelections,
-        program_subtype_selections: form.program_subtype_selections,
-        includedContent: {
-          project_information:
-            form.included_sections.includes("Project Information"),
-          contractor_information:
-            form.included_sections.includes("Contractor Information"),
-          trade_summary: form.included_sections.includes("Trade Summary"),
-          scope_of_work: form.included_sections.includes("Scope of Work"),
-          site_specific_notes:
-            form.included_sections.includes("Site Specific Notes"),
-          emergency_procedures:
-            form.included_sections.includes("Emergency Procedures"),
-          required_ppe: form.included_sections.includes("Required PPE"),
-          additional_permits:
-            form.included_sections.includes("Additional Permits"),
-          common_overlapping_trades:
-            form.included_sections.includes("Common Overlapping Trades"),
-          osha_references: form.included_sections.includes("OSHA References"),
-          selected_hazards:
-            form.included_sections.includes("Selected Hazards"),
-          activity_hazard_matrix:
-            form.included_sections.includes("Activity / Hazard Matrix"),
-        },
-      };
-
-      const res = await fetch("/api/documents/submit", {
+      const response = await fetch("/api/company/csep/preview", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          document_type: "CSEP",
           project_name: form.project_name,
           form_data: {
             ...submissionFormData,
@@ -440,974 +953,1397 @@ export default function CSEPPage() {
         }),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "Failed to submit CSEP.");
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            generated_document_id?: string;
+            builder_input_hash?: string;
+            draft?: GeneratedSafetyPlanDraft;
+          }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error || `Failed to generate ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} AI draft.`);
+      }
+
+      if (!payload?.generated_document_id || !payload.builder_input_hash || !payload.draft) {
+        throw new Error("AI draft response was incomplete. Please try again.");
+      }
+
+      setPreviewState({
+        generatedDocumentId: payload.generated_document_id,
+        builderInputHash: payload.builder_input_hash,
+        draft: payload.draft,
+        payloadSignature,
+      });
+      setPreviewApproved(false);
+      setMessageTone("success");
+      setMessage("AI draft generated. Review the selected sections, then approve the current version.");
+    } catch (error) {
+      setPreviewApproved(false);
+      setMessageTone("error");
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : `Failed to generate ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} AI draft.`
+      );
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  async function handleSubmitForReview() {
+    try {
+      setMessage("");
+
+      if (!permissionMap?.can_submit_documents) {
+        setMessageTone("warning");
+        setMessage(`Your current role cannot submit ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} records into review.`);
+        return;
+      }
+
+      if (!userId) {
+        setMessageTone("error");
+        setMessage("No logged-in user was found. Please log in again.");
+        return;
+      }
+
+      if (!agreedToSubmissionTerms) {
+        setMessageTone("warning");
+        setMessage(
+          `You must agree to the Terms of Service, Liability Waiver, and Licensing Agreement before submitting your ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}.`
+        );
+        return;
+      }
+
+      if (!previewState || !previewIsCurrent || !previewApproved) {
+        setMessageTone("warning");
+        setMessage("Generate, review, and approve a current AI draft before submitting this CSEP.");
+        return;
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Your session has expired. Please log in again.");
+      }
+
+      setSubmitLoading(true);
+
+      const response = await fetch("/api/documents/submit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          document_type: "CSEP",
+          project_name: form.project_name,
+          generated_document_id: previewState.generatedDocumentId,
+          builder_input_hash: previewState.builderInputHash,
+          form_data: {
+            ...submissionFormData,
+            generationContext: buildCsepGenerationContext(submissionFormData),
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error || `Failed to submit ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}.`);
       }
 
       setMessageTone("success");
-      setMessage("CSEP submitted successfully for admin review.");
+      setMessage(`${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} submitted successfully for admin review.`);
     } catch (error) {
-      console.error(error);
-
-      if (error instanceof Error) {
-        setMessageTone("error");
-        setMessage(error.message);
-      } else {
-        setMessageTone("error");
-        setMessage("Failed to submit CSEP.");
-      }
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : `Failed to submit ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}.`);
     } finally {
       setSubmitLoading(false);
     }
   }
 
-  const workflowSteps = [
-    {
-      label: "Project Info",
-      detail: "Define the job, owner, and contractor context.",
-      complete: Boolean(form.project_name && form.contractor_company),
-    },
-    {
-      label: "Trade Setup",
-      detail: "Load trade defaults and site-specific content.",
-      complete: Boolean(form.trade && form.subTrade && form.tasks.length > 0 && form.scope_of_work),
-    },
-    {
-      label: "Hazards & Controls",
-      detail: "Choose hazards, PPE, and permit coverage.",
-      complete: form.selected_hazards.length > 0 && missingProgramSubtypeGroups.length === 0,
-    },
-    {
-      label: "Review & Submit",
-      detail: "Send the CSEP into the admin review workflow.",
-      complete: messageTone === "success" && message.length > 0,
-    },
+  const readinessChecklist = [
+    { label: "Trade selected", done: Boolean(form.trade.trim()) },
+    { label: "Sub-trade selected", done: Boolean(form.subTrade.trim()) },
+    { label: "At least one section selected", done: form.selected_format_sections.length > 0 },
+    { label: "At least one task selected", done: form.tasks.length > 0 },
+    { label: "Hazards selected", done: form.selected_hazards.length > 0 },
+    { label: "Program classifications complete", done: missingProgramSubtypeGroups.length === 0 },
+    { label: "AI draft approved", done: previewReadyForSubmit },
   ];
-  const canUseBuilder = Boolean(
-    permissionMap?.can_create_documents && permissionMap?.can_edit_documents
-  );
-  const canSubmitDocuments = Boolean(permissionMap?.can_submit_documents);
-  const csepHandoffReady =
-    Boolean(form.trade?.trim()) &&
-    Boolean(form.subTrade?.trim()) &&
-    form.tasks.length > 0 &&
-    form.selected_hazards.length > 0 &&
-    missingProgramSubtypeGroups.length === 0;
 
-  const checklistFormData = useMemo(
-    () => ({
-      ...form,
-      trade: selectedTrade?.tradeLabel ?? form.trade,
-      subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
-      tradeItems: displayedTradeItems,
-      selected_hazards: form.selected_hazards,
-      additional_permits: selectedPermitItems,
-      required_ppe: form.required_ppe,
-      overlapPermitHints,
-      common_overlapping_trades: commonOverlappingTrades,
-    }),
-    [
-      commonOverlappingTrades,
-      displayedTradeItems,
-      form,
-      overlapPermitHints,
-      selectedPermitItems,
-      selectedTrade?.subTradeLabel,
-      selectedTrade?.tradeLabel,
-    ]
-  );
+  const workflowSteps = workflowDefinition.map((item, index) => ({
+    label: item.title,
+    detail: item.detail,
+    active: step === index,
+    complete:
+      index === 0
+        ? Boolean(form.trade.trim()) && Boolean(form.project_delivery_type)
+        : index === 1
+          ? Boolean(form.subTrade.trim())
+          : index === 2
+            ? form.selected_format_sections.length > 0
+            : index === 3
+              ? form.tasks.length > 0
+              : index === 4
+                ? csepReady
+                : index === 5
+                  ? Boolean(previewState && previewIsCurrent)
+                  : previewReadyForSubmit,
+  }));
 
-  const refreshChecklistEvaluation = useCallback(async () => {
-    if (authLoading || !canUseBuilder) return;
-    const requestId = checklistRequestRef.current + 1;
-    checklistRequestRef.current = requestId;
-    checklistAbortControllerRef.current?.abort();
-    const controller = new AbortController();
-    checklistAbortControllerRef.current = controller;
-    setChecklistLoading(true);
-    setChecklistError("");
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error("Sign in to evaluate checklist coverage.");
-      }
-      const response = await fetch("/api/company/checklist/evaluate", {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          surface: "csep",
-          formData: checklistFormData,
-        }),
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | ChecklistEvaluationResponse
-        | null;
-      if (!response.ok) {
-        throw new Error((payload as { error?: string } | null)?.error || "Checklist evaluation failed.");
-      }
-      if (requestId !== checklistRequestRef.current) return;
-      setChecklistEvaluation(payload as ChecklistEvaluationResponse);
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        return;
-      }
-      if (requestId !== checklistRequestRef.current) return;
-      setChecklistError(error instanceof Error ? error.message : "Checklist evaluation failed.");
-    } finally {
-      if (requestId !== checklistRequestRef.current) return;
-      setChecklistLoading(false);
-    }
-  }, [authLoading, canUseBuilder, checklistFormData]);
-
-  useEffect(() => {
-    if (authLoading || !canUseBuilder) return;
-    const timeout = window.setTimeout(() => {
-      void refreshChecklistEvaluation();
-    }, 700);
-    return () => {
-      window.clearTimeout(timeout);
-      checklistAbortControllerRef.current?.abort();
-    };
-  }, [authLoading, canUseBuilder, refreshChecklistEvaluation]);
+  function canProceed(currentStep: number) {
+    if (currentStep === 0) return Boolean(form.trade.trim()) && Boolean(form.project_delivery_type);
+    if (currentStep === 1) return Boolean(form.subTrade.trim());
+    if (currentStep === 2) return form.selected_format_sections.length > 0;
+    if (currentStep === 3) return form.tasks.length > 0;
+    if (currentStep === 4) return csepReady;
+    if (currentStep === 5) return Boolean(previewState && previewIsCurrent);
+    return true;
+  }
 
   return (
-    <div className="space-y-6 px-1 py-2 sm:px-2 sm:py-4">
-      <div className="mx-auto max-w-7xl">
-        <PageHero
-          eyebrow="Builder Workspace"
-          title="CSEP Builder"
-          description="Build a contractor site-specific safety plan with clearer workflow guidance, stronger review readiness, and a more usable long-form workspace."
-          actions={
-            <>
-              <button
-                type="button"
-                onClick={() => setForm(initialForm)}
-                className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
-              >
-                Reset Form
-              </button>
-              <button
-                type="button"
-                onClick={applyTradeDefaults}
-                disabled={!selectedTrade || authLoading || !canUseBuilder}
-                className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)] disabled:opacity-50"
-              >
-                Apply Trade Defaults
-              </button>
-            </>
-          }
-        />
+    <div className="space-y-8">
+      <PageHero
+        eyebrow="Builder Workspace"
+        title={CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL}
+        description="Use the picture-driven workflow for the live CSEP generator across all trade families and task sets: trade selection, sub-trade, selected sections, selectable tasks, AI enrichment, AI review, then finish the document."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge label={form.trade || "Trade not set"} tone={form.trade ? "info" : "warning"} />
+            <StatusBadge
+              label={`${form.selected_format_sections.length} sections`}
+              tone={form.selected_format_sections.length ? "success" : "warning"}
+            />
+            <StatusBadge
+              label={`${form.tasks.length} tasks`}
+              tone={form.tasks.length ? "success" : "warning"}
+            />
+            <button
+              type="button"
+              onClick={resetBuilder}
+              className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
+            >
+              Reset builder
+            </button>
+          </div>
+        }
+      />
 
-        <div className="mt-6">
-          <GcRequiredProgramUpload
-            permissionMap={permissionMap}
-            authLoading={authLoading}
-            projectName={form.project_name}
-          />
-        </div>
+      {!authLoading && !canUseBuilder ? (
+        <InlineMessage tone="warning">
+          Your current role can review {CONTRACTOR_SAFETY_BLUEPRINT_TITLE} workflow information, but it cannot create or edit live drafts.
+        </InlineMessage>
+      ) : null}
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          <CompanyAiAssistPanel
-            surface="csep"
-            structuredContext={JSON.stringify({
-              trade: selectedTrade?.tradeLabel ?? form.trade,
-              subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
-              tasks: form.tasks,
-              project_name: form.project_name,
-              selected_hazards: form.selected_hazards,
-              checklistEvaluationSummary: checklistEvaluation?.summary ?? null,
-              checklistNeedsUserInput:
-                checklistEvaluation?.rows
-                  .filter((row) => row.coverage === "needs_user_input")
-                  .slice(0, 10)
-                  .map((row) => ({
-                    item: row.item,
-                    missingFields: row.missingFields,
-                  })) ?? [],
-            })}
-          />
-          <CompanyMemoryBankPanel />
-        </div>
+      {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 
-        <div className="mt-4">
-          <ChecklistCoveragePanel
-            title="Checklist Coverage (CSEP)"
-            loading={checklistLoading}
-            error={checklistError}
-            data={checklistEvaluation}
-            onRefresh={() => {
-              void refreshChecklistEvaluation();
-            }}
-          />
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-6">
-            {!authLoading && !canUseBuilder ? (
-              <InlineMessage tone="warning">
-                Your current role can review CSEP workflow information, but it cannot create or edit CSEP drafts.
-              </InlineMessage>
-            ) : null}
-            {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
-            <fieldset disabled={authLoading || !canUseBuilder} className="space-y-8 disabled:opacity-60">
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-100">
-                Project Information
-              </h2>
-              <div className="grid gap-4 md:grid-cols-2">
-                <input
-                  className={inputClassName()}
-                  placeholder="Project Name"
-                  value={form.project_name}
-                  onChange={(e) => updateField("project_name", e.target.value)}
-                />
-                <input
-                  className={inputClassName()}
-                  placeholder="Project Number"
-                  value={form.project_number}
-                  onChange={(e) => updateField("project_number", e.target.value)}
-                />
-                <input
-                  className={`${inputClassName()} md:col-span-2`}
-                  placeholder="Project Address"
-                  value={form.project_address}
-                  onChange={(e) => updateField("project_address", e.target.value)}
-                />
-                <input
-                  className={inputClassName()}
-                  placeholder="Owner / Client"
-                  value={form.owner_client}
-                  onChange={(e) => updateField("owner_client", e.target.value)}
-                />
-                <input
-                  className={inputClassName()}
-                  placeholder="GC / CM"
-                  value={form.gc_cm}
-                  onChange={(e) => updateField("gc_cm", e.target.value)}
-                />
-              </div>
-            </section>
-
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-100">
-                Contractor Information
-              </h2>
-              <div className="grid gap-4 md:grid-cols-2">
-                <input
-                  className={inputClassName()}
-                  placeholder="Contractor Company"
-                  value={form.contractor_company}
-                  onChange={(e) =>
-                    updateField("contractor_company", e.target.value)
-                  }
-                />
-                <input
-                  className={inputClassName()}
-                  placeholder="Contractor Contact"
-                  value={form.contractor_contact}
-                  onChange={(e) =>
-                    updateField("contractor_contact", e.target.value)
-                  }
-                />
-                <input
-                  className={inputClassName()}
-                  placeholder="Contractor Phone"
-                  value={form.contractor_phone}
-                  onChange={(e) =>
-                    updateField("contractor_phone", e.target.value)
-                  }
-                />
-                <input
-                  className={inputClassName()}
-                  placeholder="Contractor Email"
-                  value={form.contractor_email}
-                  onChange={(e) =>
-                    updateField("contractor_email", e.target.value)
-                  }
-                />
-              </div>
-            </section>
-
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-100">
-                    Trade Selection
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-300">
-                    Selecting a trade, sub-trade, and task set loads taxonomy-driven hazards,
-                    activities, controls, and permit triggers.
-                  </p>
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="space-y-6">
+          <SectionCard
+            title={`Step ${step + 1}: ${workflowDefinition[step].title}`}
+            description={workflowDefinition[step].detail}
+          >
+            <fieldset disabled={authLoading || !canUseBuilder} className="space-y-6 disabled:opacity-60">
+              {step === 0 ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <SelectField
+                    label="Trade"
+                    value={form.trade}
+                    onChange={(value) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        trade: value,
+                        subTrade: "",
+                        tasks: [],
+                        priced_attachment_keys: [],
+                        selected_hazards: [],
+                        program_subtype_selections: {},
+                      }))
+                    }
+                    options={tradeOptions.map((option) => ({ value: option, label: option }))}
+                    placeholder="Choose trade"
+                  />
+                  <SelectField
+                    label="Project delivery type"
+                    value={form.project_delivery_type}
+                    onChange={(value) => updateField("project_delivery_type", value)}
+                    options={projectDeliveryOptions}
+                    placeholder="Choose delivery type"
+                  />
+                  <SelectField
+                    label="Governing state"
+                    value={form.governing_state}
+                    onChange={(value) => updateField("governing_state", value)}
+                    options={jurisdictionStateOptions.map((option) => ({
+                      value: option.code,
+                      label: option.name,
+                    }))}
+                    placeholder="Choose state"
+                  />
+                  <InfoCard label="Jurisdiction profile" value={jurisdictionProfile.jurisdictionLabel} />
                 </div>
+              ) : null}
 
-                <button
-                  type="button"
-                  onClick={applyTradeDefaults}
-                  disabled={!selectedTrade}
-                  className="rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Apply Trade PPE / Permits / Hazards
-                </button>
-              </div>
-
-              <select
-                className={inputClassName()}
-                value={form.trade}
-                onChange={(e) => {
-                  const newTrade = e.target.value;
-                  setForm((prev) => ({
-                    ...prev,
-                    trade: newTrade,
-                    subTrade: "",
-                    tasks: [],
-                    selected_hazards: [],
-                    program_subtype_selections: {},
-                  }));
-                }}
-              >
-                <option value="">Select Trade</option>
-                {tradeOptions.map((trade) => (
-                  <option key={trade} value={trade}>
-                    {trade}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                className={`${inputClassName()} mt-4`}
-                value={form.subTrade}
-                disabled={!form.trade}
-                onChange={(e) => {
-                  const newSubTrade = e.target.value;
-                  setForm((prev) => ({
-                    ...prev,
-                    subTrade: newSubTrade,
-                    tasks: [],
-                    selected_hazards: [],
-                    program_subtype_selections: {},
-                  }));
-                }}
-              >
-                <option value="">Select Sub-trade</option>
-                {(selectedTrade?.availableSubTrades ?? []).map((subTrade) => (
-                  <option key={subTrade} value={subTrade}>
-                    {subTrade}
-                  </option>
-                ))}
-              </select>
-
-              <div className="mt-4 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
-                  Selectable Tasks
-                </h3>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  {(selectedTrade?.availableTasks ?? []).length > 0 ? (
-                    selectedTrade!.availableTasks.map((task) => (
-                      <label
-                        key={task}
-                        className="flex items-center gap-3 rounded-2xl border border-slate-700/80 px-4 py-3 text-sm text-slate-300"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={form.tasks.includes(task)}
-                          onChange={() => toggleArrayValue("tasks", task)}
-                        />
-                        <span>{task}</span>
-                      </label>
-                    ))
+              {step === 1 ? (
+                <div className="space-y-4">
+                  <SelectField
+                    label="Sub-trade"
+                    value={form.subTrade}
+                    onChange={(value) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        subTrade: value,
+                        tasks: [],
+                        priced_attachment_keys: [],
+                        selected_hazards: [],
+                        program_subtype_selections: {},
+                      }))
+                    }
+                    options={(selectedTrade?.availableSubTrades ?? []).map((option) => ({
+                      value: option,
+                      label: option,
+                    }))}
+                    placeholder="Choose sub-trade"
+                    disabled={!form.trade}
+                  />
+                  {selectedTrade ? (
+                    <InfoCard label="Trade summary" value={selectedTrade.summary} />
                   ) : (
-                    <p className="text-sm text-slate-300">
-                      Select a sub-trade to load selectable tasks.
-                    </p>
+                    <InlineMessage tone="warning">
+                      Choose a trade first so the live sub-trade list can be loaded.
+                    </InlineMessage>
                   )}
                 </div>
-                {(selectedTrade?.referenceTasks?.length ?? 0) > 0 ? (
-                  <p className="mt-3 text-xs text-slate-400">
-                    Reference-only tasks for this sub-trade: {selectedTrade!.referenceTasks.join(", ")}
-                  </p>
-                ) : null}
-              </div>
+              ) : null}
 
-              {selectedTrade && (
-                <div className="mt-4 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
-                    Auto-loaded Trade Summary
-                  </h3>
-                  <p className="mt-2 text-sm text-slate-300">
-                    {selectedTrade.summary}
-                  </p>
-                </div>
-              )}
-            </section>
+              {step === 2 ? (
+                <div className="space-y-5">
+                  <OptionGrid
+                    items={csepFormatSectionOptionItems}
+                    selectedItems={form.selected_format_sections}
+                    onToggle={toggleSelectedFormatSection}
+                    onApplyAll={() =>
+                      applySelectedFormatSections(
+                        CSEP_FORMAT_SECTION_OPTIONS.map((option) => option.value)
+                      )
+                    }
+                    onClearAll={() => applySelectedFormatSections([])}
+                  />
 
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-100">
-                CSEP Sections to Include
-              </h2>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {csepSectionOptions.map((item) => (
-                  <label
-                    key={item}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-700/80 px-4 py-3 text-sm text-slate-300"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={form.included_sections.includes(item)}
-                      onChange={() =>
-                        toggleArrayValue("included_sections", item)
-                      }
-                    />
-                    <span>{item}</span>
-                  </label>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-100">
-                Scope and Site Content
-              </h2>
-              <div className="grid gap-4">
-                <textarea
-                  className={textareaClassName()}
-                  placeholder="Scope of Work"
-                  value={form.scope_of_work}
-                  onChange={(e) => updateField("scope_of_work", e.target.value)}
-                />
-                <textarea
-                  className={textareaClassName()}
-                  placeholder="Site Specific Notes"
-                  value={form.site_specific_notes}
-                  onChange={(e) =>
-                    updateField("site_specific_notes", e.target.value)
-                  }
-                />
-                <textarea
-                  className={textareaClassName()}
-                  placeholder="Emergency Procedures"
-                  value={form.emergency_procedures}
-                  onChange={(e) =>
-                    updateField("emergency_procedures", e.target.value)
-                  }
-                />
-              </div>
-            </section>
-
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-100">
-                Required PPE
-              </h2>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {ppeOptions.map((item) => (
-                  <label
-                    key={item}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-700/80 px-4 py-3 text-sm text-slate-300"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={form.required_ppe.includes(item)}
-                      onChange={() => toggleArrayValue("required_ppe", item)}
-                    />
-                    <span>{item}</span>
-                  </label>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-100">
-                Additional Permits
-              </h2>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {permitOptions.map((item) => (
-                  <label
-                    key={item}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-700/80 px-4 py-3 text-sm text-slate-300"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={form.additional_permits.includes(item)}
-                      onChange={() =>
-                        toggleArrayValue("additional_permits", item)
-                      }
-                    />
-                    <span>{item}</span>
-                  </label>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-100">
-                Hazards to Include in the CSEP
-              </h2>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
-                {derivedHazards.length ? (
-                  derivedHazards.map((hazard) => (
-                    <label
-                      key={hazard}
-                      className="flex items-center gap-3 rounded-2xl border border-slate-700/80 px-4 py-3 text-sm text-slate-300"
+                  {form.selected_format_sections.includes(
+                    "weather_requirements_and_severe_weather_response"
+                  ) ? (
+                    <SectionCard
+                      title="Weather overlay"
+                      description="These inputs feed the dedicated weather section in the CSEP. Shared project baseline language stays first, then these project-specific thresholds and contractor notes are layered in."
                     >
-                      <input
-                        type="checkbox"
-                        checked={form.selected_hazards.includes(hazard)}
-                        onChange={() =>
-                          toggleArrayValue("selected_hazards", hazard)
+                      <div className="mb-4">{renderBuilderAiAction("weather", "AI fill weather section")}</div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <InputField
+                          label="Monitoring sources"
+                          value={(form.weather_requirements.monitoringSources ?? []).join(", ")}
+                          onChange={(value) =>
+                            updateWeatherField("monitoringSources", parseCommaSeparatedList(value))
+                          }
+                        />
+                        <InputField
+                          label="Communication methods"
+                          value={(form.weather_requirements.communicationMethods ?? []).join(", ")}
+                          onChange={(value) =>
+                            updateWeatherField(
+                              "communicationMethods",
+                              parseCommaSeparatedList(value)
+                            )
+                          }
+                        />
+                        <InputField
+                          label="High-wind threshold / rule"
+                          value={form.weather_requirements.highWindThresholdText ?? ""}
+                          onChange={(value) => updateWeatherField("highWindThresholdText", value)}
+                        />
+                        <InputField
+                          label="Lightning shelter note"
+                          value={form.weather_requirements.lightningShelterNotes ?? ""}
+                          onChange={(value) => updateWeatherField("lightningShelterNotes", value)}
+                        />
+                        <InputField
+                          label="Lightning stop radius (miles)"
+                          value={
+                            form.weather_requirements.lightningRadiusMiles !== undefined &&
+                            form.weather_requirements.lightningRadiusMiles !== null
+                              ? String(form.weather_requirements.lightningRadiusMiles)
+                              : ""
+                          }
+                          onChange={(value) =>
+                            updateWeatherField(
+                              "lightningRadiusMiles",
+                              value.trim() ? Number(value) : null
+                            )
+                          }
+                        />
+                        <InputField
+                          label="Lightning all-clear (minutes)"
+                          value={
+                            form.weather_requirements.lightningAllClearMinutes !== undefined &&
+                            form.weather_requirements.lightningAllClearMinutes !== null
+                              ? String(form.weather_requirements.lightningAllClearMinutes)
+                              : ""
+                          }
+                          onChange={(value) =>
+                            updateWeatherField(
+                              "lightningAllClearMinutes",
+                              value.trim() ? Number(value) : null
+                            )
+                          }
+                        />
+                        <InputField
+                          label="Heat trigger"
+                          value={form.weather_requirements.heatTriggerText ?? ""}
+                          onChange={(value) => updateWeatherField("heatTriggerText", value)}
+                        />
+                        <InputField
+                          label="Cold / wind-chill trigger"
+                          value={form.weather_requirements.coldTriggerText ?? ""}
+                          onChange={(value) => updateWeatherField("coldTriggerText", value)}
+                        />
+                        <InputField
+                          label="Storm / tornado shelter"
+                          value={form.weather_requirements.tornadoStormShelterNotes ?? ""}
+                          onChange={(value) =>
+                            updateWeatherField("tornadoStormShelterNotes", value)
+                          }
+                        />
+                        <InputField
+                          label="Union / accountability note"
+                          value={form.weather_requirements.unionAccountabilityNotes ?? ""}
+                          onChange={(value) =>
+                            updateWeatherField("unionAccountabilityNotes", value)
+                          }
+                        />
+                        <TextAreaField
+                          label="Daily review note"
+                          value={form.weather_requirements.dailyReviewNotes ?? ""}
+                          onChange={(value) => updateWeatherField("dailyReviewNotes", value)}
+                        />
+                        <TextAreaField
+                          label="Project override notes"
+                          value={(form.weather_requirements.projectOverrideNotes ?? []).join("\n")}
+                          onChange={(value) =>
+                            updateWeatherField(
+                              "projectOverrideNotes",
+                              value
+                                .split("\n")
+                                .map((item) => item.trim())
+                                .filter(Boolean)
+                            )
+                          }
+                        />
+                        <TextAreaField
+                          label="High-wind controls"
+                          value={(form.weather_requirements.highWindControls ?? []).join("\n")}
+                          onChange={(value) =>
+                            updateWeatherField(
+                              "highWindControls",
+                              value
+                                .split("\n")
+                                .map((item) => item.trim())
+                                .filter(Boolean)
+                            )
+                          }
+                        />
+                        <TextAreaField
+                          label="Heat controls"
+                          value={(form.weather_requirements.heatControls ?? []).join("\n")}
+                          onChange={(value) =>
+                            updateWeatherField(
+                              "heatControls",
+                              value
+                                .split("\n")
+                                .map((item) => item.trim())
+                                .filter(Boolean)
+                            )
+                          }
+                        />
+                        <TextAreaField
+                          label="Cold controls"
+                          value={(form.weather_requirements.coldControls ?? []).join("\n")}
+                          onChange={(value) =>
+                            updateWeatherField(
+                              "coldControls",
+                              value
+                                .split("\n")
+                                .map((item) => item.trim())
+                                .filter(Boolean)
+                            )
+                          }
+                        />
+                        <TextAreaField
+                          label="Storm controls"
+                          value={(form.weather_requirements.tornadoStormControls ?? []).join("\n")}
+                          onChange={(value) =>
+                            updateWeatherField(
+                              "tornadoStormControls",
+                              value
+                                .split("\n")
+                                .map((item) => item.trim())
+                                .filter(Boolean)
+                            )
+                          }
+                        />
+                        <TextAreaField
+                          label="Environmental controls"
+                          value={(form.weather_requirements.environmentalControls ?? []).join("\n")}
+                          onChange={(value) =>
+                            updateWeatherField(
+                              "environmentalControls",
+                              value
+                                .split("\n")
+                                .map((item) => item.trim())
+                                .filter(Boolean)
+                            )
+                          }
+                        />
+                        <TextAreaField
+                          label="Contractor responsibility notes"
+                          value={(
+                            form.weather_requirements.contractorResponsibilityNotes ?? []
+                          ).join("\n")}
+                          onChange={(value) =>
+                            updateWeatherField(
+                              "contractorResponsibilityNotes",
+                              value
+                                .split("\n")
+                                .map((item) => item.trim())
+                                .filter(Boolean)
+                            )
+                          }
+                        />
+                      </div>
+                    </SectionCard>
+                  ) : null}
+
+                  {form.included_sections.includes("Roles and Responsibilities") ? (
+                    <div className="space-y-3">
+                      {renderBuilderAiAction("roles_and_responsibilities_text")}
+                      <TextAreaField
+                        label="Roles and responsibilities notes"
+                        value={form.roles_and_responsibilities_text}
+                        onChange={(value) => updateField("roles_and_responsibilities_text", value)}
+                      />
+                    </div>
+                  ) : null}
+
+                  {form.included_sections.includes("Security and Access") ? (
+                    <div className="space-y-3">
+                      {renderBuilderAiAction("security_and_access_text")}
+                      <TextAreaField
+                        label="Security and access notes"
+                        value={form.security_and_access_text}
+                        onChange={(value) => updateField("security_and_access_text", value)}
+                      />
+                    </div>
+                  ) : null}
+
+                  {form.included_sections.includes("Health and Wellness") ? (
+                    <div className="space-y-3">
+                      {renderBuilderAiAction("health_and_wellness_text")}
+                      <TextAreaField
+                        label="Health and wellness notes"
+                        value={form.health_and_wellness_text}
+                        onChange={(value) => updateField("health_and_wellness_text", value)}
+                      />
+                    </div>
+                  ) : null}
+
+                  {form.included_sections.includes("Incident Reporting and Investigation") ? (
+                    <div className="space-y-3">
+                      {renderBuilderAiAction("incident_reporting_and_investigation_text")}
+                      <TextAreaField
+                        label="Incident reporting and investigation notes"
+                        value={form.incident_reporting_and_investigation_text}
+                        onChange={(value) =>
+                          updateField("incident_reporting_and_investigation_text", value)
                         }
                       />
-                      <span>{hazard}</span>
-                    </label>
-                  ))
-                  ) : (
-                    <p className="text-sm text-slate-300">
-                      Select a trade, sub-trade, and task to load hazards.
-                    </p>
-                  )}
-              </div>
-            </section>
-
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold text-slate-100">
-                Program Classifications
-              </h2>
-              <div className="space-y-4">
-                {programSelectionState.selections.length ? (
-                  missingProgramSubtypeGroups.length > 0 ? (
-                    missingProgramSubtypeGroups.map((group) => {
-                      const config = getSubtypeConfig(group.group);
-                      return (
-                        <div
-                          key={group.group}
-                          className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-4"
-                        >
-                          <div className="text-sm font-semibold text-amber-100">
-                            {config.label}
-                          </div>
-                          <p className="mt-1 text-sm text-amber-50/90">
-                            {config.prompt}
-                          </p>
-                          <select
-                            className={`${inputClassName()} mt-3`}
-                            value={form.program_subtype_selections[group.group] ?? ""}
-                            onChange={(event) =>
-                              updateProgramSubtypeSelection(
-                                group.group,
-                                event.target.value as CSEPProgramSubtypeValue | ""
-                              )
-                            }
-                          >
-                            <option value="">Select classification</option>
-                            {config.options.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="mt-3 space-y-2 text-xs text-amber-50/80">
-                            {config.options.map((option) => (
-                              <p key={option.value}>
-                                <span className="font-semibold">{option.label}:</span>{" "}
-                                {option.description}
-                              </p>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="text-sm text-slate-300">
-                      No additional program classifications are required for the current selection set.
-                    </p>
-                  )
-                ) : (
-                  <p className="text-sm text-slate-300">
-                    Select hazards, permits, or PPE items to reveal any required program classifications.
-                  </p>
-                )}
-              </div>
-            </section>
-
-            <div className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-100">
-                Submit for Review
-              </h2>
-              <p className="mt-2 text-sm text-slate-300">
-                Submit this CSEP to the admin review queue. The completed document will only be available after admin review is finished.
-              </p>
-
-              <div className="mt-4">
-                <LegalAcceptanceBlock
-                  checked={agreedToSubmissionTerms}
-                  onChange={setAgreedToSubmissionTerms}
-                />
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={handleSubmitForReview}
-                disabled={
-                  submitLoading ||
-                  !agreedToSubmissionTerms ||
-                  authLoading ||
-                  !canSubmitDocuments ||
-                  !csepHandoffReady
-                }
-                className="rounded-xl bg-sky-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                {submitLoading ? "Submitting..." : "Submit for Review"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setForm(initialForm)}
-                className="rounded-xl border border-slate-600 bg-slate-900/90 px-6 py-3 text-sm font-semibold text-slate-300 hover:bg-slate-950/50"
-              >
-                Reset Form
-              </button>
-            </div>
-            </div>
-            </fieldset>
-          </div>
-
-          <aside className="space-y-6">
-            <WorkflowPath
-              title="Builder Workflow"
-              description="Move from project setup into a clean admin review handoff."
-              steps={workflowSteps}
-            />
-
-            <SectionCard
-              title="Builder Snapshot"
-              description="Quick visibility into what is ready inside this CSEP."
-            >
-              <div className="grid gap-3">
-                <SnapshotRow
-                  label="Project"
-                  value={form.project_name.trim() ? form.project_name : "Not set yet"}
-                  missing={!form.project_name.trim()}
-                />
-                <SnapshotRow
-                  label="Trade"
-                  value={(selectedTrade?.tradeLabel ?? form.trade) || "No trade selected"}
-                  missing={!form.trade}
-                />
-                <SnapshotRow
-                  label="Sub-trade"
-                  value={(selectedTrade?.subTradeLabel ?? form.subTrade) || "No sub-trade selected"}
-                  missing={!form.subTrade}
-                />
-                <SnapshotRow
-                  label="Tasks"
-                  value={form.tasks.length ? `${form.tasks.length} selected` : "None selected"}
-                  missing={!form.tasks.length}
-                />
-                <SnapshotRow
-                  label="Hazards"
-                  value={
-                    form.selected_hazards.length
-                      ? `${form.selected_hazards.length} selected`
-                      : "None selected"
-                  }
-                  missing={!form.selected_hazards.length}
-                />
-                <SnapshotRow
-                  label="Programs"
-                  value={
-                    autoPrograms.length
-                      ? `${autoPrograms.length} generated`
-                      : "None generated"
-                  }
-                  missing={!autoPrograms.length}
-                />
-                <SnapshotRow
-                  label="PPE"
-                  value={
-                    form.required_ppe.length
-                      ? `${form.required_ppe.length} selected`
-                      : "None selected"
-                  }
-                />
-                <SnapshotRow
-                  label="Permits"
-                  value={
-                    totalPermitCount ? `${totalPermitCount} selected or derived` : "None selected"
-                  }
-                />
-              </div>
-            </SectionCard>
-
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-100">
-                Included CSEP Sections
-              </h2>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {form.included_sections.length ? (
-                  form.included_sections.map((section) => (
-                    <span
-                      key={section}
-                      className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-medium text-slate-300"
-                    >
-                      {section}
-                    </span>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-300">No sections selected.</p>
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-100">
-                OSHA References
-              </h2>
-              <div className="mt-4 space-y-2">
-                {selectedTrade ? (
-                  selectedTrade.oshaRefs.map((ref) => (
-                    <div
-                      key={ref}
-                      className="rounded-2xl border border-slate-700/80 px-4 py-3 text-sm text-slate-300"
-                    >
-                      {ref}
                     </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-300">
-                    Select a trade, sub-trade, and task to load OSHA references.
-                  </p>
-                )}
-              </div>
-            </section>
+                  ) : null}
 
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-100">
-                Selected Hazards for CSEP
-              </h2>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {form.selected_hazards.length ? (
-                  form.selected_hazards.map((hazard) => (
-                    <span
-                      key={hazard}
-                      className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-medium text-slate-300"
-                    >
-                      {hazard}
-                    </span>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-300">
-                    No hazards selected for the generated CSEP.
-                  </p>
-                )}
-              </div>
-            </section>
+                  {form.included_sections.includes("Training and Instruction") ? (
+                    <div className="space-y-3">
+                      {renderBuilderAiAction("training_and_instruction_text")}
+                      <TextAreaField
+                        label="Training and instruction notes"
+                        value={form.training_and_instruction_text}
+                        onChange={(value) => updateField("training_and_instruction_text", value)}
+                      />
+                    </div>
+                  ) : null}
 
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-100">
-                Auto-Generated Safety Programs
-              </h2>
-              {missingProgramSubtypeGroups.length ? (
-                <p className="mt-2 text-sm text-amber-200/90">
-                  Classification details are still required before all program pages are finalized.
-                </p>
+                  {form.included_sections.includes("Drug and Alcohol Testing") ? (
+                    <div className="space-y-3">
+                      {renderBuilderAiAction("drug_and_alcohol_testing_text")}
+                      <TextAreaField
+                        label="Drug and alcohol testing notes"
+                        value={form.drug_and_alcohol_testing_text}
+                        onChange={(value) => updateField("drug_and_alcohol_testing_text", value)}
+                      />
+                    </div>
+                  ) : null}
+
+                  {form.included_sections.includes("Enforcement and Corrective Action") ? (
+                    <div className="space-y-3">
+                      {renderBuilderAiAction("enforcement_and_corrective_action_text")}
+                      <TextAreaField
+                        label="Enforcement and corrective action notes"
+                        value={form.enforcement_and_corrective_action_text}
+                        onChange={(value) =>
+                          updateField("enforcement_and_corrective_action_text", value)
+                        }
+                      />
+                    </div>
+                  ) : null}
+
+                  {form.included_sections.includes("Recordkeeping") ? (
+                    <div className="space-y-3">
+                      {renderBuilderAiAction("recordkeeping_text")}
+                      <TextAreaField
+                        label="Recordkeeping notes"
+                        value={form.recordkeeping_text}
+                        onChange={(value) => updateField("recordkeeping_text", value)}
+                      />
+                    </div>
+                  ) : null}
+
+                  {form.included_sections.includes("Continuous Improvement") ? (
+                    <div className="space-y-3">
+                      {renderBuilderAiAction("continuous_improvement_text")}
+                      <TextAreaField
+                        label="Continuous improvement notes"
+                        value={form.continuous_improvement_text}
+                        onChange={(value) => updateField("continuous_improvement_text", value)}
+                      />
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
-              <div className="mt-4 flex flex-wrap gap-2">
-                {autoPrograms.length ? (
-                  autoPrograms.map((program) => (
-                    <span
-                      key={program}
-                      className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-medium text-slate-300"
-                    >
-                      {program}
-                    </span>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-300">
-                    Select hazards to auto-generate program sections in the CSEP.
-                  </p>
-                )}
-              </div>
-            </section>
 
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-100">
-                Auto-Detected Permits
-              </h2>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {derivedPermits.length ? (
-                  derivedPermits.map((permit) => (
-                    <span
-                      key={permit}
-                      className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-medium text-slate-300"
-                    >
-                      {permit}
-                    </span>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-300">
-                    Select a trade, sub-trade, and task to load permit triggers.
-                  </p>
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-100">
-                Common Overlapping Trades (Same Area)
-              </h2>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {commonOverlappingTrades.length ? (
-                  commonOverlappingTrades.map((trade) => (
-                    <span
-                      key={trade}
-                      className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-medium text-slate-300"
-                    >
-                      {trade}
-                    </span>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-300">
-                    Select a trade scope to infer likely overlapping trades in shared work areas.
-                  </p>
-                )}
-              </div>
-              {overlapPermitHints.length ? (
-                <p className="mt-3 text-xs text-slate-400">
-                  High-risk overlap permit hints: {overlapPermitHints.join(", ")}
-                </p>
+              {step === 3 ? (
+                <div className="space-y-4">
+                  {!form.subTrade ? (
+                    <InlineMessage tone="warning">
+                      Choose a sub-trade first so the task list can be loaded.
+                    </InlineMessage>
+                  ) : (
+                    <>
+                      <OptionGrid
+                        items={toOptionGridItems(selectedTrade?.availableTasks ?? [])}
+                        selectedItems={form.tasks}
+                        onToggle={(value) => toggleArrayValue("tasks", value)}
+                        onApplyAll={() => applyAllValues("tasks", selectedTrade?.availableTasks ?? [])}
+                        onClearAll={() => clearAllValues("tasks")}
+                      />
+                      {(selectedTrade?.referenceTasks?.length ?? 0) > 0 ? (
+                        <InfoCard
+                          label="Reference tasks"
+                          value={selectedTrade?.referenceTasks.join(", ") ?? ""}
+                        />
+                      ) : null}
+                    </>
+                  )}
+                </div>
               ) : null}
-            </section>
 
-            <section className="rounded-3xl bg-slate-900/90 p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-slate-100">
-                Selected Activity / Hazard Matrix
-              </h2>
-              <div className="mt-4 space-y-3">
-                {selectedTrade ? (
-                  displayedTradeItems.length > 0 ? (
-                    displayedTradeItems.map((item, index) => (
-                      <div
-                        key={`${item.activity}-${item.hazard}-${index}`}
-                        className="rounded-2xl border border-slate-700/80 p-4"
-                      >
-                        <div className="text-sm font-semibold text-slate-100">
-                          {item.activity}
+              {step === 4 ? (
+                <div className="space-y-5">
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={applyTradeDefaults}
+                      disabled={!selectedTrade}
+                      className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] disabled:opacity-50"
+                    >
+                      Apply trade defaults
+                    </button>
+                  </div>
+
+                  <SectionBucket
+                    title="Hazards to include"
+                    items={toOptionGridItems(derivedHazards)}
+                    selectedItems={form.selected_hazards}
+                    onToggle={(value) => toggleArrayValue("selected_hazards", value)}
+                    onApplyAll={() => applyAllValues("selected_hazards", derivedHazards)}
+                    onClearAll={() => clearAllValues("selected_hazards")}
+                    emptyLabel="Select a trade, sub-trade, and task to derive hazards."
+                  />
+                  <SectionBucket
+                    title="Required PPE"
+                    items={toOptionGridItems(ppeOptions)}
+                    selectedItems={form.required_ppe}
+                    onToggle={(value) => toggleArrayValue("required_ppe", value)}
+                    onApplyAll={() => applyAllValues("required_ppe", ppeOptions)}
+                    onClearAll={() => clearAllValues("required_ppe")}
+                  />
+                  <SectionBucket
+                    title="Additional permits"
+                    items={toOptionGridItems(permitOptions)}
+                    selectedItems={form.additional_permits}
+                    onToggle={(value) => toggleArrayValue("additional_permits", value)}
+                    onApplyAll={() => applyAllValues("additional_permits", permitOptions)}
+                    onClearAll={() => clearAllValues("additional_permits")}
+                  />
+                  <SectionBucket
+                    title="Priced attached requirements"
+                    items={pricedAttachmentOptions}
+                    selectedItems={form.priced_attachment_keys}
+                    onToggle={(value) => toggleArrayValue("priced_attachment_keys", value)}
+                    onApplyAll={() =>
+                      applyAllValues(
+                        "priced_attachment_keys",
+                        eligiblePricedAttachments.map((item) => item.key)
+                      )
+                    }
+                    onClearAll={() => clearAllValues("priced_attachment_keys")}
+                    summaryValue={
+                      selectedPricedAttachments.length
+                        ? `${selectedPricedAttachments.length} selected | ${formatCsepPrice(selectedPricedAttachmentTotal)}`
+                        : eligiblePricedAttachments.length
+                          ? `${eligiblePricedAttachments.length} available | ${formatCsepPrice(eligiblePricedAttachmentTotal)}`
+                          : "No trade-linked pricing items are available yet."
+                    }
+                    emptyLabel="Select a trade path and task set to reveal permit pricing and add-on pricing."
+                  />
+                  <InfoCard label="OSHA references" value={(selectedTrade?.oshaRefs ?? []).join(" | ") || "None loaded yet"} />
+                  <InfoCard label="Auto-generated programs" value={autoPrograms.join(" | ") || "None triggered yet"} />
+                  <InfoCard
+                    label="Common overlapping trades"
+                    value={commonOverlappingTrades.join(" | ") || "None inferred yet"}
+                  />
+                  {overlapPermitHints.length ? (
+                    <InlineMessage>
+                      High-risk overlap permit hints: {overlapPermitHints.join(", ")}.
+                    </InlineMessage>
+                  ) : null}
+
+                  <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-4">
+                    <div className="text-sm font-semibold text-[var(--app-text-strong)]">Program classifications</div>
+                    <div className="mt-4 space-y-4">
+                      {programSelectionState.selections.length === 0 ? (
+                        <div className="text-sm text-[var(--app-text)]">
+                          Select hazards, permits, or PPE items to reveal any required classifications.
                         </div>
-                        <div className="mt-2 text-sm text-slate-300">
-                          <span className="font-semibold">Hazard:</span>{" "}
-                          {item.hazard}
+                      ) : missingProgramSubtypeGroups.length === 0 ? (
+                        <div className="text-sm text-[var(--app-text)]">
+                          The active program set does not need any extra subtype classifications right now.
                         </div>
-                        <div className="text-sm text-slate-300">
-                          <span className="font-semibold">Risk:</span> {item.risk}
+                      ) : (
+                        missingProgramSubtypeGroups.map((group) => {
+                          const config = getSubtypeConfig(group.group);
+
+                          return (
+                            <div key={group.group} className="rounded-2xl border border-[var(--app-border)] bg-white p-4">
+                              <div className="text-sm font-semibold text-[var(--app-text-strong)]">{config.label}</div>
+                              <p className="mt-1 text-sm text-[var(--app-text)]">{config.prompt}</p>
+                              <select
+                                className={`${appNativeSelectClassName} mt-3 w-full`}
+                                value={form.program_subtype_selections[group.group] ?? ""}
+                                onChange={(event) =>
+                                  updateProgramSubtypeSelection(
+                                    group.group,
+                                    event.target.value as CSEPProgramSubtypeValue | ""
+                                  )
+                                }
+                              >
+                                <option value="">Select classification</option>
+                                {config.options.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-4">
+                    <div className="text-sm font-semibold text-[var(--app-text-strong)]">Activity / hazard matrix</div>
+                    <div className="mt-4 space-y-3">
+                      {displayedTradeItems.length ? (
+                        displayedTradeItems.map((item, index) => (
+                          <div key={`${item.activity}-${item.hazard}-${index}`} className="rounded-xl border border-[var(--app-border)] bg-white p-4">
+                            <div className="text-sm font-semibold text-[var(--app-text-strong)]">{item.activity}</div>
+                            <div className="mt-2 text-sm text-[var(--app-text)]">Hazard: {item.hazard}</div>
+                            <div className="text-sm text-[var(--app-text)]">Risk: {item.risk}</div>
+                            <div className="text-sm text-[var(--app-text)]">Controls: {item.controls.join(", ")}</div>
+                            <div className="text-sm text-[var(--app-text)]">Permit: {item.permit}</div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-sm text-[var(--app-text)]">
+                          Select hazards to preview the task matrix rows that will feed the live draft.
                         </div>
-                        <div className="text-sm text-slate-300">
-                          <span className="font-semibold">Controls:</span>{" "}
-                          {item.controls.join(", ")}
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {step === 5 ? (
+                <div className="space-y-5">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <InputField label="Project name" value={form.project_name} onChange={(value) => updateField("project_name", value)} />
+                    <InputField label="Project number" value={form.project_number} onChange={(value) => updateField("project_number", value)} />
+                    <InputField label="Project address" value={form.project_address} onChange={(value) => updateField("project_address", value)} />
+                    <InputField label="Owner / Client" value={form.owner_client} onChange={(value) => updateField("owner_client", value)} />
+                    <InputField label="GC / CM" value={form.gc_cm} onChange={(value) => updateField("gc_cm", value)} />
+                    <InputField label="Contractor company" value={form.contractor_company} onChange={(value) => updateField("contractor_company", value)} />
+                    <InputField label="Contractor contact" value={form.contractor_contact} onChange={(value) => updateField("contractor_contact", value)} />
+                    <InputField label="Contractor phone" value={form.contractor_phone} onChange={(value) => updateField("contractor_phone", value)} />
+                    <InputField label="Contractor email" value={form.contractor_email} onChange={(value) => updateField("contractor_email", value)} />
+                  </div>
+                  <SectionCard
+                    title="Document control"
+                    description="These fields populate the front-matter document-control and revision pages in the formatted CSEP package."
+                  >
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <InputField label="Document number" value={form.document_number} onChange={(value) => updateField("document_number", value)} />
+                      <InputField label="Revision" value={form.document_revision} onChange={(value) => updateField("document_revision", value)} />
+                      <InputField label="Issue date" value={form.issue_date} onChange={(value) => updateField("issue_date", value)} />
+                      <InputField label="Prepared by" value={form.prepared_by} onChange={(value) => updateField("prepared_by", value)} />
+                      <InputField label="Reviewed by" value={form.reviewed_by} onChange={(value) => updateField("reviewed_by", value)} />
+                      <InputField label="Approved by" value={form.approved_by} onChange={(value) => updateField("approved_by", value)} />
+                    </div>
+                  </SectionCard>
+                  <div className="space-y-3">
+                    {shouldShowBuilderAiAction("scope_of_work")
+                      ? renderBuilderAiAction("scope_of_work")
+                      : null}
+                    <TextAreaField
+                      label="Scope of work"
+                      value={form.scope_of_work}
+                      onChange={(value) => updateField("scope_of_work", value)}
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    {shouldShowBuilderAiAction("site_specific_notes")
+                      ? renderBuilderAiAction("site_specific_notes")
+                      : null}
+                    <TextAreaField
+                      label="Site-specific notes"
+                      value={form.site_specific_notes}
+                      onChange={(value) => updateField("site_specific_notes", value)}
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    {shouldShowBuilderAiAction("emergency_procedures")
+                      ? renderBuilderAiAction("emergency_procedures")
+                      : null}
+                    <TextAreaField
+                      label="Emergency procedures"
+                      value={form.emergency_procedures}
+                      onChange={(value) => updateField("emergency_procedures", value)}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={handleGenerateDraft}
+                      disabled={!csepReady || previewLoading}
+                      className="rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] disabled:opacity-60"
+                    >
+                      {previewLoading ? "Generating AI draft..." : previewState ? "Regenerate AI draft" : "Generate AI draft"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewApproved(true)}
+                      disabled={
+                        !previewState ||
+                        !previewIsCurrent ||
+                        previewApproved ||
+                        previewHasBlockingCoverageGaps
+                      }
+                      className="rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)] disabled:opacity-60"
+                    >
+                      {previewApproved && previewIsCurrent ? "Draft approved" : "Approve current draft"}
+                    </button>
+                  </div>
+                  {previewState ? (
+                    <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-[var(--app-text-strong)]">AI draft preview</div>
+                          <div className="mt-1 text-sm text-[var(--app-text)]">
+                            Review the generated sections for the current live CSEP selection.
+                          </div>
                         </div>
-                        <div className="text-sm text-slate-300">
-                          <span className="font-semibold">Permit:</span>{" "}
-                          {item.permit}
+                        <StatusBadge label={previewIsCurrent ? "Current" : "Stale"} tone={previewIsCurrent ? "success" : "warning"} />
+                      </div>
+                      {previewState.draft.coverageAudit?.findings?.length ? (
+                        <div className="mt-4">
+                          <CsepCoverageAuditPanel audit={previewState.draft.coverageAudit} />
+                        </div>
+                      ) : null}
+                      {previewHasBlockingCoverageGaps ? (
+                        <div className="mt-4">
+                          <InlineMessage tone="warning">
+                            Resolve all required coverage findings before approving this draft.
+                          </InlineMessage>
+                        </div>
+                      ) : null}
+                      <div className="mt-4 space-y-4">
+                        {previewState.draft.sectionMap.map((section) => (
+                          <CsepDraftSectionPreview key={section.key} section={section} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <InlineMessage>
+                      Generate the draft here after reviewing the enrichment step so the finish step only handles the submission handoff.
+                    </InlineMessage>
+                  )}
+                </div>
+              ) : null}
+
+              {step === 6 ? (
+                  <div className="space-y-5">
+                    <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-[var(--app-text-strong)]">Draft approval</div>
+                          <div className="mt-1 text-sm text-[var(--app-text)]">
+                            Finish the handoff here by generating or refreshing the draft if needed, then approve the current version before submitting.
+                          </div>
+                        </div>
+                        <StatusBadge
+                          label={
+                            previewState
+                              ? previewIsCurrent
+                                ? "Current draft"
+                                : "Regenerate needed"
+                              : "Draft needed"
+                          }
+                          tone={
+                            previewState
+                              ? previewIsCurrent
+                                ? "success"
+                                : "warning"
+                              : "warning"
+                          }
+                        />
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={handleGenerateDraft}
+                          disabled={!csepReady || previewLoading}
+                          className="rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)] disabled:opacity-60"
+                        >
+                          {previewLoading
+                            ? "Generating AI draft..."
+                            : previewState
+                              ? "Regenerate AI draft"
+                              : "Generate AI draft"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewApproved(true)}
+                          disabled={
+                            !previewState ||
+                            !previewIsCurrent ||
+                            previewApproved ||
+                            previewHasBlockingCoverageGaps
+                          }
+                          className="rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)] disabled:opacity-60"
+                        >
+                          {previewApproved && previewIsCurrent ? "Draft approved" : "Approve current draft"}
+                        </button>
+                      </div>
+                      {previewState && !previewIsCurrent ? (
+                        <div className="mt-4">
+                          <InlineMessage tone="warning">
+                            Builder inputs changed after this draft was generated. Regenerate the draft, then approve the new version before submitting.
+                          </InlineMessage>
+                        </div>
+                      ) : null}
+                    </div>
+                    <LegalAcceptanceBlock checked={agreedToSubmissionTerms} onChange={setAgreedToSubmissionTerms} />
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge label={previewReadyForSubmit ? "Draft approved" : "Draft approval required"} tone={previewReadyForSubmit ? "success" : "warning"} />
+                      <StatusBadge label={canSubmitDocuments ? "Submit access ready" : "Submit access missing"} tone={canSubmitDocuments ? "success" : "warning"} />
+                      {previewHasBlockingCoverageGaps ? (
+                        <StatusBadge label="Required gaps must be resolved" tone="warning" />
+                      ) : null}
+                    </div>
+                    {previewState ? (
+                    <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-4">
+                        <div className="text-sm font-semibold text-[var(--app-text-strong)]">Current draft preview</div>
+                        {previewState.draft.coverageAudit?.findings?.length ? (
+                          <div className="mt-4">
+                            <CsepCoverageAuditPanel audit={previewState.draft.coverageAudit} />
+                          </div>
+                        ) : null}
+                        {previewHasBlockingCoverageGaps ? (
+                          <div className="mt-4">
+                            <InlineMessage tone="warning">
+                              Submission is blocked until all required coverage findings are resolved in the draft.
+                            </InlineMessage>
+                          </div>
+                        ) : null}
+                        <div className="mt-4 rounded-xl border border-slate-300 bg-white px-6 py-6 shadow-sm">
+                          <div className="border-b border-slate-200 pb-4 text-center">
+                            <div className="text-base font-semibold text-[#365F91]">
+                              Contractor Safety &amp; Environmental Plan
+                            </div>
+                            <div className="mt-1 text-sm italic text-slate-500">
+                              Preview styled to match the clean steel-erection document format
+                            </div>
+                          </div>
+                          <div className="mt-6 space-y-6">
+                          {previewState.draft.sectionMap.map((section) => (
+                            <CsepDraftSectionPreview key={`finish-${section.key}`} section={section} />
+                          ))}
+                        </div>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-slate-300">
-                      Select at least one generated hazard to preview the matrix rows that will be sent with this CSEP.
-                    </p>
-                  )
-                ) : (
-                  <p className="text-sm text-slate-300">
-                    Select a trade, sub-trade, and task to load the activity / hazard matrix.
-                  </p>
-                )}
-              </div>
-            </section>
-          </aside>
-        </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={handleSubmitForReview}
+                    disabled={submitLoading || !agreedToSubmissionTerms || !canSubmitDocuments || !previewReadyForSubmit}
+                    className="rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] disabled:opacity-60"
+                  >
+                    {submitLoading ? "Submitting..." : "Submit for review"}
+                  </button>
+                </div>
+              ) : null}
 
-        <div className="sticky bottom-4 z-10 mt-6">
-          <div className="rounded-[1.5rem] border border-slate-700/80 bg-slate-900/92 p-5 shadow-[0_18px_36px_rgba(0,0,0,0.35)] backdrop-blur sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-slate-100">
-                  Submission Handoff
-                </div>
-                <div className="mt-1 text-sm text-slate-300">
-                  Review the snapshot on the right, then send the CSEP into admin review.
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                <StatusBadge
-                  label={form.trade && form.subTrade ? "Trade scope ready" : "Trade scope needed"}
-                  tone={form.trade && form.subTrade ? "success" : "warning"}
-                />
-                <StatusBadge
-                  label={form.tasks.length ? "Tasks selected" : "Tasks needed"}
-                  tone={form.tasks.length ? "success" : "warning"}
-                />
-                <StatusBadge
-                  label={
-                    form.selected_hazards.length ? "Hazards selected" : "Hazards needed"
-                  }
-                  tone={form.selected_hazards.length ? "success" : "warning"}
-                />
-                <StatusBadge
-                  label={
-                    missingProgramSubtypeGroups.length === 0
-                      ? "Program details ready"
-                      : "Program details needed"
-                  }
-                  tone={missingProgramSubtypeGroups.length === 0 ? "success" : "warning"}
-                />
+              <div className="flex flex-wrap gap-3 border-t border-[var(--app-border)] pt-2">
                 <button
                   type="button"
-                  onClick={handleSubmitForReview}
-                  disabled={
-                    submitLoading ||
-                    !agreedToSubmissionTerms ||
-                    authLoading ||
-                    !canSubmitDocuments ||
-                    !csepHandoffReady
-                  }
-                  className="inline-flex min-h-[2.5rem] items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:brightness-100"
+                  onClick={() => setStep((current) => Math.max(0, current - 1))}
+                  disabled={step === 0}
+                  className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] disabled:opacity-50"
                 >
-                  {submitLoading ? "Submitting..." : "Submit for Review"}
+                  Back
                 </button>
+                {step < workflowDefinition.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setStep((current) => current + 1)}
+                    disabled={!canProceed(step)}
+                    className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    Next step
+                  </button>
+                ) : null}
               </div>
+            </fieldset>
+          </SectionCard>
+        </div>
+
+        <div className="space-y-6">
+          <WorkflowPath
+            title="Picture-driven workflow"
+            description="This live CSEP page follows the same step structure you wanted, but it stays open to all trades, sub-trades, and task combinations in the real CSEP builder."
+            steps={workflowSteps}
+          />
+          <StartChecklist title="Readiness checklist" items={readinessChecklist} />
+          <SectionCard title="Builder snapshot" description="Live view of what the generator has assembled so far.">
+            <InfoCard label="Jurisdiction" value={jurisdictionProfile.jurisdictionLabel} />
+            <InfoCard label="Trade" value={(selectedTrade?.tradeLabel ?? form.trade) || "Not selected"} />
+            <InfoCard label="Sub-trade" value={(selectedTrade?.subTradeLabel ?? form.subTrade) || "Not selected"} />
+            <InfoCard label="Tasks" value={form.tasks.length ? `${form.tasks.length} selected` : "None selected"} />
+            <InfoCard label="Hazards" value={form.selected_hazards.length ? `${form.selected_hazards.length} selected` : "None selected"} />
+            <InfoCard label="Programs" value={autoPrograms.length ? `${autoPrograms.length} generated` : "None generated"} />
+          </SectionCard>
+          <SectionCard
+            title="Selected document layout"
+            description="The final draft follows the numbered 19-section format package selected in this workflow."
+          >
+            <div className="space-y-3">
+              {csepFormatSectionOptionItems.map((section) => (
+                <InfoCard
+                  key={section.value}
+                  label={section.label}
+                  value={
+                    form.selected_format_sections.includes(section.value as CsepFormatSectionKey)
+                      ? "Included in the draft."
+                      : "Excluded from the draft."
+                  }
+                />
+              ))}
             </div>
-          </div>
+          </SectionCard>
         </div>
       </div>
     </div>
   );
 }
 
-function SnapshotRow({
+function SelectField({
   label,
   value,
-  missing,
+  onChange,
+  options,
+  placeholder,
+  disabled = false,
 }: {
   label: string;
   value: string;
-  missing?: boolean;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+  placeholder: string;
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
-      <span className="text-sm text-slate-300">{label}</span>
-      <span
-        className={`text-right text-sm font-semibold ${
-          missing ? "text-amber-200/90" : "text-slate-100"
-        }`}
+    <label className="block">
+      <div className="mb-2 text-sm font-semibold text-[var(--app-text-strong)]">{label}</div>
+      <select
+        className={`${appNativeSelectClassName} w-full`}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
       >
-        {value}
-      </span>
+        <option value="">{placeholder}</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function InputField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <div className="mb-2 text-sm font-semibold text-[var(--app-text-strong)]">{label}</div>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm text-[var(--app-text-strong)] outline-none transition focus:border-[var(--app-accent-primary)]"
+      />
+    </label>
+  );
+}
+
+function TextAreaField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <div className="mb-2 text-sm font-semibold text-[var(--app-text-strong)]">{label}</div>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={4}
+        className="w-full rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-3 text-sm text-[var(--app-text-strong)] outline-none transition focus:border-[var(--app-accent-primary)]"
+      />
+    </label>
+  );
+}
+
+function OptionGrid({
+  items,
+  selectedItems,
+  onToggle,
+  onApplyAll,
+  onClearAll,
+}: {
+  items: OptionGridItem[];
+  selectedItems: string[];
+  onToggle: (value: string) => void;
+  onApplyAll?: () => void;
+  onClearAll?: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      {items.length ? (
+        <div className="flex flex-wrap gap-2">
+          {onApplyAll ? (
+            <button
+              type="button"
+              onClick={onApplyAll}
+              className="rounded-full border border-[var(--app-border-strong)] bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
+            >
+              Apply all
+            </button>
+          ) : null}
+          {onClearAll ? (
+            <button
+              type="button"
+              onClick={onClearAll}
+              className="rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--app-text)] transition hover:bg-white"
+            >
+              Clear all
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      <div className="grid gap-3">
+        {items.map((item) => (
+          <label
+            key={item.value}
+            className="flex items-start gap-3 rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-4"
+          >
+            <input
+              type="checkbox"
+              checked={selectedItems.includes(item.value)}
+              onChange={() => onToggle(item.value)}
+              className="mt-1 h-4 w-4"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-medium text-[var(--app-text-strong)]">{item.label}</span>
+                {item.badge ? (
+                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-[var(--app-text-strong)]">
+                    {item.badge}
+                  </span>
+                ) : null}
+              </div>
+              {item.description ? (
+                <div className="mt-1 text-xs leading-5 text-[var(--app-text)]">{item.description}</div>
+              ) : null}
+            </div>
+          </label>
+        ))}
+      </div>
     </div>
   );
 }
+
+function InfoCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-3">
+      <div className="text-sm font-semibold text-[var(--app-text-strong)]">{label}</div>
+      <div className="mt-1 text-sm text-[var(--app-text)]">{value}</div>
+    </div>
+  );
+}
+
+function SectionBucket({
+  title,
+  items,
+  selectedItems,
+  onToggle,
+  onApplyAll,
+  onClearAll,
+  summaryValue,
+  emptyLabel = "Nothing selected yet.",
+}: {
+  title: string;
+  items: OptionGridItem[];
+  selectedItems: string[];
+  onToggle: (value: string) => void;
+  onApplyAll?: () => void;
+  onClearAll?: () => void;
+  summaryValue?: string;
+  emptyLabel?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-4">
+      <div className="text-sm font-semibold text-[var(--app-text-strong)]">{title}</div>
+      {summaryValue ? (
+        <div className="mt-1 text-sm text-[var(--app-text)]">{summaryValue}</div>
+      ) : null}
+      <div className="mt-4">
+        {items.length ? (
+          <OptionGrid
+            items={items}
+            selectedItems={selectedItems}
+            onToggle={onToggle}
+            onApplyAll={onApplyAll}
+            onClearAll={onClearAll}
+          />
+        ) : (
+          <div className="text-sm text-[var(--app-text)]">{emptyLabel}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CsepDraftSectionPreview({
+  section,
+}: {
+  section: GeneratedSafetyPlanDraft["sectionMap"][number];
+}) {
+  const sectionMetaLabel =
+    section.kind === "front_matter"
+      ? "Front matter"
+      : section.kind === "appendix"
+        ? "Appendix"
+        : section.kind === "gap"
+          ? "Coverage callout"
+          : null;
+  const cleanTitle = section.numberLabel && section.title.startsWith(section.numberLabel)
+    ? section.title
+    : section.numberLabel
+      ? `${section.numberLabel} ${section.title.replace(/^(Section\s+)?\d+(?:\.\d+)*\.?\s+/i, "").trim()}`
+      : section.title;
+  const sectionPrefix = section.numberLabel
+    ? section.numberLabel.replace(/\.0$/, "")
+    : null;
+
+  return (
+    <section className="border-b border-slate-200 pb-8 last:border-b-0">
+      {sectionMetaLabel ? (
+        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+          {sectionMetaLabel}
+        </div>
+      ) : null}
+      <div className="mt-2 text-[15px] font-semibold text-[#365F91]">{cleanTitle}</div>
+      {section.summary ? (
+        <p className="mt-3 text-sm leading-7 text-slate-700">{section.summary}</p>
+      ) : null}
+      {section.body ? (
+        <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+          {section.body}
+        </p>
+      ) : null}
+      {section.bullets?.length ? (
+        <div className="mt-3 space-y-2">
+          {section.bullets.map((bullet, bulletIndex) => (
+            <p key={`${section.key}-bullet-${bulletIndex}`} className="pl-4 text-sm leading-7 text-slate-700">
+              <span className="mr-2 font-semibold text-[#4F81BD]">
+                {sectionPrefix ? `${sectionPrefix}.${bulletIndex + 1}` : `${bulletIndex + 1}.`}
+              </span>
+              {bullet}
+            </p>
+          ))}
+        </div>
+      ) : null}
+      {section.subsections?.length ? (
+        <div className="mt-5 space-y-5">
+          {section.subsections.map((subsection, subsectionIndex) => {
+            const subsectionPrefix = sectionPrefix
+              ? `${sectionPrefix}.${subsectionIndex + 1}`
+              : `${subsectionIndex + 1}`;
+            const subsectionHeading =
+              subsection.title.trim() &&
+              subsection.title.trim().toLowerCase() !== section.title.trim().toLowerCase()
+                ? `${subsectionPrefix} ${subsection.title.replace(/^(Section\s+)?\d+(?:\.\d+)*\.?\s+/i, "").trim()}`
+                : null;
+
+            return (
+              <div key={`${section.key}-subsection-${subsectionIndex}`}>
+                {subsectionHeading ? (
+                  <div className="text-sm font-semibold text-[#4F81BD]">{subsectionHeading}</div>
+                ) : null}
+                {subsection.body ? (
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {subsection.body}
+                  </p>
+                ) : null}
+                {subsection.bullets.length ? (
+                  <div className="mt-2 space-y-2">
+                    {subsection.bullets.map((bullet, bulletIndex) => (
+                      <p
+                        key={`${section.key}-subsection-${subsectionIndex}-bullet-${bulletIndex}`}
+                        className="pl-4 text-sm leading-7 text-slate-700"
+                      >
+                        <span className="mr-2 font-semibold text-[#4F81BD]">
+                          {subsectionHeading
+                            ? `${subsectionPrefix}.${bulletIndex + 1}`
+                            : sectionPrefix
+                              ? `${sectionPrefix}.${bulletIndex + 1}`
+                              : `${bulletIndex + 1}.`}
+                        </span>
+                        {bullet}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+      {section.table?.rows?.length ? (
+        <div className="mt-5 overflow-x-auto">
+          <table className="min-w-full border-collapse text-sm text-slate-700">
+            <thead>
+              <tr>
+                {section.table.columns.map((column) => (
+                  <th
+                    key={`${section.key}-column-${column}`}
+                    className="border border-slate-300 bg-slate-100 px-3 py-2 text-left font-semibold text-[#365F91]"
+                  >
+                    {column}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {section.table.rows.map((row, rowIndex) => (
+                <tr key={`${section.key}-row-${rowIndex}`}>
+                  {section.table?.columns.map((column, columnIndex) => (
+                    <td
+                      key={`${section.key}-row-${rowIndex}-column-${columnIndex}`}
+                      className="border border-slate-300 px-3 py-2 align-top"
+                    >
+                      {row[columnIndex] || "N/A"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function CsepCoverageAuditPanel({
+  audit,
+}: {
+  audit: NonNullable<GeneratedSafetyPlanDraft["coverageAudit"]>;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white p-4">
+      <div className="text-sm font-semibold text-[var(--app-text-strong)]">Coverage audit</div>
+      <div className="mt-1 text-sm text-[var(--app-text)]">
+        Required: {audit.unresolvedRequiredCount} | Warnings: {audit.unresolvedWarningCount}
+      </div>
+      <div className="mt-4 space-y-2">
+        {audit.findings.map((finding) => (
+          <div
+            key={finding.key}
+            className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-3"
+          >
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--app-text-strong)]">
+              {finding.severity}
+            </div>
+            <div className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">
+              {finding.title}
+            </div>
+            <div className="mt-1 text-sm leading-6 text-[var(--app-text)]">{finding.detail}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+

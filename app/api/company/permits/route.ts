@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { authorizeRequest, isAdminRole } from "@/lib/rbac";
+import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { canManageCompanyPermits } from "@/lib/companyFeatureAccess";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { buildPermitFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
@@ -13,10 +14,6 @@ function isMissingTable(message?: string | null) {
 function isMissingCompatView(message?: string | null) {
   return (message ?? "").toLowerCase().includes("compat_company_permits");
 }
-function canManage(role: string) {
-  return isAdminRole(role) || role === "company_admin" || role === "manager" || role === "safety_manager";
-}
-
 const PERMIT_STATUSES = new Set(["draft", "active", "closed", "expired"]);
 const ESCALATION_LEVELS = new Set(["none", "monitor", "urgent", "critical"]);
 const STOP_WORK_STATUSES = new Set([
@@ -134,7 +131,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const auth = await authorizeRequest(request, { requireAnyPermission: ["can_create_documents", "can_view_all_company_data"] });
   if ("error" in auth) return auth.error;
-  if (!canManage(auth.role)) return NextResponse.json({ error: "Only company admins and managers can create permits." }, { status: 403 });
+  if (!canManageCompanyPermits(auth.role, auth.permissionMap)) {
+    return NextResponse.json(
+      { error: "Only company admins and managers can create permits." },
+      { status: 403 }
+    );
+  }
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
   const csepBlockPost = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
@@ -250,7 +252,12 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const auth = await authorizeRequest(request, { requireAnyPermission: ["can_edit_documents", "can_view_all_company_data"] });
   if ("error" in auth) return auth.error;
-  if (!canManage(auth.role)) return NextResponse.json({ error: "Only company admins and managers can update permits." }, { status: 403 });
+  if (!canManageCompanyPermits(auth.role, auth.permissionMap)) {
+    return NextResponse.json(
+      { error: "Only company admins and managers can update permits." },
+      { status: 403 }
+    );
+  }
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;

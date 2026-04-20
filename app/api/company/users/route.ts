@@ -184,6 +184,7 @@ const COMPANY_ASSIGNABLE_ROLES: AppRole[] = [
   "manager",
   "safety_manager",
   "project_manager",
+  "field_supervisor",
   "foreman",
   "field_user",
   "read_only",
@@ -247,7 +248,7 @@ function getCompanySafeRole(role?: string | null) {
 
 function formatRoleConstraintError(message?: string | null) {
   if ((message ?? "").includes("company_invites_role_check")) {
-    return "The database invite role constraint has not been updated yet. Run the latest Supabase migration to allow Operations Manager in company invites.";
+    return "The database invite role constraint has not been updated yet. Run the latest Supabase migration to allow the current company-scoped roles in company invites.";
   }
 
   if ((message ?? "").includes("user_roles_role_check")) {

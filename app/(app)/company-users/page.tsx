@@ -59,6 +59,7 @@ const roleOptions = [
   "Operations Manager",
   "Safety Manager",
   "Project Manager",
+  "Field Supervisor",
   "Foreman",
   "Field User",
   "Read Only",
@@ -68,6 +69,7 @@ const roleOptions = [
 function roleNeedsAssignments(role: string) {
   return (
     role === "Project Manager" ||
+    role === "Field Supervisor" ||
     role === "Foreman" ||
     role === "Field User" ||
     role === "Read Only" ||
@@ -85,6 +87,7 @@ function statusTone(status: string): "success" | "warning" | "error" | "neutral"
 function roleClasses(role: string) {
   if (role === "Safety Manager") return "bg-emerald-100 text-emerald-700";
   if (role === "Project Manager") return "bg-indigo-100 text-indigo-700";
+  if (role === "Field Supervisor") return "bg-cyan-100 text-cyan-700";
   if (role === "Foreman") return "bg-cyan-100 text-cyan-700";
   if (role === "Field User") return "bg-lime-100 text-lime-700";
   if (role === "Read Only") return "bg-slate-200 text-slate-300";

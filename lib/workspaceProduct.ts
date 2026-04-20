@@ -1,3 +1,5 @@
+import { CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL } from "@/lib/safetyBlueprintLabels";
+
 /** Stored in `company_subscriptions.plan_name` for CSEP-only (comped / limited) workspaces. */
 export const CSEP_PLAN_NAME = "CSEP";
 
@@ -38,7 +40,7 @@ export const csepOnlyCompanySideSections: NavSectionLike[] = [
     title: "Workspace",
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
-      { href: "/csep", label: "CSEP builder", short: "CS" },
+      { href: "/csep", label: CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL, short: "DC" },
       { href: "/library", label: "Completed documents", short: "LB" },
       { href: "/search", label: "Search documents", short: "SR" },
       { href: "/customer/billing", label: "Billing", short: "BL" },

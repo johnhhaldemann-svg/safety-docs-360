@@ -8,8 +8,11 @@ import { serverLog } from "@/lib/serverLog";
 import { ensureSafetyPlanGenerationContext } from "@/lib/safety-intelligence/documentIntake";
 import { runSafetyPlanDocumentPipeline } from "@/lib/safety-intelligence/documents/pipeline";
 import { renderSafetyPlanDocx } from "@/lib/safety-intelligence/documents/render";
+import { renderGeneratedCsepDocx } from "@/lib/csepDocxRenderer";
+import { syncGeneratedTrainingRequirements } from "@/lib/safety-intelligence/trainingProgram";
 import { generateCsepDocx } from "@/app/api/csep/export/route";
 import { generatePshsepDocx } from "@/app/api/pshsep/export/route";
+import type { GeneratedSafetyPlanDraft } from "@/types/safety-intelligence";
 
 export const runtime = "nodejs";
 
@@ -18,6 +21,8 @@ type SubmitPayload = {
   document_type: string;
   project_name: string;
   form_data: Record<string, unknown>;
+  generated_document_id?: string;
+  builder_input_hash?: string;
 };
 
 function normalizeRequiredString(value: unknown) {
@@ -38,6 +43,13 @@ function isMissingSafetyIntelligenceSchemaError(error: unknown) {
     "company_ai_reviews",
     "company_generated_documents",
     "company_conflict_pairs",
+    "company_training_requirements",
+    "apply_sub_trades",
+    "apply_task_codes",
+    "is_generated",
+    "generated_source_type",
+    "generated_source_document_id",
+    "generated_source_operation_key",
     "generated_document_id",
     "source_document_id",
   ];
@@ -75,6 +87,7 @@ function isRecoverableSafetyPlanPipelineError(error: unknown) {
     "company_conflict_pairs",
     "company_ai_reviews",
     "company_generated_documents",
+    "company_training_requirements",
     "platform_rule_templates",
     "company_rule_overrides",
     "jobsite_rule_overrides",
@@ -123,6 +136,10 @@ async function renderLegacyDraftFile(params: {
     body: rendered.body,
     filename: rendered.filename,
   };
+}
+
+function isGeneratedSafetyPlanDraft(value: unknown): value is GeneratedSafetyPlanDraft {
+  return Boolean(value) && typeof value === "object" && "sectionMap" in (value as Record<string, unknown>);
 }
 
 export async function POST(request: Request) {
@@ -192,6 +209,112 @@ export async function POST(request: Request) {
       );
     }
 
+    const canonicalDocumentType = normalizedType === "CSEP" ? "csep" : "pshsep";
+    const generationContext = ensureSafetyPlanGenerationContext({
+      documentType: canonicalDocumentType,
+      formData: {
+        ...form_data,
+        project_name,
+      },
+      companyId: companyScope.companyId,
+      jobsiteId:
+        typeof form_data.jobsite_id === "string" && form_data.jobsite_id.trim()
+          ? form_data.jobsite_id.trim()
+          : null,
+    });
+    const riskMemory = await buildRiskMemoryStructuredContext(
+      supabase,
+      companyScope.companyId,
+      {
+        jobsiteId: generationContext.siteContext.jobsiteId ?? null,
+        days: 90,
+      }
+    ).catch((riskMemoryError) => {
+      serverLog("warn", "document_submit_risk_memory_fallback", {
+        userId: user.id,
+        companyId: companyScope.companyId,
+        documentType: normalizedType,
+        message: extractErrorMessage(riskMemoryError).slice(0, 200),
+      });
+      return null;
+    });
+    let approvedPreviewDraft: GeneratedSafetyPlanDraft | null = null;
+    let approvedPreviewBucketRunId: string | null = null;
+
+    if (
+      normalizedType === "CSEP" &&
+      typeof body.generated_document_id === "string" &&
+      body.generated_document_id.trim()
+    ) {
+      const currentBuilderInputHash = generationContext.builderInstructions?.builderInputHash ?? null;
+      const requestedBuilderInputHash = normalizeRequiredString(body.builder_input_hash);
+
+      if (!requestedBuilderInputHash || !currentBuilderInputHash) {
+        return NextResponse.json(
+          { error: "Generate and approve a current AI draft before submitting this CSEP." },
+          { status: 409 }
+        );
+      }
+
+      if (requestedBuilderInputHash !== currentBuilderInputHash) {
+        return NextResponse.json(
+          { error: "The builder changed after AI draft approval. Regenerate the AI draft before submitting." },
+          { status: 409 }
+        );
+      }
+
+      const previewResult = await supabase
+        .from("company_generated_documents")
+        .select("id, company_id, created_by, document_type, bucket_run_id, provenance, draft_json")
+        .eq("id", body.generated_document_id.trim())
+        .single();
+
+      if (previewResult.error || !previewResult.data) {
+        return NextResponse.json(
+          { error: "Approved AI draft not found. Regenerate the AI draft before submitting." },
+          { status: 404 }
+        );
+      }
+
+      const previewRow = previewResult.data as Record<string, unknown>;
+      const storedProvenance =
+        previewRow.provenance && typeof previewRow.provenance === "object"
+          ? (previewRow.provenance as Record<string, unknown>)
+          : {};
+      const storedBuilderInputHash = normalizeRequiredString(storedProvenance.builderInputHash);
+
+      if (
+        String(previewRow.company_id ?? "") !== companyScope.companyId ||
+        String(previewRow.created_by ?? "") !== user.id ||
+        String(previewRow.document_type ?? "").toLowerCase() !== "csep"
+      ) {
+        return NextResponse.json(
+          { error: "Approved AI draft is not available for this company submission context." },
+          { status: 403 }
+        );
+      }
+
+      if (storedBuilderInputHash !== requestedBuilderInputHash) {
+        return NextResponse.json(
+          { error: "The approved AI draft is stale. Regenerate the AI draft before submitting." },
+          { status: 409 }
+        );
+      }
+
+      if (!isGeneratedSafetyPlanDraft(previewRow.draft_json)) {
+        return NextResponse.json(
+          { error: "Approved AI draft is incomplete. Regenerate the AI draft before submitting." },
+          { status: 409 }
+        );
+      }
+
+      approvedPreviewDraft = previewRow.draft_json;
+      approvedPreviewBucketRunId =
+        typeof previewRow.bucket_run_id === "string" && previewRow.bucket_run_id.trim()
+          ? previewRow.bucket_run_id
+          : null;
+    }
+
     const safeProjectName = project_name.replace(/[^a-zA-Z0-9-_]/g, "_");
     const documentId = crypto.randomUUID();
     const draftFileName = `${safeProjectName}_${normalizedType}_Draft.docx`;
@@ -224,83 +347,89 @@ export async function POST(request: Request) {
     }
     createdDocumentId = insertedDoc.id;
 
-    const canonicalDocumentType = normalizedType === "CSEP" ? "csep" : "pshsep";
-    const generationContext = ensureSafetyPlanGenerationContext({
-      documentType: canonicalDocumentType,
-      formData: {
-        ...form_data,
-        project_name,
-      },
-      companyId: companyScope.companyId,
-      jobsiteId:
-        typeof form_data.jobsite_id === "string" && form_data.jobsite_id.trim()
-          ? form_data.jobsite_id.trim()
-          : null,
-    });
-    const riskMemory = await buildRiskMemoryStructuredContext(
-      supabase,
-      companyScope.companyId,
-      {
-        jobsiteId: generationContext.siteContext.jobsiteId ?? null,
-        days: 90,
-      }
-    ).catch((riskMemoryError) => {
-      serverLog("warn", "document_submit_risk_memory_fallback", {
-        userId: user.id,
-        companyId: companyScope.companyId,
-        documentType: normalizedType,
-        message: extractErrorMessage(riskMemoryError).slice(0, 200),
-      });
-      return null;
-    });
     let fileData: Uint8Array;
     let generatedDocumentId: string | null = null;
     let bucketRunId: string | null = null;
 
-    try {
-      const pipeline = await runSafetyPlanDocumentPipeline({
-        supabase,
-        actorUserId: user.id,
-        companyId: companyScope.companyId,
-        jobsiteId: generationContext.siteContext.jobsiteId ?? null,
-        sourceDocumentId: insertedDoc.id,
-        generationContext,
-        intakePayload: {
-          document_type: document_type.trim(),
-          project_name: project_name.trim(),
-          form_data,
-        },
-        riskMemorySummary: (riskMemory ?? null) as any,
-      });
-      const rendered = await renderSafetyPlanDocx(pipeline.draft);
+    if (approvedPreviewDraft) {
+      const rendered =
+        normalizedType === "CSEP"
+          ? await renderGeneratedCsepDocx(approvedPreviewDraft)
+          : await renderSafetyPlanDocx(approvedPreviewDraft);
       fileData = rendered.body;
-      generatedDocumentId = pipeline.generatedDocumentId;
-      bucketRunId = pipeline.bucketRunId;
+      generatedDocumentId = body.generated_document_id?.trim() ?? null;
+      bucketRunId = approvedPreviewBucketRunId;
 
       await supabase
         .from("documents")
         .update({
-          generated_document_id: pipeline.generatedDocumentId,
+          generated_document_id: generatedDocumentId,
         })
         .eq("id", insertedDoc.id);
-    } catch (pipelineError) {
-      if (!isRecoverableSafetyPlanPipelineError(pipelineError)) {
-        throw pipelineError;
-      }
 
-      serverLog("warn", "document_submit_pipeline_schema_fallback", {
-        userId: user.id,
-        companyId: companyScope.companyId,
-        documentType: normalizedType,
-        message: extractErrorMessage(pipelineError).slice(0, 200),
-      });
-
-      const legacyDraft = await renderLegacyDraftFile({
-        normalizedType,
-        formData: form_data,
+      await syncGeneratedTrainingRequirements({
         supabase,
+        companyId: companyScope.companyId,
+        sourceDocumentId: insertedDoc.id,
+        trainingProgram: approvedPreviewDraft.trainingProgram,
+        actorUserId: user.id,
+      }).catch((trainingError) => {
+        serverLog("warn", "document_submit_preview_training_sync_failed", {
+          userId: user.id,
+          companyId: companyScope.companyId,
+          documentId: insertedDoc.id,
+          message: extractErrorMessage(trainingError).slice(0, 200),
+        });
       });
-      fileData = legacyDraft.body;
+    } else {
+      try {
+        const pipeline = await runSafetyPlanDocumentPipeline({
+          supabase,
+          actorUserId: user.id,
+          companyId: companyScope.companyId,
+          jobsiteId: generationContext.siteContext.jobsiteId ?? null,
+          sourceDocumentId: insertedDoc.id,
+          generationContext,
+          intakePayload: {
+            document_type: document_type.trim(),
+            project_name: project_name.trim(),
+            form_data,
+          },
+          riskMemorySummary: (riskMemory ?? null) as any,
+        });
+        const rendered =
+          normalizedType === "CSEP"
+            ? await renderGeneratedCsepDocx(pipeline.draft)
+            : await renderSafetyPlanDocx(pipeline.draft);
+        fileData = rendered.body;
+        generatedDocumentId = pipeline.generatedDocumentId;
+        bucketRunId = pipeline.bucketRunId;
+
+        await supabase
+          .from("documents")
+          .update({
+            generated_document_id: pipeline.generatedDocumentId,
+          })
+          .eq("id", insertedDoc.id);
+      } catch (pipelineError) {
+        if (!isRecoverableSafetyPlanPipelineError(pipelineError)) {
+          throw pipelineError;
+        }
+
+        serverLog("warn", "document_submit_pipeline_schema_fallback", {
+          userId: user.id,
+          companyId: companyScope.companyId,
+          documentType: normalizedType,
+          message: extractErrorMessage(pipelineError).slice(0, 200),
+        });
+
+        const legacyDraft = await renderLegacyDraftFile({
+          normalizedType,
+          formData: form_data,
+          supabase,
+        });
+        fileData = legacyDraft.body;
+      }
     }
 
     const { error: uploadError } = await supabase.storage

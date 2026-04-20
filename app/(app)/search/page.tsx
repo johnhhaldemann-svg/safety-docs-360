@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage } from "@/components/WorkspacePrimitives";
 import { getDocumentStatusLabel } from "@/lib/documentStatus";
 import type { PermissionMap } from "@/lib/rbac";
+import { formatSafetyBlueprintDocumentType } from "@/lib/safetyBlueprintLabels";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -128,7 +129,7 @@ export default function SearchPage() {
     for (const doc of documents) {
       const t = doc.document_type?.trim();
       if (t) {
-        types.add(t);
+        types.add(formatSafetyBlueprintDocumentType(t));
       }
     }
     return ["All Types", ...Array.from(types).sort((a, b) => a.localeCompare(b))];
@@ -139,7 +140,7 @@ export default function SearchPage() {
     return documents.filter((doc) => {
       const title = getDocumentTitle(doc).toLowerCase();
       const category = (doc.category ?? "").toLowerCase();
-      const dtype = (doc.document_type ?? "").toLowerCase();
+        const dtype = formatSafetyBlueprintDocumentType(doc.document_type).toLowerCase();
       const project = (doc.project_name ?? "").toLowerCase();
       const fname = (doc.file_name ?? "").toLowerCase();
 
@@ -151,8 +152,10 @@ export default function SearchPage() {
         project.includes(q) ||
         fname.includes(q);
 
-      const matchesType =
-        typeFilter === "All Types" ? true : doc.document_type === typeFilter;
+        const matchesType =
+          typeFilter === "All Types"
+            ? true
+            : formatSafetyBlueprintDocumentType(doc.document_type) === typeFilter;
 
       return matchesQuery && matchesType;
     });
@@ -290,7 +293,9 @@ export default function SearchPage() {
                   doc.status,
                   Boolean(doc.final_file_path)
                 );
-                const typeLabel = doc.document_type?.trim() || "Type not set";
+                const typeLabel = doc.document_type
+                  ? formatSafetyBlueprintDocumentType(doc.document_type)
+                  : "Type not set";
                 const categoryLabel = doc.category?.trim() || "Unassigned";
 
                 return (

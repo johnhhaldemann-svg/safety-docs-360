@@ -1,5 +1,7 @@
 "use client";
 
+import { formatSafetyBlueprintDocumentType } from "@/lib/safetyBlueprintLabels";
+
 export function AdminReviewQueue({
   documents,
 }: {
@@ -27,7 +29,7 @@ export function AdminReviewQueue({
             <div>
               <p className="text-sm font-semibold text-[var(--app-text-strong)]">{document.title}</p>
               <p className="mt-1 text-xs uppercase tracking-[0.18em] text-[var(--app-text)]">
-                {document.document_type.replace(/_/g, " ")}
+                {formatSafetyBlueprintDocumentType(document.document_type).replace(/_/g, " ")}
               </p>
             </div>
             <div className="text-right">

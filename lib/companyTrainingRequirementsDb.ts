@@ -4,15 +4,24 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 const COLS_BASE = "id, company_id, title, sort_order, match_keywords, match_fields";
 const COLS_WITH_RENEWAL = `${COLS_BASE}, renewal_months`;
 const COLS_APPLY = "apply_trades, apply_positions";
+const COLS_TASK_SCOPE = "apply_sub_trades, apply_task_codes";
+const COLS_GENERATED =
+  "is_generated, generated_source_type, generated_source_document_id, generated_source_operation_key";
 const COLS_TS = "created_at, updated_at";
 
 export const TRAINING_REQUIREMENTS_SCHEMA_WARNING =
-  "Your database is missing columns apply_trades and apply_positions. In Supabase → SQL Editor, run the migration that adds them (see supabase/migrations/20260329120000_training_requirements_trade_position.sql). Until then, every requirement applies to all trades and positions, and new saves cannot store trade/position picks.";
+  "Your database is missing training requirement scope columns. Run the latest company training requirement migrations in Supabase SQL Editor so trade, position, subtrade, task, and generated CSEP training rules can be stored correctly.";
 
-/** Paste into Supabase → SQL → New query → Run */
+/** Paste into Supabase SQL Editor and run if the latest training requirement migration has not been applied. */
 export const TRAINING_REQUIREMENTS_MIGRATION_SQL = `alter table public.company_training_requirements
   add column if not exists apply_trades text[] not null default '{}'::text[],
-  add column if not exists apply_positions text[] not null default '{}'::text[];`;
+  add column if not exists apply_positions text[] not null default '{}'::text[],
+  add column if not exists apply_sub_trades text[] not null default '{}'::text[],
+  add column if not exists apply_task_codes text[] not null default '{}'::text[],
+  add column if not exists is_generated boolean not null default false,
+  add column if not exists generated_source_type text,
+  add column if not exists generated_source_document_id uuid,
+  add column if not exists generated_source_operation_key text;`;
 
 export type TrainingRequirementDbRow = {
   id: string;
@@ -23,66 +32,110 @@ export type TrainingRequirementDbRow = {
   match_fields: string[];
   apply_trades: string[] | null;
   apply_positions: string[] | null;
+  apply_sub_trades: string[] | null;
+  apply_task_codes: string[] | null;
   renewal_months: number | null;
+  is_generated: boolean | null;
+  generated_source_type: string | null;
+  generated_source_document_id: string | null;
+  generated_source_operation_key: string | null;
   created_at?: string;
   updated_at?: string;
 };
 
 type PgErrLike = { message?: string; details?: string; hint?: string } | string | null | undefined;
 
-/** Detects missing apply_* columns from Postgres / PostgREST wording variants. */
-export function isMissingApplyColumnsError(err: PgErrLike): boolean {
+function errorMessage(err: PgErrLike): string {
   const parts: string[] = [];
-  if (typeof err === "string") parts.push(err);
-  else if (err && typeof err === "object") {
+  if (typeof err === "string") {
+    parts.push(err);
+  } else if (err && typeof err === "object") {
     if (err.message) parts.push(err.message);
     if (err.details) parts.push(err.details);
     if (err.hint) parts.push(err.hint);
   }
-  const m = parts.join(" ").toLowerCase();
-  if (!m) return false;
-  const mentionsApply =
-    m.includes("apply_trades") ||
-    m.includes("apply_positions") ||
-    m.includes("apply trades") ||
-    m.includes("apply positions");
-  if (!mentionsApply) return false;
+  return parts.join(" ").toLowerCase();
+}
+
+function missingColumnMessage(message: string, tokens: string[]): boolean {
+  if (!message) return false;
+  if (!tokens.some((token) => message.includes(token))) return false;
   return (
-    m.includes("does not exist") ||
-    m.includes("could not find") ||
-    m.includes("unknown column") ||
-    m.includes("undefined column") ||
-    m.includes("schema cache")
+    message.includes("does not exist") ||
+    message.includes("could not find") ||
+    message.includes("unknown column") ||
+    message.includes("undefined column") ||
+    message.includes("schema cache")
   );
+}
+
+/** Detects missing apply_* columns from Postgres / PostgREST wording variants. */
+export function isMissingApplyColumnsError(err: PgErrLike): boolean {
+  return missingColumnMessage(errorMessage(err), [
+    "apply_trades",
+    "apply_positions",
+    "apply trades",
+    "apply positions",
+  ]);
+}
+
+export function isMissingTaskScopeColumnsError(err: PgErrLike): boolean {
+  return missingColumnMessage(errorMessage(err), [
+    "apply_sub_trades",
+    "apply_task_codes",
+    "apply sub trades",
+    "apply task codes",
+  ]);
+}
+
+export function isMissingGeneratedColumnsError(err: PgErrLike): boolean {
+  return missingColumnMessage(errorMessage(err), [
+    "is_generated",
+    "generated_source_type",
+    "generated_source_document_id",
+    "generated_source_operation_key",
+    "is generated",
+    "generated source type",
+    "generated source document id",
+    "generated source operation key",
+  ]);
 }
 
 export function isMissingRenewalMonthsError(err: PgErrLike): boolean {
-  const parts: string[] = [];
-  if (typeof err === "string") parts.push(err);
-  else if (err && typeof err === "object") {
-    if (err.message) parts.push(err.message);
-    if (err.details) parts.push(err.details);
-    if (err.hint) parts.push(err.hint);
-  }
-  const m = parts.join(" ").toLowerCase();
-  if (!m) return false;
-  if (!m.includes("renewal_months") && !m.includes("renewal months")) return false;
-  return (
-    m.includes("does not exist") ||
-    m.includes("could not find") ||
-    m.includes("unknown column") ||
-    m.includes("undefined column") ||
-    m.includes("schema cache")
-  );
+  return missingColumnMessage(errorMessage(err), ["renewal_months", "renewal months"]);
 }
 
 function selectFull(includeTimestamps: boolean): string {
+  return includeTimestamps
+    ? `${COLS_WITH_RENEWAL}, ${COLS_APPLY}, ${COLS_TASK_SCOPE}, ${COLS_GENERATED}, ${COLS_TS}`
+    : `${COLS_WITH_RENEWAL}, ${COLS_APPLY}, ${COLS_TASK_SCOPE}, ${COLS_GENERATED}`;
+}
+
+function selectFullNoRenewal(includeTimestamps: boolean): string {
+  return includeTimestamps
+    ? `${COLS_BASE}, ${COLS_APPLY}, ${COLS_TASK_SCOPE}, ${COLS_GENERATED}, ${COLS_TS}`
+    : `${COLS_BASE}, ${COLS_APPLY}, ${COLS_TASK_SCOPE}, ${COLS_GENERATED}`;
+}
+
+function selectScopeNoGenerated(includeTimestamps: boolean): string {
+  return includeTimestamps
+    ? `${COLS_WITH_RENEWAL}, ${COLS_APPLY}, ${COLS_TASK_SCOPE}, ${COLS_TS}`
+    : `${COLS_WITH_RENEWAL}, ${COLS_APPLY}, ${COLS_TASK_SCOPE}`;
+}
+
+function selectScopeNoGeneratedNoRenewal(includeTimestamps: boolean): string {
+  return includeTimestamps
+    ? `${COLS_BASE}, ${COLS_APPLY}, ${COLS_TASK_SCOPE}, ${COLS_TS}`
+    : `${COLS_BASE}, ${COLS_APPLY}, ${COLS_TASK_SCOPE}`;
+}
+
+function selectBasicApply(includeTimestamps: boolean): string {
   return includeTimestamps
     ? `${COLS_WITH_RENEWAL}, ${COLS_APPLY}, ${COLS_TS}`
     : `${COLS_WITH_RENEWAL}, ${COLS_APPLY}`;
 }
 
-function selectFullNoRenewal(includeTimestamps: boolean): string {
+function selectBasicApplyNoRenewal(includeTimestamps: boolean): string {
   return includeTimestamps
     ? `${COLS_BASE}, ${COLS_APPLY}, ${COLS_TS}`
     : `${COLS_BASE}, ${COLS_APPLY}`;
@@ -100,33 +153,58 @@ export function selectReturnFull(): string {
   return selectFull(true);
 }
 
-/** Use after insert when `renewal_months` column is not present (avoid select errors). */
 export function selectReturnFullNoRenewal(): string {
   return selectFullNoRenewal(true);
+}
+
+export function selectReturnScopeNoGenerated(): string {
+  return selectScopeNoGenerated(true);
+}
+
+export function selectReturnScopeNoGeneratedNoRenewal(): string {
+  return selectScopeNoGeneratedNoRenewal(true);
+}
+
+export function selectReturnBasicApply(): string {
+  return selectBasicApply(true);
+}
+
+export function selectReturnBasicApplyNoRenewal(): string {
+  return selectBasicApplyNoRenewal(true);
 }
 
 export function selectReturnLegacy(): string {
   return selectLegacy(true);
 }
 
-/** Legacy table with renewal_months but no apply_* columns. */
 export function selectReturnLegacyWithRenewal(): string {
   return selectLegacyWithRenewal(true);
 }
 
-/**
- * Loads company training requirements; falls back to a legacy select if apply_* columns are missing.
- */
 function normalizeRequirementRows(
   raw: TrainingRequirementDbRow[],
-  applyColumnsAvailable: boolean,
-  renewalAvailable: boolean
+  flags: {
+    applyColumnsAvailable: boolean;
+    taskScopeColumnsAvailable: boolean;
+    generatedColumnsAvailable: boolean;
+    renewalAvailable: boolean;
+  }
 ): TrainingRequirementDbRow[] {
-  return raw.map((r) => ({
-    ...r,
-    apply_trades: applyColumnsAvailable ? r.apply_trades ?? [] : [],
-    apply_positions: applyColumnsAvailable ? r.apply_positions ?? [] : [],
-    renewal_months: renewalAvailable ? r.renewal_months ?? null : null,
+  return raw.map((row) => ({
+    ...row,
+    apply_trades: flags.applyColumnsAvailable ? row.apply_trades ?? [] : [],
+    apply_positions: flags.applyColumnsAvailable ? row.apply_positions ?? [] : [],
+    apply_sub_trades: flags.taskScopeColumnsAvailable ? row.apply_sub_trades ?? [] : [],
+    apply_task_codes: flags.taskScopeColumnsAvailable ? row.apply_task_codes ?? [] : [],
+    renewal_months: flags.renewalAvailable ? row.renewal_months ?? null : null,
+    is_generated: flags.generatedColumnsAvailable ? row.is_generated ?? false : false,
+    generated_source_type: flags.generatedColumnsAvailable ? row.generated_source_type ?? null : null,
+    generated_source_document_id: flags.generatedColumnsAvailable
+      ? row.generated_source_document_id ?? null
+      : null,
+    generated_source_operation_key: flags.generatedColumnsAvailable
+      ? row.generated_source_operation_key ?? null
+      : null,
   }));
 }
 
@@ -138,6 +216,8 @@ export async function fetchCompanyTrainingRequirements(
   rows: TrainingRequirementDbRow[];
   error: string | null;
   applyColumnsAvailable: boolean;
+  taskScopeColumnsAvailable: boolean;
+  generatedColumnsAvailable: boolean;
 }> {
   const trySelect = async (columns: string) =>
     supabase
@@ -149,34 +229,107 @@ export async function fetchCompanyTrainingRequirements(
   const attempts: Array<{
     columns: string;
     applyColumnsAvailable: boolean;
+    taskScopeColumnsAvailable: boolean;
+    generatedColumnsAvailable: boolean;
     renewalAvailable: boolean;
   }> = [
-    { columns: selectFull(includeTimestamps), applyColumnsAvailable: true, renewalAvailable: true },
-    { columns: selectFullNoRenewal(includeTimestamps), applyColumnsAvailable: true, renewalAvailable: false },
-    { columns: selectLegacyWithRenewal(includeTimestamps), applyColumnsAvailable: false, renewalAvailable: true },
-    { columns: selectLegacy(includeTimestamps), applyColumnsAvailable: false, renewalAvailable: false },
+    {
+      columns: selectFull(includeTimestamps),
+      applyColumnsAvailable: true,
+      taskScopeColumnsAvailable: true,
+      generatedColumnsAvailable: true,
+      renewalAvailable: true,
+    },
+    {
+      columns: selectFullNoRenewal(includeTimestamps),
+      applyColumnsAvailable: true,
+      taskScopeColumnsAvailable: true,
+      generatedColumnsAvailable: true,
+      renewalAvailable: false,
+    },
+    {
+      columns: selectScopeNoGenerated(includeTimestamps),
+      applyColumnsAvailable: true,
+      taskScopeColumnsAvailable: true,
+      generatedColumnsAvailable: false,
+      renewalAvailable: true,
+    },
+    {
+      columns: selectScopeNoGeneratedNoRenewal(includeTimestamps),
+      applyColumnsAvailable: true,
+      taskScopeColumnsAvailable: true,
+      generatedColumnsAvailable: false,
+      renewalAvailable: false,
+    },
+    {
+      columns: selectBasicApply(includeTimestamps),
+      applyColumnsAvailable: true,
+      taskScopeColumnsAvailable: false,
+      generatedColumnsAvailable: false,
+      renewalAvailable: true,
+    },
+    {
+      columns: selectBasicApplyNoRenewal(includeTimestamps),
+      applyColumnsAvailable: true,
+      taskScopeColumnsAvailable: false,
+      generatedColumnsAvailable: false,
+      renewalAvailable: false,
+    },
+    {
+      columns: selectLegacyWithRenewal(includeTimestamps),
+      applyColumnsAvailable: false,
+      taskScopeColumnsAvailable: false,
+      generatedColumnsAvailable: false,
+      renewalAvailable: true,
+    },
+    {
+      columns: selectLegacy(includeTimestamps),
+      applyColumnsAvailable: false,
+      taskScopeColumnsAvailable: false,
+      generatedColumnsAvailable: false,
+      renewalAvailable: false,
+    },
   ];
 
   let lastMessage = "Failed to load training requirements.";
-  for (const a of attempts) {
-    const res = await trySelect(a.columns);
+  for (const attempt of attempts) {
+    const res = await trySelect(attempt.columns);
     if (!res.error) {
       const raw = (res.data ?? []) as unknown as TrainingRequirementDbRow[];
       return {
-        rows: normalizeRequirementRows(raw, a.applyColumnsAvailable, a.renewalAvailable),
+        rows: normalizeRequirementRows(raw, attempt),
         error: null,
-        applyColumnsAvailable: a.applyColumnsAvailable,
+        applyColumnsAvailable: attempt.applyColumnsAvailable,
+        taskScopeColumnsAvailable: attempt.taskScopeColumnsAvailable,
+        generatedColumnsAvailable: attempt.generatedColumnsAvailable,
       };
     }
+
     lastMessage = res.error.message || lastMessage;
-    const missingApply = isMissingApplyColumnsError(res.error);
-    const missingRenewal = isMissingRenewalMonthsError(res.error);
-    if (!missingApply && !missingRenewal) {
-      return { rows: [], error: lastMessage, applyColumnsAvailable: true };
+    const missingKnownColumns =
+      isMissingApplyColumnsError(res.error) ||
+      isMissingTaskScopeColumnsError(res.error) ||
+      isMissingGeneratedColumnsError(res.error) ||
+      isMissingRenewalMonthsError(res.error);
+
+    if (!missingKnownColumns) {
+      return {
+        rows: [],
+        error: lastMessage,
+        applyColumnsAvailable: true,
+        taskScopeColumnsAvailable: true,
+        generatedColumnsAvailable: true,
+      };
     }
   }
 
-  return { rows: [], error: lastMessage, applyColumnsAvailable: false };
+  return {
+    rows: [],
+    error: lastMessage,
+    applyColumnsAvailable: false,
+    taskScopeColumnsAvailable: false,
+    generatedColumnsAvailable: false,
+  };
 }
 
 export async function fetchTrainingRequirementById(
@@ -186,46 +339,121 @@ export async function fetchTrainingRequirementById(
   row: TrainingRequirementDbRow | null;
   error: string | null;
   applyColumnsAvailable: boolean;
+  taskScopeColumnsAvailable: boolean;
+  generatedColumnsAvailable: boolean;
   renewalMonthsAvailable: boolean;
 }> {
   const attempts: Array<{
     columns: string;
     applyColumnsAvailable: boolean;
+    taskScopeColumnsAvailable: boolean;
+    generatedColumnsAvailable: boolean;
     renewalAvailable: boolean;
   }> = [
-    { columns: `${COLS_WITH_RENEWAL}, ${COLS_APPLY}`, applyColumnsAvailable: true, renewalAvailable: true },
-    { columns: `${COLS_BASE}, ${COLS_APPLY}`, applyColumnsAvailable: true, renewalAvailable: false },
-    { columns: COLS_WITH_RENEWAL, applyColumnsAvailable: false, renewalAvailable: true },
-    { columns: COLS_BASE, applyColumnsAvailable: false, renewalAvailable: false },
+    {
+      columns: selectFull(false),
+      applyColumnsAvailable: true,
+      taskScopeColumnsAvailable: true,
+      generatedColumnsAvailable: true,
+      renewalAvailable: true,
+    },
+    {
+      columns: selectFullNoRenewal(false),
+      applyColumnsAvailable: true,
+      taskScopeColumnsAvailable: true,
+      generatedColumnsAvailable: true,
+      renewalAvailable: false,
+    },
+    {
+      columns: selectScopeNoGenerated(false),
+      applyColumnsAvailable: true,
+      taskScopeColumnsAvailable: true,
+      generatedColumnsAvailable: false,
+      renewalAvailable: true,
+    },
+    {
+      columns: selectScopeNoGeneratedNoRenewal(false),
+      applyColumnsAvailable: true,
+      taskScopeColumnsAvailable: true,
+      generatedColumnsAvailable: false,
+      renewalAvailable: false,
+    },
+    {
+      columns: selectBasicApply(false),
+      applyColumnsAvailable: true,
+      taskScopeColumnsAvailable: false,
+      generatedColumnsAvailable: false,
+      renewalAvailable: true,
+    },
+    {
+      columns: selectBasicApplyNoRenewal(false),
+      applyColumnsAvailable: true,
+      taskScopeColumnsAvailable: false,
+      generatedColumnsAvailable: false,
+      renewalAvailable: false,
+    },
+    {
+      columns: selectLegacyWithRenewal(false),
+      applyColumnsAvailable: false,
+      taskScopeColumnsAvailable: false,
+      generatedColumnsAvailable: false,
+      renewalAvailable: true,
+    },
+    {
+      columns: selectLegacy(false),
+      applyColumnsAvailable: false,
+      taskScopeColumnsAvailable: false,
+      generatedColumnsAvailable: false,
+      renewalAvailable: false,
+    },
   ];
 
   let lastMessage = "Failed to load requirement.";
-  for (const a of attempts) {
-    const res = await supabase.from("company_training_requirements").select(a.columns).eq("id", id).maybeSingle();
+  for (const attempt of attempts) {
+    const res = await supabase
+      .from("company_training_requirements")
+      .select(attempt.columns)
+      .eq("id", id)
+      .maybeSingle();
+
     if (!res.error) {
       const raw = res.data as TrainingRequirementDbRow | null;
       if (!raw) {
         return {
           row: null,
           error: null,
-          applyColumnsAvailable: a.applyColumnsAvailable,
-          renewalMonthsAvailable: a.renewalAvailable,
+          applyColumnsAvailable: attempt.applyColumnsAvailable,
+          taskScopeColumnsAvailable: attempt.taskScopeColumnsAvailable,
+          generatedColumnsAvailable: attempt.generatedColumnsAvailable,
+          renewalMonthsAvailable: attempt.renewalAvailable,
         };
       }
-      const row = normalizeRequirementRows([raw], a.applyColumnsAvailable, a.renewalAvailable)[0];
+
+      const row = normalizeRequirementRows([raw], attempt)[0];
       return {
         row,
         error: null,
-        applyColumnsAvailable: a.applyColumnsAvailable,
-        renewalMonthsAvailable: a.renewalAvailable,
+        applyColumnsAvailable: attempt.applyColumnsAvailable,
+        taskScopeColumnsAvailable: attempt.taskScopeColumnsAvailable,
+        generatedColumnsAvailable: attempt.generatedColumnsAvailable,
+        renewalMonthsAvailable: attempt.renewalAvailable,
       };
     }
+
     lastMessage = res.error.message || lastMessage;
-    if (!isMissingApplyColumnsError(res.error) && !isMissingRenewalMonthsError(res.error)) {
+    const missingKnownColumns =
+      isMissingApplyColumnsError(res.error) ||
+      isMissingTaskScopeColumnsError(res.error) ||
+      isMissingGeneratedColumnsError(res.error) ||
+      isMissingRenewalMonthsError(res.error);
+
+    if (!missingKnownColumns) {
       return {
         row: null,
         error: lastMessage,
         applyColumnsAvailable: true,
+        taskScopeColumnsAvailable: true,
+        generatedColumnsAvailable: true,
         renewalMonthsAvailable: true,
       };
     }
@@ -235,6 +463,8 @@ export async function fetchTrainingRequirementById(
     row: null,
     error: lastMessage,
     applyColumnsAvailable: false,
+    taskScopeColumnsAvailable: false,
+    generatedColumnsAvailable: false,
     renewalMonthsAvailable: false,
   };
 }

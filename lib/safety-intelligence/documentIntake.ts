@@ -1,6 +1,63 @@
 import { buildCsepTradeSelection } from "@/lib/csepTradeSelection";
+import {
+  createDeterministicHash,
+  normalizeSelectedCsepBlockKeys,
+  resolveSelectedCsepFormatSectionKeys,
+} from "@/lib/csepBuilder";
+import {
+  deriveEligibleCsepPricedItems,
+  normalizePricedItemSelections,
+  resolveSelectedCsepPricedItems,
+} from "@/lib/csepEnrichmentPricing";
 import type { CSEPRiskItem } from "@/lib/csepTradeSelection";
 import { buildCsepProgramSelections, normalizeProgramSelections } from "@/lib/csepPrograms";
+import {
+  describeJurisdictionSelection,
+  resolveBuilderJurisdiction,
+} from "@/lib/jurisdictionStandards/catalog";
+import {
+  buildPshsepCatalogProgramSelections,
+  collectPshsepCatalogOshaRefs,
+  derivePshsepExportProgramIds,
+  normalizePshsepBuilderFormData,
+} from "@/lib/pshsepCatalog";
+import {
+  CONTRACTOR_SAFETY_BLUEPRINT_TITLE,
+  SITE_SAFETY_BLUEPRINT_TITLE,
+} from "@/lib/safetyBlueprintLabels";
+import {
+  DEFAULT_PROJECT_DELIVERY_TYPE,
+  normalizeProjectDeliveryType,
+} from "@/lib/tradeConflictCatalog";
+import {
+  buildTaskModuleAiContext,
+  getTaskModulesForCsepSelection,
+  SITE_MANAGEMENT_TASK_MODULE_PACK_KEY,
+} from "@/lib/siteManagementTaskModules";
+import {
+  buildHazardModuleAiContext,
+  CSEP_HAZARD_MODULE_PACK_KEY,
+  getHazardModulesForCsepSelection,
+} from "@/lib/hazardModules";
+import {
+  getSteelErectionReferencePacksForPshsepSelection,
+} from "@/lib/steelErectionReferencePacks";
+import {
+  buildSteelErectionHazardModuleAiContext,
+  getSteelErectionHazardModulesForCsepSelection,
+  STEEL_ERECTION_HAZARD_MODULE_PACK_KEY,
+} from "@/lib/steelErectionHazardModules";
+import {
+  buildSteelErectionProgramModuleAiContext,
+  getSteelErectionProgramModulesForCsepSelection,
+  STEEL_ERECTION_PROGRAM_MODULE_PACK_KEY,
+} from "@/lib/steelErectionProgramModules";
+import {
+  buildSteelErectionTaskModuleAiContext,
+  getSteelErectionTaskModulesForCsepSelection,
+  STEEL_ERECTION_TASK_MODULE_PACK_KEY,
+} from "@/lib/steelErectionTaskModules";
+import type { CsepBuilderInstructions } from "@/types/csep-builder";
 import type { CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue } from "@/types/csep-programs";
 import type {
   HazardFamily,
@@ -55,6 +112,85 @@ function normalizeHazardHint(value: string): HazardFamily[] {
   if (token.includes("struck")) return ["struck_by"];
   if (token.includes("slip") || token.includes("trip")) return ["line_of_fire"];
   return ["unknown"];
+}
+
+function inferHazardsFromScopeLabels(scopeLabels: string[]) {
+  const hazards = new Set<string>();
+  for (const label of scopeLabels) {
+    const token = label.toLowerCase();
+    if (token.includes("scaffold") || token.includes("aerial") || token.includes("roof")) {
+      hazards.add("Falls from height");
+    }
+    if (token.includes("excavat")) {
+      hazards.add("Excavation collapse");
+      hazards.add("Utility strike");
+    }
+    if (token.includes("steel")) {
+      hazards.add("Falling object hazards");
+      hazards.add("Rigging and lifting hazards");
+    }
+    if (token.includes("concrete") || token.includes("masonry")) {
+      hazards.add("Silica / dust exposure");
+      hazards.add("Struck-by hazards");
+    }
+    if (token.includes("demolition")) {
+      hazards.add("Demolition instability");
+      hazards.add("Line of fire / struck-by hazards");
+    }
+    if (token.includes("electrical")) {
+      hazards.add("Electrical shock/arc flash");
+    }
+    if (token.includes("hot work")) {
+      hazards.add("Hot work / fire exposure");
+    }
+    if (token.includes("confined")) {
+      hazards.add("Confined spaces");
+    }
+  }
+  return [...hazards];
+}
+
+function inferPpeFromScopeAndPermits(scopeLabels: string[], permitLabels: string[]) {
+  const ppe = new Set<string>(["Hard Hat", "Safety Glasses", "High-visibility vest"]);
+  const source = [...scopeLabels, ...permitLabels].join(" ").toLowerCase();
+  if (source.includes("hot work")) {
+    ppe.add("Face shield");
+    ppe.add("Heat-resistant gloves");
+  }
+  if (source.includes("electrical") || source.includes("loto")) {
+    ppe.add("Arc-rated PPE");
+  }
+  if (source.includes("excavat")) {
+    ppe.add("Protective footwear");
+  }
+  if (source.includes("confined")) {
+    ppe.add("Respiratory protection");
+  }
+  return [...ppe];
+}
+
+function inferOshaRefs(scopeLabels: string[], permitLabels: string[]) {
+  const refs = new Set<string>(["29 CFR 1926"]);
+  const source = [...scopeLabels, ...permitLabels].join(" ").toLowerCase();
+  if (source.includes("fall") || source.includes("scaffold") || source.includes("roof")) {
+    refs.add("29 CFR 1926 Subpart M");
+  }
+  if (source.includes("excavat") || source.includes("trench")) {
+    refs.add("29 CFR 1926 Subpart P");
+  }
+  if (source.includes("crane") || source.includes("lift")) {
+    refs.add("29 CFR 1926 Subpart CC");
+  }
+  if (source.includes("confined")) {
+    refs.add("29 CFR 1926 Subpart AA");
+  }
+  if (source.includes("electrical") || source.includes("loto")) {
+    refs.add("29 CFR 1926 Subpart K");
+  }
+  if (source.includes("hot work")) {
+    refs.add("29 CFR 1926 Subpart J");
+  }
+  return [...refs];
 }
 
 function extractSiteRestrictions(values: string[]) {
@@ -143,9 +279,326 @@ function ensureOperations(context: SafetyPlanGenerationContext) {
   };
 }
 
+function buildCsepBuilderInstructions(params: {
+  formData: Record<string, unknown>;
+  projectDeliveryType: SafetyPlanGenerationContext["documentProfile"]["projectDeliveryType"] | null;
+  jurisdictionCode: SafetyPlanGenerationContext["documentProfile"]["jurisdictionCode"] | null;
+  tradeLabel: string;
+  subTradeLabel: string;
+  tasks: string[];
+  tradeItems: CSEPRiskItemLike[];
+  tradeSummary: string;
+  oshaRefs: string[];
+  selectedHazards: string[];
+  derivedHazards: string[];
+  requiredPpe: string[];
+  additionalPermits: string[];
+  derivedPermits: string[];
+  overlapPermitHints: string[];
+  commonOverlappingTrades: string[];
+  taskModuleKeys: string[];
+  hazardModuleKeys: string[];
+  steelTaskModuleKeys: string[];
+  steelHazardModuleKeys: string[];
+  steelProgramModuleKeys: string[];
+  programSelections: SafetyPlanGenerationContext["programSelections"];
+  pricedAttachments: SafetyPlanGenerationContext["pricedAttachments"];
+  programSubtypeSelections: Partial<Record<CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue>>;
+}) {
+  const selectedBlockKeys = normalizeSelectedCsepBlockKeys({
+    includedSections: params.formData.included_sections,
+    includedContent: params.formData.includedContent,
+  });
+  const normalizedSelectedBlockKeys = selectedBlockKeys.length
+    ? selectedBlockKeys
+    : normalizeSelectedCsepBlockKeys({
+        includedContent: {
+          project_information: true,
+          contractor_information: true,
+          trade_summary: true,
+          scope_of_work: true,
+          site_specific_notes: true,
+          emergency_procedures: true,
+          weather_requirements_and_severe_weather_response: true,
+          required_ppe: true,
+          additional_permits: true,
+          common_overlapping_trades: true,
+          osha_references: true,
+          selected_hazards: true,
+          activity_hazard_matrix: true,
+          roles_and_responsibilities: true,
+          security_and_access: true,
+          health_and_wellness: true,
+          incident_reporting_and_investigation: true,
+          training_and_instruction: true,
+          drug_and_alcohol_testing: true,
+          enforcement_and_corrective_action: true,
+          recordkeeping: true,
+          continuous_improvement: true,
+        },
+      });
+  const scopeOfWork = String(params.formData.scope_of_work ?? "").trim();
+  const siteSpecificNotes = String(params.formData.site_specific_notes ?? "").trim();
+  const emergencyProcedures = String(params.formData.emergency_procedures ?? "").trim();
+  const selectedFormatSectionKeys = resolveSelectedCsepFormatSectionKeys({
+    selectedFormatSections: params.formData.selected_format_sections,
+    includedSections: params.formData.included_sections,
+    includedContent: params.formData.includedContent,
+  });
+  const documentControl = {
+    projectSite: ensureOptionalString(params.formData.project_name),
+    primeContractor: ensureOptionalString(params.formData.contractor_company),
+    clientOwner: ensureOptionalString(params.formData.owner_client),
+    documentNumber: ensureOptionalString(params.formData.document_number),
+    revision: ensureOptionalString(params.formData.document_revision),
+    issueDate: ensureOptionalString(params.formData.issue_date),
+    preparedBy: ensureOptionalString(params.formData.prepared_by),
+    reviewedBy: ensureOptionalString(params.formData.reviewed_by),
+    approvedBy: ensureOptionalString(params.formData.approved_by),
+  };
+  const projectInformation = [
+    ["Project Name", String(params.formData.project_name ?? "").trim()],
+    ["Project Number", ensureOptionalString(params.formData.project_number)],
+    ["Project Address", ensureOptionalString(params.formData.project_address)],
+    ["Owner / Client", ensureOptionalString(params.formData.owner_client)],
+    ["GC / CM", ensureOptionalString(params.formData.gc_cm)],
+    ["Governing State", ensureOptionalString(params.formData.governing_state)],
+  ]
+    .filter(([, value]) => value)
+    .map(([label, value]) => `${label}: ${value}`);
+  const contractorInformation = [
+    ["Contractor Company", ensureOptionalString(params.formData.contractor_company)],
+    ["Contractor Contact", ensureOptionalString(params.formData.contractor_contact)],
+    ["Contractor Phone", ensureOptionalString(params.formData.contractor_phone)],
+    ["Contractor Email", ensureOptionalString(params.formData.contractor_email)],
+  ]
+    .filter(([, value]) => value)
+    .map(([label, value]) => `${label}: ${value}`);
+  const selectedPermits = [
+    ...new Set([
+      ...params.additionalPermits,
+      ...params.derivedPermits,
+      ...params.overlapPermitHints,
+    ]),
+  ];
+  const weatherRequirements = isRecord(params.formData.weather_requirements)
+    ? params.formData.weather_requirements
+    : {};
+  const weatherBlockInput = [
+    ...asStringArray(weatherRequirements.monitoringSources).map(
+      (item) => `Monitoring source: ${item}`
+    ),
+    ...asStringArray(weatherRequirements.communicationMethods).map(
+      (item) => `Communication method: ${item}`
+    ),
+    ...asStringArray(weatherRequirements.highWindControls).map(
+      (item) => `High-wind control: ${item}`
+    ),
+    ...asStringArray(weatherRequirements.heatControls).map((item) => `Heat control: ${item}`),
+    ...asStringArray(weatherRequirements.coldControls).map((item) => `Cold control: ${item}`),
+    ...asStringArray(weatherRequirements.tornadoStormControls).map(
+      (item) => `Storm control: ${item}`
+    ),
+    ...asStringArray(weatherRequirements.environmentalControls).map(
+      (item) => `Environmental control: ${item}`
+    ),
+    ...asStringArray(weatherRequirements.projectOverrideNotes).map(
+      (item) => `Project override: ${item}`
+    ),
+    ...asStringArray(weatherRequirements.contractorResponsibilityNotes).map(
+      (item) => `Contractor weather note: ${item}`
+    ),
+    ensureOptionalString(weatherRequirements.dailyReviewNotes),
+    ensureOptionalString(weatherRequirements.highWindThresholdText),
+    typeof weatherRequirements.lightningRadiusMiles === "number"
+      ? `Lightning radius: ${weatherRequirements.lightningRadiusMiles} miles`
+      : null,
+    typeof weatherRequirements.lightningAllClearMinutes === "number"
+      ? `Lightning all clear: ${weatherRequirements.lightningAllClearMinutes} minutes`
+      : null,
+    ensureOptionalString(weatherRequirements.lightningShelterNotes),
+    ensureOptionalString(weatherRequirements.heatTriggerText),
+    ensureOptionalString(weatherRequirements.coldTriggerText),
+    ensureOptionalString(weatherRequirements.tornadoStormShelterNotes),
+    ensureOptionalString(weatherRequirements.unionAccountabilityNotes),
+  ].filter((value): value is string => Boolean(value));
+  const hazardInputs = params.selectedHazards.length
+    ? params.selectedHazards
+    : params.derivedHazards;
+  const blockInputs: CsepBuilderInstructions["blockInputs"] = {
+    project_information: projectInformation.length ? projectInformation : null,
+    contractor_information: contractorInformation.length ? contractorInformation : null,
+    trade_summary: [
+      params.tradeLabel ? `Trade: ${params.tradeLabel}` : null,
+      params.subTradeLabel ? `Sub-trade: ${params.subTradeLabel}` : null,
+      params.tasks.length ? `Tasks: ${params.tasks.join(", ")}` : null,
+      params.tradeSummary || null,
+    ]
+      .filter(Boolean)
+      .join("\n\n") || null,
+    scope_of_work: scopeOfWork || null,
+    site_specific_notes: siteSpecificNotes || null,
+    emergency_procedures: emergencyProcedures || null,
+    weather_requirements_and_severe_weather_response: weatherBlockInput.length
+      ? weatherBlockInput
+      : null,
+    required_ppe: params.requiredPpe.length ? params.requiredPpe : null,
+    additional_permits: selectedPermits.length ? selectedPermits : null,
+    common_overlapping_trades: params.commonOverlappingTrades.length
+      ? params.commonOverlappingTrades
+      : null,
+    osha_references: params.oshaRefs.length ? params.oshaRefs : null,
+    selected_hazards: hazardInputs.length ? hazardInputs : null,
+    activity_hazard_matrix: params.tradeItems.length
+      ? params.tradeItems.map((item) =>
+          [
+            `Activity: ${String(item.activity ?? "").trim() || "N/A"}`,
+            `Hazard: ${String(item.hazard ?? "").trim() || "N/A"}`,
+            `Controls: ${asStringArray(item.controls).join(", ") || "None"}`,
+            `Permit: ${String(item.permit ?? "").trim() || "None"}`,
+          ].join(" | ")
+        )
+      : null,
+    roles_and_responsibilities: ensureOptionalString(
+      params.formData.roles_and_responsibilities_text
+    ),
+    security_and_access: ensureOptionalString(params.formData.security_and_access_text),
+    health_and_wellness: ensureOptionalString(params.formData.health_and_wellness_text),
+    incident_reporting_and_investigation: ensureOptionalString(
+      params.formData.incident_reporting_and_investigation_text
+    ),
+    training_and_instruction: ensureOptionalString(
+      params.formData.training_and_instruction_text
+    ),
+    drug_and_alcohol_testing: ensureOptionalString(
+      params.formData.drug_and_alcohol_testing_text
+    ),
+    enforcement_and_corrective_action: ensureOptionalString(
+      params.formData.enforcement_and_corrective_action_text
+    ),
+    recordkeeping: ensureOptionalString(params.formData.recordkeeping_text),
+    continuous_improvement: ensureOptionalString(params.formData.continuous_improvement_text),
+  };
+  const builderInputHash = createDeterministicHash({
+    selectedBlockKeys: normalizedSelectedBlockKeys,
+    selectedFormatSectionKeys,
+    blockInputs,
+    documentControl,
+    projectDeliveryType: params.projectDeliveryType,
+    jurisdictionCode: params.jurisdictionCode,
+    tradeLabel: params.tradeLabel,
+    subTradeLabel: params.subTradeLabel,
+    tasks: params.tasks,
+    selectedHazards: params.selectedHazards,
+    derivedHazards: params.derivedHazards,
+    requiredPpe: params.requiredPpe,
+    additionalPermits: params.additionalPermits,
+    derivedPermits: params.derivedPermits,
+    overlapPermitHints: params.overlapPermitHints,
+    commonOverlappingTrades: params.commonOverlappingTrades,
+    taskModuleKeys: params.taskModuleKeys,
+    hazardModuleKeys: params.hazardModuleKeys,
+    steelTaskModuleKeys: params.steelTaskModuleKeys,
+    steelHazardModuleKeys: params.steelHazardModuleKeys,
+    steelProgramModuleKeys: params.steelProgramModuleKeys,
+    programSelections: params.programSelections ?? [],
+    pricedAttachments: params.pricedAttachments ?? [],
+    programSubtypeSelections: params.programSubtypeSelections,
+  });
+
+  return {
+    selectedBlockKeys: normalizedSelectedBlockKeys,
+    selectedFormatSectionKeys,
+    blockInputs,
+    documentControl,
+    builderInputHash,
+  } satisfies CsepBuilderInstructions;
+}
+
+function normalizeBuilderInstructions(value: unknown) {
+  if (!isRecord(value)) return null;
+
+  const blockInputs = isRecord(value.blockInputs) ? value.blockInputs : {};
+  const normalizedBlockInputs = Object.fromEntries(
+    Object.entries(blockInputs)
+      .filter(([key]) =>
+        normalizeSelectedCsepBlockKeys({
+          includedContent: { [key]: true },
+        }).length > 0
+      )
+      .map(([key, entryValue]) => {
+        if (typeof entryValue === "string") {
+          return [key, entryValue.trim() || null];
+        }
+        if (Array.isArray(entryValue)) {
+          return [key, entryValue.filter((item): item is string => typeof item === "string" && item.trim().length > 0)];
+        }
+        return [key, null];
+      })
+  ) as CsepBuilderInstructions["blockInputs"];
+  const selectedBlockKeys = normalizeSelectedCsepBlockKeys({
+    includedSections: value.selectedBlockKeys,
+    includedContent: selectedBlockKeysFromInputs(normalizedBlockInputs),
+  });
+  const selectedFormatSectionKeys = resolveSelectedCsepFormatSectionKeys({
+    selectedFormatSections: value.selectedFormatSectionKeys,
+    includedSections: value.selectedBlockKeys,
+    includedContent: selectedBlockKeysFromInputs(normalizedBlockInputs),
+  });
+  const documentControl = isRecord(value.documentControl)
+    ? {
+        projectSite: ensureOptionalString(value.documentControl.projectSite),
+        primeContractor: ensureOptionalString(value.documentControl.primeContractor),
+        clientOwner: ensureOptionalString(value.documentControl.clientOwner),
+        documentNumber: ensureOptionalString(value.documentControl.documentNumber),
+        revision: ensureOptionalString(value.documentControl.revision),
+        issueDate: ensureOptionalString(value.documentControl.issueDate),
+        preparedBy: ensureOptionalString(value.documentControl.preparedBy),
+        reviewedBy: ensureOptionalString(value.documentControl.reviewedBy),
+        approvedBy: ensureOptionalString(value.documentControl.approvedBy),
+      }
+    : undefined;
+  const builderInputHash =
+    ensureOptionalString(value.builderInputHash) ??
+    createDeterministicHash({
+      selectedBlockKeys,
+      selectedFormatSectionKeys,
+      blockInputs: normalizedBlockInputs,
+      documentControl,
+    });
+
+  return {
+    selectedBlockKeys,
+    selectedFormatSectionKeys,
+    blockInputs: normalizedBlockInputs,
+    documentControl,
+    builderInputHash,
+  } satisfies CsepBuilderInstructions;
+}
+
+function selectedBlockKeysFromInputs(blockInputs: CsepBuilderInstructions["blockInputs"]) {
+  return Object.fromEntries(
+    Object.entries(blockInputs).map(([key, value]) => [key, Array.isArray(value) ? value.length > 0 : Boolean(value)])
+  );
+}
+
 export function buildCsepGenerationContext(formData: Record<string, unknown>): SafetyPlanGenerationContext {
   const tradeLabel = String(formData.trade ?? "").trim();
   const subTradeLabel = String(formData.subTrade ?? "").trim();
+  const projectDeliveryType = normalizeProjectDeliveryType(
+    formData.project_delivery_type ?? formData.projectDeliveryType
+  );
+  const governingState = ensureOptionalString(
+    formData.governing_state ?? formData.governingState
+  );
+  const companyState = ensureOptionalString(
+    formData.company_state_region ?? formData.companyStateRegion
+  );
+  const jurisdictionProfile = resolveBuilderJurisdiction({
+    governingState,
+    companyState,
+  });
+  const jurisdictionSelection = describeJurisdictionSelection(jurisdictionProfile);
   const tasks = asStringArray(formData.tasks);
   const tradeSelection =
     tradeLabel && subTradeLabel ? buildCsepTradeSelection(tradeLabel, subTradeLabel, tasks) : null;
@@ -168,7 +621,63 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
         CSEPRiskItemLike
       >)
     : tradeSelection?.items ?? [];
-  const selectedPermits = [...new Set([...additionalPermits, ...asStringArray(formData.derivedPermits)])];
+  const derivedHazards = asStringArray(formData.derivedHazards).length
+    ? asStringArray(formData.derivedHazards)
+    : tradeSelection?.derivedHazards ?? [];
+  const derivedPermits = asStringArray(formData.derivedPermits).length
+    ? asStringArray(formData.derivedPermits)
+    : tradeSelection?.derivedPermits ?? [];
+  const overlapPermitHints = asStringArray(formData.overlapPermitHints).length
+    ? asStringArray(formData.overlapPermitHints)
+    : tradeSelection?.overlapPermitHints ?? [];
+  const commonOverlappingTrades = asStringArray(formData.common_overlapping_trades).length
+    ? asStringArray(formData.common_overlapping_trades)
+    : tradeSelection?.commonOverlappingTrades ?? [];
+  const tradeSummary =
+    String(formData.tradeSummary ?? "").trim() || tradeSelection?.summary || "";
+  const oshaRefs = asStringArray(formData.oshaRefs).length
+    ? asStringArray(formData.oshaRefs)
+    : tradeSelection?.oshaRefs ?? [];
+  const selectedPermitInputs = [
+    ...new Set([...additionalPermits, ...derivedPermits, ...overlapPermitHints]),
+  ];
+  const selectedPermits = [...new Set([...additionalPermits, ...derivedPermits])];
+  const taskModules = getTaskModulesForCsepSelection({
+    tradeLabel: tradeSelection?.tradeLabel ?? tradeLabel,
+    taskNames: tasks,
+  });
+  const taskModuleAiContext = buildTaskModuleAiContext(taskModules);
+  const hazardModules = getHazardModulesForCsepSelection({
+    selectedHazards,
+    selectedPermits: selectedPermitInputs,
+    taskNames: tasks,
+    tradeLabel: tradeSelection?.tradeLabel ?? tradeLabel,
+    subTradeLabel: tradeSelection?.subTradeLabel ?? subTradeLabel,
+  });
+  const hazardModuleAiContext = buildHazardModuleAiContext(hazardModules);
+  const eligiblePricedAttachments = deriveEligibleCsepPricedItems({
+    trade: tradeSelection?.tradeLabel ?? tradeLabel,
+    subTrade: tradeSelection?.subTradeLabel ?? subTradeLabel,
+    tasks,
+    selectedHazards,
+    derivedHazards,
+    selectedPermits: selectedPermitInputs,
+  });
+  const explicitPricedAttachments = normalizePricedItemSelections(
+    (formData as { priced_attachments?: unknown }).priced_attachments ??
+      (formData as { pricedAttachments?: unknown }).pricedAttachments
+  );
+  const pricedAttachmentKeys = asStringArray(
+    (formData as { priced_attachment_keys?: unknown }).priced_attachment_keys ??
+      (formData as { pricedAttachmentKeys?: unknown }).pricedAttachmentKeys
+  );
+  const pricedAttachments =
+    explicitPricedAttachments.length > 0
+      ? explicitPricedAttachments
+      : resolveSelectedCsepPricedItems({
+          selectedKeys: pricedAttachmentKeys,
+          eligibleItems: eligiblePricedAttachments,
+        });
   const explicitProgramSelections = Array.isArray((formData as { programSelections?: unknown }).programSelections)
     ? normalizeProgramSelections(
         ((formData as { programSelections?: unknown[] }).programSelections ?? [])
@@ -205,6 +714,33 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
           selectedTasks: tasks,
           subtypeSelections: programSubtypeSelections,
         }).selections;
+  const steelTaskModules = getSteelErectionTaskModulesForCsepSelection({
+    tradeLabel: tradeSelection?.tradeLabel ?? tradeLabel,
+    subTradeLabel: tradeSelection?.subTradeLabel ?? subTradeLabel,
+    taskNames: tasks,
+  });
+  const steelTaskModuleAiContext = buildSteelErectionTaskModuleAiContext(steelTaskModules);
+  const steelHazardModules = getSteelErectionHazardModulesForCsepSelection({
+    selectedHazards,
+    selectedPermits: selectedPermitInputs,
+    taskNames: tasks,
+    tradeLabel: tradeSelection?.tradeLabel ?? tradeLabel,
+    subTradeLabel: tradeSelection?.subTradeLabel ?? subTradeLabel,
+  });
+  const steelHazardModuleAiContext = buildSteelErectionHazardModuleAiContext(
+    steelHazardModules
+  );
+  const steelProgramModules = getSteelErectionProgramModulesForCsepSelection({
+    programSelections,
+    selectedHazards,
+    selectedPermits: selectedPermitInputs,
+    taskNames: tasks,
+    tradeLabel: tradeSelection?.tradeLabel ?? tradeLabel,
+    subTradeLabel: tradeSelection?.subTradeLabel ?? subTradeLabel,
+  });
+  const steelProgramModuleAiContext = buildSteelErectionProgramModuleAiContext(
+    steelProgramModules
+  );
   const derivedOperations = (tasks.length ? tasks : [scopeOfWork || tradeLabel || "project work"]).map(
     (taskTitle, index) => {
       const riskItem = tradeSelection?.items.find((item) => item.activity === taskTitle);
@@ -231,15 +767,47 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
         endsAt: null,
         crewSize: null,
         metadata: {
-          tradeSummary: String(formData.tradeSummary ?? "").trim(),
-          oshaRefs: asStringArray(formData.oshaRefs),
+          tradeSummary,
+          oshaRefs,
           selectedHazards,
           additionalPermits,
+          pricedAttachments,
           programSelections,
+          taskModuleKeys: taskModules.map((module) => module.moduleKey),
+          hazardModuleKeys: hazardModules.map((module) => module.moduleKey),
+          steelTaskModuleKeys: steelTaskModules.map((module) => module.moduleKey),
+          steelHazardModuleKeys: steelHazardModules.map((module) => module.moduleKey),
+          steelProgramModuleKeys: steelProgramModules.map((module) => module.moduleKey),
         },
       });
     }
   );
+  const builderInstructions = buildCsepBuilderInstructions({
+    formData,
+    projectDeliveryType,
+    jurisdictionCode: jurisdictionSelection.jurisdictionCode,
+    tradeLabel: tradeSelection?.tradeLabel ?? tradeLabel,
+    subTradeLabel: tradeSelection?.subTradeLabel ?? subTradeLabel,
+    tasks,
+    tradeItems,
+    tradeSummary,
+    oshaRefs,
+    selectedHazards,
+    derivedHazards,
+    requiredPpe,
+    additionalPermits,
+    derivedPermits,
+    overlapPermitHints,
+    commonOverlappingTrades,
+    taskModuleKeys: taskModules.map((module) => module.moduleKey),
+    hazardModuleKeys: hazardModules.map((module) => module.moduleKey),
+    steelTaskModuleKeys: steelTaskModules.map((module) => module.moduleKey),
+    steelHazardModuleKeys: steelHazardModules.map((module) => module.moduleKey),
+    steelProgramModuleKeys: steelProgramModules.map((module) => module.moduleKey),
+    programSelections,
+    pricedAttachments,
+    programSubtypeSelections,
+  });
 
   return ensureOperations({
     project: {
@@ -277,13 +845,42 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
       },
       metadata: {
         emergencyProcedures: String(formData.emergency_procedures ?? "").trim() || null,
+        taskModulePackKey: taskModules.length ? SITE_MANAGEMENT_TASK_MODULE_PACK_KEY : null,
+        taskModuleTitles: taskModules.map((module) => module.title),
+        taskModules: taskModuleAiContext,
+        hazardModulePackKey: hazardModules.length ? CSEP_HAZARD_MODULE_PACK_KEY : null,
+        hazardModuleTitles: hazardModules.map((module) => module.title),
+        hazardModules: hazardModuleAiContext,
+        steelTaskModulePackKey: steelTaskModules.length
+          ? STEEL_ERECTION_TASK_MODULE_PACK_KEY
+          : null,
+        steelTaskModuleTitles: steelTaskModules.map((module) => module.title),
+        steelTaskModules: steelTaskModuleAiContext,
+        steelHazardModulePackKey: steelHazardModules.length
+          ? STEEL_ERECTION_HAZARD_MODULE_PACK_KEY
+          : null,
+        steelHazardModuleTitles: steelHazardModules.map((module) => module.title),
+        steelHazardModules: steelHazardModuleAiContext,
+        steelProgramModulePackKey: steelProgramModules.length
+          ? STEEL_ERECTION_PROGRAM_MODULE_PACK_KEY
+          : null,
+        steelProgramModuleTitles: steelProgramModules.map((module) => module.title),
+        steelProgramModules: steelProgramModuleAiContext,
       },
     },
     programSelections,
+    pricedAttachments,
+    builderInstructions,
     documentProfile: {
       documentType: "csep",
-      requestedLabel: "CSEP",
+      projectDeliveryType,
+      requestedLabel: CONTRACTOR_SAFETY_BLUEPRINT_TITLE,
       title: null,
+      governingState: jurisdictionSelection.governingState,
+      jurisdictionCode: jurisdictionSelection.jurisdictionCode,
+      jurisdictionLabel: jurisdictionProfile.jurisdictionLabel,
+      jurisdictionPlanType: jurisdictionSelection.jurisdictionPlanType,
+      jurisdictionStandardsApplied: [],
       source: "builder_submit",
     },
     legacyFormSnapshot: formData as JsonObject,
@@ -291,12 +888,107 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
 }
 
 export function buildPshsepGenerationContext(formData: Record<string, unknown>): SafetyPlanGenerationContext {
-  const selectedScopes = asStringArray(formData.scope_of_work_selected);
-  const permitLabels = asStringArray(formData.permits_selected);
-  const projectDescription = String(formData.project_description ?? "").trim();
-  const emergencyMap = isRecord(formData.emergency_map) ? formData.emergency_map : {};
-  const location = String(formData.project_address ?? "").trim();
-  const workConditions = [projectDescription].filter(Boolean);
+  const normalizedFormData = normalizePshsepBuilderFormData(formData);
+  const projectDeliveryType = normalizeProjectDeliveryType(
+    normalizedFormData.project_delivery_type ?? normalizedFormData.projectDeliveryType
+  );
+  const governingState = ensureOptionalString(
+    normalizedFormData.governing_state ?? normalizedFormData.governingState
+  );
+  const companyState = ensureOptionalString(
+    normalizedFormData.company_state_region ?? normalizedFormData.companyStateRegion
+  );
+  const jurisdictionProfile = resolveBuilderJurisdiction({
+    governingState,
+    companyState,
+  });
+  const jurisdictionSelection = describeJurisdictionSelection(jurisdictionProfile);
+  const selectedScopes = asStringArray(normalizedFormData.scope_of_work_selected);
+  const permitLabels = asStringArray(normalizedFormData.permits_selected);
+  const highRiskFocusAreas = asStringArray(normalizedFormData.high_risk_focus_areas);
+  const assumedTradesIndex = asStringArray(normalizedFormData.assumed_trades_index);
+  const ancillaryContractors = asStringArray(normalizedFormData.ancillary_contractors);
+  const eventCalendarItems = asStringArray(normalizedFormData.event_calendar_items);
+  const projectDescription = String(normalizedFormData.project_description ?? "").trim();
+  const ownerSpecificRequirementsText = String(normalizedFormData.owner_specific_requirements_text ?? "").trim();
+  const definitionsText = String(normalizedFormData.definitions_text ?? "").trim();
+  const oversightRolesText = String(normalizedFormData.oversight_roles_text ?? "").trim();
+  const competentPersonRequirementsText = String(
+    normalizedFormData.competent_person_requirements_text ?? ""
+  ).trim();
+  const staffingRequirementsText = String(normalizedFormData.staffing_requirements_text ?? "").trim();
+  const tradeTrainingRequirementsText = String(
+    normalizedFormData.trade_training_requirements_text ?? ""
+  ).trim();
+  const certificationRequirementsText = String(
+    normalizedFormData.certification_requirements_text ?? ""
+  ).trim();
+  const contractorCoordinationText = String(normalizedFormData.contractor_coordination_text ?? "").trim();
+  const ancillaryContractorsNotes = String(normalizedFormData.ancillary_contractors_notes ?? "").trim();
+  const disciplinaryPolicyText = String(normalizedFormData.disciplinary_policy_text ?? "").trim();
+  const ownerLetterText = String(normalizedFormData.owner_letter_text ?? "").trim();
+  const incidentReportingProcessText = String(normalizedFormData.incident_reporting_process_text ?? "").trim();
+  const incidentInvestigationText = String(normalizedFormData.incident_investigation_text ?? "").trim();
+  const specialConditionsPermitText = String(normalizedFormData.special_conditions_permit_text ?? "").trim();
+  const clinicName = String(normalizedFormData.clinic_name ?? "").trim();
+  const clinicAddress = String(normalizedFormData.clinic_address ?? "").trim();
+  const clinicHours = String(normalizedFormData.clinic_hours ?? "").trim();
+  const postedEmergencyContactsText = String(
+    normalizedFormData.posted_emergency_contacts_text ?? ""
+  ).trim();
+  const emergencyPostingLocation = String(normalizedFormData.emergency_posting_location ?? "").trim();
+  const inspectionProcessText = String(normalizedFormData.inspection_process_text ?? "").trim();
+  const eventCalendarNotesText = String(normalizedFormData.event_calendar_notes_text ?? "").trim();
+  const weatherSopText = String(normalizedFormData.weather_sop_text ?? "").trim();
+  const environmentalControlsText = String(normalizedFormData.environmental_controls_text ?? "").trim();
+  const ppeSpecificsText = String(normalizedFormData.ppe_specifics_text ?? "").trim();
+  const equipmentControlsText = String(normalizedFormData.equipment_controls_text ?? "").trim();
+  const chemicalStorageText = String(normalizedFormData.chemical_storage_text ?? "").trim();
+  const emergencyMap = isRecord(normalizedFormData.emergency_map) ? normalizedFormData.emergency_map : {};
+  const location = String(normalizedFormData.project_address ?? "").trim();
+  const selectedHazards = inferHazardsFromScopeLabels(selectedScopes);
+  const selectedPpe = inferPpeFromScopeAndPermits(selectedScopes, permitLabels);
+  const oshaRefs = [
+    ...new Set([
+      ...inferOshaRefs(selectedScopes, permitLabels),
+      ...collectPshsepCatalogOshaRefs({
+        scope_of_work_selected: selectedScopes,
+        high_risk_focus_areas: highRiskFocusAreas,
+        permits_selected: permitLabels,
+      }),
+    ]),
+  ];
+  const baseProgramSelections = buildCsepProgramSelections({
+    selectedHazards,
+    selectedPermits: permitLabels,
+    selectedPpe: [...new Set([...selectedPpe, ...asStringArray(normalizedFormData.required_ppe)])],
+    selectedTasks: selectedScopes,
+    tradeItems: [],
+  }).selections;
+  const explicitProgramSelections = buildPshsepCatalogProgramSelections({
+    scope_of_work_selected: selectedScopes,
+    high_risk_focus_areas: highRiskFocusAreas,
+    permits_selected: permitLabels,
+  });
+  const programSelections = normalizeProgramSelections([
+    ...baseProgramSelections.map((selection) => ({
+      category: selection.category,
+      item: selection.item,
+      subtype: selection.subtype ?? null,
+      relatedTasks: selection.relatedTasks,
+      source: selection.source,
+    })),
+    ...explicitProgramSelections,
+  ]);
+  const exportProgramIds = derivePshsepExportProgramIds(normalizedFormData);
+  const steelReferencePacks = getSteelErectionReferencePacksForPshsepSelection({
+    scopeOfWorkSelected: selectedScopes,
+    highRiskFocusAreas,
+    assumedTradesIndex,
+    exportProgramIds,
+    programSelections,
+  });
+  const workConditions = [projectDescription, ownerSpecificRequirementsText].filter(Boolean);
   const operations = (selectedScopes.length ? selectedScopes : [projectDescription || "project execution"]).map(
     (scopeLabel, index) =>
       normalizeOperation({
@@ -323,21 +1015,37 @@ export function buildPshsepGenerationContext(formData: Record<string, unknown>):
         crewSize: null,
         metadata: {
           permitLabels,
-          orientationRequired: Boolean(formData.orientation_required),
-          liftPlansRequired: Boolean(formData.lift_plans_required),
-          criticalLiftReviewRequired: Boolean(formData.critical_lift_review_required),
+          oshaRefs,
+          highRiskFocusAreas,
+          orientationRequired: Boolean(normalizedFormData.orientation_required),
+          liftPlansRequired: Boolean(normalizedFormData.lift_plans_required),
+          criticalLiftReviewRequired: Boolean(normalizedFormData.critical_lift_review_required),
+          assumedTradesIndex,
+          tradeTrainingRequirementsText,
+          certificationRequirementsText,
+          ppeSpecificsText,
+          equipmentControlsText,
+          weatherSopText,
+          exportProgramIds,
+          steelTaskModuleKeys: steelReferencePacks.taskModules.map((module) => module.moduleKey),
+          steelHazardModuleKeys: steelReferencePacks.hazardModules.map(
+            (module) => module.moduleKey
+          ),
+          steelProgramModuleKeys: steelReferencePacks.programModules.map(
+            (module) => module.moduleKey
+          ),
         },
       })
   );
 
   return ensureOperations({
     project: {
-      projectName: String(formData.project_name ?? "").trim(),
-      projectNumber: ensureOptionalString(formData.project_number),
+      projectName: String(normalizedFormData.project_name ?? "").trim(),
+      projectNumber: ensureOptionalString(normalizedFormData.project_number),
       projectAddress: location || null,
-      ownerClient: ensureOptionalString(formData.owner_client),
-      gcCm: ensureOptionalString(formData.gc_cm),
-      contractorCompany: ensureOptionalString(formData.company_name),
+      ownerClient: ensureOptionalString(normalizedFormData.owner_client),
+      gcCm: ensureOptionalString(normalizedFormData.gc_cm),
+      contractorCompany: ensureOptionalString(normalizedFormData.company_name),
       contractorContact: null,
       contractorPhone: null,
       contractorEmail: null,
@@ -358,23 +1066,111 @@ export function buildPshsepGenerationContext(formData: Record<string, unknown>):
     siteContext: {
       location: location || null,
       workConditions,
-      siteRestrictions: extractSiteRestrictions([projectDescription]),
-      simultaneousOperations: [],
+      siteRestrictions: extractSiteRestrictions([
+        projectDescription,
+        ownerSpecificRequirementsText,
+        equipmentControlsText,
+      ]),
+      simultaneousOperations: [...assumedTradesIndex, ...ancillaryContractors],
       weather: {
         conditionCode: null,
-        summary: null,
+        summary: weatherSopText || null,
       },
       metadata: {
         emergencyMap: ensureJsonObject(emergencyMap),
+        sectionOrdering: {
+          adminFirst: false,
+          recommendedSectionOrder: [
+            "definitions",
+            "project_oversight_roles",
+            "contractor_coordination",
+            "training_certifications",
+            "incident_injury_response",
+            "emergency_facilities_contacts",
+            "inspections_recurring_events",
+            "weather_environmental_controls",
+            "ppe_work_access_controls",
+            "trade_risk_breakdown",
+            "high_risk_sections",
+            "admin_sections",
+          ],
+          tradeHazardSectionOrder: ["trade_risk_breakdown", "task_hazard_analysis", "permit_matrix"],
+        },
+        starterSections: {
+          normalizedCatalogSelections: {
+            scopeOfWorkSelected: selectedScopes,
+            highRiskFocusAreas,
+            permitsSelected: permitLabels,
+            assumedTradesIndex,
+            ancillaryContractors,
+          },
+          ownerSpecificRequirementsText,
+          definitionsText,
+          oversightRolesText,
+          competentPersonRequirementsText,
+          staffingRequirementsText,
+          tradeTrainingRequirementsText,
+          certificationRequirementsText,
+          contractorCoordinationText,
+          ancillaryContractors,
+          ancillaryContractorsNotes,
+          disciplinaryPolicyText,
+          ownerLetterText,
+          incidentReportingProcessText,
+          incidentInvestigationText,
+          specialConditionsPermitText,
+          assumedTradesIndex,
+          highRiskFocusAreas,
+          clinicName,
+          clinicAddress,
+          clinicHours,
+          postedEmergencyContactsText,
+          emergencyPostingLocation,
+          inspectionProcessText,
+          eventCalendarItems,
+          eventCalendarNotesText,
+          weatherSopText,
+          environmentalControlsText,
+          ppeSpecificsText,
+          equipmentControlsText,
+          chemicalStorageText,
+        },
+        oshaReferenceStrategy: "inline_and_appendix",
+        oshaRefs,
+        exportProgramIds,
+        steelTaskModulePackKey: steelReferencePacks.taskModules.length
+          ? STEEL_ERECTION_TASK_MODULE_PACK_KEY
+          : null,
+        steelTaskModuleTitles: steelReferencePacks.taskModules.map((module) => module.title),
+        steelTaskModules: steelReferencePacks.taskModuleAiContext,
+        steelHazardModulePackKey: steelReferencePacks.hazardModules.length
+          ? STEEL_ERECTION_HAZARD_MODULE_PACK_KEY
+          : null,
+        steelHazardModuleTitles: steelReferencePacks.hazardModules.map((module) => module.title),
+        steelHazardModules: steelReferencePacks.hazardModuleAiContext,
+        steelProgramModulePackKey: steelReferencePacks.programModules.length
+          ? STEEL_ERECTION_PROGRAM_MODULE_PACK_KEY
+          : null,
+        steelProgramModuleTitles: steelReferencePacks.programModules.map(
+          (module) => module.title
+        ),
+        steelProgramModules: steelReferencePacks.programModuleAiContext,
       },
     },
+    programSelections,
     documentProfile: {
       documentType: "pshsep",
-      requestedLabel: "PESHEP",
+      projectDeliveryType,
+      requestedLabel: SITE_SAFETY_BLUEPRINT_TITLE,
       title: null,
+      governingState: jurisdictionSelection.governingState,
+      jurisdictionCode: jurisdictionSelection.jurisdictionCode,
+      jurisdictionLabel: jurisdictionProfile.jurisdictionLabel,
+      jurisdictionPlanType: jurisdictionSelection.jurisdictionPlanType,
+      jurisdictionStandardsApplied: [],
       source: "builder_submit",
     },
-    legacyFormSnapshot: formData as JsonObject,
+    legacyFormSnapshot: normalizedFormData as JsonObject,
   });
 }
 
@@ -408,8 +1204,12 @@ function normalizeGenerationContext(
           }))
       )
     : [];
+  const pricedAttachments = normalizePricedItemSelections(
+    raw.pricedAttachments ?? raw.priced_attachments
+  );
   const weather = isRecord(siteContext.weather) ? siteContext.weather : {};
   const schedule = isRecord(scope.schedule) ? scope.schedule : {};
+  const builderInstructions = normalizeBuilderInstructions(raw.builderInstructions);
 
   return ensureOperations({
     project: {
@@ -449,12 +1249,32 @@ function normalizeGenerationContext(
       metadata: ensureJsonObject(siteContext.metadata),
     },
     programSelections,
+    pricedAttachments,
+    builderInstructions,
     documentProfile: {
       documentType,
+      projectDeliveryType: normalizeProjectDeliveryType(
+        documentProfile.projectDeliveryType ?? documentProfile.project_delivery_type
+      ),
       requestedLabel: ensureOptionalString(documentProfile.requestedLabel),
       title: ensureOptionalString(documentProfile.title),
       companyId: ensureOptionalString(documentProfile.companyId),
       jobsiteId: ensureOptionalString(documentProfile.jobsiteId),
+      governingState: ensureOptionalString(
+        documentProfile.governingState ?? documentProfile.governing_state
+      ),
+      jurisdictionCode: ensureOptionalString(
+        documentProfile.jurisdictionCode ?? documentProfile.jurisdiction_code
+      ) as SafetyPlanGenerationContext["documentProfile"]["jurisdictionCode"],
+      jurisdictionLabel: ensureOptionalString(
+        documentProfile.jurisdictionLabel ?? documentProfile.jurisdiction_label
+      ),
+      jurisdictionPlanType: ensureOptionalString(
+        documentProfile.jurisdictionPlanType ?? documentProfile.jurisdiction_plan_type
+      ) as SafetyPlanGenerationContext["documentProfile"]["jurisdictionPlanType"],
+      jurisdictionStandardsApplied: asStringArray(
+        documentProfile.jurisdictionStandardsApplied ?? documentProfile.jurisdiction_standards_applied
+      ),
       source: (String(documentProfile.source ?? "api").trim() || "api") as SafetyPlanGenerationContext["documentProfile"]["source"],
     },
     legacyFormSnapshot: ensureJsonObject(raw.legacyFormSnapshot),
@@ -472,6 +1292,19 @@ export function ensureSafetyPlanGenerationContext(params: {
     : params.documentType === "csep"
       ? buildCsepGenerationContext(params.formData)
       : buildPshsepGenerationContext(params.formData);
+  const fallbackBuilderInstructions =
+    params.documentType === "csep"
+      ? buildCsepGenerationContext(params.formData).builderInstructions ?? null
+      : null;
+
+  const jurisdictionProfile = resolveBuilderJurisdiction({
+    governingState:
+      rawContext.documentProfile.governingState ??
+      ensureOptionalString(params.formData.governing_state ?? params.formData.governingState),
+    companyState: ensureOptionalString(
+      params.formData.company_state_region ?? params.formData.companyStateRegion
+    ),
+  });
 
   return {
     ...rawContext,
@@ -479,11 +1312,32 @@ export function ensureSafetyPlanGenerationContext(params: {
       ...rawContext.siteContext,
       jobsiteId: params.jobsiteId ?? rawContext.siteContext.jobsiteId ?? null,
     },
+    builderInstructions:
+      params.documentType === "csep"
+        ? rawContext.builderInstructions ?? fallbackBuilderInstructions
+        : rawContext.builderInstructions ?? null,
     documentProfile: {
       ...rawContext.documentProfile,
       documentType: params.documentType,
+      projectDeliveryType:
+        rawContext.documentProfile.projectDeliveryType ??
+        normalizeProjectDeliveryType(
+          params.formData.project_delivery_type ?? params.formData.projectDeliveryType
+        ) ??
+        DEFAULT_PROJECT_DELIVERY_TYPE,
       companyId: params.companyId ?? rawContext.documentProfile.companyId ?? null,
       jobsiteId: params.jobsiteId ?? rawContext.documentProfile.jobsiteId ?? null,
+      governingState:
+        rawContext.documentProfile.governingState ?? jurisdictionProfile.governingState,
+      jurisdictionCode:
+        rawContext.documentProfile.jurisdictionCode ?? jurisdictionProfile.jurisdictionCode,
+      jurisdictionLabel:
+        rawContext.documentProfile.jurisdictionLabel ?? jurisdictionProfile.jurisdictionLabel,
+      jurisdictionPlanType:
+        rawContext.documentProfile.jurisdictionPlanType ??
+        jurisdictionProfile.jurisdictionPlanType,
+      jurisdictionStandardsApplied:
+        rawContext.documentProfile.jurisdictionStandardsApplied ?? [],
     },
     legacyFormSnapshot: {
       ...ensureJsonObject(params.formData),

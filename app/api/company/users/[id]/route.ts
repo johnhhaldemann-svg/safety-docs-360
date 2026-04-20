@@ -23,6 +23,7 @@ const COMPANY_ASSIGNABLE_ROLES: AppRole[] = [
   "manager",
   "safety_manager",
   "project_manager",
+  "field_supervisor",
   "foreman",
   "field_user",
   "read_only",

@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildCanonicalDocumentAiContext } from "@/lib/documentAiReviewContext";
+import type { ReviewDocumentAnnotation } from "@/lib/documentReviewExtraction";
 import { GC_REQUIRED_PROGRAM_DOCUMENT_TYPE } from "@/lib/gcRequiredProgram";
 import { serverLog } from "@/lib/serverLog";
 import {
@@ -13,6 +15,7 @@ export type GcSiteReferenceExtractionMeta =
       ok: true;
       method: string;
       truncated: boolean;
+      annotations: ReviewDocumentAnnotation[];
     }
   | {
       fileName: string;
@@ -31,7 +34,7 @@ export async function runGcProgramDocumentAiReview(
       review: Awaited<ReturnType<typeof generateGcProgramAiReview>>["review"];
       disclaimer: string;
       extraction:
-        | { ok: true; method: string; truncated: boolean }
+        | { ok: true; method: string; truncated: boolean; annotations: ReviewDocumentAnnotation[] }
         | { ok: false; error: string };
       siteReferenceExtraction: GcSiteReferenceExtractionMeta;
       documentId: string;
@@ -95,8 +98,18 @@ export async function runGcProgramDocumentAiReview(
     const extracted = await extractGcProgramDocumentText(buffer, fileName);
     const documentText = extracted.ok ? extracted.text : "";
     const extractionMeta = extracted.ok
-      ? { ok: true as const, method: extracted.method, truncated: extracted.truncated }
+      ? {
+          ok: true as const,
+          method: extracted.method,
+          truncated: extracted.truncated,
+          annotations: extracted.annotations,
+        }
       : { ok: false as const, error: extracted.error };
+    const canonicalReviewContext = buildCanonicalDocumentAiContext({
+      recordNotes: doc.notes ?? null,
+      annotations: extracted.ok ? extracted.annotations : [],
+      reviewerContext: additionalGcContext.trim() || null,
+    });
 
     let siteReferenceExtraction: GcSiteReferenceExtractionMeta = null;
     let siteReferenceText: string | null = null;
@@ -117,6 +130,7 @@ export async function runGcProgramDocumentAiReview(
         ok: true,
         method: siteExtracted.method,
         truncated: siteExtracted.truncated,
+        annotations: siteExtracted.annotations,
       };
       siteReferenceText = siteExtracted.text;
       siteReferenceFileName = refName;
@@ -128,7 +142,8 @@ export async function runGcProgramDocumentAiReview(
       fileName,
       companyName,
       recordNotes: doc.notes ?? null,
-      additionalGcContext: additionalGcContext.trim() || null,
+      additionalGcContext: canonicalReviewContext || null,
+      annotations: extracted.ok ? extracted.annotations : [],
       siteReferenceText,
       siteReferenceFileName,
     });

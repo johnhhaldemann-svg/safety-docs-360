@@ -3,7 +3,9 @@ import {
   buildCsepProgramSection,
   buildCsepProgramSelections,
   findMissingProgramSubtypeGroups,
+  getDefaultProgramDefinitions,
   listProgramTitles,
+  normalizeCsepProgramConfig,
 } from "@/lib/csepPrograms";
 
 describe("csepPrograms", () => {
@@ -90,6 +92,12 @@ describe("csepPrograms", () => {
     expect(permitRequiredSection.title).toBe("Permit-Required Confined Space Entry Program");
     expect(nonPermitSection.title).toBe("Non-Permit Confined Space Entry Program");
     expect(
+      permitRequiredSection.subsections.find((section) => section.title === "Pre-Task Setup")?.bullets
+    ).toContain("Complete the permit-required entry review, verify hazard isolation, and confirm attendant, entrant, and supervisor roles before entry begins.");
+    expect(
+      nonPermitSection.subsections.find((section) => section.title === "Stop-Work / Escalation")?.bullets
+    ).toContain("Stop work immediately if atmospheric concerns, engulfment potential, hazardous energy, or other permit-required conditions develop.");
+    expect(
       permitRequiredSection.subsections
         .find((section) => section.title === "Minimum Required Controls")
         ?.bullets.join(" ")
@@ -146,5 +154,90 @@ describe("csepPrograms", () => {
       });
       expect(section.summary).not.toContain("This program establishes the minimum authorization, review, and field controls required for");
     }
+  });
+
+  it("uses injected definitions when super-admin settings override a program block", () => {
+    const definitions = getDefaultProgramDefinitions();
+    const fallProtection = definitions.find(
+      (definition) =>
+        definition.category === "hazard" && definition.item === "Falls from height"
+    );
+
+    if (!fallProtection) {
+      throw new Error("Expected default fall protection program definition.");
+    }
+
+    fallProtection.title = "Custom Fall Program";
+    fallProtection.summary = "Custom summary for review.";
+    fallProtection.preTaskProcedures = ["Custom pre-task procedure"];
+    fallProtection.controls = ["Custom control 1", "Custom control 2"];
+
+    const section = buildCsepProgramSection(
+      {
+        category: "hazard",
+        item: "Falls from height",
+        relatedTasks: ["Roof access"],
+        source: "selected",
+      },
+      {
+        definitions,
+      }
+    );
+
+    expect(section.title).toBe("Custom Fall Program");
+    expect(section.summary).toBe("Custom summary for review.");
+    expect(
+      section.subsections.find((subsection) => subsection.title === "Pre-Task Setup")?.bullets
+    ).toEqual(["Custom pre-task procedure"]);
+    expect(
+      section.subsections.find((subsection) => subsection.title === "Minimum Required Controls")
+        ?.bullets
+    ).toEqual(["Custom control 1", "Custom control 2"]);
+  });
+
+  it("renders first-class procedure subsections in the expected order for hazard programs", () => {
+    const section = buildCsepProgramSection({
+      category: "hazard",
+      item: "Falls from height",
+      relatedTasks: ["Roof work"],
+      source: "selected",
+    });
+
+    expect(section.subsections.map((subsection) => subsection.title)).toEqual([
+      "When It Applies",
+      "Applicable References",
+      "Responsibilities and Training",
+      "Pre-Task Setup",
+      "Work Execution",
+      "Stop-Work / Escalation",
+      "Post-Task / Closeout",
+      "Minimum Required Controls",
+      "Related Tasks",
+    ]);
+  });
+
+  it("fills missing procedure arrays from the default catalog when normalizing older configs", () => {
+    const config = normalizeCsepProgramConfig({
+      definitions: [
+        {
+          category: "hazard",
+          item: "Falls from height",
+          title: "Legacy Fall Program",
+          summary: "Legacy summary",
+          controls: ["Legacy control"],
+        },
+      ],
+    });
+
+    const fallProgram = config.definitions.find(
+      (definition) =>
+        definition.category === "hazard" && definition.item === "Falls from height"
+    );
+
+    expect(fallProgram?.title).toBe("Legacy Fall Program");
+    expect(fallProgram?.preTaskProcedures.length).toBeGreaterThan(0);
+    expect(fallProgram?.workProcedures.length).toBeGreaterThan(0);
+    expect(fallProgram?.stopWorkProcedures.length).toBeGreaterThan(0);
+    expect(fallProgram?.closeoutProcedures.length).toBeGreaterThan(0);
   });
 });

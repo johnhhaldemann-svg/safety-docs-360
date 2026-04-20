@@ -7,6 +7,31 @@ import Link from "next/link";
 export const appNativeSelectClassName =
   "rounded-xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.98)] px-4 py-2.5 text-sm text-[var(--app-text-strong)] shadow-[0_8px_18px_rgba(76,108,161,0.06)] outline-none transition focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[rgba(79,125,243,0.18)]";
 
+export const workspaceEyebrowClassName =
+  "text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent-primary)]";
+
+export const workspaceSectionEyebrowClassName =
+  "text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--app-muted)]";
+
+export const appButtonPrimaryClassName =
+  "inline-flex items-center justify-center rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(37,99,235,0.22)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]";
+
+export const appButtonSecondaryClassName =
+  "inline-flex items-center justify-center rounded-xl border border-[var(--app-border-strong)] bg-white/92 px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] shadow-[0_10px_18px_rgba(76,108,161,0.06)] transition hover:bg-[var(--app-accent-primary-soft)]";
+
+export const appButtonQuietClassName =
+  "inline-flex items-center justify-center rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-2.5 text-sm font-semibold text-[var(--app-accent-primary)] transition hover:border-[rgba(37,99,235,0.24)] hover:bg-[var(--app-accent-primary-soft)]";
+
+function getSurfaceToneClassName(tone: "panel" | "elevated" | "attention") {
+  if (tone === "elevated") {
+    return "border-[rgba(121,151,196,0.42)] bg-[linear-gradient(180deg,_rgba(255,255,255,1)_0%,_rgba(244,249,255,0.98)_100%)] shadow-[0_18px_36px_rgba(74,106,158,0.11)]";
+  }
+  if (tone === "attention") {
+    return "border-[rgba(79,125,243,0.24)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.99)_0%,_rgba(234,241,255,0.98)_100%)] shadow-[0_16px_32px_rgba(79,125,243,0.1)]";
+  }
+  return "border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.97)_0%,_rgba(241,247,255,0.94)_100%)] shadow-[var(--app-shadow-soft)]";
+}
+
 export function PageHero({
   eyebrow,
   title,
@@ -19,16 +44,14 @@ export function PageHero({
   actions?: React.ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.96)_100%)] p-6 shadow-[var(--app-shadow)] sm:p-8">
+    <section className="rounded-3xl border border-[rgba(121,151,196,0.42)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.99)_0%,_rgba(239,246,255,0.98)_55%,_rgba(229,239,255,0.98)_100%)] p-6 shadow-[var(--app-shadow)] sm:p-8">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--app-accent-primary)]">
-            {eyebrow}
-          </p>
+          <p className={workspaceEyebrowClassName}>{eyebrow}</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
             {title}
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-[1.65] text-[var(--app-text)]">{description}</p>
+          <p className="mt-3 max-w-2xl text-sm leading-[1.7] text-[var(--app-text)]">{description}</p>
         </div>
         {actions ? <div className="flex flex-wrap gap-3 lg:justify-end">{actions}</div> : null}
       </div>
@@ -37,30 +60,42 @@ export function PageHero({
 }
 
 export function SectionCard({
+  eyebrow,
   title,
   description,
   children,
   aside,
+  actions,
+  tone = "panel",
   className = "",
+  contentClassName = "",
 }: {
+  eyebrow?: string;
   title: string;
   description?: string;
   children: React.ReactNode;
   aside?: React.ReactNode;
+  actions?: React.ReactNode;
+  tone?: "panel" | "elevated" | "attention";
   className?: string;
+  contentClassName?: string;
 }) {
   return (
     <section
-      className={`rounded-2xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.97)_0%,_rgba(241,247,255,0.94)_100%)] p-6 shadow-[var(--app-shadow-soft)] ${className}`.trim()}
+      className={`rounded-2xl p-6 ${getSurfaceToneClassName(tone)} ${className}`.trim()}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
           <h2 className="text-xl font-bold text-[var(--app-text-strong)]">{title}</h2>
           {description ? <p className="mt-1 text-sm leading-relaxed text-[var(--app-text)]">{description}</p> : null}
         </div>
-        {aside}
+        <div className="flex flex-wrap items-start gap-3 sm:justify-end">
+          {aside}
+          {actions}
+        </div>
       </div>
-      <div className="mt-6 space-y-5">{children}</div>
+      <div className={`mt-6 space-y-5 ${contentClassName}`.trim()}>{children}</div>
     </section>
   );
 }
@@ -102,11 +137,13 @@ export function InlineMessage({
 }
 
 export function EmptyState({
+  eyebrow,
   title,
   description,
   actionHref,
   actionLabel,
 }: {
+  eyebrow?: string;
   title: string;
   description: string;
   actionHref?: string;
@@ -114,13 +151,11 @@ export function EmptyState({
 }) {
   return (
     <div className="rounded-2xl border border-dashed border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(241,247,255,0.9)_100%)] p-8 text-center shadow-[var(--app-shadow-soft)]">
+      {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
       <p className="text-base font-semibold text-[var(--app-text-strong)]">{title}</p>
       <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
       {actionHref && actionLabel ? (
-        <Link
-          href={actionHref}
-          className="mt-4 inline-flex rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(79,125,243,0.22)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
-        >
+        <Link href={actionHref} className={`mt-4 ${appButtonPrimaryClassName}`}>
           {actionLabel}
         </Link>
       ) : null}
@@ -283,5 +318,53 @@ export function WorkflowPath({
         })}
       </div>
     </div>
+  );
+}
+
+export function MetricTile({
+  eyebrow,
+  title,
+  value,
+  detail,
+  tone = "panel",
+}: {
+  eyebrow?: string;
+  title: string;
+  value: string;
+  detail: string;
+  tone?: "panel" | "elevated" | "attention";
+}) {
+  return (
+    <div className={`rounded-2xl p-4 ${getSurfaceToneClassName(tone)}`}>
+      {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
+      <p className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{title}</p>
+      <p className="mt-3 text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{detail}</p>
+    </div>
+  );
+}
+
+export function ActionTile({
+  eyebrow,
+  title,
+  description,
+  href,
+  actionLabel,
+  tone = "panel",
+}: {
+  eyebrow?: string;
+  title: string;
+  description: string;
+  href: string;
+  actionLabel: string;
+  tone?: "panel" | "elevated" | "attention";
+}) {
+  return (
+    <Link href={href} className={`group block rounded-2xl p-4 transition hover:-translate-y-0.5 ${getSurfaceToneClassName(tone)}`}>
+      {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
+      <p className="mt-1 text-base font-semibold text-[var(--app-text-strong)]">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-[var(--app-accent-primary)]">{actionLabel}</p>
+    </Link>
   );
 }

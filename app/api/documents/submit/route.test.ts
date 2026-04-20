@@ -10,6 +10,7 @@ const {
   ensureSafetyPlanGenerationContext,
   runSafetyPlanDocumentPipeline,
   renderSafetyPlanDocx,
+  syncGeneratedTrainingRequirements,
   generateCsepDocx,
   generatePshsepDocx,
   serverLog,
@@ -23,6 +24,7 @@ const {
   ensureSafetyPlanGenerationContext: vi.fn(),
   runSafetyPlanDocumentPipeline: vi.fn(),
   renderSafetyPlanDocx: vi.fn(),
+  syncGeneratedTrainingRequirements: vi.fn(),
   generateCsepDocx: vi.fn(),
   generatePshsepDocx: vi.fn(),
   serverLog: vi.fn(),
@@ -46,6 +48,9 @@ vi.mock("@/lib/safety-intelligence/documents/pipeline", () => ({
 }));
 vi.mock("@/lib/safety-intelligence/documents/render", () => ({
   renderSafetyPlanDocx,
+}));
+vi.mock("@/lib/safety-intelligence/trainingProgram", () => ({
+  syncGeneratedTrainingRequirements,
 }));
 vi.mock("@/app/api/csep/export/route", () => ({
   generateCsepDocx,
@@ -105,7 +110,7 @@ describe("documents submit route", () => {
     getCompanyScope.mockResolvedValue({ companyId: "company-1" });
     buildRiskMemoryStructuredContext.mockResolvedValue(null);
     ensureSafetyPlanGenerationContext.mockReturnValue({
-      documentProfile: { documentType: "csep" },
+      documentProfile: { documentType: "csep", projectDeliveryType: "ground_up" },
       siteContext: { jobsiteId: null },
     });
     runSafetyPlanDocumentPipeline.mockResolvedValue({
@@ -203,7 +208,7 @@ describe("documents submit route", () => {
     getCompanyScope.mockResolvedValue({ companyId: "company-1" });
     buildRiskMemoryStructuredContext.mockResolvedValue(null);
     ensureSafetyPlanGenerationContext.mockReturnValue({
-      documentProfile: { documentType: "csep" },
+      documentProfile: { documentType: "csep", projectDeliveryType: "ground_up" },
       siteContext: { jobsiteId: null },
     });
     runSafetyPlanDocumentPipeline.mockRejectedValue(
@@ -304,7 +309,7 @@ describe("documents submit route", () => {
     getCompanyScope.mockResolvedValue({ companyId: "company-1" });
     buildRiskMemoryStructuredContext.mockResolvedValue(null);
     ensureSafetyPlanGenerationContext.mockReturnValue({
-      documentProfile: { documentType: "csep" },
+      documentProfile: { documentType: "csep", projectDeliveryType: "ground_up" },
       siteContext: { jobsiteId: null },
     });
     runSafetyPlanDocumentPipeline.mockRejectedValue(
@@ -359,5 +364,184 @@ describe("documents submit route", () => {
         message: expect.stringContaining("row-level security"),
       })
     );
+  });
+
+  it("reuses an approved preview draft when the builder hash matches", async () => {
+    const insertSingle = vi.fn().mockResolvedValue({
+      data: { id: "doc-preview-submit" },
+      error: null,
+    });
+    const insertSelect = vi.fn().mockReturnValue({ single: insertSingle });
+    const insert = vi.fn().mockReturnValue({ select: insertSelect });
+    const updateEq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+    const previewSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: "generated-preview-1",
+        company_id: "company-1",
+        created_by: "user-1",
+        document_type: "csep",
+        bucket_run_id: "bucket-preview-1",
+        provenance: {
+          builderInputHash: "hash-1",
+        },
+        draft_json: {
+          sectionMap: [],
+          trainingProgram: {
+            rows: [],
+            summaryTrainingTitles: [],
+          },
+        },
+      },
+      error: null,
+    });
+    const previewEq = vi.fn().mockReturnValue({ single: previewSingle });
+    const previewSelect = vi.fn().mockReturnValue({ eq: previewEq });
+    const from = vi.fn((table: string) => {
+      if (table === "documents") {
+        return {
+          insert,
+          update,
+        };
+      }
+      if (table === "company_generated_documents") {
+        return {
+          select: previewSelect,
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    const upload = vi.fn().mockResolvedValue({ error: null });
+    const storageFrom = vi.fn().mockReturnValue({ upload });
+    const supabase = {
+      from,
+      storage: {
+        from: storageFrom,
+      },
+    };
+
+    authorizeRequest.mockResolvedValue({
+      supabase,
+      user: { id: "user-1", user_metadata: {} },
+      team: null,
+    });
+    getUserAgreementRecord.mockResolvedValue({
+      data: {
+        accepted_terms: true,
+        terms_version: "v1",
+      },
+    });
+    getAgreementConfig.mockResolvedValue({ version: "v1" });
+    getDefaultAgreementConfig.mockReturnValue({ version: "v1" });
+    getCompanyScope.mockResolvedValue({ companyId: "company-1" });
+    buildRiskMemoryStructuredContext.mockResolvedValue(null);
+    ensureSafetyPlanGenerationContext.mockReturnValue({
+      documentProfile: { documentType: "csep", projectDeliveryType: "ground_up" },
+      siteContext: { jobsiteId: null },
+      builderInstructions: { builderInputHash: "hash-1" },
+    });
+    renderSafetyPlanDocx.mockResolvedValue({
+      body: new Uint8Array([4, 5, 6]),
+      filename: "Preview_CSEP_Draft.docx",
+    });
+    syncGeneratedTrainingRequirements.mockResolvedValue({ insertedCount: 0 });
+
+    const response = await POST(
+      new Request("https://example.com/api/documents/submit", {
+        method: "POST",
+        body: JSON.stringify({
+          document_type: "CSEP",
+          project_name: "Preview Campus",
+          generated_document_id: "generated-preview-1",
+          builder_input_hash: "hash-1",
+          form_data: {
+            trade: "Mechanical",
+          },
+        }),
+      })
+    );
+
+    if (!response) {
+      throw new Error("Expected a response.");
+    }
+
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      success: true,
+      document_id: "doc-preview-submit",
+      generated_document_id: "generated-preview-1",
+      bucket_run_id: "bucket-preview-1",
+    });
+    expect(runSafetyPlanDocumentPipeline).not.toHaveBeenCalled();
+    expect(renderSafetyPlanDocx).toHaveBeenCalled();
+    expect(syncGeneratedTrainingRequirements).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: "company-1",
+        sourceDocumentId: "doc-preview-submit",
+      })
+    );
+    expect(upload).toHaveBeenCalled();
+  });
+
+  it("rejects a stale approved preview hash before creating a document row", async () => {
+    const insert = vi.fn();
+    const from = vi.fn((table: string) => {
+      if (table === "documents") {
+        return { insert };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    const supabase = {
+      from,
+      storage: {
+        from: vi.fn(),
+      },
+    };
+
+    authorizeRequest.mockResolvedValue({
+      supabase,
+      user: { id: "user-1", user_metadata: {} },
+      team: null,
+    });
+    getUserAgreementRecord.mockResolvedValue({
+      data: {
+        accepted_terms: true,
+        terms_version: "v1",
+      },
+    });
+    getAgreementConfig.mockResolvedValue({ version: "v1" });
+    getDefaultAgreementConfig.mockReturnValue({ version: "v1" });
+    getCompanyScope.mockResolvedValue({ companyId: "company-1" });
+    buildRiskMemoryStructuredContext.mockResolvedValue(null);
+    ensureSafetyPlanGenerationContext.mockReturnValue({
+      documentProfile: { documentType: "csep", projectDeliveryType: "ground_up" },
+      siteContext: { jobsiteId: null },
+      builderInstructions: { builderInputHash: "current-hash" },
+    });
+
+    const response = await POST(
+      new Request("https://example.com/api/documents/submit", {
+        method: "POST",
+        body: JSON.stringify({
+          document_type: "CSEP",
+          project_name: "Stale Campus",
+          generated_document_id: "generated-preview-1",
+          builder_input_hash: "old-hash",
+          form_data: {
+            trade: "Mechanical",
+          },
+        }),
+      })
+    );
+
+    if (!response) {
+      throw new Error("Expected a response.");
+    }
+
+    const body = await response.json();
+    expect(response.status).toBe(409);
+    expect(body.error).toContain("Regenerate");
+    expect(insert).not.toHaveBeenCalled();
   });
 });

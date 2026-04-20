@@ -7,7 +7,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import { ComplianceCommandCenter } from "@/components/training-matrix/ComplianceCommandCenter";
-import { InlineMessage, SectionCard } from "@/components/WorkspacePrimitives";
+import {
+  ActionTile,
+  InlineMessage,
+  MetricTile,
+  PageHero,
+  SectionCard,
+  appButtonPrimaryClassName,
+  appButtonSecondaryClassName,
+  appNativeSelectClassName,
+} from "@/components/WorkspacePrimitives";
 import { TRAINING_REQUIREMENTS_MIGRATION_SQL } from "@/lib/companyTrainingRequirementsDb";
 import {
   PROFILE_CERTIFICATION_GROUPS,
@@ -31,7 +40,19 @@ type Requirement = {
   matchFields: string[];
   applyTrades: string[];
   applyPositions: string[];
+  applySubTrades: string[];
+  applyTaskCodes: string[];
   renewalMonths?: number | null;
+  isGenerated?: boolean;
+  generatedSourceType?: string | null;
+  generatedSourceDocumentId?: string | null;
+  generatedSourceOperationKey?: string | null;
+};
+
+type MatrixFilters = {
+  trades: string[];
+  subTrades: string[];
+  taskCodes: Array<{ value: string; label: string }>;
 };
 
 type MatrixCellState = "match" | "gap" | "na";
@@ -94,6 +115,16 @@ function requirementHeaderTitle(r: Requirement): string {
     return `${kw}\nTypical renewal: ${r.renewalMonths} mo (hint only; profile expiration dates control the matrix).`;
   }
   return kw;
+}
+
+function requirementScopeCaption(r: Requirement): string {
+  const parts = [
+    r.applyTrades.length ? `Trades: ${r.applyTrades.join(", ")}` : "",
+    r.applyPositions.length ? `Positions: ${r.applyPositions.join(", ")}` : "",
+    r.applySubTrades.length ? `Subtrades: ${r.applySubTrades.join(", ")}` : "",
+    r.applyTaskCodes.length ? `Tasks: ${r.applyTaskCodes.join(", ")}` : "",
+  ].filter(Boolean);
+  return parts.join(" | ");
 }
 
 function readinessLabel(raw: string): string {
@@ -645,6 +676,14 @@ function SchemaMigrationBanner({ onDismiss }: { onDismiss: () => void }) {
 export default function TrainingMatrixPage() {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [rows, setRows] = useState<MatrixRow[]>([]);
+  const [filters, setFilters] = useState<MatrixFilters>({
+    trades: [],
+    subTrades: [],
+    taskCodes: [],
+  });
+  const [selectedTradeFilter, setSelectedTradeFilter] = useState("");
+  const [selectedSubTradeFilter, setSelectedSubTradeFilter] = useState("");
+  const [selectedTaskCodeFilter, setSelectedTaskCodeFilter] = useState("");
   const [canMutate, setCanMutate] = useState(false);
   const [schemaMigrationNeeded, setSchemaMigrationNeeded] = useState(false);
   const [schemaMigrationBannerDismissed, setSchemaMigrationBannerDismissed] = useState(false);
@@ -715,7 +754,12 @@ export default function TrainingMatrixPage() {
     setMessage("");
     try {
       const token = await getAccessToken();
-      const res = await fetch("/api/company/training-matrix", {
+      const params = new URLSearchParams();
+      if (selectedTradeFilter) params.set("trade", selectedTradeFilter);
+      if (selectedSubTradeFilter) params.set("subTrade", selectedSubTradeFilter);
+      if (selectedTaskCodeFilter) params.set("taskCode", selectedTaskCodeFilter);
+      const query = params.toString();
+      const res = await fetch(`/api/company/training-matrix${query ? `?${query}` : ""}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
       });
@@ -727,6 +771,7 @@ export default function TrainingMatrixPage() {
             warning?: string | null;
             directoryNotice?: string | null;
             schemaMigrationNeeded?: boolean;
+            filters?: MatrixFilters;
             capabilities?: { canMutate?: boolean };
           }
         | null;
@@ -736,6 +781,7 @@ export default function TrainingMatrixPage() {
         setMessage(sanitizeApiErrorMessage(data?.error || "Failed to load training matrix."));
         setRequirements([]);
         setRows([]);
+        setFilters({ trades: [], subTrades: [], taskCodes: [] });
         setSchemaMigrationNeeded(false);
         setWarning(null);
         setDirectoryNotice(null);
@@ -749,9 +795,16 @@ export default function TrainingMatrixPage() {
           ...r,
           applyTrades: r.applyTrades ?? [],
           applyPositions: r.applyPositions ?? [],
+          applySubTrades: r.applySubTrades ?? [],
+          applyTaskCodes: r.applyTaskCodes ?? [],
           renewalMonths: r.renewalMonths ?? null,
+          isGenerated: Boolean(r.isGenerated),
+          generatedSourceType: r.generatedSourceType ?? null,
+          generatedSourceDocumentId: r.generatedSourceDocumentId ?? null,
+          generatedSourceOperationKey: r.generatedSourceOperationKey ?? null,
         }))
       );
+      setFilters(data?.filters ?? { trades: [], subTrades: [], taskCodes: [] });
       setRows(
         (data?.rows ?? []).map((row) => ({
           ...row,
@@ -784,6 +837,7 @@ export default function TrainingMatrixPage() {
       );
       setRequirements([]);
       setRows([]);
+      setFilters({ trades: [], subTrades: [], taskCodes: [] });
       setSchemaMigrationNeeded(false);
       setWarning(null);
       setDirectoryNotice(null);
@@ -791,11 +845,22 @@ export default function TrainingMatrixPage() {
       setLoading(false);
       setWorkspaceDataLoaded(true);
     }
-  }, []);
+  }, [selectedSubTradeFilter, selectedTaskCodeFilter, selectedTradeFilter]);
 
   useEffect(() => {
     void loadMatrix();
   }, [loadMatrix]);
+
+  const handleTradeFilterChange = useCallback((value: string) => {
+    setSelectedTradeFilter(value);
+    setSelectedSubTradeFilter("");
+    setSelectedTaskCodeFilter("");
+  }, []);
+
+  const handleSubTradeFilterChange = useCallback((value: string) => {
+    setSelectedSubTradeFilter(value);
+    setSelectedTaskCodeFilter("");
+  }, []);
 
   const handleCreate = useCallback(async () => {
     setSaving(true);
@@ -858,6 +923,7 @@ export default function TrainingMatrixPage() {
   ]);
 
   const startEdit = useCallback((r: Requirement) => {
+    if (r.isGenerated) return;
     setEditingId(r.id);
     const parsed = parseRequirementTitleForEdit(r.title, r.applyPositions ?? []);
     const certUi = certPickerStateFromTrainingLine(parsed.trainingLine);
@@ -980,19 +1046,19 @@ export default function TrainingMatrixPage() {
 
   return (
     <div className="training-matrix-light space-y-8">
-      <section className="overflow-hidden rounded-3xl border border-[rgba(198,212,236,0.9)] bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(236,244,255,0.96)_55%,rgba(228,239,255,0.96)_100%)] p-6 shadow-[0_20px_48px_rgba(79,125,243,0.12)] sm:p-8">
+      <section className="overflow-hidden rounded-3xl border border-[rgba(121,151,196,0.42)] bg-[linear-gradient(135deg,rgba(255,255,255,0.99)_0%,rgba(239,246,255,0.98)_55%,rgba(229,239,255,0.98)_100%)] p-6 shadow-[var(--app-shadow)] sm:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-400">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent-primary)]">
               Company workspace
             </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
               Training matrix
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-400">
-              Requirements use the same certification list as the construction profile. Configure rules
-              below; the command center shows KPIs, charts, and the credential ledger. Workspace data loads
-              when you open this page; use Refresh to pull the latest (no background polling).
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[var(--app-text)]">
+              Track certification requirements, verify worker readiness, and move directly from compliance
+              gaps into the workflows that resolve them. This page is organized around one sequence:
+              attention, rules, filters, and the live matrix.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -1000,7 +1066,7 @@ export default function TrainingMatrixPage() {
               type="button"
               onClick={() => void loadMatrix()}
               disabled={loading}
-              className="rounded-xl bg-gradient-to-r from-cyan-500 to-fuchsia-500 px-5 py-3 text-sm font-bold text-zinc-950 shadow-lg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:opacity-50`}
             >
               {loading
                 ? workspaceDataLoaded
@@ -1010,13 +1076,52 @@ export default function TrainingMatrixPage() {
             </button>
             <Link
               href="/dashboard"
-              className="rounded-xl border border-[rgba(198,212,236,0.9)] bg-[rgba(255,255,255,0.94)] px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[rgba(79,125,243,0.08)]"
+              className={appButtonSecondaryClassName}
             >
               Back to dashboard
             </Link>
           </div>
         </div>
       </section>
+
+      <SectionCard
+        eyebrow="Today / Attention"
+        title="Compliance attention"
+        description="Start with the current compliance picture, then move into requirements, filters, and the detailed matrix below."
+        tone="attention"
+      >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricTile
+            eyebrow="Workspace roster"
+            title="People tracked"
+            value={String(rows.length)}
+            detail="People currently included in the workspace compliance view."
+            tone="attention"
+          />
+          <MetricTile
+            eyebrow="Requirement set"
+            title="Requirements"
+            value={String(requirements.length)}
+            detail="Configured training rules, including generated task-scoped items."
+          />
+          <MetricTile
+            eyebrow="Current coverage"
+            title="Met checks"
+            value={trackerStats ? String(trackerStats.met) : "-"}
+            detail={
+              trackerStats
+                ? `${trackerStats.gap} gaps and ${trackerStats.na} not-applicable checks in the current matrix.`
+                : "Compliance totals appear after the matrix loads."
+            }
+          />
+          <MetricTile
+            eyebrow="Workflow focus"
+            title="Next action"
+            value={requirements.length === 0 ? "Add rule" : trackerStats?.gap ? "Review gaps" : "Audit ledger"}
+            detail="Use requirements, filters, and the ledger together so this page reads as one guided workflow."
+          />
+        </div>
+      </SectionCard>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <CompanyAiAssistPanel
@@ -1052,12 +1157,68 @@ export default function TrainingMatrixPage() {
       {warning ? <InlineMessage tone="warning">{warning}</InlineMessage> : null}
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 
+      <SectionCard
+        eyebrow="Supporting Context"
+        title="Context filters"
+        description="Use trade, subtrade, and task filters to activate task-scoped requirements generated from selected CSEP work."
+      >
+        <div className="grid gap-4 md:grid-cols-3">
+          <label className="text-sm font-medium text-[var(--app-text-strong)]">
+            Trade
+            <select
+              value={selectedTradeFilter}
+              onChange={(e) => handleTradeFilterChange(e.target.value)}
+              className={`mt-1 w-full ${appNativeSelectClassName}`}
+            >
+              <option value="">All trades</option>
+              {filters.trades.map((trade) => (
+                <option key={trade} value={trade}>
+                  {trade}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-[var(--app-text-strong)]">
+            Subtrade
+            <select
+              value={selectedSubTradeFilter}
+              onChange={(e) => handleSubTradeFilterChange(e.target.value)}
+              className={`mt-1 w-full ${appNativeSelectClassName}`}
+            >
+              <option value="">All subtrades</option>
+              {filters.subTrades.map((subTrade) => (
+                <option key={subTrade} value={subTrade}>
+                  {subTrade}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-[var(--app-text-strong)]">
+            Task
+            <select
+              value={selectedTaskCodeFilter}
+              onChange={(e) => setSelectedTaskCodeFilter(e.target.value)}
+              className={`mt-1 w-full ${appNativeSelectClassName}`}
+            >
+              <option value="">All tasks</option>
+              {filters.taskCodes.map((task) => (
+                <option key={task.value} value={task.value}>
+                  {task.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </SectionCard>
+
       {canMutate ? (
         <SectionCard
+          eyebrow="Work Area"
           title="Required trainings"
           description="Pick a certification from the same list workers use on their construction profile, then choose trades and positions. The saved title adds positions in parentheses."
+          tone="elevated"
         >
-          <label className="block text-sm font-medium text-slate-300">
+          <label className="block text-sm font-medium text-[var(--app-text-strong)]">
             Training requirement
             <select
               value={newProfileCertSelect}
@@ -1066,7 +1227,7 @@ export default function TrainingMatrixPage() {
                 setNewProfileCertSelect(v);
                 if (v !== CUSTOM_PROFILE_CERT_VALUE) setNewProfileCertCustom("");
               }}
-              className="mt-1 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm text-slate-100 outline-none focus:ring-2 focus:ring-sky-500"
+              className={`mt-1 w-full ${appNativeSelectClassName}`}
             >
               <option value="">Select from profile certifications…</option>
               {PROFILE_CERTIFICATION_GROUPS.map((group) => (
@@ -1084,11 +1245,11 @@ export default function TrainingMatrixPage() {
               <input
                 value={newProfileCertCustom}
                 onChange={(e) => setNewProfileCertCustom(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-100 outline-none focus:ring-2 focus:ring-sky-500"
+                className="mt-2 w-full rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm text-[var(--app-text-strong)] outline-none focus:ring-2 focus:ring-[rgba(37,99,235,0.18)]"
                 placeholder="Custom name — should match text on profiles"
               />
             ) : null}
-            <span className="mt-1 block text-xs font-normal text-slate-500">
+            <span className="mt-1 block text-xs font-normal text-[var(--app-muted)]">
               Matching uses this certification text against each person’s profile. Positions you add
               below are included in the column title.
             </span>
@@ -1100,7 +1261,7 @@ export default function TrainingMatrixPage() {
             onPositionsChange={setNewApplyPositions}
             variant="default"
           />
-          <label className="mt-4 block text-sm font-medium text-slate-300">
+          <label className="mt-4 block text-sm font-medium text-[var(--app-text-strong)]">
             Typical renewal (months, optional)
             <input
               type="number"
@@ -1109,9 +1270,9 @@ export default function TrainingMatrixPage() {
               value={newRenewalMonths}
               onChange={(e) => setNewRenewalMonths(e.target.value)}
               placeholder="e.g. 36"
-              className="mt-1 w-full max-w-[200px] rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm text-slate-100 outline-none focus:ring-2 focus:ring-sky-500"
+              className="mt-1 w-full max-w-[200px] rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm text-[var(--app-text-strong)] outline-none focus:ring-2 focus:ring-[rgba(37,99,235,0.18)]"
             />
-            <span className="mt-1 block text-xs font-normal text-slate-500">
+            <span className="mt-1 block text-xs font-normal text-[var(--app-muted)]">
               Policy hint for your team. Actual compliance still uses each worker’s expiration dates on their
               construction profile.
             </span>
@@ -1126,20 +1287,20 @@ export default function TrainingMatrixPage() {
                 newApplyPositions.length === 0
               }
               onClick={() => void handleCreate()}
-              className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:opacity-50`}
             >
               {saving ? "Saving…" : "Add requirement"}
             </button>
           </div>
 
           {requirements.length > 0 ? (
-            <ul className="mt-6 space-y-3 border-t border-slate-700/80 pt-6">
+            <ul className="mt-6 space-y-3 border-t border-[var(--app-border)] pt-6">
               {requirements.map((r) => (
                 <li
                   key={r.id}
-                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4"
+                  className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4"
                 >
-                  {editingId === r.id ? (
+                  {editingId === r.id && !r.isGenerated ? (
                     <div className="grid gap-3">
                       <label className="block text-xs font-semibold text-slate-400">
                         Training requirement
@@ -1221,10 +1382,20 @@ export default function TrainingMatrixPage() {
                   ) : (
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <div className="font-semibold text-slate-100">{r.title}</div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          Trades: {(r.applyTrades ?? []).join(", ") || "—"}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="font-semibold text-slate-100">{r.title}</div>
+                          {r.isGenerated ? (
+                            <span className="rounded-full border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-semibold text-cyan-200">
+                              Generated
+                            </span>
+                          ) : null}
                         </div>
+                        <div className="mt-1 text-xs text-slate-500">{requirementScopeCaption(r) || "All scopes"}</div>
+                        {r.isGenerated && r.generatedSourceType ? (
+                          <div className="mt-1 text-xs text-cyan-200/80">
+                            Source: {r.generatedSourceType.replace(/_/g, " ")}
+                          </div>
+                        ) : null}
                         {r.renewalMonths != null && r.renewalMonths > 0 ? (
                           <div className="mt-1 text-xs font-medium text-sky-100">
                             Typical renewal: {r.renewalMonths} mo
@@ -1238,14 +1409,16 @@ export default function TrainingMatrixPage() {
                         <button
                           type="button"
                           onClick={() => startEdit(r)}
-                          className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm font-semibold text-slate-300 hover:bg-slate-900/90"
+                          disabled={Boolean(r.isGenerated)}
+                          className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm font-semibold text-slate-300 hover:bg-slate-900/90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Edit
                         </button>
                         <button
                           type="button"
                           onClick={() => void handleDelete(r.id)}
-                          className="rounded-lg border border-red-500/35 px-3 py-1.5 text-sm font-semibold text-red-200 hover:bg-red-950/40"
+                          disabled={Boolean(r.isGenerated)}
+                          className="rounded-lg border border-red-500/35 px-3 py-1.5 text-sm font-semibold text-red-200 hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Delete
                         </button>
@@ -1497,3 +1670,4 @@ export default function TrainingMatrixPage() {
     </div>
   );
 }
+

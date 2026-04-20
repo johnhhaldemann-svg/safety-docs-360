@@ -18,6 +18,7 @@ function canUploadEvidence(role: string) {
     role === "manager" ||
     role === "safety_manager" ||
     role === "project_manager" ||
+    role === "field_supervisor" ||
     role === "foreman"
   );
 }

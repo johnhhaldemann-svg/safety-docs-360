@@ -1,5 +1,8 @@
 import { extractResponsesApiOutputText } from "@/lib/ai/responses";
-import { extractGcProgramDocumentText } from "@/lib/gcProgramAiReview";
+import { getReviewLayoutGuidance } from "@/lib/documentLayoutGuidance";
+import { buildNoteCoverage, detectDocumentQualityIssues } from "@/lib/documentAiReviewSignals";
+import type { ReviewDocumentAnnotation } from "@/lib/documentReviewExtraction";
+import { extractReviewDocumentText } from "@/lib/documentReviewExtraction";
 import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
 
 export type BuilderProgramAiReview = {
@@ -14,6 +17,8 @@ export type BuilderProgramAiReview = {
   recommendedEditsBeforeApproval: string[];
   /** Optional checklist delta for required planning controls that appear missing or partial */
   checklistDelta?: string[];
+  documentQualityIssues?: string[];
+  noteCoverage?: string[];
   overallAssessment: "sufficient" | "needs_work" | "insufficient_context";
 };
 
@@ -54,6 +59,7 @@ function buildDeterministicBuilderProgramReview(params: {
   additionalReviewerContext?: string | null;
   siteReferenceText?: string | null;
   companyMemoryExcerpts?: string | null;
+  annotations?: ReviewDocumentAnnotation[];
 }): BuilderProgramAiReview {
   const draftText = params.documentText.trim().toLowerCase();
   const referenceText = `${params.additionalReviewerContext ?? ""}\n${params.siteReferenceText ?? ""}\n${params.companyMemoryExcerpts ?? ""}`.toLowerCase();
@@ -71,9 +77,13 @@ function buildDeterministicBuilderProgramReview(params: {
   }
 
   if (includesAny(draftText, ["permit", "hot work", "confined space", "loto", "excavat", "trench"])) {
-    strengths.push("The draft references permit-sensitive work or approval triggers that usually require closer field coordination.");
+    strengths.push(
+      "The draft references permit-sensitive work or approval triggers that usually require closer field coordination."
+    );
   } else {
-    gaps.push("Permit-triggering activities are not clearly mapped, so reviewers should confirm whether hot work, excavation, electrical, or confined-space permits apply.");
+    gaps.push(
+      "Permit-triggering activities are not clearly mapped, so reviewers should confirm whether hot work, excavation, electrical, or confined-space permits apply."
+    );
     edits.push("Add a permit matrix listing each task and the required permit, notice, or pre-task authorization.");
   }
 
@@ -107,7 +117,9 @@ function buildDeterministicBuilderProgramReview(params: {
   }
 
   while (strengths.length < 2) {
-    strengths.push("The draft establishes enough structure to support a human approval review, even if several details still need tightening.");
+    strengths.push(
+      "The draft establishes enough structure to support a human approval review, even if several details still need tightening."
+    );
   }
   while (gaps.length < 2) {
     gaps.push("Reviewer clarification is needed before treating the draft as approval-ready.");
@@ -127,11 +139,13 @@ function buildDeterministicBuilderProgramReview(params: {
     gapsRisksOrClarifications: gaps.slice(0, 8),
     recommendedEditsBeforeApproval: edits.slice(0, 6),
     checklistDelta,
+    documentQualityIssues: detectDocumentQualityIssues(params.documentText),
+    noteCoverage: buildNoteCoverage(params.annotations ?? []),
     overallAssessment: hasBody ? "needs_work" : "insufficient_context",
   };
 }
 
-export { extractGcProgramDocumentText as extractBuilderReviewDocumentText };
+export { extractReviewDocumentText as extractBuilderReviewDocumentText };
 
 export async function generateBuilderProgramAiReview(params: {
   documentText: string;
@@ -142,6 +156,7 @@ export async function generateBuilderProgramAiReview(params: {
   companyName?: string | null;
   recordNotes?: string | null;
   additionalReviewerContext?: string | null;
+  annotations?: ReviewDocumentAnnotation[];
   /** Optional site/owner/GC reference (PDF/DOCX) to compare against the draft */
   siteReferenceText?: string | null;
   siteReferenceFileName?: string | null;
@@ -164,6 +179,17 @@ export async function generateBuilderProgramAiReview(params: {
 
   const memoryExcerpts = params.companyMemoryExcerpts?.trim() ?? "";
   const hasMemory = memoryExcerpts.length >= 40;
+  const annotationText = (params.annotations ?? [])
+    .slice(0, 8)
+    .map((annotation) =>
+      [
+        `- ${annotation.note}`,
+        annotation.anchorText ? `  Anchor text: ${annotation.anchorText}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    )
+    .join("\n");
 
   const contextBlock = [
     `Program type: ${label} (CSEP / PSHSEP / PESHEP-style builder safety-environmental plans in this product).`,
@@ -171,11 +197,12 @@ export async function generateBuilderProgramAiReview(params: {
     params.documentTitle?.trim() ? `Title: ${params.documentTitle.trim()}` : null,
     params.companyName?.trim() ? `Company: ${params.companyName.trim()}` : null,
     params.recordNotes?.trim() ? `Record notes: ${params.recordNotes.trim()}` : null,
+    annotationText ? `Embedded reviewer notes from DOCX comments:\n${annotationText}` : null,
     params.additionalReviewerContext?.trim()
       ? `Reviewer-provided context (site rules, owner requirements, gaps to check): ${params.additionalReviewerContext.trim()}`
       : null,
     hasMemory
-      ? `--- Company knowledge (internal reference only; not a regulation) ---\n${memoryExcerpts.slice(0, 24_000)}${memoryExcerpts.length > 24_000 ? "\n…" : ""}`
+      ? `--- Company knowledge (internal reference only; not a regulation) ---\n${memoryExcerpts.slice(0, 24_000)}${memoryExcerpts.length > 24_000 ? "\n�" : ""}`
       : null,
     siteName
       ? hasSiteRef
@@ -192,13 +219,16 @@ export async function generateBuilderProgramAiReview(params: {
   const prompt = [
     "You are an expert reviewer of U.S. construction safety documentation (OSHA 29 CFR Part 1926 where relevant) and practical field readiness of safety/environmental plans.",
     "The primary file is a draft from the product's builder workflow (CSEP, PSHSEP, PESHEP, etc.). It is not final until a human reviewer approves.",
+    getReviewLayoutGuidance(),
     "Tasks:",
     "1) Summarize what the draft appears to cover (scope, trades, hazards, controls, PPE, permits, emergency info, environmental notes if any).",
     "2) Identify strengths relative to typical expectations for a site-specific or project safety/environmental plan.",
-    "3) When company knowledge excerpts are provided, treat them as the company's own rules and priorities—align the draft and flag conflicts. When a site/owner/GC reference document is provided, compare the draft to that reference: note matches, omissions, and conflicts, in addition to OSHA-oriented gaps.",
-    "4) Identify gaps, ambiguities, or risks a reviewer should address before approving (missing sections, vague controls, inconsistent PPE, etc.).",
+    "3) When company knowledge excerpts are provided, treat them as the company's own rules and priorities-align the draft and flag conflicts. When a site/owner/GC reference document is provided, compare the draft to that reference: note matches, omissions, and conflicts, in addition to OSHA-oriented gaps.",
+    "4) Identify gaps, ambiguities, or risks a reviewer should address before approving, and separate content or generation issues from visible presentation or layout issues.",
     "5) Recommend concrete edits or follow-up questions for the reviewer.",
-    "6) Include an optional checklistDelta array for checklist-required planning controls that appear missing/partial (baseline, company policy, work-specific, environmental).",
+    "6) Include an optional checklistDelta array for checklist-required planning controls that appear missing or partial (baseline, company policy, work-specific, environmental).",
+    "7) Populate documentQualityIssues with customer-facing problems such as placeholders, leaked internal generator labels, raw risk-score presentation, branding placeholders, or task-trigger wording.",
+    "8) When record notes or embedded DOCX comments are provided, map them to concrete next steps in noteCoverage.",
     "Do NOT invent citations, inspections, or compliance determinations. If text is unreadable or too thin, set overallAssessment to insufficient_context.",
     "Output strict JSON matching the schema.",
     contextBlock,
@@ -246,6 +276,16 @@ export async function generateBuilderProgramAiReview(params: {
                 items: { type: "string" },
                 maxItems: 8,
               },
+              documentQualityIssues: {
+                type: "array",
+                items: { type: "string" },
+                maxItems: 6,
+              },
+              noteCoverage: {
+                type: "array",
+                items: { type: "string" },
+                maxItems: 8,
+              },
               overallAssessment: {
                 type: "string",
                 enum: ["sufficient", "needs_work", "insufficient_context"],
@@ -257,6 +297,7 @@ export async function generateBuilderProgramAiReview(params: {
               "regulatoryAndProgramStrengths",
               "gapsRisksOrClarifications",
               "recommendedEditsBeforeApproval",
+              "checklistDelta",
               "overallAssessment",
             ],
           },
@@ -285,7 +326,8 @@ export async function generateBuilderProgramAiReview(params: {
 
   const review: BuilderProgramAiReview = {
     executiveSummary: String(parsed.executiveSummary ?? "").trim() || "No summary returned.",
-    scopeTradeAndHazardCoverage: String(parsed.scopeTradeAndHazardCoverage ?? "").trim() || "—",
+    scopeTradeAndHazardCoverage:
+      String(parsed.scopeTradeAndHazardCoverage ?? "").trim() || "-",
     regulatoryAndProgramStrengths: Array.isArray(parsed.regulatoryAndProgramStrengths)
       ? parsed.regulatoryAndProgramStrengths.filter((x) => typeof x === "string" && x.trim())
       : [],
@@ -298,6 +340,12 @@ export async function generateBuilderProgramAiReview(params: {
     checklistDelta: Array.isArray(parsed.checklistDelta)
       ? parsed.checklistDelta.filter((x) => typeof x === "string" && x.trim())
       : buildChecklistDeltaSignals(String(params.documentText ?? "").toLowerCase()),
+    documentQualityIssues: Array.isArray(parsed.documentQualityIssues)
+      ? parsed.documentQualityIssues.filter((x) => typeof x === "string" && x.trim())
+      : detectDocumentQualityIssues(params.documentText),
+    noteCoverage: Array.isArray(parsed.noteCoverage)
+      ? parsed.noteCoverage.filter((x) => typeof x === "string" && x.trim())
+      : buildNoteCoverage(params.annotations ?? []),
     overallAssessment:
       parsed.overallAssessment === "sufficient" ||
       parsed.overallAssessment === "needs_work" ||

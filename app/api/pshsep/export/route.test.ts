@@ -1,0 +1,97 @@
+import JSZip from "jszip";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG,
+  cloneDocumentBuilderTextConfig,
+} from "@/lib/documentBuilderText";
+
+vi.mock("@/lib/documentBuilderTextSettings", () => ({
+  getDocumentBuilderTextConfig: vi.fn(),
+}));
+
+import { generatePshsepDocx } from "./route";
+import { getDocumentBuilderTextConfig } from "@/lib/documentBuilderTextSettings";
+
+async function unzipDocx(body: Uint8Array | ArrayBuffer) {
+  const zip = await JSZip.loadAsync(body);
+  return {
+    documentXml: await zip.file("word/document.xml")!.async("string"),
+  };
+}
+
+describe("legacy PSHSEP DOCX export", () => {
+  beforeEach(() => {
+    vi.mocked(getDocumentBuilderTextConfig).mockResolvedValue(
+      DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG as never
+    );
+  });
+
+  it("normalizes builder aliases and includes catalog-driven specialist programs", async () => {
+    const rendered = await generatePshsepDocx({
+      company_name: "SafetyDocs360",
+      project_name: "Turnaround Alpha",
+      project_number: "TA-100",
+      project_address: "500 Plant Rd",
+      owner_client: "Owner",
+      gc_cm: "GC",
+      scope_of_work_selected: [
+        "Excavation",
+        "Concrete",
+        "Crane / Rigging",
+        "Hazard Communication / Chemical Use",
+        "Silica / Dust Producing Work",
+      ],
+      permits_selected: ["Temporary Power / Energization", "Groundbreaking/Excavation"],
+      high_risk_focus_areas: [
+        "Respiratory / silica / dust exposure",
+        "Occupied areas / public protection",
+      ],
+      assumed_trades_index: ["Excavation", "Scaffolding"],
+    });
+
+    const body = new Uint8Array(rendered.body);
+    const { documentXml } = await unzipDocx(body);
+
+    expect(documentXml).toContain("PSHSEP");
+    expect(documentXml).toContain("Excavation &amp; Trenching");
+    expect(documentXml).toContain("Cranes, Rigging &amp; Critical Lifts");
+    expect(documentXml).toContain("Concrete &amp; Masonry");
+    expect(documentXml).toContain("Hazard Communication");
+    expect(documentXml).toContain("Silica Exposure Control");
+    expect(documentXml).toContain("Respiratory Protection");
+    expect(documentXml).toContain("Public Protection &amp; Occupied Area Controls");
+    expect(documentXml).not.toContain("Confined Space Entry - Detailed Requirements");
+  });
+
+  it("uses configured builder text overrides for site builder content", async () => {
+    const config = cloneDocumentBuilderTextConfig(DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG);
+    config.builders.site_builder.sections[0].paragraphs = ["Custom cover purpose from super admin."];
+    const fallProtection = config.builders.site_builder.sections.find(
+      (section) => section.key === "fall_protection"
+    );
+
+    if (fallProtection) {
+      fallProtection.title = "Working at Heights";
+      const purpose = fallProtection.children.find((child) => child.key === "purpose");
+      if (purpose) {
+        purpose.paragraphs = ["Custom fall protection purpose."];
+      }
+    }
+
+    vi.mocked(getDocumentBuilderTextConfig).mockResolvedValue(config as never);
+
+    const rendered = await generatePshsepDocx({
+      company_name: "SafetyDocs360",
+      project_name: "Turnaround Alpha",
+      project_number: "TA-100",
+      scope_of_work_selected: ["Excavation"],
+    });
+
+    const body = new Uint8Array(rendered.body);
+    const { documentXml } = await unzipDocx(body);
+
+    expect(documentXml).toContain("Custom cover purpose from super admin.");
+    expect(documentXml).toContain("Working at Heights");
+    expect(documentXml).toContain("Custom fall protection purpose.");
+  });
+});

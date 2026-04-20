@@ -56,6 +56,12 @@ const roleOptions = [
   "Company Admin",
   "Operations Manager",
   "Company User",
+  "Safety Manager",
+  "Project Manager",
+  "Field Supervisor",
+  "Foreman",
+  "Field User",
+  "Read Only",
   "Editor",
   "Viewer",
 ];
@@ -75,6 +81,7 @@ const companyAssignableRoles = new Set([
   "Company User",
   "Safety Manager",
   "Project Manager",
+  "Field Supervisor",
   "Foreman",
   "Field User",
   "Read Only",
@@ -92,6 +99,11 @@ function roleClasses(role: string) {
   if (role === "Admin") return "bg-[#d8e6ff] text-[#325fda]";
   if (role === "Operations Manager") return "bg-violet-100 text-violet-700";
   if (role === "Company Admin") return "bg-indigo-100 text-indigo-700";
+  if (role === "Safety Manager") return "bg-emerald-100 text-emerald-700";
+  if (role === "Project Manager") return "bg-sky-100 text-sky-700";
+  if (role === "Field Supervisor" || role === "Foreman") return "bg-cyan-100 text-cyan-700";
+  if (role === "Field User") return "bg-lime-100 text-lime-700";
+  if (role === "Read Only") return "bg-slate-200 text-slate-600";
   if (role === "Company User") return "bg-[#fdeabf] text-[#9b6b12]";
   if (role === "Editor") return "bg-[#fdeabf] text-[#9b6b12]";
   return "bg-[#e7edf5] text-[#637387]";

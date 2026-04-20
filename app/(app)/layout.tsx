@@ -16,9 +16,23 @@ import {
   internalAdminAppendedSection,
   userSideSections,
 } from "@/lib/appNavigation";
+import {
+  canAccessCompanyJobsites,
+  canAccessCompanyWorkspaceHref,
+  canBuildCompanyDocuments,
+  canManageCompanyIncidents,
+  canManageCompanyJsa,
+  canManageCompanyPermits,
+  canSubmitCompanyDocuments,
+  canViewCompanyTrainingMatrix,
+} from "@/lib/companyFeatureAccess";
 import { getDefaultAgreementConfig, type AgreementConfig } from "@/lib/legal";
 import type { PermissionMap } from "@/lib/rbac";
 import { getCsepNavSectionsForRole, type WorkspaceProduct } from "@/lib/workspaceProduct";
+import {
+  getWorkspaceNavItemMeta,
+  groupCompanyWorkspaceSections,
+} from "@/lib/workspaceNavigationModel";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
 const supabase = getSupabaseBrowserClient();
@@ -117,6 +131,9 @@ function formatRole(role: string) {
   }
   if (normalized === "project_manager") {
     return "Project Manager";
+  }
+  if (normalized === "field_supervisor") {
+    return "Field Supervisor";
   }
   if (normalized === "foreman") {
     return "Foreman";
@@ -239,6 +256,7 @@ export default function AppLayout({
   const isCompanyUser =
     userRole === "company_user" ||
     userRole === "project_manager" ||
+    userRole === "field_supervisor" ||
     userRole === "foreman" ||
     userRole === "field_user" ||
     userRole === "read_only";
@@ -255,7 +273,7 @@ export default function AppLayout({
     !companyId &&
     inCompanySetupFlow;
 
-  const sideSections = useMemo(() => {
+  const rawSideSections = useMemo(() => {
     if (needsCompanySetup) {
       return accountSetupSideSections;
     }
@@ -288,6 +306,31 @@ export default function AppLayout({
     workspaceProduct,
   ]);
 
+  const presentedSideSections = useMemo(() => {
+    if (!showPlatformAdminShell && isCompanyScopedUser && workspaceProduct !== "csep") {
+      return groupCompanyWorkspaceSections(rawSideSections);
+    }
+    return rawSideSections;
+  }, [
+    isCompanyScopedUser,
+    rawSideSections,
+    showPlatformAdminShell,
+    workspaceProduct,
+  ]);
+
+  const sideSections = useMemo(
+    () =>
+      presentedSideSections
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) =>
+            canAccessCompanyWorkspaceHref(item.href, userRole, permissionMap)
+          ),
+        }))
+        .filter((section) => section.items.length > 0),
+    [permissionMap, presentedSideSections, userRole]
+  );
+
   const commandPaletteItems = useMemo(
     () => flattenNavItemsFromSections(sideSections),
     [sideSections]
@@ -308,6 +351,14 @@ export default function AppLayout({
       short: showPlatformAdminShell ? "AD" : "WS",
     };
   }, [pathname, showPlatformAdminShell, sideSections]);
+
+  const currentNavMeta = useMemo(() => getWorkspaceNavItemMeta(currentNavItem), [currentNavItem]);
+
+  const currentNavSection = useMemo(() => {
+    return sideSections.find((section) =>
+      section.items.some((item) => isActivePath(pathname, item.href))
+    );
+  }, [pathname, sideSections]);
 
   useEffect(() => {
     let cancelled = false;
@@ -559,11 +610,7 @@ export default function AppLayout({
         companyAllowedRoutes.push("/billing");
       }
 
-      if (
-        userRole === "project_manager" ||
-        userRole === "foreman" ||
-        userRole === "field_user"
-      ) {
+      if (canAccessCompanyJobsites(userRole, permissionMap)) {
         companyAllowedRoutes.push("/jobsites");
       }
 
@@ -577,9 +624,6 @@ export default function AppLayout({
           "/jobsites",
           "/field-id-exchange",
           "/safety-submit",
-          "/jsa",
-          "/permits",
-          "/incidents",
           "/analytics",
           "/command-center",
           "/settings/risk-memory",
@@ -587,24 +631,28 @@ export default function AppLayout({
         );
       }
 
-      const canOpenTrainingMatrix =
-        Boolean(permissionMap?.can_view_analytics) ||
-        Boolean(permissionMap?.can_manage_company_users) ||
-        userRole === "company_admin" ||
-        userRole === "manager" ||
-        userRole === "safety_manager" ||
-        userRole === "project_manager";
+      if (canManageCompanyJsa(userRole, permissionMap)) {
+        companyAllowedRoutes.push("/jsa");
+      }
 
-      if (canOpenTrainingMatrix) {
+      if (canManageCompanyPermits(userRole, permissionMap)) {
+        companyAllowedRoutes.push("/permits");
+      }
+
+      if (canManageCompanyIncidents(userRole, permissionMap)) {
+        companyAllowedRoutes.push("/incidents");
+      }
+
+      if (canViewCompanyTrainingMatrix(userRole, permissionMap)) {
         companyAllowedRoutes.push("/training-matrix");
       }
 
-      if (
-        permissionMap?.can_create_documents ||
-        permissionMap?.can_edit_documents ||
-        permissionMap?.can_submit_documents
-      ) {
-        companyAllowedRoutes.push("/submit", "/safety-submit", "/upload", "/peshep", "/csep");
+      if (canSubmitCompanyDocuments(permissionMap)) {
+        companyAllowedRoutes.push("/submit", "/safety-submit");
+      }
+
+      if (canBuildCompanyDocuments(permissionMap)) {
+        companyAllowedRoutes.push("/upload", "/peshep", "/csep");
       }
 
       if (permissionMap?.can_manage_company_users) {
@@ -943,8 +991,12 @@ export default function AppLayout({
               <div className="px-3 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
                 Menu
               </div>
-              <div className="mt-4 space-y-0">
+                    <div className="mt-4 space-y-0">
                 {sideSections.map((section, sectionIndex) => (
+                  (() => {
+                    const sectionDescription =
+                      (section as { description?: string }).description ?? "";
+                    return (
                   <div
                     key={`nav-section-${sectionIndex}-${section.title}`}
                     className={sectionIndex > 0 ? "mt-5 border-t border-[var(--app-border)] pt-5" : ""}
@@ -952,19 +1004,15 @@ export default function AppLayout({
                     <div className="px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">
                       {section.title}
                     </div>
+                    {sectionDescription ? (
+                      <div className="mt-1 px-3 text-[11px] leading-5 text-[var(--app-muted)]">
+                        {sectionDescription}
+                      </div>
+                    ) : null}
                     <div className="mt-2 space-y-1.5">
-                      {section.items
-                        .filter((item) => {
-                          if (item.href !== "/training-matrix") return true;
-                          return (
-                            userRole === "company_admin" ||
-                            userRole === "manager" ||
-                            userRole === "safety_manager" ||
-                            userRole === "project_manager"
-                          );
-                        })
-                        .map((item) => {
+                      {section.items.map((item) => {
                           const active = isActivePath(pathname, item.href);
+                          const navMeta = getWorkspaceNavItemMeta(item);
                           return (
                             <Link
                               key={`${section.title}-${item.href}`}
@@ -980,12 +1028,19 @@ export default function AppLayout({
                                 <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">
                                   {item.label}
                                 </div>
+                                {!active ? (
+                                  <div className="mt-0.5 truncate text-[11px] text-[var(--app-muted)]">
+                                    {navMeta.description}
+                                  </div>
+                                ) : null}
                               </div>
                             </Link>
                           );
                         })}
                     </div>
                   </div>
+                    );
+                  })()
                 ))}
               </div>
             </nav>
@@ -1070,7 +1125,9 @@ export default function AppLayout({
                         </div>
                       </form>
                       <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-[var(--app-muted)]">
-                        {workspaceLabel}
+                        {showPlatformAdminShell
+                          ? workspaceLabel
+                          : currentNavSection?.title || workspaceLabel}
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-3">
                         <div>
@@ -1085,9 +1142,7 @@ export default function AppLayout({
                               : needsCompanySetup
                                 ? "Create your company workspace before inviting employees or opening company tools"
                                 : isCompanyScopedUser
-                                  ? isCompanyLeadershipUser
-                                    ? "Run company operations with documents, jobsites, and field tools scoped to your own company"
-                                    : "Open company documents, upload records, and work inside your assigned company workspace"
+                                  ? currentNavMeta.description
                                   : "Safety document workspace and active project tools"}
                           </p>
                         </div>

@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildCanonicalDocumentAiContext } from "@/lib/documentAiReviewContext";
+import type { ReviewDocumentAnnotation } from "@/lib/documentReviewExtraction";
 import { serverLog } from "@/lib/serverLog";
 import {
   extractBuilderReviewDocumentText,
@@ -25,7 +27,7 @@ export async function runBuilderProgramDocumentAiReview(
       review: Awaited<ReturnType<typeof generateBuilderProgramAiReview>>["review"];
       disclaimer: string;
       extraction:
-        | { ok: true; method: string; truncated: boolean }
+        | { ok: true; method: string; truncated: boolean; annotations: ReviewDocumentAnnotation[] }
         | { ok: false; error: string };
       siteReferenceExtraction: GcSiteReferenceExtractionMeta;
       documentId: string;
@@ -118,8 +120,18 @@ export async function runBuilderProgramDocumentAiReview(
     const extracted = await extractBuilderReviewDocumentText(buffer, fileName);
     const documentText = extracted.ok ? extracted.text : "";
     const extractionMeta = extracted.ok
-      ? { ok: true as const, method: extracted.method, truncated: extracted.truncated }
+      ? {
+          ok: true as const,
+          method: extracted.method,
+          truncated: extracted.truncated,
+          annotations: extracted.annotations,
+        }
       : { ok: false as const, error: extracted.error };
+    const canonicalReviewContext = buildCanonicalDocumentAiContext({
+      recordNotes: doc.notes ?? null,
+      annotations: extracted.ok ? extracted.annotations : [],
+      reviewerContext: additionalReviewerContext.trim() || null,
+    });
 
     let siteReferenceExtraction: GcSiteReferenceExtractionMeta = null;
     let siteReferenceText: string | null = null;
@@ -140,6 +152,7 @@ export async function runBuilderProgramDocumentAiReview(
         ok: true,
         method: siteExtracted.method,
         truncated: siteExtracted.truncated,
+        annotations: siteExtracted.annotations,
       };
       siteReferenceText = siteExtracted.text;
       siteReferenceFileName = refName;
@@ -152,7 +165,8 @@ export async function runBuilderProgramDocumentAiReview(
       documentTitle: doc.document_title ?? null,
       companyName,
       recordNotes: doc.notes ?? null,
-      additionalReviewerContext: additionalReviewerContext.trim() || null,
+      additionalReviewerContext: canonicalReviewContext || null,
+      annotations: extracted.ok ? extracted.annotations : [],
       siteReferenceText,
       siteReferenceFileName,
       companyMemoryExcerpts: options?.companyMemoryExcerpts?.trim() || null,

@@ -20,6 +20,10 @@ export type TrainingRequirementInput = {
   apply_trades?: string[] | null;
   /** Empty or omitted = applies to all positions. */
   apply_positions?: string[] | null;
+  /** Empty or omitted = applies to all subtrades. */
+  apply_sub_trades?: string[] | null;
+  /** Empty or omitted = applies to all task codes. */
+  apply_task_codes?: string[] | null;
 };
 
 export type ProfileForMatching = {
@@ -30,8 +34,18 @@ export type ProfileForMatching = {
   trade_specialty?: string | null;
 };
 
+export type TrainingMatrixContext = {
+  selectedTrade?: string | null;
+  selectedSubTrade?: string | null;
+  selectedTaskCode?: string | null;
+};
+
 export function normalizeForMatch(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function normalizeScopedValues(values: string[] | null | undefined): string[] {
+  return (values ?? []).map((value) => value.trim()).filter(Boolean);
 }
 
 /** Keyword matches haystack if either includes the other (forgiving free-text). */
@@ -40,13 +54,49 @@ export function keywordMatchesHaystack(keywordNorm: string, haystackNorm: string
   return haystackNorm.includes(keywordNorm) || keywordNorm.includes(haystackNorm);
 }
 
+/**
+ * For top-level matrix filters: if no filter is selected, keep the row visible.
+ * Once a filter is selected, unrestricted rows still remain visible while scoped rows
+ * must match the selected value.
+ */
+export function matchesSelectedMatrixFilter(
+  options: string[] | null | undefined,
+  selected: string | null | undefined
+): boolean {
+  const scoped = normalizeScopedValues(options);
+  if (!selected?.trim()) return true;
+  if (scoped.length === 0) return true;
+  const normalizedSelected = normalizeForMatch(selected);
+  return scoped.some((value) => normalizeForMatch(value) === normalizedSelected);
+}
+
+/**
+ * For generated subtrade/task requirements: unrestricted rows are always visible,
+ * but scoped rows stay hidden until the matching context filter is selected.
+ */
+export function activatesScopedRequirement(
+  options: string[] | null | undefined,
+  selected: string | null | undefined
+): boolean {
+  const scoped = normalizeScopedValues(options);
+  if (scoped.length === 0) return true;
+  if (!selected?.trim()) return false;
+  const normalizedSelected = normalizeForMatch(selected);
+  return scoped.some((value) => normalizeForMatch(value) === normalizedSelected);
+}
+
 export function requirementAppliesToProfile(
   profile: ProfileForMatching,
   applyTrades?: string[] | null,
-  applyPositions?: string[] | null
+  applyPositions?: string[] | null,
+  applySubTrades?: string[] | null,
+  applyTaskCodes?: string[] | null,
+  context?: TrainingMatrixContext | null
 ): boolean {
   const trades = (applyTrades ?? []).map((t) => t.trim()).filter(Boolean);
   const positions = (applyPositions ?? []).map((p) => p.trim()).filter(Boolean);
+  const subTrades = (applySubTrades ?? []).map((t) => t.trim()).filter(Boolean);
+  const taskCodes = (applyTaskCodes ?? []).map((t) => t.trim()).filter(Boolean);
 
   if (trades.length > 0) {
     const t = normalizeForMatch(profile.trade_specialty ?? "");
@@ -57,6 +107,16 @@ export function requirementAppliesToProfile(
     const p = normalizeForMatch(profile.job_title ?? "");
     if (!p) return false;
     if (!positions.some((opt) => normalizeForMatch(opt) === p)) return false;
+  }
+  if (subTrades.length > 0) {
+    const selectedSubTrade = normalizeForMatch(context?.selectedSubTrade ?? "");
+    if (!selectedSubTrade) return false;
+    if (!subTrades.some((opt) => normalizeForMatch(opt) === selectedSubTrade)) return false;
+  }
+  if (taskCodes.length > 0) {
+    const selectedTaskCode = normalizeForMatch(context?.selectedTaskCode ?? "");
+    if (!selectedTaskCode) return false;
+    if (!taskCodes.some((opt) => normalizeForMatch(opt) === selectedTaskCode)) return false;
   }
   return true;
 }
@@ -190,7 +250,8 @@ function detailForMatch(
 export function computeTrainingMatrixRow(
   profile: ProfileForMatching,
   requirements: TrainingRequirementInput[],
-  asOf: Date = AS_OF()
+  asOf: Date = AS_OF(),
+  context?: TrainingMatrixContext | null
 ): TrainingMatrixRowResult {
   const certifications = activeCertificationsForMatching(
     profile.certifications,
@@ -201,7 +262,16 @@ export function computeTrainingMatrixRow(
   const cellDetails: Record<string, TrainingMatrixCellDetail> = {};
 
   for (const req of requirements) {
-    if (!requirementAppliesToProfile(profile, req.apply_trades, req.apply_positions)) {
+    if (
+      !requirementAppliesToProfile(
+        profile,
+        req.apply_trades,
+        req.apply_positions,
+        req.apply_sub_trades,
+        req.apply_task_codes,
+        context
+      )
+    ) {
       cells[req.id] = "na";
       cellDetails[req.id] = { state: "na" };
       continue;

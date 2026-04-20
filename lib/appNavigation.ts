@@ -5,14 +5,32 @@
  * Sidebar groups: overview → safety & programs → insights → create & submit → account.
  */
 
+import {
+  CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL,
+  SITE_SAFETY_BLUEPRINT_NAV_LABEL,
+} from "@/lib/safetyBlueprintLabels";
+
 export type NavItem = {
   href: string;
   label: string;
   short: string;
+  description?: string;
+  primaryActionLabel?: string;
+  audience?: "operator" | "leadership" | "field" | "buyer" | "admin";
 };
 
 export type NavSection = {
   title: string;
+  group?:
+    | "operations"
+    | "documents"
+    | "jobsites"
+    | "admin"
+    | "account"
+    | "platform"
+    | "review";
+  description?: string;
+  audience?: "operator" | "leadership" | "field" | "buyer" | "admin";
   items: NavItem[];
 };
 
@@ -50,13 +68,28 @@ export const adminQuickLinks: NavItem[] = [
   { href: "/admin/sor-audit", label: "SOR audit", short: "SA" },
   { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },
   { href: "/superadmin/system-test", label: "System test", short: "SY" },
+  { href: "/superadmin/csep-survey-test", label: "Survey test CSEP", short: "ST" },
   { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
   { href: "/superadmin/osha-ipa-lab", label: "Compliance tracker", short: "OA" },
 ];
 
 export const companyAdminQuickLinks: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", short: "DB" },
-  { href: "/command-center", label: "Command Center", short: "CC" },
+  {
+    href: "/command-center",
+    label: "Command Center",
+    short: "CC",
+    description: "Current risk, open work, and recommended next steps.",
+    primaryActionLabel: "Open hub",
+    audience: "operator",
+  },
+  {
+    href: "/dashboard",
+    label: "Dashboard",
+    short: "DB",
+    description: "Executive snapshot of urgent work, progress, and platform status.",
+    primaryActionLabel: "Review today",
+    audience: "leadership",
+  },
   { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
   { href: "/jobsites", label: "Jobsites", short: "JS" },
   { href: "/library", label: "Documents", short: "DC" },
@@ -71,8 +104,22 @@ export const companyAdminQuickLinks: NavItem[] = [
 ];
 
 export const companyManagerQuickLinks: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", short: "DB" },
-  { href: "/command-center", label: "Command Center", short: "CC" },
+  {
+    href: "/command-center",
+    label: "Command Center",
+    short: "CC",
+    description: "Current risk, open work, and recommended next steps.",
+    primaryActionLabel: "Open hub",
+    audience: "operator",
+  },
+  {
+    href: "/dashboard",
+    label: "Dashboard",
+    short: "DB",
+    description: "Executive snapshot of urgent work, progress, and platform status.",
+    primaryActionLabel: "Review today",
+    audience: "leadership",
+  },
   { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
   { href: "/jobsites", label: "Jobsites", short: "JS" },
   { href: "/library", label: "Documents", short: "DC" },
@@ -109,10 +156,10 @@ export const userSideSections: NavSection[] = [
     ],
   },
   {
-    title: "Program builders",
+    title: "Safety blueprints",
     items: [
-      { href: "/peshep", label: "PESHEP builder", short: "PB" },
-      { href: "/csep", label: "CSEP builder", short: "CS" },
+      { href: "/peshep", label: SITE_SAFETY_BLUEPRINT_NAV_LABEL, short: "DS" },
+      { href: "/csep", label: CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL, short: "DC" },
     ],
   },
   {
@@ -152,6 +199,13 @@ export const adminSideSections: NavSection[] = [
     title: "Tools & systems",
     items: [
       { href: "/superadmin/system-test", label: "System test", short: "SY" },
+      { href: "/superadmin/csep-survey-test", label: "Survey test CSEP", short: "ST" },
+      { href: "/superadmin/builder-text", label: "Builder text", short: "BT" },
+      {
+        href: "/superadmin/jurisdiction-standards",
+        label: "Jurisdiction standards",
+        short: "JS",
+      },
       { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
       {
         href: "/superadmin/osha-ipa-lab",
@@ -235,8 +289,8 @@ export const companyAdminSideSections: NavSection[] = [
     items: [
       { href: "/submit", label: "Submit document", short: "SD" },
       { href: "/upload", label: "Upload file", short: "UF" },
-      { href: "/peshep", label: "PESHEP builder", short: "PB" },
-      { href: "/csep", label: "CSEP builder", short: "CS" },
+      { href: "/peshep", label: SITE_SAFETY_BLUEPRINT_NAV_LABEL, short: "DS" },
+      { href: "/csep", label: CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL, short: "DC" },
     ],
   },
 ];
@@ -290,8 +344,8 @@ export const companyManagerSideSections: NavSection[] = [
     items: [
       { href: "/submit", label: "Submit document", short: "SD" },
       { href: "/upload", label: "Upload file", short: "UF" },
-      { href: "/peshep", label: "PESHEP builder", short: "PB" },
-      { href: "/csep", label: "CSEP builder", short: "CS" },
+      { href: "/peshep", label: SITE_SAFETY_BLUEPRINT_NAV_LABEL, short: "DS" },
+      { href: "/csep", label: CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL, short: "DC" },
     ],
   },
   {
@@ -311,6 +365,7 @@ export const companyUserSideSections: NavSection[] = [
         label: "Marketplace",
         short: "MK",
       },
+      { href: "/jobsites", label: "Jobsites", short: "JS" },
       { href: "/search", label: "Search documents", short: "SR" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/purchases", label: "My purchases", short: "MP" },
@@ -324,6 +379,7 @@ export const companyUserSideSections: NavSection[] = [
   {
     title: "Submit work",
     items: [
+      { href: "/jsa", label: "JSA", short: "JA" },
       { href: "/submit", label: "Submit document", short: "SD" },
       { href: "/upload", label: "Upload file", short: "UF" },
     ],

@@ -22,13 +22,13 @@ function KpiCard({
 }) {
   return (
     <div
-      className={`rounded-2xl border bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(240,246,255,0.94)_100%)] p-4 shadow-[0_12px_28px_rgba(79,125,243,0.08)] ${borderAccent}`}
+      className={`rounded-2xl border bg-[var(--app-surface-elevated)] p-4 shadow-[0_12px_28px_rgba(79,125,243,0.08)] ${borderAccent}`}
     >
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{label}</p>
-      <p className="mt-2 font-mono text-2xl font-bold tracking-tight text-white">{value}</p>
-      {sub ? <p className="mt-1 text-xs text-zinc-400">{sub}</p> : null}
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--app-muted)]">{label}</p>
+      <p className="mt-2 font-mono text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</p>
+      {sub ? <p className="mt-1 text-xs text-[var(--app-text)]">{sub}</p> : null}
       {trendLabel ? (
-        <p className="mt-1 text-xs font-medium text-emerald-400">{trendLabel}</p>
+        <p className="mt-1 text-xs font-medium text-[var(--semantic-success)]">{trendLabel}</p>
       ) : null}
     </div>
   );
@@ -47,19 +47,19 @@ function StaticOutcomeSummary({
 }) {
   const total = met + gap + na;
   if (total <= 0) {
-    return <p className="mt-6 text-sm text-zinc-500">No check cells yet.</p>;
+    return <p className="mt-6 text-sm text-[var(--app-muted)]">No check cells yet.</p>;
   }
   const wMet = (met / total) * 100;
   const wGap = (gap / total) * 100;
   const wNa = (na / total) * 100;
   return (
     <div className="mt-4 space-y-4">
-      <div className="flex flex-col items-center rounded-xl border border-zinc-800 bg-zinc-950/60 py-6">
-        <p className="font-mono text-4xl font-bold text-white">{compliancePct}%</p>
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">in-scope met</p>
+      <div className="flex flex-col items-center rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] py-6">
+        <p className="font-mono text-4xl font-bold text-[var(--app-text-strong)]">{compliancePct}%</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--app-muted)]">in-scope met</p>
       </div>
       <p className="text-[11px] text-zinc-500">Share of all person × requirement cells</p>
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-zinc-800">
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-[rgba(156,180,211,0.3)]">
         {wMet > 0 ? (
           <div
             className="h-full bg-cyan-500"
@@ -82,7 +82,7 @@ function StaticOutcomeSummary({
           />
         ) : null}
       </div>
-      <ul className="flex flex-wrap gap-3 text-xs text-zinc-400">
+      <ul className="flex flex-wrap gap-3 text-xs text-[var(--app-text)]">
         <li className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-cyan-400" /> Met ({met})
         </li>
@@ -106,17 +106,17 @@ function StaticGapsByRequirement({
   return (
     <div className="mt-4 max-h-[280px] space-y-3 overflow-y-auto pr-1">
       {bars.length === 0 ? (
-        <p className="text-sm text-zinc-500">No requirements to compare.</p>
+        <p className="text-sm text-[var(--app-muted)]">No requirements to compare.</p>
       ) : (
         bars.map((b) => (
           <div key={b.fullTitle} className="space-y-1">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="truncate text-[11px] font-medium text-zinc-300" title={b.fullTitle}>
+              <span className="truncate text-[11px] font-medium text-[var(--app-text)]" title={b.fullTitle}>
                 {b.name}
               </span>
-              <span className="shrink-0 font-mono text-[11px] text-zinc-500">{b.gaps}</span>
+              <span className="shrink-0 font-mono text-[11px] text-[var(--app-muted)]">{b.gaps}</span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
+            <div className="h-2 overflow-hidden rounded-full bg-[rgba(156,180,211,0.3)]">
               <div
                 className="h-full rounded-full bg-fuchsia-500/90"
                 style={{ width: `${(b.gaps / maxGaps) * 100}%` }}
@@ -159,17 +159,17 @@ export function ComplianceCommandCenter({
   const flatCreds = useMemo(() => flattenCredentialLedger(rows), [rows]);
 
   const shell = (inner: React.ReactNode) => (
-    <div className="overflow-hidden rounded-3xl border border-[rgba(198,212,236,0.9)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(240,246,255,0.94)_100%)] text-[var(--app-text)] shadow-[0_20px_48px_rgba(79,125,243,0.12)] ring-1 ring-[rgba(198,212,236,0.55)]">
-      <div className="border-b border-[rgba(198,212,236,0.9)] bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(236,244,255,0.96)_60%,rgba(228,239,255,0.96)_100%)] px-6 py-5">
+    <div className="overflow-hidden rounded-3xl border border-[rgba(198,212,236,0.9)] bg-[var(--app-surface-panel)] text-[var(--app-text)] shadow-[0_20px_48px_rgba(79,125,243,0.12)] ring-1 ring-[rgba(198,212,236,0.55)]">
+      <div className="border-b border-[rgba(198,212,236,0.9)] bg-[linear-gradient(135deg,rgba(255,255,255,0.99)_0%,rgba(236,244,255,0.96)_60%,rgba(228,239,255,0.96)_100%)] px-6 py-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-400">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent-primary)]">
               Compliance command center
             </p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-[var(--app-text-strong)] sm:text-3xl">
               Training & credentials
             </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--app-text)]">
               Snapshot of requirement checks and profile credentials. Opens with a fresh fetch; use Refresh
               for the latest — no background polling.
             </p>
@@ -178,7 +178,7 @@ export function ComplianceCommandCenter({
             type="button"
             onClick={onRefresh}
             disabled={loading}
-            className="shrink-0 rounded-xl bg-[linear-gradient(135deg,#4f7df3_0%,#5b92ff_100%)] px-5 py-2.5 text-sm font-bold text-white shadow-[0_16px_28px_rgba(79,125,243,0.24)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+            className="shrink-0 rounded-xl bg-[var(--app-accent-primary)] px-5 py-2.5 text-sm font-bold text-white shadow-[0_16px_28px_rgba(79,125,243,0.24)] transition hover:bg-[var(--app-accent-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading
               ? workspaceDataLoaded

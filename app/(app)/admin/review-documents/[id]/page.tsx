@@ -14,6 +14,7 @@ import {
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
 import type { BuilderProgramAiReview } from "@/lib/builderDocumentAiReview";
+import type { ReviewDocumentAnnotation } from "@/lib/documentReviewExtraction";
 import { isDocumentAiReviewerRole } from "@/lib/documentAiReviewAuth";
 import type { PermissionMap } from "@/lib/rbac";
 import {
@@ -27,6 +28,7 @@ import {
   canReviewGcProgramDocumentRole,
 } from "@/lib/gcRequiredProgram";
 import type { GcProgramAiReview } from "@/lib/gcProgramAiReview";
+import { formatSafetyBlueprintDocumentType } from "@/lib/safetyBlueprintLabels";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -58,6 +60,27 @@ type DocumentItem = {
 };
 
 type FeedbackTone = "neutral" | "success" | "warning" | "error";
+type AiExtractionMeta =
+  | {
+      ok: true;
+      method: string;
+      truncated: boolean;
+      annotations: ReviewDocumentAnnotation[];
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
+type AiSiteExtractionMeta =
+  | {
+      fileName: string;
+      ok: true;
+      method: string;
+      truncated: boolean;
+      annotations: ReviewDocumentAnnotation[];
+    }
+  | null;
 
 function isArchivedStatus(status?: string | null) {
   return status?.trim().toLowerCase() === "archived";
@@ -111,6 +134,59 @@ function adminApiJsonErrorMessage(res: Response, rawText: string, parsed: unknow
     return t.length > 500 ? `${t.slice(0, 500)}…` : t;
   }
   return `AI review failed (HTTP ${res.status}).`;
+}
+
+function ReviewList({
+  title,
+  items,
+  tone = "text-slate-200",
+}: {
+  title: string;
+  items: string[];
+  tone?: string;
+}) {
+  if (!items.length) return null;
+
+  return (
+    <div>
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{title}</p>
+      <ul className={`mt-2 list-disc space-y-1 pl-5 text-sm ${tone}`}>
+        {items.map((item, index) => (
+          <li key={`${title}-${index}-${item.slice(0, 48)}`}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function EmbeddedReviewNotes({ annotations }: { annotations: ReviewDocumentAnnotation[] }) {
+  if (!annotations.length) return null;
+
+  return (
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/40 p-4">
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+        Embedded Reviewer Notes
+      </p>
+      <div className="mt-3 space-y-3">
+        {annotations.map((annotation) => (
+          <div
+            key={`${annotation.id}-${annotation.note.slice(0, 32)}`}
+            className="rounded-xl border border-slate-800 bg-slate-950/60 p-3"
+          >
+            <p className="text-sm font-semibold text-slate-100">{annotation.note}</p>
+            {annotation.anchorText ? (
+              <p className="mt-1 text-xs text-slate-400">Anchor: {annotation.anchorText}</p>
+            ) : null}
+            <p className="mt-1 text-[11px] text-slate-500">
+              Comment {annotation.id}
+              {annotation.author ? ` • ${annotation.author}` : ""}
+              {annotation.date ? ` • ${new Date(annotation.date).toLocaleString()}` : ""}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function StatCard({
@@ -175,36 +251,17 @@ export default function ReviewDocumentPage() {
   const [gcAiLoading, setGcAiLoading] = useState(false);
   const [gcAiResult, setGcAiResult] = useState<GcProgramAiReview | null>(null);
   const [gcAiDisclaimer, setGcAiDisclaimer] = useState("");
-  const [gcAiExtraction, setGcAiExtraction] = useState<{
-    ok: boolean;
-    method?: string;
-    truncated?: boolean;
-    error?: string;
-  } | null>(null);
-  const [gcAiSiteExtraction, setGcAiSiteExtraction] = useState<{
-    fileName: string;
-    ok: true;
-    method: string;
-    truncated: boolean;
-  } | null>(null);
+  const [gcAiExtraction, setGcAiExtraction] = useState<AiExtractionMeta | null>(null);
+  const [gcAiSiteExtraction, setGcAiSiteExtraction] = useState<AiSiteExtractionMeta>(null);
   const [gcAiError, setGcAiError] = useState("");
   const [builderAiContext, setBuilderAiContext] = useState("");
   const [builderSiteReferenceFile, setBuilderSiteReferenceFile] = useState<File | null>(null);
   const [builderAiLoading, setBuilderAiLoading] = useState(false);
   const [builderAiResult, setBuilderAiResult] = useState<BuilderProgramAiReview | null>(null);
   const [builderAiDisclaimer, setBuilderAiDisclaimer] = useState("");
-  const [builderAiExtraction, setBuilderAiExtraction] = useState<{
-    ok: boolean;
-    method?: string;
-    truncated?: boolean;
-    error?: string;
-  } | null>(null);
-  const [builderAiSiteExtraction, setBuilderAiSiteExtraction] = useState<{
-    fileName: string;
-    ok: true;
-    method: string;
-    truncated: boolean;
-  } | null>(null);
+  const [builderAiExtraction, setBuilderAiExtraction] = useState<AiExtractionMeta | null>(null);
+  const [builderAiSiteExtraction, setBuilderAiSiteExtraction] =
+    useState<AiSiteExtractionMeta>(null);
   const [builderAiError, setBuilderAiError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [feedback, setFeedback] = useState("");
@@ -524,18 +581,8 @@ export default function ReviewDocumentPage() {
             error?: string;
             review?: GcProgramAiReview;
             disclaimer?: string;
-            extraction?: {
-              ok: boolean;
-              method?: string;
-              truncated?: boolean;
-              error?: string;
-            };
-            siteReferenceExtraction?: {
-              fileName: string;
-              ok: true;
-              method: string;
-              truncated: boolean;
-            } | null;
+            extraction?: AiExtractionMeta;
+            siteReferenceExtraction?: AiSiteExtractionMeta;
           }
         | null;
 
@@ -600,18 +647,8 @@ export default function ReviewDocumentPage() {
             review?: BuilderProgramAiReview;
             disclaimer?: string;
             programLabel?: string;
-            extraction?: {
-              ok: boolean;
-              method?: string;
-              truncated?: boolean;
-              error?: string;
-            };
-            siteReferenceExtraction?: {
-              fileName: string;
-              ok: true;
-              method: string;
-              truncated: boolean;
-            } | null;
+            extraction?: AiExtractionMeta;
+            siteReferenceExtraction?: AiSiteExtractionMeta;
           }
         | null;
 
@@ -1164,7 +1201,10 @@ export default function ReviewDocumentPage() {
     documentItem.document_type ||
     "Untitled document";
   const normalizedStatus = documentItem.status?.trim().toLowerCase() || "unknown";
-  const canReviewDocuments = Boolean(permissionMap?.can_review_documents);
+  const canAccessInternalAdmin = Boolean(permissionMap?.can_access_internal_admin);
+  const canReviewDocuments = Boolean(
+    permissionMap?.can_review_documents || permissionMap?.can_access_internal_admin
+  );
   const canApproveDocuments = Boolean(permissionMap?.can_approve_documents);
   const isGcProgramDoc =
     documentItem.document_type?.trim() === GC_REQUIRED_PROGRAM_DOCUMENT_TYPE;
@@ -1309,7 +1349,7 @@ export default function ReviewDocumentPage() {
       />
 
       {feedback ? <InlineMessage tone={feedbackTone}>{feedback}</InlineMessage> : null}
-      {!canReviewDocuments ? (
+      {!canReviewDocuments && !canAccessInternalAdmin ? (
         <InlineMessage tone="warning">
           Your current role does not have access to review this document.
         </InlineMessage>
@@ -1331,7 +1371,7 @@ export default function ReviewDocumentPage() {
         />
         <StatCard
           label="Document Type"
-          value={documentItem.document_type || "PSHSEP"}
+          value={formatSafetyBlueprintDocumentType(documentItem.document_type || "PSHSEP")}
           detail="Primary document category saved on the record."
         />
         <StatCard
@@ -1538,7 +1578,7 @@ export default function ReviewDocumentPage() {
                 {builderAiExtraction ? (
                   <p className="text-xs text-slate-500">
                     {builderAiExtraction.ok
-                      ? `Text extracted (${builderAiExtraction.method}${builderAiExtraction.truncated ? ", truncated" : ""}).`
+                      ? `Text extracted (${builderAiExtraction.method}${builderAiExtraction.truncated ? ", truncated" : ""})${builderAiExtraction.annotations.length ? ` with ${builderAiExtraction.annotations.length} embedded note${builderAiExtraction.annotations.length === 1 ? "" : "s"}` : ""}.`
                       : `Text extraction: ${builderAiExtraction.error ?? "failed"} — review may be limited.`}
                   </p>
                 ) : null}
@@ -1551,6 +1591,9 @@ export default function ReviewDocumentPage() {
                 ) : null}
                 {builderAiDisclaimer ? (
                   <p className="text-xs text-slate-500">{builderAiDisclaimer}</p>
+                ) : null}
+                {builderAiExtraction?.ok ? (
+                  <EmbeddedReviewNotes annotations={builderAiExtraction.annotations} />
                 ) : null}
                 {builderAiResult ? (
                   <div className="space-y-4 rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
@@ -1583,37 +1626,31 @@ export default function ReviewDocumentPage() {
                       </p>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-emerald-100">
-                          Strengths
-                        </p>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200">
-                          {builderAiResult.regulatoryAndProgramStrengths.map((s, i) => (
-                            <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-amber-900">
-                          Gaps / risks
-                        </p>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200">
-                          {builderAiResult.gapsRisksOrClarifications.map((s, i) => (
-                            <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
-                          ))}
-                        </ul>
-                      </div>
+                      <ReviewList
+                        title="Strengths"
+                        items={builderAiResult.regulatoryAndProgramStrengths}
+                      />
+                      <ReviewList
+                        title="Gaps / risks"
+                        items={builderAiResult.gapsRisksOrClarifications}
+                      />
                     </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                        Recommended edits before approval
-                      </p>
-                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200">
-                        {builderAiResult.recommendedEditsBeforeApproval.map((s, i) => (
-                          <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
-                        ))}
-                      </ul>
-                    </div>
+                    <ReviewList
+                      title="Recommended edits before approval"
+                      items={builderAiResult.recommendedEditsBeforeApproval}
+                    />
+                    <ReviewList
+                      title="Document quality issues"
+                      items={builderAiResult.documentQualityIssues ?? []}
+                    />
+                    <ReviewList
+                      title="Note coverage"
+                      items={builderAiResult.noteCoverage ?? []}
+                    />
+                    <ReviewList
+                      title="Checklist delta"
+                      items={builderAiResult.checklistDelta ?? []}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -1681,7 +1718,7 @@ export default function ReviewDocumentPage() {
                   <p className="text-xs text-slate-500">
                     Submission:{" "}
                     {gcAiExtraction.ok
-                      ? `text extracted (${gcAiExtraction.method}${gcAiExtraction.truncated ? ", truncated" : ""}).`
+                      ? `text extracted (${gcAiExtraction.method}${gcAiExtraction.truncated ? ", truncated" : ""})${gcAiExtraction.annotations.length ? ` with ${gcAiExtraction.annotations.length} embedded note${gcAiExtraction.annotations.length === 1 ? "" : "s"}` : ""}.`
                       : `extraction ${gcAiExtraction.error ?? "failed"} — review may be limited.`}
                   </p>
                 ) : null}
@@ -1694,6 +1731,9 @@ export default function ReviewDocumentPage() {
                 ) : null}
                 {gcAiDisclaimer ? (
                   <p className="text-xs text-slate-500">{gcAiDisclaimer}</p>
+                ) : null}
+                {gcAiExtraction?.ok ? (
+                  <EmbeddedReviewNotes annotations={gcAiExtraction.annotations} />
                 ) : null}
                 {gcAiResult ? (
                   <div className="space-y-4 rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
@@ -1726,37 +1766,27 @@ export default function ReviewDocumentPage() {
                       </p>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-emerald-100">
-                          OSHA-related strengths
-                        </p>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200">
-                          {gcAiResult.oshaRelatedStrengths.map((s, i) => (
-                            <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-amber-900">
-                          Gaps / risks (OSHA-oriented)
-                        </p>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200">
-                          {gcAiResult.oshaRelatedGapsOrRisks.map((s, i) => (
-                            <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
-                          ))}
-                        </ul>
-                      </div>
+                      <ReviewList
+                        title="OSHA-related strengths"
+                        items={gcAiResult.oshaRelatedStrengths}
+                      />
+                      <ReviewList
+                        title="Gaps / risks (OSHA-oriented)"
+                        items={gcAiResult.oshaRelatedGapsOrRisks}
+                      />
                     </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                        Recommended follow-ups
-                      </p>
-                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200">
-                        {gcAiResult.recommendedFollowUps.map((s, i) => (
-                          <li key={`${i}-${s.slice(0, 48)}`}>{s}</li>
-                        ))}
-                      </ul>
-                    </div>
+                    <ReviewList
+                      title="Recommended follow-ups"
+                      items={gcAiResult.recommendedFollowUps}
+                    />
+                    <ReviewList
+                      title="Document quality issues"
+                      items={gcAiResult.documentQualityIssues ?? []}
+                    />
+                    <ReviewList
+                      title="Note coverage"
+                      items={gcAiResult.noteCoverage ?? []}
+                    />
                   </div>
                 ) : null}
               </div>

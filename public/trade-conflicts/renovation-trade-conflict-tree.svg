@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="3000" viewBox="0 0 1400 3000" role="img" aria-labelledby="title desc">
+  <title id="title">Building Refurbishment / Renovation Trade Conflict Coordination Tree</title>
+  <desc id="desc">Static coordination tree for renovation work showing phase-based trade conflicts and mitigation priorities in existing and occupied buildings.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7faf8" />
+      <stop offset="100%" stop-color="#e7efe8" />
+    </linearGradient>
+    <style>
+      .title { font: 700 34px Aptos, Arial, sans-serif; fill: #204a35; }
+      .subtitle { font: 600 19px Aptos, Arial, sans-serif; fill: #597166; }
+      .phase { font: 700 24px Aptos, Arial, sans-serif; fill: #24553c; }
+      .copy { font: 17px Aptos, Arial, sans-serif; fill: #1f2933; }
+      .small { font: 600 16px Aptos, Arial, sans-serif; fill: #607468; }
+    </style>
+  </defs>
+  <rect width="1400" height="3000" fill="url(#bg)" />
+  <rect x="52" y="48" width="1296" height="2904" rx="28" fill="#ffffff" stroke="#c7d7cd" stroke-width="3" />
+  <text x="94" y="122" class="title">BUILDING REFURBISHMENT / RENOVATION TRADE CONFLICT TREE</text>
+  <text x="94" y="158" class="subtitle">Existing Building Work from Selective Demo to Final Reoccupancy</text>
+  <text x="94" y="196" class="small">Use with the Trade Conflict Coordination Framework section to compare baseline renovation interfaces against detected simultaneous-operation risks.</text>
+
+  <g transform="translate(86 240)">
+    <rect width="1228" height="360" rx="22" fill="#f7faf8" stroke="#8faf9a" stroke-width="2"/>
+    <text x="28" y="42" class="phase">1. Existing Conditions / Controls</text>
+    <text x="28" y="84" class="copy">In renovation work, schedule control, shutdown windows, tenant coordination, barriers, and temporary systems govern every downstream trade interface.</text>
+    <text x="28" y="128" class="copy">Typical pressure points: occupied egress, infection control, negative air, temporary lighting and power, hidden conditions, changing access routes.</text>
+    <text x="28" y="172" class="copy">Mitigation focus: align the sequence to shutdown and occupancy limits, maintain barrier ownership, and reverify existing conditions before work shifts.</text>
+    <text x="28" y="232" class="small">Key interfaces: Superintendent | Infection control / logistics | Existing conditions verification | Temporary protection | Temporary utilities / HVAC</text>
+  </g>
+
+  <g transform="translate(86 630)">
+    <rect width="1228" height="330" rx="22" fill="#ffffff" stroke="#8faf9a" stroke-width="2"/>
+    <text x="28" y="42" class="phase">2. Selective Demolition / Hazard Removal</text>
+    <text x="28" y="84" class="copy">Selective demo, abatement, debris removal, and utility shutoffs create the first major conflicts with occupants, containment boundaries, and salvage scope.</text>
+    <text x="28" y="128" class="copy">Typical pressure points: active utilities, containment integrity, vibration-sensitive areas, elevator use, egress routes, occupied circulation.</text>
+    <text x="28" y="172" class="copy">Mitigation focus: verify utilities, control haul routes, hold adjacent trades out of containment zones, and protect salvage and finished areas.</text>
+    <text x="28" y="232" class="small">Key interfaces: Selective demo | Structural demo / sawcutting | Abatement | Debris removal | Existing utility shutoff / lockout</text>
+  </g>
+
+  <g transform="translate(86 990)">
+    <rect width="1228" height="360" rx="22" fill="#f7faf8" stroke="#8faf9a" stroke-width="2"/>
+    <text x="28" y="42" class="phase">3. Structural / Envelope Modifications</text>
+    <text x="28" y="84" class="copy">Shoring, structural repair, roof work, waterproofing, and window replacement must fit around limited access, occupied areas, and temporary environmental control.</text>
+    <text x="28" y="128" class="copy">Typical pressure points: weather protection, cure time, facade access, crane or hoist access, HVAC shutdowns, tenant-area protection.</text>
+    <text x="28" y="172" class="copy">Mitigation focus: confirm support and access plans, protect occupied spaces below, and sequence envelope closure with temporary environmental control.</text>
+    <text x="28" y="232" class="small">Key interfaces: Shoring | Concrete / masonry repair | Structural reinforcement | Roofing | Waterproofing | Glazing replacement</text>
+  </g>
+
+  <g transform="translate(86 1380)">
+    <rect width="1228" height="270" rx="22" fill="#ffffff" stroke="#8faf9a" stroke-width="2"/>
+    <text x="28" y="42" class="phase">4. Interior Rebuild / Reconfiguration</text>
+    <text x="28" y="84" class="copy">Field verification, framing, blocking, door/frame work, and ceiling-grid rework are constrained by existing geometry and hidden utilities.</text>
+    <text x="28" y="128" class="copy">Mitigation focus: remeasure after demo, confirm low-clearance routing, and verify openings and finish elevations before closure.</text>
+    <text x="28" y="188" class="small">Key interfaces: Layout verification | Interior framing | Carpentry / blocking | Doors / hardware | Ceiling grid rework</text>
+  </g>
+
+  <g transform="translate(86 1680)">
+    <rect width="1228" height="420" rx="22" fill="#f7faf8" stroke="#8faf9a" stroke-width="2"/>
+    <text x="28" y="42" class="phase">5. MEP / System Replacement and Upgrades</text>
+    <text x="28" y="84" class="copy">MEP replacement in existing buildings adds live-system cutovers, shutdown windows, temporary service continuity, and occupied-space comfort constraints.</text>
+    <text x="28" y="128" class="copy">Typical pressure points: active panels, restroom turnover, low-clearance reroutes, sprinkler impairments, IT cutovers, device relocation, lift modernization.</text>
+    <text x="28" y="172" class="copy">Mitigation focus: stage cutovers, preserve occupied operations, define pathway ownership, and coordinate all testing and impairments by phase.</text>
+    <text x="28" y="232" class="small">Key interfaces: Plumbing | HVAC / ductwork | Fire sprinkler | Electrical | Low voltage | Fire alarm | Security | BAS | Elevator modernization</text>
+  </g>
+
+  <g transform="translate(86 2130)">
+    <rect width="1228" height="420" rx="22" fill="#ffffff" stroke="#8faf9a" stroke-width="2"/>
+    <text x="28" y="42" class="phase">6. Close-In / Finish Restoration</text>
+    <text x="28" y="84" class="copy">Finish restoration often overlaps with late reroutes, continuing penetrations, occupied traffic, furniture moves, and partial turnover to users.</text>
+    <text x="28" y="128" class="copy">Typical pressure points: dust-sensitive areas, moisture, finish protection, limited room access, live-system cutovers, occupied balancing and acceptance testing.</text>
+    <text x="28" y="172" class="copy">Mitigation focus: isolate occupied areas, use closure checklists, preserve access for commissioning, and protect completed finishes from late work.</text>
+    <text x="28" y="232" class="small">Key interfaces: Firestopping / drywall | Ceilings | Flooring / tile / coatings | Millwork / specialties | Final trim | TAB / final fire alarm acceptance</text>
+  </g>
+
+  <g transform="translate(86 2580)">
+    <rect width="1228" height="280" rx="22" fill="#f7faf8" stroke="#8faf9a" stroke-width="2"/>
+    <text x="28" y="42" class="phase">7. Occupied Building / Final Turnover</text>
+    <text x="28" y="84" class="copy">Final turnover in occupied work depends on barrier control, tenant communication, room access, phased commissioning, punch completion, and life-safety approval.</text>
+    <text x="28" y="128" class="copy">Mitigation focus: keep emergency egress clear, sequence turnover by phase, and gate reoccupancy on documentation, testing, and final approvals.</text>
+    <text x="28" y="188" class="small">Key interfaces: Infection control / dust barriers | Tenant coordination | Cleaning / punch | Testing / commissioning / training | Reoccupancy / handover</text>
+  </g>
+</svg>

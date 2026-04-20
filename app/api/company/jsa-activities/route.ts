@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { authorizeRequest, isAdminRole } from "@/lib/rbac";
+import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { canManageCompanyJsa } from "@/lib/companyFeatureAccess";
 import { getJobsiteAccessScope } from "@/lib/jobsiteAccess";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { buildJsaActivityFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
@@ -25,17 +26,6 @@ function normalizeActivityStatus(input: unknown, fallback = "planned") {
 function isMissingTable(message?: string | null) {
   const lower = (message ?? "").toLowerCase();
   return lower.includes("company_jsa_activities") || lower.includes("company_dap_activities") || lower.includes("schema cache");
-}
-
-function canManage(role: string) {
-  return (
-    isAdminRole(role) ||
-    role === "company_admin" ||
-    role === "manager" ||
-    role === "safety_manager" ||
-    role === "project_manager" ||
-    role === "foreman"
-  );
 }
 
 export async function GET(request: Request) {
@@ -93,7 +83,7 @@ export async function POST(request: Request) {
     requireAnyPermission: ["can_create_documents", "can_view_all_company_data"],
   });
   if ("error" in auth) return auth.error;
-  if (!canManage(auth.role)) {
+  if (!canManageCompanyJsa(auth.role, auth.permissionMap)) {
     return NextResponse.json({ error: "Only foremen, managers, and admins can create JSA activities." }, { status: 403 });
   }
   const companyScope = await getCompanyScope({
@@ -154,7 +144,7 @@ export async function PATCH(request: Request) {
     requireAnyPermission: ["can_edit_documents", "can_view_all_company_data"],
   });
   if ("error" in auth) return auth.error;
-  if (!canManage(auth.role)) {
+  if (!canManageCompanyJsa(auth.role, auth.permissionMap)) {
     return NextResponse.json({ error: "Only foremen, managers, and admins can update JSA activities." }, { status: 403 });
   }
   const companyScope = await getCompanyScope({

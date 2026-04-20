@@ -23,6 +23,7 @@ import {
   canRequestMarketplaceLibraryPreview,
   hasWorkspaceDocumentStoragePath,
 } from "@/lib/marketplacePreviewExcerpt";
+import { formatSafetyBlueprintDocumentType } from "@/lib/safetyBlueprintLabels";
 import type { CreditTransaction } from "@/lib/credits";
 import {
   getDocumentStatusLabel,
@@ -630,7 +631,10 @@ function LibraryPageContent() {
       )
     ) as string[];
 
-    return ["All Types", ...values.sort()];
+    return [
+      "All Types",
+      ...Array.from(new Set(values.map((value) => formatSafetyBlueprintDocumentType(value)))).sort(),
+    ];
   }, [documents, marketplaceCatalog]);
 
   const isManagerView =
@@ -639,6 +643,7 @@ function LibraryPageContent() {
     viewerRole === "company_user" ||
     viewerRole === "project_manager" ||
     viewerRole === "safety_manager" ||
+    viewerRole === "field_supervisor" ||
     viewerRole === "foreman";
   const companyPrimaryAction =
     viewerRole === "company_admin"
@@ -667,7 +672,9 @@ function LibraryPageContent() {
         categoryFilter === "All Categories" ? true : doc.category === categoryFilter;
 
       const matchesType =
-        typeFilter === "All Types" ? true : doc.document_type === typeFilter;
+        typeFilter === "All Types"
+          ? true
+          : formatSafetyBlueprintDocumentType(doc.document_type) === typeFilter;
 
       return matchesSearch && matchesCategory && matchesType;
     },
@@ -1499,7 +1506,10 @@ function DocumentCard({
       </div>
 
       <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
-        <InfoPair label="Type" value={document.document_type || "Not set"} />
+        <InfoPair
+          label="Type"
+          value={document.document_type ? formatSafetyBlueprintDocumentType(document.document_type) : "Not set"}
+        />
         <InfoPair label="Category" value={document.category || "Unassigned"} />
         <InfoPair label="Uploaded by" value={document.uploaded_by || "Unknown"} />
         <InfoPair label="Created" value={formatCompactDate(document.created_at)} />
@@ -1694,7 +1704,9 @@ function MarketplaceSection({
                       {getDocumentTitle(doc)}
                     </h3>
                     <p className="mt-2 text-sm text-slate-400">
-                      {doc.document_type || "Completed document"}
+                      {doc.document_type
+                        ? formatSafetyBlueprintDocumentType(doc.document_type)
+                        : "Completed document"}
                     </p>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <div className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">

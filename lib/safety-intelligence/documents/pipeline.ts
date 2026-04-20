@@ -12,7 +12,13 @@ import { generateDocumentDraft, generateSafetyPlanNarratives } from "@/lib/safet
 import { generateRiskIntelligence } from "@/lib/safety-intelligence/ai/riskIntelligenceService";
 import { buildRawTaskInputsFromGenerationContext } from "@/lib/safety-intelligence/documentIntake";
 import { buildGeneratedSafetyPlanDraft } from "@/lib/safety-intelligence/documents/assemble";
+import { getCsepProgramConfig } from "@/lib/csepProgramSettings";
+import { getJurisdictionStandardsConfig } from "@/lib/jurisdictionStandards/settings";
 import { buildAiReviewContext } from "@/lib/safety-intelligence/service";
+import {
+  deriveCsepTrainingProgram,
+  syncGeneratedTrainingRequirements,
+} from "@/lib/safety-intelligence/trainingProgram";
 import {
   loadGeneratedDocumentDraft,
   persistAiReview,
@@ -27,10 +33,118 @@ import { loadDbRuleTemplates } from "@/lib/safety-intelligence/rules/repository"
 
 type LiteClient = SupabaseClient<any, "public", any>;
 
-function buildGeneratedDocumentRecordFromDraft(
+export function buildSafetyPlanTemplateContext(params: {
+  documentProfile: SafetyPlanGenerationContext["documentProfile"];
+  siteMetadata: JsonObject;
+}) {
+  const siteMetadata = params.siteMetadata ?? {};
+
+  return {
+    documentProfile: params.documentProfile,
+    taskModulePackKey:
+      typeof siteMetadata.taskModulePackKey === "string"
+        ? siteMetadata.taskModulePackKey
+        : null,
+    taskModuleTitles: Array.isArray(siteMetadata.taskModuleTitles)
+      ? siteMetadata.taskModuleTitles
+      : [],
+    taskModules: Array.isArray(siteMetadata.taskModules)
+      ? siteMetadata.taskModules
+      : [],
+    hazardModulePackKey:
+      typeof siteMetadata.hazardModulePackKey === "string"
+        ? siteMetadata.hazardModulePackKey
+        : null,
+    hazardModuleTitles: Array.isArray(siteMetadata.hazardModuleTitles)
+      ? siteMetadata.hazardModuleTitles
+      : [],
+    hazardModules: Array.isArray(siteMetadata.hazardModules)
+      ? siteMetadata.hazardModules
+      : [],
+    steelTaskModulePackKey:
+      typeof siteMetadata.steelTaskModulePackKey === "string"
+        ? siteMetadata.steelTaskModulePackKey
+        : null,
+    steelTaskModuleTitles: Array.isArray(siteMetadata.steelTaskModuleTitles)
+      ? siteMetadata.steelTaskModuleTitles
+      : [],
+    steelTaskModules: Array.isArray(siteMetadata.steelTaskModules)
+      ? siteMetadata.steelTaskModules
+      : [],
+    steelHazardModulePackKey:
+      typeof siteMetadata.steelHazardModulePackKey === "string"
+        ? siteMetadata.steelHazardModulePackKey
+        : null,
+    steelHazardModuleTitles: Array.isArray(siteMetadata.steelHazardModuleTitles)
+      ? siteMetadata.steelHazardModuleTitles
+      : [],
+    steelHazardModules: Array.isArray(siteMetadata.steelHazardModules)
+      ? siteMetadata.steelHazardModules
+      : [],
+    steelProgramModulePackKey:
+      typeof siteMetadata.steelProgramModulePackKey === "string"
+        ? siteMetadata.steelProgramModulePackKey
+        : null,
+    steelProgramModuleTitles: Array.isArray(siteMetadata.steelProgramModuleTitles)
+      ? siteMetadata.steelProgramModuleTitles
+      : [],
+    steelProgramModules: Array.isArray(siteMetadata.steelProgramModules)
+      ? siteMetadata.steelProgramModules
+      : [],
+  };
+}
+
+export function buildGeneratedDocumentRecordFromDraft(
   draft: ReturnType<typeof buildGeneratedSafetyPlanDraft>,
   aiMetadata: JsonObject
 ): GeneratedDocumentRecord {
+  function stripNumberPrefix(value: string) {
+    return value.replace(/^(Section\s+)?\d+(?:\.\d+)*\.?\s+/i, "").trim();
+  }
+
+  function displayHeading(
+    section: (typeof draft.sectionMap)[number],
+    sectionIndex: number
+  ) {
+    if (section.numberLabel?.trim()) {
+      const title = stripNumberPrefix(section.title);
+      return section.title.startsWith(section.numberLabel)
+        ? section.title
+        : `${section.numberLabel} ${title}`.trim();
+    }
+
+    return `${sectionIndex + 1}. ${stripNumberPrefix(section.title)}`.trim();
+  }
+
+  function displayPrefix(
+    section: (typeof draft.sectionMap)[number],
+    sectionIndex: number
+  ) {
+    return section.numberLabel?.trim()
+      ? section.numberLabel.trim().replace(/\.0$/, "")
+      : String(sectionIndex + 1);
+  }
+
+  function renderNumberedItems(prefix: string, items: string[] | undefined) {
+    return (items ?? [])
+      .map((item, index) => `<p>${prefix}.${index + 1} ${item}</p>`)
+      .join("");
+  }
+
+  function renderTable(table: NonNullable<(typeof draft.sectionMap)[number]["table"]>) {
+    const header = table.columns.map((column) => `<th>${column}</th>`).join("");
+    const rows = table.rows
+      .map(
+        (row) =>
+          `<tr>${table.columns
+            .map((_, columnIndex) => `<td>${row[columnIndex] ?? "N/A"}</td>`)
+            .join("")}</tr>`
+      )
+      .join("");
+
+    return `<table><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
   const sections = draft.sectionMap.map((section) => ({
     heading: section.title,
     body: [
@@ -39,6 +153,7 @@ function buildGeneratedDocumentRecordFromDraft(
       ...(section.bullets ?? []),
       ...(section.subsections?.flatMap((subsection) => [
         subsection.title,
+        subsection.body,
         ...subsection.bullets,
       ]) ?? []),
     ]
@@ -51,25 +166,30 @@ function buildGeneratedDocumentRecordFromDraft(
     title: draft.title,
     sections,
     htmlPreview: draft.sectionMap
-      .map((section) => {
+      .map((section, sectionIndex) => {
+        const sectionHeading = displayHeading(section, sectionIndex);
+        const sectionNumber = displayPrefix(section, sectionIndex);
         const parts = [
           section.summary ? `<p>${section.summary}</p>` : "",
           section.body ? `<p>${section.body}</p>` : "",
-          section.bullets?.length
-            ? `<ul>${section.bullets.map((item) => `<li>${item}</li>`).join("")}</ul>`
-            : "",
+          renderNumberedItems(sectionNumber, section.bullets),
           section.subsections?.length
             ? section.subsections
-                .map(
-                  (subsection) =>
-                    `<h3>${subsection.title}</h3><ul>${subsection.bullets
-                      .map((item) => `<li>${item}</li>`)
-                      .join("")}</ul>`
-                )
+                .map((subsection, subsectionIndex) => {
+                  const subsectionPrefix = `${sectionNumber}.${subsectionIndex + 1}`;
+                  const showHeading =
+                    subsection.title.trim() &&
+                    stripNumberPrefix(subsection.title).toLowerCase() !==
+                      stripNumberPrefix(section.title).toLowerCase();
+                  return `${showHeading ? `<h3>${subsectionPrefix} ${stripNumberPrefix(subsection.title)}</h3>` : ""}${
+                    subsection.body ? `<p>${subsection.body}</p>` : ""
+                  }${renderNumberedItems(showHeading ? subsectionPrefix : sectionNumber, subsection.bullets)}`;
+                })
                 .join("")
             : "",
+          section.table?.rows.length ? renderTable(section.table) : "",
         ].join("");
-        return `<section><h2>${section.title}</h2>${parts}</section>`;
+        return `<section><h2>${sectionHeading}</h2>${parts}</section>`;
       })
       .join(""),
     draftJson: draft as JsonObject,
@@ -206,6 +326,12 @@ export async function runSafetyPlanDocumentPipeline(params: {
   const conflictEvaluations = buckets.map((bucket, index) =>
     detectConflicts(bucket, rules[index], buckets, rules)
   );
+  const trainingProgram = await deriveCsepTrainingProgram({
+    supabase: params.supabase,
+    companyId: params.companyId,
+    generationContext: params.generationContext,
+    rulesEvaluations: rules,
+  });
 
   const bucketRunId = await persistSafetyPlanRun({
     supabase: params.supabase,
@@ -220,6 +346,7 @@ export async function runSafetyPlanDocumentPipeline(params: {
     conflictMatrix,
     actorUserId: params.actorUserId,
   });
+  const siteMetadata = (params.generationContext.siteContext.metadata ?? {}) as JsonObject;
 
   const reviewContext: AiReviewContext = {
     companyId: params.companyId,
@@ -233,15 +360,49 @@ export async function runSafetyPlanDocumentPipeline(params: {
     companyContext: {
       sourceDocumentId: params.sourceDocumentId ?? null,
     },
-    templateContext: {
+    templateContext: buildSafetyPlanTemplateContext({
       documentProfile: params.generationContext.documentProfile,
+      siteMetadata,
+    }),
+  };
+
+  const [programConfig, jurisdictionStandardsConfig] = await Promise.all([
+    getCsepProgramConfig().catch(() => null),
+    getJurisdictionStandardsConfig(params.supabase).catch(() => null),
+  ]);
+
+  const appliedJurisdictionStandards =
+    params.generationContext.documentProfile.jurisdictionCode
+      ? (jurisdictionStandardsConfig?.standards
+          .filter((standard) => {
+            if (
+              standard.surfaceScope !== "both" &&
+              standard.surfaceScope !== params.generationContext.documentProfile.documentType
+            ) {
+              return false;
+            }
+            return (
+              standard.jurisdictionCode === "federal" ||
+              standard.jurisdictionCode === params.generationContext.documentProfile.jurisdictionCode
+            );
+          })
+          .map((standard) => standard.id) ?? [])
+      : [];
+  const enrichedGenerationContext = {
+    ...params.generationContext,
+    documentProfile: {
+      ...params.generationContext.documentProfile,
+      jurisdictionStandardsApplied: appliedJurisdictionStandards,
     },
   };
 
   const preNarrativeDraft = buildGeneratedSafetyPlanDraft({
-    generationContext: params.generationContext,
+    generationContext: enrichedGenerationContext,
     reviewContext,
     conflictMatrix,
+    programDefinitions: programConfig?.definitions,
+    jurisdictionStandardsConfig: jurisdictionStandardsConfig ?? undefined,
+    trainingProgram,
     riskMemorySummary: params.riskMemorySummary ?? null,
   });
 
@@ -251,10 +412,14 @@ export async function runSafetyPlanDocumentPipeline(params: {
   });
 
   const finalDraft = buildGeneratedSafetyPlanDraft({
-    generationContext: params.generationContext,
+    generationContext: enrichedGenerationContext,
     reviewContext,
     conflictMatrix,
+    programDefinitions: programConfig?.definitions,
+    jurisdictionStandardsConfig: jurisdictionStandardsConfig ?? undefined,
     narrativeSections: narratives.sections,
+    aiAssemblyDecisions: narratives.aiAssemblyDecisions,
+    trainingProgram,
     riskMemorySummary: params.riskMemorySummary ?? null,
   });
   const risk = await generateRiskIntelligence({ reviewContext });
@@ -275,6 +440,7 @@ export async function runSafetyPlanDocumentPipeline(params: {
       document: documentRecord,
       risk: risk.record,
       narrativeSections: narratives.sections,
+      aiAssemblyDecisions: narratives.aiAssemblyDecisions,
       validation: narratives.validation,
     },
     params.actorUserId,
@@ -293,16 +459,27 @@ export async function runSafetyPlanDocumentPipeline(params: {
     sourceDocumentId: params.sourceDocumentId ?? null,
   });
 
+  if (params.sourceDocumentId && params.generationContext.documentProfile.documentType === "csep") {
+    await syncGeneratedTrainingRequirements({
+      supabase: params.supabase,
+      companyId: params.companyId,
+      sourceDocumentId: params.sourceDocumentId,
+      trainingProgram,
+      actorUserId: params.actorUserId,
+    });
+  }
+
   return {
     bucketRunId,
     aiReviewId,
-    generatedDocumentId,
-    generationContext: params.generationContext,
+      generatedDocumentId,
+    generationContext: enrichedGenerationContext,
     rawInputs,
     bucket: buckets[0] ?? null,
     buckets,
     rules,
     conflicts: conflictMatrix,
+    trainingProgram,
     reviewContext,
     draft: finalDraft,
     document: documentRecord,

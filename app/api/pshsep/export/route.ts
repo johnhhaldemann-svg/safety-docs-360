@@ -5,7 +5,6 @@ import { NextResponse } from "next/server";
 import {
   AlignmentType,
   BorderStyle,
-  Document,
   HeadingLevel,
   Packer,
   PageBreak,
@@ -19,12 +18,43 @@ import {
   ImageRun,
 } from "docx";
 import { DOCUMENT_DISCLAIMER_LINES } from "@/lib/legal";
+import { getDocumentBuilderSection } from "@/lib/documentBuilderText";
+import { getDocumentBuilderTextConfig } from "@/lib/documentBuilderTextSettings";
+import {
+  collectPshsepCatalogOshaRefs,
+  derivePshsepExportProgramIds,
+  normalizePshsepBuilderFormData,
+} from "@/lib/pshsepCatalog";
+import type { PshsepExportProgramId } from "@/lib/pshsepCatalog";
 import { authorizeRequest } from "@/lib/rbac";
+import { createSafetyPlanDocument } from "@/lib/safetyPlanDocxTheme";
+import {
+  SITE_SAFETY_BLUEPRINT_TITLE,
+  getSafetyBlueprintDraftFilename,
+} from "@/lib/safetyBlueprintLabels";
 import { loadGeneratedDocumentDraft } from "@/lib/safety-intelligence/repository";
 import { renderSafetyPlanDocx } from "@/lib/safety-intelligence/documents/render";
+import type { DocumentBuilderTextConfig } from "@/types/document-builder-text";
 import type { GeneratedSafetyPlanDraft } from "@/types/safety-intelligence";
 
 type DocChild = Paragraph | Table;
+
+function getSiteBuilderSection(
+  config: DocumentBuilderTextConfig | null | undefined,
+  key: string
+) {
+  return getDocumentBuilderSection(config, "site_builder", key);
+}
+
+function getSiteBuilderChild(
+  config: DocumentBuilderTextConfig | null | undefined,
+  sectionKey: string,
+  childKey: string
+) {
+  return getSiteBuilderSection(config, sectionKey)?.children.find(
+    (child) => child.key === childKey
+  ) ?? null;
+}
 
 /* ------------------------------------------------ */
 /* TYPES */
@@ -49,6 +79,11 @@ export type PSHSEPInput = Record<string, unknown> & {
   plan_author?: string;
   approval_name?: string;
   approval_date?: string;
+  assumed_trades_index?: string[];
+  disciplinary_policy_text?: string;
+  owner_letter_text?: string;
+  incident_reporting_process_text?: string;
+  special_conditions_permit_text?: string;
 
   // Program toggles (add more later)
   include_fall_protection?: boolean;
@@ -147,6 +182,19 @@ function include(flag: unknown, fallback = true): boolean {
   return typeof flag === "boolean" ? flag : fallback;
 }
 
+function asStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function getPshsepExportProfile(form: PSHSEPInput) {
+  const normalizedForm = normalizePshsepBuilderFormData(form) as PSHSEPInput;
+  return {
+    normalizedForm,
+    includedPrograms: new Set(derivePshsepExportProgramIds(normalizedForm)),
+  };
+}
+
 function pageBreak() {
   return new Paragraph({
     children: [new PageBreak()],
@@ -190,6 +238,17 @@ function p(text: string) {
   });
 }
 
+function numberedParagraph(prefix: string, text: string) {
+  return new Paragraph({
+    children: [new TextRun({ text: `${prefix} ${text}`, size: 22 })],
+    spacing: { after: 80 },
+  });
+}
+
+function appendNumberedParagraphs(prefix: string, items: string[]) {
+  return items.map((item, index) => numberedParagraph(`${prefix}.${index + 1}`, item));
+}
+
 function parseBase64Image(dataUrl: string) {
   const [header, base64] = dataUrl.split(",");
 
@@ -207,10 +266,28 @@ function parseBase64Image(dataUrl: string) {
   };
 }
 
+let activeProgramSectionNumber = "";
+let activeProgramSubsectionIndex = 0;
+
+function setActiveProgramSection(number: string) {
+  activeProgramSectionNumber = number;
+  activeProgramSubsectionIndex = 0;
+}
+
+function clearActiveProgramSection() {
+  activeProgramSectionNumber = "";
+  activeProgramSubsectionIndex = 0;
+}
+
 function programSection(title: string, paragraphs: string[], bullets: string[] = []) {
   const content: Paragraph[] = [];
+  const subsectionIndex = activeProgramSectionNumber ? ++activeProgramSubsectionIndex : 0;
+  const subsectionPrefix =
+    activeProgramSectionNumber && subsectionIndex > 0
+      ? `${activeProgramSectionNumber}.${subsectionIndex}`
+      : "";
 
-  content.push(h2(title));
+  content.push(h2(subsectionPrefix ? `${subsectionPrefix} ${title}` : title));
 
   paragraphs.forEach((t) => {
     content.push(
@@ -221,15 +298,13 @@ function programSection(title: string, paragraphs: string[], bullets: string[] =
     );
   });
 
-  bullets.forEach((b) => {
-    content.push(
-      new Paragraph({
-        text: b,
-        bullet: { level: 0 },
-        spacing: { after: 80 },
-      })
-    );
-  });
+  if (subsectionPrefix) {
+    content.push(...appendNumberedParagraphs(subsectionPrefix, bullets));
+  } else {
+    bullets.forEach((b, index) => {
+      content.push(numberedParagraph(String(index + 1), b));
+    });
+  }
 
   return content;
 }
@@ -277,48 +352,97 @@ function twoColTable(rows: Array<[string, string]>) {
 /* PROGRAM SECTIONS */
 /* ------------------------------------------------ */
 
-function program_FallProtection() {
+function program_FallProtection(
+  builderTextConfig: DocumentBuilderTextConfig | null | undefined
+) {
+  const sectionKey = "fall_protection";
+  const purpose = getSiteBuilderChild(builderTextConfig, sectionKey, "purpose");
+  const scope = getSiteBuilderChild(builderTextConfig, sectionKey, "scope");
+  const responsibilities = getSiteBuilderChild(builderTextConfig, sectionKey, "responsibilities");
+  const hazardIdentification = getSiteBuilderChild(
+    builderTextConfig,
+    sectionKey,
+    "hazard_identification"
+  );
+  const controlMeasures = getSiteBuilderChild(builderTextConfig, sectionKey, "control_measures");
+  const inspectionRequirements = getSiteBuilderChild(
+    builderTextConfig,
+    sectionKey,
+    "inspection_requirements"
+  );
+  const rescuePlanning = getSiteBuilderChild(builderTextConfig, sectionKey, "rescue_planning");
+
   return [
     h2("Fall Protection Program"),
 
-    ...programSection("Purpose", [
-      "This section establishes requirements for identifying and controlling fall hazards associated with construction activities on the project.",
-      "The objective of this program is to eliminate or minimize fall exposures through engineering controls, safe work practices, and personal protective equipment.",
-    ]),
-
-    ...programSection("Scope", [
-      "This program applies to all personnel working at heights or exposed to fall hazards on the project.",
-      "Fall protection requirements apply whenever workers are exposed to a fall hazard of six feet or greater unless site-specific rules require additional protection.",
-    ]),
-
-    ...programSection("Responsibilities", [
-      "Project management is responsible for ensuring fall hazards are identified and controlled prior to beginning work.",
-      "Supervisors must ensure workers understand and comply with fall protection requirements.",
-      "Employees must inspect fall protection equipment before each use.",
-    ]),
-
     ...programSection(
-      "Hazard Identification",
-      ["Common fall hazards include leading edges, roof work, scaffolds, ladders, floor openings, and elevated platforms."],
-      ["Unprotected edges", "Floor openings", "Roof work", "Scaffolding", "Aerial lift operations"]
+      purpose?.title ?? "Purpose",
+      purpose?.paragraphs ?? [
+        "This section establishes requirements for identifying and controlling fall hazards associated with construction activities on the project.",
+        "The objective of this program is to eliminate or minimize fall exposures through engineering controls, safe work practices, and personal protective equipment.",
+      ]
     ),
 
-    ...programSection("Control Measures", ["Engineering controls will be implemented whenever feasible."], [
-      "Guardrail systems",
-      "Personal fall arrest systems",
-      "Safety nets",
-      "Controlled access zones",
-    ]),
+    ...programSection(
+      scope?.title ?? "Scope",
+      scope?.paragraphs ?? [
+        "This program applies to all personnel working at heights or exposed to fall hazards on the project.",
+        "Fall protection requirements apply whenever workers are exposed to a fall hazard of six feet or greater unless site-specific rules require additional protection.",
+      ]
+    ),
 
-    ...programSection("Inspection Requirements", ["All fall protection equipment must be inspected before each use."], [
-      "Harness inspected daily",
-      "Lanyards inspected prior to use",
-      "Anchorage verified prior to tie-off",
-    ]),
+    ...programSection(
+      responsibilities?.title ?? "Responsibilities",
+      responsibilities?.paragraphs ?? [
+        "Project management is responsible for ensuring fall hazards are identified and controlled prior to beginning work.",
+        "Supervisors must ensure workers understand and comply with fall protection requirements.",
+        "Employees must inspect fall protection equipment before each use.",
+      ]
+    ),
 
-    ...programSection("Rescue Planning", [
-      "A rescue plan must be developed before workers use fall arrest systems.",
-    ]),
+    ...programSection(
+      hazardIdentification?.title ?? "Hazard Identification",
+      hazardIdentification?.paragraphs ?? [
+        "Common fall hazards include leading edges, roof work, scaffolds, ladders, floor openings, and elevated platforms.",
+      ],
+      hazardIdentification?.bullets ?? [
+        "Unprotected edges",
+        "Floor openings",
+        "Roof work",
+        "Scaffolding",
+        "Aerial lift operations",
+      ]
+    ),
+
+    ...programSection(
+      controlMeasures?.title ?? "Control Measures",
+      controlMeasures?.paragraphs ?? ["Engineering controls will be implemented whenever feasible."],
+      controlMeasures?.bullets ?? [
+        "Guardrail systems",
+        "Personal fall arrest systems",
+        "Safety nets",
+        "Controlled access zones",
+      ]
+    ),
+
+    ...programSection(
+      inspectionRequirements?.title ?? "Inspection Requirements",
+      inspectionRequirements?.paragraphs ?? [
+        "All fall protection equipment must be inspected before each use.",
+      ],
+      inspectionRequirements?.bullets ?? [
+        "Harness inspected daily",
+        "Lanyards inspected prior to use",
+        "Anchorage verified prior to tie-off",
+      ]
+    ),
+
+    ...programSection(
+      rescuePlanning?.title ?? "Rescue Planning",
+      rescuePlanning?.paragraphs ?? [
+        "A rescue plan must be developed before workers use fall arrest systems.",
+      ]
+    ),
   ];
 }
 
@@ -859,30 +983,77 @@ function program_InspectionsAudits() {
   ];
 }
 
-function program_EmergencyActionMedicalResponse(form: PSHSEPInput) {
+function program_EmergencyActionMedicalResponse(
+  form: PSHSEPInput,
+  builderTextConfig: DocumentBuilderTextConfig | null | undefined
+) {
+  const sectionKey = "emergency_action_medical_response_evacuation";
+  const purpose = getSiteBuilderChild(builderTextConfig, sectionKey, "purpose");
+  const emergencyCommunication = getSiteBuilderChild(
+    builderTextConfig,
+    sectionKey,
+    "emergency_communication"
+  );
+  const medicalResponse = getSiteBuilderChild(builderTextConfig, sectionKey, "medical_response");
+  const emergencyMedicalResources = getSiteBuilderChild(
+    builderTextConfig,
+    sectionKey,
+    "emergency_medical_resources"
+  );
+  const evacuation = getSiteBuilderChild(builderTextConfig, sectionKey, "evacuation");
+  const fireUtilityChemicalEmergencies = getSiteBuilderChild(
+    builderTextConfig,
+    sectionKey,
+    "fire_utility_chemical_emergencies"
+  );
+  const severeWeather = getSiteBuilderChild(builderTextConfig, sectionKey, "severe_weather");
+
   return [
     h2("Emergency Action, Medical Response & Evacuation"),
 
-    ...programSection("Purpose", [
-      "This section establishes emergency response expectations for medical events, fire, severe weather, utility emergencies, chemical releases, and evacuation scenarios."
-    ]),
+    ...programSection(
+      purpose?.title ?? "Purpose",
+      purpose?.paragraphs ?? [
+        "This section establishes emergency response expectations for medical events, fire, severe weather, utility emergencies, chemical releases, and evacuation scenarios.",
+      ]
+    ),
 
-    ...programSection("Emergency Communication", [
-      "Emergency contact numbers, reporting methods, alarm expectations, and designated response procedures must be communicated to all personnel."
-    ]),
+    ...programSection(
+      emergencyCommunication?.title ?? "Emergency Communication",
+      emergencyCommunication?.paragraphs ?? [
+        "Emergency contact numbers, reporting methods, alarm expectations, and designated response procedures must be communicated to all personnel.",
+      ]
+    ),
 
-    ...programSection("Medical Response", [
-      "In the event of an injury or medical emergency, personnel shall immediately notify supervision and initiate the project emergency response process."
-    ], [
-      "Contact emergency services when needed",
-      "Provide site-specific directions to responders",
-      "Use trained first aid / CPR personnel when available",
-      "Document and report the event promptly"
-    ]),
-    ...programSection("Emergency Medical Resources", [
-  `AED Location: ${form.aedLocation || "Not Specified"}`,
-  `First Aid Station Location: ${form.firstAidLocation || "Not Specified"}`
-    ]),
+    ...programSection(
+      medicalResponse?.title ?? "Medical Response",
+      medicalResponse?.paragraphs ?? [
+        "In the event of an injury or medical emergency, personnel shall immediately notify supervision and initiate the project emergency response process.",
+      ],
+      medicalResponse?.bullets ?? [
+        "Contact emergency services when needed",
+        "Provide site-specific directions to responders",
+        "Use trained first aid / CPR personnel when available",
+        "Document and report the event promptly",
+      ]
+    ),
+    ...programSection(
+      emergencyMedicalResources?.title ?? "Emergency Medical Resources",
+      [
+        emergencyMedicalResources?.paragraphs[0]?.includes("AED Location:")
+          ? emergencyMedicalResources.paragraphs[0].replace(
+              "Not Specified",
+              String(form.aedLocation || "Not Specified")
+            )
+          : `AED Location: ${form.aedLocation || "Not Specified"}`,
+        emergencyMedicalResources?.paragraphs[1]?.includes("First Aid Station Location:")
+          ? emergencyMedicalResources.paragraphs[1].replace(
+              "Not Specified",
+              String(form.firstAidLocation || "Not Specified")
+            )
+          : `First Aid Station Location: ${form.firstAidLocation || "Not Specified"}`,
+      ]
+    ),
 
 ...(form.siteMap
   ? [
@@ -906,21 +1077,31 @@ function program_EmergencyActionMedicalResponse(form: PSHSEPInput) {
     ]
   : []),
 
-    ...programSection("Evacuation", [
-      "Workers must know evacuation routes, assembly points, and accountability procedures for their work area."
-    ], [
-      "Follow alarms and supervisor direction",
-      "Do not re-enter until authorized",
-      "Account for personnel at designated assembly areas"
-    ]),
+    ...programSection(
+      evacuation?.title ?? "Evacuation",
+      evacuation?.paragraphs ?? [
+        "Workers must know evacuation routes, assembly points, and accountability procedures for their work area.",
+      ],
+      evacuation?.bullets ?? [
+        "Follow alarms and supervisor direction",
+        "Do not re-enter until authorized",
+        "Account for personnel at designated assembly areas",
+      ]
+    ),
 
-    ...programSection("Fire / Utility / Chemical Emergencies", [
-      "Work must stop immediately in the event of fire, gas release, utility damage, electrical emergency, or uncontrolled chemical spill unless trained emergency response actions are specifically authorized."
-    ]),
+    ...programSection(
+      fireUtilityChemicalEmergencies?.title ?? "Fire / Utility / Chemical Emergencies",
+      fireUtilityChemicalEmergencies?.paragraphs ?? [
+        "Work must stop immediately in the event of fire, gas release, utility damage, electrical emergency, or uncontrolled chemical spill unless trained emergency response actions are specifically authorized.",
+      ]
+    ),
 
-    ...programSection("Severe Weather", [
-      "Project leadership will monitor weather conditions and may suspend work for lightning, high winds, tornado warnings, extreme temperatures, or other hazardous conditions."
-    ])
+    ...programSection(
+      severeWeather?.title ?? "Severe Weather",
+      severeWeather?.paragraphs ?? [
+        "Project leadership will monitor weather conditions and may suspend work for lightning, high winds, tornado warnings, extreme temperatures, or other hazardous conditions.",
+      ]
+    )
   ];
 }
 
@@ -3573,7 +3754,10 @@ function buildRevisionLog(form: PSHSEPInput): DocChild[] {
   ];
 }
 
-function buildAdminSummary(form: PSHSEPInput) {
+function buildAdminSummary(
+  form: PSHSEPInput,
+  builderTextConfig: DocumentBuilderTextConfig | null | undefined
+) {
   const projectName = form.project_name || "Project";
   const projectNumber = form.project_number || "";
 
@@ -3597,18 +3781,138 @@ function buildAdminSummary(form: PSHSEPInput) {
     ["Approved By", form.approval_name || ""],
     ["Approval Date", form.approval_date || ""],
     ["Revision", typeof form.revision === "string" ? form.revision : "0"],
+    ["Assumed Trades Count", String(asStringList(form.assumed_trades_index).length || 0)],
   ];
 
   return {
     heading: h1("Administrative Summary"),
     intro: p(
-      "This Project / Site Specific Health, Safety & Environment Plan establishes the minimum safety expectations, responsibilities, procedures, and controls for all personnel and contractors performing work on this project. Where project requirements are more stringent than regulatory minimums, the more protective requirement shall apply."
+      getSiteBuilderSection(builderTextConfig, "administrative_summary_intro")?.paragraphs[0] ??
+        "This Project / Site Specific Health, Safety & Environment Plan establishes the minimum safety expectations, responsibilities, procedures, and controls for all personnel and contractors performing work on this project. Where project requirements are more stringent than regulatory minimums, the more protective requirement shall apply."
     ),
     table: twoColTable(rows),
   };
 }
 
-function buildCover(form: PSHSEPInput): DocChild[] {
+function buildStarterAdminSections(
+  form: PSHSEPInput,
+  builderTextConfig: DocumentBuilderTextConfig | null | undefined
+): DocChild[] {
+  const assumedTrades = asStringList(form.assumed_trades_index);
+  const disciplinaryPolicy =
+    typeof form.disciplinary_policy_text === "string" && form.disciplinary_policy_text.trim()
+      ? form.disciplinary_policy_text.trim()
+      : getSiteBuilderChild(builderTextConfig, "starter_admin_sections", "disciplinary_policy")
+          ?.paragraphs[0] ??
+        "Each employer must enforce progressive discipline for repeated or serious safety violations, including stop-work and removal where warranted.";
+  const ownerLetter =
+    typeof form.owner_letter_text === "string" && form.owner_letter_text.trim()
+      ? form.owner_letter_text.trim()
+      : getSiteBuilderChild(builderTextConfig, "starter_admin_sections", "owner_letter")
+          ?.paragraphs[0] ??
+        `Owner leadership affirms support for this ${SITE_SAFETY_BLUEPRINT_TITLE} and expects all onsite employers to follow project safety requirements.`;
+  const incidentReporting =
+    typeof form.incident_reporting_process_text === "string" &&
+    form.incident_reporting_process_text.trim()
+      ? form.incident_reporting_process_text.trim()
+      : getSiteBuilderChild(
+            builderTextConfig,
+            "starter_admin_sections",
+            "incident_reporting_process"
+          )?.paragraphs[0] ??
+        "All incidents, near misses, and unsafe conditions shall be reported immediately, documented, and tracked through corrective action closure.";
+  const specialConditionsPermit =
+    typeof form.special_conditions_permit_text === "string" &&
+    form.special_conditions_permit_text.trim()
+      ? form.special_conditions_permit_text.trim()
+      : getSiteBuilderChild(
+            builderTextConfig,
+            "starter_admin_sections",
+            "special_conditions_permit"
+          )?.paragraphs[0] ??
+        `Any variation from this ${SITE_SAFETY_BLUEPRINT_TITLE} requires written authorization, temporary controls, and closeout verification.`;
+
+  return [
+    pageBreak(),
+    h1("A1. Disciplinary Policy"),
+    p(disciplinaryPolicy),
+    pageBreak(),
+    h1("A2. Letter from Owner"),
+    p(ownerLetter),
+    pageBreak(),
+    h1("A3. Incident Reporting Process"),
+    p(incidentReporting),
+    pageBreak(),
+    h1("A4. Special Conditions Permit (Variations)"),
+    p(specialConditionsPermit),
+    pageBreak(),
+    h1("A5. Assumed Trades Index"),
+    ...(assumedTrades.length
+      ? appendNumberedParagraphs("A5", assumedTrades)
+      : [
+          p(
+            getSiteBuilderChild(
+              builderTextConfig,
+              "starter_admin_sections",
+              "assumed_trades_index"
+            )?.paragraphs[0] ??
+              `No assumed trades were listed in this ${SITE_SAFETY_BLUEPRINT_TITLE} draft.`
+          ),
+        ]),
+  ];
+}
+
+function buildOshaAppendix(
+  form: PSHSEPInput,
+  builderTextConfig: DocumentBuilderTextConfig | null | undefined
+): DocChild[] {
+  const refs = new Set<string>(["29 CFR 1926"]);
+  const normalizedForm = normalizePshsepBuilderFormData(form) as PSHSEPInput;
+  const selectedScopes = asStringList(normalizedForm.scope_of_work_selected).join(" ").toLowerCase();
+  const selectedPermits = asStringList(normalizedForm.permits_selected).join(" ").toLowerCase();
+  const source = `${selectedScopes} ${selectedPermits}`;
+  if (source.includes("fall") || source.includes("scaffold") || source.includes("roof")) {
+    refs.add("29 CFR 1926 Subpart M");
+  }
+  if (source.includes("excavat") || source.includes("trench")) {
+    refs.add("29 CFR 1926 Subpart P");
+  }
+  if (source.includes("crane") || source.includes("lift")) {
+    refs.add("29 CFR 1926 Subpart CC");
+  }
+  if (source.includes("confined")) {
+    refs.add("29 CFR 1926 Subpart AA");
+  }
+  if (source.includes("electrical") || source.includes("loto")) {
+    refs.add("29 CFR 1926 Subpart K");
+  }
+  if (source.includes("hot work")) {
+    refs.add("29 CFR 1926 Subpart J");
+  }
+  collectPshsepCatalogOshaRefs({
+    scope_of_work_selected: asStringList(normalizedForm.scope_of_work_selected),
+    high_risk_focus_areas: asStringList(normalizedForm.high_risk_focus_areas),
+    permits_selected: asStringList(normalizedForm.permits_selected),
+  }).forEach((ref) => refs.add(ref));
+
+  return [
+    pageBreak(),
+    h1(
+      getSiteBuilderSection(builderTextConfig, "osha_reference_summary")?.title ??
+        "Appendix OSHA. OSHA Reference Summary"
+    ),
+    p(
+      getSiteBuilderSection(builderTextConfig, "osha_reference_summary")?.paragraphs[0] ??
+        "This appendix consolidates OSHA references applicable to selected scope and permit conditions."
+    ),
+    ...appendNumberedParagraphs("Appendix OSHA", [...refs]),
+  ];
+}
+
+function buildCover(
+  form: PSHSEPInput,
+  builderTextConfig: DocumentBuilderTextConfig | null | undefined
+): DocChild[] {
   const companyName =
     typeof form.company_name === "string" && form.company_name.trim()
       ? form.company_name.trim()
@@ -3628,8 +3932,7 @@ function buildCover(form: PSHSEPInput): DocChild[] {
     }),
 
     titleCenter("PROJECT / SITE SPECIFIC"),
-    titleCenter("HEALTH, SAFETY & ENVIRONMENT PLAN"),
-    titlePageLine("(PSHSEP)", 28, true),
+    titleCenter(SITE_SAFETY_BLUEPRINT_TITLE.toUpperCase()),
 
     new Paragraph({
       spacing: { after: 300 },
@@ -3651,7 +3954,8 @@ function buildCover(form: PSHSEPInput): DocChild[] {
 
     formSectionTitle("DOCUMENT PURPOSE"),
     p(
-      "This Project / Site Specific Health, Safety & Environment Plan establishes the minimum requirements, responsibilities, procedures, and controls for construction activities performed on this project. All contractors, subcontractors, suppliers, and authorized visitors are expected to comply with this document and all applicable project safety requirements."
+      getSiteBuilderSection(builderTextConfig, "cover_document_purpose")?.paragraphs[0] ??
+        "This Project / Site Specific Health, Safety & Environment Plan establishes the minimum requirements, responsibilities, procedures, and controls for construction activities performed on this project. All contractors, subcontractors, suppliers, and authorized visitors are expected to comply with this document and all applicable project safety requirements."
     ),
 
     spacerParagraph(3),
@@ -3660,186 +3964,244 @@ function buildCover(form: PSHSEPInput): DocChild[] {
   ];
 }
 
-function buildPrograms(form: PSHSEPInput, scopeSelections: string[]) {
+function buildPrograms(
+  form: PSHSEPInput,
+  builderTextConfig: DocumentBuilderTextConfig | null | undefined
+) {
+  const { normalizedForm, includedPrograms } = getPshsepExportProfile(form);
   const blocks: DocChild[] = [];
+  const hasProgram = (...programIds: PshsepExportProgramId[]) =>
+    programIds.some((programId) => includedPrograms.has(programId));
 
-  const addProgram = (num: string, title: string, body: DocChild[]) => {
+  blocks.push(...buildStarterAdminSections(normalizedForm, builderTextConfig));
+
+  const addProgram = (
+    num: string,
+    sectionKey: string | null,
+    title: string,
+    buildBody: () => DocChild[]
+  ) => {
+    const configuredTitle =
+      sectionKey ? getSiteBuilderSection(builderTextConfig, sectionKey)?.title ?? title : title;
     blocks.push(pageBreak());
-    blocks.push(h1(`${num}. ${title}`));
+    blocks.push(h1(`${num}. ${configuredTitle}`));
+    setActiveProgramSection(num);
+    const body = buildBody();
+    clearActiveProgramSection();
     blocks.push(...body);
   };
 
-  addProgram("1", "Project Administration & Safety Management", program_ProjectAdministration());
-  addProgram("2", "Roles, Responsibilities & Accountability", program_ResponsibilitiesAccountability());
-  addProgram("3", "Communication, Coordination & Pre-Task Planning", program_CommunicationCoordination());
-  addProgram("4", "Safety Orientation, Training & Competency", program_SafetyOrientationTraining());
-  addProgram("5", "Incident Reporting, Investigation & Corrective Action", program_IncidentReportingInvestigation());
-  addProgram("6", "Inspections, Audits & Corrective Action Tracking", program_InspectionsAudits());
-  addProgram("7", "Emergency Action, Medical Response & Evacuation", program_EmergencyActionMedicalResponse(form));
-  addProgram("8", "Personal Protective Equipment (PPE)", program_PPE());
-  addProgram("9", "Housekeeping, Access & Material Storage", program_HousekeepingMaterialStorage());
+  addProgram("1", "project_administration_safety_management", "Project Administration & Safety Management", () => program_ProjectAdministration());
+  addProgram("2", "roles_responsibilities_accountability", "Roles, Responsibilities & Accountability", () => program_ResponsibilitiesAccountability());
+  addProgram("3", "communication_coordination_pre_task_planning", "Communication, Coordination & Pre-Task Planning", () => program_CommunicationCoordination());
+  addProgram("4", "safety_orientation_training_competency", "Safety Orientation, Training & Competency", () => program_SafetyOrientationTraining());
+  addProgram("5", "incident_reporting_investigation_corrective_action", "Incident Reporting, Investigation & Corrective Action", () => program_IncidentReportingInvestigation());
+  addProgram("6", "inspections_audits_corrective_action_tracking", "Inspections, Audits & Corrective Action Tracking", () => program_InspectionsAudits());
+  addProgram("7", "emergency_action_medical_response_evacuation", "Emergency Action, Medical Response & Evacuation", () => program_EmergencyActionMedicalResponse(normalizedForm, builderTextConfig));
+  addProgram("8", "personal_protective_equipment", "Personal Protective Equipment (PPE)", () => program_PPE());
+  addProgram("9", "housekeeping_access_material_storage", "Housekeeping, Access & Material Storage", () => program_HousekeepingMaterialStorage());
 
-if (include(form.include_fall_protection, true)) {
-  addProgram("10", "Fall Protection", program_FallProtection());
+if (include(form.include_fall_protection, true) || hasProgram("fall_protection")) {
+  addProgram("10", "fall_protection", "Fall Protection", () => program_FallProtection(builderTextConfig));
 }
 
-if (include(form.include_excavation, false) || scopeSelections.includes("Excavation")) {
-  addProgram("11", "Excavation & Trenching", program_Excavation());
+if (include(form.include_excavation, false) || hasProgram("excavation")) {
+  addProgram("11", null, "Excavation & Trenching", () => program_Excavation());
 }
 
-if (include(form.include_crane_rigging, false)) {
-  addProgram("12", "Cranes, Rigging & Critical Lifts", program_CranesRiggingCriticalLifts(form));
+if (include(form.include_crane_rigging, false) || hasProgram("crane_rigging")) {
+  addProgram("12", null, "Cranes, Rigging & Critical Lifts", () => program_CranesRiggingCriticalLifts(normalizedForm));
 }
 
-if (include(form.include_confined_space, false) || scopeSelections.includes("Confined Space")) {
-  addProgram("13", "Confined Space", program_ConfinedSpace());
+if (include(form.include_confined_space, false) || hasProgram("confined_space")) {
+  addProgram("13", null, "Confined Space", () => program_ConfinedSpace());
 }
 
-if (include(form.include_electrical_loto, false) || scopeSelections.includes("Electrical")) {
-  addProgram("14", "Electrical Safety & LOTO", program_ElectricalLOTO());
+if (include(form.include_electrical_loto, false) || hasProgram("electrical_loto")) {
+  addProgram("14", null, "Electrical Safety & LOTO", () => program_ElectricalLOTO());
 }
 
-if (include(form.include_hot_work, false) || scopeSelections.includes("Hot Work")) {
-  addProgram("15", "Hot Work & Fire Prevention", program_HotWorkFirePrevention());
+if (include(form.include_hot_work, false) || hasProgram("hot_work")) {
+  addProgram("15", null, "Hot Work & Fire Prevention", () => program_HotWorkFirePrevention());
 }
 
-addProgram("16", "Ladder Safety", program_LadderSafety());
+addProgram("16", null, "Ladder Safety", () => program_LadderSafety());
 
-if (scopeSelections.includes("Scaffolds")) {
-  addProgram("17", "Scaffold Safety", program_ScaffoldSafety());
+if (hasProgram("scaffold_safety")) {
+  addProgram("17", null, "Scaffold Safety", () => program_ScaffoldSafety());
 }
 
-if (scopeSelections.includes("MEWP / Aerial Lifts")) {
-  addProgram("18", "MEWP / Aerial Lift Safety", program_MEWP());
+if (hasProgram("mewp")) {
+  addProgram("18", null, "MEWP / Aerial Lift Safety", () => program_MEWP());
 }
 
-if (scopeSelections.includes("Forklifts / Material Handling")) {
-  addProgram("19", "Forklifts & Industrial Trucks", program_ForkliftsIndustrialTrucks());
+if (hasProgram("forklift_material_handling")) {
+  addProgram("19", null, "Forklifts & Industrial Trucks", () => program_ForkliftsIndustrialTrucks());
 }
 
-if (scopeSelections.includes("Forklifts / Material Handling")) {
-  addProgram("20", "Material Handling & Rigging Support", program_MaterialHandlingRiggingSupport());
+if (hasProgram("material_handling_support", "forklift_material_handling")) {
+  addProgram("20", null, "Material Handling & Rigging Support", () => program_MaterialHandlingRiggingSupport());
 }
 
-  addProgram("21", "Tools, Equipment & Temporary Power", program_ToolsEquipmentTemporaryPower());
-  addProgram("22", "Line of Fire, Struck-By & Caught-Between Prevention", program_LineOfFireStruckByCaughtBetween());
-  addProgram("23", "Environmental Controls & Site Conditions", program_EnvironmentalControls());
+  addProgram("21", null, "Tools, Equipment & Temporary Power", () => program_ToolsEquipmentTemporaryPower());
+  addProgram("22", null, "Line of Fire, Struck-By & Caught-Between Prevention", () => program_LineOfFireStruckByCaughtBetween());
+  addProgram("23", null, "Environmental Controls & Site Conditions", () => program_EnvironmentalControls());
 
-  addProgram("24", "Steel Erection", program_SteelErection());
-  addProgram("25", "Concrete & Masonry", program_ConcreteMasonry());
-  addProgram("26", "Demolition", program_Demolition());
-  addProgram("27", "Temporary Structures, Supports & Bracing", program_TemporaryStructuresBracing());
-  addProgram("28", "Hazard Communication", program_HazardCommunication());
-  addProgram("29", "Chemical Safety", program_ChemicalSafety());
-  addProgram("30", "Silica Exposure Control", program_SilicaExposureControl());
-  addProgram("31", "Heat Illness Prevention", program_HeatIllnessPrevention());
-  addProgram("32", "Cold Stress & Winter Work", program_ColdStressWinterWork());
-  addProgram("33", "Respiratory Protection", program_RespiratoryProtection());
-  addProgram("34", "Fire Prevention", program_FirePrevention());
-  addProgram("35", "Flammable Liquids, Fuel Gas & Cylinder Storage", program_FlammableLiquidsGasStorage());
+  if (hasProgram("steel_erection")) {
+    addProgram("24", null, "Steel Erection", () => program_SteelErection());
+  }
+  if (hasProgram("concrete_masonry")) {
+    addProgram("25", null, "Concrete & Masonry", () => program_ConcreteMasonry());
+  }
+  if (hasProgram("demolition")) {
+    addProgram("26", null, "Demolition", () => program_Demolition());
+  }
+  if (hasProgram("temporary_structures")) {
+    addProgram("27", null, "Temporary Structures, Supports & Bracing", () => program_TemporaryStructuresBracing());
+  }
+  if (hasProgram("hazard_communication")) {
+    addProgram("28", null, "Hazard Communication", () => program_HazardCommunication());
+  }
+  if (hasProgram("chemical_safety")) {
+    addProgram("29", null, "Chemical Safety", () => program_ChemicalSafety());
+  }
+  if (hasProgram("silica_exposure")) {
+    addProgram("30", null, "Silica Exposure Control", () => program_SilicaExposureControl());
+  }
+  addProgram("31", null, "Heat Illness Prevention", () => program_HeatIllnessPrevention());
+  addProgram("32", null, "Cold Stress & Winter Work", () => program_ColdStressWinterWork());
+  if (hasProgram("respiratory_protection")) {
+    addProgram("33", null, "Respiratory Protection", () => program_RespiratoryProtection());
+  }
+  if (hasProgram("fire_prevention", "hot_work")) {
+    addProgram("34", null, "Fire Prevention", () => program_FirePrevention());
+  }
+  if (hasProgram("flammable_storage", "fire_prevention", "hot_work")) {
+    addProgram("35", null, "Flammable Liquids, Fuel Gas & Cylinder Storage", () => program_FlammableLiquidsGasStorage());
+  }
 
-  addProgram("36", "Site Traffic Control", program_SiteTrafficControl());
-  addProgram("37", "Delivery, Staging & Logistics Management", program_DeliveryLogisticsManagement());
-  addProgram("38", "Stop Work Authority", program_StopWorkAuthority());
-  addProgram("39", "Safety Accountability & Disciplinary Policy", program_SafetyDisciplinaryPolicy());
-  addProgram("40", "Subcontractor Safety Requirements", program_SubcontractorSafetyRequirements());
-  addProgram("41", "Public Protection & Occupied Area Controls", program_PublicProtectionOccupiedAreas());
-  addProgram("42", "Sanitation, Drinking Water & Welfare Facilities", program_SanitationWelfareFacilities());
-  addProgram("43", "Security & Site Access Control", program_SecuritySiteAccessControl());
-  addProgram("44", "Severe Weather Response Program", program_SevereWeatherResponse());
-  addProgram("45", "First Aid, Medical Services & Injury Management", program_FirstAidMedicalServices());
+  if (hasProgram("site_traffic")) {
+    addProgram("36", null, "Site Traffic Control", () => program_SiteTrafficControl());
+  }
+  if (hasProgram("delivery_logistics", "site_traffic")) {
+    addProgram("37", null, "Delivery, Staging & Logistics Management", () => program_DeliveryLogisticsManagement());
+  }
+  addProgram("38", null, "Stop Work Authority", () => program_StopWorkAuthority());
+  addProgram("39", null, "Safety Accountability & Disciplinary Policy", () => program_SafetyDisciplinaryPolicy());
+  addProgram("40", null, "Subcontractor Safety Requirements", () => program_SubcontractorSafetyRequirements());
+  if (hasProgram("public_protection")) {
+    addProgram("41", null, "Public Protection & Occupied Area Controls", () => program_PublicProtectionOccupiedAreas());
+  }
+  addProgram("42", null, "Sanitation, Drinking Water & Welfare Facilities", () => program_SanitationWelfareFacilities());
+  if (hasProgram("security_site_access")) {
+    addProgram("43", null, "Security & Site Access Control", () => program_SecuritySiteAccessControl());
+  }
+  addProgram("44", null, "Severe Weather Response Program", () => program_SevereWeatherResponse());
+  addProgram("45", null, "First Aid, Medical Services & Injury Management", () => program_FirstAidMedicalServices());
 
-  addProgram("46", "Ergonomics & Manual Handling", program_ErgonomicsManualHandling());
-  addProgram("47", "Hand & Power Tools - Detailed Requirements", program_HandPowerToolsExpansion());
-  addProgram("48", "Welding, Cutting & Brazing - Detailed Requirements", program_WeldingCuttingExpansion());
-  addProgram("49", "Electrical Safety & LOTO - Detailed Requirements", program_ElectricalLOTOExpansion());
-  addProgram("50", "Excavation & Trenching - Detailed Requirements", program_ExcavationDeepExpansion());
-  addProgram("51", "Confined Space Entry - Detailed Requirements", program_ConfinedSpaceDeepExpansion());
-  addProgram("52", "Crane, Hoisting & Lift Planning - Detailed Requirements", program_CraneLiftPlanningExpansion());
-  addProgram("53", "Fall Protection - Rescue, Anchorage & Inspection Expansion", program_FallProtectionExpansion());
+  addProgram("46", null, "Ergonomics & Manual Handling", () => program_ErgonomicsManualHandling());
+  addProgram("47", null, "Hand & Power Tools - Detailed Requirements", () => program_HandPowerToolsExpansion());
+  if (hasProgram("hot_work")) {
+    addProgram("48", null, "Welding, Cutting & Brazing - Detailed Requirements", () => program_WeldingCuttingExpansion());
+  }
+  if (hasProgram("electrical_loto")) {
+    addProgram("49", null, "Electrical Safety & LOTO - Detailed Requirements", () => program_ElectricalLOTOExpansion());
+  }
+  if (hasProgram("excavation")) {
+    addProgram("50", null, "Excavation & Trenching - Detailed Requirements", () => program_ExcavationDeepExpansion());
+  }
+  if (hasProgram("confined_space")) {
+    addProgram("51", null, "Confined Space Entry - Detailed Requirements", () => program_ConfinedSpaceDeepExpansion());
+  }
+  if (hasProgram("crane_rigging")) {
+    addProgram("52", null, "Crane, Hoisting & Lift Planning - Detailed Requirements", () => program_CraneLiftPlanningExpansion());
+  }
+  if (hasProgram("fall_protection")) {
+    addProgram("53", null, "Fall Protection - Rescue, Anchorage & Inspection Expansion", () => program_FallProtectionExpansion());
+  }
 
-  addProgram("54", "Demolition - Detailed Requirements", program_DemolitionDeepExpansion());
-  addProgram("55", "Concrete & Masonry - Detailed Requirements", program_ConcreteMasonryDeepExpansion());
-  addProgram("56", "Steel Erection - Detailed Requirements", program_SteelErectionDeepExpansion());
-  addProgram("57", "Rigging Hardware, Sling Inspection & Load Control", program_RiggingHardwareInspection());
-  addProgram("58", "Temporary Structures, Weather Protection & Enclosures", program_TemporaryStructuresWeatherProtection());
-  addProgram("59", "Indoor Air Quality, Dust Control & Exposure Management", program_IndoorAirQualityDustControl());
-  addProgram("60", "Owner / GC Authority, Document Control & Revision Management", program_OwnerGCAuthorityDocumentControl());
+  if (hasProgram("demolition")) {
+    addProgram("54", null, "Demolition - Detailed Requirements", () => program_DemolitionDeepExpansion());
+  }
+  if (hasProgram("concrete_masonry")) {
+    addProgram("55", null, "Concrete & Masonry - Detailed Requirements", () => program_ConcreteMasonryDeepExpansion());
+  }
+  if (hasProgram("steel_erection")) {
+    addProgram("56", null, "Steel Erection - Detailed Requirements", () => program_SteelErectionDeepExpansion());
+  }
+  if (hasProgram("crane_rigging")) {
+    addProgram("57", null, "Rigging Hardware, Sling Inspection & Load Control", () => program_RiggingHardwareInspection());
+  }
+  if (hasProgram("temporary_structures")) {
+    addProgram("58", null, "Temporary Structures, Weather Protection & Enclosures", () => program_TemporaryStructuresWeatherProtection());
+  }
+  if (hasProgram("silica_exposure", "respiratory_protection")) {
+    addProgram("59", null, "Indoor Air Quality, Dust Control & Exposure Management", () => program_IndoorAirQualityDustControl());
+  }
+  addProgram("60", null, "Owner / GC Authority, Document Control & Revision Management", () => program_OwnerGCAuthorityDocumentControl());
+  blocks.push(...buildOshaAppendix(normalizedForm, builderTextConfig));
 
-  addProgram("Appendix A", "Emergency Contacts & Response Information", appendix_EmergencyContacts());
-  addProgram("Appendix B", "Incident Report, Investigation & Corrective Action Forms", appendix_IncidentForms());
-  addProgram("Appendix C", "Daily Activity Plan (DAP) / Pre-Task Planning Forms", appendix_DAPPreTaskPlanning());
-  addProgram("Appendix D", "Permit Control Forms", appendix_PermitControls());
-  addProgram("Appendix E", "Inspection Checklists", appendix_InspectionChecklists());
-  addProgram("Appendix F", "Training Matrix & Qualification Tracking", appendix_TrainingMatrix());
-  addProgram("Appendix G", "PPE Matrix", appendix_PPEMatrix());
-  addProgram("Appendix H", "Equipment Inspection Forms", appendix_EquipmentInspectionForms());
-  addProgram("Appendix I", "Hot Work Permit & Fire Watch Forms", appendix_HotWorkFireWatchForms());
-  addProgram("Appendix J", "High-Risk Work Planning Forms", appendix_HighRiskWorkForms());
+  addProgram("Appendix A", null, "Emergency Contacts & Response Information", () => appendix_EmergencyContacts());
+  addProgram("Appendix B", null, "Incident Report, Investigation & Corrective Action Forms", () => appendix_IncidentForms());
+  addProgram("Appendix C", null, "Daily Activity Plan (DAP) / Pre-Task Planning Forms", () => appendix_DAPPreTaskPlanning());
+  addProgram("Appendix D", null, "Permit Control Forms", () => appendix_PermitControls());
+  addProgram("Appendix E", null, "Inspection Checklists", () => appendix_InspectionChecklists());
+  addProgram("Appendix F", null, "Training Matrix & Qualification Tracking", () => appendix_TrainingMatrix());
+  addProgram("Appendix G", null, "PPE Matrix", () => appendix_PPEMatrix());
+  addProgram("Appendix H", null, "Equipment Inspection Forms", () => appendix_EquipmentInspectionForms());
+  addProgram("Appendix I", null, "Hot Work Permit & Fire Watch Forms", () => appendix_HotWorkFireWatchForms());
+  addProgram("Appendix J", null, "High-Risk Work Planning Forms", () => appendix_HighRiskWorkForms());
 
   return blocks;
 }
 
-function buildDoc(form: PSHSEPInput) {
-  const scopeSelections = Array.isArray(form.scope_of_work_selected)
-    ? form.scope_of_work_selected
-    : [];
-
-  const cover = buildCover(form);
+async function buildDoc(form: PSHSEPInput) {
+  const normalizedForm = normalizePshsepBuilderFormData(form) as PSHSEPInput;
+  const builderTextConfig = await getDocumentBuilderTextConfig().catch(() => null);
+  const cover = buildCover(normalizedForm, builderTextConfig);
   const toc = buildTOC();
-  const revisionLog = buildRevisionLog(form);
-  const admin = buildAdminSummary(form);
-  const programs = buildPrograms(form, scopeSelections);
+  const revisionLog = buildRevisionLog(normalizedForm);
+  const admin = buildAdminSummary(normalizedForm, builderTextConfig);
+  const programs = buildPrograms(normalizedForm, builderTextConfig);
   const disclaimer = [
     pageBreak(),
     formSectionTitle("DISCLAIMER"),
     ...DOCUMENT_DISCLAIMER_LINES.map((line) => p(line)),
   ];
 
-return new Document({
-  sections: [
-    {
-      properties: {},
-      children: [
-        ...cover,
-        ...toc,
-        ...revisionLog,
-        pageBreak(),
-        admin.heading,
-        admin.intro,
-        admin.table,
-        ...programs,
-        ...disclaimer,
-      ],
-    },
-  ],
-});
+  return createSafetyPlanDocument([
+    ...cover,
+    ...toc,
+    ...revisionLog,
+    pageBreak(),
+    admin.heading,
+    admin.intro,
+    admin.table,
+    ...programs,
+    ...disclaimer,
+  ]);
 }
 
 export function normalizePshsepForm(form: PSHSEPInput): PSHSEPInput {
-  const normalized = { ...form };
+  const normalized = normalizePshsepBuilderFormData(form) as PSHSEPInput;
   const scopeSelections = Array.isArray(normalized.scope_of_work_selected)
     ? normalized.scope_of_work_selected
     : [];
+  const includedPrograms = new Set(derivePshsepExportProgramIds(normalized));
 
-  if (scopeSelections.includes("Excavation / Trenching")) {
-    normalized.include_excavation = true;
-  }
-
-  if (scopeSelections.includes("Crane / Rigging")) {
-    normalized.include_crane_rigging = true;
-  }
-
-  if (scopeSelections.includes("Confined Space")) {
-    normalized.include_confined_space = true;
-  }
-
-  if (scopeSelections.includes("Electrical")) {
-    normalized.include_electrical_loto = true;
-  }
-
-  if (scopeSelections.includes("Hot Work")) {
-    normalized.include_hot_work = true;
+  if (scopeSelections.length > 0) {
+    normalized.include_fall_protection =
+      include(normalized.include_fall_protection, true) || includedPrograms.has("fall_protection");
+    normalized.include_excavation =
+      include(normalized.include_excavation, false) || includedPrograms.has("excavation");
+    normalized.include_crane_rigging =
+      include(normalized.include_crane_rigging, false) || includedPrograms.has("crane_rigging");
+    normalized.include_confined_space =
+      include(normalized.include_confined_space, false) || includedPrograms.has("confined_space");
+    normalized.include_electrical_loto =
+      include(normalized.include_electrical_loto, false) || includedPrograms.has("electrical_loto");
+    normalized.include_hot_work =
+      include(normalized.include_hot_work, false) || includedPrograms.has("hot_work");
   }
 
   return normalized;
@@ -3871,12 +4233,15 @@ export async function generatePshsepDocx(
   }
 
   const normalized = normalizePshsepForm(form as PSHSEPInput);
-  const doc = buildDoc(normalized);
+  const doc = await buildDoc(normalized);
   const buffer = await Packer.toBuffer(doc);
 
   return {
     body: new Uint8Array(buffer),
-    filename: `PSHSEP_${safeFilePart(normalized.project_name || "Project")}.docx`,
+    filename: getSafetyBlueprintDraftFilename(
+      safeFilePart(normalized.project_name || "Project"),
+      "pshsep"
+    ).replace("_Draft", ""),
   };
 }
 
@@ -3906,10 +4271,10 @@ export async function POST(req: Request) {
       },
     });
   } catch (err: unknown) {
-    console.error("PSHSEP DOCX export failed:", err);
+    console.error(`${SITE_SAFETY_BLUEPRINT_TITLE} DOCX export failed:`, err);
 
     return NextResponse.json(
-      { error: "Failed to generate PSHSEP DOCX." },
+      { error: `Failed to generate ${SITE_SAFETY_BLUEPRINT_TITLE} DOCX.` },
       { status: 500 }
     );
   }

@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="3000" viewBox="0 0 1400 3000" role="img" aria-labelledby="title desc">
+  <title id="title">Ground-Up New Build Trade Conflict Coordination Tree</title>
+  <desc id="desc">Static coordination tree for ground-up construction showing phase-based trade conflicts and mitigation priorities.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f6f9fc" />
+      <stop offset="100%" stop-color="#e6eef7" />
+    </linearGradient>
+    <style>
+      .title { font: 700 36px Aptos, Arial, sans-serif; fill: #173b63; }
+      .subtitle { font: 600 19px Aptos, Arial, sans-serif; fill: #49617a; }
+      .phase { font: 700 24px Aptos, Arial, sans-serif; fill: #1f4e78; }
+      .copy { font: 17px Aptos, Arial, sans-serif; fill: #1f2933; }
+      .small { font: 600 16px Aptos, Arial, sans-serif; fill: #5f7488; }
+    </style>
+  </defs>
+  <rect width="1400" height="3000" fill="url(#bg)" />
+  <rect x="52" y="48" width="1296" height="2904" rx="28" fill="#ffffff" stroke="#c6d4e1" stroke-width="3" />
+  <text x="94" y="122" class="title">GROUND-UP NEW BUILD TRADE CONFLICT TREE</text>
+  <text x="94" y="158" class="subtitle">Project Start to Final Turnover</text>
+  <text x="94" y="196" class="small">Use with the Trade Conflict Coordination Framework section to compare baseline interfaces against detected simultaneous-operation risks.</text>
+
+  <g transform="translate(86 240)">
+    <rect width="1228" height="330" rx="22" fill="#f6f9fc" stroke="#8ea9c1" stroke-width="2"/>
+    <text x="28" y="42" class="phase">1. Preconstruction / Controls</text>
+    <text x="28" y="84" class="copy">Project management, logistics, survey, and inspection conflicts ripple across every trade when sequence, access, and hold points are loose.</text>
+    <text x="28" y="128" class="copy">Typical pressure points: schedule control, laydown ownership, crane and delivery routes, disturbed layout marks, covered work before inspection.</text>
+    <text x="28" y="172" class="copy">Mitigation focus: freeze the master sequence, assign zone ownership, protect survey control, and enforce inspection gates before close-in.</text>
+    <text x="28" y="232" class="small">Key interfaces: Superintendent | Safety / logistics | Survey / layout | Testing / inspection</text>
+  </g>
+
+  <g transform="translate(86 600)">
+    <rect width="1228" height="330" rx="22" fill="#ffffff" stroke="#8ea9c1" stroke-width="2"/>
+    <text x="28" y="42" class="phase">2. Sitework / Civil</text>
+    <text x="28" y="84" class="copy">Civil work fronts clash when clearing, grading, shoring, underground utilities, paving, and landscape restoration overlap in the same corridor.</text>
+    <text x="28" y="128" class="copy">Typical pressure points: utility locates, excavation support, crane pads, backfill timing, paving before underground completion, final-grade damage.</text>
+    <text x="28" y="172" class="copy">Mitigation focus: phase corridor releases, verify utility as-builts before restoration, and keep finished surfaces protected from late logistics traffic.</text>
+    <text x="28" y="232" class="small">Key interfaces: Clearing | Erosion control | Earthwork | Excavation / shoring | Underground utilities | Paving / landscaping</text>
+  </g>
+
+  <g transform="translate(86 960)">
+    <rect width="1228" height="420" rx="22" fill="#f6f9fc" stroke="#8ea9c1" stroke-width="2"/>
+    <text x="28" y="42" class="phase">3. Structure / Building Shell</text>
+    <text x="28" y="84" class="copy">Foundations, embeds, structural steel, deck, masonry, roofing, waterproofing, facade, glazing, and fireproofing compete for access and closure rights.</text>
+    <text x="28" y="128" class="copy">Typical pressure points: pre-pour coordination, crane picks, opening locations, cure time, scaffold ownership, dry-in milestones, penetration conflicts.</text>
+    <text x="28" y="172" class="copy">Mitigation focus: coordinate embeds and penetrations before closure, reserve lift and scaffold zones, and gate dry-in and fireproofing releases by inspection.</text>
+    <text x="28" y="232" class="small">Key interfaces: Foundations / rebar / embeds | Structural steel / deck | Masonry | Roofing | Waterproofing | Facade / glazing | Fireproofing</text>
+  </g>
+
+  <g transform="translate(86 1410)">
+    <rect width="1228" height="250" rx="22" fill="#ffffff" stroke="#8ea9c1" stroke-width="2"/>
+    <text x="28" y="42" class="phase">4. Interior Framing and Core Rough-In</text>
+    <text x="28" y="84" class="copy">Interior framing, door systems, misc. metals, and elevators depend on dimensional control, early rough-in coordination, and protected access routes.</text>
+    <text x="28" y="128" class="copy">Mitigation focus: confirm openings, soffits, door prep, elevator feeds, and finish elevations before framing and closure lock the space.</text>
+    <text x="28" y="188" class="small">Key interfaces: Interior framing | Doors / frames / hardware | Stairs / railings | Elevators</text>
+  </g>
+
+  <g transform="translate(86 1690)">
+    <rect width="1228" height="430" rx="22" fill="#f6f9fc" stroke="#8ea9c1" stroke-width="2"/>
+    <text x="28" y="42" class="phase">5. MEP / Life Safety Rough-In</text>
+    <text x="28" y="84" class="copy">Plumbing, HVAC, duct, process piping, sprinkler, electrical, low voltage, fire alarm, security, and BAS all converge in limited above-ceiling space.</text>
+    <text x="28" y="128" class="copy">Typical pressure points: duct and pipe route priority, cable tray ownership, sprinkler head locations, device placement, shutdown windows, startup sequencing.</text>
+    <text x="28" y="172" class="copy">Mitigation focus: run overhead coordination by zone, define pathway ownership, freeze device locations early, and align startup with controls integration.</text>
+    <text x="28" y="232" class="small">Key interfaces: Plumbing | HVAC / ductwork | Piping | Fire protection | Electrical | Low voltage / fire alarm | Security | BAS</text>
+  </g>
+
+  <g transform="translate(86 2150)">
+    <rect width="1228" height="420" rx="22" fill="#ffffff" stroke="#8ea9c1" stroke-width="2"/>
+    <text x="28" y="42" class="phase">6. Close-In / Finish Trades</text>
+    <text x="28" y="84" class="copy">Insulation, firestopping, drywall, ceilings, flooring, tile, coatings, millwork, partitions, and final trim work compete with late rough-in and punch access.</text>
+    <text x="28" y="128" class="copy">Typical pressure points: incomplete MEP, penetrations after close-in, access panels, moisture-sensitive finishes, finish protection, late startup/testing demands.</text>
+    <text x="28" y="172" class="copy">Mitigation focus: use closure checklists, enforce firestop completion, protect finished surfaces, and sequence startup/testing with finish completion.</text>
+    <text x="28" y="232" class="small">Key interfaces: Drywall / ceilings | Flooring / tile / paint | Millwork / specialties | Final electrical / plumbing / HVAC / fire alarm</text>
+  </g>
+
+  <g transform="translate(86 2600)">
+    <rect width="1228" height="260" rx="22" fill="#f6f9fc" stroke="#8ea9c1" stroke-width="2"/>
+    <text x="28" y="42" class="phase">7. Exterior / Final Completion</text>
+    <text x="28" y="84" class="copy">Fence and gate changes, signage, cleaning, commissioning, and owner turnover often collide with final punch, testing, training, and access control changes.</text>
+    <text x="28" y="128" class="copy">Mitigation focus: preserve emergency access, manage punch by zone, and gate move-in on life-safety approval, startup readiness, and owner training completion.</text>
+    <text x="28" y="188" class="small">Key interfaces: Site fencing / gates | Signage | Cleaning / punch | Commissioning / startup | Owner move-in / turnover</text>
+  </g>
+</svg>

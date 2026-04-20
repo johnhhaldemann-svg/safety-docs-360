@@ -26,6 +26,7 @@ function roleNeedsJobsiteAssignments(role?: string | null) {
   const normalized = normalizeAppRole(role);
   return (
     normalized === "project_manager" ||
+    normalized === "field_supervisor" ||
     normalized === "foreman" ||
     normalized === "field_user" ||
     normalized === "read_only" ||

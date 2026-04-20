@@ -1,4 +1,10 @@
-import type { BucketedWorkItem, ConflictEvaluation, GeneratedDocumentRecord, RulesEvaluation } from "@/types/safety-intelligence";
+import type {
+  BucketedWorkItem,
+  ConflictEvaluation,
+  GeneratedDocumentRecord,
+  RulesEvaluation,
+  SafetyReviewPayload,
+} from "@/types/safety-intelligence";
 
 export type SafetyDashboardPayload = {
   summary: {
@@ -52,3 +58,4 @@ export type GeneratedDocumentPayload = {
   };
 };
 
+export type { SafetyReviewPayload };

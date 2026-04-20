@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  activatesScopedRequirement,
   computeTrainingMatrixRow,
   keywordMatchesHaystack,
+  matchesSelectedMatrixFilter,
   normalizeForMatch,
   requirementAppliesToProfile,
 } from "./trainingMatrix";
@@ -66,6 +68,77 @@ describe("requirementAppliesToProfile", () => {
         ["Foreman"]
       )
     ).toBe(false);
+  });
+  it("requires selected subtrade when apply_sub_trades set", () => {
+    expect(
+      requirementAppliesToProfile(
+        { certifications: [], trade_specialty: "Electrical", job_title: "Foreman" },
+        ["Electrical"],
+        [],
+        ["High Voltage"],
+        [],
+        { selectedSubTrade: "High Voltage" }
+      )
+    ).toBe(true);
+    expect(
+      requirementAppliesToProfile(
+        { certifications: [], trade_specialty: "Electrical", job_title: "Foreman" },
+        ["Electrical"],
+        [],
+        ["High Voltage"],
+        [],
+        {}
+      )
+    ).toBe(false);
+  });
+  it("requires selected task code when apply_task_codes set", () => {
+    expect(
+      requirementAppliesToProfile(
+        { certifications: [], trade_specialty: "Electrical", job_title: "Foreman" },
+        ["Electrical"],
+        [],
+        [],
+        ["cable_pull"],
+        { selectedTaskCode: "cable_pull" }
+      )
+    ).toBe(true);
+    expect(
+      requirementAppliesToProfile(
+        { certifications: [], trade_specialty: "Electrical", job_title: "Foreman" },
+        ["Electrical"],
+        [],
+        [],
+        ["cable_pull"],
+        { selectedTaskCode: "panel_install" }
+      )
+    ).toBe(false);
+  });
+});
+
+describe("matchesSelectedMatrixFilter", () => {
+  it("keeps scoped requirements visible when no top-level filter is selected", () => {
+    expect(matchesSelectedMatrixFilter(["Electrical"], null)).toBe(true);
+  });
+
+  it("allows unrestricted requirements when a filter is selected", () => {
+    expect(matchesSelectedMatrixFilter([], "Electrical")).toBe(true);
+  });
+
+  it("requires a match once a top-level filter is selected", () => {
+    expect(matchesSelectedMatrixFilter(["Electrical"], "Electrical")).toBe(true);
+    expect(matchesSelectedMatrixFilter(["Electrical"], "Plumbing")).toBe(false);
+  });
+});
+
+describe("activatesScopedRequirement", () => {
+  it("keeps unrestricted scoped filters active with no selection", () => {
+    expect(activatesScopedRequirement([], null)).toBe(true);
+  });
+
+  it("hides scoped requirements until matching context is selected", () => {
+    expect(activatesScopedRequirement(["High Voltage"], null)).toBe(false);
+    expect(activatesScopedRequirement(["High Voltage"], "High Voltage")).toBe(true);
+    expect(activatesScopedRequirement(["High Voltage"], "Low Voltage")).toBe(false);
   });
 });
 
@@ -159,6 +232,49 @@ describe("computeTrainingMatrixRow", () => {
       ]
     );
     expect(unmatchedCertifications).toEqual(["OSHA 30"]);
+  });
+
+  it("marks task-scoped requirements na when no task context is selected", () => {
+    const { cells, cellDetails } = computeTrainingMatrixRow(
+      {
+        certifications: ["OSHA 30"],
+        trade_specialty: "Electrical",
+        job_title: "Foreman",
+      },
+      [
+        {
+          id: "scoped-task",
+          match_keywords: ["osha"],
+          apply_trades: ["Electrical"],
+          apply_task_codes: ["cable_pull"],
+        },
+      ]
+    );
+    expect(cells["scoped-task"]).toBe("na");
+    expect(cellDetails["scoped-task"]?.state).toBe("na");
+  });
+
+  it("activates subtrade and task scoped requirements when matching context is selected", () => {
+    const { cells, cellDetails } = computeTrainingMatrixRow(
+      {
+        certifications: ["OSHA 30"],
+        trade_specialty: "Electrical",
+        job_title: "Foreman",
+      },
+      [
+        {
+          id: "scoped-context",
+          match_keywords: ["osha"],
+          apply_trades: ["Electrical"],
+          apply_sub_trades: ["High Voltage"],
+          apply_task_codes: ["cable_pull"],
+        },
+      ],
+      new Date("2026-01-01T00:00:00.000Z"),
+      { selectedSubTrade: "High Voltage", selectedTaskCode: "cable_pull" }
+    );
+    expect(cells["scoped-context"]).toBe("match");
+    expect(cellDetails["scoped-context"]?.state).toBe("match");
   });
 
   it("treats certifications past expiration as absent for matching", () => {

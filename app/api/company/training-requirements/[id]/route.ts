@@ -8,40 +8,74 @@ import {
 } from "@/lib/constructionProfileOptions";
 import {
   fetchTrainingRequirementById,
-  isMissingRenewalMonthsError,
+  selectReturnBasicApply,
+  selectReturnBasicApplyNoRenewal,
   selectReturnFull,
   selectReturnFullNoRenewal,
   selectReturnLegacy,
   selectReturnLegacyWithRenewal,
+  selectReturnScopeNoGenerated,
+  selectReturnScopeNoGeneratedNoRenewal,
   TRAINING_REQUIREMENTS_SCHEMA_WARNING,
+  type TrainingRequirementDbRow,
 } from "@/lib/companyTrainingRequirementsDb";
 import { normalizeRenewalMonths } from "@/lib/trainingRequirementRenewal";
 import { DEFAULT_MATCH_FIELDS } from "@/lib/trainingMatrix";
 
 export const runtime = "nodejs";
 
-function selectAfterUpdate(applyColumnsAvailable: boolean, renewalMonthsAvailable: boolean): string {
-  if (applyColumnsAvailable && renewalMonthsAvailable) return selectReturnFull();
-  if (applyColumnsAvailable && !renewalMonthsAvailable) return selectReturnFullNoRenewal();
-  if (!applyColumnsAvailable && renewalMonthsAvailable) return selectReturnLegacyWithRenewal();
+type RouteContext = { params: Promise<{ id: string }> };
+type RequirementRow = TrainingRequirementDbRow;
+
+function selectAfterUpdate(flags: {
+  applyColumnsAvailable: boolean;
+  taskScopeColumnsAvailable: boolean;
+  generatedColumnsAvailable: boolean;
+  renewalMonthsAvailable: boolean;
+}): string {
+  if (
+    flags.applyColumnsAvailable &&
+    flags.taskScopeColumnsAvailable &&
+    flags.generatedColumnsAvailable &&
+    flags.renewalMonthsAvailable
+  ) {
+    return selectReturnFull();
+  }
+  if (
+    flags.applyColumnsAvailable &&
+    flags.taskScopeColumnsAvailable &&
+    flags.generatedColumnsAvailable &&
+    !flags.renewalMonthsAvailable
+  ) {
+    return selectReturnFullNoRenewal();
+  }
+  if (
+    flags.applyColumnsAvailable &&
+    flags.taskScopeColumnsAvailable &&
+    !flags.generatedColumnsAvailable &&
+    flags.renewalMonthsAvailable
+  ) {
+    return selectReturnScopeNoGenerated();
+  }
+  if (
+    flags.applyColumnsAvailable &&
+    flags.taskScopeColumnsAvailable &&
+    !flags.generatedColumnsAvailable &&
+    !flags.renewalMonthsAvailable
+  ) {
+    return selectReturnScopeNoGeneratedNoRenewal();
+  }
+  if (flags.applyColumnsAvailable && flags.renewalMonthsAvailable) {
+    return selectReturnBasicApply();
+  }
+  if (flags.applyColumnsAvailable && !flags.renewalMonthsAvailable) {
+    return selectReturnBasicApplyNoRenewal();
+  }
+  if (flags.renewalMonthsAvailable) {
+    return selectReturnLegacyWithRenewal();
+  }
   return selectReturnLegacy();
 }
-
-type RouteContext = { params: Promise<{ id: string }> };
-
-type RequirementRow = {
-  id: string;
-  company_id: string;
-  title: string;
-  sort_order: number;
-  match_keywords: string[];
-  match_fields: string[];
-  apply_trades?: string[] | null;
-  apply_positions?: string[] | null;
-  renewal_months?: number | null;
-  created_at?: string;
-  updated_at?: string;
-};
 
 function parseKeywords(input: unknown): string[] | null {
   if (input === undefined) return null;
@@ -71,6 +105,39 @@ function parseMatchFields(input: unknown): string[] | null {
   return [];
 }
 
+function parseScopedStrings(input: unknown, mode: "label" | "taskCode"): string[] | null {
+  if (input === undefined) return null;
+  if (!Array.isArray(input)) return [];
+  const values = input
+    .map((value) => String(value).trim())
+    .filter(Boolean)
+    .map((value) =>
+      mode === "taskCode" ? value.toLowerCase().replace(/\s+/g, "_") : value
+    );
+  return [...new Set(values)];
+}
+
+function toRequirementResponse(row: RequirementRow) {
+  return {
+    id: row.id,
+    title: row.title,
+    sortOrder: row.sort_order,
+    matchKeywords: row.match_keywords ?? [],
+    matchFields: row.match_fields?.length ? row.match_fields : [...DEFAULT_MATCH_FIELDS],
+    applyTrades: row.apply_trades ?? [],
+    applyPositions: row.apply_positions ?? [],
+    applySubTrades: row.apply_sub_trades ?? [],
+    applyTaskCodes: row.apply_task_codes ?? [],
+    renewalMonths: row.renewal_months ?? null,
+    isGenerated: Boolean(row.is_generated),
+    generatedSourceType: row.generated_source_type ?? null,
+    generatedSourceDocumentId: row.generated_source_document_id ?? null,
+    generatedSourceOperationKey: row.generated_source_operation_key ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   const auth = await authorizeRequest(request);
 
@@ -78,7 +145,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     return auth.error;
   }
 
-  if (!canMutateCompanyTrainingRequirements(auth.role)) {
+  if (!canMutateCompanyTrainingRequirements(auth.role, auth.permissionMap)) {
     return NextResponse.json(
       { error: "You do not have permission to update training requirements." },
       { status: 403 }
@@ -110,7 +177,6 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-
   const loaded = await fetchTrainingRequirementById(auth.supabase, id);
 
   if (loaded.error) {
@@ -121,13 +187,15 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const existing = loaded.row as RequirementRow | null;
-
   if (!existing || existing.company_id !== companyScope.companyId) {
     return NextResponse.json({ error: "Training requirement not found." }, { status: 404 });
   }
-
-  const applyColumnsAvailable = loaded.applyColumnsAvailable;
-  const renewalMonthsAvailable = loaded.renewalMonthsAvailable;
+  if (existing.is_generated) {
+    return NextResponse.json(
+      { error: "Generated training requirements are read-only." },
+      { status: 403 }
+    );
+  }
 
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
@@ -159,25 +227,35 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   if (body?.applyTrades !== undefined) {
-    const t = filterAllowedTrades(body.applyTrades);
-    if (t.length === 0) {
+    const trades = filterAllowedTrades(body.applyTrades);
+    if (trades.length === 0) {
       return NextResponse.json(
         { error: "Select at least one trade this requirement applies to." },
         { status: 400 }
       );
     }
-    updates.apply_trades = t;
+    updates.apply_trades = trades;
   }
 
   if (body?.applyPositions !== undefined) {
-    const p = filterAllowedPositions(body.applyPositions);
-    if (p.length === 0) {
+    const positions = filterAllowedPositions(body.applyPositions);
+    if (positions.length === 0) {
       return NextResponse.json(
         { error: "Select at least one position this requirement applies to." },
         { status: 400 }
       );
     }
-    updates.apply_positions = p;
+    updates.apply_positions = positions;
+  }
+
+  const applySubTrades = parseScopedStrings(body?.applySubTrades, "label");
+  if (applySubTrades !== null) {
+    updates.apply_sub_trades = applySubTrades;
+  }
+
+  const applyTaskCodes = parseScopedStrings(body?.applyTaskCodes, "taskCode");
+  if (applyTaskCodes !== null) {
+    updates.apply_task_codes = applyTaskCodes;
   }
 
   if (typeof body?.sortOrder === "number" && Number.isFinite(body.sortOrder)) {
@@ -190,44 +268,40 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   let schemaWarning: string | null = null;
-  if (!applyColumnsAvailable) {
+  if (!loaded.applyColumnsAvailable) {
     if ("apply_trades" in updates || "apply_positions" in updates) {
       schemaWarning = TRAINING_REQUIREMENTS_SCHEMA_WARNING;
     }
     delete updates.apply_trades;
     delete updates.apply_positions;
   }
-
-  if (!renewalMonthsAvailable && "renewal_months" in updates) {
+  if (!loaded.taskScopeColumnsAvailable) {
+    if ("apply_sub_trades" in updates || "apply_task_codes" in updates) {
+      schemaWarning = TRAINING_REQUIREMENTS_SCHEMA_WARNING;
+    }
+    delete updates.apply_sub_trades;
+    delete updates.apply_task_codes;
+  }
+  if (!loaded.renewalMonthsAvailable && "renewal_months" in updates) {
     delete updates.renewal_months;
   }
 
-  let returnSelect = selectAfterUpdate(applyColumnsAvailable, renewalMonthsAvailable);
-  let updatePayload: Record<string, unknown> = { ...updates };
-
-  let updateRes = await auth.supabase
+  const updateRes = await auth.supabase
     .from("company_training_requirements")
-    .update(updatePayload)
+    .update(updates)
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
-    .select(returnSelect)
+    .select(
+      selectAfterUpdate({
+        applyColumnsAvailable: loaded.applyColumnsAvailable,
+        taskScopeColumnsAvailable: loaded.taskScopeColumnsAvailable,
+        generatedColumnsAvailable: loaded.generatedColumnsAvailable,
+        renewalMonthsAvailable: loaded.renewalMonthsAvailable,
+      })
+    )
     .single();
 
-  if (updateRes.error && isMissingRenewalMonthsError(updateRes.error)) {
-    updatePayload = { ...updatePayload };
-    delete updatePayload.renewal_months;
-    returnSelect = selectAfterUpdate(applyColumnsAvailable, false);
-    updateRes = await auth.supabase
-      .from("company_training_requirements")
-      .update(updatePayload)
-      .eq("id", id)
-      .eq("company_id", companyScope.companyId)
-      .select(returnSelect)
-      .single();
-  }
-
   const updated = updateRes.data as RequirementRow | null;
-
   if (updateRes.error || !updated) {
     return NextResponse.json(
       { error: updateRes.error?.message || "Failed to update training requirement." },
@@ -238,18 +312,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   return NextResponse.json({
     success: true,
     schemaWarning,
-    requirement: {
-      id: updated.id,
-      title: updated.title,
-      sortOrder: updated.sort_order,
-      matchKeywords: updated.match_keywords ?? [],
-      matchFields: updated.match_fields?.length ? updated.match_fields : [...DEFAULT_MATCH_FIELDS],
-      applyTrades: updated.apply_trades ?? [],
-      applyPositions: updated.apply_positions ?? [],
-      renewalMonths: updated.renewal_months ?? null,
-      createdAt: updated.created_at,
-      updatedAt: updated.updated_at,
-    },
+    requirement: toRequirementResponse(updated),
   });
 }
 
@@ -260,7 +323,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     return auth.error;
   }
 
-  if (!canMutateCompanyTrainingRequirements(auth.role)) {
+  if (!canMutateCompanyTrainingRequirements(auth.role, auth.permissionMap)) {
     return NextResponse.json(
       { error: "You do not have permission to delete training requirements." },
       { status: 403 }
@@ -289,6 +352,25 @@ export async function DELETE(request: Request, context: RouteContext) {
   const id = rawId.trim();
   if (!id) {
     return NextResponse.json({ error: "Requirement id is required." }, { status: 400 });
+  }
+
+  const loaded = await fetchTrainingRequirementById(auth.supabase, id);
+  if (loaded.error) {
+    return NextResponse.json(
+      { error: loaded.error || "Failed to load requirement." },
+      { status: 500 }
+    );
+  }
+
+  const existing = loaded.row as RequirementRow | null;
+  if (!existing || existing.company_id !== companyScope.companyId) {
+    return NextResponse.json({ error: "Training requirement not found." }, { status: 404 });
+  }
+  if (existing.is_generated) {
+    return NextResponse.json(
+      { error: "Generated training requirements are read-only." },
+      { status: 403 }
+    );
   }
 
   const { error } = await auth.supabase

@@ -35,6 +35,33 @@ export type CSEPProgramSelectionInput = {
   source?: CSEPProgramSelectionSource;
 };
 
+export type CSEPProgramDefinitionContent = {
+  title: string;
+  summary: string;
+  oshaRefs: string[];
+  applicableWhen: string[];
+  responsibilities: string[];
+  preTaskProcedures: string[];
+  workProcedures: string[];
+  stopWorkProcedures: string[];
+  closeoutProcedures: string[];
+  controls: string[];
+  training: string[];
+};
+
+export type CSEPProgramDefinition = CSEPProgramDefinitionContent & {
+  category: CSEPProgramCategory;
+  item: string;
+  subtypeGroup?: CSEPProgramSubtypeGroup;
+  subtypeVariants?: Partial<
+    Record<CSEPProgramSubtypeValue, Partial<CSEPProgramDefinitionContent>>
+  >;
+};
+
+export type CSEPProgramConfig = {
+  definitions: CSEPProgramDefinition[];
+};
+
 export type CSEPProgramSection = {
   key: string;
   category: CSEPProgramCategory;

@@ -1,26 +1,48 @@
 export const runtime = "nodejs";
 
 import {
-  AlignmentType,
-  BorderStyle,
-  Document,
-  HeadingLevel,
   Packer,
-  PageBreak,
   Paragraph,
-  Table,
-  TableCell,
-  TableRow,
-  TextRun,
-  WidthType,
 } from "docx";
 import { NextResponse } from "next/server";
 import type { CSEPRiskItem } from "@/lib/csepTradeSelection";
 import { buildCsepProgramSections, buildCsepProgramSelections } from "@/lib/csepPrograms";
+import {
+  getDocumentBuilderSection,
+  resolveDocumentBuilderSection,
+} from "@/lib/documentBuilderText";
+import { getDocumentBuilderTextConfig } from "@/lib/documentBuilderTextSettings";
+import { getCsepProgramConfig } from "@/lib/csepProgramSettings";
+import {
+  createCsepBanner,
+  createCsepBody,
+  createCsepCover,
+  createCsepDocument,
+  createCsepInfoTable,
+  createCsepLabeledParagraph,
+  createCsepPageBreak,
+  createCsepSectionHeading,
+  createCsepSubheading,
+  valueOrNA,
+} from "@/lib/csepDocxTheme";
+import {
+  buildSurveyTestEnrichment,
+  SURVEY_TEST_LAYOUT_SECTIONS,
+  SURVEY_TEST_LAYOUT_VARIANT,
+  SURVEY_TEST_REFERENCE_SOURCE_POINTS,
+  type SurveyTestLayoutSectionKey,
+} from "@/lib/csepSurveyTest";
+import { buildLegacyCsepRenderModel } from "@/lib/csepLegacyDocx";
+import { renderCsepRenderModel, renderGeneratedCsepDocx } from "@/lib/csepDocxRenderer";
 import { DOCUMENT_DISCLAIMER_LINES } from "@/lib/legal";
 import { authorizeRequest } from "@/lib/rbac";
+import {
+  CONTRACTOR_SAFETY_BLUEPRINT_TITLE,
+  getSafetyBlueprintDraftFilename,
+} from "@/lib/safetyBlueprintLabels";
 import { loadGeneratedDocumentDraft } from "@/lib/safety-intelligence/repository";
-import { renderSafetyPlanDocx } from "@/lib/safety-intelligence/documents/render";
+import type { CsepWeatherSectionInput } from "@/types/csep-builder";
+import type { DocumentBuilderTextConfig } from "@/types/document-builder-text";
 import type { CSEPProgramSection, CSEPProgramSelection, CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue } from "@/types/csep-programs";
 import type { GeneratedSafetyPlanDraft } from "@/types/safety-intelligence";
 
@@ -39,12 +61,22 @@ type IncludedContent = {
   scope_of_work?: boolean;
   site_specific_notes?: boolean;
   emergency_procedures?: boolean;
+  weather_requirements_and_severe_weather_response?: boolean;
   required_ppe?: boolean;
   additional_permits?: boolean;
   common_overlapping_trades?: boolean;
   osha_references?: boolean;
   selected_hazards?: boolean;
   activity_hazard_matrix?: boolean;
+  roles_and_responsibilities?: boolean;
+  security_and_access?: boolean;
+  health_and_wellness?: boolean;
+  incident_reporting_and_investigation?: boolean;
+  training_and_instruction?: boolean;
+  drug_and_alcohol_testing?: boolean;
+  enforcement_and_corrective_action?: boolean;
+  recordkeeping?: boolean;
+  continuous_improvement?: boolean;
 };
 
 type CSEPInput = {
@@ -65,6 +97,7 @@ type CSEPInput = {
   scope_of_work: string;
   site_specific_notes: string;
   emergency_procedures: string;
+  weather_requirements?: CsepWeatherSectionInput;
 
   required_ppe: string[];
   additional_permits: string[];
@@ -81,225 +114,209 @@ type CSEPInput = {
   overlapPermitHints?: string[];
   common_overlapping_trades?: string[];
   includedContent?: IncludedContent;
+  layoutVariant?: "standard" | "survey_test";
+  surveyLayoutSections?: SurveyTestLayoutSectionKey[];
+  surveyElementsRequired?: string[];
+  surveyTrainingRequired?: string[];
+  surveySorData?: string[];
+  surveyInjuryData?: string[];
+  roles_and_responsibilities_text?: string;
+  security_and_access_text?: string;
+  health_and_wellness_text?: string;
+  incident_reporting_and_investigation_text?: string;
+  training_and_instruction_text?: string;
+  drug_and_alcohol_testing_text?: string;
+  enforcement_and_corrective_action_text?: string;
+  recordkeeping_text?: string;
+  continuous_improvement_text?: string;
 };
 
-function valueOrNA(value?: string) {
-  return value?.trim() ? value.trim() : "N/A";
-}
-
 function heading1(text: string) {
-  return new Paragraph({
-    heading: HeadingLevel.HEADING_1,
-    spacing: { before: 200, after: 160 },
-    children: [new TextRun({ text, bold: true, size: 32 })],
-  });
+  return createCsepSectionHeading(text);
 }
 
 function heading2(text: string) {
-  return new Paragraph({
-    heading: HeadingLevel.HEADING_2,
-    spacing: { before: 160, after: 120 },
-    children: [new TextRun({ text, bold: true, size: 26 })],
-  });
+  return createCsepSubheading(text);
 }
 
 function body(
-  text: string,
-  align: (typeof AlignmentType)[keyof typeof AlignmentType] = AlignmentType.LEFT
+  text: string
 ) {
-  return new Paragraph({
-    alignment: align,
-    spacing: { after: 120 },
-    children: [new TextRun({ text, size: 22 })],
-  });
+  return createCsepBody(text);
 }
 
-function bullet(text: string) {
-  return new Paragraph({
-    bullet: { level: 0 },
-    spacing: { after: 60 },
-    children: [new TextRun({ text, size: 22 })],
-  });
+function numberedItem(prefix: string, text: string) {
+  return body(`${prefix} ${text}`);
 }
 
-function tableCell(text: string, bold = false, width = 20) {
-  return new TableCell({
-    width: { size: width, type: WidthType.PERCENTAGE },
-    borders: {
-      top: { style: BorderStyle.SINGLE, size: 1, color: "BFBFBF" },
-      bottom: { style: BorderStyle.SINGLE, size: 1, color: "BFBFBF" },
-      left: { style: BorderStyle.SINGLE, size: 1, color: "BFBFBF" },
-      right: { style: BorderStyle.SINGLE, size: 1, color: "BFBFBF" },
-    },
-    children: [
-      new Paragraph({
-        spacing: { after: 60 },
-        children: [new TextRun({ text, bold, size: 20 })],
-      }),
-    ],
+function appendNumberedItems(
+  children: Paragraph[],
+  sectionPrefix: string,
+  items: string[]
+) {
+  items.forEach((item, index) => {
+    children.push(numberedItem(`${sectionPrefix}.${index + 1}`, item));
   });
 }
 
 function buildProjectInfoTable(form: CSEPInput) {
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [
-      new TableRow({
-        children: [
-          tableCell("Project Name", true, 25),
-          tableCell(valueOrNA(form.project_name), false, 25),
-          tableCell("Project Number", true, 25),
-          tableCell(valueOrNA(form.project_number), false, 25),
-        ],
-      }),
-      new TableRow({
-        children: [
-          tableCell("Project Address", true, 25),
-          tableCell(valueOrNA(form.project_address), false, 25),
-          tableCell("Owner / Client", true, 25),
-          tableCell(valueOrNA(form.owner_client), false, 25),
-        ],
-      }),
-      new TableRow({
-        children: [
-          tableCell("GC / CM", true, 25),
-          tableCell(valueOrNA(form.gc_cm), false, 25),
-          tableCell("Trade", true, 25),
-          tableCell(valueOrNA(form.trade), false, 25),
-        ],
-      }),
-      new TableRow({
-        children: [
-          tableCell("Sub-trade", true, 25),
-          tableCell(valueOrNA(form.subTrade), false, 25),
-          tableCell("Selected Tasks", true, 25),
-          tableCell(
-            Array.isArray(form.tasks) && form.tasks.length
-              ? form.tasks.join(", ")
-              : "N/A",
-            false,
-            25
-          ),
-        ],
-      }),
+  return createCsepInfoTable([
+    [
+      "Project Name",
+      valueOrNA(form.project_name),
+      "Project Number",
+      valueOrNA(form.project_number),
     ],
-  });
+    [
+      "Project Address",
+      valueOrNA(form.project_address),
+      "Owner / Client",
+      valueOrNA(form.owner_client),
+    ],
+    [
+      "GC / CM",
+      valueOrNA(form.gc_cm),
+      "Trade",
+      valueOrNA(form.trade),
+    ],
+    [
+      "Sub-trade",
+      valueOrNA(form.subTrade),
+      "Selected Tasks",
+      Array.isArray(form.tasks) && form.tasks.length ? form.tasks.join(", ") : "N/A",
+    ],
+  ]);
 }
 
 function buildContractorInfoTable(form: CSEPInput) {
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [
-      new TableRow({
-        children: [
-          tableCell("Contractor Company", true, 25),
-          tableCell(valueOrNA(form.contractor_company), false, 25),
-          tableCell("Contractor Contact", true, 25),
-          tableCell(valueOrNA(form.contractor_contact), false, 25),
-        ],
-      }),
-      new TableRow({
-        children: [
-          tableCell("Contractor Phone", true, 25),
-          tableCell(valueOrNA(form.contractor_phone), false, 25),
-          tableCell("Contractor Email", true, 25),
-          tableCell(valueOrNA(form.contractor_email), false, 25),
-        ],
-      }),
+  return createCsepInfoTable([
+    [
+      "Contractor Company",
+      valueOrNA(form.contractor_company),
+      "Contractor Contact",
+      valueOrNA(form.contractor_contact),
     ],
+    [
+      "Contractor Phone",
+      valueOrNA(form.contractor_phone),
+      "Contractor Email",
+      valueOrNA(form.contractor_email),
+    ],
+  ]);
+}
+
+function buildRiskTable(sectionPrefix: string, items: CSEPRiskItem[]) {
+  return items.flatMap((item, index) => {
+    const prefix = `${sectionPrefix}.${index + 1}`;
+
+    return [
+      heading2(`${prefix} ${item.activity}`),
+      createCsepLabeledParagraph("Hazard", item.hazard, {
+        prefix: `${prefix}.1`,
+        indentLeft: 240,
+      }),
+      createCsepLabeledParagraph("Risk", item.risk, {
+        prefix: `${prefix}.2`,
+        indentLeft: 240,
+      }),
+      createCsepLabeledParagraph("Controls", item.controls.join(", "), {
+        prefix: `${prefix}.3`,
+        indentLeft: 240,
+      }),
+      createCsepLabeledParagraph("Permit", item.permit, {
+        prefix: `${prefix}.4`,
+        indentLeft: 240,
+      }),
+    ];
   });
 }
 
-function buildRiskTable(items: CSEPRiskItem[]) {
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [
-      new TableRow({
-        children: [
-          tableCell("Activity", true, 20),
-          tableCell("Hazard", true, 20),
-          tableCell("Risk", true, 12),
-          tableCell("Controls", true, 30),
-          tableCell("Permit", true, 18),
-        ],
-      }),
-      ...items.map(
-        (item) =>
-          new TableRow({
-            children: [
-              tableCell(item.activity, false, 20),
-              tableCell(item.hazard, false, 20),
-              tableCell(item.risk, false, 12),
-              tableCell(item.controls.join(", "), false, 30),
-              tableCell(item.permit, false, 18),
-            ],
-          })
-      ),
+function getCsepSection(
+  config: DocumentBuilderTextConfig | null | undefined,
+  key: string
+) {
+  return getDocumentBuilderSection(config, "csep", key);
+}
+
+function getResolvedCsepSection(
+  config: DocumentBuilderTextConfig | null | undefined,
+  key: string
+) {
+  return resolveDocumentBuilderSection(config, "csep", key);
+}
+
+function getResolvedSiteBuilderSection(
+  config: DocumentBuilderTextConfig | null | undefined,
+  key: string
+) {
+  return resolveDocumentBuilderSection(config, "site_builder", key);
+}
+
+function normalizeTextList(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeOptionalText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function buildResponsibilitiesTable(
+  sectionPrefix: string,
+  config: DocumentBuilderTextConfig | null | undefined
+) {
+  const rolesSection = getCsepSection(config, "roles_and_responsibilities");
+  const childMap = new Map(
+    (rolesSection?.children ?? []).map((child) => [child.key, child])
+  );
+
+  const rows = [
+    [
+      "Contractor Superintendent",
+      childMap.get("contractor_superintendent")?.paragraphs[0] ??
+        "Direct field operations, coordinate work sequencing, enforce the site-specific safety plan, and correct unsafe conditions immediately.",
     ],
+    [
+      "Foreman / Lead",
+      childMap.get("foreman_lead")?.paragraphs[0] ??
+        "Review daily activities with the crew, verify controls are in place, confirm required permits are obtained, and stop work when hazards change.",
+    ],
+    [
+      "Workers",
+      childMap.get("workers")?.paragraphs[0] ??
+        `Follow this ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}, wear required PPE, attend safety briefings, report hazards immediately, and refuse unsafe work.`,
+    ],
+    [
+      "Safety Representative",
+      childMap.get("safety_representative")?.paragraphs[0] ??
+        "Support inspections, hazard assessments, coaching, corrective actions, and verification of permit and training compliance.",
+    ],
+  ] as const;
+
+  return rows.flatMap(([role, responsibility], index) => {
+    const prefix = `${sectionPrefix}.${index + 1}`;
+
+    return [
+      heading2(`${prefix} ${role}`),
+      createCsepLabeledParagraph("Responsibility", responsibility, {
+        prefix: `${prefix}.1`,
+        indentLeft: 240,
+      }),
+    ];
   });
 }
 
-function buildResponsibilitiesTable() {
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [
-      new TableRow({
-        children: [
-          tableCell("Role", true, 30),
-          tableCell("Responsibility", true, 70),
-        ],
-      }),
-      new TableRow({
-        children: [
-          tableCell("Contractor Superintendent", false, 30),
-          tableCell(
-            "Direct field operations, coordinate work sequencing, enforce the site-specific safety plan, and correct unsafe conditions immediately.",
-            false,
-            70
-          ),
-        ],
-      }),
-      new TableRow({
-        children: [
-          tableCell("Foreman / Lead", false, 30),
-          tableCell(
-            "Review daily activities with the crew, verify controls are in place, confirm required permits are obtained, and stop work when hazards change.",
-            false,
-            70
-          ),
-        ],
-      }),
-      new TableRow({
-        children: [
-          tableCell("Workers", false, 30),
-          tableCell(
-            "Follow this CSEP, wear required PPE, attend safety briefings, report hazards immediately, and refuse unsafe work.",
-            false,
-            70
-          ),
-        ],
-      }),
-      new TableRow({
-        children: [
-          tableCell("Safety Representative", false, 30),
-          tableCell(
-            "Support inspections, hazard assessments, coaching, corrective actions, and verification of permit and training compliance.",
-            false,
-            70
-          ),
-        ],
-      }),
-    ],
-  });
-}
-
-function buildTrainingBullets(form: CSEPInput) {
-  const bullets: string[] = [
-    "All workers shall receive site orientation before starting work.",
-    "Daily pre-task planning shall be completed before beginning work activities.",
-    "Tool-specific and task-specific training shall be completed before use of equipment or specialty tools.",
-    "Workers shall be trained on emergency procedures, evacuation routes, and incident reporting expectations.",
-  ];
+function buildTrainingBullets(
+  form: CSEPInput,
+  _config: DocumentBuilderTextConfig | null | undefined
+) {
+  const bullets: string[] = [];
 
   const textSeed = [
     form.trade,
@@ -360,6 +377,162 @@ function hasUtilityScope(form: CSEPInput) {
   );
 }
 
+function buildWeatherProjectOverlayItems(weather: CsepWeatherSectionInput | undefined) {
+  if (!weather) {
+    return [];
+  }
+
+  const items: string[] = [];
+  const monitoringSources = normalizeTextList(weather.monitoringSources);
+  const communicationMethods = normalizeTextList(weather.communicationMethods);
+  const highWindControls = normalizeTextList(weather.highWindControls);
+  const heatControls = normalizeTextList(weather.heatControls);
+  const coldControls = normalizeTextList(weather.coldControls);
+  const tornadoStormControls = normalizeTextList(weather.tornadoStormControls);
+  const environmentalControls = normalizeTextList(weather.environmentalControls);
+  const projectOverrideNotes = normalizeTextList(weather.projectOverrideNotes);
+
+  if (monitoringSources.length) {
+    items.push(`Monitoring sources: ${monitoringSources.join(", ")}.`);
+  }
+
+  if (communicationMethods.length) {
+    items.push(`Weather communication methods: ${communicationMethods.join(", ")}.`);
+  }
+
+  if (weather.highWindThresholdText?.trim()) {
+    items.push(`High-wind threshold or trade rule: ${weather.highWindThresholdText.trim()}.`);
+  }
+
+  highWindControls.forEach((item) => {
+    items.push(`High-wind control: ${item}.`);
+  });
+
+  if (typeof weather.lightningRadiusMiles === "number" && Number.isFinite(weather.lightningRadiusMiles)) {
+    const allClearText =
+      typeof weather.lightningAllClearMinutes === "number" &&
+      Number.isFinite(weather.lightningAllClearMinutes)
+        ? ` with a ${weather.lightningAllClearMinutes}-minute all-clear delay`
+        : "";
+    items.push(
+      `Lightning stop-work radius: ${weather.lightningRadiusMiles} miles${allClearText}.`
+    );
+  } else if (
+    typeof weather.lightningAllClearMinutes === "number" &&
+    Number.isFinite(weather.lightningAllClearMinutes)
+  ) {
+    items.push(`Lightning all-clear delay: ${weather.lightningAllClearMinutes} minutes.`);
+  }
+
+  if (weather.lightningShelterNotes?.trim()) {
+    items.push(`Lightning shelter / response note: ${weather.lightningShelterNotes.trim()}.`);
+  }
+
+  if (weather.heatTriggerText?.trim()) {
+    items.push(`Heat trigger: ${weather.heatTriggerText.trim()}.`);
+  }
+
+  heatControls.forEach((item) => {
+    items.push(`Heat control: ${item}.`);
+  });
+
+  if (weather.coldTriggerText?.trim()) {
+    items.push(`Cold or wind-chill trigger: ${weather.coldTriggerText.trim()}.`);
+  }
+
+  coldControls.forEach((item) => {
+    items.push(`Cold-weather control: ${item}.`);
+  });
+
+  if (weather.tornadoStormShelterNotes?.trim()) {
+    items.push(`Storm / tornado shelter note: ${weather.tornadoStormShelterNotes.trim()}.`);
+  }
+
+  tornadoStormControls.forEach((item) => {
+    items.push(`Storm control: ${item}.`);
+  });
+
+  environmentalControls.forEach((item) => {
+    items.push(`Weather-related environmental control: ${item}.`);
+  });
+
+  projectOverrideNotes.forEach((item) => {
+    items.push(item.endsWith(".") ? item : `${item}.`);
+  });
+
+  return items;
+}
+
+function buildWeatherContractorItems(weather: CsepWeatherSectionInput | undefined) {
+  if (!weather) {
+    return [];
+  }
+
+  const items: string[] = [];
+  const contractorResponsibilityNotes = normalizeTextList(weather.contractorResponsibilityNotes);
+
+  if (weather.dailyReviewNotes?.trim()) {
+    items.push(`Daily weather review / task-planning note: ${weather.dailyReviewNotes.trim()}.`);
+  }
+
+  if (weather.unionAccountabilityNotes?.trim()) {
+    items.push(`Union steward / accountability note: ${weather.unionAccountabilityNotes.trim()}.`);
+  }
+
+  contractorResponsibilityNotes.forEach((item) => {
+    items.push(item.endsWith(".") ? item : `${item}.`);
+  });
+
+  return items;
+}
+
+function appendResolvedSectionContent(
+  children: Paragraph[],
+  sectionPrefix: string,
+  section: ReturnType<typeof getResolvedCsepSection> | ReturnType<typeof getResolvedSiteBuilderSection>,
+  options?: {
+    extraParagraphs?: string[];
+    extraBullets?: string[];
+  }
+) {
+  const extraParagraphs = (options?.extraParagraphs ?? []).filter(Boolean);
+  const extraBullets = (options?.extraBullets ?? []).filter(Boolean);
+
+  (section?.paragraphs ?? []).forEach((paragraph) => {
+    children.push(body(paragraph));
+  });
+
+  if ((section?.bullets?.length ?? 0) > 0) {
+    appendNumberedItems(children, sectionPrefix, section?.bullets ?? []);
+  }
+
+  extraParagraphs.forEach((paragraph) => {
+    children.push(body(paragraph));
+  });
+
+  if (extraBullets.length) {
+    const startingIndex = (section?.bullets?.length ?? 0) + 1;
+    extraBullets.forEach((item, index) => {
+      children.push(numberedItem(`${sectionPrefix}.${startingIndex + index}`, item));
+    });
+  }
+}
+
+function appendNarrativeSection(params: {
+  children: Paragraph[];
+  sectionNumber: number;
+  section: ReturnType<typeof getResolvedCsepSection>;
+  fallbackTitle: string;
+  extraText?: string;
+}) {
+  params.children.push(
+    heading1(`${params.sectionNumber}. ${params.section?.title ?? params.fallbackTitle}`)
+  );
+  appendResolvedSectionContent(params.children, String(params.sectionNumber), params.section, {
+    extraParagraphs: params.extraText?.trim() ? [params.extraText.trim()] : [],
+  });
+}
+
 function normalizeIncludedContent(form: CSEPInput): Required<IncludedContent> {
   const defaults: Required<IncludedContent> = {
     project_information: true,
@@ -368,12 +541,22 @@ function normalizeIncludedContent(form: CSEPInput): Required<IncludedContent> {
     scope_of_work: true,
     site_specific_notes: true,
     emergency_procedures: true,
+    weather_requirements_and_severe_weather_response: true,
     required_ppe: true,
     additional_permits: true,
     common_overlapping_trades: true,
     osha_references: true,
     selected_hazards: true,
     activity_hazard_matrix: true,
+    roles_and_responsibilities: true,
+    security_and_access: true,
+    health_and_wellness: true,
+    incident_reporting_and_investigation: true,
+    training_and_instruction: true,
+    drug_and_alcohol_testing: true,
+    enforcement_and_corrective_action: true,
+    recordkeeping: true,
+    continuous_improvement: true,
   };
 
   return {
@@ -589,7 +772,7 @@ function getTriggeredPrograms(selectedHazards: string[], form: CSEPInput) {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function addProgramSection(
-  children: (Paragraph | Table)[],
+  children: Paragraph[],
   sectionNumber: number,
   program: HazardProgram
 ) {
@@ -597,12 +780,13 @@ function addProgramSection(
   children.push(body(program.purpose));
 
   if (program.oshaRefs.length) {
-    children.push(heading2("Applicable References"));
-    program.oshaRefs.forEach((ref) => children.push(bullet(ref)));
+    children.push(heading2(`${sectionNumber}.1 Applicable References`));
+    appendNumberedItems(children, `${sectionNumber}.1`, program.oshaRefs);
   }
 
-  children.push(heading2("Minimum Required Controls"));
-  program.controls.forEach((control) => children.push(bullet(control)));
+  const controlsPrefix = program.oshaRefs.length ? `${sectionNumber}.2` : `${sectionNumber}.1`;
+  children.push(heading2(`${controlsPrefix} Minimum Required Controls`));
+  appendNumberedItems(children, controlsPrefix, program.controls);
 }
 
 function resolveProgramSelections(
@@ -628,20 +812,25 @@ function resolveProgramSelections(
 }
 
 function addCatalogProgramSection(
-  children: (Paragraph | Table)[],
+  children: Paragraph[],
   sectionNumber: number,
   program: CSEPProgramSection
 ) {
   children.push(heading1(`${sectionNumber}. ${program.title}`));
   children.push(body(program.summary));
 
-  program.subsections.forEach((subsection) => {
-    children.push(heading2(subsection.title));
-    subsection.bullets.forEach((item) => children.push(bullet(item)));
+  program.subsections.forEach((subsection, subsectionIndex) => {
+    const subsectionPrefix = `${sectionNumber}.${subsectionIndex + 1}`;
+    children.push(heading2(`${subsectionPrefix} ${subsection.title}`));
+    appendNumberedItems(children, subsectionPrefix, subsection.bullets);
   });
 }
 
-function buildDoc(form: CSEPInput) {
+async function buildDoc(form: CSEPInput) {
+  if (form.layoutVariant === SURVEY_TEST_LAYOUT_VARIANT) {
+    return buildSurveyTestDoc(form);
+  }
+
   const includedContent = normalizeIncludedContent(form);
 
   const tradeItems = Array.isArray(form.tradeItems) ? form.tradeItems : [];
@@ -684,76 +873,53 @@ function buildDoc(form: CSEPInput) {
     tradeItems,
     selectedTasks
   );
-  const programSections = buildCsepProgramSections(programSelections);
+  const programConfig = await getCsepProgramConfig().catch(() => null);
+  const builderTextConfig = await getDocumentBuilderTextConfig().catch(() => null);
+  const programSections = buildCsepProgramSections(programSelections, {
+    definitions: programConfig?.definitions,
+  });
 
-  const children: (Paragraph | Table)[] = [];
+  const children: Paragraph[] = [];
 
-  children.push(
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 220 },
-      children: [
-        new TextRun({
-          text: "Contractor Site Specific Safety Plan",
-          bold: true,
-          size: 34,
-        }),
-      ],
-    })
-  );
+  const subtitleParts = [`Trade: ${valueOrNA(form.trade)}`];
 
-  children.push(
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 120 },
-      children: [
-        new TextRun({
-          text: valueOrNA(form.project_name),
-          size: 24,
-        }),
-      ],
-    })
-  );
-
-  children.push(
-    body(`Trade: ${valueOrNA(form.trade)}`, AlignmentType.CENTER)
-  );
-  children.push(
-    body(`Sub-trade: ${valueOrNA(form.subTrade)}`, AlignmentType.CENTER)
-  );
-  if (selectedTasks.length) {
-    children.push(
-      body(`Selected tasks: ${selectedTasks.join(", ")}`, AlignmentType.CENTER)
-    );
+  if (valueOrNA(form.subTrade) !== "N/A") {
+    subtitleParts.push(`Sub-trade: ${valueOrNA(form.subTrade)}`);
   }
-  children.push(
-    body(
-      `Contractor: ${valueOrNA(form.contractor_company)}`,
-      AlignmentType.CENTER
-    )
-  );
-  children.push(new Paragraph({ children: [new PageBreak()] }));
 
-  let sectionNumber = 1;
+  if (selectedTasks.length) {
+    subtitleParts.push(`Tasks: ${selectedTasks.join(", ")}`);
+  }
+
+  children.push(
+    ...createCsepCover({
+      projectName: valueOrNA(form.project_name),
+      subtitle: subtitleParts.join(" | "),
+      contractorName: valueOrNA(form.contractor_company),
+    })
+  );
+  children.push(
+    createCsepBanner(`Submission-ready ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE.toLowerCase()}`)
+  );
 
   if (includedContent.project_information) {
-    children.push(heading1(`${sectionNumber}. Project Information`));
-    children.push(buildProjectInfoTable(form));
-    sectionNumber++;
+    children.push(...buildProjectInfoTable(form));
   }
 
   if (includedContent.contractor_information) {
-    children.push(heading1(`${sectionNumber}. Contractor Information`));
-    children.push(buildContractorInfoTable(form));
-    sectionNumber++;
+    children.push(...buildContractorInfoTable(form));
   }
 
+  let sectionNumber = 1;
+
   if (includedContent.scope_of_work) {
-    children.push(heading1(`${sectionNumber}. Scope of Work`));
+    const section = getResolvedCsepSection(builderTextConfig, "scope_of_work");
+    children.push(heading1(`${sectionNumber}. ${section?.title ?? "Scope of Work"}`));
     children.push(
       body(
         valueOrNA(form.scope_of_work) === "N/A"
-          ? "The contractor shall perform work in accordance with the approved project scope, applicable plans, and all site-specific requirements."
+          ? section?.paragraphs[0] ??
+              "The contractor shall perform work in accordance with the approved project scope, applicable plans, and all site-specific requirements."
           : valueOrNA(form.scope_of_work)
       )
     );
@@ -761,11 +927,13 @@ function buildDoc(form: CSEPInput) {
   }
 
   if (includedContent.site_specific_notes) {
-    children.push(heading1(`${sectionNumber}. Site Specific Notes`));
+    const section = getResolvedCsepSection(builderTextConfig, "site_specific_notes");
+    children.push(heading1(`${sectionNumber}. ${section?.title ?? "Site Specific Notes"}`));
     children.push(
       body(
         valueOrNA(form.site_specific_notes) === "N/A"
-          ? "Site-specific constraints, active construction conditions, adjacent operations, and coordination requirements shall be reviewed daily before work begins."
+          ? section?.paragraphs[0] ??
+              "Site-specific constraints, active construction conditions, adjacent operations, and coordination requirements shall be reviewed daily before work begins."
           : valueOrNA(form.site_specific_notes)
       )
     );
@@ -773,43 +941,100 @@ function buildDoc(form: CSEPInput) {
   }
 
   if (includedContent.emergency_procedures) {
-    children.push(heading1(`${sectionNumber}. Emergency Procedures`));
+    const section = getResolvedCsepSection(builderTextConfig, "emergency_procedures");
+    children.push(heading1(`${sectionNumber}. ${section?.title ?? "Emergency Procedures"}`));
     children.push(
       body(
         valueOrNA(form.emergency_procedures) === "N/A"
-          ? "In the event of an emergency, workers shall stop work, notify supervision immediately, follow site alarm and evacuation procedures, and report to the designated assembly area."
+          ? section?.paragraphs[0] ??
+              "In the event of an emergency, workers shall stop work, notify supervision immediately, follow site alarm and evacuation procedures, and report to the designated assembly area."
           : valueOrNA(form.emergency_procedures)
       )
     );
     sectionNumber++;
   }
 
-  if (includedContent.required_ppe) {
+  if (includedContent.weather_requirements_and_severe_weather_response) {
+    const sharedWeatherSection = getResolvedSiteBuilderSection(builderTextConfig, "severe_weather");
+    const contractorWeatherSection = getCsepSection(
+      builderTextConfig,
+      "weather_requirements_and_severe_weather_response"
+    );
+    const weatherProjectOverlayItems = buildWeatherProjectOverlayItems(form.weather_requirements);
+    const weatherContractorItems = buildWeatherContractorItems(form.weather_requirements);
+
     children.push(
-      heading1(`${sectionNumber}. Required Personal Protective Equipment`)
+      heading1(
+        `${sectionNumber}. ${
+          contractorWeatherSection?.title ?? "Weather Requirements and Severe Weather Response"
+        }`
+      )
+    );
+
+    if ((sharedWeatherSection?.paragraphs.length ?? 0) > 0) {
+      children.push(heading2(`${sectionNumber}.1 Shared Project Baseline`));
+      appendResolvedSectionContent(children, `${sectionNumber}.1`, sharedWeatherSection);
+    }
+
+    if (weatherProjectOverlayItems.length) {
+      children.push(heading2(`${sectionNumber}.2 Project-Specific Weather Overlay`));
+      appendNumberedItems(children, `${sectionNumber}.2`, weatherProjectOverlayItems);
+    }
+
+    children.push(heading2(`${sectionNumber}.3 Contractor Responsibilities and Response`));
+    appendResolvedSectionContent(
+      children,
+      `${sectionNumber}.3`,
+      contractorWeatherSection
+        ? {
+            ...contractorWeatherSection,
+            paragraphs: [...contractorWeatherSection.paragraphs],
+            bullets: [...contractorWeatherSection.bullets],
+            children: contractorWeatherSection.children.map((child) => ({ ...child })),
+          }
+        : null,
+      {
+        extraBullets: weatherContractorItems,
+      }
+    );
+    sectionNumber++;
+  }
+
+  if (includedContent.required_ppe) {
+    const section = getResolvedCsepSection(builderTextConfig, "required_ppe");
+    children.push(
+      heading1(
+        `${sectionNumber}. ${section?.title ?? "Required Personal Protective Equipment"}`
+      )
     );
     if (requiredPPE.length) {
-      requiredPPE.forEach((item) => children.push(bullet(item)));
+      appendNumberedItems(children, String(sectionNumber), requiredPPE);
     } else {
-      children.push(body("No additional PPE selections were entered."));
+      children.push(body(section?.paragraphs[0] ?? "No additional PPE selections were entered."));
     }
     sectionNumber++;
   }
 
   if (includedContent.additional_permits) {
-    children.push(heading1(`${sectionNumber}. Permit Requirements`));
+    const section = getResolvedCsepSection(builderTextConfig, "permit_requirements");
+    children.push(heading1(`${sectionNumber}. ${section?.title ?? "Permit Requirements"}`));
     if (permitList.length) {
-      permitList.forEach((item) => children.push(bullet(item)));
+      appendNumberedItems(children, String(sectionNumber), permitList);
     } else {
-      children.push(body("No permit triggers were selected or derived."));
+      children.push(body(section?.paragraphs[0] ?? "No permit triggers were selected or derived."));
     }
     sectionNumber++;
   }
 
   if (includedContent.common_overlapping_trades) {
-    children.push(heading1(`${sectionNumber}. Common Overlapping Trades in Same Areas`));
+    const section = getResolvedCsepSection(builderTextConfig, "common_overlapping_trades");
+    children.push(
+      heading1(
+        `${sectionNumber}. ${section?.title ?? "Common Overlapping Trades in Same Areas"}`
+      )
+    );
     if (commonOverlappingTrades.length) {
-      commonOverlappingTrades.forEach((item) => children.push(bullet(item)));
+      appendNumberedItems(children, String(sectionNumber), commonOverlappingTrades);
       if (overlapPermitHints.length) {
         children.push(
           body(
@@ -819,20 +1044,27 @@ function buildDoc(form: CSEPInput) {
       }
     } else {
       children.push(
-        body("No overlapping-trade indicators were inferred for the current scope selection.")
+        body(
+          section?.paragraphs[0] ??
+            "No overlapping-trade indicators were inferred for the current scope selection."
+        )
       );
     }
     sectionNumber++;
   }
 
   if (includedContent.osha_references) {
-    children.push(heading1(`${sectionNumber}. Applicable OSHA References`));
+    const section = getResolvedCsepSection(builderTextConfig, "applicable_osha_references");
+    children.push(
+      heading1(`${sectionNumber}. ${section?.title ?? "Applicable OSHA References"}`)
+    );
     if (oshaRefs.length) {
-      oshaRefs.forEach((ref) => children.push(bullet(ref)));
+      appendNumberedItems(children, String(sectionNumber), oshaRefs);
     } else {
       children.push(
         body(
-          "Applicable OSHA references shall be identified based on the selected trade, tools, equipment, and site conditions."
+          section?.paragraphs[0] ??
+            "Applicable OSHA references shall be identified based on the selected trade, tools, equipment, and site conditions."
         )
       );
     }
@@ -840,7 +1072,11 @@ function buildDoc(form: CSEPInput) {
   }
 
   if (includedContent.trade_summary) {
-    children.push(heading1(`${sectionNumber}. Trade Summary`));
+    const section = getResolvedCsepSection(builderTextConfig, "trade_summary");
+    if (valueOrNA(form.tradeSummary) === "N/A" && section?.paragraphs[0]) {
+      form.tradeSummary = section.paragraphs[0];
+    }
+    children.push(heading1(`${sectionNumber}. ${section?.title ?? "Trade Summary"}`));
     if (valueOrNA(form.subTrade) !== "N/A") {
       children.push(body(`Active sub-trade: ${valueOrNA(form.subTrade)}`));
     }
@@ -858,47 +1094,121 @@ function buildDoc(form: CSEPInput) {
   }
 
   if (includedContent.selected_hazards) {
-    children.push(heading1(`${sectionNumber}. Selected Hazard Summary`));
+    const section = getResolvedCsepSection(builderTextConfig, "selected_hazard_summary");
+    children.push(
+      heading1(`${sectionNumber}. ${section?.title ?? "Selected Hazard Summary"}`)
+    );
     if (activeHazards.length) {
-      activeHazards.forEach((hazard) => children.push(bullet(hazard)));
+      appendNumberedItems(children, String(sectionNumber), activeHazards);
     } else {
       children.push(
         body(
-          "Key hazards will be determined from the selected trade, work methods, adjacent operations, and changing field conditions."
+          section?.paragraphs[0] ??
+            "Key hazards will be determined from the selected trade, work methods, adjacent operations, and changing field conditions."
         )
       );
     }
     sectionNumber++;
   }
 
-  children.push(heading1(`${sectionNumber}. Roles and Responsibilities`));
-  children.push(buildResponsibilitiesTable());
-  sectionNumber++;
+  if (includedContent.roles_and_responsibilities) {
+    children.push(
+      heading1(
+        `${sectionNumber}. ${
+          getResolvedCsepSection(builderTextConfig, "roles_and_responsibilities")?.title ??
+          "Roles and Responsibilities"
+        }`
+      )
+    );
+    children.push(...buildResponsibilitiesTable(String(sectionNumber), builderTextConfig));
+    if (normalizeOptionalText(form.roles_and_responsibilities_text)) {
+      children.push(body(normalizeOptionalText(form.roles_and_responsibilities_text)));
+    }
+    sectionNumber++;
+  }
 
-  children.push(heading1(`${sectionNumber}. Training Requirements`));
-  buildTrainingBullets(form).forEach((item) => children.push(bullet(item)));
-  sectionNumber++;
+  if (includedContent.security_and_access) {
+    appendNarrativeSection({
+      children,
+      sectionNumber,
+      section: getResolvedCsepSection(builderTextConfig, "security_and_access"),
+      fallbackTitle: "Security and Access",
+      extraText: form.security_and_access_text,
+    });
+    sectionNumber++;
+  }
 
-  children.push(heading1(`${sectionNumber}. General Safety Expectations`));
-  [
-    "Housekeeping shall be maintained in all work areas, access routes, and staging areas.",
-    "All tools and equipment shall be inspected before use and removed from service when damaged.",
-    "Workers shall maintain situational awareness for adjacent crews, moving equipment, suspended loads, and changing site conditions.",
-    "Barricades, signage, and exclusion zones shall be maintained whenever work creates exposure to others.",
-    "Work shall stop when hazards are uncontrolled, conditions change, or permit requirements are not met.",
-  ].forEach((item) => children.push(bullet(item)));
+  if (includedContent.health_and_wellness) {
+    appendNarrativeSection({
+      children,
+      sectionNumber,
+      section: getResolvedCsepSection(builderTextConfig, "health_and_wellness"),
+      fallbackTitle: "Health and Wellness",
+      extraText: form.health_and_wellness_text,
+    });
+    sectionNumber++;
+  }
+
+  if (includedContent.incident_reporting_and_investigation) {
+    appendNarrativeSection({
+      children,
+      sectionNumber,
+      section: getResolvedCsepSection(builderTextConfig, "incident_reporting_and_investigation"),
+      fallbackTitle: "Incident Reporting and Investigation",
+      extraText: form.incident_reporting_and_investigation_text,
+    });
+    sectionNumber++;
+  }
+
+  if (includedContent.training_and_instruction) {
+    const trainingSection = getResolvedCsepSection(builderTextConfig, "training_and_instruction");
+    children.push(
+      heading1(
+        `${sectionNumber}. ${trainingSection?.title ?? "Training and Instruction"}`
+      )
+    );
+    appendResolvedSectionContent(children, String(sectionNumber), trainingSection, {
+      extraBullets: buildTrainingBullets(form, builderTextConfig),
+      extraParagraphs: normalizeOptionalText(form.training_and_instruction_text)
+        ? [normalizeOptionalText(form.training_and_instruction_text)]
+        : [],
+    });
+    sectionNumber++;
+  }
+
+  const generalSafetySection = getCsepSection(builderTextConfig, "general_safety_expectations");
+  children.push(
+    heading1(
+      `${sectionNumber}. ${
+        generalSafetySection?.title ?? "General Safety Expectations"
+      }`
+    )
+  );
+  appendNumberedItems(
+    children,
+    String(sectionNumber),
+    generalSafetySection?.bullets ?? [
+      "Housekeeping shall be maintained in all work areas, access routes, and staging areas.",
+      "All tools and equipment shall be inspected before use and removed from service when damaged.",
+      "Workers shall maintain situational awareness for adjacent crews, moving equipment, suspended loads, and changing site conditions.",
+      "Barricades, signage, and exclusion zones shall be maintained whenever work creates exposure to others.",
+      "Work shall stop when hazards are uncontrolled, conditions change, or permit requirements are not met.",
+    ]
+  );
   sectionNumber++;
 
   if (includedContent.activity_hazard_matrix) {
+    const section = getResolvedCsepSection(builderTextConfig, "activity_hazard_analysis_matrix");
     children.push(
-      heading1(`${sectionNumber}. Activity Hazard Analysis Matrix`)
+      heading1(`${sectionNumber}. ${section?.title ?? "Activity Hazard Analysis Matrix"}`)
     );
     if (tradeItems.length) {
-      children.push(buildRiskTable(tradeItems));
+      children.push(...buildRiskTable(String(sectionNumber), tradeItems));
     } else {
       children.push(
         body(
-          "No trade activity matrix was provided. Select a trade, sub-trade, tasks, and hazards on the CSEP page to load activities, hazards, controls, and permit triggers."
+          section?.paragraphs[0] ??
+            `No trade activity matrix was provided. Select a trade, sub-trade, tasks, and hazards on the ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} page to load activities, hazards, controls, and permit triggers.`
         )
       );
     }
@@ -906,7 +1216,7 @@ function buildDoc(form: CSEPInput) {
   }
 
   if (programSections.length) {
-    children.push(new Paragraph({ children: [new PageBreak()] }));
+    children.push(createCsepPageBreak());
 
     programSections.forEach((program) => {
       addCatalogProgramSection(children, sectionNumber, program);
@@ -914,48 +1224,254 @@ function buildDoc(form: CSEPInput) {
     });
   }
 
-  children.push(new Paragraph({ children: [new PageBreak()] }));
+  if (includedContent.drug_and_alcohol_testing) {
+    appendNarrativeSection({
+      children,
+      sectionNumber,
+      section: getResolvedCsepSection(builderTextConfig, "drug_and_alcohol_testing"),
+      fallbackTitle: "Drug and Alcohol Testing",
+      extraText: form.drug_and_alcohol_testing_text,
+    });
+    sectionNumber++;
+  }
 
-  children.push(
-    heading1(`${sectionNumber}. Stop Work and Change Management`)
+  if (includedContent.enforcement_and_corrective_action) {
+    appendNarrativeSection({
+      children,
+      sectionNumber,
+      section: getResolvedCsepSection(builderTextConfig, "enforcement_and_corrective_action"),
+      fallbackTitle: "Enforcement and Corrective Action",
+      extraText: form.enforcement_and_corrective_action_text,
+    });
+    sectionNumber++;
+  }
+
+  if (includedContent.recordkeeping) {
+    appendNarrativeSection({
+      children,
+      sectionNumber,
+      section: getResolvedCsepSection(builderTextConfig, "recordkeeping"),
+      fallbackTitle: "Recordkeeping and Documentation",
+      extraText: form.recordkeeping_text,
+    });
+    sectionNumber++;
+  }
+
+  if (includedContent.continuous_improvement) {
+    appendNarrativeSection({
+      children,
+      sectionNumber,
+      section: getResolvedCsepSection(builderTextConfig, "continuous_improvement"),
+      fallbackTitle: "Program Evaluations and Continuous Improvement",
+      extraText: form.continuous_improvement_text,
+    });
+    sectionNumber++;
+  }
+
+  children.push(createCsepPageBreak());
+
+  const stopWorkSection = getResolvedCsepSection(
+    builderTextConfig,
+    "stop_work_change_management"
   );
-  [
-    "Any worker has the authority and obligation to stop work when an unsafe condition exists.",
-    "Work shall be reevaluated when scope changes, crews change, weather changes, or new equipment is introduced.",
-    "Changed conditions shall be reviewed with supervision and the crew before work resumes.",
-    "New hazards shall be documented and controlled before proceeding.",
-  ].forEach((item) => children.push(bullet(item)));
-  sectionNumber++;
-
-  children.push(heading1(`${sectionNumber}. Acknowledgment`));
   children.push(
-    body(
-      "The contractor acknowledges responsibility for complying with this Contractor Site Specific Safety Plan, applicable site rules, required permits, and all regulatory requirements associated with the work."
+    heading1(
+      `${sectionNumber}. ${stopWorkSection?.title ?? "Stop Work and Change Management"}`
     )
   );
-  children.push(
-    body("Contractor Representative: ________________________________")
+  appendNumberedItems(
+    children,
+    String(sectionNumber),
+    stopWorkSection?.bullets ?? [
+      "Any worker has the authority and obligation to stop work when an unsafe condition exists.",
+      "Work shall be reevaluated when scope changes, crews change, weather changes, or new equipment is introduced.",
+      "Changed conditions shall be reviewed with supervision and the crew before work resumes.",
+      "New hazards shall be documented and controlled before proceeding.",
+    ]
   );
-  children.push(
-    body("Signature: ______________________________________________")
-  );
-  children.push(
-    body("Date: ___________________________________________________")
-  );
-  children.push(new Paragraph({ children: [new PageBreak()] }));
+  sectionNumber++;
+
+  const acknowledgmentSection = getCsepSection(builderTextConfig, "acknowledgment");
+  children.push(heading1(`${sectionNumber}. ${acknowledgmentSection?.title ?? "Acknowledgment"}`));
+  (
+    acknowledgmentSection?.paragraphs ?? [
+      `The contractor acknowledges responsibility for complying with this ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}, applicable site rules, required permits, and all regulatory requirements associated with the work.`,
+      "Contractor Representative: ________________________________",
+      "Signature: ______________________________________________",
+      "Date: ___________________________________________________",
+    ]
+  ).forEach((paragraph) => {
+    children.push(body(paragraph));
+  });
+  children.push(createCsepPageBreak());
   children.push(heading1("Disclaimer"));
   DOCUMENT_DISCLAIMER_LINES.forEach((line) => {
     children.push(body(line));
   });
 
-  return new Document({
-    sections: [
-      {
-        properties: {},
-        children,
-      },
-    ],
+  return createCsepDocument(children);
+}
+
+function buildSurveyTestDoc(form: CSEPInput) {
+  const enrichment = buildSurveyTestEnrichment({
+    project_name: form.project_name ?? "",
+    project_number: form.project_number ?? "",
+    project_address: form.project_address ?? "",
+    owner_client: form.owner_client ?? "",
+    gc_cm: form.gc_cm ?? "",
+    contractor_company: form.contractor_company ?? "",
+    contractor_contact: form.contractor_contact ?? "",
+    contractor_phone: form.contractor_phone ?? "",
+    contractor_email: form.contractor_email ?? "",
+    trade: form.trade ?? "Survey / Layout",
+    subTrade: form.subTrade ?? "",
+    tasks: Array.isArray(form.tasks) ? form.tasks : [],
+    selectedLayoutSections: Array.isArray(form.surveyLayoutSections)
+      ? form.surveyLayoutSections
+      : SURVEY_TEST_LAYOUT_SECTIONS.map((section) => section.key),
+    scope_of_work: form.scope_of_work ?? "",
+    site_specific_notes: form.site_specific_notes ?? "",
+    emergency_procedures: form.emergency_procedures ?? "",
+    required_ppe: Array.isArray(form.required_ppe) ? form.required_ppe : [],
+    additional_permits: Array.isArray(form.additional_permits) ? form.additional_permits : [],
+    selected_hazards: Array.isArray(form.selected_hazards) ? form.selected_hazards : [],
   });
+
+  const surveyElementsRequired = Array.isArray(form.surveyElementsRequired)
+    ? form.surveyElementsRequired
+    : enrichment.elementsRequired;
+  const surveyTrainingRequired = Array.isArray(form.surveyTrainingRequired)
+    ? form.surveyTrainingRequired
+    : enrichment.requiredTraining;
+  const surveySorData = Array.isArray(form.surveySorData) ? form.surveySorData : enrichment.sorData;
+  const surveyInjuryData = Array.isArray(form.surveyInjuryData)
+    ? form.surveyInjuryData
+    : enrichment.injuryData;
+  const children: Paragraph[] = [];
+  const subtitleParts = [
+    "Superadmin survey test workflow",
+    `Sub-trade: ${valueOrNA(form.subTrade)}`,
+  ];
+
+  if (enrichment.selectedTasks.length) {
+    subtitleParts.push(`Tasks: ${enrichment.selectedTasks.join(", ")}`);
+  }
+
+  children.push(
+    ...createCsepCover({
+      projectName: valueOrNA(form.project_name),
+      subtitle: subtitleParts.join(" | "),
+      contractorName: valueOrNA(form.contractor_company),
+    })
+  );
+  children.push(createCsepBanner("Survey / Layout requirements overview"));
+  children.push(body(enrichment.selectedSections[0]?.summary ?? enrichment.tradeSummary));
+  children.push(...buildProjectInfoTable(form));
+  children.push(...buildContractorInfoTable(form));
+
+  for (const section of enrichment.selectedSections) {
+    children.push(heading1(`${section.number}. ${section.title}`));
+    children.push(body(section.summary));
+
+    for (const subsection of section.subsections) {
+      children.push(heading2(`${subsection.number} ${subsection.title}`));
+      children.push(body(subsection.body));
+    }
+
+    if (section.key === "risks_hazards") {
+      children.push(heading2("1.A Builder-derived hazard summary"));
+      if (enrichment.hazards.length) {
+        appendNumberedItems(children, "1.A", enrichment.hazards);
+      } else {
+        children.push(body("Select a sub-trade and tasks to derive survey-specific hazards."));
+      }
+      if (enrichment.tradeItems.length) {
+        children.push(...buildRiskTable("1.B", enrichment.tradeItems));
+      }
+    }
+
+    if (section.key === "work_planning") {
+      children.push(heading2("2.A Selected task sequence"));
+      if (enrichment.selectedTasks.length) {
+        appendNumberedItems(children, "2.A", enrichment.selectedTasks);
+      } else {
+        children.push(body("No survey tasks were selected for this test build."));
+      }
+      children.push(heading2("2.B Active scope of work"));
+      children.push(body(valueOrNA(form.scope_of_work)));
+      if (valueOrNA(form.site_specific_notes) !== "N/A") {
+        children.push(heading2("2.C Site-specific notes"));
+        children.push(body(valueOrNA(form.site_specific_notes)));
+      }
+    }
+
+    if (section.key === "training_requirements") {
+      children.push(heading2("5.A Required training from AI enrichment"));
+      appendNumberedItems(children, "5.A", surveyTrainingRequired);
+    }
+
+    if (section.key === "certification_requirements") {
+      children.push(heading2("6.A Review note"));
+      children.push(
+        body(
+          "Certification requirements should be confirmed against contract documents, state-law obligations, utility-locate services, traffic control duties, and any required licensed surveyor scope."
+        )
+      );
+    }
+
+    if (section.key === "required_equipment") {
+      children.push(heading2("7.A Required PPE"));
+      appendNumberedItems(children, "7.A", enrichment.ppe);
+      children.push(heading2("7.B Required job elements"));
+      appendNumberedItems(children, "7.B", surveyElementsRequired);
+    }
+
+    if (section.key === "required_permits") {
+      children.push(heading2("8.A Permit triggers from AI enrichment"));
+      if (enrichment.permitsRequired.length) {
+        appendNumberedItems(children, "8.A", enrichment.permitsRequired);
+      } else {
+        children.push(body("No standalone permits are currently triggered by the selected survey tasks."));
+      }
+    }
+
+    if (section.key === "affected_trades") {
+      children.push(heading2("9.A Overlapping or affected trades"));
+      if (enrichment.commonOverlappingTrades.length) {
+        appendNumberedItems(children, "9.A", enrichment.commonOverlappingTrades);
+      } else {
+        children.push(
+          body(
+            "Excavation, utilities, concrete, steel, grading, and downstream installation teams should still verify control integrity before building from layout references."
+          )
+        );
+      }
+    }
+
+    if (section.key === "additional_related_information") {
+      children.push(heading2("10.A OSHA data"));
+      appendNumberedItems(children, "10.A", enrichment.oshaData);
+      children.push(heading2("10.B SOR data"));
+      appendNumberedItems(children, "10.B", surveySorData);
+      children.push(heading2("10.C Injury data"));
+      appendNumberedItems(children, "10.C", surveyInjuryData);
+      children.push(heading2("10.D Emergency coordination"));
+      children.push(body(valueOrNA(form.emergency_procedures)));
+    }
+  }
+
+  children.push(createCsepPageBreak());
+  children.push(heading1("Reference Language and Source Points"));
+  SURVEY_TEST_REFERENCE_SOURCE_POINTS.forEach((line) => {
+    children.push(body(line));
+  });
+  children.push(createCsepPageBreak());
+  children.push(heading1("Disclaimer"));
+  DOCUMENT_DISCLAIMER_LINES.forEach((line) => {
+    children.push(body(line));
+  });
+
+  return createCsepDocument(children);
 }
 
 function isGeneratedDraft(value: unknown): value is GeneratedSafetyPlanDraft {
@@ -969,7 +1485,7 @@ export async function generateCsepDocx(
   let rendered: { body: Uint8Array; filename: string } | null = null;
 
   if (form && typeof form === "object" && isGeneratedDraft((form as { draft?: unknown }).draft)) {
-    rendered = await renderSafetyPlanDocx((form as { draft: GeneratedSafetyPlanDraft }).draft);
+    rendered = await renderGeneratedCsepDocx((form as { draft: GeneratedSafetyPlanDraft }).draft);
   } else if (
     form &&
     typeof form === "object" &&
@@ -980,19 +1496,71 @@ export async function generateCsepDocx(
       options.supabase,
       (form as { generatedDocumentId: string }).generatedDocumentId
     );
-    rendered = await renderSafetyPlanDocx(draft);
+    rendered = await renderGeneratedCsepDocx(draft);
   }
 
   if (!rendered) {
-    const doc = buildDoc(form as CSEPInput);
-    const buffer = await Packer.toBuffer(doc);
-    const fileData = new Uint8Array(buffer);
-    const safeProject = valueOrNA((form as CSEPInput).project_name).replace(/[^\w\-]+/g, "_");
-    const safeTrade = valueOrNA((form as CSEPInput).trade).replace(/[^\w\-]+/g, "_");
-    rendered = {
-      body: fileData,
-      filename: `${safeProject}_${safeTrade}_CSEP.docx`,
-    };
+    const legacyForm = form as CSEPInput;
+
+    if (legacyForm.layoutVariant === SURVEY_TEST_LAYOUT_VARIANT) {
+      const doc = await buildDoc(legacyForm);
+      const buffer = await Packer.toBuffer(doc);
+      const fileData = new Uint8Array(buffer);
+      const safeProject = valueOrNA(legacyForm.project_name).replace(/[^\w\-]+/g, "_");
+      const safeTrade = valueOrNA(legacyForm.trade).replace(/[^\w\-]+/g, "_");
+      rendered = {
+        body: fileData,
+        filename: getSafetyBlueprintDraftFilename(`${safeProject}_${safeTrade}`, "csep").replace(
+          "_Draft",
+          ""
+        ),
+      };
+    } else {
+      const tradeItems = Array.isArray(legacyForm.tradeItems) ? legacyForm.tradeItems : [];
+      const selectedTasks = Array.isArray(legacyForm.tasks) ? legacyForm.tasks : [];
+      const derivedHazards = Array.isArray(legacyForm.derivedHazards)
+        ? legacyForm.derivedHazards
+        : [];
+      const overlapPermitHints = Array.isArray(legacyForm.overlapPermitHints)
+        ? legacyForm.overlapPermitHints
+        : [];
+      const requiredPPE = Array.isArray(legacyForm.required_ppe) ? legacyForm.required_ppe : [];
+      const additionalPermits = Array.isArray(legacyForm.additional_permits)
+        ? legacyForm.additional_permits
+        : [];
+      const selectedHazards = Array.isArray(legacyForm.selected_hazards)
+        ? legacyForm.selected_hazards
+        : [];
+      const selectedPermits = Array.from(
+        new Set(
+          [...additionalPermits, ...(legacyForm.derivedPermits ?? []), ...overlapPermitHints].filter(
+            Boolean
+          )
+        )
+      );
+      const activeHazards = selectedHazards.length ? selectedHazards : derivedHazards;
+      const programSelections = resolveProgramSelections(
+        legacyForm,
+        activeHazards,
+        selectedPermits,
+        requiredPPE,
+        tradeItems,
+        selectedTasks
+      );
+      const [programConfig, builderTextConfig] = await Promise.all([
+        getCsepProgramConfig().catch(() => null),
+        getDocumentBuilderTextConfig().catch(() => null),
+      ]);
+      const programSections = buildCsepProgramSections(programSelections, {
+        definitions: programConfig?.definitions,
+      });
+      const model = buildLegacyCsepRenderModel({
+        form: legacyForm,
+        builderTextConfig,
+        programSections,
+      });
+      rendered = await renderCsepRenderModel(model);
+    }
   }
 
   const responseBody = Buffer.from(rendered.body);
@@ -1021,10 +1589,10 @@ export async function POST(req: Request) {
     };
     return await generateCsepDocx(form, { supabase: auth.supabase });
   } catch (error) {
-    console.error("CSEP export error:", error);
+    console.error(`${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} export error:`, error);
 
     const message =
-      error instanceof Error ? error.message : "Failed to generate CSEP document.";
+      error instanceof Error ? error.message : `Failed to generate ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} document.`;
 
     return new NextResponse(JSON.stringify({ error: message }), {
       status: 500,

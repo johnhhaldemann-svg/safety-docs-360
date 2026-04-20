@@ -1,0 +1,1327 @@
+{
+  "metadata": {
+    "title": "U.S. State-by-State Building Construction & Environmental Standards (2026)",
+    "version": "1.0",
+    "last_updated": "2026-04-20",
+    "description": "Structured data for AI document builders and compliance tools. Covers primary building codes, energy standards, stormwater thresholds, wetlands programs, and key agencies per state. Use as reference; always verify with official sources as codes and rules change. Data compiled from ICC, EPA, state agencies, and public sources.",
+    "sources": [
+      "ICC Code Adoption Charts (2025-2026)",
+      "EPA NPDES Construction General Permit",
+      "State environmental agency websites",
+      "DOE Building Energy Codes Program"
+    ],
+    "usage_note": "For each state, AI should check the 'official_resources' links and confirm current editions/amendments before generating compliance documents. Stormwater is almost universally 1 acre unless noted. Wetlands require USACE + state coordination."
+  },
+  "national_defaults": {
+    "building_code_model": "International Building Code (IBC) for commercial/public; International Residential Code (IRC) for 1-2 family dwellings",
+    "energy_code_model": "International Energy Conservation Code (IECC) or ASHRAE 90.1",
+    "stormwater_threshold": "1 acre or more land disturbance (or part of larger common plan)",
+    "stormwater_agency_type": "State environmental agency (DEQ, DEP, DNR, etc.) implementing NPDES",
+    "wetlands": "USACE Section 404 + state wetlands/water quality programs (some states assume 404)",
+    "enforcement_note": "Even in statewide code states, local jurisdictions often enforce and may add amendments."
+  },
+  "states": {
+    "Alabama": {
+      "abbreviation": "AL",
+      "building_code": {
+        "authority": "Alabama Building Commission / local jurisdictions",
+        "residential": "2018 IRC with amendments",
+        "commercial": "2018 IBC with amendments",
+        "energy": "2018 IECC",
+        "enforcement": "Local with state oversight"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Alabama Department of Environmental Management (ADEM)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Standard 1-acre threshold; SWPPP required"
+      },
+      "wetlands": {
+        "agency": "ADEM + USACE Mobile District",
+        "notes": "State water quality certification required"
+      },
+      "other_key_permits": ["Air permits via ADEM"],
+      "official_resources": [
+        "https://www.bc.alabama.gov/",
+        "https://www.adem.alabama.gov/"
+      ],
+      "notes": "Home-rule elements; check local for amendments."
+    },
+    "Alaska": {
+      "abbreviation": "AK",
+      "building_code": {
+        "authority": "Alaska Department of Labor and Workforce Development / local",
+        "residential": "2021 IRC (limited statewide adoption)",
+        "commercial": "2021 IBC (limited)",
+        "energy": "2021 IECC (limited adoption)",
+        "enforcement": "Primarily local / home-rule"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Alaska Department of Environmental Conservation (DEC)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Cold climate considerations in BMPs"
+      },
+      "wetlands": {
+        "agency": "DEC + USACE Alaska District",
+        "notes": "Extensive wetlands; early consultation critical"
+      },
+      "other_key_permits": ["Air quality permits"],
+      "official_resources": [
+        "https://labor.alaska.gov/",
+        "https://dec.alaska.gov/"
+      ],
+      "notes": "Limited statewide code; many local adoptions vary."
+    },
+    "Arizona": {
+      "abbreviation": "AZ",
+      "building_code": {
+        "authority": "Arizona Department of Housing / local jurisdictions",
+        "residential": "2018 IRC with amendments",
+        "commercial": "2018 IBC with amendments",
+        "energy": "2018 IECC",
+        "enforcement": "Local dominant (home-rule)"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Arizona Department of Environmental Quality (ADEQ)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Arid climate BMPs emphasized"
+      },
+      "wetlands": {
+        "agency": "ADEQ + USACE Los Angeles District",
+        "notes": "Limited wetlands but strict where present"
+      },
+      "other_key_permits": ["Air permits (ADEQ)"],
+      "official_resources": [
+        "https://housing.az.gov/",
+        "https://www.azdeq.gov/"
+      ],
+      "notes": "Strong local control; Phoenix and Tucson have robust programs."
+    },
+    "Arkansas": {
+      "abbreviation": "AR",
+      "building_code": {
+        "authority": "Arkansas Department of Labor and Licensing",
+        "residential": "2021 IRC",
+        "commercial": "2021 IBC",
+        "energy": "2021 IECC",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Arkansas Department of Energy and Environment (ADEE)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Standard requirements"
+      },
+      "wetlands": {
+        "agency": "ADEE + USACE Memphis/Little Rock Districts",
+        "notes": "Significant Mississippi River wetlands"
+      },
+      "other_key_permits": ["Air permits"],
+      "official_resources": [
+        "https://www.labor.arkansas.gov/",
+        "https://www.adeq.state.ar.us/"
+      ],
+      "notes": ""
+    },
+    "California": {
+      "abbreviation": "CA",
+      "building_code": {
+        "authority": "California Building Standards Commission",
+        "residential": "California Residential Code (Title 24, based on 2021 IRC with major amendments)",
+        "commercial": "California Building Code (Title 24, based on 2021 IBC with major amendments)",
+        "energy": "2022 or later Title 24 Energy Code (very stringent, exceeds IECC)",
+        "enforcement": "Statewide base code with local amendments/enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre (or smaller in some MS4 areas)",
+        "agency": "State Water Resources Control Board (SWRCB) / Regional Water Boards",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Strong post-construction LID and treatment requirements; coastal considerations"
+      },
+      "wetlands": {
+        "agency": "SWRCB + USACE + California Coastal Commission (coastal)",
+        "notes": "Strict protections; 401 certification critical"
+      },
+      "other_key_permits": ["Air (CARB/Air Districts)", "Coastal development permits"],
+      "official_resources": [
+        "https://www.dgs.ca.gov/BSC",
+        "https://www.waterboards.ca.gov/"
+      ],
+      "notes": "One of the most stringent states. Title 24 energy code is mandatory and updated triennially. Check local for additional green building requirements."
+    },
+    "Colorado": {
+      "abbreviation": "CO",
+      "building_code": {
+        "authority": "Colorado Division of Housing / local (home-rule heavy)",
+        "residential": "2021 IRC (local adoption required in many areas)",
+        "commercial": "2021 IBC (local)",
+        "energy": "2024 IECC-based Model Low Energy and Carbon Code (adopted 2025, effective 2026 in many jurisdictions)",
+        "enforcement": "Primarily local / home-rule with state model code push"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Colorado Department of Public Health and Environment (CDPHE)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Mountain and arid climate BMPs"
+      },
+      "wetlands": {
+        "agency": "CDPHE + USACE Omaha/Albuquerque Districts",
+        "notes": "High-altitude and riparian protections"
+      },
+      "other_key_permits": ["Air permits (CDPHE)"],
+      "official_resources": [
+        "https://www.colorado.gov/pacific/dola/housing",
+        "https://cdphe.colorado.gov/"
+      ],
+      "notes": "Strong push for advanced energy and electrification codes. Many cities (Denver, Boulder) have stretch codes."
+    },
+    "Connecticut": {
+      "abbreviation": "CT",
+      "building_code": {
+        "authority": "Connecticut Department of Administrative Services / Office of the State Building Inspector",
+        "residential": "2021 IRC with amendments",
+        "commercial": "2021 IBC with amendments",
+        "energy": "2021 or 2024 IECC (pursuing 2024)",
+        "enforcement": "Statewide code with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre (or 5,000 sq ft in some MS4 areas)",
+        "agency": "Connecticut Department of Energy and Environmental Protection (DEEP)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Strong LID and volume control standards"
+      },
+      "wetlands": {
+        "agency": "DEEP + USACE New England District",
+        "notes": "Inland wetlands regulated at local level too"
+      },
+      "other_key_permits": ["Air permits (DEEP)"],
+      "official_resources": [
+        "https://portal.ct.gov/DAS",
+        "https://portal.ct.gov/DEEP"
+      ],
+      "notes": "Active in adopting latest energy codes with electric-ready provisions."
+    },
+    "Delaware": {
+      "abbreviation": "DE",
+      "building_code": {
+        "authority": "Delaware Office of State Fire Marshal / local",
+        "residential": "2021 IRC",
+        "commercial": "2021 IBC",
+        "energy": "2021 IECC (pursuing 2024)",
+        "enforcement": "Statewide with local elements"
+      },
+      "stormwater": {
+        "threshold": "5,000 square feet (stricter than national 1 acre)",
+        "agency": "Delaware Department of Natural Resources and Environmental Control (DNREC)",
+        "permit": "Sediment and Stormwater Management Plan / NPDES",
+        "notes": "Lower threshold; strong post-construction requirements"
+      },
+      "wetlands": {
+        "agency": "DNREC + USACE Philadelphia District",
+        "notes": "Coastal and inland wetlands protections"
+      },
+      "other_key_permits": ["Air permits"],
+      "official_resources": [
+        "https://dnrec.delaware.gov/",
+        "https://statefiremarshal.delaware.gov/"
+      ],
+      "notes": "Lower stormwater trigger is notable."
+    },
+    "Florida": {
+      "abbreviation": "FL",
+      "building_code": {
+        "authority": "Florida Building Commission",
+        "residential": "Florida Residential Code (based on 2021 IRC with state amendments, updated triennially)",
+        "commercial": "Florida Building Code (based on 2021 IBC with major state amendments)",
+        "energy": "Florida Energy Conservation Code (based on IECC with Florida-specific provisions)",
+        "enforcement": "Strong statewide code with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre (or smaller in some areas)",
+        "agency": "Florida Department of Environmental Protection (DEP) + Water Management Districts",
+        "permit": "NPDES Construction General Permit + Environmental Resource Permit (ERP)",
+        "notes": "Hurricane/wind + stormwater integration; ERP often required"
+      },
+      "wetlands": {
+        "agency": "DEP + USACE Jacksonville District + Water Management Districts",
+        "notes": "Very strict wetlands and coastal protections"
+      },
+      "other_key_permits": ["Air (DEP)", "Coastal construction control line permits"],
+      "official_resources": [
+        "https://www.floridabuilding.org/",
+        "https://floridadep.gov/"
+      ],
+      "notes": "One of the strongest statewide building code systems in the U.S., especially for wind resistance."
+    },
+    "Georgia": {
+      "abbreviation": "GA",
+      "building_code": {
+        "authority": "Georgia Department of Community Affairs",
+        "residential": "2018 IRC with amendments",
+        "commercial": "2018 IBC with amendments",
+        "energy": "2018 IECC",
+        "enforcement": "Statewide code with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Georgia Environmental Protection Division (EPD)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Standard requirements"
+      },
+      "wetlands": {
+        "agency": "EPD + USACE Savannah District",
+        "notes": "Coastal and inland wetlands"
+      },
+      "other_key_permits": ["Air permits (EPD)"],
+      "official_resources": [
+        "https://www.dca.ga.gov/",
+        "https://epd.georgia.gov/"
+      ],
+      "notes": ""
+    },
+    "Hawaii": {
+      "abbreviation": "HI",
+      "building_code": {
+        "authority": "Hawaii State Building Code Council / counties",
+        "residential": "2021 IRC with Hawaii amendments (wind, seismic, flood)",
+        "commercial": "2021 IBC with Hawaii amendments",
+        "energy": "2021 IECC with Hawaii-specific efficiency requirements",
+        "enforcement": "State base with county enforcement (Honolulu, etc.)"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Hawaii Department of Health (DOH) / Clean Water Branch",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Tropical climate and coastal BMPs critical"
+      },
+      "wetlands": {
+        "agency": "DOH + USACE Honolulu District",
+        "notes": "Coastal wetlands and coral reef protections"
+      },
+      "other_key_permits": ["Air (DOH)", "Coastal zone management"],
+      "official_resources": [
+        "https://cca.hawaii.gov/",
+        "https://health.hawaii.gov/"
+      ],
+      "notes": "Strong seismic, wind, and flood provisions due to location."
+    },
+    "Idaho": {
+      "abbreviation": "ID",
+      "building_code": {
+        "authority": "Idaho Division of Building Safety",
+        "residential": "2018 IRC",
+        "commercial": "2018 IBC",
+        "energy": "2018 IECC",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Idaho Department of Environmental Quality (DEQ)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Mountain and arid considerations"
+      },
+      "wetlands": {
+        "agency": "DEQ + USACE Walla Walla District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air permits"],
+      "official_resources": [
+        "https://dbs.idaho.gov/",
+        "https://www.deq.idaho.gov/"
+      ],
+      "notes": ""
+    },
+    "Illinois": {
+      "abbreviation": "IL",
+      "building_code": {
+        "authority": "Illinois Capital Development Board / local (home-rule cities like Chicago have own codes)",
+        "residential": "2021 IRC (state model)",
+        "commercial": "2021 IBC (state model)",
+        "energy": "2024 IECC (adopted 2025)",
+        "enforcement": "State model code; local adoption/enforcement (Chicago strict)"
+      },
+      "stormwater": {
+        "threshold": "1 acre (or smaller in MS4 areas)",
+        "agency": "Illinois Environmental Protection Agency (IEPA)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Strong in Chicago metro area"
+      },
+      "wetlands": {
+        "agency": "IEPA + USACE Chicago/Rock Island Districts",
+        "notes": "Great Lakes and Mississippi River wetlands"
+      },
+      "other_key_permits": ["Air (IEPA)"],
+      "official_resources": [
+        "https://www2.illinois.gov/cdb/",
+        "https://www2.illinois.gov/epa/"
+      ],
+      "notes": "Illinois adopted 2024 IECC in late 2025. Chicago has its own stringent code."
+    },
+    "Indiana": {
+      "abbreviation": "IN",
+      "building_code": {
+        "authority": "Indiana Department of Homeland Security / Fire and Building Safety",
+        "residential": "2018 IRC",
+        "commercial": "2018 IBC",
+        "energy": "2018 IECC",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Indiana Department of Environmental Management (IDEM)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "IDEM + USACE Louisville/Detroit Districts",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (IDEM)"],
+      "official_resources": [
+        "https://www.in.gov/dhs/",
+        "https://www.in.gov/idem/"
+      ],
+      "notes": ""
+    },
+    "Iowa": {
+      "abbreviation": "IA",
+      "building_code": {
+        "authority": "Iowa Department of Public Safety / State Fire Marshal / local",
+        "residential": "2015 IRC (updating)",
+        "commercial": "2015 IBC (updating)",
+        "energy": "2015 IECC",
+        "enforcement": "State model with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Iowa Department of Natural Resources (DNR)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "Iowa DNR + USACE Rock Island District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (Iowa DNR)"],
+      "official_resources": [
+        "https://dps.iowa.gov/",
+        "https://www.iowadnr.gov/"
+      ],
+      "notes": "Code update in progress; check current edition."
+    },
+    "Kansas": {
+      "abbreviation": "KS",
+      "building_code": {
+        "authority": "Kansas Office of the State Fire Marshal / local (home-rule)",
+        "residential": "2018 IRC (local adoption)",
+        "commercial": "2018 IBC (local)",
+        "energy": "2018 IECC (local)",
+        "enforcement": "Primarily local / home-rule"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Kansas Department of Health and Environment (KDHE)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "KDHE + USACE Kansas City/Tulsa Districts",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (KDHE)"],
+      "official_resources": [
+        "https://firemarshal.ks.gov/",
+        "https://www.kdhe.ks.gov/"
+      ],
+      "notes": "Strong home-rule; check specific city/county."
+    },
+    "Kentucky": {
+      "abbreviation": "KY",
+      "building_code": {
+        "authority": "Kentucky Department of Housing, Buildings and Construction",
+        "residential": "2018 IRC",
+        "commercial": "2018 IBC",
+        "energy": "2018 IECC",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Kentucky Energy and Environment Cabinet (EEC)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "EEC + USACE Louisville District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (EEC)"],
+      "official_resources": [
+        "https://dhbc.ky.gov/",
+        "https://eec.ky.gov/"
+      ],
+      "notes": ""
+    },
+    "Louisiana": {
+      "abbreviation": "LA",
+      "building_code": {
+        "authority": "Louisiana State Uniform Construction Code Council",
+        "residential": "2021 IRC with Louisiana amendments (hurricane)",
+        "commercial": "2021 IBC with Louisiana amendments",
+        "energy": "2021 IECC with amendments",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Louisiana Department of Environmental Quality (DEQ)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Hurricane and coastal considerations"
+      },
+      "wetlands": {
+        "agency": "DEQ + USACE New Orleans District",
+        "notes": "Extensive coastal wetlands; very strict"
+      },
+      "other_key_permits": ["Air (DEQ)", "Coastal use permits"],
+      "official_resources": [
+        "https://www.dnr.louisiana.gov/",
+        "https://www.deq.louisiana.gov/"
+      ],
+      "notes": "Strong hurricane-resistant amendments."
+    },
+    "Maine": {
+      "abbreviation": "ME",
+      "building_code": {
+        "authority": "Maine Department of Public Safety / Office of State Fire Marshal",
+        "residential": "2021 IRC",
+        "commercial": "2021 IBC",
+        "energy": "2021 or 2024 IECC (active adoption efforts)",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Maine Department of Environmental Protection (DEP)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Strong LID requirements"
+      },
+      "wetlands": {
+        "agency": "DEP + USACE New England District",
+        "notes": "Significant inland and coastal wetlands"
+      },
+      "other_key_permits": ["Air (DEP)"],
+      "official_resources": [
+        "https://www.maine.gov/dps/",
+        "https://www.maine.gov/dep/"
+      ],
+      "notes": "Northeast leader in energy code updates."
+    },
+    "Maryland": {
+      "abbreviation": "MD",
+      "building_code": {
+        "authority": "Maryland Department of Labor / Division of Labor and Industry",
+        "residential": "2021 IRC",
+        "commercial": "2021 IBC",
+        "energy": "2021 IECC (pursuing 2024)",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "5,000 square feet (stricter in many areas)",
+        "agency": "Maryland Department of the Environment (MDE)",
+        "permit": "NPDES Construction General Permit + Erosion & Sediment Control",
+        "notes": "Lower threshold common; Chesapeake Bay protections"
+      },
+      "wetlands": {
+        "agency": "MDE + USACE Baltimore District",
+        "notes": "Chesapeake Bay critical area rules"
+      },
+      "other_key_permits": ["Air (MDE)"],
+      "official_resources": [
+        "https://www.dllr.state.md.us/",
+        "https://mde.maryland.gov/"
+      ],
+      "notes": "Lower stormwater threshold and strong Bay protections are key features."
+    },
+    "Massachusetts": {
+      "abbreviation": "MA",
+      "building_code": {
+        "authority": "Massachusetts Board of Building Regulations and Standards (BBRS)",
+        "residential": "2021 IRC with Massachusetts amendments (10th Edition)",
+        "commercial": "2021 IBC with Massachusetts amendments",
+        "energy": "2021 IECC with stretch code options (pursuing 2024)",
+        "enforcement": "Statewide base code with local enforcement; stretch codes available"
+      },
+      "stormwater": {
+        "threshold": "1 acre (or smaller in MS4 areas)",
+        "agency": "Massachusetts Department of Environmental Protection (MassDEP)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Strong volume control and LID standards"
+      },
+      "wetlands": {
+        "agency": "MassDEP + USACE New England District",
+        "notes": "Local conservation commissions also regulate"
+      },
+      "other_key_permits": ["Air (MassDEP)"],
+      "official_resources": [
+        "https://www.mass.gov/orgs/board-of-building-regulations-and-standards",
+        "https://www.mass.gov/orgs/massachusetts-department-of-environmental-protection"
+      ],
+      "notes": "Stretch energy code is a model for other states."
+    },
+    "Michigan": {
+      "abbreviation": "MI",
+      "building_code": {
+        "authority": "Michigan Department of Licensing and Regulatory Affairs (LARA) / Bureau of Construction Codes",
+        "residential": "2021 IRC",
+        "commercial": "2021 IBC",
+        "energy": "2021 IECC",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Michigan Department of Environment, Great Lakes, and Energy (EGLE)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Great Lakes protections"
+      },
+      "wetlands": {
+        "agency": "EGLE + USACE Detroit District",
+        "notes": "Significant Great Lakes coastal and inland wetlands"
+      },
+      "other_key_permits": ["Air (EGLE)"],
+      "official_resources": [
+        "https://www.michigan.gov/lara/",
+        "https://www.michigan.gov/egle/"
+      ],
+      "notes": ""
+    },
+    "Minnesota": {
+      "abbreviation": "MN",
+      "building_code": {
+        "authority": "Minnesota Department of Labor and Industry",
+        "residential": "2021 IRC (updating toward 2024)",
+        "commercial": "2021 IBC",
+        "energy": "2021 IECC (updating; TAG reviewing 2024)",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Minnesota Pollution Control Agency (MPCA)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Strong volume control in sensitive areas"
+      },
+      "wetlands": {
+        "agency": "MPCA + USACE St. Paul District",
+        "notes": "Extensive wetlands; Wetland Conservation Act"
+      },
+      "other_key_permits": ["Air (MPCA)"],
+      "official_resources": [
+        "https://www.dli.mn.gov/",
+        "https://www.pca.state.mn.us/"
+      ],
+      "notes": "Active code update process underway."
+    },
+    "Mississippi": {
+      "abbreviation": "MS",
+      "building_code": {
+        "authority": "Mississippi State Board of Contractors / local",
+        "residential": "2018 IRC",
+        "commercial": "2018 IBC",
+        "energy": "2018 IECC",
+        "enforcement": "State model with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Mississippi Department of Environmental Quality (DEQ)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "DEQ + USACE Mobile/Vicksburg Districts",
+        "notes": "Coastal and riverine wetlands"
+      },
+      "other_key_permits": ["Air (DEQ)"],
+      "official_resources": [
+        "https://www.msboc.us/",
+        "https://www.mdeq.ms.gov/"
+      ],
+      "notes": ""
+    },
+    "Missouri": {
+      "abbreviation": "MO",
+      "building_code": {
+        "authority": "Missouri Division of Fire Safety / local (home-rule heavy)",
+        "residential": "2018 IRC (local)",
+        "commercial": "2018 IBC (local)",
+        "energy": "2018 IECC (local)",
+        "enforcement": "Primarily local / home-rule"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Missouri Department of Natural Resources (DNR)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "DNR + USACE Kansas City/St. Louis Districts",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (DNR)"],
+      "official_resources": [
+        "https://dfs.dps.mo.gov/",
+        "https://dnr.mo.gov/"
+      ],
+      "notes": "Strong home-rule; check specific jurisdiction."
+    },
+    "Montana": {
+      "abbreviation": "MT",
+      "building_code": {
+        "authority": "Montana Department of Labor and Industry / Building Codes Bureau",
+        "residential": "2021 IRC",
+        "commercial": "2021 IBC",
+        "energy": "2021 IECC",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Montana Department of Environmental Quality (DEQ)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Mountain and cold climate BMPs"
+      },
+      "wetlands": {
+        "agency": "DEQ + USACE Omaha District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (DEQ)"],
+      "official_resources": [
+        "https://bsd.dli.mt.gov/",
+        "https://deq.mt.gov/"
+      ],
+      "notes": ""
+    },
+    "Nebraska": {
+      "abbreviation": "NE",
+      "building_code": {
+        "authority": "Nebraska State Fire Marshal / local",
+        "residential": "2018 IRC",
+        "commercial": "2018 IBC",
+        "energy": "2018 IECC",
+        "enforcement": "State model with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Nebraska Department of Environment and Energy (NDEE)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "NDEE + USACE Omaha District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (NDEE)"],
+      "official_resources": [
+        "https://sfm.nebraska.gov/",
+        "https://dee.nebraska.gov/"
+      ],
+      "notes": ""
+    },
+    "Nevada": {
+      "abbreviation": "NV",
+      "building_code": {
+        "authority": "Nevada Department of Business and Industry / local (home-rule)",
+        "residential": "2021 IRC (local adoption)",
+        "commercial": "2021 IBC (local)",
+        "energy": "2021 IECC (local, with some state push)",
+        "enforcement": "Primarily local (Las Vegas, Reno strong programs)"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Nevada Division of Environmental Protection (NDEP)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Arid climate and flash flood considerations"
+      },
+      "wetlands": {
+        "agency": "NDEP + USACE Sacramento District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (NDEP)"],
+      "official_resources": [
+        "https://business.nv.gov/",
+        "https://ndep.nv.gov/"
+      ],
+      "notes": "Home-rule dominant; major cities have advanced codes."
+    },
+    "New Hampshire": {
+      "abbreviation": "NH",
+      "building_code": {
+        "authority": "New Hampshire Department of Safety / Division of Fire Safety",
+        "residential": "2021 IRC",
+        "commercial": "2021 IBC",
+        "energy": "2021 IECC",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre (or 100,000 sq ft outside MS4s in some cases)",
+        "agency": "New Hampshire Department of Environmental Services (DES)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "DES + USACE New England District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (DES)"],
+      "official_resources": [
+        "https://www.nh.gov/safety/",
+        "https://www.des.nh.gov/"
+      ],
+      "notes": ""
+    },
+    "New Jersey": {
+      "abbreviation": "NJ",
+      "building_code": {
+        "authority": "New Jersey Department of Community Affairs (DCA)",
+        "residential": "2021 IRC",
+        "commercial": "2021 IBC",
+        "energy": "2021 IECC (pursuing 2024)",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre or increase in impervious cover ≥0.25 acres",
+        "agency": "New Jersey Department of Environmental Protection (DEP)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Strong recharge and TSS removal standards"
+      },
+      "wetlands": {
+        "agency": "DEP + USACE New York/Philadelphia Districts",
+        "notes": "Strict freshwater wetlands protections"
+      },
+      "other_key_permits": ["Air (DEP)"],
+      "official_resources": [
+        "https://www.nj.gov/dca/",
+        "https://www.nj.gov/dep/"
+      ],
+      "notes": "Dense population and strict environmental rules."
+    },
+    "New Mexico": {
+      "abbreviation": "NM",
+      "building_code": {
+        "authority": "New Mexico Construction Industries Division",
+        "residential": "2018 IRC",
+        "commercial": "2018 IBC",
+        "energy": "2018 IECC",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "New Mexico Environment Department (NMED)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Arid climate and monsoon considerations"
+      },
+      "wetlands": {
+        "agency": "NMED + USACE Albuquerque District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (NMED)"],
+      "official_resources": [
+        "https://www.rld.nm.gov/construction/",
+        "https://www.env.nm.gov/"
+      ],
+      "notes": ""
+    },
+    "New York": {
+      "abbreviation": "NY",
+      "building_code": {
+        "authority": "New York State Department of State / Division of Building Standards and Codes",
+        "residential": "2020 or 2023 NYS Residential Code (based on 2018/2021 IRC with NY amendments)",
+        "commercial": "2020 or 2023 NYS Building Code (based on 2018/2021 IBC with NY amendments)",
+        "energy": "2020 or later NYS Energy Code (based on IECC with NY stretch options)",
+        "enforcement": "State base code with local enforcement (NYC has its own very strict code)"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "New York State Department of Environmental Conservation (DEC)",
+        "permit": "NPDES Construction General Permit (SPDES)",
+        "notes": "Strong post-construction and MS4 requirements; NYC has additional rules"
+      },
+      "wetlands": {
+        "agency": "DEC + USACE New York District",
+        "notes": "Freshwater Wetlands Act + tidal wetlands; very protective"
+      },
+      "other_key_permits": ["Air (DEC)", "NYC-specific permits"],
+      "official_resources": [
+        "https://dos.ny.gov/building-standards-and-codes",
+        "https://www.dec.ny.gov/"
+      ],
+      "notes": "New York City has one of the strictest local codes in the U.S. State code is updated regularly."
+    },
+    "North Carolina": {
+      "abbreviation": "NC",
+      "building_code": {
+        "authority": "North Carolina Department of Insurance / Engineering Division",
+        "residential": "2021 NC Residential Code (based on 2021 IRC)",
+        "commercial": "2021 NC Building Code (based on 2021 IBC)",
+        "energy": "2021 NC Energy Conservation Code",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre (or smaller in some areas)",
+        "agency": "North Carolina Department of Environmental Quality (DEQ)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Strong coastal and Piedmont requirements"
+      },
+      "wetlands": {
+        "agency": "DEQ + USACE Wilmington District",
+        "notes": "Coastal wetlands and 401 certification"
+      },
+      "other_key_permits": ["Air (DEQ)"],
+      "official_resources": [
+        "https://www.ncosfm.gov/",
+        "https://deq.nc.gov/"
+      ],
+      "notes": ""
+    },
+    "North Dakota": {
+      "abbreviation": "ND",
+      "building_code": {
+        "authority": "North Dakota Department of Commerce / local",
+        "residential": "2018 IRC (local)",
+        "commercial": "2018 IBC (local)",
+        "energy": "2018 IECC (local)",
+        "enforcement": "Primarily local"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "North Dakota Department of Environmental Quality (DEQ)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "DEQ + USACE Omaha District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (DEQ)"],
+      "official_resources": [
+        "https://www.commerce.nd.gov/",
+        "https://deq.nd.gov/"
+      ],
+      "notes": "Home-rule dominant."
+    },
+    "Ohio": {
+      "abbreviation": "OH",
+      "building_code": {
+        "authority": "Ohio Board of Building Standards",
+        "residential": "2021 IRC",
+        "commercial": "2021 IBC",
+        "energy": "2021 IECC",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Ohio Environmental Protection Agency (Ohio EPA)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "Ohio EPA + USACE Buffalo/Huntington Districts",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (Ohio EPA)"],
+      "official_resources": [
+        "https://com.ohio.gov/divisions-and-programs/industrial-compliance/building-standards",
+        "https://epa.ohio.gov/"
+      ],
+      "notes": ""
+    },
+    "Oklahoma": {
+      "abbreviation": "OK",
+      "building_code": {
+        "authority": "Oklahoma Uniform Building Code Commission / local",
+        "residential": "2018 IRC",
+        "commercial": "2018 IBC",
+        "energy": "2018 IECC",
+        "enforcement": "State model with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Oklahoma Department of Environmental Quality (DEQ)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "DEQ + USACE Tulsa District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (DEQ)"],
+      "official_resources": [
+        "https://oklahoma.gov/oubcc.html",
+        "https://www.deq.ok.gov/"
+      ],
+      "notes": ""
+    },
+    "Oregon": {
+      "abbreviation": "OR",
+      "building_code": {
+        "authority": "Oregon Building Codes Division",
+        "residential": "2021 OR Residential Specialty Code (based on 2021 IRC)",
+        "commercial": "2021 OR Structural Specialty Code (based on 2021 IBC)",
+        "energy": "2021 OR Energy Efficiency Specialty Code (based on IECC with OR amendments)",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Oregon Department of Environmental Quality (DEQ)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Strong post-construction and LID requirements"
+      },
+      "wetlands": {
+        "agency": "DEQ + USACE Portland District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (DEQ)"],
+      "official_resources": [
+        "https://www.oregon.gov/bcd/",
+        "https://www.oregon.gov/deq/"
+      ],
+      "notes": "Progressive energy and green building standards."
+    },
+    "Pennsylvania": {
+      "abbreviation": "PA",
+      "building_code": {
+        "authority": "Pennsylvania Department of Labor and Industry",
+        "residential": "2018 IRC",
+        "commercial": "2018 IBC",
+        "energy": "2018 IECC",
+        "enforcement": "Statewide with local enforcement (Act 45)"
+      },
+      "stormwater": {
+        "threshold": "1 acre (or smaller in MS4 areas)",
+        "agency": "Pennsylvania Department of Environmental Protection (DEP)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Strong in Chesapeake Bay watershed"
+      },
+      "wetlands": {
+        "agency": "DEP + USACE Baltimore/Philadelphia/Pittsburgh Districts",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (DEP)"],
+      "official_resources": [
+        "https://www.dli.pa.gov/",
+        "https://www.dep.pa.gov/"
+      ],
+      "notes": ""
+    },
+    "Rhode Island": {
+      "abbreviation": "RI",
+      "building_code": {
+        "authority": "Rhode Island State Building Code Standards Committee",
+        "residential": "2021 IRC",
+        "commercial": "2021 IBC",
+        "energy": "2024 IECC (first in Northeast, adopted)",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Rhode Island Department of Environmental Management (DEM)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "DEM + USACE New England District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (DEM)"],
+      "official_resources": [
+        "https://www.ribcc.ri.gov/",
+        "https://dem.ri.gov/"
+      ],
+      "notes": "Leader in adopting 2024 IECC with electric-ready provisions."
+    },
+    "South Carolina": {
+      "abbreviation": "SC",
+      "building_code": {
+        "authority": "South Carolina Building Codes Council",
+        "residential": "2021 IRC",
+        "commercial": "2021 IBC",
+        "energy": "2021 IECC",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "South Carolina Department of Health and Environmental Control (DHEC)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "DHEC + USACE Charleston District",
+        "notes": "Coastal protections"
+      },
+      "other_key_permits": ["Air (DHEC)"],
+      "official_resources": [
+        "https://www.llr.sc.gov/",
+        "https://scdhec.gov/"
+      ],
+      "notes": ""
+    },
+    "South Dakota": {
+      "abbreviation": "SD",
+      "building_code": {
+        "authority": "South Dakota Department of Public Safety / local",
+        "residential": "2018 IRC (local)",
+        "commercial": "2018 IBC (local)",
+        "energy": "2018 IECC (local)",
+        "enforcement": "Primarily local"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "South Dakota Department of Agriculture and Natural Resources (DANR)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "DANR + USACE Omaha District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (DANR)"],
+      "official_resources": [
+        "https://dps.sd.gov/",
+        "https://danr.sd.gov/"
+      ],
+      "notes": "Home-rule dominant."
+    },
+    "Tennessee": {
+      "abbreviation": "TN",
+      "building_code": {
+        "authority": "Tennessee Department of Commerce and Insurance / State Fire Marshal",
+        "residential": "2018 IRC",
+        "commercial": "2018 IBC",
+        "energy": "2018 IECC",
+        "enforcement": "State model with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Tennessee Department of Environment and Conservation (TDEC)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "TDEC + USACE Nashville/Memphis Districts",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (TDEC)"],
+      "official_resources": [
+        "https://www.tn.gov/commerce/",
+        "https://www.tn.gov/environment/"
+      ],
+      "notes": ""
+    },
+    "Texas": {
+      "abbreviation": "TX",
+      "building_code": {
+        "authority": "Texas Department of Licensing and Regulation (TDLR) / local (strong home-rule)",
+        "residential": "2021 IRC (local adoption common)",
+        "commercial": "2021 IBC (local adoption common)",
+        "energy": "2021 IECC (local; some state model push)",
+        "enforcement": "Primarily local / home-rule (Houston, Austin, Dallas have robust codes)"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Texas Commission on Environmental Quality (TCEQ)",
+        "permit": "NPDES Construction General Permit (TXR150000)",
+        "notes": "Standard; local MS4 rules may be stricter"
+      },
+      "wetlands": {
+        "agency": "TCEQ + USACE Galveston/Fort Worth Districts",
+        "notes": "Coastal and riverine protections"
+      },
+      "other_key_permits": ["Air (TCEQ)"],
+      "official_resources": [
+        "https://www.tdlr.texas.gov/",
+        "https://www.tceq.texas.gov/"
+      ],
+      "notes": "No mandatory statewide building code for most structures. Major cities drive standards. Check specific city."
+    },
+    "Utah": {
+      "abbreviation": "UT",
+      "building_code": {
+        "authority": "Utah Division of Occupational and Professional Licensing / Building Codes",
+        "residential": "2021 IRC",
+        "commercial": "2021 IBC",
+        "energy": "2021 IECC",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Utah Department of Environmental Quality (DEQ)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Arid and mountain considerations"
+      },
+      "wetlands": {
+        "agency": "DEQ + USACE Sacramento District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (DEQ)"],
+      "official_resources": [
+        "https://dopl.utah.gov/",
+        "https://deq.utah.gov/"
+      ],
+      "notes": ""
+    },
+    "Vermont": {
+      "abbreviation": "VT",
+      "building_code": {
+        "authority": "Vermont Department of Public Safety / Division of Fire Safety",
+        "residential": "2021 IRC",
+        "commercial": "2021 IBC",
+        "energy": "2021 IECC (stretch code available)",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre (or smaller in sensitive areas)",
+        "agency": "Vermont Department of Environmental Conservation (DEC)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Strong volume control and LID"
+      },
+      "wetlands": {
+        "agency": "DEC + USACE New England District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (DEC)"],
+      "official_resources": [
+        "https://firesafety.vermont.gov/",
+        "https://dec.vermont.gov/"
+      ],
+      "notes": "Progressive environmental standards."
+    },
+    "Virginia": {
+      "abbreviation": "VA",
+      "building_code": {
+        "authority": "Virginia Department of Housing and Community Development (DHCD)",
+        "residential": "2021 Virginia Residential Code (based on 2021 IRC)",
+        "commercial": "2021 Virginia Construction Code (based on 2021 IBC)",
+        "energy": "2021 Virginia Energy Conservation Code",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Virginia Department of Environmental Quality (DEQ)",
+        "permit": "NPDES Construction General Permit + VSMP",
+        "notes": "Strong Chesapeake Bay watershed rules"
+      },
+      "wetlands": {
+        "agency": "DEQ + USACE Norfolk District",
+        "notes": "Tidal and nontidal wetlands; Bay protections"
+      },
+      "other_key_permits": ["Air (DEQ)"],
+      "official_resources": [
+        "https://www.dhcd.virginia.gov/",
+        "https://www.deq.virginia.gov/"
+      ],
+      "notes": "Strong statewide code system."
+    },
+    "Washington": {
+      "abbreviation": "WA",
+      "building_code": {
+        "authority": "Washington State Building Code Council",
+        "residential": "2021 Washington State Residential Code (based on 2021 IRC)",
+        "commercial": "2021 Washington State Building Code (based on 2021 IBC)",
+        "energy": "2021 Washington State Energy Code (based on IECC with WA amendments; very progressive)",
+        "enforcement": "Statewide with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre (or smaller in MS4 areas)",
+        "agency": "Washington State Department of Ecology",
+        "permit": "NPDES Construction General Permit",
+        "notes": "Strong post-construction and LID requirements"
+      },
+      "wetlands": {
+        "agency": "Ecology + USACE Seattle District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (Ecology)"],
+      "official_resources": [
+        "https://sbcc.wa.gov/",
+        "https://ecology.wa.gov/"
+      ],
+      "notes": "One of the most progressive states for energy and environmental codes."
+    },
+    "West Virginia": {
+      "abbreviation": "WV",
+      "building_code": {
+        "authority": "West Virginia State Fire Marshal / local",
+        "residential": "2018 IRC",
+        "commercial": "2018 IBC",
+        "energy": "2018 IECC",
+        "enforcement": "State model with local enforcement"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "West Virginia Department of Environmental Protection (DEP)",
+        "permit": "NPDES Construction General Permit",
+        "notes": ""
+      },
+      "wetlands": {
+        "agency": "DEP + USACE Huntington/Pittsburgh Districts",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (DEP)"],
+      "official_resources": [
+        "https://firemarshal.wv.gov/",
+        "https://dep.wv.gov/"
+      ],
+      "notes": ""
+    },
+    "Wisconsin": {
+      "abbreviation": "WI",
+      "building_code": {
+        "authority": "Wisconsin Department of Safety and Professional Services (DSPS)",
+        "residential": "Uniform Dwelling Code (SPS 320-325) - statewide for 1-2 family since 1980",
+        "commercial": "Commercial Building Code (SPS 361-366) - adopts 2021 ICC codes with WI amendments (effective for plans ~Nov 2025)",
+        "energy": "SPS 322 (2009 IECC reference for UDC); 2021 IECC for CBC",
+        "enforcement": "Statewide code; local municipalities enforce (UDC); DSPS or delegated for commercial plan review"
+      },
+      "stormwater": {
+        "threshold": "1 acre or more land disturbance",
+        "agency": "Wisconsin Department of Natural Resources (DNR)",
+        "permit": "WPDES General Permit WI-S067831-6 (reissued 2021)",
+        "notes": "NOI required 14 working days prior; Erosion Control Plan + Post-Construction Stormwater Management Plan; weekly inspections; fees by acreage"
+      },
+      "wetlands": {
+        "agency": "DNR (s. 281.36, Ch. 30) + USACE",
+        "notes": "General or Individual permits required for fill/excavation in wetlands or navigable waters; alternatives analysis and mitigation often required"
+      },
+      "other_key_permits": ["Air construction permits (NR 406) for new emission sources", "Asbestos notification for demolition/renovation"],
+      "official_resources": [
+        "https://dsps.wi.gov/Pages/Programs/CommercialBuildings/Default.aspx",
+        "https://dsps.wi.gov/Pages/Programs/UDC/Default.aspx",
+        "https://dnr.wisconsin.gov/topic/Stormwater/construction",
+        "https://dnr.wisconsin.gov/topic/Wetlands/permits"
+      ],
+      "notes": "Detailed companion guide available. DSPS eSLA portal for commercial plan review. Enviro-Nav tool for environmental checklist."
+    },
+    "Wyoming": {
+      "abbreviation": "WY",
+      "building_code": {
+        "authority": "Wyoming Department of Fire Prevention and Electrical Safety / local",
+        "residential": "2018 IRC (local)",
+        "commercial": "2018 IBC (local)",
+        "energy": "2018 IECC (local)",
+        "enforcement": "Primarily local"
+      },
+      "stormwater": {
+        "threshold": "1 acre",
+        "agency": "Wyoming Department of Environmental Quality (DEQ)",
+        "permit": "NPDES Construction General Permit",
+        "notes": "High plains and mountain considerations"
+      },
+      "wetlands": {
+        "agency": "DEQ + USACE Omaha District",
+        "notes": ""
+      },
+      "other_key_permits": ["Air (DEQ)"],
+      "official_resources": [
+        "https://wyofire.state.wy.us/",
+        "https://deq.wyoming.gov/"
+      ],
+      "notes": "Home-rule dominant."
+    }
+  }
+}

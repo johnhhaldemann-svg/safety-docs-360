@@ -1,4 +1,16 @@
 import type { CSEPProgramSelection } from "@/types/csep-programs";
+import type { CSEPPricedItemSelection } from "@/types/csep-priced-items";
+import type {
+  CsepBuilderInstructions,
+  CsepCoverageAudit,
+  CsepDocumentControlFields,
+  CsepFormatEntryKey,
+  CsepFormatSectionKey,
+} from "@/types/csep-builder";
+import type {
+  JurisdictionCode,
+  JurisdictionPlanType,
+} from "@/types/jurisdiction-standards";
 
 export type SafetyIntelligenceDocumentType =
   | "jsa"
@@ -11,6 +23,7 @@ export type SafetyIntelligenceDocumentType =
   | "safety_narrative";
 
 export type SafetyPlanDocumentType = "csep" | "pshsep";
+export type ProjectDeliveryType = "ground_up" | "renovation";
 
 export type HazardFamily =
   | "hot_work"
@@ -50,6 +63,37 @@ export type ConflictSourceScope = "intra_document" | "external_jobsite";
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
 export type JsonObject = { [key: string]: JsonValue };
+
+export type SafetyReferenceModuleContext = JsonObject & {
+  title: string;
+  moduleKey: string;
+  summary: string;
+  sectionHeadings: string[];
+  plainText: string;
+  sourceFilename: string;
+  trade?: string | null;
+  subTrade?: string | null;
+  taskNames?: string[];
+  matchedReasons?: string[];
+};
+
+export type SafetyPlanSiteMetadata = JsonObject & {
+  taskModulePackKey?: string | null;
+  taskModuleTitles?: string[];
+  taskModules?: SafetyReferenceModuleContext[];
+  hazardModulePackKey?: string | null;
+  hazardModuleTitles?: string[];
+  hazardModules?: SafetyReferenceModuleContext[];
+  steelTaskModulePackKey?: string | null;
+  steelTaskModuleTitles?: string[];
+  steelTaskModules?: SafetyReferenceModuleContext[];
+  steelHazardModulePackKey?: string | null;
+  steelHazardModuleTitles?: string[];
+  steelHazardModules?: SafetyReferenceModuleContext[];
+  steelProgramModulePackKey?: string | null;
+  steelProgramModuleTitles?: string[];
+  steelProgramModules?: SafetyReferenceModuleContext[];
+};
 
 export type TradeLibraryEntry = {
   id?: string;
@@ -146,16 +190,24 @@ export type SafetyPlanGenerationContext = {
       conditionCode?: string | null;
       summary?: string | null;
     };
-    metadata?: JsonObject;
+    metadata?: SafetyPlanSiteMetadata;
   };
   programSelections?: CSEPProgramSelection[];
+  pricedAttachments?: CSEPPricedItemSelection[];
+  builderInstructions?: CsepBuilderInstructions | null;
   documentProfile: {
     documentType: SafetyPlanDocumentType;
+    projectDeliveryType: ProjectDeliveryType;
     requestedLabel?: string | null;
     title?: string | null;
     companyId?: string | null;
     jobsiteId?: string | null;
-    source: "builder_submit" | "api" | "legacy_adapter";
+    governingState?: string | null;
+    jurisdictionCode?: JurisdictionCode | null;
+    jurisdictionLabel?: string | null;
+    jurisdictionPlanType?: JurisdictionPlanType | null;
+    jurisdictionStandardsApplied?: string[];
+    source: "builder_submit" | "csep_preview" | "api" | "legacy_adapter";
   };
   legacyFormSnapshot: JsonObject;
 };
@@ -308,6 +360,72 @@ export type RulesEvaluation = {
 
 export type ResolvedRuleSet = RulesEvaluation;
 
+export type SafetyReviewDomain = "permit" | "training" | "ppe";
+
+export type SafetyReviewGapCode =
+  | "permit_missing"
+  | "training_missing"
+  | "ppe_missing"
+  | "permit_removed_by_override"
+  | "training_removed_by_override"
+  | "ppe_removed_by_override";
+
+export type SafetyReviewSource = "platform" | "company" | "live";
+
+export type SafetyReviewGap = {
+  code: SafetyReviewGapCode;
+  domain: SafetyReviewDomain;
+  severity: ConflictSeverity;
+  detail: string;
+  expectedValues: string[];
+  currentValues: string[];
+};
+
+export type SafetyReviewAction = {
+  domain: SafetyReviewDomain;
+  label: string;
+  href: string;
+};
+
+export type SafetyReviewRow = {
+  id: string;
+  source: SafetyReviewSource;
+  scope: "company" | "jobsite";
+  jobsiteId?: string | null;
+  sourceLabel: string;
+  taskTitle: string;
+  tradeCode?: string | null;
+  subTradeCode?: string | null;
+  taskCode?: string | null;
+  workAreaLabel?: string | null;
+  permitTriggers: PermitTriggerType[];
+  trainingRequirements: string[];
+  ppeRequirements: string[];
+  expectedPermitTriggers: PermitTriggerType[];
+  expectedTrainingRequirements: string[];
+  expectedPpeRequirements: string[];
+  applicableTrainingMatrixCodes: string[];
+  gaps: SafetyReviewGap[];
+  actions: SafetyReviewAction[];
+  score: number;
+  band: RiskBand;
+  sourceBreakdown?: RulesEvaluation["sourceBreakdown"];
+};
+
+export type SafetyReviewPayload = {
+  scope: "company" | "jobsite";
+  jobsiteId?: string | null;
+  rowCount: number;
+  summary: {
+    totalGaps: number;
+    permitGaps: number;
+    trainingGaps: number;
+    ppeGaps: number;
+  };
+  rows: SafetyReviewRow[];
+  warning?: string | null;
+};
+
 export type ConflictMatrixItem = {
   code: string;
   type:
@@ -364,11 +482,18 @@ export type ConflictMatrix = {
 export type GeneratedSafetyPlanSection = {
   key: string;
   title: string;
+  order?: number | null;
+  kind?: "front_matter" | "main" | "appendix" | "gap" | null;
+  numberLabel?: string | null;
+  parentSectionKey?: CsepFormatEntryKey | string | null;
+  appendixKey?: string | null;
+  layoutKey?: string | null;
   summary?: string | null;
   body?: string | null;
   bullets?: string[];
   subsections?: Array<{
     title: string;
+    body?: string | null;
     bullets: string[];
   }>;
   table?: {
@@ -377,9 +502,39 @@ export type GeneratedSafetyPlanSection = {
   } | null;
 };
 
+export type SafetyPlanTrainingProgramRow = {
+  operationId: string;
+  tradeCode?: string | null;
+  tradeLabel?: string | null;
+  subTradeCode?: string | null;
+  subTradeLabel?: string | null;
+  taskCode?: string | null;
+  taskTitle: string;
+  trainingCode: string;
+  trainingTitle: string;
+  matchKeywords: string[];
+  sourceLabels: string[];
+  whySource: string;
+};
+
+export type SafetyPlanTrainingProgram = {
+  rows: SafetyPlanTrainingProgramRow[];
+  summaryTrainingTitles: string[];
+};
+
+export type CsepAiAssemblyDecisions = {
+  frontMatterGuidance?: string | null;
+  coverageGuidance?: string | null;
+  sectionDecisions?: Partial<Record<CsepFormatSectionKey, string>>;
+  decisionSource?: string | null;
+};
+
 export type GeneratedSafetyPlanDraft = {
   documentType: SafetyPlanDocumentType;
+  projectDeliveryType: ProjectDeliveryType;
   title: string;
+  documentControl?: Partial<CsepDocumentControlFields> | null;
+  aiAssemblyDecisions?: CsepAiAssemblyDecisions | null;
   projectOverview: {
     projectName: string;
     projectNumber?: string | null;
@@ -431,8 +586,11 @@ export type GeneratedSafetyPlanDraft = {
     band: RiskBand;
     priorities: string[];
   };
+  trainingProgram: SafetyPlanTrainingProgram;
   narrativeSections: Record<string, string>;
   sectionMap: GeneratedSafetyPlanSection[];
+  coverageAudit?: CsepCoverageAudit | null;
+  builderSnapshot?: JsonObject | null;
   provenance: JsonObject;
 };
 

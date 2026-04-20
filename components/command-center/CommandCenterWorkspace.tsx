@@ -4,13 +4,19 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import {
+  ActionTile,
   EmptyState,
   InlineMessage,
+  MetricTile,
   PageHero,
   SectionCard,
   StatusBadge,
+  appButtonPrimaryClassName,
+  appButtonQuietClassName,
+  appButtonSecondaryClassName,
 } from "@/components/WorkspacePrimitives";
 import {
+  buildSafetyManagerWorkflowRails,
   buildCommandCenterNotices,
   getRecommendationsEmptyMessage,
   getRiskMemoryEmptyMessage,
@@ -177,6 +183,7 @@ export function CommandCenterWorkspace() {
 
   const risk = analytics?.summary?.riskMemory;
   const recommendations = analytics?.summary?.riskMemoryRecommendations ?? [];
+  const workflowRails = useMemo(() => buildSafetyManagerWorkflowRails(openWork), [openWork]);
   const band = risk?.aggregatedWithBaseline?.band ?? risk?.aggregated?.band ?? "-";
   const score = risk?.aggregatedWithBaseline?.score ?? risk?.aggregated?.score ?? null;
   const recommendationEmptyMessage = getRecommendationsEmptyMessage(recommendations.length);
@@ -210,7 +217,7 @@ export function CommandCenterWorkspace() {
               type="button"
               onClick={() => void load()}
               disabled={loading}
-              className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(79,125,243,0.22)] disabled:opacity-50"
+              className={`${appButtonPrimaryClassName} disabled:opacity-50`}
             >
               {loading ? "Refreshing..." : "Refresh"}
             </button>
@@ -232,6 +239,62 @@ export function CommandCenterWorkspace() {
       ) : null}
 
       <SectionCard
+        eyebrow="Today / Attention"
+        title="What needs attention now"
+        description="Start here before you move into the detailed workflow screens. These cards summarize the live work picture safety managers care about most."
+        tone="attention"
+      >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricTile
+            eyebrow="Current risk"
+            title={band === "-" ? "Awaiting rollup" : band}
+            value={score != null ? Number(score).toFixed(1) : "-"}
+            detail="Risk Memory score for the selected window."
+            tone="attention"
+          />
+          <MetricTile
+            eyebrow="Open work"
+            title="Issues"
+            value={String(openWork.openObservations)}
+            detail={`${openWork.overdueObservations} overdue and ${openWork.openIncidents} incident${openWork.openIncidents === 1 ? "" : "s"} still open.`}
+          />
+          <MetricTile
+            eyebrow="Permit pressure"
+            title="Active permits"
+            value={String(openWork.activePermits)}
+            detail={`${openWork.stopWorkPermits} permit${openWork.stopWorkPermits === 1 ? "" : "s"} with stop-work status need review.`}
+          />
+          <MetricTile
+            eyebrow="In progress"
+            title="JSAs + reports"
+            value={String(openWork.openJsas + openWork.openReports)}
+            detail={`${openWork.openJsas} JSA${openWork.openJsas === 1 ? "" : "s"} and ${openWork.openReports} report draft${openWork.openReports === 1 ? "" : "s"} are still moving.`}
+          />
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        eyebrow="Workflow Rails"
+        title="Core operator paths"
+        description="Use these rails to move from signal to action without hunting through separate modules."
+      >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {workflowRails.map((rail) => (
+            <ActionTile
+              key={rail.title}
+              eyebrow={rail.tone === "warning" ? "Needs attention" : "Guided flow"}
+              title={rail.title}
+              description={rail.description}
+              href={rail.href}
+              actionLabel={rail.actionLabel}
+              tone={rail.tone === "warning" ? "attention" : rail.tone === "info" ? "elevated" : "panel"}
+            />
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        eyebrow="Work Area"
         title="Current Risk"
         description="Start with the current risk rollup, then jump straight into the workflow or drill-down surface that matches the decision you need to make."
         aside={<StatusBadge label={band === "-" ? "Awaiting rollup" : band} tone={rollupTone(band)} />}
@@ -343,6 +406,7 @@ export function CommandCenterWorkspace() {
       </SectionCard>
 
       <SectionCard
+        eyebrow="Work Area"
         title="Open Work"
         description="Use the current workload picture to decide where human follow-up is needed before or after AI-generated outputs."
       >
@@ -363,6 +427,7 @@ export function CommandCenterWorkspace() {
       </SectionCard>
 
       <SectionCard
+        eyebrow="Recommended Next Step"
         title="Recommended Actions"
         description="Stored recommendations stay company-scoped. Use them as the action list that sits between the risk rollup and the execution workflow."
       >
@@ -397,11 +462,12 @@ export function CommandCenterWorkspace() {
       </SectionCard>
 
       <SectionCard
+        eyebrow="Supporting Context"
         title="Company Knowledge"
         description="Keep reusable company context close to the hub so assistants and downstream workflows can stay grounded in your actual procedures."
       >
         <div className="grid gap-4 lg:grid-cols-[0.3fr_0.7fr]">
-          <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-4">
+          <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel-soft)] p-4">
             <p className="text-sm font-semibold text-[var(--app-text-strong)]">What belongs here</p>
             <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--app-text)]">
               <li>Company procedures and recurring site rules</li>
@@ -411,13 +477,13 @@ export function CommandCenterWorkspace() {
             <div className="mt-4 flex flex-wrap gap-2">
               <Link
                 href="/safety-intelligence"
-                className="rounded-full border border-[rgba(79,125,243,0.35)] px-3 py-1.5 text-xs font-bold text-[var(--app-accent-primary)] hover:bg-[rgba(79,125,243,0.08)]"
+                className={appButtonQuietClassName.replace("rounded-xl", "rounded-full").replace("px-4 py-2.5", "px-3 py-1.5").replace("text-sm", "text-xs")}
               >
                 Open workflow
               </Link>
               <Link
                 href="/analytics"
-                className="rounded-full border border-[var(--app-border-strong)] px-3 py-1.5 text-xs font-bold text-[var(--app-text-strong)] hover:bg-white"
+                className={appButtonSecondaryClassName.replace("rounded-xl", "rounded-full").replace("px-4 py-2.5", "px-3 py-1.5").replace("text-sm", "text-xs")}
               >
                 Open analytics
               </Link>

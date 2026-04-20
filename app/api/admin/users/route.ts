@@ -8,6 +8,7 @@ import {
   formatAccountStatus,
   formatAppRole,
   getUserRoleContext,
+  isCompanyRole,
   isCrossWorkspaceAdminRole,
   normalizeAccountStatus,
   normalizeAppRole,
@@ -116,12 +117,7 @@ function formatRoleConstraintError(message?: string | null) {
 }
 
 function isInternalAppRole(role?: string | null) {
-  const normalized = normalizeAppRole(role);
-  return (
-    normalized !== "company_admin" &&
-    normalized !== "manager" &&
-    normalized !== "company_user"
-  );
+  return !isCompanyRole(role);
 }
 
 function canViewRoleInDirectory(params: {

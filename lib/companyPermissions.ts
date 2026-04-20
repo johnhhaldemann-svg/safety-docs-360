@@ -18,6 +18,7 @@ export function canManageDaps(role?: string | null) {
     normalized === "manager" ||
     normalized === "safety_manager" ||
     normalized === "project_manager" ||
+    normalized === "field_supervisor" ||
     normalized === "foreman"
   );
 }

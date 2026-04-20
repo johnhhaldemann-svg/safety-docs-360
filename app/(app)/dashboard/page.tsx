@@ -4,13 +4,18 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActionTile,
   ActivityFeed,
   EmptyState,
   InlineMessage,
+  MetricTile,
+  PageHero,
   SectionCard,
   StartChecklist,
   StatusBadge,
   WorkflowPath,
+  appButtonPrimaryClassName,
+  appButtonSecondaryClassName,
 } from "@/components/WorkspacePrimitives";
 import { CompanyAdminDashboard } from "@/app/(app)/dashboard/company-admin-dashboard";
 import type {
@@ -20,6 +25,11 @@ import type {
 } from "@/components/company-workspace/useCompanyWorkspaceData";
 import { fetchWithTimeout, fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { getPermissionMap, isCompanyAdminRole, type PermissionMap } from "@/lib/rbac";
+import {
+  CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL,
+  CONTRACTOR_SAFETY_BLUEPRINT_TITLE,
+  SITE_SAFETY_BLUEPRINT_TITLE,
+} from "@/lib/safetyBlueprintLabels";
 import type { WorkspaceProduct } from "@/lib/workspaceProduct";
 import {
   getDocumentStatusLabel,
@@ -27,6 +37,8 @@ import {
   isArchivedDocumentStatus,
   isSubmittedDocumentStatus,
 } from "@/lib/documentStatus";
+import { RoleDashboardResolver } from "@/components/dashboard/role-dashboard-resolver";
+import { useDashboardData } from "@/components/dashboard/use-dashboard-data";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -265,6 +277,9 @@ function getStatusTone(label: string): "neutral" | "success" | "warning" | "info
 }
 
 export default function DashboardPage() {
+  const data = useDashboardData();
+  return <RoleDashboardResolver data={data} />;
+
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [referenceTime] = useState(() => Date.now());
@@ -978,9 +993,9 @@ export default function DashboardPage() {
         },
         {
           title: "Credits Remaining",
-          value: creditBalance === null ? "-" : String(creditBalance),
+          value: creditBalance == null ? "-" : String(creditBalance ?? 0),
           note: "Available for unlocking completed marketplace records",
-          trend: creditBalance && creditBalance > 0 ? "Ready for unlocks" : "No credits loaded",
+          trend: (creditBalance ?? 0) > 0 ? "Ready for unlocks" : "No credits loaded",
           icon: "records",
         },
         ...(canManageCompanyUsers
@@ -1041,9 +1056,9 @@ export default function DashboardPage() {
         },
         {
           title: "Credits Remaining",
-          value: creditBalance === null ? "-" : String(creditBalance),
+          value: creditBalance == null ? "-" : String(creditBalance ?? 0),
           note: "Available for marketplace document unlocks",
-          trend: creditBalance && creditBalance > 0 ? "Ready for unlocks" : "No credits loaded",
+          trend: (creditBalance ?? 0) > 0 ? "Ready for unlocks" : "No credits loaded",
           icon: "records",
         },
         {
@@ -1119,15 +1134,15 @@ export default function DashboardPage() {
           href: "/submit",
         },
         {
-          title: "PESHEP Files",
+          title: `${SITE_SAFETY_BLUEPRINT_TITLE} Files`,
           value: String(peshepCount),
-          description: "Project safety and health execution plans in the system.",
+          description: "PSHSEP files in the system.",
           href: "/peshep",
         },
         {
-          title: "CSEP Files",
+          title: `${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} Files`,
           value: String(csepCount),
-          description: "Contractor site-specific safety plans tracked here.",
+          description: "CSEP files tracked here.",
           href: "/csep",
         },
       ];
@@ -1161,16 +1176,16 @@ export default function DashboardPage() {
                 button: "Open Submit",
               },
               {
-                title: "Build PESHEP",
-                description: "Launch the PESHEP builder for project safety planning.",
+                title: `Build ${SITE_SAFETY_BLUEPRINT_TITLE}`,
+                description: "Use the sitewide master blueprint for the full project or jobsite.",
                 href: "/peshep",
                 button: "Build Plan",
               },
               {
-                title: "Build CSEP",
-                description: "Create contractor-specific safety documentation and controls.",
+                title: `Build ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}`,
+                description: "Use the trade partner blueprint for one subcontractor scope on that site.",
                 href: "/csep",
-                button: "Open CSEP",
+                button: `Open ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}`,
               },
               {
                 title: "Upload Files",
@@ -1466,6 +1481,8 @@ export default function DashboardPage() {
 
   const showWelcomeState = !loading && (isManagerView ? companyUserCount === 0 && approvedCount === 0 : activeDocuments.length === 0);
   const companyWorkspaceDisplayLoading = companyWorkspaceLoading || !companyWorkspaceLoaded;
+  const attentionCards = countCards.slice(0, 4);
+  const nextStepCards = actionCards.slice(0, 4);
 
   if (isCompanyAdminDashboard) {
     return (
@@ -1505,19 +1522,21 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <section className="rounded-[1.8rem] border border-[#d9e8ff] bg-slate-900/90 p-6 shadow-[0_12px_28px_rgba(148,163,184,0.12)]">
           <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">
-            CSEP workspace
+            {CONTRACTOR_SAFETY_BLUEPRINT_TITLE} workspace
           </p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Your CSEP program</h1>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-white">
+            Your {CONTRACTOR_SAFETY_BLUEPRINT_TITLE}
+          </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-              This account is limited to the Construction Safety &amp; Environmental Plan builder. Build and submit
-              CSEP records for admin review from one place.
+              This account is limited to the trade partner blueprint builder. Build and
+              submit {` ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}`} records for admin review from one place.
             </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
               href="/csep"
               className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)]"
             >
-              Open CSEP builder
+              {CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL}
             </Link>
             <Link
               href="/profile"
@@ -1536,9 +1555,17 @@ export default function DashboardPage() {
 
         <section className="grid gap-4 sm:grid-cols-3">
           {[
-            { label: "CSEP records", value: String(csepDocs.length), note: "All CSEP drafts and submissions" },
+            {
+              label: `${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} records`,
+              value: String(csepDocs.length),
+              note: `All ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} drafts and submissions`,
+            },
             { label: "Pending review", value: String(csepPending), note: "Waiting on admin review" },
-            { label: "Approved", value: String(csepApproved), note: "Completed CSEP files" },
+            {
+              label: "Approved",
+              value: String(csepApproved),
+              note: `Completed ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} files`,
+            },
           ].map((card) => (
             <div
               key={card.label}
@@ -1552,7 +1579,9 @@ export default function DashboardPage() {
         </section>
 
         <section className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-100">Completed CSEP documents</h2>
+          <h2 className="text-lg font-bold text-slate-100">
+            Completed {CONTRACTOR_SAFETY_BLUEPRINT_TITLE} documents
+          </h2>
           <p className="mt-1 text-sm text-slate-400">
             Finished files after admin review. Open them here or from the library (sidebar: Completed documents).
           </p>
@@ -1560,7 +1589,8 @@ export default function DashboardPage() {
             <p className="mt-4 text-sm text-slate-500">Loading...</p>
           ) : csepApprovedDocs.length === 0 ? (
             <p className="mt-4 text-sm text-slate-500">
-              No approved CSEP yet. Submit from the builder; your file will show here once an administrator finalizes it.
+              No approved {CONTRACTOR_SAFETY_BLUEPRINT_TITLE} yet. Submit from the builder; your
+              file will show here once an administrator finalizes it.
             </p>
           ) : (
             <ul className="mt-4 space-y-3">
@@ -1598,93 +1628,64 @@ export default function DashboardPage() {
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_340px] xl:items-start xl:gap-6">
       <div className="space-y-4 xl:space-y-5">
-        <section className="rounded-[1.8rem] border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(244,249,255,0.94)_100%)] p-6 shadow-[var(--app-shadow-soft)]">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[var(--app-muted)]">
-                {isManagerView ? "Company Workspace" : "Construction Safety Hub"}
-              </p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
-                {isManagerView ? `${userTeam} Company Workspace` : "Safety360Docs"}
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--app-text)]">
-                {isManagerView
-                  ? "Open completed documents and keep company access organized from one clean workspace."
-                  : "Manage submissions, approvals, uploads, and project safety documentation from one clean workspace."}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
+        <PageHero
+          eyebrow={isManagerView ? "Company Workspace" : "Construction Safety Hub"}
+          title={isManagerView ? `${userTeam} Company Workspace` : "Safety360Docs"}
+          description={
+            isManagerView
+              ? "Start with the work that needs attention now, then move directly into the document, training, and team workflows that keep your company ready."
+              : "See what needs attention, launch the next workflow, and move documents from source files to approved records without hunting across the platform."
+          }
+          actions={
+            <>
               <Link
-                href={isManagerView ? "/library" : "/submit"}
-                className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)]"
+                href={isManagerView ? "/command-center" : "/submit"}
+                className={appButtonPrimaryClassName}
               >
-                {isManagerView ? "Open Completed Docs" : "New Submission"}
+                {isManagerView ? "Open Command Center" : "Prepare Submission"}
               </Link>
               <Link
                 href={isManagerView ? companyManagementHref : "/upload"}
-                className="rounded-xl border border-[var(--app-border)] bg-[var(--app-accent-primary-soft)] px-5 py-3 text-sm font-semibold text-[var(--app-accent-primary)]"
+                className={appButtonSecondaryClassName}
               >
-                {isManagerView ? (canManageCompanyUsers ? "Manage Company Users" : "Completed Library") : "Upload Documents"}
+                {isManagerView
+                  ? canManageCompanyUsers
+                    ? "Manage Team"
+                    : "Open Library"
+                  : "Upload Documents"}
               </Link>
-            </div>
-          </div>
+            </>
+          }
+        />
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {countCards.map((card) => (
-              <div
+        <SectionCard
+          eyebrow="Today / Attention"
+          title="What needs attention now"
+          description="These tiles summarize the most important work picture before you move deeper into the dashboard."
+          tone="attention"
+        >
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {attentionCards.map((card, index) => (
+              <MetricTile
                 key={card.title}
-                className="rounded-[1.4rem] border border-[var(--app-border)] bg-[var(--app-panel)] p-4 shadow-sm"
-              >
-                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-muted)]">
-                  {card.title}
-                </div>
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="text-4xl font-black tracking-tight text-[var(--app-text-strong)]">
-                    {loading ? "-" : card.value}
-                  </div>
-                  <DashboardIcon kind={card.icon} />
-                </div>
-                <p className="mt-4 text-sm text-[var(--app-text)]">{card.note}</p>
-                <div className="mt-3 text-sm font-semibold text-[var(--semantic-success)]">
-                  {card.trend}
-                </div>
-              </div>
+                eyebrow={index === 0 ? "Primary signal" : "Live metric"}
+                title={card.title}
+                value={loading ? "-" : card.value}
+                detail={`${card.note} ${card.trend}`}
+                tone={index === 0 ? "attention" : "panel"}
+              />
             ))}
           </div>
+        </SectionCard>
 
-          <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            {workspaceCards.map((card) => (
-              <Link
-                key={card.title}
-                href={card.href}
-                className="rounded-[1.4rem] border border-[var(--app-border)] bg-[rgba(255,255,255,0.84)] p-5 shadow-sm transition hover:border-[rgba(79,125,243,0.28)] hover:shadow-md"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-[rgba(79,125,243,0.12)] text-[11px] font-black text-[var(--app-accent-primary)]">
-                      D
-                    </span>
-                    <span className="text-lg font-bold text-[var(--app-text-strong)]">{card.title}</span>
-                  </div>
-                  <span className="text-sm font-medium text-[var(--app-muted)]">Open</span>
-                </div>
-                <div className="mt-5 text-4xl font-black tracking-tight text-[var(--app-text-strong)]">
-                  {loading ? "-" : card.value}
-                </div>
-                <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{card.description}</p>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        {!isCompanyAdminDashboard && companyWorkspaceLoaded && analyticsSummaryIssue ? (
-          <InlineMessage tone={analyticsSummaryIssue.tone}>{analyticsSummaryIssue.message}</InlineMessage>
+        {!isCompanyAdminDashboard && companyWorkspaceLoaded && analyticsSummaryIssue != null ? (
+          <InlineMessage tone={analyticsSummaryIssue?.tone ?? "warning"}>{analyticsSummaryIssue?.message ?? ""}</InlineMessage>
         ) : null}
 
         {showWelcomeState ? (
           <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
             <SectionCard
+              eyebrow="Guided Start"
               title="Start here"
               description="Follow these steps to set up your workspace, invite people, and move the first document through cleanly."
             >
@@ -1730,27 +1731,23 @@ export default function DashboardPage() {
         ) : null}
 
         <section className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr] xl:gap-5">
-          <div className="rounded-[1.8rem] border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(244,249,255,0.92)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
+          <SectionCard
+            eyebrow="Work Area"
+            title="Recommended next steps"
+            description="Pick up the next workflow directly from the dashboard without scanning the full navigation."
+            tone="elevated"
+          >
             <div className="grid gap-4 sm:grid-cols-2">
-              {actionCards.map((action) => (
-                <div
+              {nextStepCards.map((action, index) => (
+                <ActionTile
                   key={action.title}
-                  className="rounded-[1.4rem] border border-[var(--app-border)] bg-[var(--app-panel)] p-4 shadow-sm"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-[rgba(79,125,243,0.12)] text-[11px] font-black text-[var(--app-accent-primary)]">
-                      A
-                    </span>
-                    <span className="text-lg font-bold text-[var(--app-text-strong)]">{action.title}</span>
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">{action.description}</p>
-                  <Link
-                    href={action.href}
-                    className="mt-5 inline-flex rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(91,108,255,0.18)]"
-                  >
-                    {action.button}
-                  </Link>
-                </div>
+                  eyebrow={index === 0 ? "Continue where you left off" : "Next workflow"}
+                  title={action.title}
+                  description={action.description}
+                  href={action.href}
+                  actionLabel={action.button}
+                  tone={index === 0 ? "attention" : "panel"}
+                />
               ))}
             </div>
 
@@ -1762,31 +1759,31 @@ export default function DashboardPage() {
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div>
                     <div className="text-sm font-semibold text-[var(--app-text-strong)]">
-                      {companyProfile.name || userTeam}
+                      {companyProfile?.name || userTeam}
                     </div>
                     <div className="mt-1 text-sm text-[var(--app-text)]">
-                      {companyProfile.industry || "Industry not set"}
+                      {companyProfile?.industry || "Industry not set"}
                     </div>
                   </div>
                   <div className="text-sm text-[var(--app-text)]">
-                    {companyProfile.primary_contact_name || "No contact set"}
-                    {companyProfile.primary_contact_email
-                      ? ` - ${companyProfile.primary_contact_email}`
+                    {companyProfile?.primary_contact_name || "No contact set"}
+                    {companyProfile?.primary_contact_email
+                      ? ` - ${companyProfile?.primary_contact_email}`
                       : ""}
                   </div>
                   <div className="text-sm text-[var(--app-text)]">
-                    {companyProfile.phone || "No phone on file"}
+                    {companyProfile?.phone || "No phone on file"}
                   </div>
                   <div className="text-sm text-[var(--app-text)]">
-                    {companyProfile.website || "No website on file"}
+                    {companyProfile?.website || "No website on file"}
                   </div>
                   <div className="text-sm text-[var(--app-text)] sm:col-span-2">
                     {[
-                      companyProfile.address_line_1,
-                      companyProfile.city,
-                      companyProfile.state_region,
-                      companyProfile.postal_code,
-                      companyProfile.country,
+                      companyProfile?.address_line_1,
+                      companyProfile?.city,
+                      companyProfile?.state_region,
+                      companyProfile?.postal_code,
+                      companyProfile?.country,
                     ]
                       .filter(Boolean)
                       .join(", ") || "No address on file"}
@@ -1794,7 +1791,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             ) : null}
-          </div>
+          </SectionCard>
 
           <ActivityFeed
             title="Latest Updates"
@@ -1911,6 +1908,7 @@ export default function DashboardPage() {
         </section>
 
         <SectionCard
+          eyebrow="History / Audit"
           title={isManagerView ? "Latest Completed Documents" : "Latest Uploaded Files"}
           description={
             isManagerView
@@ -1989,7 +1987,7 @@ export default function DashboardPage() {
             href={isManagerView ? "/library" : "/peshep"}
             className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-2.5 text-xs font-semibold text-white sm:text-sm"
           >
-            {isManagerView ? "Open Library" : "Build PESHEP"}
+            {isManagerView ? "Open Library" : `Build ${SITE_SAFETY_BLUEPRINT_TITLE}`}
           </Link>
           <Link
             href={isManagerView ? companyManagementHref : "/submit"}

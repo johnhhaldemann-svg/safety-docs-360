@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildSafetyManagerWorkflowRails,
   buildCommandCenterNotices,
   getRecommendationsEmptyMessage,
   getRiskMemoryEmptyMessage,
@@ -56,5 +57,31 @@ describe("command center state helpers", () => {
     expect(getRiskMemoryEmptyMessage(false)).toContain("not available");
     expect(getRecommendationsEmptyMessage(0)).toContain("No active recommendations yet");
     expect(getRecommendationsEmptyMessage(2)).toBeNull();
+  });
+
+  it("builds workflow rails around core safety-manager jobs", () => {
+    const rails = buildSafetyManagerWorkflowRails({
+      openObservations: 3,
+      overdueObservations: 1,
+      openIncidents: 2,
+      activePermits: 4,
+      stopWorkPermits: 1,
+      openJsas: 2,
+      openReports: 1,
+    });
+
+    expect(rails.map((rail) => rail.title)).toEqual([
+      "Start a jobsite",
+      "Prepare a submission",
+      "Verify worker readiness",
+      "Resolve a compliance gap",
+    ]);
+    expect(rails[1]?.href).toBe("/submit");
+    expect(rails[2]?.href).toBe("/training-matrix");
+    expect(rails[3]).toMatchObject({
+      href: "/permits",
+      actionLabel: "Review permits",
+      tone: "warning",
+    });
   });
 });

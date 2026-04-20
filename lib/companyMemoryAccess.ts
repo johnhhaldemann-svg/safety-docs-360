@@ -10,6 +10,7 @@ export function canAccessCompanyMemoryAssist(role: string | null | undefined) {
     n === "manager" ||
     n === "safety_manager" ||
     n === "project_manager" ||
+    n === "field_supervisor" ||
     n === "foreman" ||
     n === "field_user" ||
     n === "read_only" ||

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
-import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import {
   canMutateCompanyTrainingRequirements,
   canViewCompanyTrainingMatrix,
@@ -17,8 +16,11 @@ import {
   parseCertificationExpirations,
 } from "@/lib/certificationExpirations";
 import {
+  activatesScopedRequirement,
   computeTrainingMatrixRow,
   DEFAULT_MATCH_FIELDS,
+  matchesSelectedMatrixFilter,
+  type TrainingMatrixContext,
   type TrainingRequirementInput,
 } from "@/lib/trainingMatrix";
 
@@ -33,6 +35,34 @@ type ProfileRow = {
   readiness_status: string | null;
   years_experience?: number | null;
 };
+
+function humanizeTaskCode(code: string) {
+  const acronyms: Record<string, string> = {
+    osha: "OSHA",
+    nfpa: "NFPA",
+    ppe: "PPE",
+    loto: "LOTO",
+    jsa: "JSA",
+    hazcom: "HazCom",
+  };
+
+  return code
+    .replace(/[_-]+/g, " ")
+    .split(/\s+/)
+    .map((part) => {
+      const normalized = part.toLowerCase();
+      if (acronyms[normalized]) return acronyms[normalized];
+      if (/^\d+[a-z]*$/i.test(part)) return part.toUpperCase();
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    })
+    .join(" ");
+}
+
+function uniqueSorted(values: string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((left, right) =>
+    left.localeCompare(right)
+  );
+}
 
 export async function GET(request: Request) {
   try {
@@ -51,7 +81,7 @@ async function getTrainingMatrix(request: Request) {
     return auth.error;
   }
 
-  if (!canViewCompanyTrainingMatrix(auth.role)) {
+  if (!canViewCompanyTrainingMatrix(auth.role, auth.permissionMap)) {
     return NextResponse.json({ error: "You do not have access to the training matrix." }, { status: 403 });
   }
 
@@ -75,19 +105,26 @@ async function getTrainingMatrix(request: Request) {
       rows: [],
       warning: null,
       schemaMigrationNeeded: false,
-      capabilities: { canMutate: canMutateCompanyTrainingRequirements(auth.role) },
+      filters: { trades: [], subTrades: [], taskCodes: [] },
+      capabilities: {
+        canMutate: canMutateCompanyTrainingRequirements(auth.role, auth.permissionMap),
+      },
     });
   }
-  const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
-  if (csepBlock) return csepBlock;
+
+  const url = new URL(request.url);
+  const selectedTrade = (url.searchParams.get("trade") ?? "").trim() || null;
+  const selectedSubTrade = (url.searchParams.get("subTrade") ?? "").trim() || null;
+  const selectedTaskCode = (url.searchParams.get("taskCode") ?? "").trim() || null;
+  const matrixContext: TrainingMatrixContext = {
+    selectedTrade,
+    selectedSubTrade,
+    selectedTaskCode,
+  };
 
   const adminClient = createSupabaseAdminClient();
 
-  const reqFetch = await fetchCompanyTrainingRequirements(
-    auth.supabase,
-    companyScope.companyId,
-    false
-  );
+  const reqFetch = await fetchCompanyTrainingRequirements(auth.supabase, companyScope.companyId, false);
 
   if (reqFetch.error) {
     return NextResponse.json(
@@ -96,7 +133,32 @@ async function getTrainingMatrix(request: Request) {
     );
   }
 
-  const requirements = reqFetch.rows.map((row) => ({
+  const allRequirementRows = reqFetch.rows;
+  const filteredForSubTrades = allRequirementRows.filter((row) =>
+    matchesSelectedMatrixFilter(row.apply_trades, selectedTrade)
+  );
+  const filteredForTaskCodes = filteredForSubTrades.filter((row) =>
+    matchesSelectedMatrixFilter(row.apply_sub_trades, selectedSubTrade)
+  );
+
+  const availableTrades = uniqueSorted(
+    allRequirementRows.flatMap((row) => row.apply_trades ?? [])
+  );
+  const availableSubTrades = uniqueSorted(
+    filteredForSubTrades.flatMap((row) => row.apply_sub_trades ?? [])
+  );
+  const availableTaskCodes = uniqueSorted(
+    filteredForTaskCodes.flatMap((row) => row.apply_task_codes ?? [])
+  ).map((value) => ({ value, label: humanizeTaskCode(value) }));
+
+  const visibleRequirementRows = allRequirementRows.filter((row) => {
+    if (!matchesSelectedMatrixFilter(row.apply_trades, selectedTrade)) return false;
+    if (!activatesScopedRequirement(row.apply_sub_trades, selectedSubTrade)) return false;
+    if (!activatesScopedRequirement(row.apply_task_codes, selectedTaskCode)) return false;
+    return true;
+  });
+
+  const requirements = visibleRequirementRows.map((row) => ({
     id: row.id,
     title: row.title,
     sortOrder: row.sort_order,
@@ -104,18 +166,29 @@ async function getTrainingMatrix(request: Request) {
     matchFields: row.match_fields?.length ? row.match_fields : [...DEFAULT_MATCH_FIELDS],
     applyTrades: row.apply_trades ?? [],
     applyPositions: row.apply_positions ?? [],
+    applySubTrades: row.apply_sub_trades ?? [],
+    applyTaskCodes: row.apply_task_codes ?? [],
     renewalMonths: row.renewal_months ?? null,
+    isGenerated: Boolean(row.is_generated),
+    generatedSourceType: row.generated_source_type ?? null,
+    generatedSourceDocumentId: row.generated_source_document_id ?? null,
+    generatedSourceOperationKey: row.generated_source_operation_key ?? null,
   }));
 
-  const requirementInputs: TrainingRequirementInput[] = reqFetch.rows.map((row) => ({
+  const requirementInputs: TrainingRequirementInput[] = visibleRequirementRows.map((row) => ({
     id: row.id,
     match_keywords: row.match_keywords ?? [],
     match_fields: row.match_fields?.length ? row.match_fields : [...DEFAULT_MATCH_FIELDS],
     apply_trades: row.apply_trades ?? [],
     apply_positions: row.apply_positions ?? [],
+    apply_sub_trades: row.apply_sub_trades ?? [],
+    apply_task_codes: row.apply_task_codes ?? [],
   }));
 
-  const schemaMigrationNeeded = !reqFetch.applyColumnsAvailable;
+  const schemaMigrationNeeded =
+    !reqFetch.applyColumnsAvailable ||
+    !reqFetch.taskScopeColumnsAvailable ||
+    !reqFetch.generatedColumnsAvailable;
 
   const scopeTeam = companyScope.companyName?.trim() || auth.team || "General";
 
@@ -145,9 +218,17 @@ async function getTrainingMatrix(request: Request) {
       warning: null,
       directoryNotice: adminClient
         ? null
-        : "Names, emails, and last sign-in use limited Auth data until you add SUPABASE_SERVICE_ROLE_KEY to the server environment (for example in Vercel → Settings → Environment Variables). Never expose it to the browser.",
+        : "Names, emails, and last sign-in use limited Auth data until you add SUPABASE_SERVICE_ROLE_KEY to the server environment (for example in Vercel Settings > Environment Variables). Never expose it to the browser.",
       schemaMigrationNeeded,
-      capabilities: { canMutate: canMutateCompanyTrainingRequirements(auth.role) },
+      filters: {
+        trades: availableTrades,
+        subTrades: availableSubTrades,
+        taskCodes: availableTaskCodes,
+      },
+      selectedFilters: matrixContext,
+      capabilities: {
+        canMutate: canMutateCompanyTrainingRequirements(auth.role, auth.permissionMap),
+      },
     });
   }
 
@@ -179,7 +260,7 @@ async function getTrainingMatrix(request: Request) {
 
   const directoryNotice: string | null = adminClient
     ? null
-    : "Names, emails, and last sign-in use limited Auth data until you add SUPABASE_SERVICE_ROLE_KEY to the server environment (for example in Vercel → Settings → Environment Variables). Never expose it to the browser.";
+    : "Names, emails, and last sign-in use limited Auth data until you add SUPABASE_SERVICE_ROLE_KEY to the server environment (for example in Vercel Settings > Environment Variables). Never expose it to the browser.";
 
   const warning: string | null =
     profileError && !adminClient
@@ -203,7 +284,8 @@ async function getTrainingMatrix(request: Request) {
         trade_specialty: profile?.trade_specialty ?? null,
       },
       requirementInputs,
-      asOf
+      asOf,
+      matrixContext
     );
 
     return {
@@ -235,6 +317,14 @@ async function getTrainingMatrix(request: Request) {
     warning,
     directoryNotice,
     schemaMigrationNeeded,
-    capabilities: { canMutate: canMutateCompanyTrainingRequirements(auth.role) },
+    filters: {
+      trades: availableTrades,
+      subTrades: availableSubTrades,
+      taskCodes: availableTaskCodes,
+    },
+    selectedFilters: matrixContext,
+    capabilities: {
+      canMutate: canMutateCompanyTrainingRequirements(auth.role, auth.permissionMap),
+    },
   });
 }

@@ -24,6 +24,10 @@ import type {
   LiveMatrixRow,
   ModuleSummaryItem,
 } from "@/components/company-workspace/useCompanyWorkspaceData";
+import {
+  CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL,
+  CONTRACTOR_SAFETY_BLUEPRINT_TITLE,
+} from "@/lib/safetyBlueprintLabels";
 import type { WorkspaceProduct } from "@/lib/workspaceProduct";
 
 type DocumentRow = {
@@ -265,20 +269,23 @@ export function CompanyAdminDashboard({
       <div className="space-y-6">
         <PilotAccountPanel companyProfile={companyProfile} onUpdated={onCompanyProfileUpdated} />
         <section className="rounded-[1.9rem] border border-[#dbe9ff] bg-slate-900/90 p-6 shadow-[0_16px_36px_rgba(148,163,184,0.12)]">
-          <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">CSEP workspace</div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">
+            {CONTRACTOR_SAFETY_BLUEPRINT_TITLE} workspace
+          </div>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
             {companyProfile?.name?.trim() || "Company Workspace"}
           </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              This account is limited to the CSEP builder. Create and submit Construction Safety &amp; Environmental
-              Plans for company review without the full company workspace yet.
+              This account is limited to the trade partner blueprint builder. Create and
+              submit {` ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}`} files for company review without the full
+              company workspace yet.
             </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
               href="/csep"
               className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(79,124,255,0.24)]"
             >
-              Open CSEP builder
+              {CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL}
             </Link>
             <Link
               href="/profile"
@@ -291,9 +298,17 @@ export function CompanyAdminDashboard({
 
         <section className="grid gap-4 sm:grid-cols-3">
           {[
-            { label: "CSEP records", value: String(csepDocs.length), note: "Drafts and submissions" },
+            {
+              label: `${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} records`,
+              value: String(csepDocs.length),
+              note: "Drafts and submissions",
+            },
             { label: "Pending review", value: String(pendingCsep), note: "Awaiting admin review" },
-            { label: "Approved", value: String(approvedCsep), note: "Completed CSEP files" },
+            {
+              label: "Approved",
+              value: String(approvedCsep),
+              note: `Completed ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} files`,
+            },
           ].map((card) => (
             <div key={card.label} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm">
               <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">{card.label}</div>
@@ -304,7 +319,10 @@ export function CompanyAdminDashboard({
         </section>
 
         <div id="company-knowledge" className="grid gap-4 lg:grid-cols-2 scroll-mt-8">
-          <CompanyAiAssistPanel surface="csep" title="CSEP workspace assistant" />
+          <CompanyAiAssistPanel
+            surface="csep"
+            title={`${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} workspace assistant`}
+          />
           <CompanyMemoryBankPanel />
         </div>
       </div>
@@ -935,20 +953,7 @@ export function CompanyAdminDashboard({
           ) : null}
 
           {workspaceLoaded ? (
-            <div id="company-knowledge" className="grid scroll-mt-8 gap-4 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
-              <CompanyAiAssistPanel
-                surface="dashboard"
-                title="Operations assistant"
-                structuredContext={JSON.stringify({
-                  totalActiveJobsites: dashboardMetrics.totalActiveJobsites,
-                  totalOpenObservations: dashboardMetrics.totalOpenObservations,
-                  totalHighRiskObservations: dashboardMetrics.totalHighRiskObservations,
-                  openIncidents: dashboardMetrics.openIncidents,
-                  pendingDocuments: pendingDocuments.length,
-                  pendingUsers: pendingUsers.length,
-                  highRiskAlerts: highRiskAlerts.length,
-                })}
-              />
+            <div id="company-knowledge" className="scroll-mt-8">
               <CompanyMemoryBankPanel />
             </div>
           ) : null}

@@ -1,0 +1,774 @@
+import type {
+  DocumentBuilderId,
+  DocumentBuilderSectionReference,
+  DocumentBuilderSectionTemplate,
+  DocumentBuilderTextConfig,
+} from "@/types/document-builder-text";
+
+function section(
+  key: string,
+  label: string,
+  title: string,
+  options?: Partial<
+    Pick<DocumentBuilderSectionTemplate, "paragraphs" | "bullets" | "children" | "references">
+  >
+): DocumentBuilderSectionTemplate {
+  return {
+    key,
+    label,
+    title,
+    paragraphs: [...(options?.paragraphs ?? [])],
+    bullets: [...(options?.bullets ?? [])],
+    children: (options?.children ?? []).map(cloneSectionTemplate),
+    references: (options?.references ?? []).map((reference) => ({ ...reference })),
+  };
+}
+
+function cloneSectionReferences(
+  value: DocumentBuilderSectionReference[] | undefined
+): DocumentBuilderSectionReference[] {
+  return (value ?? []).map((reference) => ({ ...reference }));
+}
+
+export function cloneSectionTemplate(
+  value: DocumentBuilderSectionTemplate
+): DocumentBuilderSectionTemplate {
+  return {
+    key: value.key,
+    label: value.label,
+    title: value.title,
+    paragraphs: [...value.paragraphs],
+    bullets: [...value.bullets],
+    children: value.children.map(cloneSectionTemplate),
+    references: cloneSectionReferences(value.references),
+  };
+}
+
+export function cloneDocumentBuilderTextConfig(
+  value: DocumentBuilderTextConfig
+): DocumentBuilderTextConfig {
+  return {
+    builders: {
+      csep: {
+        sections: value.builders.csep.sections.map(cloneSectionTemplate),
+      },
+      site_builder: {
+        sections: value.builders.site_builder.sections.map(cloneSectionTemplate),
+      },
+    },
+  };
+}
+
+export const DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG: DocumentBuilderTextConfig = {
+  builders: {
+    csep: {
+      sections: [
+        section("scope_of_work", "Scope of Work", "Scope of Work", {
+          paragraphs: [
+            "The contractor shall perform work in accordance with the approved project scope, applicable plans, and all site-specific requirements.",
+          ],
+        }),
+        section("site_specific_notes", "Site Specific Notes", "Site Specific Notes", {
+          paragraphs: [
+            "Site-specific constraints, active construction conditions, adjacent operations, and coordination requirements shall be reviewed daily before work begins.",
+          ],
+        }),
+        section("emergency_procedures", "Emergency Procedures", "Emergency Procedures", {
+          paragraphs: [
+            "In the event of an emergency, workers shall stop work, notify supervision immediately, follow site alarm and evacuation procedures, and report to the designated assembly area.",
+          ],
+        }),
+        section(
+          "weather_requirements_and_severe_weather_response",
+          "Weather Requirements and Severe Weather Response",
+          "Weather Requirements and Severe Weather Response",
+          {
+            references: [{ builderId: "site_builder", key: "severe_weather" }],
+            paragraphs: [
+              "Contractors shall monitor weather daily, adjust work plans accordingly, and coordinate weather-related restrictions with the CM/GC before affected work begins.",
+            ],
+            bullets: [
+              "Review weather conditions during the morning huddle and update the JHA/PTP for ice, wind, lightning, heat, cold, or storm exposure.",
+              "Secure materials, tools, scaffolds, and elevated work areas before forecasted wind or storm events.",
+              "Provide trade-specific controls such as dust suppression, tarping, thawing, or weather-related access changes when conditions require them.",
+              "Foremen and union stewards shall help communicate shelter locations, evacuation actions, and worker accountability expectations during severe weather events.",
+            ],
+          }
+        ),
+        section("required_ppe", "Required PPE", "Required Personal Protective Equipment", {
+          paragraphs: ["No additional PPE selections were entered."],
+        }),
+        section("permit_requirements", "Permit Requirements", "Permit Requirements", {
+          paragraphs: ["No permit triggers were selected or derived."],
+        }),
+        section(
+          "common_overlapping_trades",
+          "Overlapping Trades",
+          "Common Overlapping Trades in Same Areas",
+          {
+            paragraphs: [
+              "No overlapping-trade indicators were inferred for the current scope selection.",
+            ],
+          }
+        ),
+        section(
+          "applicable_osha_references",
+          "OSHA References",
+          "Applicable OSHA References",
+          {
+            paragraphs: [
+              "Applicable OSHA references shall be identified based on the selected trade, tools, equipment, and site conditions.",
+            ],
+          }
+        ),
+        section("trade_summary", "Trade Summary", "Trade Summary", {
+          paragraphs: [
+            "This contractor's work includes trade-specific exposures that require planning, supervision, appropriate PPE, safe access, and hazard controls throughout execution of the work.",
+          ],
+        }),
+        section("selected_hazard_summary", "Selected Hazard Summary", "Selected Hazard Summary", {
+          paragraphs: [
+            "Key hazards will be determined from the selected trade, work methods, adjacent operations, and changing field conditions.",
+          ],
+        }),
+        section(
+          "roles_and_responsibilities",
+          "Roles and Responsibilities",
+          "Roles and Responsibilities",
+          {
+            children: [
+              section(
+                "contractor_superintendent",
+                "Contractor Superintendent",
+                "Contractor Superintendent",
+                {
+                  paragraphs: [
+                    "Direct field operations, coordinate work sequencing, enforce the site-specific safety plan, and correct unsafe conditions immediately.",
+                  ],
+                }
+              ),
+              section("foreman_lead", "Foreman / Lead", "Foreman / Lead", {
+                paragraphs: [
+                  "Review daily activities with the crew, verify controls are in place, confirm required permits are obtained, and stop work when hazards change.",
+                ],
+              }),
+              section("workers", "Workers", "Workers", {
+                paragraphs: [
+                  "Follow this CSEP, wear required PPE, attend safety briefings, report hazards immediately, and refuse unsafe work.",
+                ],
+              }),
+              section(
+                "safety_representative",
+                "Safety Representative",
+                "Safety Representative",
+                {
+                  paragraphs: [
+                    "Support inspections, hazard assessments, coaching, corrective actions, and verification of permit and training compliance.",
+                  ],
+                }
+              ),
+            ],
+          }
+        ),
+        section("training_requirements", "Training Requirements", "Training Requirements", {
+          bullets: [
+            "All workers shall receive site orientation before starting work.",
+            "Daily pre-task planning shall be completed before beginning work activities.",
+            "Tool-specific and task-specific training shall be completed before use of equipment or specialty tools.",
+            "Workers shall be trained on emergency procedures, evacuation routes, and incident reporting expectations.",
+          ],
+        }),
+        section(
+          "security_and_access",
+          "Security and Access",
+          "Security and Access",
+          {
+            paragraphs: [
+              "Contractors shall control worker access, protect tools and equipment, and comply with site security requirements, badging expectations, and restricted-area rules communicated by project leadership.",
+            ],
+            bullets: [
+              "Ensure workers carry required identification and follow sign-in / sign-out procedures.",
+              "Limit work crews and sub-tier contractors to authorized work zones and access paths.",
+              "Secure gang boxes, fuel, specialty tools, and high-value materials when not in use.",
+              "Report theft, vandalism, suspicious activity, or access-control issues to the CM/GC immediately.",
+            ],
+          }
+        ),
+        section(
+          "health_and_wellness",
+          "Health and Wellness",
+          "Health and Wellness",
+          {
+            paragraphs: [
+              "The contractor shall support workforce health and wellness through heat and cold stress planning, fatigue awareness, ergonomics, first-aid readiness, and access to project medical-response expectations.",
+            ],
+            bullets: [
+              "Plan hydration, warm-up, cooldown, and rest-break expectations for the active shift conditions.",
+              "Monitor workers for fatigue, heat illness, cold stress, ergonomic strain, and other condition changes that affect safe work.",
+              "Communicate available first-aid, clinic, emergency, and worker-assistance pathways before work begins.",
+            ],
+          }
+        ),
+        section(
+          "incident_reporting_and_investigation",
+          "Incident Reporting and Investigation",
+          "Incident Reporting and Investigation",
+          {
+            paragraphs: [
+              "All incidents, injuries, near misses, and unsafe conditions shall be reported immediately, documented promptly, and investigated to corrective-action closure in coordination with project requirements.",
+            ],
+            bullets: [
+              "Notify supervision and the CM/GC immediately after an incident or near miss.",
+              "Preserve the scene when safe to do so until direction is provided for investigation.",
+              "Document root causes, corrective actions, and return-to-work coordination requirements.",
+            ],
+          }
+        ),
+        section(
+          "training_and_instruction",
+          "Training and Instruction",
+          "Training and Instruction",
+          {
+            references: [{ builderId: "csep", key: "training_requirements" }],
+            paragraphs: [
+              "Required training, instruction, and certifications shall be verified before workers perform trade-specific work, use specialty equipment, or enter regulated work areas.",
+            ],
+            bullets: [
+              "Provide site orientation, toolbox talks, and task-specific instruction in a language and vocabulary workers understand.",
+              "Verify OSHA, competent-person, operator, rigging, equipment, environmental, and other applicable certifications before mobilization when required by the work scope.",
+            ],
+          }
+        ),
+        section(
+          "drug_and_alcohol_testing",
+          "Drug and Alcohol Testing",
+          "Drug and Alcohol Testing",
+          {
+            paragraphs: [
+              "Contractors shall comply with applicable owner, CM/GC, and collective-bargaining requirements related to drug and alcohol testing, confidentiality, transportation, and return-to-work expectations.",
+            ],
+            bullets: [
+              "Follow project-specific testing triggers and CBA limitations for pre-employment, post-incident, reasonable-suspicion, or random testing.",
+              "Coordinate scheduling, transportation, confidential handling, and worker-assistance or return-to-work pathways when testing is required.",
+            ],
+          }
+        ),
+        section(
+          "enforcement_and_corrective_action",
+          "Enforcement and Corrective Action",
+          "Enforcement and Corrective Action",
+          {
+            paragraphs: [
+              "Supervision shall correct unsafe behavior and conditions promptly, document violations when required, and align disciplinary actions with contractor policy, project rules, and applicable labor obligations.",
+            ],
+            bullets: [
+              "Use stop-work authority and immediate field correction when hazards are uncontrolled.",
+              "Document repeated or serious violations, communication to the CM/GC, and reinstatement steps when removal from site is required.",
+              "Coordinate with union leadership when corrective action involves represented workers and CBA requirements apply.",
+            ],
+          }
+        ),
+        section(
+          "recordkeeping",
+          "Recordkeeping",
+          "Recordkeeping and Documentation",
+          {
+            paragraphs: [
+              "The contractor shall maintain records needed to demonstrate training, inspections, hazard reviews, incidents, permits, and other required compliance activities for the active scope of work.",
+            ],
+            bullets: [
+              "Maintain training records, JHA/PTP logs, inspections, permits, and incident documentation.",
+              "Retain OSHA logs, union certifications, and other supporting records when applicable to the project or trade scope.",
+            ],
+          }
+        ),
+        section(
+          "continuous_improvement",
+          "Continuous Improvement",
+          "Program Evaluations and Continuous Improvement",
+          {
+            paragraphs: [
+              "The contractor shall review field feedback, audits, incidents, and changing work conditions to improve this CSEP and the controls used to execute the work safely.",
+            ],
+            bullets: [
+              "Review lessons learned from incidents, near misses, inspections, and audits with supervision and crews.",
+              "Update pre-task planning, training focus areas, and work methods when recurring gaps or new risks are identified.",
+            ],
+          }
+        ),
+        section(
+          "general_safety_expectations",
+          "General Safety Expectations",
+          "General Safety Expectations",
+          {
+            bullets: [
+              "Housekeeping shall be maintained in all work areas, access routes, and staging areas.",
+              "All tools and equipment shall be inspected before use and removed from service when damaged.",
+              "Workers shall maintain situational awareness for adjacent crews, moving equipment, suspended loads, and changing site conditions.",
+              "Barricades, signage, and exclusion zones shall be maintained whenever work creates exposure to others.",
+              "Work shall stop when hazards are uncontrolled, conditions change, or permit requirements are not met.",
+            ],
+          }
+        ),
+        section(
+          "activity_hazard_analysis_matrix",
+          "Activity Hazard Analysis Matrix",
+          "Activity Hazard Analysis Matrix",
+          {
+            paragraphs: [
+              "No trade activity matrix was provided. Select a trade, sub-trade, tasks, and hazards on the CSEP page to load activities, hazards, controls, and permit triggers.",
+            ],
+          }
+        ),
+        section(
+          "stop_work_change_management",
+          "Stop Work and Change Management",
+          "Stop Work and Change Management",
+          {
+            bullets: [
+              "Any worker has the authority and obligation to stop work when an unsafe condition exists.",
+              "Work shall be reevaluated when scope changes, crews change, weather changes, or new equipment is introduced.",
+              "Changed conditions shall be reviewed with supervision and the crew before work resumes.",
+              "New hazards shall be documented and controlled before proceeding.",
+            ],
+          }
+        ),
+        section("acknowledgment", "Acknowledgment", "Acknowledgment", {
+          paragraphs: [
+            "The contractor acknowledges responsibility for complying with this CSEP, applicable site rules, required permits, and all regulatory requirements associated with the work.",
+            "Contractor Representative: ________________________________",
+            "Signature: ______________________________________________",
+            "Date: ___________________________________________________",
+          ],
+        }),
+      ],
+    },
+    site_builder: {
+      sections: [
+        section("cover_document_purpose", "Cover Document Purpose", "Document Purpose", {
+          paragraphs: [
+            "This Project / Site Specific Health, Safety & Environment Plan establishes the minimum requirements, responsibilities, procedures, and controls for construction activities performed on this project. All contractors, subcontractors, suppliers, and authorized visitors are expected to comply with this document and all applicable project safety requirements.",
+          ],
+        }),
+        section(
+          "administrative_summary_intro",
+          "Administrative Summary Intro",
+          "Administrative Summary",
+          {
+            paragraphs: [
+              "This Project / Site Specific Health, Safety & Environment Plan establishes the minimum safety expectations, responsibilities, procedures, and controls for all personnel and contractors performing work on this project. Where project requirements are more stringent than regulatory minimums, the more protective requirement shall apply.",
+            ],
+          }
+        ),
+        section("starter_admin_sections", "Starter Admin Sections", "Starter Admin Sections", {
+          children: [
+            section("disciplinary_policy", "A1 Disciplinary Policy", "A1. Disciplinary Policy", {
+              paragraphs: [
+                "Each employer must enforce progressive discipline for repeated or serious safety violations, including stop-work and removal where warranted.",
+              ],
+            }),
+            section("owner_letter", "A2 Letter from Owner", "A2. Letter from Owner", {
+              paragraphs: [
+                "Owner leadership affirms support for this PSHSEP and expects all onsite employers to follow project safety requirements.",
+              ],
+            }),
+            section(
+              "incident_reporting_process",
+              "A3 Incident Reporting Process",
+              "A3. Incident Reporting Process",
+              {
+                paragraphs: [
+                  "All incidents, near misses, and unsafe conditions shall be reported immediately, documented, and tracked through corrective action closure.",
+                ],
+              }
+            ),
+            section(
+              "special_conditions_permit",
+              "A4 Special Conditions Permit",
+              "A4. Special Conditions Permit (Variations)",
+              {
+                paragraphs: [
+                  "Any variation from this PSHSEP requires written authorization, temporary controls, and closeout verification.",
+                ],
+              }
+            ),
+            section("assumed_trades_index", "A5 Assumed Trades Index", "A5. Assumed Trades Index", {
+              paragraphs: ["No assumed trades were listed in this PSHSEP draft."],
+            }),
+          ],
+        }),
+        section(
+          "osha_reference_summary",
+          "OSHA Reference Summary",
+          "Appendix OSHA. OSHA Reference Summary",
+          {
+            paragraphs: [
+              "This appendix consolidates OSHA references applicable to selected scope and permit conditions.",
+            ],
+          }
+        ),
+        section(
+          "emergency_action_medical_response_evacuation",
+          "Program 7 Emergency Action",
+          "Emergency Action, Medical Response & Evacuation",
+          {
+            children: [
+              section("purpose", "Purpose", "Purpose", {
+                paragraphs: [
+                  "This section establishes emergency response expectations for medical events, fire, severe weather, utility emergencies, chemical releases, and evacuation scenarios.",
+                ],
+              }),
+              section("emergency_communication", "Emergency Communication", "Emergency Communication", {
+                paragraphs: [
+                  "Emergency contact numbers, reporting methods, alarm expectations, and designated response procedures must be communicated to all personnel.",
+                ],
+              }),
+              section("medical_response", "Medical Response", "Medical Response", {
+                paragraphs: [
+                  "In the event of an injury or medical emergency, personnel shall immediately notify supervision and initiate the project emergency response process.",
+                ],
+                bullets: [
+                  "Contact emergency services when needed",
+                  "Provide site-specific directions to responders",
+                  "Use trained first aid / CPR personnel when available",
+                  "Document and report the event promptly",
+                ],
+              }),
+              section("emergency_medical_resources", "Emergency Medical Resources", "Emergency Medical Resources", {
+                paragraphs: ["AED Location: Not Specified", "First Aid Station Location: Not Specified"],
+              }),
+              section("evacuation", "Evacuation", "Evacuation", {
+                paragraphs: [
+                  "Workers must know evacuation routes, assembly points, and accountability procedures for their work area.",
+                ],
+                bullets: [
+                  "Follow alarms and supervisor direction",
+                  "Do not re-enter until authorized",
+                  "Account for personnel at designated assembly areas",
+                ],
+              }),
+              section(
+                "fire_utility_chemical_emergencies",
+                "Fire Utility Chemical Emergencies",
+                "Fire / Utility / Chemical Emergencies",
+                {
+                  paragraphs: [
+                    "Work must stop immediately in the event of fire, gas release, utility damage, electrical emergency, or uncontrolled chemical spill unless trained emergency response actions are specifically authorized.",
+                  ],
+                }
+              ),
+              section("severe_weather", "Severe Weather", "Severe Weather", {
+                paragraphs: [
+                  "Project leadership will monitor weather conditions and may suspend work for lightning, high winds, tornado warnings, extreme temperatures, or other hazardous conditions.",
+                  "Weather conditions shall be reviewed during daily huddles, and changing conditions shall be communicated through the approved site notification methods.",
+                ],
+                bullets: [
+                  "Stop outdoor work when lightning is detected within 10 miles and do not resume until 30 minutes after the last strike within that radius unless stricter site rules apply.",
+                  "Suspend crane, lift, scaffold, and elevated work when wind, storms, or visibility conditions exceed manufacturer limits, site thresholds, or safe operating conditions.",
+                  "Use designated shelters, evacuation routes, and accountability procedures for tornado warnings, severe storms, and other emergency weather events.",
+                  "Inspect stormwater, erosion-control, waste, staging, and temporary structures before and after significant weather events.",
+                ],
+              }),
+            ],
+          }
+        ),
+        section(
+          "personal_protective_equipment",
+          "Program 8 PPE",
+          "Personal Protective Equipment (PPE)"
+        ),
+        section(
+          "housekeeping_access_material_storage",
+          "Program 9 Housekeeping",
+          "Housekeeping, Access & Material Storage"
+        ),
+        section(
+          "fall_protection",
+          "Program 10 Fall Protection",
+          "Fall Protection",
+          {
+            children: [
+              section("purpose", "Purpose", "Purpose", {
+                paragraphs: [
+                  "This section establishes requirements for identifying and controlling fall hazards associated with construction activities on the project.",
+                  "The objective of this program is to eliminate or minimize fall exposures through engineering controls, safe work practices, and personal protective equipment.",
+                ],
+              }),
+              section("scope", "Scope", "Scope", {
+                paragraphs: [
+                  "This program applies to all personnel working at heights or exposed to fall hazards on the project.",
+                  "Fall protection requirements apply whenever workers are exposed to a fall hazard of six feet or greater unless site-specific rules require additional protection.",
+                ],
+              }),
+              section("responsibilities", "Responsibilities", "Responsibilities", {
+                paragraphs: [
+                  "Project management is responsible for ensuring fall hazards are identified and controlled prior to beginning work.",
+                  "Supervisors must ensure workers understand and comply with fall protection requirements.",
+                  "Employees must inspect fall protection equipment before each use.",
+                ],
+              }),
+              section("hazard_identification", "Hazard Identification", "Hazard Identification", {
+                paragraphs: [
+                  "Common fall hazards include leading edges, roof work, scaffolds, ladders, floor openings, and elevated platforms.",
+                ],
+                bullets: [
+                  "Unprotected edges",
+                  "Floor openings",
+                  "Roof work",
+                  "Scaffolding",
+                  "Aerial lift operations",
+                ],
+              }),
+              section("control_measures", "Control Measures", "Control Measures", {
+                paragraphs: ["Engineering controls will be implemented whenever feasible."],
+                bullets: [
+                  "Guardrail systems",
+                  "Personal fall arrest systems",
+                  "Safety nets",
+                  "Controlled access zones",
+                ],
+              }),
+              section("inspection_requirements", "Inspection Requirements", "Inspection Requirements", {
+                paragraphs: ["All fall protection equipment must be inspected before each use."],
+                bullets: [
+                  "Harness inspected daily",
+                  "Lanyards inspected prior to use",
+                  "Anchorage verified prior to tie-off",
+                ],
+              }),
+              section("rescue_planning", "Rescue Planning", "Rescue Planning", {
+                paragraphs: [
+                  "A rescue plan must be developed before workers use fall arrest systems.",
+                ],
+              }),
+            ],
+          }
+        ),
+      ],
+    },
+  },
+};
+
+function normalizeTextArray(input: unknown, fallback: string[]) {
+  if (!Array.isArray(input)) {
+    return [...fallback];
+  }
+
+  return input
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function normalizeReferences(
+  input: unknown,
+  fallback: DocumentBuilderSectionReference[] | undefined
+) {
+  if (!Array.isArray(input)) {
+    return cloneSectionReferences(fallback);
+  }
+
+  return input
+    .filter((value): value is DocumentBuilderSectionReference & Record<string, unknown> => {
+      return Boolean(value) && typeof value === "object";
+    })
+    .map((value) => {
+      const builderId =
+        value.builderId === "csep" || value.builderId === "site_builder"
+          ? value.builderId
+          : null;
+      const key = typeof value.key === "string" ? value.key.trim() : "";
+
+      if (!builderId || !key) {
+        return null;
+      }
+
+      return {
+        builderId,
+        key,
+      } satisfies DocumentBuilderSectionReference;
+    })
+    .filter((value): value is DocumentBuilderSectionReference => Boolean(value));
+}
+
+function normalizeSection(
+  input: unknown,
+  fallback: DocumentBuilderSectionTemplate
+): DocumentBuilderSectionTemplate {
+  if (!input || typeof input !== "object") {
+    return cloneSectionTemplate(fallback);
+  }
+
+  const raw = input as Partial<DocumentBuilderSectionTemplate>;
+
+  return {
+    key: fallback.key,
+    label: fallback.label,
+    title:
+      typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : fallback.title,
+    paragraphs: normalizeTextArray(raw.paragraphs, fallback.paragraphs),
+    bullets: normalizeTextArray(raw.bullets, fallback.bullets),
+    children: normalizeSections(raw.children, fallback.children),
+    references: normalizeReferences(raw.references, fallback.references),
+  };
+}
+
+function normalizeSections(
+  input: unknown,
+  fallback: DocumentBuilderSectionTemplate[]
+): DocumentBuilderSectionTemplate[] {
+  if (!Array.isArray(input)) {
+    return fallback.map(cloneSectionTemplate);
+  }
+
+  const rawByKey = new Map<string, unknown>();
+
+  input.forEach((item) => {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+
+    const key =
+      typeof (item as { key?: unknown }).key === "string"
+        ? (item as { key: string }).key.trim()
+        : "";
+
+    if (!key) {
+      return;
+    }
+
+    rawByKey.set(key, item);
+  });
+
+  return fallback.map((template) => normalizeSection(rawByKey.get(template.key), template));
+}
+
+export function normalizeDocumentBuilderTextConfig(
+  input: unknown
+): DocumentBuilderTextConfig {
+  const fallback = DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG;
+
+  if (!input || typeof input !== "object") {
+    return cloneDocumentBuilderTextConfig(fallback);
+  }
+
+  const raw = input as {
+    builders?: Partial<Record<DocumentBuilderId, { sections?: unknown }>>;
+  };
+
+  return {
+    builders: {
+      csep: {
+        sections: normalizeSections(
+          raw.builders?.csep?.sections,
+          fallback.builders.csep.sections
+        ),
+      },
+      site_builder: {
+        sections: normalizeSections(
+          raw.builders?.site_builder?.sections,
+          fallback.builders.site_builder.sections
+        ),
+      },
+    },
+  };
+}
+
+export function findDocumentBuilderSection(
+  sections: DocumentBuilderSectionTemplate[],
+  key: string
+): DocumentBuilderSectionTemplate | null {
+  for (const current of sections) {
+    if (current.key === key) {
+      return current;
+    }
+
+    const nested = findDocumentBuilderSection(current.children, key);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  return null;
+}
+
+export function getDocumentBuilderSection(
+  config: DocumentBuilderTextConfig | null | undefined,
+  builderId: DocumentBuilderId,
+  key: string
+): DocumentBuilderSectionTemplate | null {
+  const source = config ?? DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG;
+  return findDocumentBuilderSection(source.builders[builderId].sections, key);
+}
+
+function mergeResolvedChildren(
+  left: DocumentBuilderSectionTemplate[],
+  right: DocumentBuilderSectionTemplate[]
+) {
+  const merged: DocumentBuilderSectionTemplate[] = [];
+  const indexByKey = new Map<string, number>();
+
+  [...left, ...right].forEach((child) => {
+    const clone = cloneSectionTemplate(child);
+    const existingIndex = indexByKey.get(clone.key);
+
+    if (existingIndex === undefined) {
+      indexByKey.set(clone.key, merged.length);
+      merged.push(clone);
+      return;
+    }
+
+    merged[existingIndex] = clone;
+  });
+
+  return merged;
+}
+
+export function resolveDocumentBuilderSection(
+  config: DocumentBuilderTextConfig | null | undefined,
+  builderId: DocumentBuilderId,
+  key: string,
+  visited = new Set<string>()
+): DocumentBuilderSectionTemplate | null {
+  const section = getDocumentBuilderSection(config, builderId, key);
+
+  if (!section) {
+    return null;
+  }
+
+  const token = `${builderId}:${key}`;
+  if (visited.has(token)) {
+    return cloneSectionTemplate(section);
+  }
+
+  const nextVisited = new Set(visited);
+  nextVisited.add(token);
+
+  const referencedSections = (section.references ?? [])
+    .map((reference) =>
+      resolveDocumentBuilderSection(config, reference.builderId, reference.key, nextVisited)
+    )
+    .filter((value): value is DocumentBuilderSectionTemplate => Boolean(value));
+
+  return {
+    ...cloneSectionTemplate(section),
+    paragraphs: [
+      ...referencedSections.flatMap((reference) => reference.paragraphs),
+      ...section.paragraphs,
+    ],
+    bullets: [
+      ...referencedSections.flatMap((reference) => reference.bullets),
+      ...section.bullets,
+    ],
+    children: mergeResolvedChildren(
+      referencedSections.flatMap((reference) => reference.children),
+      section.children
+    ),
+  };
+}
+
+export function flattenDocumentBuilderSections(
+  sections: DocumentBuilderSectionTemplate[]
+): DocumentBuilderSectionTemplate[] {
+  return sections.flatMap((current) => [current, ...flattenDocumentBuilderSections(current.children)]);
+}

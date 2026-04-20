@@ -25,6 +25,7 @@ import {
   isArchivedDocumentStatus,
   isSubmittedDocumentStatus,
 } from "@/lib/documentStatus";
+import { formatSafetyBlueprintDocumentType } from "@/lib/safetyBlueprintLabels";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -237,7 +238,9 @@ export default function ReviewDocumentsPage() {
   }, [documents]);
 
   const selectedCount = selectedIds.length;
-  const canReviewDocuments = Boolean(permissionMap?.can_review_documents);
+  const canReviewDocuments = Boolean(
+    permissionMap?.can_review_documents || permissionMap?.can_access_internal_admin
+  );
   const canApproveDocuments = Boolean(permissionMap?.can_approve_documents);
 
   async function runBulkAction(action: "archive" | "delete") {
@@ -534,7 +537,7 @@ function ReviewSection({
                       </span>
                     </div>
                     <p className="mt-2 text-sm text-[var(--app-text)]">
-                      Type: {doc.document_type || "-"}
+                      Type: {doc.document_type ? formatSafetyBlueprintDocumentType(doc.document_type) : "-"}
                     </p>
                     <p className="text-sm text-[var(--app-text)]">
                       User ID: {doc.user_id}

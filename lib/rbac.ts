@@ -18,6 +18,7 @@ export const APP_ROLES = [
   "company_admin",
   "safety_manager",
   "project_manager",
+  "field_supervisor",
   "foreman",
   "field_user",
   "read_only",
@@ -153,6 +154,15 @@ const ROLE_PERMISSIONS: Record<AppRole, readonly AppPermission[]> = {
     "can_view_reports",
   ],
   project_manager: [
+    "can_create_documents",
+    "can_edit_documents",
+    "can_submit_documents",
+    "can_manage_daps",
+    "can_manage_observations",
+    "can_view_dashboards",
+    "can_view_reports",
+  ],
+  field_supervisor: [
     "can_create_documents",
     "can_edit_documents",
     "can_submit_documents",
@@ -302,6 +312,7 @@ export function normalizeAppRole(role?: string | null): AppRole {
   if (normalized === "superintendent") return "project_manager";
   if (normalized === "project_manager") return "project_manager";
   if (normalized === "superintendent_project_manager") return "project_manager";
+  if (normalized === "field_supervisor") return "field_supervisor";
   if (normalized === "field_user_observer") return "field_user";
   if (normalized === "observer") return "field_user";
   if (normalized === "read_only_client") return "read_only";
@@ -324,6 +335,7 @@ export function formatAppRole(role?: string | null) {
   if (normalized === "company_admin") return "Company Admin";
   if (normalized === "safety_manager") return "Safety Manager";
   if (normalized === "project_manager") return "Project Manager";
+  if (normalized === "field_supervisor") return "Field Supervisor";
   if (normalized === "foreman") return "Foreman";
   if (normalized === "field_user") return "Field User";
   if (normalized === "read_only") return "Read Only";
@@ -357,6 +369,7 @@ export function isCompanyRole(role?: string | null) {
     normalized === "company_admin" ||
     normalized === "safety_manager" ||
     normalized === "project_manager" ||
+    normalized === "field_supervisor" ||
     normalized === "foreman" ||
     normalized === "field_user" ||
     normalized === "read_only" ||

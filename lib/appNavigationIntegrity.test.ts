@@ -89,13 +89,13 @@ describe("App Navigation Integrity", () => {
 
   it("keeps the AI hub ordering centered on Command Center first", () => {
     expect(companyAdminQuickLinks.slice(0, 3).map((item) => item.href)).toEqual([
-      "/dashboard",
       "/command-center",
+      "/dashboard",
       "/safety-intelligence",
     ]);
     expect(companyManagerQuickLinks.slice(0, 3).map((item) => item.href)).toEqual([
-      "/dashboard",
       "/command-center",
+      "/dashboard",
       "/safety-intelligence",
     ]);
 

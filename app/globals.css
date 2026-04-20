@@ -18,6 +18,10 @@ html {
   --app-surface-solid: #f8fbff;
   --app-elevated: #ffffff;
   --app-panel: #e3edfb;
+  --app-panel-soft: rgba(234, 241, 255, 0.78);
+  --app-surface-panel: linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(241, 247, 255, 0.94) 100%);
+  --app-surface-elevated: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(244, 249, 255, 0.98) 100%);
+  --app-surface-attention: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(234, 241, 255, 0.98) 100%);
   --app-border: rgba(111, 138, 177, 0.38);
   --app-border-strong: rgba(84, 114, 158, 0.52);
   --app-border-subtle: rgba(156, 180, 211, 0.24);
@@ -253,6 +257,45 @@ textarea {
 
 .workspace-content :where(.shadow-sm) {
   box-shadow: 0 10px 24px rgba(76, 108, 161, 0.08);
+}
+
+.app-surface-panel {
+  background: var(--app-surface-panel);
+  border: 1px solid var(--app-border-strong);
+  box-shadow: var(--app-shadow-soft);
+}
+
+.app-surface-elevated {
+  background: var(--app-surface-elevated);
+  border: 1px solid rgba(121, 151, 196, 0.42);
+  box-shadow: 0 18px 36px rgba(74, 106, 158, 0.11);
+}
+
+.app-surface-attention {
+  background: var(--app-surface-attention);
+  border: 1px solid rgba(79, 125, 243, 0.24);
+  box-shadow: 0 16px 32px rgba(79, 125, 243, 0.1);
+}
+
+.workspace-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  color: var(--app-accent-primary);
+}
+
+.workspace-section-eyebrow {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--app-muted);
+}
+
+.workspace-supporting-copy {
+  color: var(--app-text);
+  line-height: 1.7;
 }
 
 .app-shell-light [class*="bg-slate-950"],
