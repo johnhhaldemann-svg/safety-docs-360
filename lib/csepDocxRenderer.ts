@@ -8,13 +8,7 @@ import {
   PageNumber,
   Packer,
   Paragraph,
-  ShadingType,
-  Table,
-  TableCell,
-  TableLayoutType,
-  TableRow,
   TextRun,
-  WidthType,
 } from "docx";
 import { DOCUMENT_DISCLAIMER_LINES } from "@/lib/legal";
 import {
@@ -105,9 +99,6 @@ const COLORS = {
   deepBlue: "17365D",
   accentRed: "D63A34",
   gray: "7A7A7A",
-  border: "C7D3E0",
-  headerFill: "DCE6F1",
-  panelFill: "F7F9FC",
 } as const;
 
 const FIXED_SECTION_DEFINITIONS: FixedSectionDefinition[] = [
@@ -632,14 +623,6 @@ export function buildCsepRenderModelFromGeneratedDraft(
   };
 }
 
-function getRevisionValue(model: CsepRenderModel) {
-  return (
-    model.coverMetadataRows.find((row) => normalizeToken(row.label) === "revision")?.value ||
-    model.revisionHistory[0]?.revision ||
-    "1.0"
-  );
-}
-
 function makeParagraph(children: TextRun[], options?: {
   style?: string;
   alignment?: (typeof AlignmentType)[keyof typeof AlignmentType];
@@ -735,10 +718,9 @@ function numberedParagraph(numberLabel: string, text: string) {
     [
       new TextRun({
         text: `${numberLabel} `,
-        bold: true,
         font: "Calibri",
         size: 21,
-        color: COLORS.headingBlue,
+        color: COLORS.ink,
       }),
       new TextRun({
         text,
@@ -806,95 +788,74 @@ function subtleDivider() {
   });
 }
 
-function metadataMatrixTable(rows: CsepCoverMetadataRow[]) {
-  const pairs: Array<[CsepCoverMetadataRow | null, CsepCoverMetadataRow | null]> = [];
-
-  for (let index = 0; index < rows.length; index += 2) {
-    pairs.push([rows[index] ?? null, rows[index + 1] ?? null]);
-  }
-
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    layout: TableLayoutType.FIXED,
-    borders: {
-      top: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
-      bottom: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
-      left: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
-      right: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
-      insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: COLORS.border },
-      insideVertical: { style: BorderStyle.SINGLE, size: 1, color: COLORS.border },
-    },
-    rows: pairs.map(([left, right]) =>
-      new TableRow({
-        children: [left, right].flatMap((entry) => [
-          new TableCell({
-            width: { size: 18, type: WidthType.PERCENTAGE },
-            shading: {
-              type: ShadingType.CLEAR,
-              color: "auto",
-              fill: COLORS.panelFill,
-            },
-            margins: { top: 80, bottom: 80, left: 90, right: 90 },
-            children: [
-              makeParagraph(
-                [
-                  new TextRun({
-                    text: entry?.label ?? "",
-                    bold: true,
-                    font: "Calibri",
-                    size: 20,
-                    color: COLORS.deepBlue,
-                  }),
-                ],
-                {
-                  spacing: { after: 0, line: 276 },
-                }
-              ),
-            ],
-          }),
-          new TableCell({
-            width: { size: 32, type: WidthType.PERCENTAGE },
-            margins: { top: 80, bottom: 80, left: 90, right: 90 },
-            children: [
-              makeParagraph(
-                [
-                  new TextRun({
-                    text: entry?.value ?? "N/A",
-                    font: "Calibri",
-                    size: 20,
-                    color: COLORS.ink,
-                  }),
-                ],
-                {
-                  spacing: { after: 0, line: 276 },
-                }
-              ),
-            ],
-          }),
-        ]),
-      })
-    ),
-  });
+function labeledFieldParagraph(label: string, value: string) {
+  return makeParagraph(
+    [
+      new TextRun({
+        text: `${label}: `,
+        bold: true,
+        font: "Calibri",
+        size: 20,
+        color: COLORS.deepBlue,
+      }),
+      new TextRun({
+        text: value?.trim() ? value.trim() : "N/A",
+        font: "Calibri",
+        size: 20,
+        color: COLORS.ink,
+      }),
+    ],
+    {
+      style: STYLE_IDS.body,
+      spacing: { after: 100, line: 276 },
+    }
+  );
 }
 
-function approvalSignatureTable(lines: string[]) {
-  const rows = lines.map((line) => {
+function metadataMatrixAsParagraphs(rows: CsepCoverMetadataRow[]) {
+  return rows.map((row) => labeledFieldParagraph(row.label, row.value));
+}
+
+function revisionHistoryAsParagraphs(rows: CsepRevisionEntry[]) {
+  const data = rows.length
+    ? rows
+    : [
+        {
+          revision: "1.0",
+          date: todayIssueLabel(),
+          description: "Initial issuance",
+          preparedBy: "SafetyDocs360 Draft Builder",
+          approvedBy: "Pending approval",
+        },
+      ];
+
+  return data.map((row, index) =>
+    bodyParagraph(
+      [
+        `${index + 1}. Rev. ${row.revision} (${row.date}). `,
+        `${row.description} `,
+        `Prepared by: ${row.preparedBy}. Approved by: ${row.approvedBy}.`,
+      ].join(""),
+      { spacing: { after: 140, line: 276 } }
+    )
+  );
+}
+
+function approvalSignatureAsParagraphs(lines: string[]) {
+  const out: Paragraph[] = [];
+
+  lines.forEach((line) => {
     const label = line.includes(":") ? line.split(":")[0].trim() : line.trim();
-    return [
-      label || "Approver",
-      "________________________________",
-      "________________",
-    ];
+    out.push(
+      labeledFieldParagraph(label || "Approver", "________________________________  Date: ________________")
+    );
   });
 
-  return gridTable({
-    columns: ["Approval", "Signature", "Date"],
-    rows,
-  });
+  return out;
 }
 
 function createCover(model: CsepRenderModel) {
-  const coverChildren: Array<Paragraph | Table> = [
+  const coverChildren: Paragraph[] = [
     subtleDivider(),
     bodyParagraph(`${model.contractorName} | Contractor Logo / Letterhead`, {
       alignment: AlignmentType.LEFT,
@@ -969,13 +930,13 @@ function createCover(model: CsepRenderModel) {
       style: STYLE_IDS.subheading,
     })
   );
-  coverChildren.push(metadataMatrixTable(model.coverMetadataRows));
+  coverChildren.push(...metadataMatrixAsParagraphs(model.coverMetadataRows));
   coverChildren.push(
     bodyParagraph("Revision History", {
       style: STYLE_IDS.subheading,
     })
   );
-  coverChildren.push(revisionHistoryTable(model.revisionHistory));
+  coverChildren.push(...revisionHistoryAsParagraphs(model.revisionHistory));
   coverChildren.push(
     bodyParagraph(
       "Approvals",
@@ -984,254 +945,25 @@ function createCover(model: CsepRenderModel) {
       }
     )
   );
-  coverChildren.push(approvalSignatureTable(model.approvalLines));
+  coverChildren.push(...approvalSignatureAsParagraphs(model.approvalLines));
 
   return coverChildren;
 }
 
-function tableColumnWeights(columns: string[]) {
-  if (columns.length === 2) {
-    const left = normalizeToken(columns[0]);
-    const right = normalizeToken(columns[1]);
-
-    if (
-      /field|role|rev|revision|date|activity|trade|permit/.test(left) &&
-      /value|responsibility|controls|description|notes|requirements|source/.test(right)
-    ) {
-      return [32, 68];
-    }
-  }
-
-  const weights = columns.map((column) => {
-    const token = normalizeToken(column);
-
-    if (/rev|revision/.test(token)) return 0.8;
-    if (/date/.test(token)) return 1;
-    if (/risk/.test(token)) return 0.95;
-    if (/field|role|trade|activity|permit|hazard/.test(token)) return 1.25;
-    if (/value|responsibility|controls|description|notes|requirements|source|change/.test(token)) {
-      return 2.2;
-    }
-    return 1.4;
-  });
-
-  const total = weights.reduce((sum, weight) => sum + weight, 0);
-  const normalized = weights.map((weight) => Math.max(10, Math.round((weight / total) * 100)));
-  const sum = normalized.reduce((accumulator, value) => accumulator + value, 0);
-
-  normalized[normalized.length - 1] += 100 - sum;
-  return normalized;
-}
-
-function gridTable(table: NonNullable<GeneratedSafetyPlanSection["table"]>) {
-  const widths = tableColumnWeights(table.columns);
-
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    layout: TableLayoutType.FIXED,
-    borders: {
-      top: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
-      bottom: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
-      left: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
-      right: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
-      insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: COLORS.border },
-      insideVertical: { style: BorderStyle.SINGLE, size: 1, color: COLORS.border },
-    },
-    rows: [
-      new TableRow({
-        tableHeader: true,
-        children: table.columns.map((column, columnIndex) =>
-          new TableCell({
-            width: { size: widths[columnIndex], type: WidthType.PERCENTAGE },
-            shading: {
-              type: ShadingType.CLEAR,
-              color: "auto",
-              fill: COLORS.headerFill,
-            },
-            margins: { top: 90, bottom: 90, left: 90, right: 90 },
-            children: [
-              makeParagraph(
-                [
-                  new TextRun({
-                    text: column,
-                    bold: true,
-                    font: "Calibri",
-                    size: 21,
-                    color: COLORS.titleBlue,
-                  }),
-                ],
-                {
-                  spacing: { after: 0, line: 276 },
-                }
-              ),
-            ],
-          })
-        ),
-      }),
-      ...table.rows.map((row) =>
-        new TableRow({
-          children: table.columns.map((_, columnIndex) =>
-            new TableCell({
-              width: { size: widths[columnIndex], type: WidthType.PERCENTAGE },
-              margins: { top: 85, bottom: 85, left: 90, right: 90 },
-              children: [
-                makeParagraph(
-                  [
-                    new TextRun({
-                      text: row[columnIndex]?.trim() || "N/A",
-                      font: "Calibri",
-                      size: 21,
-                      color: COLORS.ink,
-                    }),
-                  ],
-                  {
-                    style: STYLE_IDS.body,
-                    spacing: { after: 0, line: 276 },
-                  }
-                ),
-              ],
-            })
-          ),
-        })
-      ),
-    ],
-  });
-}
-
-function revisionHistoryTable(rows: CsepRevisionEntry[]) {
-  const data = rows.length
-    ? rows
-    : [
-        {
-          revision: "1.0",
-          date: todayIssueLabel(),
-          description: "Initial issuance",
-          preparedBy: "SafetyDocs360 Draft Builder",
-          approvedBy: "Pending approval",
-        },
-      ];
-
-  return gridTable({
-    columns: ["Rev.", "Date", "Description of Change", "Prepared By", "Approved By"],
-    rows: data.map((row) => [
-      row.revision,
-      row.date,
-      row.description,
-      row.preparedBy,
-      row.approvedBy,
-    ]),
-  });
-}
-
-function shouldUsePanelLayout(section: CsepTemplateSection) {
-  const token = normalizeToken(`${section.title} ${section.key}`);
-  return (
-    section.kind === "front_matter" ||
-    section.kind === "appendix" ||
-    token.includes("incident") ||
-    token.includes("communication") ||
-    token.includes("responsibilit") ||
-    token.includes("orientation") ||
-    token.includes("definition") ||
-    token.includes("abbreviation")
-  );
-}
-
-function shouldUseTwoColumnPanels(section: CsepTemplateSection) {
-  const token = normalizeToken(`${section.title} ${section.key}`);
-  return (
-    (token.includes("incident") || token.includes("notification") || token.includes("communication")) &&
-    section.subsections.length >= 2
-  );
-}
-
-function panelSectionTitle(title: string, prefix?: string | null) {
-  const clean = stripExistingNumberPrefix(title);
-  return prefix ? `${prefix} ${clean}`.trim() : clean;
-}
-
-function buildPanelChildren(params: {
-  title: string;
-  paragraphs?: string[];
-  items?: string[];
-  table?: GeneratedSafetyPlanSection["table"];
-  itemPrefixBase?: string | null;
-}): Array<Paragraph | Table> {
-  const children: Array<Paragraph | Table> = [
-    new Paragraph({
-      shading: {
-        type: ShadingType.CLEAR,
-        color: "auto",
-        fill: COLORS.deepBlue,
-      },
-      spacing: { after: 120 },
-      children: [
-        new TextRun({
-          text: params.title,
-          bold: true,
-          font: "Calibri",
-          size: 20,
-          color: "FFFFFF",
-        }),
-      ],
-    }),
-  ];
-
-  (params.paragraphs ?? []).forEach((paragraph) => {
-    children.push(
-      bodyParagraph(paragraph, {
-        spacing: { after: 120, line: 276 },
-      })
-    );
-  });
-
-  (params.items ?? []).forEach((item, index) => {
-    children.push(
-      numberedParagraph(
-        params.itemPrefixBase ? `${params.itemPrefixBase}.${index + 1}` : `${index + 1}.`,
-        item
-      )
-    );
-  });
-
-  if (params.table?.rows.length) {
-    children.push(gridTable(params.table));
-  }
-
-  return children;
-}
-
-function subsectionPanel(
-  title: string,
-  content: Array<Paragraph | Table>
+function appendTableRowsAsNumberedParagraphs(
+  children: Paragraph[],
+  table: NonNullable<GeneratedSafetyPlanSection["table"]>,
+  subsectionLabel: string,
+  priorItemCount: number
 ) {
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    layout: TableLayoutType.FIXED,
-    borders: {
-      top: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
-      bottom: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
-      left: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
-      right: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
-      insideHorizontal: { style: BorderStyle.NONE, size: 0, color: COLORS.border },
-      insideVertical: { style: BorderStyle.NONE, size: 0, color: COLORS.border },
-    },
-    rows: [
-      new TableRow({
-        children: [
-          new TableCell({
-            margins: { top: 90, bottom: 90, left: 110, right: 110 },
-            children: content.length
-              ? content
-              : [
-                  bodyParagraph(title, {
-                    spacing: { after: 0, line: 276 },
-                  }),
-                ],
-          }),
-        ],
-      }),
-    ],
+  if (!table.rows.length) return;
+
+  table.rows.forEach((row, rowIndex) => {
+    const num = `${subsectionLabel}.${priorItemCount + rowIndex + 1}`;
+    const text = table.columns
+      .map((column, columnIndex) => `${column}: ${row[columnIndex]?.trim() || "N/A"}`)
+      .join(" ");
+    children.push(numberedParagraph(num, text));
   });
 }
 
@@ -1265,7 +997,7 @@ function isDistinctSubheading(sectionTitle: string, subsectionTitle: string) {
   return normalizeToken(stripExistingNumberPrefix(sectionTitle)) !== normalizeToken(stripExistingNumberPrefix(subsectionTitle));
 }
 
-function appendParagraphs(children: Array<Paragraph | Table>, paragraphs?: string[]) {
+function appendParagraphs(children: Paragraph[], paragraphs?: string[]) {
   (paragraphs ?? []).forEach((paragraph) => {
     children.push(bodyParagraph(paragraph));
   });
@@ -1292,92 +1024,17 @@ function createContents(model: CsepRenderModel) {
 }
 
 function renderSection(sectionNumber: number, section: CsepTemplateSection) {
-  const children: Array<Paragraph | Table> = [
+  const children: Paragraph[] = [
     sectionHeading(displayHeadingForSection(section, sectionNumber), sectionHeadingTone(section)),
   ];
   const basePrefix = sectionPrefix(section, sectionNumber);
-
-  if (shouldUsePanelLayout(section)) {
-    if (shouldUseTwoColumnPanels(section)) {
-      for (let index = 0; index < section.subsections.length; index += 2) {
-        const pair = section.subsections.slice(index, index + 2);
-        children.push(
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            layout: TableLayoutType.FIXED,
-            borders: {
-              top: { style: BorderStyle.NONE, size: 0, color: COLORS.border },
-              bottom: { style: BorderStyle.NONE, size: 0, color: COLORS.border },
-              left: { style: BorderStyle.NONE, size: 0, color: COLORS.border },
-              right: { style: BorderStyle.NONE, size: 0, color: COLORS.border },
-              insideHorizontal: { style: BorderStyle.NONE, size: 0, color: COLORS.border },
-              insideVertical: { style: BorderStyle.NONE, size: 0, color: COLORS.border },
-            },
-            rows: [
-              new TableRow({
-                children: [0, 1].map((offset) => {
-                  const subsection = pair[offset];
-                  const subsectionIndex = index + offset;
-
-                  return new TableCell({
-                    width: { size: 50, type: WidthType.PERCENTAGE },
-                    margins: { top: 0, bottom: 0, left: 60, right: 60 },
-                    borders: {
-                      top: { style: BorderStyle.NONE, size: 0, color: COLORS.border },
-                      bottom: { style: BorderStyle.NONE, size: 0, color: COLORS.border },
-                      left: { style: BorderStyle.NONE, size: 0, color: COLORS.border },
-                      right: { style: BorderStyle.NONE, size: 0, color: COLORS.border },
-                    },
-                    children: subsection
-                      ? [
-                          subsectionPanel(
-                            subsection.title,
-                            buildPanelChildren({
-                              title: panelSectionTitle(subsection.title, `${basePrefix}.${subsectionIndex + 1}`),
-                              paragraphs: subsection.paragraphs,
-                              items: subsection.items,
-                              table: subsection.table,
-                              itemPrefixBase: `${basePrefix}.${subsectionIndex + 1}`,
-                            })
-                          ),
-                        ]
-                      : [new Paragraph({ children: [] })],
-                  });
-                }),
-              }),
-            ],
-          })
-        );
-      }
-
-      return children;
-    }
-
-    section.subsections.forEach((subsection, subsectionIndex) => {
-      const subsectionPrefix = `${basePrefix}.${subsectionIndex + 1}`;
-      children.push(
-        subsectionPanel(
-          subsection.title,
-          buildPanelChildren({
-            title: panelSectionTitle(subsection.title, subsectionPrefix),
-            paragraphs: subsection.paragraphs,
-            items: subsection.items,
-            table: subsection.table,
-            itemPrefixBase: subsectionPrefix,
-          })
-        )
-      );
-    });
-
-    return children;
-  }
 
   section.subsections.forEach((subsection, subsectionIndex) => {
     const distinctSubheading = subsection.title.trim()
       ? isDistinctSubheading(section.title, subsection.title)
       : false;
     const subsectionLabel = `${basePrefix}.${subsectionIndex + 1}`;
-    const itemPrefixBase = distinctSubheading ? subsectionLabel : basePrefix;
+    const itemPrefixBase = subsectionLabel;
 
     if (distinctSubheading) {
       children.push(subheading(`${subsectionLabel} ${stripExistingNumberPrefix(subsection.title)}`));
@@ -1390,7 +1047,12 @@ function renderSection(sectionNumber: number, section: CsepTemplateSection) {
     });
 
     if (subsection.table?.rows.length) {
-      children.push(gridTable(subsection.table));
+      appendTableRowsAsNumberedParagraphs(
+        children,
+        subsection.table,
+        subsectionLabel,
+        (subsection.items ?? []).length
+      );
     }
   });
 
@@ -1398,14 +1060,14 @@ function renderSection(sectionNumber: number, section: CsepTemplateSection) {
 }
 
 export async function createCsepDocument(model: CsepRenderModel) {
-  const children: Array<Paragraph | Table> = [];
+  const children: Paragraph[] = [];
 
   children.push(...createCover(model));
 
   if (!model.frontMatterSections.length) {
     children.push(new Paragraph({ children: [new PageBreak()] }));
     children.push(sectionHeading("Revision History"));
-    children.push(revisionHistoryTable(model.revisionHistory));
+    children.push(...revisionHistoryAsParagraphs(model.revisionHistory));
     children.push(new Paragraph({ children: [new PageBreak()] }));
     children.push(...createContents(model));
   }
@@ -1416,7 +1078,7 @@ export async function createCsepDocument(model: CsepRenderModel) {
     children.push(new Paragraph({ children: [new PageBreak()] }));
     if (section.key === "revision_history") {
       children.push(sectionHeading(section.title));
-      children.push(revisionHistoryTable(model.revisionHistory));
+      children.push(...revisionHistoryAsParagraphs(model.revisionHistory));
       return;
     }
     if (section.key === "table_of_contents") {
@@ -1429,7 +1091,7 @@ export async function createCsepDocument(model: CsepRenderModel) {
   if (model.frontMatterSections.length && !frontMatterKeys.has("revision_history")) {
     children.push(new Paragraph({ children: [new PageBreak()] }));
     children.push(sectionHeading("Revision History"));
-    children.push(revisionHistoryTable(model.revisionHistory));
+    children.push(...revisionHistoryAsParagraphs(model.revisionHistory));
   }
 
   if (model.frontMatterSections.length && !frontMatterKeys.has("table_of_contents")) {

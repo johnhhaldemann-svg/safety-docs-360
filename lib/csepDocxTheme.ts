@@ -1,11 +1,9 @@
 import {
   AlignmentType,
-  BorderStyle,
   Document,
   Footer,
   PageBreak,
   Paragraph,
-  ShadingType,
   TextRun,
   type IParagraphOptions,
 } from "docx";
@@ -58,22 +56,6 @@ export function createCsepBody(
         color: COLORS.bodyText,
       }),
     ],
-  });
-}
-
-export function createCsepBullet(text: string) {
-  return new Paragraph({
-    style: CSEP_STYLE_IDS.body,
-    bullet: { level: 0 },
-    children: [
-      new TextRun({
-        text,
-        font: "Aptos",
-        size: 21,
-        color: COLORS.bodyText,
-      }),
-    ],
-    spacing: { after: 100 },
   });
 }
 
@@ -140,34 +122,6 @@ export function createCsepLabeledParagraph(
         font: "Aptos",
         size: 21,
         color: COLORS.bodyText,
-      }),
-    ],
-  });
-}
-
-export function createCsepBanner(text: string) {
-  return new Paragraph({
-    style: CSEP_STYLE_IDS.body,
-    alignment: AlignmentType.CENTER,
-    spacing: { after: 140 },
-    border: {
-      top: { style: BorderStyle.SINGLE, size: 4, color: COLORS.accentBlue },
-      bottom: { style: BorderStyle.SINGLE, size: 4, color: COLORS.accentBlue },
-      left: { style: BorderStyle.SINGLE, size: 4, color: COLORS.accentBlue },
-      right: { style: BorderStyle.SINGLE, size: 4, color: COLORS.accentBlue },
-    },
-    shading: {
-      type: ShadingType.CLEAR,
-      color: "auto",
-      fill: COLORS.accentBlue,
-    },
-    children: [
-      new TextRun({
-        text,
-        bold: true,
-        color: "FFFFFF",
-        font: "Aptos",
-        size: 21,
       }),
     ],
   });

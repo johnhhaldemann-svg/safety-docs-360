@@ -222,6 +222,101 @@ function stripInlineOshaSuffix(value: string | null | undefined) {
   return stripped || null;
 }
 
+function extractInlineOshaSuffix(value: string | null | undefined) {
+  if (!value?.trim()) return null;
+
+  const match = value.match(/^(.*?)(?:\s*Applicable OSHA references:\s*(.+?)\.\s*)$/i);
+  if (!match) return null;
+
+  return {
+    body: match[1]?.replace(/\s+/g, " ").trim() || null,
+    referencesText: match[2]?.trim() || "",
+  };
+}
+
+function formatReferenceTokenList(tokens: string[]) {
+  if (!tokens.length) return null;
+  return `(${tokens.join(", ")})`;
+}
+
+function applyInlineReferenceTokens(
+  value: string | null | undefined,
+  orderedReferences: string[],
+  referenceTokenMap: Map<string, string>
+) {
+  if (!value?.trim()) return value;
+
+  const extracted = extractInlineOshaSuffix(value);
+  if (!extracted) return value.replace(/\s+/g, " ").trim();
+
+  const matchedTokens = orderedReferences
+    .filter((reference) => extracted.referencesText.includes(reference))
+    .map((reference) => referenceTokenMap.get(reference))
+    .filter((token): token is string => Boolean(token));
+
+  const tokenText = formatReferenceTokenList(matchedTokens);
+  if (!tokenText) return extracted.body;
+  if (!extracted.body) return tokenText;
+
+  return `${extracted.body} ${tokenText}`;
+}
+
+function applyOshaReferenceTokensToSections(
+  sections: GeneratedSafetyPlanSection[],
+  oshaReferences: string[]
+) {
+  if (!oshaReferences.length) return sections;
+
+  const orderedReferences = dedupe(oshaReferences.map((reference) => reference.trim()).filter(Boolean));
+  const referenceTokenMap = new Map(
+    orderedReferences.map((reference, index) => [reference, `R${index + 1}`])
+  );
+
+  return sections.map((section) => {
+    const isReferenceSection =
+      section.key === "references" ||
+      section.key === "osha_references" ||
+      section.key === "osha_reference_appendix";
+
+    return {
+      ...section,
+      summary: applyInlineReferenceTokens(section.summary, orderedReferences, referenceTokenMap),
+      body: applyInlineReferenceTokens(section.body, orderedReferences, referenceTokenMap),
+      bullets: isReferenceSection
+        ? orderedReferences.map((reference) => `${referenceTokenMap.get(reference)} ${reference}`)
+        : section.bullets?.map((bullet) =>
+            applyInlineReferenceTokens(bullet, orderedReferences, referenceTokenMap) ?? bullet
+          ),
+      subsections: section.subsections?.map((subsection) => ({
+        ...subsection,
+        body: applyInlineReferenceTokens(subsection.body, orderedReferences, referenceTokenMap),
+        bullets:
+          isReferenceSection && subsection.title.toLowerCase().includes("reference")
+            ? orderedReferences.map((reference) => `${referenceTokenMap.get(reference)} ${reference}`)
+            : subsection.bullets.map(
+                (bullet) =>
+                  applyInlineReferenceTokens(bullet, orderedReferences, referenceTokenMap) ?? bullet
+              ),
+      })),
+      table: section.table
+        ? {
+            ...section.table,
+            columns: section.table.columns.map(
+              (column) =>
+                applyInlineReferenceTokens(column, orderedReferences, referenceTokenMap) ?? column
+            ),
+            rows: section.table.rows.map((row) =>
+              row.map(
+                (cell) =>
+                  applyInlineReferenceTokens(cell, orderedReferences, referenceTokenMap) ?? cell
+              )
+            ),
+          }
+        : section.table,
+    };
+  });
+}
+
 function compactText(value: string | null | undefined, maxLength = 220) {
   const stripped = stripInlineOshaSuffix(value);
   if (!stripped) return null;
@@ -610,9 +705,9 @@ function buildReferencesSection(oshaReferences: string[]): GeneratedSafetyPlanSe
   return {
     key: "references",
     title: "References",
-    body: "The following OSHA references were identified from selected scopes, permits, and generated program content.",
+    body: "The following OSHA references were identified from selected scopes, permits, and generated program content. Inline section citations use the numbered reference tags shown below.",
     bullets: oshaReferences.length
-      ? oshaReferences
+      ? oshaReferences.map((reference, index) => `R${index + 1} ${reference}`)
       : ["No OSHA references were identified from the current plan inputs."],
   };
 }
@@ -678,6 +773,11 @@ function referencePackKeySections(sectionHeadings: string[]) {
   return sentenceList(sectionHeadings.slice(0, 3), "Section headings not parsed");
 }
 
+function referencePackInterfacesWith(taskNames: string[], fallback: string) {
+  const interfaces = sentenceList(taskNames, fallback);
+  return `Interfaces With: This module interfaces with other site management activities including ${interfaces}. Coordination between these activities is necessary to maintain safe and efficient site operations.`;
+}
+
 function buildReferencePackSubsections<
   T extends {
     title: string;
@@ -734,7 +834,7 @@ function buildTaskModulesReferenceSection(
       inlineOshaRefs
     ),
     subsections: buildReferencePackSubsections(taskModules, (item) => [
-      `Mapped tasks: ${sentenceList(item.taskNames, "Site setup")}`,
+      referencePackInterfacesWith(item.taskNames, "Site setup"),
       `Key sections: ${referencePackKeySections(item.sectionHeadings)}`,
     ]),
   };
@@ -826,7 +926,7 @@ function buildSteelTaskModulesReferenceSection(
       inlineOshaRefs
     ),
     subsections: buildReferencePackSubsections(taskModules, (item) => [
-      `Mapped tasks: ${sentenceList(item.taskNames, "Steel erection sequence")}`,
+      referencePackInterfacesWith(item.taskNames, "Steel erection sequence"),
       `Key sections: ${referencePackKeySections(item.sectionHeadings)}`,
     ]),
   };
@@ -960,12 +1060,41 @@ function combineParagraphs(parts: Array<string | null | undefined>, fallback?: s
 
 function splitBuilderTextToBullets(value: string | null | undefined) {
   if (!value?.trim()) return [];
-  return dedupe(
-    value
-      .split(/\r?\n|;/)
+
+  const lines = value
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((item) =>
+      item
+        .replace(/\*\*(.+?)\*\*/g, "$1")
+        .replace(/__(.+?)__/g, "$1")
+        .trim()
+    )
+    .filter(Boolean);
+
+  const bulletLines = lines
+    .filter((item) => /^[-*•]\s+/.test(item))
+    .map((item) => item.replace(/^[-*•]\s+/, "").trim())
+    .filter(Boolean);
+
+  if (bulletLines.length > 0) {
+    const hasNarrativeOrHeadings = lines.some((item) => !/^[-*•]\s+/.test(item));
+    return hasNarrativeOrHeadings ? [] : dedupe(bulletLines);
+  }
+
+  if (lines.length === 1 && lines[0].includes(";")) {
+    const segments = lines[0]
+      .split(";")
       .map((item) => item.trim())
-      .filter(Boolean)
-  );
+      .filter(Boolean);
+
+    const looksLikeSimpleList =
+      segments.length > 1 && segments.every((item) => item.length <= 160 && !/[.!?]\s+[A-Z]/.test(item));
+
+    return looksLikeSimpleList ? dedupe(segments) : [];
+  }
+
+  return [];
 }
 
 function prefixedInstructionBullets(values: string[], prefix: string) {
@@ -987,6 +1116,14 @@ function humanizeCode(value: string) {
 function orderGeneratedSections(
   sections: GeneratedSafetyPlanSection[]
 ): GeneratedSafetyPlanSection[] {
+  const isPshsep = sections.some((section) =>
+    [
+      "project_oversight_roles",
+      "contractor_coordination",
+      "incident_injury_response",
+      "inspections_recurring_events",
+    ].includes(section.key)
+  );
   const definitionsSection = sections.find((section) => section.key === "definitions");
   const referencesSection = sections.find(
     (section) =>
@@ -1013,10 +1150,9 @@ function orderGeneratedSections(
 
   return [
     ...(definitionsSection ? [definitionsSection] : []),
-    ...(referencesSection
-      ? [referencesSection]
-      : []),
-    ...(jurisdictionProfileSection ? [jurisdictionProfileSection] : []),
+    ...(isPshsep
+      ? [...(referencesSection ? [referencesSection] : []), ...(jurisdictionProfileSection ? [jurisdictionProfileSection] : [])]
+      : [...(jurisdictionProfileSection ? [jurisdictionProfileSection] : []), ...(referencesSection ? [referencesSection] : [])]),
     ...narrativeSections,
     ...tableSections,
     ...permitProgramSections,
@@ -1590,7 +1726,8 @@ function buildPshsepHighRiskSections(
 
 function collectOshaReferences(
   generationContext: SafetyPlanGenerationContext,
-  programSections: GeneratedSafetyPlanSection[]
+  programSections: GeneratedSafetyPlanSection[],
+  narrativeSections?: Record<string, string>
 ) {
   const refs = new Set<string>();
   for (const operation of generationContext.operations) {
@@ -1601,6 +1738,16 @@ function collectOshaReferences(
     const refsSection = section.subsections?.find((subsection) => subsection.title === "Applicable References");
     refsSection?.bullets.forEach((ref) => refs.add(ref));
   }
+  Object.values(narrativeSections ?? {}).forEach((value) => {
+    const extracted = extractInlineOshaSuffix(value);
+    if (!extracted?.referencesText) return;
+
+    extracted.referencesText
+      .split(/\s*,\s*/)
+      .map((reference) => reference.trim())
+      .filter(Boolean)
+      .forEach((reference) => refs.add(reference));
+  });
   return [...refs];
 }
 
@@ -2525,9 +2672,17 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
     key: section.key,
     title: section.title,
     summary: section.summary,
-    subsections: section.subsections,
+    subsections: section.subsections.map((subsection) => ({
+      title: subsection.title,
+      body: subsection.body,
+      bullets: subsection.bullets,
+    })),
   }));
-  const oshaReferences = collectOshaReferences(params.generationContext, programSections);
+  const oshaReferences = collectOshaReferences(
+    params.generationContext,
+    programSections,
+    narrativeSections
+  );
   const inlineOshaRefs = oshaReferences.slice(0, 4);
   const pshsepCoreSections = isPshsep
     ? buildPshsepCoreSections(params.generationContext, inlineOshaRefs, ruleSummary)
@@ -2796,6 +2951,14 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
       ]
     : [
         definitionsSection,
+        ...(!csepSelectedSections.some(
+          (section) =>
+            section.key === "references" ||
+            section.key === "osha_references" ||
+            section.key === "osha_reference_appendix"
+        )
+          ? [referencesSection]
+          : []),
         ...csepSelectedSections,
         ...programSections,
       ];
@@ -2825,9 +2988,13 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
         profile: jurisdictionProfile,
         config: params.jurisdictionStandardsConfig,
       });
+  const referenceTaggedSections = applyOshaReferenceTokensToSections(
+    jurisdictionApplied.sections,
+    oshaReferences
+  );
   const normalizedSections = isPshsep
-    ? jurisdictionApplied.sections
-    : normalizeCsepSections(jurisdictionApplied.sections);
+    ? referenceTaggedSections
+    : normalizeCsepSections(referenceTaggedSections);
   const orderedSections = orderGeneratedSections(normalizedSections);
   const sections = orderCsepReferencePacksBeforePrograms(orderedSections);
 

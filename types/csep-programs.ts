@@ -72,6 +72,7 @@ export type CSEPProgramSection = {
   relatedTasks: string[];
   subsections: Array<{
     title: string;
+    body?: string;
     bullets: string[];
   }>;
 };

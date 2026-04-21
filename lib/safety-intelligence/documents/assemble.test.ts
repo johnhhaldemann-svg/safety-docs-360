@@ -283,7 +283,25 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       expect.arrayContaining([
         expect.objectContaining({
           title: "Related Tasks",
-          bullets: ["Install rooftop unit"],
+          body: "These related tasks apply to this program scope: Install rooftop unit.",
+          bullets: [],
+        }),
+      ])
+    );
+    expect(
+      draft.sectionMap.find((section) => section.key === "program_ppe__safety_glasses__base")
+        ?.subsections
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "Applicable References",
+          body: "OSHA 1926 Subpart E - PPE.",
+          bullets: [],
+        }),
+        expect.objectContaining({
+          title: "Related Tasks",
+          body: "These related tasks apply to this program scope: Install rooftop unit.",
+          bullets: [],
         }),
       ])
     );
@@ -1242,7 +1260,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         expect.objectContaining({
           title: "Site Setup",
           bullets: expect.arrayContaining([
-            expect.stringContaining("Mapped tasks: Site setup"),
+            expect.stringContaining("Interfaces With: This module interfaces with other site management activities including Site setup."),
             expect.stringContaining("Key sections:"),
             expect.stringContaining("Source document:"),
           ]),
@@ -1250,7 +1268,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         expect.objectContaining({
           title: "Access Control",
           bullets: expect.arrayContaining([
-            expect.stringContaining("Mapped tasks: Access control, Site setup"),
+            expect.stringContaining("Interfaces With: This module interfaces with other site management activities including Access control, Site setup."),
             expect.stringContaining("Key sections:"),
             expect.stringContaining("Source document:"),
           ]),
@@ -2070,7 +2088,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       expect.objectContaining({
         title: "Fallback Task Module",
         bullets: [
-          "Mapped tasks: Site setup",
+          "Interfaces With: This module interfaces with other site management activities including Site setup. Coordination between these activities is necessary to maintain safe and efficient site operations.",
           "Key sections: Section headings not parsed",
           "Source document: fallback-task-module.md",
         ],
@@ -2095,7 +2113,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       expect.objectContaining({
         title: "Fallback Steel Task Module",
         bullets: [
-          "Mapped tasks: Steel erection sequence",
+          "Interfaces With: This module interfaces with other site management activities including Steel erection sequence. Coordination between these activities is necessary to maintain safe and efficient site operations.",
           "Key sections: Section headings not parsed",
           "Source document: fallback-steel-task-module.md",
         ],
@@ -2307,6 +2325,20 @@ describe("buildGeneratedSafetyPlanDraft", () => {
           .some((text) => text?.includes("Applicable OSHA references:"))
       )
     ).toBe(false);
+
+    expect(
+      draft.sectionMap.some((section) =>
+        [section.summary, section.body, ...(section.subsections ?? []).map((subsection) => subsection.body ?? "")]
+          .filter(Boolean)
+          .some((text) => text?.includes("(R1)"))
+      )
+    ).toBe(true);
+
+    expect(
+      draft.sectionMap.some((section) =>
+        (section.bullets ?? []).includes("R1 OSHA 1926 Subpart M - Fall Protection")
+      )
+    ).toBe(true);
   });
 
   it("compacts narrative-heavy CSEP drafts while keeping required sections intact", () => {
@@ -2820,6 +2852,188 @@ describe("buildGeneratedSafetyPlanDraft", () => {
           title: "Unassigned Trade",
           bullets: ["Struck-by"],
         }),
+      ])
+    );
+  });
+
+  it("keeps mixed AI narrative blocks as one subsection instead of duplicating them as bullets", () => {
+    const enforcementText = [
+      "Unsafe conditions identified during steel-erection work will be addressed through a systematic approach.",
+      "",
+      "Correction Procedures:",
+      "- Workers must immediately report unsafe conditions to supervision.",
+      "- Supervisors must correct hazards before work restarts.",
+    ].join("\n");
+
+    const draft = buildGeneratedSafetyPlanDraft({
+      generationContext: {
+        project: {
+          projectName: "Steel Deck Expansion",
+          contractorCompany: "ABC Steel",
+        },
+        scope: {
+          trades: ["Steel Erection"],
+          subTrades: ["Structural steel"],
+          tasks: ["Decking installation"],
+          equipment: [],
+          location: "Level 5",
+        },
+        operations: [
+          {
+            operationId: "steel-op-1",
+            tradeCode: "steel_erection",
+            tradeLabel: "Steel Erection",
+            subTradeCode: "structural_steel",
+            subTradeLabel: "Structural steel",
+            taskCode: "decking_installation",
+            taskTitle: "Decking installation",
+            description: "Install metal deck on the active steel frame.",
+            equipmentUsed: [],
+            workConditions: ["Elevated work"],
+            hazardHints: ["fall"],
+            requiredControlHints: ["fall_protection"],
+            permitHints: [],
+            ppeHints: ["Hard Hat"],
+            workAreaLabel: "Level 5",
+            locationGrid: "E5",
+            locationLabel: "Level 5",
+            weatherConditionCode: null,
+            startsAt: null,
+            endsAt: null,
+            crewSize: 4,
+            metadata: {},
+          },
+        ],
+        siteContext: {
+          location: "Level 5",
+          workConditions: ["Elevated work"],
+          siteRestrictions: [],
+          simultaneousOperations: [],
+          weather: {
+            conditionCode: null,
+            summary: null,
+          },
+        },
+        programSelections: [],
+        builderInstructions: {
+          selectedBlockKeys: ["enforcement_and_corrective_action"],
+          selectedFormatSectionKeys: ["contractor_iipp"],
+          blockInputs: {
+            enforcement_and_corrective_action: enforcementText,
+          },
+          builderInputHash: "hash-enforcement-ai",
+        },
+        documentProfile: {
+          documentType: "csep",
+          projectDeliveryType: "ground_up",
+          source: "builder_submit",
+          governingState: "IL",
+          jurisdictionCode: "federal",
+          jurisdictionLabel: "Federal OSHA",
+          jurisdictionPlanType: "federal_osha",
+          jurisdictionStandardsApplied: [],
+        },
+        legacyFormSnapshot: {},
+      },
+      reviewContext: {
+        companyId: "company-1",
+        documentType: "csep",
+        buckets: [
+          {
+            bucketKey: "bucket-enforcement-1",
+            bucketType: "task_execution",
+            companyId: "company-1",
+            operationId: "steel-op-1",
+            taskTitle: "Decking installation",
+            tradeCode: "steel_erection",
+            subTradeCode: "structural_steel",
+            taskCode: "decking_installation",
+            workAreaLabel: "Level 5",
+            locationGrid: "E5",
+            startsAt: null,
+            endsAt: null,
+            weatherConditionCode: null,
+            equipmentUsed: [],
+            workConditions: ["Elevated work"],
+            siteRestrictions: [],
+            prohibitedEquipment: [],
+            hazardFamilies: ["fall"],
+            permitTriggers: [],
+            requiredControls: ["fall_protection"],
+            ppeRequirements: ["Hard Hat"],
+            trainingRequirementCodes: [],
+            payload: {},
+            source: {
+              module: "manual",
+              id: null,
+            },
+          },
+        ],
+        rulesEvaluations: [
+          {
+            bucketKey: "bucket-enforcement-1",
+            operationId: "steel-op-1",
+            findings: [],
+            permitTriggers: [],
+            hazardFamilies: ["fall"],
+            hazardCategories: ["Falls from height"],
+            ppeRequirements: ["Hard Hat"],
+            equipmentChecks: [],
+            weatherRestrictions: [],
+            requiredControls: ["fall_protection"],
+            siteRestrictions: [],
+            prohibitedEquipment: [],
+            trainingRequirements: [],
+            score: 8,
+            band: "moderate",
+            evaluationVersion: "v2",
+          },
+        ],
+        conflictEvaluations: [
+          {
+            bucketKey: "bucket-enforcement-1",
+            operationId: "steel-op-1",
+            conflicts: [],
+            score: 0,
+            band: "low",
+          },
+        ],
+        riskMemorySummary: null,
+      },
+      conflictMatrix: {
+        items: [],
+        score: 0,
+        band: "low",
+        intraDocumentConflictCount: 0,
+        externalConflictCount: 0,
+      },
+      narrativeSections: {
+        safetyNarrative: "Steel-erection narrative.",
+      },
+      trainingProgram: {
+        rows: [],
+        summaryTrainingTitles: [],
+      },
+      riskMemorySummary: null,
+    });
+
+    const normalizedEnforcementBody = enforcementText.replace(/\s+/g, " ").trim();
+    const enforcementSubsection = draft.sectionMap
+      .flatMap((section) => section.subsections ?? [])
+      .find((subsection) => subsection.body === normalizedEnforcementBody);
+
+    expect(enforcementSubsection?.body).toBe(normalizedEnforcementBody);
+    expect(enforcementSubsection?.bullets).toEqual(
+      expect.arrayContaining([
+        "Correct unsafe conditions immediately when feasible.",
+        "Escalate repeated or high-risk violations to supervision and safety leadership.",
+        "Document corrective actions, retraining, and restart conditions.",
+      ])
+    );
+    expect(enforcementSubsection?.bullets).not.toEqual(
+      expect.arrayContaining([
+        "Workers must immediately report unsafe conditions to supervision.",
+        "Supervisors must correct hazards before work restarts.",
       ])
     );
   });

@@ -63,7 +63,7 @@ export async function GET(request: Request) {
         .order("updated_at", { ascending: false }),
       auth.supabase
         .from("company_corrective_actions")
-        .select("id, jobsite_id, category, status, due_at")
+        .select("id, jobsite_id, category, status, due_at, created_at")
         .eq("company_id", companyScope.companyId)
         .order("updated_at", { ascending: false })
         .limit(500),
@@ -81,7 +81,9 @@ export async function GET(request: Request) {
         .limit(500),
       auth.supabase
         .from("company_incidents")
-        .select("id, jobsite_id, title, status, severity, sif_flag, escalation_level, stop_work_status")
+        .select(
+          "id, jobsite_id, title, status, severity, sif_flag, escalation_level, stop_work_status, created_at"
+        )
         .eq("company_id", companyScope.companyId)
         .order("updated_at", { ascending: false })
         .limit(500),

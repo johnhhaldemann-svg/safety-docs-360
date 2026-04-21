@@ -243,7 +243,10 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).toContain("18.1 Activity Hazard Analysis Matrix");
     expect(documentXml).toContain("18.1.1");
     expect(documentXml).toContain("Review lift path before each pick.");
-    expect(documentXml).toContain("<w:tbl>");
+    expect(documentXml).toContain("18.1.2");
+    expect(documentXml).toContain("Activity: Deck placement");
+    expect(documentXml).toContain("Hazard: Fall exposure");
+    expect(documentXml).not.toContain("<w:tbl>");
     expect(documentXml.indexOf("1.0 Company Overview and Safety Philosophy")).toBeLessThan(
       documentXml.indexOf("18.0 HSE Elements / Site-Specific Hazard Analysis")
     );

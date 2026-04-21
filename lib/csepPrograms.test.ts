@@ -100,12 +100,12 @@ describe("csepPrograms", () => {
     expect(
       permitRequiredSection.subsections
         .find((section) => section.title === "Minimum Required Controls")
-        ?.bullets.join(" ")
+        ?.body
     ).toContain("permit-required");
     expect(
       nonPermitSection.subsections
         .find((section) => section.title === "Minimum Required Controls")
-        ?.bullets.join(" ")
+        ?.body
     ).toContain("non-permit");
   });
 
@@ -191,8 +191,8 @@ describe("csepPrograms", () => {
     ).toEqual(["Custom pre-task procedure"]);
     expect(
       section.subsections.find((subsection) => subsection.title === "Minimum Required Controls")
-        ?.bullets
-    ).toEqual(["Custom control 1", "Custom control 2"]);
+        ?.body
+    ).toBe("Custom control 1. Custom control 2.");
   });
 
   it("renders first-class procedure subsections in the expected order for hazard programs", () => {
@@ -214,6 +214,103 @@ describe("csepPrograms", () => {
       "Minimum Required Controls",
       "Related Tasks",
     ]);
+  });
+
+  it("renders related tasks as one paragraph instead of bullet items", () => {
+    const section = buildCsepProgramSection({
+      category: "hazard",
+      item: "Falls from height",
+      relatedTasks: ["Unload steel", "Sort members", "Rigging"],
+      source: "selected",
+    });
+
+    expect(section.subsections.find((subsection) => subsection.title === "Related Tasks")).toEqual(
+      expect.objectContaining({
+        body: "These related tasks apply to this program scope: Unload steel, Sort members, Rigging.",
+        bullets: [],
+      })
+    );
+  });
+
+  it("renders program metadata subsections as paragraph bodies across the CSEP", () => {
+    const hazardSection = buildCsepProgramSection({
+      category: "hazard",
+      item: "Falls from height",
+      relatedTasks: ["Unload steel", "Sort members", "Rigging"],
+      source: "selected",
+    });
+    const section = buildCsepProgramSection({
+      category: "ppe",
+      item: "High Visibility Vest",
+      relatedTasks: ["Unload steel", "Sort members", "Rigging"],
+      source: "selected",
+    });
+
+    expect(hazardSection.subsections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "When It Applies",
+          body:
+            "Work is performed at height where fall exposure exists. Ladders, scaffolds, aerial lifts, or elevated platforms are part of the selected scope.",
+          bullets: [],
+        }),
+        expect.objectContaining({
+          title: "Applicable References",
+          body: expect.stringContaining("OSHA 1926 Subpart M - Fall Protection."),
+          bullets: [],
+        }),
+        expect.objectContaining({
+          title: "Responsibilities and Training",
+          body:
+            "Supervision shall verify fall protection systems are planned, inspected, and compatible with the work area. Workers shall stop work when anchor points, access, or edge protection are not adequate for the task. Workers shall be trained on fall protection selection, inspection, use, and rescue notification procedures.",
+          bullets: [],
+        }),
+        expect.objectContaining({
+          title: "Minimum Required Controls",
+          body:
+            "Use approved fall protection systems when site rules or OSHA criteria require them. Inspect harnesses, lanyards, SRLs, anchors, and connectors before each use. Maintain guardrails, covers, warning lines, and exclusion zones where applicable. Control dropped-object exposure below elevated work with barricades and housekeeping.",
+          bullets: [],
+        }),
+        expect.objectContaining({
+          title: "Related Tasks",
+          body: "These related tasks apply to this program scope: Unload steel, Sort members, Rigging.",
+          bullets: [],
+        }),
+      ])
+    );
+
+    expect(section.subsections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "When It Applies",
+          body:
+            "Selected work occurs around moving equipment, haul routes, or active traffic interfaces.",
+          bullets: [],
+        }),
+        expect.objectContaining({
+          title: "Applicable References",
+          body: "OSHA 1926 Subpart E - PPE.",
+          bullets: [],
+        }),
+        expect.objectContaining({
+          title: "Responsibilities and Training",
+          body:
+            "Supervision shall verify high-visibility apparel is worn in traffic-exposed work areas. Workers shall be trained on site traffic-control expectations and high-visibility requirements.",
+          bullets: [],
+        }),
+        expect.objectContaining({
+          title: "Minimum Required Controls",
+          body:
+            "Wear high-visibility garments that remain visible, clean, and in good condition. Replace garments that no longer provide effective visibility. Do not enter active traffic or equipment zones without the required visibility controls.",
+          bullets: [],
+        }),
+        expect.objectContaining({
+          title: "Related Tasks",
+          body: "These related tasks apply to this program scope: Unload steel, Sort members, Rigging.",
+          bullets: [],
+        }),
+      ])
+    );
   });
 
   it("fills missing procedure arrays from the default catalog when normalizing older configs", () => {

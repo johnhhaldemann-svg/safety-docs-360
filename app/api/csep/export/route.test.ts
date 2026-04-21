@@ -189,7 +189,7 @@ describe("legacy CSEP DOCX export", () => {
     expect(documentXml).toContain("1. Contractor Safety Policy Statement");
     expect(documentXml).toContain("2. Project &amp; Site Information");
     expect(documentXml).toContain('w:pgMar w:top="1440" w:right="1440" w:bottom="1080" w:left="1440"');
-    expect(documentXml).toContain("<w:tbl>");
+    expect(documentXml).not.toContain("<w:tbl>");
     expect(documentXml).toContain("Project Name");
     expect(documentXml).toContain("Contractor Company");
     expect(documentXml).toContain("Hard Hat");

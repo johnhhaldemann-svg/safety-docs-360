@@ -52,4 +52,33 @@ describe("workspaceNavigationModel", () => {
       }).description
     ).toContain("finished records");
   });
+
+  it("preserves section and item descriptions for grouped workspace navigation", () => {
+    const grouped = groupCompanyWorkspaceSections([
+      {
+        title: "Mixed",
+        items: [
+          { href: "/command-center", label: "Command Center", short: "CC" },
+          { href: "/library", label: "Documents", short: "DC" },
+          { href: "/jobsites", label: "Jobsites", short: "JS" },
+          { href: "/profile", label: "Profile", short: "PF" },
+        ],
+      },
+    ]);
+
+    expect(grouped.map((section) => `${section.title}:${section.description}`)).toEqual([
+      "Operations:Run daily safety work, triage risk, and keep approvals moving.",
+      "Documents:Open records, search the library, and move submissions forward.",
+      "Jobsites:Open live jobsites and jump into project-scoped workspaces.",
+      "Admin:Manage team access, reporting, setup, and account controls.",
+    ]);
+    expect(grouped[0]?.items[0]).toMatchObject({
+      href: "/command-center",
+      description: "Current risk, open work, and recommended next steps.",
+    });
+    expect(grouped[3]?.items[0]).toMatchObject({
+      href: "/profile",
+      description: "Manage workspace controls, analytics, reporting, and account details.",
+    });
+  });
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import * as Tabs from "@radix-ui/react-tabs";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
@@ -167,6 +168,16 @@ const EMPTY_EVIDENCE_COMPOSER: EvidenceComposerState = {
   file: null,
 };
 
+const STATUS_CHART_ORDER: CorrectiveActionRow["status"][] = [
+  "open",
+  "assigned",
+  "in_progress",
+  "corrected",
+  "verified_closed",
+  "escalated",
+  "stop_work",
+];
+
 function getSeverityTone(severity: CorrectiveActionRow["severity"]) {
   if (severity === "critical" || severity === "high") return "error" as const;
   if (severity === "medium") return "warning" as const;
@@ -190,6 +201,37 @@ function getStatusLabel(status: CorrectiveActionRow["status"]) {
   if (status === "escalated") return "Escalated";
   if (status === "stop_work") return "Stop Work";
   return "Open";
+}
+
+function getStatusChartClasses(status: CorrectiveActionRow["status"]) {
+  if (status === "verified_closed") {
+    return {
+      bar: "bg-emerald-400 shadow-[0_0_0_1px_rgba(52,211,153,0.18)]",
+      chip: "border-emerald-400/30 bg-emerald-950/40 text-emerald-200",
+    };
+  }
+  if (status === "escalated" || status === "stop_work") {
+    return {
+      bar: "bg-rose-400 shadow-[0_0_0_1px_rgba(251,113,133,0.18)]",
+      chip: "border-rose-400/30 bg-rose-950/40 text-rose-200",
+    };
+  }
+  if (status === "corrected") {
+    return {
+      bar: "bg-amber-300 shadow-[0_0_0_1px_rgba(252,211,77,0.18)]",
+      chip: "border-amber-300/30 bg-amber-950/40 text-amber-100",
+    };
+  }
+  if (status === "assigned" || status === "in_progress") {
+    return {
+      bar: "bg-sky-400 shadow-[0_0_0_1px_rgba(56,189,248,0.18)]",
+      chip: "border-sky-400/30 bg-sky-950/40 text-sky-200",
+    };
+  }
+  return {
+    bar: "bg-violet-300 shadow-[0_0_0_1px_rgba(196,181,253,0.18)]",
+    chip: "border-violet-300/30 bg-violet-950/40 text-violet-100",
+  };
 }
 
 function getSeverityLabel(severity: CorrectiveActionRow["severity"]) {
@@ -497,6 +539,103 @@ export default function FieldIdExchangePage() {
       count: filteredItems.filter((item) => getCategoryLabel(item.category) === label).length,
     }));
   }, [filteredItems]);
+
+  const statusChartData = useMemo(() => {
+    return STATUS_CHART_ORDER.map((status) => {
+      const count = filteredItems.filter((item) => item.status === status).length;
+      return {
+        status,
+        label: getStatusLabel(status),
+        count,
+        share: filteredItems.length > 0 ? count / filteredItems.length : 0,
+        ...getStatusChartClasses(status),
+      };
+    });
+  }, [filteredItems]);
+
+  const verifiedClosedCount = useMemo(
+    () => filteredItems.filter((item) => item.status === "verified_closed").length,
+    [filteredItems]
+  );
+
+  const actionStatusSummary = useMemo(
+    () => [
+      {
+        title: "Filtered Actions",
+        value: String(filteredItems.length),
+        note: "Every card and chart in this view follows your current filters.",
+      },
+      {
+        title: "Open Backlog",
+        value: String(openCount),
+        note: "Open and assigned work that still needs ownership or execution.",
+      },
+      {
+        title: "Overdue",
+        value: String(overdueCount),
+        note: "Open or active issues currently past their due date.",
+      },
+      {
+        title: "Verified Closed",
+        value: String(verifiedClosedCount),
+        note: "Items already closed and verified in the current filtered view.",
+      },
+    ],
+    [filteredItems.length, openCount, overdueCount, verifiedClosedCount]
+  );
+
+  function renderSharedFilters() {
+    return (
+      <div className="grid gap-3 lg:grid-cols-4">
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Search issue, assignee, or severity..."
+          aria-label="Search observations by issue, assignee, or severity"
+          className="min-h-11 rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+        />
+        <select
+          value={jobsiteFilter}
+          onChange={(event) => setJobsiteFilter(event.target.value)}
+          className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
+        >
+          <option value="all">All jobsites</option>
+          {[...jobsites.map((jobsite) => jobsite.name)].map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
+        >
+          <option value="all">All statuses</option>
+          <option value="Open">Open</option>
+          <option value="Assigned">Assigned</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Corrected">Corrected</option>
+          <option value="Escalated">Escalated</option>
+          <option value="Stop Work">Stop Work</option>
+          <option value="Verified Closed">Verified Closed</option>
+        </select>
+        <select
+          value={categoryFilter}
+          onChange={(event) => setCategoryFilter(event.target.value)}
+          className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
+        >
+          <option value="all">All categories</option>
+          {categoryCounts.map((category) => (
+            <option key={category.label} value={category.label}>
+              {category.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
 
   const activeMatrix = useMemo(() => {
     const categories: CorrectiveActionRow["category"][] = [
@@ -1044,42 +1183,59 @@ export default function FieldIdExchangePage() {
         the cards and filters below to review or update corrective actions.
       </InlineMessage>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          {
-            title: "Open Items",
-            value: String(openCount),
-            note: "Issues that need assignment or immediate action",
-          },
-          {
-            title: "In Progress",
-            value: String(inProgressCount),
-            note: "Issues actively being worked in the field",
-          },
-          {
-            title: "Overdue",
-            value: String(overdueCount),
-            note: "Open or active issues past their due date",
-          },
-          {
-            title: "Jobsites Covered",
-            value: String(coveredJobsites || jobsites.length),
-            note: companyLocation,
-          },
-        ].map((card) => (
-          <div key={card.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
-            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
-              {card.title}
-            </div>
-            <div className="mt-3 text-4xl font-black tracking-tight text-white">
-              {card.value}
-            </div>
-            <div className="mt-2 text-sm leading-6 text-slate-500">{card.note}</div>
-          </div>
-        ))}
-      </section>
+      <Tabs.Root defaultValue="board" className="space-y-6">
+        <Tabs.List className="flex flex-wrap gap-2 rounded-2xl border border-slate-700/80 bg-slate-900/90 p-2">
+          <Tabs.Trigger
+            value="board"
+            className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-300 transition-colors hover:text-white data-[state=active]:bg-sky-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=inactive]:bg-transparent"
+          >
+            Board
+          </Tabs.Trigger>
+          <Tabs.Trigger
+            value="metrics"
+            className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-300 transition-colors hover:text-white data-[state=active]:bg-sky-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=inactive]:bg-transparent"
+          >
+            Metrics
+          </Tabs.Trigger>
+        </Tabs.List>
 
-      <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <Tabs.Content value="board" className="space-y-6 outline-none">
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                title: "Open Items",
+                value: String(openCount),
+                note: "Issues that need assignment or immediate action",
+              },
+              {
+                title: "In Progress",
+                value: String(inProgressCount),
+                note: "Issues actively being worked in the field",
+              },
+              {
+                title: "Overdue",
+                value: String(overdueCount),
+                note: "Open or active issues past their due date",
+              },
+              {
+                title: "Jobsites Covered",
+                value: String(coveredJobsites || jobsites.length),
+                note: companyLocation,
+              },
+            ].map((card) => (
+              <div key={card.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
+                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                  {card.title}
+                </div>
+                <div className="mt-3 text-4xl font-black tracking-tight text-white">
+                  {card.value}
+                </div>
+                <div className="mt-2 text-sm leading-6 text-slate-500">{card.note}</div>
+              </div>
+            ))}
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <SectionCard
           title="Create Observation"
           description="Create an observation, assign owner, set due date, and track closure proof."
@@ -1355,53 +1511,11 @@ export default function FieldIdExchangePage() {
           title="Observation Queue"
           description="Assign, move to in progress, upload proof, then close with accountability."
         >
-          <div className="mb-4 grid gap-3 lg:grid-cols-4">
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search issue, assignee, or severity..."
-              aria-label="Search observations by issue, assignee, or severity"
-              className="min-h-11 rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-            />
-            <select
-              value={jobsiteFilter}
-              onChange={(event) => setJobsiteFilter(event.target.value)}
-              className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
-            >
-              <option value="all">All jobsites</option>
-              {[...jobsites.map((jobsite) => jobsite.name)].map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
-            >
-              <option value="all">All statuses</option>
-              <option value="Open">Open</option>
-              <option value="Assigned">Assigned</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Corrected">Corrected</option>
-              <option value="Escalated">Escalated</option>
-              <option value="Stop Work">Stop Work</option>
-              <option value="Verified Closed">Verified Closed</option>
-            </select>
-            <select
-              value={categoryFilter}
-              onChange={(event) => setCategoryFilter(event.target.value)}
-              className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
-            >
-              <option value="all">All categories</option>
-              {categoryCounts.map((category) => (
-                <option key={category.label} value={category.label}>
-                  {category.label}
-                </option>
-              ))}
-            </select>
+          <div className="mb-4 space-y-3">
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              View Filters
+            </div>
+            {renderSharedFilters()}
           </div>
 
           {!hasLoaded ? (
@@ -1807,7 +1921,176 @@ export default function FieldIdExchangePage() {
             }
           />
         </div>
-      </section>
+          </section>
+        </Tabs.Content>
+
+        <Tabs.Content value="metrics" className="space-y-6 outline-none">
+          <SectionCard
+            title="Metrics Filters"
+            description="Refine the dataset shown in the status chart and supporting corrective-action metrics."
+          >
+            {renderSharedFilters()}
+          </SectionCard>
+
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {actionStatusSummary.map((card) => (
+              <div key={card.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
+                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                  {card.title}
+                </div>
+                <div className="mt-3 text-4xl font-black tracking-tight text-white">
+                  {card.value}
+                </div>
+                <div className="mt-2 text-sm leading-6 text-slate-500">{card.note}</div>
+              </div>
+            ))}
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+            <SectionCard
+              title="Corrective Action Status"
+              description="Live status mix for the current filtered corrective-action view."
+            >
+              {!hasLoaded ? (
+                <EmptyState
+                  title="Load metrics"
+                  description="Click Refresh Board to pull the latest corrective actions before opening metrics."
+                />
+              ) : loadingActions ? (
+                <EmptyState title="Refreshing metrics" description="Please wait..." />
+              ) : filteredItems.length === 0 ? (
+                <EmptyState
+                  title="No filtered actions to chart"
+                  description="Adjust the filters or create an observation to populate the metrics tab."
+                />
+              ) : (
+                <div className="space-y-5">
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {statusChartData.map((statusRow) => (
+                      <div
+                        key={statusRow.status}
+                        className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span
+                            className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${statusRow.chip}`}
+                          >
+                            {statusRow.label}
+                          </span>
+                          <span className="text-lg font-black text-white">{statusRow.count}</span>
+                        </div>
+                        <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-800">
+                          <div
+                            className={`h-full rounded-full transition-[width] duration-300 ${statusRow.bar}`}
+                            style={{ width: `${Math.max(statusRow.share * 100, statusRow.count > 0 ? 8 : 0)}%` }}
+                          />
+                        </div>
+                        <div className="mt-2 text-xs text-slate-500">
+                          {filteredItems.length > 0
+                            ? `${Math.round(statusRow.share * 100)}% of the current view`
+                            : "0% of the current view"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                    <div className="flex items-end gap-3 overflow-x-auto pb-1">
+                      {statusChartData.map((statusRow) => (
+                        <div
+                          key={`chart-${statusRow.status}`}
+                          className="flex min-w-[88px] flex-1 flex-col items-center gap-3"
+                        >
+                          <div className="text-sm font-black text-white">{statusRow.count}</div>
+                          <div className="flex h-52 w-full items-end rounded-2xl bg-slate-900/90 px-3 py-3">
+                            <div
+                              className={`w-full rounded-xl transition-[height] duration-300 ${statusRow.bar}`}
+                              style={{
+                                height: `${Math.max(statusRow.share * 100, statusRow.count > 0 ? 12 : 2)}%`,
+                              }}
+                            />
+                          </div>
+                          <div className="text-center text-[11px] font-semibold leading-4 text-slate-400">
+                            {statusRow.label}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </SectionCard>
+
+            <div className="space-y-6">
+              <SectionCard
+                title="Issue Categories"
+                description="Track volume by issue category after admin review decisions."
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {categoryCounts.map((category) => (
+                    <div key={category.label} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
+                      <div className="text-sm font-semibold text-slate-100">{category.label}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {category.count} active issue{category.count === 1 ? "" : "s"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                title="Active Matrix"
+                description="Live matrix of issue categories by status."
+              >
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-separate border-spacing-y-2">
+                    <thead>
+                      <tr>
+                        <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Category
+                        </th>
+                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Open
+                        </th>
+                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          In Progress
+                        </th>
+                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Closed
+                        </th>
+                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Total
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeMatrix.map((row) => (
+                        <tr key={row.category}>
+                          <td className="rounded-l-xl border-y border-l border-slate-700/80 bg-slate-950/50 px-3 py-2 text-xs font-semibold text-slate-100">
+                            {getCategoryLabel(row.category)}
+                          </td>
+                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">
+                            {row.open}
+                          </td>
+                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">
+                            {row.inProgress}
+                          </td>
+                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">
+                            {row.closed}
+                          </td>
+                          <td className="rounded-r-xl border-y border-r border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs font-semibold text-slate-100">
+                            {row.total}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </SectionCard>
+            </div>
+          </section>
+        </Tabs.Content>
+      </Tabs.Root>
     </div>
   );
 }

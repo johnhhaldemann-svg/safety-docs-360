@@ -1230,6 +1230,18 @@ export default function ReviewDocumentPage() {
     : Boolean(documentItem.draft_file_path);
   const reviewNotesProvided = Boolean(reviewerEmail.trim() || reviewNotes.trim());
   const hasFinalFile = Boolean(documentItem.final_file_path);
+  const marketplacePreviewPath = getMarketplacePreviewPath(documentItem.notes);
+  const submitterPreviewStatus = getSubmitterPreviewStatus(documentItem.notes);
+  const canManageOwnerPreview =
+    !isGcProgramDoc && Boolean(builderProgramType) && canApproveDocuments;
+  const ownerPreviewActionLabel = marketplacePreviewPath
+    ? "Regenerate preview PDF for owner"
+    : "Generate preview PDF for owner";
+  const ownerPreviewHelperText = marketplacePreviewPath
+    ? submitterPreviewStatus === "rejected"
+      ? "The current owner preview was rejected. Regenerate it here so the submitter can review a fresh copy."
+      : "A preview is already attached. Regenerate it here if the submitted CSEP changed or you want to replace the owner review copy."
+    : "Create the owner review PDF directly from this submitted CSEP before approval.";
   const currentStepLabel = isArchivedStatus(documentItem.status)
     ? "Archived"
     : isGcProgramDoc
@@ -1853,6 +1865,38 @@ export default function ReviewDocumentPage() {
               description="Upload the final DOCX, confirm reviewer details, and send the approved version back into the workspace."
             >
               <div className="space-y-5">
+                {canManageOwnerPreview ? (
+                  <div className="rounded-2xl border border-violet-500/20 bg-violet-950/20 p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-violet-100">
+                          Owner preview for submitted {builderProgramType}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-400">{ownerPreviewHelperText}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void generateMarketplacePreviewPdf();
+                        }}
+                        disabled={generatingPreview || uploadingPreview || !canApproveDocuments}
+                        className="rounded-xl border border-violet-500/40 bg-violet-950/40 px-4 py-2.5 text-sm font-semibold text-violet-100 transition hover:bg-violet-950/70 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {generatingPreview ? "Generating..." : ownerPreviewActionLabel}
+                      </button>
+                    </div>
+                    <p className="mt-3 text-xs text-slate-500">
+                      {submitterPreviewStatus === "pending"
+                        ? "Current status: pending owner approval."
+                        : submitterPreviewStatus === "approved"
+                          ? "Current status: approved by the document owner."
+                          : submitterPreviewStatus === "rejected"
+                            ? "Current status: rejected by the document owner."
+                            : "Current status: no owner approval request has been sent yet."}
+                    </p>
+                  </div>
+                ) : null}
+
                 <div className="grid gap-5 lg:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-slate-200">
@@ -1982,8 +2026,8 @@ export default function ReviewDocumentPage() {
                       Preview file
                     </p>
                     <p className="mt-2 text-sm font-semibold text-slate-100">
-                      {documentItem && getMarketplacePreviewPath(documentItem.notes)
-                        ? getMarketplacePreviewPath(documentItem.notes)?.split("/").pop()
+                      {marketplacePreviewPath
+                        ? marketplacePreviewPath.split("/").pop()
                         : "Not attached yet"}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
@@ -2005,10 +2049,10 @@ export default function ReviewDocumentPage() {
                     </p>
                   </div>
                 </div>
-                {documentItem && getMarketplacePreviewPath(documentItem.notes) ? (
+                {marketplacePreviewPath ? (
                   <p className="mt-3 text-xs font-medium text-emerald-400">
                     Preview on file:{" "}
-                    {getMarketplacePreviewPath(documentItem.notes)?.split("/").pop()}
+                    {marketplacePreviewPath.split("/").pop()}
                   </p>
                 ) : (
                   <p className="mt-3 text-xs text-slate-500">No preview uploaded yet.</p>
@@ -2054,7 +2098,7 @@ export default function ReviewDocumentPage() {
                     disabled={generatingPreview || uploadingPreview || !canApproveDocuments}
                     className="rounded-xl border border-violet-500/40 bg-violet-950/40 px-4 py-2.5 text-sm font-semibold text-violet-100 transition hover:bg-violet-950/70 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {generatingPreview ? "Generating…" : "Generate preview PDF for owner"}
+                    {generatingPreview ? "Generating..." : ownerPreviewActionLabel}
                   </button>
                   <button
                     type="button"
@@ -2081,7 +2125,7 @@ export default function ReviewDocumentPage() {
                       uploadingPreview ||
                       generatingPreview ||
                       !canApproveDocuments ||
-                      !getMarketplacePreviewPath(documentItem?.notes ?? null)
+                      !marketplacePreviewPath
                     }
                     className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:opacity-60"
                   >

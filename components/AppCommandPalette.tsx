@@ -61,14 +61,14 @@ export function AppCommandPalette({ open, onOpenChange, items }: AppCommandPalet
       <button
         type="button"
         aria-label="Close command menu"
-        className="absolute inset-0 bg-[rgba(22,50,79,0.18)] backdrop-blur-sm"
+        className="absolute inset-0 bg-[rgba(37,99,235,0.07)] backdrop-blur-sm"
         onClick={() => onOpenChange(false)}
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Go to page"
-        className="relative z-10 w-full max-w-lg rounded-2xl border border-[var(--app-border)] bg-[rgba(248,251,255,0.98)] shadow-[var(--app-shadow)]"
+        className="relative z-10 w-full max-w-lg rounded-2xl border border-[var(--app-border-subtle)] bg-white/95 shadow-[var(--app-shadow-soft)]"
       >
         <div className="border-b border-[var(--app-border)] p-3">
           <label htmlFor="command-palette-input" className="sr-only">

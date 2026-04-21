@@ -368,9 +368,9 @@ function buildProgramRenderSection(program: CSEPProgramSection): GeneratedSafety
     key: program.key,
     title: program.title,
     summary: program.summary,
-    body: program.relatedTasks.length ? `Related tasks: ${program.relatedTasks.join(", ")}.` : undefined,
     subsections: program.subsections.map((subsection) => ({
       title: subsection.title,
+      body: subsection.body,
       bullets: subsection.bullets,
     })),
   };

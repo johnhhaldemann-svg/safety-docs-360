@@ -91,6 +91,26 @@ describe("csepBuilder", () => {
     );
   });
 
+  it("normalizes markdown-heavy AI section text into plain field text", () => {
+    expect(
+      parseCsepAiTextResponse(
+        [
+          "**Enforcement and Corrective Action**",
+          "Unsafe conditions will be addressed through a systematic approach. **Correction Procedures:** - Workers must report unsafe conditions immediately. - Supervisors must correct hazards before restart.",
+        ].join("\n"),
+        "Enforcement and Corrective Action"
+      )
+    ).toBe(
+      [
+        "Unsafe conditions will be addressed through a systematic approach.",
+        "",
+        "Correction Procedures:",
+        "- Workers must report unsafe conditions immediately.",
+        "- Supervisors must correct hazards before restart.",
+      ].join("\n")
+    );
+  });
+
   it("maps selected format sections back to legacy builder blocks", () => {
     expect(
       buildLegacyIncludedSectionLabelsFromFormatSections([

@@ -73,6 +73,7 @@ export type DashboardCorrectiveAction = {
   status?: string | null;
   due_at?: string | null;
   title?: string | null;
+  created_at?: string | null;
 };
 
 export type DashboardStatusRow = {
@@ -91,6 +92,7 @@ export type DashboardRiskRow = {
   sif_flag?: boolean | null;
   escalation_level?: string | null;
   stop_work_status?: string | null;
+  created_at?: string | null;
 };
 
 export type CompanyDashboardMetrics = {
@@ -111,6 +113,8 @@ export type CompanyDashboardMetrics = {
 
 export type DashboardAnalyticsSummary = {
   topHazardCategories?: Array<{ category: string; count: number }>;
+  observationTrends?: Array<{ date: string; count: number }>;
+  sifTrends?: Array<{ date: string; count: number }>;
   jobsiteRiskScore?: Array<{
     jobsiteId: string;
     score: number;
@@ -156,88 +160,12 @@ export type DashboardBanner = {
   tone: "warning" | "error";
 } | null;
 
-export type DashboardHeroAction = {
-  label: string;
-  href: string;
-  variant: "primary" | "secondary";
-};
-
-export type DashboardHero = {
-  eyebrow: string;
-  title: string;
-  description: string;
-  actions: DashboardHeroAction[];
-};
-
-export type DashboardMetric = {
-  title: string;
-  value: string;
-  detail: string;
-  tone?: "panel" | "elevated" | "attention";
-};
-
 export type DashboardFeedItem = {
   id: string;
   title: string;
   detail: string;
   meta: string;
   tone?: "neutral" | "success" | "warning" | "error" | "info";
-};
-
-export type DashboardAction = {
-  title: string;
-  description: string;
-  href: string;
-  actionLabel: string;
-  tone?: "panel" | "elevated" | "attention";
-};
-
-export type DashboardSummaryItem = {
-  id: string;
-  label: string;
-  value: string;
-  note: string;
-  href?: string;
-  tone?: "neutral" | "success" | "warning" | "error" | "info";
-};
-
-export type DashboardSectionEmpty = {
-  title: string;
-  description: string;
-  actionHref?: string;
-  actionLabel?: string;
-};
-
-export type DashboardFeedSection = {
-  title: string;
-  description: string;
-  items: DashboardFeedItem[];
-  empty: DashboardSectionEmpty;
-};
-
-export type DashboardActionSection = {
-  title: string;
-  description: string;
-  items: DashboardAction[];
-  empty: DashboardSectionEmpty;
-};
-
-export type DashboardSummarySection = {
-  title: string;
-  description: string;
-  items: DashboardSummaryItem[];
-  empty: DashboardSectionEmpty;
-};
-
-export type DashboardViewModel = {
-  hero: DashboardHero;
-  banner?: DashboardBanner;
-  metrics: DashboardMetric[];
-  priority: DashboardFeedSection;
-  nextActions: DashboardActionSection;
-  activity: DashboardFeedSection;
-  insights: DashboardSummarySection;
-  support: DashboardSummarySection;
 };
 
 export type DashboardDataState = {

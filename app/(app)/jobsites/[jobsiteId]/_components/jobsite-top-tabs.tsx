@@ -27,11 +27,11 @@ export function JobsiteTopTabs({
   ];
 
   return (
-    <div className="sticky top-0 z-20 rounded-2xl border border-slate-700/80 bg-slate-900/92 p-3 backdrop-blur">
-      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+    <div className="sticky top-0 z-20 rounded-2xl border border-[var(--app-border-subtle)] bg-[linear-gradient(180deg,rgba(255,255,255,0.97)_0%,rgba(241,247,255,0.95)_100%)] p-3 shadow-[var(--app-shadow-soft)] backdrop-blur-md">
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--app-muted)]">
         Jobsite Workspace
       </div>
-      <div className="mb-2 text-xl font-black text-slate-100">Jobsite {jobsiteId}</div>
+      <div className="mb-2 text-xl font-semibold tracking-tight text-[var(--app-text-strong)]">Jobsite {jobsiteId}</div>
       <div className="overflow-x-auto">
         <div className="inline-flex min-w-max gap-2">
           {tabs.map((tab) => {
@@ -43,8 +43,8 @@ export function JobsiteTopTabs({
                 className={cx(
                   "rounded-xl px-3 py-2 text-sm font-semibold whitespace-nowrap transition",
                   active
-                    ? "bg-[linear-gradient(135deg,_#4f7cff_0%,_#5b6cff_100%)] text-white"
-                    : "border border-slate-600 bg-slate-900/90 text-slate-300 hover:bg-slate-950/50"
+                    ? "bg-[var(--app-accent-primary)] text-white shadow-[0_8px_20px_rgba(37,99,235,0.2)]"
+                    : "border border-[var(--app-border)] bg-white/90 text-[var(--app-text)] hover:border-[var(--app-border-strong)] hover:bg-[var(--app-accent-primary-soft)]"
                 )}
               >
                 {tab.label}

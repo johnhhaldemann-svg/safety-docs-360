@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   AiReviewContext,
+  BucketedWorkItem,
   DocumentGenerationRequest,
   GeneratedDocumentRecord,
   JsonObject,
   RawTaskInput,
+  RulesEvaluation,
   SafetyPlanGenerationContext,
 } from "@/types/safety-intelligence";
 import { buildBucketedWorkItem } from "@/lib/safety-intelligence/buckets";
@@ -31,7 +33,18 @@ import { evaluateRules } from "@/lib/safety-intelligence/rules";
 import { STATIC_PLATFORM_RULE_TEMPLATES } from "@/lib/safety-intelligence/rules/catalog";
 import { loadDbRuleTemplates } from "@/lib/safety-intelligence/rules/repository";
 
-type LiteClient = SupabaseClient<any, "public", any>;
+type LiteClient = SupabaseClient;
+
+type CompanyBucketItemPeerRow = {
+  bucket_payload: BucketedWorkItem | null;
+  rule_results: RulesEvaluation | null;
+};
+
+function hasPeerConflictData(
+  row: CompanyBucketItemPeerRow
+): row is { bucket_payload: BucketedWorkItem; rule_results: RulesEvaluation } {
+  return Boolean(row.bucket_payload && row.rule_results);
+}
 
 export function buildSafetyPlanTemplateContext(params: {
   documentProfile: SafetyPlanGenerationContext["documentProfile"];
@@ -145,6 +158,23 @@ export function buildGeneratedDocumentRecordFromDraft(
     return `<table><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table>`;
   }
 
+  function renderTableAsNumberedParagraphs(
+    table: NonNullable<(typeof draft.sectionMap)[number]["table"]>,
+    sectionNumber: string,
+    priorNumberedItemCount: number
+  ) {
+    if (!table.rows.length) return "";
+    return table.rows
+      .map((row, rowIndex) => {
+        const num = `${sectionNumber}.${priorNumberedItemCount + rowIndex + 1}`;
+        const text = table.columns
+          .map((column, columnIndex) => `${column}: ${row[columnIndex]?.trim() || "N/A"}`)
+          .join(" ");
+        return `<p>${num} ${text}</p>`;
+      })
+      .join("");
+  }
+
   const sections = draft.sectionMap.map((section) => ({
     heading: section.title,
     body: [
@@ -169,6 +199,10 @@ export function buildGeneratedDocumentRecordFromDraft(
       .map((section, sectionIndex) => {
         const sectionHeading = displayHeading(section, sectionIndex);
         const sectionNumber = displayPrefix(section, sectionIndex);
+        const subsectionBulletTotal =
+          section.subsections?.reduce((acc, sub) => acc + (sub.bullets?.length ?? 0), 0) ?? 0;
+        const numberedItemsBeforeTable =
+          (section.bullets?.length ?? 0) + subsectionBulletTotal;
         const parts = [
           section.summary ? `<p>${section.summary}</p>` : "",
           section.body ? `<p>${section.body}</p>` : "",
@@ -187,7 +221,11 @@ export function buildGeneratedDocumentRecordFromDraft(
                 })
                 .join("")
             : "",
-          section.table?.rows.length ? renderTable(section.table) : "",
+          section.table?.rows.length
+            ? draft.documentType === "csep"
+              ? renderTableAsNumberedParagraphs(section.table, sectionNumber, numberedItemsBeforeTable)
+              : renderTable(section.table)
+            : "",
         ].join("");
         return `<section><h2>${sectionHeading}</h2>${parts}</section>`;
       })
@@ -311,11 +349,11 @@ export async function runSafetyPlanDocumentPipeline(params: {
   const externalPeers =
     peersResult.error || !Array.isArray(peersResult.data)
       ? []
-      : (peersResult.data as Array<Record<string, unknown>>)
-          .filter((row) => row.bucket_payload && row.rule_results)
+      : (peersResult.data as CompanyBucketItemPeerRow[])
+          .filter(hasPeerConflictData)
           .map((row) => ({
-            bucket: row.bucket_payload as any,
-            rules: row.rule_results as any,
+            bucket: row.bucket_payload,
+            rules: row.rule_results,
           }));
 
   const conflictMatrix = buildConflictMatrix({

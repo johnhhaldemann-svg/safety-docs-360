@@ -3,6 +3,7 @@ import type {
   DocumentGenerationRequest,
   GeneratedDocumentRecord,
   GeneratedSafetyPlanDraft,
+  SafetyPlanGenerationContext,
 } from "@/types/safety-intelligence";
 import { CSEP_FORMAT_SECTION_KEYS, type CsepFormatSectionKey } from "@/types/csep-builder";
 import { getCustomerFacingDocumentLayoutGuidance } from "@/lib/documentLayoutGuidance";
@@ -64,7 +65,7 @@ export async function generateDocumentDraft(request: DocumentGenerationRequest):
     getCustomerFacingDocumentLayoutGuidance(),
     "Keep narrative fields concise and non-repetitive.",
     "Do not reuse the same sentence or restate OSHA references, front-matter facts, or section headings already captured elsewhere in the draft.",
-    "Prefer short summaries because tables, bullets, and program sections carry the detailed content.",
+    "Prefer short summaries because tables, numbered procedural requirements, and program sections carry the detailed content.",
     "Return JSON with keys: title, sections (array of heading/body), htmlPreview, draftJson, provenance.",
   ].join(" ");
   const user = JSON.stringify(request);
@@ -121,7 +122,7 @@ function buildFallbackAiAssemblyDecisions(
     frontMatterGuidance:
       "Use the front matter to orient field teams quickly, keep placeholders explicit when project facts are missing, and avoid repeating numbered-section details above the main body.",
     coverageGuidance:
-      "Keep required-content callouts visible when hazards, permits, competent-person requirements, rescue expectations, owner rules, or recurring inspections could otherwise be lost in the layout.",
+      "Keep required-content emphasis visible when hazards, permits, competent-person requirements, rescue expectations, owner rules, or recurring inspections could otherwise be lost in the layout.",
     sectionDecisions,
     decisionSource: "fallback",
   };
@@ -133,34 +134,36 @@ export async function generateSafetyPlanNarratives(params: {
 }) {
   assertAiReviewContextReady(params.reviewContext);
 
+  const fallbackGenerationContext: SafetyPlanGenerationContext = {
+    project: {
+      projectName: params.draft.projectOverview.projectName,
+    },
+    scope: {
+      trades: params.draft.operations
+        .map((operation) => operation.tradeLabel ?? operation.tradeCode ?? "")
+        .filter(Boolean),
+      subTrades: params.draft.operations
+        .map((operation) => operation.subTradeLabel ?? operation.subTradeCode ?? "")
+        .filter(Boolean),
+      tasks: params.draft.operations.map((operation) => operation.taskTitle),
+      equipment: params.draft.operations.flatMap((operation) => operation.equipmentUsed),
+    },
+    operations: [],
+    siteContext: {
+      workConditions: params.draft.operations.flatMap((operation) => operation.workConditions),
+      siteRestrictions: params.draft.ruleSummary.siteRestrictions,
+      simultaneousOperations: [],
+    },
+    documentProfile: {
+      documentType: params.draft.documentType,
+      projectDeliveryType: params.draft.projectDeliveryType,
+      source: "api",
+    },
+    legacyFormSnapshot: {},
+  };
+
   const fallback = buildFallbackNarratives({
-    generationContext: {
-      project: {
-        projectName: params.draft.projectOverview.projectName,
-      },
-      scope: {
-        trades: params.draft.operations
-          .map((operation) => operation.tradeLabel ?? operation.tradeCode ?? "")
-          .filter(Boolean),
-        subTrades: params.draft.operations
-          .map((operation) => operation.subTradeLabel ?? operation.subTradeCode ?? "")
-          .filter(Boolean),
-        tasks: params.draft.operations.map((operation) => operation.taskTitle),
-        equipment: params.draft.operations.flatMap((operation) => operation.equipmentUsed),
-      },
-      operations: [],
-      siteContext: {
-        workConditions: params.draft.operations.flatMap((operation) => operation.workConditions),
-        siteRestrictions: params.draft.ruleSummary.siteRestrictions,
-        simultaneousOperations: [],
-      },
-      documentProfile: {
-        documentType: params.draft.documentType,
-        projectDeliveryType: params.draft.projectDeliveryType,
-        source: "api",
-      },
-      legacyFormSnapshot: {},
-    } as any,
+    generationContext: fallbackGenerationContext,
     reviewContext: params.reviewContext,
     conflictMatrix: {
       items: params.draft.conflictSummary.items,
@@ -180,8 +183,9 @@ export async function generateSafetyPlanNarratives(params: {
     "Keep each field to a concise customer-facing summary, not a full section rewrite.",
     "Do not repeat the same sentence or idea across fields.",
     "Do not restate OSHA references, project metadata, front-matter facts, or section titles that already appear elsewhere in the document.",
-    "Treat tables, bullets, and generated program sections as the detailed source of truth and keep these narrative fields brief.",
+    "Treat tables, numbered requirement lists, and generated program sections as the detailed source of truth and keep these narrative fields brief.",
     "For CSEP drafts, also return aiAssemblyDecisions with keys frontMatterGuidance, coverageGuidance, and sectionDecisions.",
+    "For CSEP, editorial guidance should favor a field-manual tone: numbered procedural steps and narrative paragraphs rather than checklist-style bullets.",
     "sectionDecisions must be a map keyed by the numbered CSEP section keys and represents the final editorial guidance the formatter should use when building the document.",
     "These AI assembly decisions are the final deciding factor for section emphasis and placeholder visibility, but they must stay within the provided facts.",
     "Return JSON with keys: tradeBreakdownSummary, riskPrioritySummary, requiredControlsSummary, safetyNarrative, aiAssemblyDecisions.",

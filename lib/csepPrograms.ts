@@ -58,6 +58,29 @@ function dedupe(values: readonly string[]) {
   return [...new Set(values.filter(Boolean).map((value) => value.trim()).filter(Boolean))];
 }
 
+function formatProgramParagraph(values: readonly string[], fallback?: string) {
+  const items = dedupe(values);
+  if (items.length > 0) {
+    return items
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => (/[.!?]$/.test(item) ? item : `${item}.`))
+      .join(" ");
+  }
+
+  const text = fallback?.trim() || "";
+  if (!text) return undefined;
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
+const PROGRAM_PARAGRAPH_SUBSECTION_TITLES = new Set([
+  "When It Applies",
+  "Applicable References",
+  "Responsibilities and Training",
+  "Minimum Required Controls",
+  "Related Tasks",
+]);
+
 function normalizeText(value: unknown, fallback: string) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
@@ -1668,6 +1691,49 @@ export function buildCsepProgramSection(
   }
 ): CSEPProgramSection {
   const definition = resolveDefinition(selection, options?.definitions);
+  const relatedTasks = dedupe(selection.relatedTasks);
+  const relatedTasksBody = relatedTasks.length
+    ? `These related tasks apply to this program scope: ${relatedTasks.join(", ")}.`
+    : "This program was included from the current CSEP selection set.";
+  const subsectionDefinitions = [
+    {
+      title: "When It Applies",
+      bullets: definition.applicableWhen,
+    },
+    {
+      title: "Applicable References",
+      bullets: definition.oshaRefs,
+    },
+    {
+      title: "Responsibilities and Training",
+      bullets: dedupe([...definition.responsibilities, ...definition.training]),
+    },
+    {
+      title: "Pre-Task Setup",
+      bullets: definition.preTaskProcedures,
+    },
+    {
+      title: "Work Execution",
+      bullets: definition.workProcedures,
+    },
+    {
+      title: "Stop-Work / Escalation",
+      bullets: definition.stopWorkProcedures,
+    },
+    {
+      title: "Post-Task / Closeout",
+      bullets: definition.closeoutProcedures,
+    },
+    {
+      title: "Minimum Required Controls",
+      bullets: definition.controls,
+    },
+    {
+      title: "Related Tasks",
+      body: relatedTasksBody,
+      bullets: [],
+    },
+  ];
 
   return {
     key: `program_${getProgramSelectionKey(selection.category, selection.item, selection.subtype)}`,
@@ -1676,47 +1742,18 @@ export function buildCsepProgramSection(
     subtype: selection.subtype ?? null,
     title: definition.title,
     summary: definition.summary,
-    relatedTasks: dedupe(selection.relatedTasks),
-    subsections: [
-      {
-        title: "When It Applies",
-        bullets: definition.applicableWhen,
-      },
-      {
-        title: "Applicable References",
-        bullets: definition.oshaRefs,
-      },
-      {
-        title: "Responsibilities and Training",
-        bullets: dedupe([...definition.responsibilities, ...definition.training]),
-      },
-      {
-        title: "Pre-Task Setup",
-        bullets: definition.preTaskProcedures,
-      },
-      {
-        title: "Work Execution",
-        bullets: definition.workProcedures,
-      },
-      {
-        title: "Stop-Work / Escalation",
-        bullets: definition.stopWorkProcedures,
-      },
-      {
-        title: "Post-Task / Closeout",
-        bullets: definition.closeoutProcedures,
-      },
-      {
-        title: "Minimum Required Controls",
-        bullets: definition.controls,
-      },
-      {
-        title: "Related Tasks",
-        bullets: selection.relatedTasks.length
-          ? selection.relatedTasks.map((task) => `${task}`)
-          : ["This program was included from the current CSEP selection set."],
-      },
-    ].filter((section) => section.bullets.length > 0),
+    relatedTasks,
+    subsections: subsectionDefinitions
+      .map((section) =>
+        PROGRAM_PARAGRAPH_SUBSECTION_TITLES.has(section.title)
+          ? {
+              title: section.title,
+              body: section.body ?? formatProgramParagraph(section.bullets),
+              bullets: [] as string[],
+            }
+          : section
+      )
+      .filter((section) => Boolean(section.body?.trim()) || section.bullets.length > 0),
   };
 }
 

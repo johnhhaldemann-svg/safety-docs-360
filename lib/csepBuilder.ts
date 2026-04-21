@@ -1325,12 +1325,32 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function stripMarkdownFormatting(value: string) {
+  return value
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1");
+}
+
+function normalizeCsepAiTextLayout(value: string) {
+  return value
+    .replace(/\r\n?/g, "\n")
+    .replace(/([^\n])\s+([A-Z][A-Za-z0-9/&(),'\- ]{2,80}:)(?=\s*[-*•]\s+)/g, "$1\n\n$2")
+    .replace(/([^\n])\s+([-*•]\s+)/g, "$1\n$2")
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function parseCsepAiTextResponse(value: string, title?: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
   const fencedMatch = trimmed.match(/```(?:text|markdown)?\s*([\s\S]*?)\s*```/i);
-  let candidate = fencedMatch?.[1]?.trim() ?? trimmed;
+  let candidate = stripMarkdownFormatting(fencedMatch?.[1]?.trim() ?? trimmed).trim();
 
   if (title) {
     const lines = candidate.split(/\r?\n/);
@@ -1347,7 +1367,7 @@ export function parseCsepAiTextResponse(value: string, title?: string) {
     );
   }
 
-  return candidate.trim() || null;
+  return normalizeCsepAiTextLayout(candidate) || null;
 }
 
 function formatPromptList(items: string[], fallback: string) {
@@ -1418,7 +1438,8 @@ export function buildCsepBuilderAiPrompt(params: CsepBuilderAiPromptParams) {
     `Draft the ${config.title} section of the Construction Safety & Environmental Plan.`,
     "Selected tasks are the primary drafting anchor. Mention broader trade, hazard, permit, PPE, and project context only when it directly supports those selected tasks.",
     "Return only the finished section text. Do not include markdown fences, labels, or commentary before or after the section.",
-    "Use concise field-ready language with short paragraphs or bullets when helpful.",
+    "Write one cohesive plain-text section. Do not use markdown bold, repeated section titles, or inline patterns like `Heading: - bullet - bullet`.",
+    "Use concise field-ready language with short paragraphs or simple bullet lists only when the whole response is truly a list.",
     config.draftingFocus,
     `Selected tasks: ${formatPromptList(params.context.tasks, "None provided")}.`,
     `Selected hazards: ${formatPromptList(params.context.selected_hazards, "None selected")}.`,
@@ -1770,10 +1791,10 @@ function buildStaticFrontMatterSections(
   ];
 
   const lifeSavingRuleRows = [
-    ["Rule Group 01", "Stop work when fall protection, access, or rescue conditions are not in place."],
-    ["Rule Group 02", "Do not bypass permit, energy-isolation, or authorization requirements."],
-    ["Rule Group 03", "Stay clear of line-of-fire, suspended-load, and struck-by exposure zones."],
-    ["Rule Group 04", "Use emergency response, shelter, and evacuation procedures immediately when triggers are met."],
+    ["Domain 01", "Stop work when fall protection, access, or rescue conditions are not in place."],
+    ["Domain 02", "Do not bypass permit, energy-isolation, or authorization requirements."],
+    ["Domain 03", "Stay clear of line-of-fire, suspended-load, and struck-by exposure zones."],
+    ["Domain 04", "Use emergency response, shelter, and evacuation procedures immediately when triggers are met."],
   ];
 
   const formatSections = selectedFormatSectionKeys
@@ -1855,7 +1876,7 @@ function buildStaticFrontMatterSections(
       title: "Life-Saving Rules",
       layoutKey: "life_saving_rules",
       table: {
-        columns: ["Rule Group", "Platform-Defined Rule Text"],
+        columns: ["Rule domain", "Platform-Defined Rule Text"],
         rows: lifeSavingRuleRows,
       },
     },

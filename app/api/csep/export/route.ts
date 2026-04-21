@@ -14,7 +14,6 @@ import {
 import { getDocumentBuilderTextConfig } from "@/lib/documentBuilderTextSettings";
 import { getCsepProgramConfig } from "@/lib/csepProgramSettings";
 import {
-  createCsepBanner,
   createCsepBody,
   createCsepCover,
   createCsepDocument,
@@ -45,6 +44,13 @@ import type { CsepWeatherSectionInput } from "@/types/csep-builder";
 import type { DocumentBuilderTextConfig } from "@/types/document-builder-text";
 import type { CSEPProgramSection, CSEPProgramSelection, CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue } from "@/types/csep-programs";
 import type { GeneratedSafetyPlanDraft } from "@/types/safety-intelligence";
+
+type GeneratedCsepDocxRequest = {
+  generatedDocumentId?: string | null;
+  draft?: GeneratedSafetyPlanDraft | null;
+};
+
+type GeneratedDocumentDraftLoaderClient = Parameters<typeof loadGeneratedDocumentDraft>[0];
 
 type HazardProgram = {
   title: string;
@@ -313,8 +319,7 @@ function buildResponsibilitiesTable(
 }
 
 function buildTrainingBullets(
-  form: CSEPInput,
-  _config: DocumentBuilderTextConfig | null | undefined
+  form: CSEPInput
 ) {
   const bullets: string[] = [];
 
@@ -565,7 +570,6 @@ function normalizeIncludedContent(form: CSEPInput): Required<IncludedContent> {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const HAZARD_PROGRAM_LIBRARY: HazardProgram[] = [
   {
     title: "Fall Protection Program",
@@ -899,7 +903,7 @@ async function buildDoc(form: CSEPInput) {
     })
   );
   children.push(
-    createCsepBanner(`Submission-ready ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE.toLowerCase()}`)
+    createCsepSubheading(`Submission-ready ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE.toLowerCase()}`)
   );
 
   if (includedContent.project_information) {
@@ -1168,7 +1172,7 @@ async function buildDoc(form: CSEPInput) {
       )
     );
     appendResolvedSectionContent(children, String(sectionNumber), trainingSection, {
-      extraBullets: buildTrainingBullets(form, builderTextConfig),
+      extraBullets: buildTrainingBullets(form),
       extraParagraphs: normalizeOptionalText(form.training_and_instruction_text)
         ? [normalizeOptionalText(form.training_and_instruction_text)]
         : [],
@@ -1364,7 +1368,7 @@ function buildSurveyTestDoc(form: CSEPInput) {
       contractorName: valueOrNA(form.contractor_company),
     })
   );
-  children.push(createCsepBanner("Survey / Layout requirements overview"));
+  children.push(createCsepSubheading("Survey / Layout requirements overview"));
   children.push(body(enrichment.selectedSections[0]?.summary ?? enrichment.tradeSummary));
   children.push(...buildProjectInfoTable(form));
   children.push(...buildContractorInfoTable(form));
@@ -1478,23 +1482,30 @@ function isGeneratedDraft(value: unknown): value is GeneratedSafetyPlanDraft {
   return Boolean(value) && typeof value === "object" && "sectionMap" in (value as Record<string, unknown>);
 }
 
+function hasGeneratedDraftPayload(value: unknown): value is { draft: GeneratedSafetyPlanDraft } {
+  return Boolean(value) && typeof value === "object" && isGeneratedDraft((value as GeneratedCsepDocxRequest).draft);
+}
+
+function hasGeneratedDocumentReference(value: unknown): value is { generatedDocumentId: string } {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    typeof (value as GeneratedCsepDocxRequest).generatedDocumentId === "string"
+  );
+}
+
 export async function generateCsepDocx(
-  form: CSEPInput | { generatedDocumentId?: string | null; draft?: GeneratedSafetyPlanDraft | null },
-  options?: { supabase?: any }
+  form: CSEPInput | GeneratedCsepDocxRequest,
+  options?: { supabase?: GeneratedDocumentDraftLoaderClient }
 ) {
   let rendered: { body: Uint8Array; filename: string } | null = null;
 
-  if (form && typeof form === "object" && isGeneratedDraft((form as { draft?: unknown }).draft)) {
-    rendered = await renderGeneratedCsepDocx((form as { draft: GeneratedSafetyPlanDraft }).draft);
-  } else if (
-    form &&
-    typeof form === "object" &&
-    typeof (form as { generatedDocumentId?: unknown }).generatedDocumentId === "string" &&
-    options?.supabase
-  ) {
+  if (hasGeneratedDraftPayload(form)) {
+    rendered = await renderGeneratedCsepDocx(form.draft);
+  } else if (hasGeneratedDocumentReference(form) && options?.supabase) {
     const draft = await loadGeneratedDocumentDraft(
       options.supabase,
-      (form as { generatedDocumentId: string }).generatedDocumentId
+      form.generatedDocumentId
     );
     rendered = await renderGeneratedCsepDocx(draft);
   }

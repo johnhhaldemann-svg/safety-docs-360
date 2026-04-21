@@ -16,8 +16,21 @@ import {
   ShieldAlert,
   TriangleAlert,
 } from "lucide-react";
+import {
+  adminSideSections,
+  companyAdminSideSections,
+  companyManagerSideSections,
+  companyUserSideSections,
+  flattenNavItemsFromSections,
+  userSideSections,
+  type NavItem,
+  type NavSection,
+} from "@/lib/appNavigation";
+import { canAccessCompanyWorkspaceHref } from "@/lib/companyFeatureAccess";
 import { isApprovedDocumentStatus, isSubmittedDocumentStatus } from "@/lib/documentStatus";
 import { resolveDashboardRole } from "@/lib/dashboardRole";
+import { normalizeAppRole } from "@/lib/rbac";
+import { getCsepNavSectionsForRole } from "@/lib/workspaceProduct";
 import type {
   DashboardDataState,
   DashboardDocument,
@@ -29,8 +42,8 @@ import type {
 type MetricCard = {
   label: string;
   value: string;
-  trend: string;
-  trendTone: "up" | "down";
+  detail: string;
+  detailTone: "neutral" | "success" | "warning" | "danger";
   icon: typeof FolderKanban;
   iconClassName: string;
 };
@@ -51,10 +64,24 @@ type ProjectRow = {
   overdue: number;
 };
 
-const chartLabels = ["May 12", "May 13", "May 14", "May 15", "May 16", "May 17", "May 18"];
+type ChartPoint = {
+  label: string;
+  observations: number;
+  sifSignals: number;
+};
+
+type DashboardRouteLink = {
+  href: string;
+  label: string;
+  icon: typeof FolderKanban;
+};
 
 function normalize(value?: string | null) {
   return (value ?? "").trim().toLowerCase();
+}
+
+function normalizeHref(href: string) {
+  return href.split("#")[0] ?? href;
 }
 
 function isActiveStatus(status?: string | null) {
@@ -73,6 +100,10 @@ function getRoleLabel(role: string) {
   if (dashboardRole === "safety_manager") return "Safety Manager";
   if (dashboardRole === "field_supervisor") return "Field Supervisor";
   return "Project Manager";
+}
+
+function getWorkspaceLabel(data: DashboardDataState) {
+  return data.workspaceProduct === "csep" ? "CSEP Workspace" : "Company Workspace";
 }
 
 function getDocumentTitle(document: DashboardDocument) {
@@ -114,100 +145,282 @@ function getOverdueCount(data: DashboardDataState) {
   }).length;
 }
 
-function getTrend(value: number, direction: "up" | "down") {
-  const amount = Math.max(4, Math.min(22, 4 + (value % 19)));
-  return `${amount}% from last week`;
+function getPastSevenDays(): Array<{ iso: string; label: string }> {
+  const days: Array<{ iso: string; label: string }> = [];
+  for (let offset = 6; offset >= 0; offset -= 1) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - offset);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    days.push({ iso, label });
+  }
+  return days;
+}
+
+function trendCountsByIsoDay(trends: Array<{ date: string; count: number }> | undefined) {
+  const map = new Map<string, number>();
+  for (const row of trends ?? []) {
+    const day = String(row.date).slice(0, 10);
+    map.set(day, (map.get(day) ?? 0) + (Number(row.count) || 0));
+  }
+  return map;
+}
+
+function countRowsCreatedOnDay<T extends { created_at?: string | null }>(rows: T[], iso: string) {
+  return rows.filter((row) => {
+    const ts = row.created_at;
+    if (!ts) return false;
+    return String(ts).slice(0, 10) === iso;
+  }).length;
+}
+
+function buildChartSeries(data: DashboardDataState): ChartPoint[] {
+  const days = getPastSevenDays();
+  const obsFromAnalytics = trendCountsByIsoDay(data.analyticsSummary?.observationTrends);
+  const sifFromAnalytics = trendCountsByIsoDay(data.analyticsSummary?.sifTrends);
+  const incidentsWithSif = data.workspaceSummary.incidents.filter((row) => Boolean(row.sif_flag));
+
+  return days.map(({ iso, label }) => {
+    const observationsFromApi = obsFromAnalytics.get(iso);
+    const observations =
+      observationsFromApi !== undefined
+        ? observationsFromApi
+        : countRowsCreatedOnDay(data.workspaceSummary.observations, iso);
+
+    const sifFromApi = sifFromAnalytics.get(iso);
+    const sifSignals =
+      sifFromApi !== undefined ? sifFromApi : countRowsCreatedOnDay(incidentsWithSif, iso);
+
+    return { label, observations, sifSignals };
+  });
+}
+
+function getDashboardNavItems(data: DashboardDataState): NavItem[] {
+  const normalizedRole = normalizeAppRole(data.userRole);
+  const isAdminLike =
+    normalizedRole === "admin" ||
+    normalizedRole === "platform_admin" ||
+    normalizedRole === "super_admin";
+  const isCompanyAdminUser = normalizedRole === "company_admin";
+  const isCompanyManagerUser =
+    normalizedRole === "manager" || normalizedRole === "safety_manager";
+  const isCompanyUser = [
+    "company_user",
+    "project_manager",
+    "field_supervisor",
+    "foreman",
+    "field_user",
+    "read_only",
+  ].includes(normalizedRole);
+
+  let sections: NavSection[] =
+    isAdminLike ? adminSideSections : userSideSections;
+
+  if (data.workspaceProduct === "csep" && (isCompanyAdminUser || isCompanyManagerUser || isCompanyUser)) {
+    sections = getCsepNavSectionsForRole(normalizedRole) as NavSection[];
+  } else if (isCompanyAdminUser) {
+    sections = companyAdminSideSections;
+  } else if (isCompanyManagerUser) {
+    sections = companyManagerSideSections;
+  } else if (isCompanyUser) {
+    sections = companyUserSideSections;
+  }
+
+  return flattenNavItemsFromSections(
+    sections.map((section) => ({
+      ...section,
+      items: section.items.filter((item) =>
+        isAdminLike
+          ? true
+          : canAccessCompanyWorkspaceHref(item.href, normalizedRole, data.permissionMap)
+      ),
+    }))
+  );
+}
+
+function pickNavItem(navItems: NavItem[], candidates: string[]) {
+  const navMap = new Map(navItems.map((item) => [normalizeHref(item.href), item] as const));
+  for (const candidate of candidates) {
+    const item = navMap.get(candidate);
+    if (item) {
+      return item;
+    }
+  }
+  return null;
+}
+
+function buildToolbarFilters(data: DashboardDataState) {
+  const jobsitesCount = data.workspaceSummary.jobsites.length;
+  const reportsCount = data.workspaceSummary.reports.length;
+  const liveStatus = data.companyWorkspaceLoading
+    ? "Syncing now"
+    : data.companyWorkspaceLoaded
+      ? "Live data"
+      : "Loading";
+
+  return [
+    { label: "Company", value: getCompanyName(data) },
+    { label: "Role", value: getRoleLabel(data.userRole) },
+    { label: "Workspace", value: getWorkspaceLabel(data) },
+    { label: "Jobsites", value: `${jobsitesCount} active` },
+    { label: "Documents", value: `${data.documents.length} records` },
+    { label: "Reports", value: `${reportsCount} items` },
+    { label: "Status", value: liveStatus },
+  ];
+}
+
+function buildUnifiedQuickActions(navItems: NavItem[]): DashboardRouteLink[] {
+  const definitions: Array<{
+    candidates: string[];
+    label?: string;
+    icon: typeof FolderKanban;
+  }> = [
+    { candidates: ["/command-center", "/reports", "/analytics"], icon: ShieldAlert },
+    { candidates: ["/field-id-exchange", "/jsa"], icon: AlertTriangle },
+    { candidates: ["/library", "/search", "/submit"], icon: BookOpenText },
+    { candidates: ["/incidents"], label: "New incident", icon: AlertTriangle },
+    { candidates: ["/field-id-exchange"], label: "New issue", icon: ShieldAlert },
+    { candidates: ["/jsa"], label: "New JSA", icon: HardHat },
+    { candidates: ["/permits"], label: "New permit", icon: CheckCircle2 },
+    { candidates: ["/submit"], label: "New submission", icon: FileText },
+    { candidates: ["/upload"], label: "New upload", icon: FolderKanban },
+    { candidates: ["/csep", "/peshep"], label: "Build document", icon: BookOpenText },
+  ];
+
+  const used = new Set<string>();
+
+  return definitions
+    .map((definition) => {
+      const item = pickNavItem(navItems, definition.candidates);
+      if (!item) {
+        return null;
+      }
+
+      const normalizedHref = normalizeHref(item.href);
+      if (used.has(normalizedHref)) {
+        return null;
+      }
+      used.add(normalizedHref);
+
+      return {
+        href: item.href,
+        label: definition.label ?? item.label,
+        icon: definition.icon,
+      } satisfies DashboardRouteLink;
+    })
+    .filter((item): item is DashboardRouteLink => item != null);
+}
+
+function pickHref(navItems: NavItem[], candidates: string[]) {
+  return pickNavItem(navItems, candidates)?.href ?? "/dashboard";
 }
 
 function buildMetrics(data: DashboardDataState): MetricCard[] {
-  const totalProjects = data.workspaceSummary.jobsites.length || Math.max(1, data.documents.length);
+  const cd = data.analyticsSummary?.companyDashboard;
+  const jobsitesCount = data.workspaceSummary.jobsites.length;
   const incidents = getStatusCount(data.workspaceSummary.incidents);
   const observations = getObservationCount(data);
-  const openTasks = incidents + observations + getStatusCount(data.workspaceSummary.permits);
-  const trainingDue = data.companyInvites.length || data.workspaceSummary.daps.length;
+  const permits = getStatusCount(data.workspaceSummary.permits);
+  const openWorkItems = incidents + observations + permits;
+  const pendingInvites = data.companyInvites.length;
+  const openDaps = data.workspaceSummary.daps.filter((row) => isActiveStatus(row.status)).length;
+  const trainingSignal = pendingInvites + openDaps;
   const overdueItems = getOverdueCount(data);
 
   return [
     {
-      label: "Total Projects",
-      value: `${totalProjects}`,
-      trend: getTrend(totalProjects, "up"),
-      trendTone: "up",
+      label: "Active jobsites",
+      value: `${cd?.totalActiveJobsites ?? jobsitesCount}`,
+      detail:
+        cd != null
+          ? `Open observations (30d window): ${cd.totalOpenObservations}`
+          : "Jobsites linked to your company workspace.",
+      detailTone: "neutral",
       icon: FolderKanban,
       iconClassName: "bg-blue-50 text-blue-600",
     },
     {
-      label: "Open Tasks",
-      value: `${openTasks}`,
-      trend: getTrend(openTasks, "up"),
-      trendTone: "up",
+      label: "Open work items",
+      value: `${openWorkItems}`,
+      detail: "Sum of active incidents, corrective actions, and permits in workspace.",
+      detailTone: openWorkItems > 0 ? "warning" : "neutral",
       icon: CheckCircle2,
       iconClassName: "bg-emerald-50 text-emerald-600",
     },
     {
       label: "Incidents",
       value: `${incidents}`,
-      trend: getTrend(Math.max(incidents, 1), "down"),
-      trendTone: "down",
+      detail:
+        cd != null
+          ? `Open incidents in analytics window: ${cd.openIncidents}`
+          : "Active incidents in workspace list.",
+      detailTone: incidents > 0 ? "warning" : "neutral",
       icon: AlertTriangle,
       iconClassName: "bg-red-50 text-red-500",
     },
     {
       label: "Observations",
       value: `${observations}`,
-      trend: getTrend(Math.max(observations, 1), "up"),
-      trendTone: "up",
+      detail:
+        cd != null
+          ? `High-risk observations: ${cd.totalHighRiskObservations}`
+          : "Open corrective actions in workspace.",
+      detailTone: observations > 0 ? "warning" : "neutral",
       icon: Eye,
       iconClassName: "bg-amber-50 text-amber-500",
     },
     {
-      label: "Training Due",
-      value: `${trainingDue}`,
-      trend: getTrend(Math.max(trainingDue, 1), "up"),
-      trendTone: "up",
+      label: "Training / DAP signal",
+      value: `${trainingSignal}`,
+      detail: "Pending invites plus open JSAs (workspace).",
+      detailTone: trainingSignal > 0 ? "warning" : "neutral",
       icon: GraduationCap,
       iconClassName: "bg-violet-50 text-violet-500",
     },
     {
-      label: "Overdue Items",
+      label: "Overdue items",
       value: `${overdueItems}`,
-      trend: getTrend(Math.max(overdueItems, 1), "down"),
-      trendTone: overdueItems > 0 ? "down" : "up",
+      detail: "Corrective actions with due date in the past.",
+      detailTone: overdueItems > 0 ? "danger" : "success",
       icon: Clock3,
       iconClassName: "bg-rose-50 text-rose-500",
     },
   ];
 }
 
-function buildChartSeries(primary: number, secondary: number) {
-  return chartLabels.map((_, index) => ({
-    label: chartLabels[index],
-    incidents: Math.max(1, primary + [0, 3, 5, 4, 6, 6, 8][index]),
-    nearMisses: Math.max(0, secondary + [0, 1, 1, 2, 1, 2, 2][index]),
-  }));
-}
+function buildSignalBreakdown(data: DashboardDataState): BreakdownSegment[] {
+  const obs = data.analyticsSummary?.observationBreakdown;
+  const openIncidents = getStatusCount(data.workspaceSummary.incidents);
+  const openObservations = getObservationCount(data);
+  const segments: BreakdownSegment[] = [];
 
-function buildIncidentBreakdown(data: DashboardDataState): BreakdownSegment[] {
-  const recordable = Math.max(1, getStatusCount(data.workspaceSummary.incidents));
-  const nearMiss = Math.max(
-    1,
-    data.analyticsSummary?.observationBreakdown?.nearMiss ??
-      Math.round(getObservationCount(data) * 0.35) ??
-      1
-  );
-  const firstAid = Math.max(1, Math.round(recordable * 0.4));
-  const propertyDamage = Math.max(
-    1,
-    data.workspaceSummary.permits.filter((row) => row.sif_flag || row.stop_work_status === "stop_work_active")
-      .length
-  );
+  if (openIncidents > 0) {
+    segments.push({ label: "Open incidents", value: openIncidents, color: "#ff5348" });
+  }
 
-  return [
-    { label: "Recordable", value: recordable, color: "#ff5348" },
-    { label: "Near Miss", value: nearMiss, color: "#2f6cf6" },
-    { label: "First Aid", value: firstAid, color: "#ffbf3c" },
-    { label: "Property Damage", value: propertyDamage, color: "#49bf84" },
-  ];
+  if (obs) {
+    if (obs.nearMiss > 0) {
+      segments.push({ label: "Near miss (obs.)", value: obs.nearMiss, color: "#2f6cf6" });
+    }
+    if (obs.hazard > 0) {
+      segments.push({ label: "Hazard (obs.)", value: obs.hazard, color: "#ffbf3c" });
+    }
+    if (obs.positive > 0) {
+      segments.push({ label: "Positive (obs.)", value: obs.positive, color: "#49bf84" });
+    }
+    if (obs.other > 0) {
+      segments.push({ label: "Other (obs.)", value: obs.other, color: "#94a3b8" });
+    }
+  } else if (openObservations > 0) {
+    segments.push({
+      label: "Open corrective actions",
+      value: openObservations,
+      color: "#2f6cf6",
+    });
+  }
+
+  return segments;
 }
 
 function buildDocumentBreakdown(data: DashboardDataState): BreakdownSegment[] {
@@ -221,46 +434,18 @@ function buildDocumentBreakdown(data: DashboardDataState): BreakdownSegment[] {
   const draft = Math.max(data.documents.length - approved - inReview - expired, 0);
 
   return [
-    { label: "Approved", value: Math.max(approved, 1), color: "#44be82" },
-    { label: "In Review", value: Math.max(inReview, 1), color: "#3375f7" },
-    { label: "Draft", value: Math.max(draft, 1), color: "#ffbf3c" },
-    { label: "Expired", value: Math.max(expired, 1), color: "#ff5a52" },
-  ];
+    { label: "Approved", value: approved, color: "#44be82" },
+    { label: "In Review", value: inReview, color: "#3375f7" },
+    { label: "Draft", value: draft, color: "#ffbf3c" },
+    { label: "Expired", value: expired, color: "#ff5a52" },
+  ].filter((segment) => segment.value > 0);
 }
 
 function getProjectRows(data: DashboardDataState): ProjectRow[] {
   const jobsites = data.workspaceSummary.jobsites.slice(0, 3);
 
   if (jobsites.length === 0) {
-    return [
-      {
-        id: "alpha",
-        name: "Project Alpha",
-        subtitle: getCompanyName(data),
-        progress: 72,
-        status: "On Track",
-        openTasks: 14,
-        overdue: 2,
-      },
-      {
-        id: "beta",
-        name: "Project Beta",
-        subtitle: "Industrial Warehouse",
-        progress: 45,
-        status: "At Risk",
-        openTasks: 8,
-        overdue: 3,
-      },
-      {
-        id: "gamma",
-        name: "Project Gamma",
-        subtitle: "Healthcare Facility",
-        progress: 80,
-        status: "On Track",
-        openTasks: 12,
-        overdue: 0,
-      },
-    ];
+    return [];
   }
 
   return jobsites.map((jobsite: DashboardJobsite, index) => {
@@ -310,7 +495,10 @@ function buildActivityFeed(data: DashboardDataState): DashboardFeedItem[] {
       id: row.id ?? `incident-${index}`,
       title: row.title?.trim() || "New incident reported",
       detail: row.jobsite_id ? jobsiteNames.get(row.jobsite_id) ?? "Assigned jobsite" : "Company-wide item",
-      meta: row.stop_work_status === "stop_work_active" ? "Priority" : getRelativeTime(null),
+      meta:
+        row.stop_work_status === "stop_work_active"
+          ? "Stop work"
+          : getRelativeTime(row.created_at ?? null),
       tone: row.stop_work_status === "stop_work_active" ? ("error" as const) : ("warning" as const),
     }));
 
@@ -332,10 +520,10 @@ function buildActivityFeed(data: DashboardDataState): DashboardFeedItem[] {
 
   const inviteItems = data.companyInvites.slice(0, 1).map((invite) => ({
     id: invite.id,
-    title: "Training completed",
+    title: `Team invite (${invite.role})`,
     detail: invite.email,
     meta: getRelativeTime(invite.created_at),
-    tone: "success" as const,
+    tone: "info" as const,
   }));
 
   return [...incidentItems, ...documentItems, ...inviteItems].slice(0, 5);
@@ -349,6 +537,9 @@ function getToneClass(status: ProjectRow["status"]) {
 
 function buildDonutStyle(segments: BreakdownSegment[]) {
   const total = segments.reduce((sum, segment) => sum + segment.value, 0);
+  if (total <= 0) {
+    return { background: "#e2e8f0" };
+  }
   let start = 0;
   const stops = segments.map((segment) => {
     const size = (segment.value / total) * 360;
@@ -375,73 +566,72 @@ function buildLinePath(values: number[], width: number, height: number, padding:
     .join(" ");
 }
 
-function DashboardToolbar() {
-  const filters = [
-    { label: "Company", value: "All Companies" },
-    { label: "Project", value: "All Projects" },
-    { label: "Date Range", value: "May 12 - May 18, 2025" },
-    { label: "Building", value: "All Buildings" },
-    { label: "Floor", value: "All Floors" },
-    { label: "Trade", value: "All Trades" },
-    { label: "Shift", value: "All Shifts" },
-  ];
+function DashboardToolbar({
+  filters,
+  quickActions,
+}: {
+  filters: Array<{ label: string; value: string }>;
+  quickActions: DashboardRouteLink[];
+}) {
+  const primaryQuickAction = quickActions[0] ?? null;
 
   return (
-    <section className="rounded-b-[1.9rem] border border-[#253754] border-t-0 bg-[#121e33] p-4 shadow-[0_20px_50px_rgba(15,23,42,0.16)]">
+    <section className="rounded-b-[1.9rem] border border-[var(--app-border-subtle)] border-t-0 bg-[rgba(255,255,255,0.88)] p-4 shadow-[var(--app-shadow-soft)]">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="grid flex-1 gap-3 md:grid-cols-2 xl:grid-cols-7">
           {filters.map((filter) => (
-            <button
+            <div
               key={filter.label}
-              type="button"
-              className="flex min-h-[58px] flex-col rounded-xl border border-[#314766] bg-[#18253b] px-4 py-3 text-left text-white transition hover:border-[#4c77c6]"
+              className="flex min-h-[58px] flex-col rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-left text-[var(--app-text-strong)] shadow-sm transition hover:border-[rgba(37,99,235,0.28)]"
             >
-              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#96abc7]">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--app-muted)]">
                 {filter.label}
               </span>
-              <span className="mt-1 flex items-center justify-between gap-3 text-sm font-medium text-[#f5f8ff]">
-                {filter.value}
-                <ChevronDown className="h-4 w-4 text-[#9fb2ce]" />
-              </span>
-            </button>
+              <span className="mt-1 text-sm font-medium text-[var(--app-text-strong)]">{filter.value}</span>
+            </div>
           ))}
         </div>
 
-        <div className="relative xl:ml-4">
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-xl bg-[#2f6cf6] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_28px_rgba(47,108,246,0.35)] transition hover:bg-[#205eea]"
-          >
-            <Plus className="h-4 w-4" />
-            New
-            <ChevronDown className="h-4 w-4" />
-          </button>
-          <div className="absolute right-0 top-[calc(100%+0.75rem)] hidden min-w-[170px] rounded-xl border border-slate-200 bg-white py-2 text-sm text-slate-700 shadow-[0_18px_40px_rgba(15,23,42,0.16)] xl:block">
-            {["New Incident", "New Observation", "New Inspection", "New Task", "New Document"].map(
-              (item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className="block w-full px-4 py-2 text-left transition hover:bg-slate-50"
+        {primaryQuickAction ? (
+          <details className="group relative xl:ml-4">
+            <summary className="inline-flex list-none items-center gap-2 rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(37,99,235,0.22)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)] marker:content-none">
+              <Plus className="h-4 w-4" />
+              Actions
+              <ChevronDown className="h-4 w-4" />
+            </summary>
+            <div className="absolute right-0 top-[calc(100%+0.75rem)] z-20 hidden min-w-[220px] rounded-xl border border-[var(--app-border-subtle)] bg-white py-2 text-sm text-[var(--app-text)] shadow-[var(--app-shadow-soft)] group-open:block">
+              {quickActions.map((action) => (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className="flex items-center gap-3 px-4 py-2.5 transition hover:bg-[var(--app-accent-primary-soft)]"
                 >
-                  {item}
-                </button>
-              )
-            )}
-          </div>
-        </div>
+                  <action.icon className="h-4 w-4 text-[#2f6cf6]" />
+                  {action.label}
+                </Link>
+              ))}
+            </div>
+          </details>
+        ) : null}
       </div>
     </section>
   );
 }
 
+function metricDetailClass(tone: MetricCard["detailTone"]) {
+  if (tone === "success") return "text-emerald-600";
+  if (tone === "warning") return "text-amber-600";
+  if (tone === "danger") return "text-rose-600";
+  return "text-[var(--app-muted)]";
+}
+
 export function DashboardExperience({ data }: { data: DashboardDataState }) {
+  const navItems = getDashboardNavItems(data);
+  const toolbarFilters = buildToolbarFilters(data);
+  const quickActions = buildUnifiedQuickActions(navItems);
   const metrics = buildMetrics(data);
-  const chartSeries = buildChartSeries(
-    Math.max(8, getStatusCount(data.workspaceSummary.incidents) + 4),
-    Math.max(2, Math.round(getObservationCount(data) * 0.18))
-  );
-  const incidentBreakdown = buildIncidentBreakdown(data);
+  const chartSeries = buildChartSeries(data);
+  const incidentBreakdown = buildSignalBreakdown(data);
   const incidentTotal = incidentBreakdown.reduce((sum, segment) => sum + segment.value, 0);
   const documentBreakdown = buildDocumentBreakdown(data);
   const documentTotal = documentBreakdown.reduce((sum, segment) => sum + segment.value, 0);
@@ -449,44 +639,42 @@ export function DashboardExperience({ data }: { data: DashboardDataState }) {
   const projects = getProjectRows(data);
   const companyName = getCompanyName(data);
   const roleLabel = getRoleLabel(data.userRole);
-  const lineValues = chartSeries.map((point) => point.incidents);
-  const nearMissValues = chartSeries.map((point) => point.nearMisses + 1);
-  const maxLineValue = Math.max(...lineValues, ...nearMissValues, 8);
+  const incidentReportHref = pickHref(navItems, [
+    "/analytics",
+    "/reports",
+    "/incidents",
+    "/field-id-exchange",
+  ]);
+  const recentActivityHref = pickHref(navItems, [
+    "/command-center",
+    "/reports",
+    "/field-id-exchange",
+    "/dashboard",
+  ]);
+  const projectHref = pickHref(navItems, ["/jobsites", "/dashboard"]);
+  const documentHref = pickHref(navItems, ["/library", "/search", "/dashboard"]);
+  const observationLine = chartSeries.map((point) => point.observations);
+  const sifLine = chartSeries.map((point) => point.sifSignals);
+  const maxLineValue = Math.max(1, ...observationLine, ...sifLine);
 
   return (
     <div className="space-y-5">
-      <section className="overflow-hidden rounded-[1.9rem] border border-[#1f304c] bg-[#0f1a2c] shadow-[0_26px_60px_rgba(15,23,42,0.22)]">
-        <div className="flex flex-col gap-5 border-b border-[#243754] px-5 py-5 text-white md:px-6 xl:flex-row xl:items-center xl:justify-between">
+      <section className="overflow-hidden rounded-[1.9rem] border border-[var(--app-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(241,247,255,0.96)_100%)] shadow-[var(--app-shadow)]">
+        <div className="flex flex-col gap-5 border-b border-[var(--app-border-subtle)] px-5 py-5 md:px-6">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#91a7c6]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]">
               Dashboard
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-[2rem]">
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--app-text-strong)] sm:text-[2rem]">
               Welcome back, {companyName}.
             </h1>
-            <p className="mt-1 text-sm text-[#adc1db]">
+            <p className="mt-1 text-sm text-[var(--app-text)]">
               Here&apos;s what&apos;s happening across your {roleLabel.toLowerCase()} workspace.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            {[
-              { href: "/incidents", label: "Incidents", icon: ShieldAlert },
-              { href: "/reports", label: "Reports", icon: FileText },
-              { href: "/library", label: "Documents", icon: BookOpenText },
-            ].map((action) => (
-              <Link
-                key={action.href}
-                href={action.href}
-                className="inline-flex items-center gap-2 rounded-xl border border-[#304764] bg-[#17253a] px-4 py-2.5 text-sm font-medium text-[#eef4ff] transition hover:border-[#4d79c7]"
-              >
-                <action.icon className="h-4 w-4" />
-                {action.label}
-              </Link>
-            ))}
-          </div>
         </div>
 
-        <DashboardToolbar />
+        <DashboardToolbar filters={toolbarFilters} quickActions={quickActions} />
       </section>
 
       {data.analyticsSummaryIssue ? (
@@ -499,66 +687,50 @@ export function DashboardExperience({ data }: { data: DashboardDataState }) {
         {metrics.map((metric) => (
           <article
             key={metric.label}
-            className="rounded-[1.35rem] border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]"
+            className="rounded-[1.35rem] border border-[var(--app-border-subtle)] bg-white p-5 shadow-[var(--app-shadow-soft)]"
           >
             <div className="flex items-center gap-3">
               <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${metric.iconClassName}`}>
                 <metric.icon className="h-5 w-5" />
               </div>
-              <div className="text-sm font-medium text-slate-600">{metric.label}</div>
+              <div className="text-sm font-medium text-[var(--app-text)]">{metric.label}</div>
             </div>
-            <div className="mt-5 text-[2rem] font-semibold tracking-tight text-slate-900">
+            <div className="mt-5 text-[2rem] font-semibold tracking-tight text-[var(--app-text-strong)]">
               {metric.value}
             </div>
-            <div
-              className={`mt-4 flex items-center gap-2 text-sm ${
-                metric.trendTone === "up" ? "text-emerald-600" : "text-red-500"
-              }`}
-            >
-              {metric.trendTone === "up" ? (
-                <CheckCircle2 className="h-4 w-4" />
-              ) : (
-                <TriangleAlert className="h-4 w-4" />
-              )}
-              <span>{metric.trend}</span>
-            </div>
+            <p className={`mt-4 text-sm leading-snug ${metricDetailClass(metric.detailTone)}`}>{metric.detail}</p>
           </article>
         ))}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.5fr_0.9fr_0.95fr]">
-        <article className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+        <article className="rounded-[1.5rem] border border-[var(--app-border-subtle)] bg-white p-5 shadow-[var(--app-shadow-soft)]">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-[1.45rem] font-semibold tracking-tight text-slate-900">
-                Incident Overview
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Rolling seven-day signal for incidents and near misses.
+              <h2 className="text-[1.45rem] font-semibold tracking-tight text-[var(--app-text-strong)]">Activity trend</h2>
+              <p className="mt-1 text-sm text-[var(--app-muted)]">
+                Last 7 calendar days. Prefers company analytics daily trends when loaded; otherwise uses workspace
+                record creation dates.
               </p>
             </div>
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600"
-            >
-              This Week
-              <ChevronDown className="h-4 w-4" />
-            </button>
+            <span className="inline-flex items-center rounded-xl border border-[var(--app-border-subtle)] px-3 py-2 text-xs font-medium text-[var(--app-muted)]">
+              Last 7 days
+            </span>
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-6 text-sm">
-            <div className="flex items-center gap-2 text-slate-600">
+            <div className="flex items-center gap-2 text-[var(--app-text)]">
               <span className="h-3 w-3 rounded-full bg-[#ff5348]" />
-              Incidents
+              SIF-related signals
             </div>
-            <div className="flex items-center gap-2 text-slate-600">
+            <div className="flex items-center gap-2 text-[var(--app-text)]">
               <span className="h-3 w-3 rounded-full bg-[#2f6cf6]" />
-              Near Misses
+              Corrective actions opened
             </div>
           </div>
 
-          <div className="mt-6 overflow-hidden rounded-[1.35rem] border border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] px-3 py-4">
-            <svg viewBox="0 0 720 300" className="h-[260px] w-full" role="img" aria-label="Incident trend chart">
+          <div className="mt-6 overflow-hidden rounded-[1.35rem] border border-[var(--app-border-subtle)] bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] px-3 py-4">
+            <svg viewBox="0 0 720 300" className="h-[260px] w-full" role="img" aria-label="Workspace activity trend chart">
               {[0, 1, 2, 3].map((index) => {
                 const y = 40 + index * 55;
                 return (
@@ -571,15 +743,15 @@ export function DashboardExperience({ data }: { data: DashboardDataState }) {
                 );
               })}
               <path
-                d={`${buildLinePath(lineValues, 720, 260, 42)} L 678 218 L 42 218 Z`}
+                d={`${buildLinePath(sifLine, 720, 260, 42)} L 678 218 L 42 218 Z`}
                 fill="rgba(255,83,72,0.08)"
               />
               <path
-                d={`${buildLinePath(nearMissValues, 720, 260, 42)} L 678 218 L 42 218 Z`}
+                d={`${buildLinePath(observationLine, 720, 260, 42)} L 678 218 L 42 218 Z`}
                 fill="rgba(47,108,246,0.12)"
               />
               <path
-                d={buildLinePath(lineValues, 720, 260, 42)}
+                d={buildLinePath(sifLine, 720, 260, 42)}
                 fill="none"
                 stroke="#ff5348"
                 strokeWidth="3"
@@ -587,22 +759,32 @@ export function DashboardExperience({ data }: { data: DashboardDataState }) {
                 strokeLinejoin="round"
               />
               <path
-                d={buildLinePath(nearMissValues, 720, 260, 42)}
+                d={buildLinePath(observationLine, 720, 260, 42)}
                 fill="none"
                 stroke="#2f6cf6"
                 strokeWidth="3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              {lineValues.map((value, index) => {
-                const x = 42 + (index * (720 - 84)) / Math.max(lineValues.length - 1, 1);
+              {sifLine.map((value, index) => {
+                const x = 42 + (index * (720 - 84)) / Math.max(sifLine.length - 1, 1);
                 const y = 218 - (value / maxLineValue) * 178;
-                return <circle key={`incident-${chartLabels[index]}`} cx={x} cy={y} r="4.5" fill="#ff5348" />;
+                return (
+                  <circle key={`sif-${chartSeries[index]?.label ?? index}`} cx={x} cy={y} r="4.5" fill="#ff5348" />
+                );
               })}
-              {nearMissValues.map((value, index) => {
-                const x = 42 + (index * (720 - 84)) / Math.max(nearMissValues.length - 1, 1);
+              {observationLine.map((value, index) => {
+                const x = 42 + (index * (720 - 84)) / Math.max(observationLine.length - 1, 1);
                 const y = 218 - (value / maxLineValue) * 178;
-                return <circle key={`miss-${chartLabels[index]}`} cx={x} cy={y} r="4.5" fill="#2f6cf6" />;
+                return (
+                  <circle
+                    key={`obs-${chartSeries[index]?.label ?? index}`}
+                    cx={x}
+                    cy={y}
+                    r="4.5"
+                    fill="#2f6cf6"
+                  />
+                );
               })}
               {chartSeries.map((point, index) => {
                 const x = 42 + (index * (720 - 84)) / Math.max(chartSeries.length - 1, 1);
@@ -616,179 +798,211 @@ export function DashboardExperience({ data }: { data: DashboardDataState }) {
           </div>
         </article>
 
-        <article className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
-          <h2 className="text-[1.45rem] font-semibold tracking-tight text-slate-900">
-            Incident Breakdown
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">Current split of report categories across the workspace.</p>
-          <div className="mt-6 flex flex-col items-center gap-6 lg:flex-row lg:items-center">
-            <div className="relative flex h-[170px] w-[170px] items-center justify-center rounded-full" style={buildDonutStyle(incidentBreakdown)}>
-              <div className="flex h-[104px] w-[104px] flex-col items-center justify-center rounded-full bg-white">
-                <span className="text-[2rem] font-semibold text-slate-900">{incidentTotal}</span>
-                <span className="text-sm text-slate-500">Total</span>
+        <article className="rounded-[1.5rem] border border-[var(--app-border-subtle)] bg-white p-5 shadow-[var(--app-shadow-soft)]">
+          <h2 className="text-[1.45rem] font-semibold tracking-tight text-[var(--app-text-strong)]">Open safety mix</h2>
+          <p className="mt-1 text-sm text-[var(--app-muted)]">
+            Incidents from the workspace list; observation categories from analytics when available.
+          </p>
+          {incidentTotal > 0 ? (
+            <div className="mt-6 flex flex-col items-center gap-6 lg:flex-row lg:items-center">
+              <div
+                className="relative flex h-[170px] w-[170px] items-center justify-center rounded-full"
+                style={buildDonutStyle(incidentBreakdown)}
+              >
+                <div className="flex h-[104px] w-[104px] flex-col items-center justify-center rounded-full bg-white">
+                  <span className="text-[2rem] font-semibold text-[var(--app-text-strong)]">{incidentTotal}</span>
+                  <span className="text-sm text-[var(--app-muted)]">Total</span>
+                </div>
+              </div>
+              <div className="w-full space-y-4">
+                {incidentBreakdown.map((segment) => (
+                  <div key={segment.label} className="flex items-center justify-between gap-4 text-sm">
+                    <div className="flex items-center gap-2 text-[var(--app-text)]">
+                      <span className="h-3 w-3 rounded-full" style={{ backgroundColor: segment.color }} />
+                      {segment.label}
+                    </div>
+                    <div className="font-medium text-[var(--app-text-strong)]">
+                      {segment.value} ({Math.round((segment.value / incidentTotal) * 100)}%)
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="w-full space-y-4">
-              {incidentBreakdown.map((segment) => (
-                <div key={segment.label} className="flex items-center justify-between gap-4 text-sm">
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <span className="h-3 w-3 rounded-full" style={{ backgroundColor: segment.color }} />
-                    {segment.label}
-                  </div>
-                  <div className="font-medium text-slate-900">
-                    {segment.value} ({Math.round((segment.value / incidentTotal) * 100)}%)
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <Link href="/analytics" className="mt-4 inline-flex items-center text-sm font-semibold text-[#2f6cf6]">
+          ) : (
+            <p className="mt-6 text-sm text-[var(--app-muted)]">
+              No open incidents or observation breakdown yet. As data syncs, categories will appear here.
+            </p>
+          )}
+          <Link href={incidentReportHref} className="mt-4 inline-flex items-center text-sm font-semibold text-[#2f6cf6]">
             View full report
           </Link>
         </article>
 
-        <article className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+        <article className="rounded-[1.5rem] border border-[var(--app-border-subtle)] bg-white p-5 shadow-[var(--app-shadow-soft)]">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-[1.45rem] font-semibold tracking-tight text-slate-900">Recent Activity</h2>
-            <Link href="/reports" className="text-sm font-semibold text-[#2f6cf6]">
+            <h2 className="text-[1.45rem] font-semibold tracking-tight text-[var(--app-text-strong)]">Recent Activity</h2>
+            <Link href={recentActivityHref} className="text-sm font-semibold text-[#2f6cf6]">
               View all
             </Link>
           </div>
           <div className="mt-5 space-y-4">
-            {activityItems.map((item) => (
-              <div key={item.id} className="flex items-start gap-3 rounded-2xl border border-slate-100 p-3">
-                <div
-                  className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${
-                    item.tone === "success"
-                      ? "bg-emerald-50 text-emerald-600"
-                      : item.tone === "warning"
-                        ? "bg-amber-50 text-amber-500"
-                        : item.tone === "error"
-                          ? "bg-rose-50 text-rose-500"
-                          : "bg-blue-50 text-blue-600"
-                  }`}
-                >
-                  {item.tone === "success" ? (
-                    <CheckCircle2 className="h-5 w-5" />
-                  ) : item.tone === "warning" ? (
-                    <TriangleAlert className="h-5 w-5" />
-                  ) : item.tone === "error" ? (
-                    <ShieldAlert className="h-5 w-5" />
-                  ) : (
-                    <FileText className="h-5 w-5" />
-                  )}
+            {activityItems.length > 0 ? (
+              activityItems.map((item) => (
+                <div key={item.id} className="flex items-start gap-3 rounded-2xl border border-[var(--app-border-subtle)] p-3">
+                  <div
+                    className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${
+                      item.tone === "success"
+                        ? "bg-emerald-50 text-emerald-600"
+                        : item.tone === "warning"
+                          ? "bg-amber-50 text-amber-500"
+                          : item.tone === "error"
+                            ? "bg-rose-50 text-rose-500"
+                            : "bg-blue-50 text-blue-600"
+                    }`}
+                  >
+                    {item.tone === "success" ? (
+                      <CheckCircle2 className="h-5 w-5" />
+                    ) : item.tone === "warning" ? (
+                      <TriangleAlert className="h-5 w-5" />
+                    ) : item.tone === "error" ? (
+                      <ShieldAlert className="h-5 w-5" />
+                    ) : (
+                      <FileText className="h-5 w-5" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">{item.title}</div>
+                    <div className="mt-1 text-sm text-[var(--app-muted)]">{item.detail}</div>
+                  </div>
+                  <div className="shrink-0 text-sm text-[var(--app-muted)]">{item.meta}</div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-slate-900">{item.title}</div>
-                  <div className="mt-1 text-sm text-slate-500">{item.detail}</div>
-                </div>
-                <div className="shrink-0 text-sm text-slate-400">{item.meta}</div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-[var(--app-border-subtle)] px-4 py-6 text-sm text-[var(--app-muted)]">
+                Activity will appear here as incidents, documents, and workspace updates come in.
               </div>
-            ))}
+            )}
           </div>
-          <Link href="/command-center" className="mt-4 inline-flex items-center text-sm font-semibold text-[#2f6cf6]">
-            View all activity
-          </Link>
         </article>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.55fr_0.6fr]">
-        <article className="rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
-          <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
+        <article className="rounded-[1.5rem] border border-[var(--app-border-subtle)] bg-white shadow-[var(--app-shadow-soft)]">
+          <div className="flex items-center justify-between gap-4 border-b border-[var(--app-border-subtle)] px-5 py-4">
             <div>
-              <h2 className="text-[1.45rem] font-semibold tracking-tight text-slate-900">Project Status</h2>
-              <p className="mt-1 text-sm text-slate-500">Snapshot of active project health and outstanding work.</p>
+              <h2 className="text-[1.45rem] font-semibold tracking-tight text-[var(--app-text-strong)]">Project Status</h2>
+              <p className="mt-1 text-sm text-[var(--app-muted)]">Snapshot of active project health and outstanding work.</p>
             </div>
-            <Link href="/jobsites" className="text-sm font-semibold text-[#2f6cf6]">
+            <Link href={projectHref} className="text-sm font-semibold text-[#2f6cf6]">
               View all projects
             </Link>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="text-left text-sm text-slate-400">
-                  <th className="px-5 py-3 font-medium">Project</th>
-                  <th className="px-5 py-3 font-medium">Progress</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium">Open Tasks</th>
-                  <th className="px-5 py-3 font-medium">Overdue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects.map((project) => (
-                  <tr key={project.id} className="border-t border-slate-100 text-sm">
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#dbeafe_0%,#bfdbfe_100%)] text-[#2f6cf6]">
-                          <HardHat className="h-6 w-6" />
-                        </div>
-                        <div>
-                          <div className="font-semibold text-slate-900">{project.name}</div>
-                          <div className="text-slate-500">{project.subtitle}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="w-full max-w-[180px]">
-                        <div className="h-2.5 rounded-full bg-slate-100">
-                          <div
-                            className={`h-2.5 rounded-full ${
-                              project.status === "On Track"
-                                ? "bg-emerald-500"
-                                : project.status === "At Risk"
-                                  ? "bg-amber-400"
-                                  : "bg-rose-500"
-                            }`}
-                            style={{ width: `${project.progress}%` }}
-                          />
-                        </div>
-                        <div className="mt-2 text-xs font-semibold text-slate-600">{project.progress}%</div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getToneClass(project.status)}`}>
-                        {project.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 font-medium text-slate-900">{project.openTasks}</td>
-                    <td className={`px-5 py-4 font-medium ${project.overdue > 0 ? "text-rose-500" : "text-slate-900"}`}>
-                      {project.overdue}
-                    </td>
+            {projects.length > 0 ? (
+              <table className="min-w-full">
+                <thead>
+                  <tr className="text-left text-sm text-[var(--app-muted)]">
+                    <th className="px-5 py-3 font-medium">Project</th>
+                    <th className="px-5 py-3 font-medium">Progress</th>
+                    <th className="px-5 py-3 font-medium">Status</th>
+                    <th className="px-5 py-3 font-medium">Open observations</th>
+                    <th className="px-5 py-3 font-medium">Overdue</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {projects.map((project) => (
+                    <tr key={project.id} className="border-t border-[var(--app-border-subtle)] text-sm">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#dbeafe_0%,#bfdbfe_100%)] text-[#2f6cf6]">
+                            <HardHat className="h-6 w-6" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-[var(--app-text-strong)]">{project.name}</div>
+                            <div className="text-[var(--app-muted)]">{project.subtitle}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="w-full max-w-[180px]">
+                          <div className="h-2.5 rounded-full bg-[var(--app-panel-soft)]">
+                            <div
+                              className={`h-2.5 rounded-full ${
+                                project.status === "On Track"
+                                  ? "bg-emerald-500"
+                                  : project.status === "At Risk"
+                                    ? "bg-amber-400"
+                                    : "bg-rose-500"
+                              }`}
+                              style={{ width: `${project.progress}%` }}
+                            />
+                          </div>
+                          <div className="mt-2 text-xs font-semibold text-[var(--app-text)]">{project.progress}%</div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getToneClass(project.status)}`}
+                        >
+                          {project.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 font-medium text-[var(--app-text-strong)]">{project.openTasks}</td>
+                      <td className={`px-5 py-4 font-medium ${project.overdue > 0 ? "text-rose-500" : "text-[var(--app-text-strong)]"}`}>
+                        {project.overdue}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="px-5 py-10 text-center text-sm text-[var(--app-muted)]">
+                <p>No jobsites in your workspace yet.</p>
+                <Link href={projectHref} className="mt-3 inline-block font-semibold text-[#2f6cf6]">
+                  Go to jobsites or workspace setup
+                </Link>
+              </div>
+            )}
           </div>
         </article>
 
-        <article className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+        <article className="rounded-[1.5rem] border border-[var(--app-border-subtle)] bg-white p-5 shadow-[var(--app-shadow-soft)]">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-[1.45rem] font-semibold tracking-tight text-slate-900">Document Status</h2>
-            <Link href="/library" className="text-sm font-semibold text-[#2f6cf6]">
+            <h2 className="text-[1.45rem] font-semibold tracking-tight text-[var(--app-text-strong)]">Document Status</h2>
+            <Link href={documentHref} className="text-sm font-semibold text-[#2f6cf6]">
               View all
             </Link>
           </div>
-          <div className="mt-6 flex justify-center">
-            <div className="relative flex h-[170px] w-[170px] items-center justify-center rounded-full" style={buildDonutStyle(documentBreakdown)}>
-              <div className="flex h-[104px] w-[104px] flex-col items-center justify-center rounded-full bg-white">
-                <span className="text-[2rem] font-semibold text-slate-900">{documentTotal}</span>
-                <span className="text-sm text-slate-500">Total</span>
-              </div>
-            </div>
-          </div>
-          <div className="mt-6 space-y-4">
-            {documentBreakdown.map((segment) => (
-              <div key={segment.label} className="flex items-center justify-between gap-3 text-sm">
-                <div className="flex items-center gap-2 text-slate-600">
-                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: segment.color }} />
-                  {segment.label}
-                </div>
-                <div className="font-medium text-slate-900">
-                  {segment.value} ({Math.round((segment.value / documentTotal) * 100)}%)
+          {documentTotal > 0 ? (
+            <>
+              <div className="mt-6 flex justify-center">
+                <div
+                  className="relative flex h-[170px] w-[170px] items-center justify-center rounded-full"
+                  style={buildDonutStyle(documentBreakdown)}
+                >
+                  <div className="flex h-[104px] w-[104px] flex-col items-center justify-center rounded-full bg-white">
+                    <span className="text-[2rem] font-semibold text-[var(--app-text-strong)]">{documentTotal}</span>
+                    <span className="text-sm text-[var(--app-muted)]">Total</span>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
+              <div className="mt-6 space-y-4">
+                {documentBreakdown.map((segment) => (
+                  <div key={segment.label} className="flex items-center justify-between gap-3 text-sm">
+                    <div className="flex items-center gap-2 text-[var(--app-text)]">
+                      <span className="h-3 w-3 rounded-full" style={{ backgroundColor: segment.color }} />
+                      {segment.label}
+                    </div>
+                    <div className="font-medium text-[var(--app-text-strong)]">
+                      {segment.value} ({Math.round((segment.value / documentTotal) * 100)}%)
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="mt-6 text-sm text-[var(--app-muted)]">No documents in this workspace yet.</p>
+          )}
         </article>
       </section>
     </div>

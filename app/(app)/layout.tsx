@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Toaster } from "sonner";
 import { AppCommandPalette } from "@/components/AppCommandPalette";
+import { BrandLogo } from "@/components/BrandLogo";
 import { appButtonQuietClassName, appNativeSelectClassName } from "@/components/WorkspacePrimitives";
 import {
   accountSetupSideSections,
@@ -235,24 +236,6 @@ function QuickJumpIcon() {
     >
       <path d="M5 12h14" />
       <path d="m13 6 6 6-6 6" />
-    </svg>
-  );
-}
-
-function DashboardBrandIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-8 w-8"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 3 5 6v5c0 4.8 3.1 9.2 7 10 3.9-.8 7-5.2 7-10V6l-7-3Z" />
-      <path d="m9.25 12 2 2 4.25-5" />
     </svg>
   );
 }
@@ -541,15 +524,16 @@ export default function AppLayout({
     );
   }, [pathname, sideSections]);
 
-  const useCompanyHeaderDropdown =
+  const supportsCompanyHeaderDropdown =
     !showPlatformAdminShell && isCompanyScopedUser && workspaceProduct !== "csep";
+  const useCompanyHeaderDropdown = false;
   const isDashboardRoute = pathname === "/dashboard";
   const companyDropdownSections = useMemo(
     () =>
-      useCompanyHeaderDropdown
+      supportsCompanyHeaderDropdown
         ? (sideSections as WorkspaceNavSection[])
         : ([] as WorkspaceNavSection[]),
-    [sideSections, useCompanyHeaderDropdown]
+    [sideSections, supportsCompanyHeaderDropdown]
   );
   const dashboardSideItems = useMemo(
     () => sideSections.flatMap((section) => section.items).slice(0, 12),
@@ -830,6 +814,7 @@ export default function AppLayout({
           "/companies",
           "/jobsites",
           "/field-id-exchange",
+          "/safety-intelligence",
           "/safety-submit",
           "/analytics",
           "/command-center",
@@ -1023,8 +1008,8 @@ export default function AppLayout({
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-app-canvas text-slate-300">
-        <div className="rounded-3xl border border-slate-700/80 bg-slate-900/80 px-8 py-6 text-sm font-semibold text-slate-200 shadow-lg">
+      <div className="app-shell-light flex min-h-screen items-center justify-center">
+        <div className="rounded-3xl border border-[var(--app-border)] bg-[rgba(255,255,255,0.94)] px-8 py-6 text-sm font-semibold text-[var(--app-text)] shadow-[var(--app-shadow-soft)]">
           Loading workspace...
         </div>
       </div>
@@ -1033,19 +1018,19 @@ export default function AppLayout({
 
   if (accountStatus === "pending") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-app-canvas px-6 py-10">
-        <div className="w-full max-w-xl rounded-[1.9rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-lg">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-300">
+      <div className="app-shell-light flex min-h-screen items-center justify-center px-6 py-10">
+        <div className="w-full max-w-xl rounded-[1.9rem] border border-[var(--app-border)] bg-[rgba(255,255,255,0.96)] p-8 shadow-[var(--app-shadow)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--semantic-warning)]">
             Approval Required
           </p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-white">
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-[var(--app-text-strong)]">
             Your account is waiting for administrator approval
           </h1>
-          <p className="mt-3 text-sm leading-6 text-slate-400">
+          <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">
             Your account has been created successfully, but access to the workspace stays
             locked until an administrator reviews and activates it.
           </p>
-          <div className="mt-6 rounded-2xl border border-amber-500/35 bg-amber-950/50 px-4 py-3 text-sm text-amber-100/95">
+          <div className="mt-6 rounded-2xl border border-[rgba(217,164,65,0.35)] bg-[var(--semantic-warning-bg)] px-4 py-3 text-sm text-[var(--app-text)]">
             {
               "We'll open the full workspace as soon as your account status is changed from pending to active."
             }
@@ -1063,15 +1048,15 @@ export default function AppLayout({
 
   if (accountStatus === "suspended") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-app-canvas px-6 py-10">
-        <div className="w-full max-w-xl rounded-[1.9rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-lg">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-red-300">
+      <div className="app-shell-light flex min-h-screen items-center justify-center px-6 py-10">
+        <div className="w-full max-w-xl rounded-[1.9rem] border border-[var(--app-border)] bg-[rgba(255,255,255,0.96)] p-8 shadow-[var(--app-shadow)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--semantic-danger)]">
             Account Suspended
           </p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-white">
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-[var(--app-text-strong)]">
             This account is currently suspended
           </h1>
-          <p className="mt-3 text-sm leading-6 text-slate-400">
+          <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">
             Your access to the workspace has been temporarily disabled by an administrator.
           </p>
           <button
@@ -1167,21 +1152,12 @@ export default function AppLayout({
   }
 
   return (
-    <div
-      className={cx(
-        isDashboardRoute
-          ? "app-shell-dashboard min-h-screen bg-[#f4f7fb] text-slate-900"
-          : "app-shell-light min-h-screen bg-app-canvas text-[var(--app-text)]"
-      )}
-    >
+    <div className="app-shell-light app-shell-dashboard min-h-screen text-[var(--app-text)]">
       <div className="flex min-h-screen">
         {mobileMenuOpen ? (
           <button
             aria-label="Close menu overlay"
-            className={cx(
-              "fixed inset-0 z-40 lg:hidden",
-              isDashboardRoute ? "bg-slate-950/65" : "bg-slate-950/35"
-            )}
+            className="fixed inset-0 z-40 bg-[rgba(37,99,235,0.06)] backdrop-blur-[2px] lg:hidden"
             onClick={() => setMobileMenuOpen(false)}
           />
         ) : null}
@@ -1189,424 +1165,224 @@ export default function AppLayout({
         <aside
           className={cx(
             "fixed inset-y-0 left-0 z-50 w-[280px] max-w-[84vw] transition-transform duration-200",
-            isDashboardRoute
-              ? "border-r border-[#22324d] bg-[#0f1a2c] text-[#d7e4f7]"
-              : "border-r border-[var(--app-border)] bg-[linear-gradient(180deg,_#f7fbff_0%,_#edf4ff_55%,_#e7f0fb_100%)] text-[var(--app-text-strong)]",
-            useCompanyHeaderDropdown && !isDashboardRoute
-              ? "lg:hidden"
-              : "lg:static lg:w-[248px] lg:max-w-none lg:translate-x-0",
+            "border-r border-[var(--app-border-subtle)] bg-[rgba(255,255,255,0.96)] text-[var(--app-text)] shadow-[inset_-1px_0_0_rgba(255,255,255,0.85)]",
+            "lg:static lg:w-[248px] lg:max-w-none lg:translate-x-0",
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
           <div className="flex h-full flex-col">
-            <div className={cx("p-4", isDashboardRoute ? "border-b border-[#22324d]" : "pb-1")}>
-              {isDashboardRoute ? (
-                <div className="flex items-center gap-3 rounded-2xl bg-[#13223a] px-3 py-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#1d4ed8] text-white shadow-[0_12px_24px_rgba(37,99,235,0.35)]">
-                    <DashboardBrandIcon />
-                  </div>
-                  <div>
-                    <div className="text-xl font-semibold tracking-tight text-white">SafetyDocs360</div>
-                    <div className="text-xs text-[#8ea4c3]">Enterprise safety workspace</div>
-                  </div>
-                </div>
-              ) : (
-                <div className="relative h-[5.8rem] w-full">
-                  <Image
-                    src="/brand/safety360docs-reference-neon-tight.png"
-                    alt="Safety360Docs by Reliance EHS"
-                    fill
-                    priority
-                    sizes="248px"
-                    className="object-contain object-left"
-                  />
-                </div>
-              )}
+            <div className="border-b border-[var(--app-border-subtle)] p-3 sm:p-4">
+              <Link
+                href="/dashboard"
+                className="block rounded-[2rem] outline-none ring-offset-2 ring-offset-[var(--app-surface-solid)] focus-visible:ring-2 focus-visible:ring-[var(--app-accent-primary)]"
+              >
+                <BrandLogo variant="sidebar-panel" className="w-full" />
+              </Link>
             </div>
 
-            <nav className={cx("flex-1 overflow-y-auto px-3 py-3", isDashboardRoute ? "pt-5" : "")}>
-              {isDashboardRoute ? (
-                <div className="space-y-1.5">
-                  <div className="px-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7f94b2]">
-                    Navigation
-                  </div>
-                  {dashboardSideItems.map((item) => {
-                    const active = isActivePath(pathname, item.href);
+            <nav className="flex-1 overflow-y-auto px-3 py-5">
+              <div className="space-y-0">
+                {sideSections.map((section, sectionIndex) => (
+                  (() => {
+                    const sectionDescription =
+                      (section as { description?: string }).description ?? "";
                     return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cx(
-                          "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition",
-                          active
-                            ? "bg-[#1f488f] text-white shadow-[0_12px_22px_rgba(31,72,143,0.32)]"
-                            : "text-[#d7e4f7] hover:bg-[#14233b] hover:text-white"
-                        )}
+                      <div
+                        key={`nav-section-${sectionIndex}-${section.title}`}
+                        className={sectionIndex > 0 ? "mt-5 border-t border-[var(--app-border-subtle)] pt-5" : ""}
                       >
-                        <span
-                          className={cx(
-                            "inline-flex h-9 w-9 items-center justify-center rounded-xl",
-                            active ? "bg-white/12 text-white" : "bg-white/6 text-[#9eb2cf]"
-                          )}
-                        >
-                          <DashboardRouteIcon href={item.href} />
-                        </span>
-                        <span className="truncate">{item.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : (
-                <>
-                  <div className="px-3 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
-                    Menu
-                  </div>
-                  <div className="mt-4 space-y-0">
-                    {sideSections.map((section, sectionIndex) => (
-                      (() => {
-                        const sectionDescription =
-                          (section as { description?: string }).description ?? "";
-                        return (
-                          <div
-                            key={`nav-section-${sectionIndex}-${section.title}`}
-                            className={sectionIndex > 0 ? "mt-5 border-t border-[var(--app-border)] pt-5" : ""}
-                          >
-                            <div className="px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">
-                              {section.title}
-                            </div>
-                            {sectionDescription ? (
-                              <div className="mt-1 px-3 text-[11px] leading-5 text-[var(--app-muted)]">
-                                {sectionDescription}
-                              </div>
-                            ) : null}
-                            <div className="mt-2 space-y-1.5">
-                              {section.items.map((item) => {
-                                const active = isActivePath(pathname, item.href);
-                                const navMeta = getWorkspaceNavItemMeta(item);
-                                return (
-                                  <Link
-                                    key={`${section.title}-${item.href}`}
-                                    href={item.href}
-                                    className={cx(
-                                      "flex items-center rounded-2xl border px-4 py-3 transition",
-                                      active
-                                        ? "border-[rgba(79,125,243,0.24)] bg-[linear-gradient(135deg,_rgba(79,125,243,0.14)_0%,_rgba(79,125,243,0.08)_100%)] text-[var(--app-text-strong)] shadow-[0_12px_24px_rgba(79,125,243,0.08)]"
-                                        : "border-transparent text-[var(--app-text)] hover:bg-white/70 hover:text-[var(--app-text-strong)]"
-                                    )}
-                                  >
-                                    <div className="min-w-0">
-                                      <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">
-                                        {item.label}
-                                      </div>
-                                      {!active ? (
-                                        <div className="mt-0.5 truncate text-[11px] text-[var(--app-muted)]">
-                                          {navMeta.description}
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                  </Link>
-                                );
-                              })}
-                            </div>
+                        <div className="px-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]">
+                          {section.title}
+                        </div>
+                        {sectionDescription ? (
+                          <div className="mt-1 px-3 text-[11px] leading-5 text-[var(--app-muted)]">
+                            {sectionDescription}
                           </div>
-                        );
-                      })()
-                    ))}
-                  </div>
-                </>
-              )}
+                        ) : null}
+                        <div className="mt-3 space-y-1.5">
+                          {section.items.map((item) => {
+                            const active = isActivePath(pathname, item.href);
+                            const navMeta = getWorkspaceNavItemMeta(item);
+                            return (
+                              <Link
+                                key={`${section.title}-${item.href}`}
+                                href={item.href}
+                                className={cx(
+                                  "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition",
+                                  active
+                                    ? "bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)] shadow-[0_10px_22px_rgba(37,99,235,0.12)] ring-1 ring-[rgba(37,99,235,0.18)]"
+                                    : "text-[var(--app-text)] hover:bg-[rgba(234,241,255,0.85)] hover:text-[var(--app-text-strong)]"
+                                )}
+                              >
+                                <span
+                                  className={cx(
+                                    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                                    active
+                                      ? "bg-white text-[var(--app-accent-primary)] shadow-sm"
+                                      : "bg-[rgba(234,241,255,0.65)] text-[var(--app-muted)]"
+                                  )}
+                                >
+                                  <DashboardRouteIcon href={item.href} />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate">{item.label}</span>
+                                  {!active ? (
+                                    <span className="mt-0.5 block truncate text-[11px] text-[var(--app-muted)]">
+                                      {navMeta.description}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()
+                ))}
+              </div>
             </nav>
 
-            <div className={cx("p-3", isDashboardRoute ? "border-t border-[#22324d]" : "border-t border-white/10")}>
-              {isDashboardRoute ? (
-                <div className="rounded-[1.5rem] border border-[#243754] bg-[#13223a] p-4 text-[#d7e4f7]">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7f94b2]">
-                    Signed In
-                  </div>
-                  <div className="mt-3 flex items-center gap-3">
-                    <ProfileAvatar profile={profileSummary} email={userEmail} />
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-white">{displayName}</div>
-                      <div className="mt-1 truncate text-xs text-[#9eb2cf]">{profileJobTitle}</div>
-                    </div>
-                  </div>
-                  <div className="mt-3 text-xs uppercase tracking-[0.16em] text-[#7ea9ff]">
-                    {profileSpecialty}
-                  </div>
-                  <div className="mt-4 grid gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCommandPaletteOpen(true)}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#2b4160] bg-[#172a45] px-4 py-3 text-sm font-semibold text-white transition hover:border-[#3d5f90]"
-                    >
-                      <QuickJumpIcon />
-                      Quick Jump
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="rounded-2xl bg-[#2f6cf6] px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(47,108,246,0.35)] transition hover:bg-[#205eea]"
-                    >
-                      Logout
-                    </button>
+            <div className="border-t border-[var(--app-border-subtle)] p-3">
+              <div className="rounded-[1.5rem] border border-[var(--app-border)] bg-[rgba(255,255,255,0.92)] p-4 shadow-[var(--app-shadow-soft)]">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]">
+                  Signed In
+                </div>
+                <div className="mt-3 flex items-center gap-3">
+                  <ProfileAvatar profile={profileSummary} email={userEmail} />
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">{displayName}</div>
+                    <div className="mt-1 truncate text-xs text-[var(--app-muted)]">{profileJobTitle}</div>
                   </div>
                 </div>
-              ) : (
-                <div className="rounded-[1.6rem] border border-[var(--app-border)] bg-white/80 p-4">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
-                    Signed In
-                  </div>
-                  <div className="mt-3 flex items-center gap-3">
-                    <ProfileAvatar profile={profileSummary} email={userEmail} />
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">
-                        {displayName}
-                      </div>
-                      <div className="mt-1 truncate text-xs text-[var(--app-text)]">
-                        {profileJobTitle}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-3 text-xs uppercase tracking-[0.16em] text-[var(--app-accent-primary)]">
-                    {profileSpecialty}
-                  </div>
-                  <div className="mt-4 flex items-center justify-between rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2 text-xs text-[var(--app-text)]">
-                    <span>{workspaceLabel}</span>
-                    <span className="capitalize">{accountStatus}</span>
-                  </div>
+                <div className="mt-3 text-xs uppercase tracking-[0.16em] text-[var(--app-accent-primary)]">
+                  {profileSpecialty}
+                </div>
+                <div className="mt-4 flex items-center justify-between rounded-2xl border border-[var(--app-border-subtle)] bg-[rgba(234,241,255,0.55)] px-3 py-2 text-xs text-[var(--app-text)]">
+                  <span>{workspaceLabel}</span>
+                  <span className="capitalize">{accountStatus}</span>
+                </div>
+                <div className="mt-4 grid gap-2">
                   <button
+                    type="button"
+                    onClick={() => setCommandPaletteOpen(true)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
+                  >
+                    <QuickJumpIcon />
+                    Quick Jump
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleLogout}
-                    className="mt-4 w-full rounded-2xl bg-[var(--app-accent-primary)] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_24px_rgba(79,125,243,0.24)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
+                    className="rounded-2xl bg-[var(--app-accent-primary)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(37,99,235,0.22)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
                   >
                     Logout
                   </button>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          {isDashboardRoute ? (
-            <header className="border-b border-[#22324d] bg-[#0f1a2c] text-white">
-              <div className="mx-auto w-full max-w-[1680px] px-4 py-4 sm:px-6 xl:px-8">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setMobileMenuOpen(true)}
-                      aria-label="Open navigation menu"
-                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#2a3d5b] bg-[#13223a] text-white shadow-sm lg:hidden"
-                    >
-                      <MobileMenuIcon />
-                    </button>
-                    <div className="min-w-0">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#91a7c6]">
-                        {currentNavSection?.title || workspaceLabel}
-                      </div>
-                      <div className="mt-2 flex items-center gap-3">
-                        <span className="hidden h-11 w-11 items-center justify-center rounded-2xl bg-[#13223a] text-[#8fb0ff] sm:inline-flex">
-                          <DashboardWorkspaceIcon />
-                        </span>
-                        <div>
-                          <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-[2rem]">
-                            {currentNavItem.label}
-                          </h1>
-                          <p className="mt-1 text-sm text-[#adc1db]">
-                            {showPlatformAdminShell
-                              ? "Administrative tools and audit controls"
-                              : needsProfileSetup
-                                ? "Complete your profile to unlock the full company workspace."
-                                : needsCompanySetup
-                                  ? "Create your company workspace before inviting employees or opening company tools."
-                                  : currentNavMeta.description}
-                          </p>
-                        </div>
-                      </div>
+          <header className="border-b border-[var(--app-border-subtle)] bg-[rgba(255,255,255,0.94)] text-[var(--app-text-strong)] shadow-[0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-md">
+            <div className="mx-auto w-full max-w-[1680px] px-4 py-4 sm:px-6 xl:px-8">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setMobileMenuOpen(true)}
+                    aria-label="Open navigation menu"
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--app-border)] bg-white text-[var(--app-text-strong)] shadow-sm lg:hidden"
+                  >
+                    <MobileMenuIcon />
+                  </button>
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-muted)]">
+                      {showPlatformAdminShell
+                        ? workspaceLabel
+                        : currentNavSection?.title || workspaceLabel}
                     </div>
-                  </div>
-
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <form onSubmit={handleHeaderSearchSubmit} className="w-full sm:min-w-[360px]">
-                      <div className="flex items-center gap-3 rounded-2xl border border-[#2b3f5d] bg-[#13223a] px-4 py-3">
-                        <span className="text-[#93a9c7]">
-                          <DashboardSearchIcon />
-                        </span>
-                        <input
-                          type="search"
-                          value={searchQuery}
-                          onChange={(event) => setSearchQuery(event.target.value)}
-                          placeholder="Search projects, documents, reports..."
-                          aria-label="Search workspace"
-                          className="w-full border-0 bg-transparent text-sm text-white outline-none placeholder:text-[#8da3c1]"
-                        />
-                        <span className="text-[#93a9c7]">
-                          <DashboardChevronIcon />
-                        </span>
-                      </div>
-                    </form>
-
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-[#2b3f5d] bg-[#13223a] text-white"
-                      >
-                        <DashboardBellIcon />
-                        <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ff5a52] px-1 text-[10px] font-semibold text-white">
-                          3
-                        </span>
-                      </button>
-
-                      <div className="flex items-center gap-3 rounded-2xl border border-[#2b3f5d] bg-[#13223a] px-3 py-2.5">
-                        <ProfileAvatar profile={profileSummary} email={userEmail} />
-                        <div className="hidden min-w-0 sm:block">
-                          <div className="truncate text-sm font-semibold text-white">{displayName}</div>
-                          <div className="mt-0.5 truncate text-xs text-[#9eb2cf]">{profileJobTitle}</div>
-                        </div>
-                        <span className="text-[#8da3c1]">
-                          <DashboardChevronIcon />
-                        </span>
+                    <div className="mt-2 flex items-center gap-3">
+                      <span className="hidden h-11 w-11 items-center justify-center rounded-2xl border border-[var(--app-border-subtle)] bg-[rgba(234,241,255,0.65)] text-[var(--app-accent-primary)] sm:inline-flex">
+                        <DashboardWorkspaceIcon />
+                      </span>
+                      <div>
+                        <h1 className="text-2xl font-semibold tracking-tight text-[var(--app-text-strong)] sm:text-[2rem]">
+                          {currentNavItem.label}
+                        </h1>
+                        <p className="mt-1 text-sm text-[var(--app-text)]">
+                          {showPlatformAdminShell
+                            ? "Administrative tools and audit controls"
+                            : needsProfileSetup
+                              ? "Complete your profile to unlock the full company workspace."
+                              : needsCompanySetup
+                                ? "Create your company workspace before inviting employees or opening company tools."
+                                : currentNavMeta.description}
+                        </p>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </header>
-          ) : (
-            <header className="border-b border-[var(--app-border)] bg-[rgba(248,251,255,0.88)] backdrop-blur">
-              <div className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6 xl:px-8">
-                <div className="flex flex-col gap-5">
-                  <div className="flex min-w-0 items-start gap-3">
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <form onSubmit={handleHeaderSearchSubmit} className="w-full sm:min-w-[360px]">
+                    <div className="flex items-center gap-3 rounded-2xl border border-[var(--app-border)] bg-white px-4 py-3 shadow-sm">
+                      <span className="text-[var(--app-muted)]">
+                        <DashboardSearchIcon />
+                      </span>
+                      <input
+                        type="search"
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        placeholder="Search projects, documents, reports..."
+                        aria-label="Search workspace"
+                        className="w-full border-0 bg-transparent text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)]"
+                      />
+                      <span className="text-[var(--app-muted)]">
+                        <DashboardChevronIcon />
+                      </span>
+                    </div>
+                  </form>
+
+                  <div className="flex items-center gap-3">
                     <button
                       type="button"
-                      onClick={() => setMobileMenuOpen(true)}
-                      aria-label="Open navigation menu"
-                      className="inline-flex h-11 min-h-11 w-11 min-w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--app-border)] bg-white text-[var(--app-text)] shadow-sm lg:hidden"
+                      className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--app-border)] bg-white text-[var(--app-text-strong)] shadow-sm"
                     >
-                      <MobileMenuIcon />
+                      <DashboardBellIcon />
+                      <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ff5a52] px-1 text-[10px] font-semibold text-white">
+                        3
+                      </span>
                     </button>
-                    <div className="min-w-0 flex-1">
-                      <form onSubmit={handleHeaderSearchSubmit} className="mb-3 max-w-xl">
-                        <div className="flex items-center gap-2 rounded-2xl border border-[var(--app-border-strong)] bg-white px-3 py-2.5 shadow-sm">
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 24 24"
-                            className="h-4 w-4 shrink-0 text-[var(--app-muted)]"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <circle cx="11" cy="11" r="7" />
-                            <path d="m20 20-3.5-3.5" />
-                          </svg>
-                          <input
-                            type="search"
-                            value={searchQuery}
-                            onChange={(event) => setSearchQuery(event.target.value)}
-                            placeholder="Search documents, records, projects, or pages"
-                            aria-label="Search workspace"
-                            className="w-full border-0 bg-transparent text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)]"
-                          />
-                          <button
-                            type="submit"
-                            className="inline-flex shrink-0 rounded-xl bg-[var(--app-accent-primary)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
-                          >
-                            Search
-                          </button>
-                        </div>
-                      </form>
-                      <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-[var(--app-muted)]">
-                        {showPlatformAdminShell
-                          ? workspaceLabel
-                          : currentNavSection?.title || workspaceLabel}
+
+                    <button
+                      type="button"
+                      onClick={() => setCommandPaletteOpen(true)}
+                      className="hidden items-center gap-2 rounded-2xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--app-text-strong)] shadow-sm transition hover:bg-[var(--app-accent-primary-soft)] sm:inline-flex"
+                    >
+                      <QuickJumpIcon />
+                      Quick Jump
+                    </button>
+
+                    <div className="flex items-center gap-3 rounded-2xl border border-[var(--app-border)] bg-white px-3 py-2.5 shadow-sm">
+                      <ProfileAvatar profile={profileSummary} email={userEmail} />
+                      <div className="hidden min-w-0 sm:block">
+                        <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">{displayName}</div>
+                        <div className="mt-0.5 truncate text-xs text-[var(--app-muted)]">{profileJobTitle}</div>
                       </div>
-                      {useCompanyHeaderDropdown ? (
-                        <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                          <div className="w-full max-w-2xl">
-                            <label
-                              htmlFor="workspace-nav-dropdown"
-                              className="mb-1 block text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--app-muted)]"
-                            >
-                              Workspace
-                            </label>
-                            <select
-                              id="workspace-nav-dropdown"
-                              aria-label="Workspace navigation"
-                              value={currentNavItem.href}
-                              onChange={handleWorkspaceDropdownChange}
-                              className={cx(appNativeSelectClassName, "w-full")}
-                            >
-                              {companyDropdownSections.map((section) => (
-                                <optgroup
-                                  key={section.group}
-                                  label={`${section.title} - ${section.description}`}
-                                >
-                                  {section.items.map((item) => {
-                                    const navMeta = getWorkspaceNavItemMeta(item);
-                                    return (
-                                      <option key={item.href} value={item.href}>
-                                        {item.label} - {navMeta.description}
-                                      </option>
-                                    );
-                                  })}
-                                </optgroup>
-                              ))}
-                            </select>
-                            <p className="mt-2 text-xs text-[var(--app-muted)]">
-                              Jump to another workspace area without losing screen space.
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setCommandPaletteOpen(true)}
-                            className={cx(
-                              appButtonQuietClassName,
-                              "w-full shrink-0 gap-2 px-4 py-3 lg:mt-6 lg:w-auto"
-                            )}
-                            aria-label="Open quick jump"
-                          >
-                            <QuickJumpIcon />
-                            Quick jump
-                          </button>
-                        </div>
-                      ) : null}
-                      <div className="mt-2 flex flex-wrap items-center gap-3">
-                        <div>
-                          <h1 className="text-2xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-3xl">
-                            {currentNavItem.label}
-                          </h1>
-                          <p className="mt-1 text-sm text-[var(--app-text)]">
-                            {showPlatformAdminShell
-                              ? "Administrative tools and audit controls"
-                              : needsProfileSetup
-                                ? "Complete your construction profile before opening company setup or workspace tools"
-                                : needsCompanySetup
-                                  ? "Create your company workspace before inviting employees or opening company tools"
-                                  : isCompanyScopedUser
-                                    ? currentNavMeta.description
-                                    : "Safety document workspace and active project tools"}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="mt-2 max-w-3xl text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--app-muted)] sm:text-sm">
-                        Enterprise Safety Management Platform
-                      </p>
+                      <span className="text-[var(--app-muted)]">
+                        <DashboardChevronIcon />
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
-            </header>
-          )}
+            </div>
+          </header>
 
-          <main
-            className={cx(
-              "flex-1",
-              isDashboardRoute ? "bg-[#f4f7fb] px-4 py-5 sm:px-6 xl:px-8" : "px-4 py-6 sm:px-6 sm:py-7 xl:px-8"
-            )}
-          >
-            <div className={cx("mx-auto w-full space-y-5", isDashboardRoute ? "max-w-[1680px]" : "max-w-[1600px]")}>
+          <main className="flex-1 bg-transparent px-4 py-5 sm:px-6 xl:px-8">
+            <div className="mx-auto w-full max-w-[1680px] space-y-5">
               {bootError ? (
                 <div className="rounded-2xl border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] px-4 py-3 text-sm text-[var(--semantic-warning)] shadow-sm">
                   {bootError}
@@ -1619,7 +1395,7 @@ export default function AppLayout({
                   <div className="workspace-frame rounded-[1.6rem] p-3 sm:rounded-[2rem] sm:p-4">
                     <div className="workspace-content">{children}</div>
                   </div>
-                  <div className="rounded-[1.3rem] bg-[linear-gradient(135deg,_#4f7df3_0%,_#6ea0ff_100%)] px-4 py-4 text-center text-xl font-black tracking-tight text-white shadow-[0_16px_30px_rgba(79,125,243,0.2)] sm:rounded-[1.6rem] sm:px-6 sm:py-5 sm:text-[1.85rem]">
+                  <div className="rounded-[1.3rem] border border-[var(--app-border-subtle)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.99)_0%,_rgba(242,248,255,0.92)_52%,_rgba(236,244,255,0.94)_100%)] px-4 py-4 text-center text-lg font-bold tracking-tight text-[var(--app-accent-primary)] shadow-[var(--app-shadow-soft)] sm:rounded-[1.6rem] sm:px-6 sm:py-5 sm:text-[1.5rem]">
                     Systems live. Secure. Document. Stay Safe.
                   </div>
                 </>

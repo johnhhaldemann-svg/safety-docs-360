@@ -3,7 +3,7 @@ import { buildGeneratedDocumentRecordFromDraft } from "@/lib/safety-intelligence
 import type { GeneratedSafetyPlanDraft } from "@/types/safety-intelligence";
 
 describe("buildGeneratedDocumentRecordFromDraft", () => {
-  it("renders HTML preview with document numbering and tables preserved", () => {
+  it("renders HTML preview with document numbering and table rows as numbered paragraphs for CSEP", () => {
     const draft: GeneratedSafetyPlanDraft = {
       documentType: "csep",
       projectDeliveryType: "ground_up",
@@ -71,10 +71,11 @@ describe("buildGeneratedDocumentRecordFromDraft", () => {
       },
     };
 
-    const record = buildGeneratedDocumentRecordFromDraft(draft as any, {});
+    const record = buildGeneratedDocumentRecordFromDraft(draft, {});
 
     expect(record.htmlPreview).toContain("<h2>0.0 Document Control</h2>");
-    expect(record.htmlPreview).toContain("<table>");
+    expect(record.htmlPreview).toContain("<p>0.1 Field: Project Name Value: Preview Test</p>");
+    expect(record.htmlPreview).not.toContain("<table>");
     expect(record.htmlPreview).toContain("<h2>1.0 Definitions</h2>");
     expect(record.htmlPreview).toContain("<h3>1.1 When It Applies</h3>");
     expect(record.htmlPreview).toContain("<p>1.1.1 Selected work includes welding or cutting.</p>");

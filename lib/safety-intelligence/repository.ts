@@ -17,6 +17,29 @@ function isMissingRelation(message?: string | null) {
   return (message ?? "").toLowerCase().includes("does not exist");
 }
 
+function isUuid(value: string | null | undefined) {
+  if (!value) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
+}
+
+function resolveConflictPairOperationIds(operationIds: string[]) {
+  const distinctOperationIds = [...new Set(operationIds.filter(isUuid))];
+  if (distinctOperationIds.length === 0) {
+    return null;
+  }
+
+  if (distinctOperationIds.length === 1) {
+    return { leftOperationId: distinctOperationIds[0] ?? null, rightOperationId: null };
+  }
+
+  return {
+    leftOperationId: distinctOperationIds[0] ?? null,
+    rightOperationId: distinctOperationIds[1] ?? null,
+  };
+}
+
 export async function persistBucketRun(
   supabase: LiteClient,
   input: RawTaskInput,
@@ -226,32 +249,41 @@ export async function persistSafetyPlanRun(params: {
   }
 
   if (params.conflictMatrix.items.length > 0) {
-    const conflictRows = params.conflictMatrix.items.map((item) => ({
-      company_id: params.companyId,
-      jobsite_id: params.jobsiteId ?? null,
-      bucket_run_id: bucketRunId,
-      conflict_code: item.code,
-      conflict_type: item.type,
-      severity: item.severity,
-      status: "open",
-      overlap_scope: {
-        sourceScope: item.sourceScope,
-        operationIds: item.operationIds,
-        relatedBucketKeys: item.relatedBucketKeys,
-        resequencingSuggestion: item.resequencingSuggestion ?? null,
-      },
-      rationale: item.rationale,
-      recommended_controls: item.requiredMitigations,
-      weather_condition: null,
-      created_by: params.actorUserId,
-      updated_by: params.actorUserId,
-    }));
+    const conflictRows = params.conflictMatrix.items.flatMap((item) => {
+      const operationPair = resolveConflictPairOperationIds(item.operationIds);
+      if (!operationPair) return [];
 
-    const conflictInsert = await params.supabase
-      .from("company_conflict_pairs")
-      .insert(conflictRows);
-    if (conflictInsert.error && !isMissingRelation(conflictInsert.error.message)) {
-      throw new Error(conflictInsert.error.message || "Failed to persist safety plan conflicts.");
+      return {
+        company_id: params.companyId,
+        jobsite_id: params.jobsiteId ?? null,
+        bucket_run_id: bucketRunId,
+        left_operation_id: operationPair.leftOperationId,
+        right_operation_id: operationPair.rightOperationId,
+        conflict_code: item.code,
+        conflict_type: item.type,
+        severity: item.severity,
+        status: "open",
+        overlap_scope: {
+          sourceScope: item.sourceScope,
+          operationIds: item.operationIds,
+          relatedBucketKeys: item.relatedBucketKeys,
+          resequencingSuggestion: item.resequencingSuggestion ?? null,
+        },
+        rationale: item.rationale,
+        recommended_controls: item.requiredMitigations,
+        weather_condition: null,
+        created_by: params.actorUserId,
+        updated_by: params.actorUserId,
+      };
+    });
+
+    if (conflictRows.length > 0) {
+      const conflictInsert = await params.supabase
+        .from("company_conflict_pairs")
+        .insert(conflictRows);
+      if (conflictInsert.error && !isMissingRelation(conflictInsert.error.message)) {
+        throw new Error(conflictInsert.error.message || "Failed to persist safety plan conflicts.");
+      }
     }
   }
 
