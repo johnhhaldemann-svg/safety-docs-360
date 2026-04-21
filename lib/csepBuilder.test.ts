@@ -511,4 +511,110 @@ Use this draft weather overlay:
         ?.subsections?.find((subsection) => subsection.title === "Required Coverage Callout")?.body
     ).toContain("keep required gaps visible");
   });
+
+  it("strips builder-only guidance and omits incomplete emergency sections in final issue mode", () => {
+    const structured = buildStructuredCsepDraft(
+      {
+        documentType: "csep",
+        projectDeliveryType: "ground_up",
+        title: "Final Riverfront Tower CSEP",
+        documentControl: {
+          projectSite: "[Platform Fill Field]",
+          primeContractor: "ABC Steel",
+          preparedBy: "SafetyDocs360 AI Draft Builder",
+          approvedBy: "Pending approval",
+        },
+        aiAssemblyDecisions: {
+          frontMatterGuidance:
+            "Use the front matter to orient field teams quickly, keep placeholders explicit, and keep gap callouts visible.",
+          coverageGuidance: "Keep this section concise, customer-facing, and ready for builder edits.",
+          sectionDecisions: {
+            emergency_preparedness_and_response:
+              "Keep this section concise, customer-facing, and ready for builder edits.",
+          },
+        },
+        projectOverview: {
+          projectName: "Riverfront Tower",
+          contractorCompany: "ABC Steel",
+        },
+        operations: [],
+        ruleSummary: {
+          permitTriggers: [],
+          ppeRequirements: [],
+          requiredControls: [],
+          hazardCategories: [],
+          siteRestrictions: [],
+          prohibitedEquipment: [],
+          trainingRequirements: [],
+          weatherRestrictions: [],
+        },
+        conflictSummary: {
+          total: 0,
+          intraDocument: 0,
+          external: 0,
+          highestSeverity: "none",
+          items: [],
+        },
+        riskSummary: {
+          score: 0,
+          band: "low",
+          priorities: [],
+        },
+        trainingProgram: {
+          rows: [],
+          summaryTrainingTitles: [],
+        },
+        narrativeSections: {},
+        sectionMap: [
+          {
+            key: "document_control",
+            kind: "front_matter",
+            order: 0,
+            title: "0.0 Document Control",
+            layoutKey: "document_control",
+            table: {
+              columns: ["Field", "Value"],
+              rows: [["Prepared By", "SafetyDocs360 AI Draft Builder"]],
+            },
+          },
+          {
+            key: "emergency_preparedness_and_response",
+            kind: "main",
+            order: 15,
+            title: "6.0 Emergency Preparedness and Response",
+            numberLabel: "6.0",
+            layoutKey: "emergency_preparedness_and_response",
+            body: "Keep this section concise, customer-facing, and ready for builder edits.",
+          },
+          {
+            key: "appendix_a_forms_and_permit_library",
+            kind: "appendix",
+            order: 40,
+            title: "Appendix A. Forms and Permit Library",
+            numberLabel: "Appendix A",
+            layoutKey: "appendix_library",
+            body: "Permit forms.",
+          },
+        ],
+        coverageAudit: {
+          findings: [],
+          unresolvedRequiredCount: 0,
+          unresolvedWarningCount: 0,
+        },
+        builderSnapshot: {},
+        provenance: {},
+      },
+      { finalIssueMode: true }
+    );
+
+    expect(
+      structured.sectionMap.some(
+        (section) => section.key === "emergency_preparedness_and_response"
+      )
+    ).toBe(false);
+    expect(JSON.stringify(structured.sectionMap)).not.toContain("SafetyDocs360 AI Draft Builder");
+    expect(JSON.stringify(structured.sectionMap)).not.toContain("Platform Fill Field");
+    expect(JSON.stringify(structured.sectionMap)).not.toContain("Pending approval");
+    expect(JSON.stringify(structured.sectionMap)).not.toContain("Keep this section concise");
+  });
 });

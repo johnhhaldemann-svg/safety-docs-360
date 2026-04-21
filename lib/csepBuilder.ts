@@ -14,6 +14,13 @@ import {
   type CsepFormatSectionKey,
 } from "@/types/csep-builder";
 import type { GeneratedSafetyPlanDraft, GeneratedSafetyPlanSection } from "@/types/safety-intelligence";
+import {
+  cleanFinalText,
+  cleanSectionForFinalIssue,
+  controlledTbd,
+  isMeaningfulFinalText,
+  normalizePermitList,
+} from "@/lib/csepFinalization";
 
 type CsepFrontMatterDefinition = CsepFormatSectionDefinition & {
   key: (typeof CSEP_FRONT_MATTER_KEYS)[number];
@@ -1693,9 +1700,7 @@ function sectionTextParts(section: GeneratedSafetyPlanSection) {
 }
 
 function fallbackSectionBody(definition: CsepFormatSectionDefinition) {
-  return definition.purpose
-    ? `${definition.purpose} Project-specific content will be completed with AI drafting and builder inputs where the platform has supporting data.`
-    : "Project-specific content will be completed with AI drafting and builder inputs where the platform has supporting data.";
+  return definition.purpose ? cleanFinalText(definition.purpose) : null;
 }
 
 function inferFormatSectionKey(section: GeneratedSafetyPlanSection): CsepFormatSectionKey {
@@ -1741,7 +1746,16 @@ function inferFormatSectionKey(section: GeneratedSafetyPlanSection): CsepFormatS
   if (combined.includes("emergency") || combined.includes("evacuation") || combined.includes("rescue")) {
     return "emergency_preparedness_and_response";
   }
-  if (combined.includes("ppe") || combined.includes("personal protective")) return "personal_protective_equipment";
+  if (
+    combined.includes("ppe") ||
+    combined.includes("personal protective") ||
+    combined.includes("fall protection")
+  ) {
+    return "personal_protective_equipment";
+  }
+  if (combined.includes("training") || combined.includes("orientation") || combined.includes("competency")) {
+    return "contractor_safety_meetings_and_engagement";
+  }
   if (combined.includes("weather") || combined.includes("storm") || combined.includes("lightning")) {
     return "weather_requirements_and_severe_weather_response";
   }
@@ -1772,6 +1786,29 @@ function buildStaticFrontMatterSections(
     ...buildDefaultCsepDocumentControlFields(builderSnapshot),
     ...(draft.documentControl ?? {}),
   };
+  const projectSite =
+    cleanFinalText(documentControl.projectSite) ??
+    cleanFinalText(draft.projectOverview.projectName) ??
+    controlledTbd();
+  const primeContractor =
+    cleanFinalText(documentControl.primeContractor) ??
+    cleanFinalText(draft.projectOverview.contractorCompany) ??
+    controlledTbd();
+  const clientOwner =
+    cleanFinalText(documentControl.clientOwner) ??
+    cleanFinalText(draft.projectOverview.ownerClient) ??
+    controlledTbd();
+  const documentNumberRevision =
+    uniqueNonEmpty([
+      cleanFinalText(documentControl.documentNumber),
+      cleanFinalText(documentControl.revision),
+    ]).join(" / ") || controlledTbd();
+  const preparedReviewedApproved =
+    uniqueNonEmpty([
+      cleanFinalText(documentControl.preparedBy),
+      cleanFinalText(documentControl.reviewedBy),
+      cleanFinalText(documentControl.approvedBy),
+    ]).join(" / ") || controlledTbd();
 
   const definitionsTable = {
     columns: ["Term / Abbreviation", "Definition / Intended Use"],
@@ -1783,19 +1820,6 @@ function buildStaticFrontMatterSections(
       ["JHA / PTP", "Job hazard analysis / pre-task planning tool used for activity-specific risk review."],
     ],
   };
-
-  const incidentRows = [
-    ["Near Miss", "No injury, no release, or no loss event.", "Report to supervision and capture corrective actions before restart."],
-    ["Recordable", "OSHA recordable injury, illness, or exposure.", "Notify supervision, safety, and required project contacts immediately."],
-    ["Serious / Major", "Hospitalization, major property loss, permit breach, or severe environmental event.", "Activate escalation chain, preserve scene, and begin formal investigation."],
-  ];
-
-  const lifeSavingRuleRows = [
-    ["Domain 01", "Stop work when fall protection, access, or rescue conditions are not in place."],
-    ["Domain 02", "Do not bypass permit, energy-isolation, or authorization requirements."],
-    ["Domain 03", "Stay clear of line-of-fire, suspended-load, and struck-by exposure zones."],
-    ["Domain 04", "Use emergency response, shelter, and evacuation procedures immediately when triggers are met."],
-  ];
 
   const formatSections = selectedFormatSectionKeys
     .map((key) => getCsepFormatDefinition(key))
@@ -1812,11 +1836,11 @@ function buildStaticFrontMatterSections(
       table: {
         columns: ["Field", "Value"],
         rows: [
-          ["Project Name / Site", documentControl.projectSite || draft.projectOverview.projectName || "[Platform Fill Field]"],
-          ["Prime / Contractor", documentControl.primeContractor || draft.projectOverview.contractorCompany || "[Platform Fill Field]"],
-          ["Client / Owner", documentControl.clientOwner || draft.projectOverview.ownerClient || "[Platform Fill Field]"],
-          ["Document Number / Revision", uniqueNonEmpty([documentControl.documentNumber, documentControl.revision]).join(" / ") || "[Platform Fill Field]"],
-          ["Prepared By / Reviewed By / Approved By", uniqueNonEmpty([documentControl.preparedBy, documentControl.reviewedBy, documentControl.approvedBy]).join(" / ") || "[Platform Fill Field]"],
+          ["Project Name / Site", projectSite],
+          ["Prime / Contractor", primeContractor],
+          ["Client / Owner", clientOwner],
+          ["Document Number / Revision", documentNumberRevision],
+          ["Prepared By / Reviewed By / Approved By", preparedReviewedApproved],
         ],
       },
     },
@@ -1829,7 +1853,13 @@ function buildStaticFrontMatterSections(
       layoutKey: "revision_history",
       table: {
         columns: ["Rev.", "Date", "Description of Revision", "Prepared", "Approved"],
-        rows: [[documentControl.revision || "1.0", documentControl.issueDate || "[Fill]", "Initial issuance for contractor CSEP export", documentControl.preparedBy || "[Fill]", documentControl.approvedBy || "[Fill]"]],
+        rows: [[
+          cleanFinalText(documentControl.revision) || "1.0",
+          cleanFinalText(documentControl.issueDate) || controlledTbd(),
+          "Initial issuance for contractor CSEP export",
+          cleanFinalText(documentControl.preparedBy) || controlledTbd(),
+          cleanFinalText(documentControl.approvedBy) || controlledTbd(),
+        ]],
       },
     },
     {
@@ -1846,9 +1876,7 @@ function buildStaticFrontMatterSections(
       order: 3,
       title: "How to Use This Plan",
       layoutKey: "plan_use_guidance",
-      body:
-        aiAssemblyDecisions?.frontMatterGuidance ??
-        "This plan is formatted as a structured contractor-facing template. Blue section banners signal the major numbered sections, gray panels indicate quick-reference or platform-fill zones, and appendix references point to supporting forms, matrices, and field inserts.",
+      body: cleanFinalText(aiAssemblyDecisions?.frontMatterGuidance) ?? "Use this plan as the field execution reference for the selected contractor scope and supporting attachments.",
     },
     {
       key: "definitions_and_abbreviations",
@@ -1858,12 +1886,32 @@ function buildStaticFrontMatterSections(
       layoutKey: "definitions_and_abbreviations",
       table: definitionsTable,
     },
+  ];
+}
+
+function buildOperationalQuickReferenceSections(): GeneratedSafetyPlanSection[] {
+  const incidentRows = [
+    ["First Aid", "Minor first-aid-only case with no property damage or release.", "Notify foreman or supervision, document the event, and confirm any immediate corrective actions."],
+    ["Near Miss", "No injury, no release, or no loss event.", "Report to supervision and capture corrective actions before restart."],
+    ["Recordable", "OSHA recordable injury, illness, or exposure.", "Notify supervision, safety, and required project contacts immediately."],
+    ["Serious / Major", "Hospitalization, major property loss, permit breach, or severe environmental event.", "Activate escalation chain, preserve scene, and begin formal investigation."],
+  ];
+
+  const lifeSavingRuleRows = [
+    ["Domain 01", "Stop work when fall protection, access, or rescue conditions are not in place."],
+    ["Domain 02", "Do not bypass permit, energy-isolation, or authorization requirements."],
+    ["Domain 03", "Stay clear of line-of-fire, suspended-load, and struck-by exposure zones."],
+    ["Domain 04", "Use emergency response, shelter, and evacuation procedures immediately when triggers are met."],
+  ];
+
+  return [
     {
       key: "incident_overview",
-      kind: "front_matter",
-      order: 5,
+      kind: "main",
+      order: 15.1,
       title: "Incident Overview",
       layoutKey: "incident_overview",
+      parentSectionKey: "emergency_preparedness_and_response",
       table: {
         columns: ["Level", "Trigger / Example", "Required Actions / Notifications"],
         rows: incidentRows,
@@ -1871,12 +1919,13 @@ function buildStaticFrontMatterSections(
     },
     {
       key: "life_saving_rules",
-      kind: "front_matter",
-      order: 6,
+      kind: "main",
+      order: 15.2,
       title: "Life-Saving Rules",
       layoutKey: "life_saving_rules",
+      parentSectionKey: "emergency_preparedness_and_response",
       table: {
-        columns: ["Rule domain", "Platform-Defined Rule Text"],
+        columns: ["Rule Domain", "Rule Text"],
         rows: lifeSavingRuleRows,
       },
     },
@@ -1892,7 +1941,7 @@ function buildAppendixLibrarySections(
     const appendixRows =
       definition.key === "appendix_a_forms_and_permit_library"
         ? [
-            ["Incident Forms", "Worker first report, supervisor review, and event documentation placeholders."],
+            ["Incident Forms", "Worker first report, supervisor review, and event documentation inserts."],
             ["Planning Forms", "Daily JHA / pre-task planning, lift planning, and activity support tools."],
             ["Permit Library", "Permit templates are referenced here so the main body can stay layout-stable."],
             ["Project-Specific Inserts", "Owner / client administrative forms and local document inserts."],
@@ -1901,7 +1950,7 @@ function buildAppendixLibrarySections(
           ? [
               ["Initial Notification", "Escalation path, contact ladder, and event-trigger checklist."],
               ["Supervisor Review", "Supervisor fact gathering, witness capture, and immediate controls."],
-              ["Investigation Tools", "Root cause, corrective action, and closeout packet placeholders."],
+              ["Investigation Tools", "Root cause, corrective action, and closeout packet inserts."],
               ["Event Support Inserts", "Photos, sketches, clinic routing, and follow-up attachments."],
             ]
           : definition.key === "appendix_c_checklists_and_inspection_sheets"
@@ -1909,7 +1958,7 @@ function buildAppendixLibrarySections(
                 ["Daily Checklists", "Pre-use, shift-start, and recurring inspection tools."],
                 ["Program Inspections", "Hazard-program inspection sheets for active high-risk work."],
                 ["Audit Sheets", "Weekly / periodic audit and corrective-action follow-up tools."],
-                ["Frequency Notes", "Project-specific trigger and cadence placeholders."],
+                ["Frequency Notes", "Project-specific trigger and cadence notes."],
               ]
             : [
                 ["Emergency Contacts", "Clinic directions, emergency ladder, and owner / GC contact inserts."],
@@ -1927,9 +1976,9 @@ function buildAppendixLibrarySections(
       parentSectionKey: "appendices_and_support_library",
       appendixKey: definition.key,
       layoutKey: "appendix_library",
-      body: definition.purpose ?? fallbackSectionBody(definition),
+      body: cleanFinalText(definition.purpose) ?? fallbackSectionBody(definition) ?? undefined,
       table: {
-        columns: ["Library Area", "Structured Placeholder / Intended Use"],
+        columns: ["Library Area", "Intended Use"],
         rows: appendixRows,
       },
     };
@@ -1938,9 +1987,10 @@ function buildAppendixLibrarySections(
 
 function applyAiAssemblyDecisionsToStructuredSections(
   sectionMap: GeneratedSafetyPlanSection[],
-  aiAssemblyDecisions: GeneratedSafetyPlanDraft["aiAssemblyDecisions"]
+  aiAssemblyDecisions: GeneratedSafetyPlanDraft["aiAssemblyDecisions"],
+  options?: { finalIssueMode?: boolean }
 ) {
-  if (!aiAssemblyDecisions) {
+  if (!aiAssemblyDecisions || options?.finalIssueMode) {
     return sectionMap;
   }
 
@@ -1978,10 +2028,27 @@ function applyAiAssemblyDecisionsToStructuredSections(
   });
 }
 
+function hasStructuredContent(section: GeneratedSafetyPlanSection | null | undefined) {
+  if (!section) return false;
+  return Boolean(
+    isMeaningfulFinalText(section.summary) ||
+      isMeaningfulFinalText(section.body) ||
+      section.bullets?.some((item) => isMeaningfulFinalText(item)) ||
+      section.subsections?.some(
+        (subsection) =>
+          isMeaningfulFinalText(subsection.title) ||
+          isMeaningfulFinalText(subsection.body) ||
+          subsection.bullets.some((item) => isMeaningfulFinalText(item))
+      ) ||
+      section.table?.rows.some((row) => row.some((cell) => isMeaningfulFinalText(cell)))
+  );
+}
+
 export function buildStructuredCsepSectionMap(
   draft: GeneratedSafetyPlanDraft,
   options?: {
     selectedFormatSectionKeys?: readonly CsepFormatSectionKey[];
+    finalIssueMode?: boolean;
   }
 ) {
   const builderSnapshot = asRecord(draft.builderSnapshot) ?? {};
@@ -2025,7 +2092,7 @@ export function buildStructuredCsepSectionMap(
     programTitles,
   });
   const findingsBySection = new Map<CsepFormatEntryKey, CsepCoverageAuditFinding[]>();
-  const aiAssemblyDecisions = draft.aiAssemblyDecisions ?? null;
+  const aiAssemblyDecisions = options?.finalIssueMode ? null : draft.aiAssemblyDecisions ?? null;
 
   coverageAudit.findings.forEach((finding) => {
     if (!finding.sectionKey) return;
@@ -2045,8 +2112,16 @@ export function buildStructuredCsepSectionMap(
     const narrativeParts = uniqueNonEmpty(sourceSections.flatMap((section) => sectionTextParts(section)));
     const relatedFindings = findingsBySection.get(sectionKey) ?? [];
     const aiSectionDecision = aiAssemblyDecisions?.sectionDecisions?.[sectionKey]?.trim() ?? null;
+    const fallbackBody = options?.finalIssueMode ? null : fallbackSectionBody(definition);
+    const permitBullets =
+      sectionKey === "permits_and_forms"
+        ? normalizePermitList([
+            ...draft.ruleSummary.permitTriggers,
+            ...combinedBullets,
+          ])
+        : combinedBullets;
 
-    return {
+    const nextSection = {
       key: sectionKey,
       kind: "main" as const,
       order: definition.order,
@@ -2059,18 +2134,18 @@ export function buildStructuredCsepSectionMap(
           sourceSections[0]?.summary ?? null,
           sourceSections[0]?.body ?? null,
           narrativeParts[0] ?? null,
-          sourceSections.length === 0 ? fallbackSectionBody(definition) : null,
-        ]).join(" ") || fallbackSectionBody(definition),
-      bullets: combinedBullets.length
-        ? combinedBullets
+          sourceSections.length === 0 ? fallbackBody : null,
+        ]).join(" ") || fallbackBody,
+      bullets: permitBullets.length
+        ? permitBullets
         : relatedFindings.length
           ? relatedFindings.map((finding) => `${finding.title}: ${finding.detail}`)
           : undefined,
       subsections:
-        combinedSubsections.length || relatedFindings.length
+        combinedSubsections.length || (relatedFindings.length && !options?.finalIssueMode)
           ? [
               ...combinedSubsections,
-              ...(relatedFindings.length
+              ...(!options?.finalIssueMode && relatedFindings.length
                 ? [
                     {
                       title: "Required Coverage Callout",
@@ -2080,17 +2155,49 @@ export function buildStructuredCsepSectionMap(
                       bullets: relatedFindings.map((finding) => `${finding.title}: ${finding.detail}`),
                     },
                   ]
-                : []),
+              : []),
             ]
           : undefined,
       table: combinedTables,
       parentSectionKey: null,
     } satisfies GeneratedSafetyPlanSection;
+    if (
+      options?.finalIssueMode &&
+      sectionKey === "emergency_preparedness_and_response" &&
+      !nextSection.table &&
+      !(nextSection.subsections?.length) &&
+      !isMeaningfulFinalText(nextSection.body)
+    ) {
+      return null;
+    }
+
+    return nextSection;
   });
   const appendixSections = buildAppendixLibrarySections(draft);
+  const quickReferenceSections = buildOperationalQuickReferenceSections();
+  const emergencyInsertIndex = mainSections.findIndex(
+    (section) => section?.key === "emergency_preparedness_and_response"
+  );
+  const orderedMainSections =
+    emergencyInsertIndex >= 0
+      ? [
+          ...mainSections.slice(0, emergencyInsertIndex + 1),
+          ...quickReferenceSections,
+          ...mainSections.slice(emergencyInsertIndex + 1),
+        ]
+      : [...mainSections];
+  const presentMainSections = orderedMainSections.filter(
+    (section): section is GeneratedSafetyPlanSection => Boolean(section)
+  );
+  const cleanedSections = options?.finalIssueMode
+    ? [...frontMatterSections, ...presentMainSections, ...appendixSections]
+        .map((section) => cleanSectionForFinalIssue(section))
+        .filter((section): section is GeneratedSafetyPlanSection => Boolean(section))
+        .filter((section) => hasStructuredContent(section))
+    : [...frontMatterSections, ...presentMainSections, ...appendixSections];
 
   return {
-    sectionMap: [...frontMatterSections, ...mainSections, ...appendixSections],
+    sectionMap: cleanedSections,
     coverageAudit,
     documentControl: {
       ...buildDefaultCsepDocumentControlFields(builderSnapshot),
@@ -2103,6 +2210,7 @@ export function buildStructuredCsepDraft(
   draft: GeneratedSafetyPlanDraft,
   options?: {
     selectedFormatSectionKeys?: readonly CsepFormatSectionKey[];
+    finalIssueMode?: boolean;
   }
 ): GeneratedSafetyPlanDraft {
   if (
@@ -2111,12 +2219,20 @@ export function buildStructuredCsepDraft(
     draft.sectionMap.some((section) => section.kind === "main")
   ) {
     const builderSnapshot = asRecord(draft.builderSnapshot) ?? {};
+    const structuredSectionMap = applyAiAssemblyDecisionsToStructuredSections(
+      draft.sectionMap,
+      draft.aiAssemblyDecisions,
+      { finalIssueMode: options?.finalIssueMode }
+    );
+    const finalSectionMap = options?.finalIssueMode
+      ? structuredSectionMap
+          .map((section) => cleanSectionForFinalIssue(section))
+          .filter((section): section is GeneratedSafetyPlanSection => Boolean(section))
+          .filter((section) => hasStructuredContent(section))
+      : structuredSectionMap;
     return {
       ...draft,
-      sectionMap: applyAiAssemblyDecisionsToStructuredSections(
-        draft.sectionMap,
-        draft.aiAssemblyDecisions
-      ),
+      sectionMap: finalSectionMap,
       documentControl: draft.documentControl ?? buildDefaultCsepDocumentControlFields(builderSnapshot),
       coverageAudit:
         draft.coverageAudit ??

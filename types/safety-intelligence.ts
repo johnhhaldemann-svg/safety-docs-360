@@ -529,12 +529,90 @@ export type CsepAiAssemblyDecisions = {
   decisionSource?: string | null;
 };
 
+export type SteelErectionPlan = {
+  onSiteTeam?: Array<{ name: string; role: string; phone?: string }>;
+  offSiteTeam?: Array<{ name: string; role: string; phone?: string }>;
+  fallProtection?: {
+    tieOffPolicy?: string;
+    leadingEdgeRule?: string;
+    srlType?: string;
+    hllRequired?: boolean;
+    hllNotes?: string;
+    cdzUsed?: boolean;
+    perimeterCable?: boolean;
+    perimeterCableHeights?: { topRail?: string; midRail?: string };
+    flaggingInterval?: string;
+    deckingRules?: string[];
+    detailingRules?: string[];
+  };
+  fallRescue?: {
+    emergencyCallText?: string;
+    siteAccessInstructions?: string;
+    notifyRoles?: string[];
+    primaryRescueMethod?: string;
+    secondaryRescueMethod?: string;
+    rescueEquipment?: string[];
+    ladderStaged?: boolean;
+    targetRescueTime?: string;
+    suspensionTraumaRelief?: boolean;
+    dailyReviewRequired?: boolean;
+  };
+  openingsAndPerimeters?: {
+    coverRequiredAtOrAbove?: string;
+    coverMarking?: string;
+    coverLoadRequirement?: string;
+    coverSecurement?: string;
+    perimeterProtection?: string;
+  };
+  hazardMatrix?: Array<{
+    activity: string;
+    hazards: string[];
+    controls: string[];
+    ppe?: string[];
+    permits?: string[];
+    competency?: string[];
+  }>;
+  trainingAndCompetency?: {
+    orientationRequired?: boolean;
+    orientationSchedule?: string;
+    requiredTraining?: string[];
+    retrainingRules?: string[];
+    attachmentRefs?: string[];
+    competentPersons?: Array<{ name: string; title: string; phone?: string; quals?: string[] }>;
+  };
+  fallingObjectControl?: {
+    barricadeType?: string;
+    signageSpacing?: string;
+    accessRestriction?: string;
+  };
+  workAttireAndTesting?: {
+    attireRules?: string[];
+    drugTestingRules?: string[];
+  };
+  erectionExecution?: {
+    siteAccessPlan?: string;
+    laydownPlan?: string;
+    erectionSequence?: string;
+    cranePlan?: Array<{ area?: string; crane?: string; boom?: string; radius?: string; heaviestPick?: string }>;
+    hoistingInspectionRule?: string;
+    undergroundUtilityReview?: string;
+    overheadLiftPlanning?: string[];
+    alignmentAndStability?: string[];
+    columnBeamReleaseCriteria?: string[];
+    fastenerRequirements?: string[];
+    falseworkRequired?: string;
+    inspectionTestingPlan?: string[];
+    attachmentRefs?: string[];
+  };
+};
+
 export type GeneratedSafetyPlanDraft = {
   documentType: SafetyPlanDocumentType;
   projectDeliveryType: ProjectDeliveryType;
   title: string;
   documentControl?: Partial<CsepDocumentControlFields> | null;
   aiAssemblyDecisions?: CsepAiAssemblyDecisions | null;
+  steelErectionPlan?: SteelErectionPlan | null;
   projectOverview: {
     projectName: string;
     projectNumber?: string | null;

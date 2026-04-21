@@ -16,6 +16,7 @@ import {
   getSafetyBlueprintDraftFilename,
 } from "@/lib/safetyBlueprintLabels";
 import { buildStructuredCsepDraft } from "@/lib/csepBuilder";
+import { cleanFinalText, controlledTbd } from "@/lib/csepFinalization";
 import type { GeneratedSafetyPlanDraft, GeneratedSafetyPlanSection } from "@/types/safety-intelligence";
 
 export type CsepCoverMetadataRow = {
@@ -99,6 +100,7 @@ const COLORS = {
   deepBlue: "17365D",
   accentRed: "D63A34",
   gray: "7A7A7A",
+  border: "C6D4E1",
 } as const;
 
 const FIXED_SECTION_DEFINITIONS: FixedSectionDefinition[] = [
@@ -284,11 +286,15 @@ function joinDisplayValues(values: Array<string | null | undefined>, fallback = 
 
 function sanitizeGeneratedText(value?: string | null) {
   if (!value) return "";
-  return value
+  return (
+    cleanFinalText(
+      value
     .replace(/\bContractor Blueprint\b/g, CONTRACTOR_SAFETY_BLUEPRINT_TITLE)
     .replace(/\bSite Blueprint\b/g, CONTRACTOR_SAFETY_BLUEPRINT_TITLE)
     .replace(/\bBlueprint\b/g, CONTRACTOR_SAFETY_BLUEPRINT_TITLE)
-    .trim();
+    .trim()
+    ) ?? ""
+  );
 }
 
 function sanitizeGeneratedSection(section: GeneratedSafetyPlanSection): GeneratedSafetyPlanSection {
@@ -493,12 +499,7 @@ function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplate
 
   return subsections.length
     ? subsections
-    : [
-        {
-          title: source.title,
-          items: ["Project-specific content will be completed during final contractor review."],
-        },
-      ];
+    : [];
 }
 
 function toTemplateSection(source: GeneratedSafetyPlanSection): CsepTemplateSection {
@@ -551,13 +552,16 @@ export function buildCsepTemplateSections(
 export function buildCsepRenderModelFromGeneratedDraft(
   draft: GeneratedSafetyPlanDraft
 ): CsepRenderModel {
-  const structuredDraft = buildStructuredCsepDraft(draft);
+  const structuredDraft = buildStructuredCsepDraft(draft, { finalIssueMode: true });
   const tradeLabels = uniqueValues(draft.operations.map((operation) => operation.tradeLabel));
   const subTradeLabels = uniqueValues(draft.operations.map((operation) => operation.subTradeLabel));
   const taskTitles = uniqueValues(draft.operations.map((operation) => operation.taskTitle));
   const sanitizedSections = structuredDraft.sectionMap.map(sanitizeGeneratedSection);
   const issueLabel = structuredDraft.documentControl?.issueDate || todayIssueLabel();
-  const preparedBy = structuredDraft.documentControl?.preparedBy || "SafetyDocs360 AI Draft Builder";
+  const preparedBy =
+    cleanFinalText(structuredDraft.documentControl?.preparedBy) ||
+    cleanFinalText(draft.projectOverview.contractorCompany) ||
+    controlledTbd();
   const projectName = valueOrNA(draft.projectOverview.projectName);
   const projectAddress = valueOrNA(draft.projectOverview.projectAddress);
   const contractorName = valueOrNA(draft.projectOverview.contractorCompany);
@@ -584,7 +588,7 @@ export function buildCsepRenderModelFromGeneratedDraft(
     tradeLabel: joinDisplayValues(tradeLabels, "N/A"),
     subTradeLabel: joinDisplayValues(subTradeLabels, "N/A"),
     issueLabel,
-    statusLabel: "Draft Issue",
+    statusLabel: "Contractor Issue",
     preparedBy,
     coverSubtitleLines: [
       projectAddress,
@@ -612,7 +616,10 @@ export function buildCsepRenderModelFromGeneratedDraft(
         date: issueLabel,
         description: "Initial issuance for generated CSEP export",
         preparedBy,
-        approvedBy: structuredDraft.documentControl?.approvedBy || "Pending approval",
+        approvedBy:
+          cleanFinalText(structuredDraft.documentControl?.approvedBy) ||
+          cleanFinalText(structuredDraft.documentControl?.reviewedBy) ||
+          controlledTbd(),
       },
     ],
     frontMatterSections,
@@ -824,8 +831,8 @@ function revisionHistoryAsParagraphs(rows: CsepRevisionEntry[]) {
           revision: "1.0",
           date: todayIssueLabel(),
           description: "Initial issuance",
-          preparedBy: "SafetyDocs360 Draft Builder",
-          approvedBy: "Pending approval",
+          preparedBy: controlledTbd(),
+          approvedBy: controlledTbd(),
         },
       ];
 
@@ -891,6 +898,31 @@ function createCover(model: CsepRenderModel) {
         alignment: AlignmentType.CENTER,
       }
     ),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 120, after: 220 },
+      border: {
+        top: { color: COLORS.border, style: BorderStyle.SINGLE, size: 10, space: 1 },
+        bottom: { color: COLORS.border, style: BorderStyle.SINGLE, size: 10, space: 1 },
+        left: { color: COLORS.border, style: BorderStyle.SINGLE, size: 10, space: 1 },
+        right: { color: COLORS.border, style: BorderStyle.SINGLE, size: 10, space: 1 },
+      },
+      children: [
+        new TextRun({
+          text: "COMPANY LOGO PLACEMENT",
+          font: "Calibri",
+          bold: true,
+          size: 20,
+          color: COLORS.titleBlue,
+        }),
+        new TextRun({
+          text: "  Insert contractor logo or approved company letterhead here",
+          font: "Calibri",
+          size: 18,
+          color: COLORS.gray,
+        }),
+      ],
+    }),
   ];
 
   if (model.projectName.trim() && model.projectName !== "N/A") {

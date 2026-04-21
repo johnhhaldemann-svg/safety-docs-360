@@ -17,6 +17,18 @@ import {
 } from "@/lib/jurisdictionStandards/apply";
 import { SITE_SAFETY_BLUEPRINT_TITLE } from "@/lib/safetyBlueprintLabels";
 import {
+  cleanFinalText,
+  normalizeHazardList,
+  normalizePermitList,
+  normalizePpeList,
+  normalizeTaskList,
+  splitScopeTasksAndInterfaces,
+} from "@/lib/csepFinalization";
+import {
+  buildSteelErectionOverlaySections,
+  buildSteelErectionPlan,
+} from "@/lib/steelErectionPlan";
+import {
   getTradeConflictProfile,
   projectDeliveryTypeLabel,
 } from "@/lib/tradeConflictCatalog";
@@ -29,7 +41,19 @@ import type { CSEPProgramDefinition } from "@/types/csep-programs";
 import type { JurisdictionStandardsConfig } from "@/types/jurisdiction-standards";
 
 function dedupe(values: string[]) {
-  return [...new Set(values.filter(Boolean))];
+  const out: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    const cleaned = cleanFinalText(value);
+    if (!cleaned) continue;
+    const token = cleaned.toLowerCase();
+    if (seen.has(token)) continue;
+    seen.add(token);
+    out.push(cleaned);
+  }
+
+  return out;
 }
 
 function bandFromScore(score: number): RiskBand {
@@ -1867,6 +1891,17 @@ function buildCsepSelectedSections(params: {
   const groupedTradePackages = groupOperationsByTradePackage(params.operations);
   const project = params.generationContext.project;
   const scope = params.generationContext.scope;
+  const splitScope = splitScopeTasksAndInterfaces([
+    ...scope.tasks,
+    ...params.generationContext.siteContext.simultaneousOperations,
+  ]);
+  const activeScopeTasks = normalizeTaskList(
+    splitScope.activeTasks.length ? splitScope.activeTasks : scope.tasks
+  );
+  const interfaceTrades = normalizeTaskList([
+    ...splitScope.interfaceTrades,
+    ...params.generationContext.siteContext.simultaneousOperations,
+  ]);
   const tradeSummaryInput = asTextValue(getCsepBlockInput(instructions, "trade_summary"));
   const scopeOfWorkInput = asTextValue(getCsepBlockInput(instructions, "scope_of_work"));
   const siteNotesInput = asTextValue(getCsepBlockInput(instructions, "site_specific_notes"));
@@ -1874,11 +1909,17 @@ function buildCsepSelectedSections(params: {
   const weatherInput = asTextList(
     getCsepBlockInput(instructions, "weather_requirements_and_severe_weather_response")
   );
-  const ppeInput = asTextList(getCsepBlockInput(instructions, "required_ppe"));
-  const permitInput = asTextList(getCsepBlockInput(instructions, "additional_permits"));
-  const overlapInput = asTextList(getCsepBlockInput(instructions, "common_overlapping_trades"));
+  const ppeInput = normalizePpeList(asTextList(getCsepBlockInput(instructions, "required_ppe")));
+  const permitInput = normalizePermitList(
+    asTextList(getCsepBlockInput(instructions, "additional_permits"))
+  );
+  const overlapInput = normalizeTaskList(
+    asTextList(getCsepBlockInput(instructions, "common_overlapping_trades"))
+  );
   const oshaInput = asTextList(getCsepBlockInput(instructions, "osha_references"));
-  const hazardInput = asTextList(getCsepBlockInput(instructions, "selected_hazards"));
+  const hazardInput = normalizeHazardList(
+    asTextList(getCsepBlockInput(instructions, "selected_hazards"))
+  );
   const rolesInput = asTextValue(getCsepBlockInput(instructions, "roles_and_responsibilities"));
   const securityInput = asTextValue(getCsepBlockInput(instructions, "security_and_access"));
   const healthInput = asTextValue(getCsepBlockInput(instructions, "health_and_wellness"));
@@ -1927,7 +1968,7 @@ function buildCsepSelectedSections(params: {
     groupedTradePackages.some((pkg) => pkg.permitTriggers.length > 0);
   const hasOverlapSectionContent =
     overlapInput.length > 0 ||
-    params.generationContext.siteContext.simultaneousOperations.length > 0 ||
+    interfaceTrades.length > 0 ||
     params.conflictMatrix.items.length > 0;
   const hasOshaSectionContent =
     oshaInput.length > 0 || params.oshaReferences.length > 0;
@@ -2007,15 +2048,15 @@ function buildCsepSelectedSections(params: {
               operation.tradeLabel ?? operation.tradeCode ?? "N/A",
               operation.subTradeLabel ?? operation.subTradeCode ?? "N/A",
               operation.taskTitle,
-              sentenceList(operation.hazardCategories),
-              sentenceList(operation.permitTriggers, "None"),
+              sentenceList(normalizeHazardList(operation.hazardCategories)),
+              sentenceList(normalizePermitList(operation.permitTriggers), "None"),
             ])
           : [[
               scope.trades[0] ?? "N/A",
               scope.subTrades[0] ?? "N/A",
-              sentenceList(scope.tasks, "N/A"),
-              sentenceList(params.ruleSummary.hazardCategories),
-              sentenceList(params.ruleSummary.permitTriggers, "None"),
+              sentenceList(activeScopeTasks, "N/A"),
+              sentenceList(normalizeHazardList(params.ruleSummary.hazardCategories)),
+              sentenceList(normalizePermitList(params.ruleSummary.permitTriggers), "None"),
             ]],
       },
     },
@@ -2026,15 +2067,15 @@ function buildCsepSelectedSections(params: {
         combineParagraphs(
           [
             scopeOfWorkInput,
-            !scopeOfWorkInput && scope.tasks.length
-              ? `Planned work includes ${scope.tasks.join(", ")}.`
+            !scopeOfWorkInput && activeScopeTasks.length
+              ? `Planned work includes ${activeScopeTasks.join(", ")}.`
               : null,
           ],
           "Scope of work details were not entered in the current builder payload."
         ),
         params.inlineOshaRefs
       ),
-      bullets: scope.tasks.length ? scope.tasks : undefined,
+      bullets: activeScopeTasks.length ? activeScopeTasks : undefined,
     },
     site_specific_notes: {
       key: "site_specific_notes",
@@ -2077,7 +2118,10 @@ function buildCsepSelectedSections(params: {
             params.narrativeSections.requiredControlsSummary,
             params.inlineOshaRefs
           ),
-          bullets: ppeInput.length ? ppeInput : params.ruleSummary.ppeRequirements,
+          bullets:
+            ppeInput.length
+              ? ppeInput
+              : normalizePpeList(params.ruleSummary.ppeRequirements),
         }
       : undefined,
     additional_permits: hasPermitSectionContent
@@ -2085,7 +2129,7 @@ function buildCsepSelectedSections(params: {
           key: "additional_permits",
           title: CSEP_BUILDER_BLOCK_TITLES.additional_permits,
           body: appendInlineOsha(
-            "The following permit requirements were selected or derived for this CSEP scope.",
+            "The following permit requirements were selected or derived for this CSEP scope and must stay aligned across the plan, checklists, and field forms.",
             params.inlineOshaRefs
           ),
           bullets: permitInput.length ? permitInput : undefined,
@@ -2096,7 +2140,7 @@ function buildCsepSelectedSections(params: {
                   pkg.label,
                   sentenceList(pkg.locationLabels, "N/A"),
                   sentenceList(pkg.taskTitles, "N/A"),
-                  sentenceList(pkg.permitTriggers, "None"),
+                  sentenceList(normalizePermitList(pkg.permitTriggers), "None"),
                   sentenceList(pkg.siteRestrictions, "None"),
                 ])
               : [[
@@ -2105,8 +2149,8 @@ function buildCsepSelectedSections(params: {
                     [scope.location ?? params.generationContext.siteContext.location ?? "N/A"],
                     "N/A"
                   ),
-                  sentenceList(scope.tasks, "N/A"),
-                  sentenceList(params.ruleSummary.permitTriggers, "None"),
+                  sentenceList(activeScopeTasks, "N/A"),
+                  sentenceList(normalizePermitList(params.ruleSummary.permitTriggers), "None"),
                   sentenceList(params.ruleSummary.siteRestrictions, "None"),
                 ]],
           },
@@ -2124,8 +2168,8 @@ function buildCsepSelectedSections(params: {
           ),
           bullets: overlapInput.length
             ? overlapInput
-            : params.generationContext.siteContext.simultaneousOperations.length
-              ? params.generationContext.siteContext.simultaneousOperations
+            : interfaceTrades.length
+              ? interfaceTrades
               : undefined,
           table: params.conflictMatrix.items.length
             ? {
@@ -2164,8 +2208,8 @@ function buildCsepSelectedSections(params: {
             : hazardInput.length
               ? hazardInput
               : params.ruleSummary.hazardCategories.length
-                ? params.ruleSummary.hazardCategories
-                : params.operations.flatMap((operation) => operation.hazardCategories),
+                ? normalizeHazardList(params.ruleSummary.hazardCategories)
+                : normalizeHazardList(params.operations.flatMap((operation) => operation.hazardCategories)),
         }
       : undefined,
     activity_hazard_matrix: {
@@ -2178,17 +2222,17 @@ function buildCsepSelectedSections(params: {
               pkg.label,
               sentenceList(pkg.locationLabels, "N/A"),
               sentenceList(pkg.taskTitles, "N/A"),
-              sentenceList(pkg.hazardCategories),
+              sentenceList(normalizeHazardList(pkg.hazardCategories)),
               sentenceList(pkg.requiredControls),
-              sentenceList(pkg.ppeRequirements),
+              sentenceList(normalizePpeList(pkg.ppeRequirements)),
             ])
           : [[
               sentenceList(scope.trades, "N/A"),
               sentenceList([scope.location ?? params.generationContext.siteContext.location ?? "N/A"], "N/A"),
-              sentenceList(scope.tasks, "N/A"),
-              sentenceList(params.ruleSummary.hazardCategories),
+              sentenceList(activeScopeTasks, "N/A"),
+              sentenceList(normalizeHazardList(params.ruleSummary.hazardCategories)),
               sentenceList(params.ruleSummary.requiredControls),
-              sentenceList(params.ruleSummary.ppeRequirements),
+              sentenceList(normalizePpeList(params.ruleSummary.ppeRequirements)),
             ]],
       },
     },
@@ -2616,16 +2660,31 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
     };
   });
   const groupedTradePackages = groupOperationsByTradePackage(operations);
+  const splitScope = splitScopeTasksAndInterfaces([
+    ...params.generationContext.scope.tasks,
+    ...params.generationContext.siteContext.simultaneousOperations,
+  ]);
+  const activeScopeTasks = normalizeTaskList(
+    splitScope.activeTasks.length ? splitScope.activeTasks : params.generationContext.scope.tasks
+  );
+  const interfaceTrades = normalizeTaskList([
+    ...splitScope.interfaceTrades,
+    ...params.generationContext.siteContext.simultaneousOperations,
+  ]);
 
   const ruleSummary = {
-    permitTriggers: dedupe(
+    permitTriggers: normalizePermitList(
       params.reviewContext.rulesEvaluations.flatMap((row) =>
         row.permitTriggers.filter((item) => item !== "none")
       )
     ),
-    ppeRequirements: dedupe(params.reviewContext.rulesEvaluations.flatMap((row) => row.ppeRequirements)),
+    ppeRequirements: normalizePpeList(
+      params.reviewContext.rulesEvaluations.flatMap((row) => row.ppeRequirements)
+    ),
     requiredControls: dedupe(params.reviewContext.rulesEvaluations.flatMap((row) => row.requiredControls)),
-    hazardCategories: dedupe(params.reviewContext.rulesEvaluations.flatMap((row) => row.hazardCategories)),
+    hazardCategories: normalizeHazardList(
+      params.reviewContext.rulesEvaluations.flatMap((row) => row.hazardCategories)
+    ),
     siteRestrictions: dedupe(params.reviewContext.rulesEvaluations.flatMap((row) => row.siteRestrictions)),
     prohibitedEquipment: dedupe(params.reviewContext.rulesEvaluations.flatMap((row) => row.prohibitedEquipment)),
     trainingRequirements: dedupe([
@@ -2734,8 +2793,8 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
               pkg.label,
               sentenceList(pkg.locationLabels, "N/A"),
               sentenceList(pkg.taskTitles, "N/A"),
-              sentenceList(pkg.hazardCategories),
-              sentenceList(pkg.permitTriggers, "None"),
+              sentenceList(normalizeHazardList(pkg.hazardCategories)),
+              sentenceList(normalizePermitList(pkg.permitTriggers), "None"),
             ])
           : [[
               sentenceList(params.generationContext.scope.trades, "N/A"),
@@ -2743,7 +2802,7 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
                 [params.generationContext.scope.location ?? params.generationContext.siteContext.location ?? "N/A"],
                 "N/A"
               ),
-              sentenceList(params.generationContext.scope.tasks, "N/A"),
+              sentenceList(activeScopeTasks, "N/A"),
               sentenceList(ruleSummary.hazardCategories),
               sentenceList(ruleSummary.permitTriggers, "None"),
             ]],
@@ -2759,9 +2818,9 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
               pkg.label,
               sentenceList(pkg.locationLabels, "N/A"),
               sentenceList(pkg.taskTitles, "N/A"),
-              sentenceList(pkg.hazardCategories),
+              sentenceList(normalizeHazardList(pkg.hazardCategories)),
               sentenceList(pkg.requiredControls),
-              sentenceList(pkg.ppeRequirements),
+              sentenceList(normalizePpeList(pkg.ppeRequirements)),
             ])
           : [[
               sentenceList(params.generationContext.scope.trades, "N/A"),
@@ -2769,7 +2828,7 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
                 [params.generationContext.scope.location ?? params.generationContext.siteContext.location ?? "N/A"],
                 "N/A"
               ),
-              sentenceList(params.generationContext.scope.tasks, "N/A"),
+              sentenceList(activeScopeTasks, "N/A"),
               sentenceList(ruleSummary.hazardCategories),
               sentenceList(ruleSummary.requiredControls),
               sentenceList(ruleSummary.ppeRequirements),
@@ -2786,7 +2845,7 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
               pkg.label,
               sentenceList(pkg.locationLabels, "N/A"),
               sentenceList(pkg.taskTitles, "N/A"),
-              sentenceList(pkg.permitTriggers, "None"),
+              sentenceList(normalizePermitList(pkg.permitTriggers), "None"),
               sentenceList(pkg.siteRestrictions, "None"),
             ])
           : [[
@@ -2795,7 +2854,7 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
                 [params.generationContext.scope.location ?? params.generationContext.siteContext.location ?? "N/A"],
                 "N/A"
               ),
-              sentenceList(params.generationContext.scope.tasks, "N/A"),
+              sentenceList(activeScopeTasks, "N/A"),
               sentenceList(ruleSummary.permitTriggers, "None"),
               sentenceList(ruleSummary.siteRestrictions, "None"),
             ]],
@@ -2808,7 +2867,9 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
       body: appendInlineOsha(
         params.conflictMatrix.items.length
           ? `The conflict engine identified ${params.conflictMatrix.items.length} trade-interaction risk(s) that must be coordinated before work starts.`
-          : "No simultaneous-operation conflicts were identified in the current planning set.",
+          : interfaceTrades.length
+            ? `Adjacent interface trades requiring coordination include ${interfaceTrades.join(", ")}.`
+            : "No simultaneous-operation conflicts were identified in the current planning set.",
         inlineOshaRefs
       ),
       table: {
@@ -2913,6 +2974,14 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
     oshaReferences,
     inlineOshaRefs,
   });
+  const steelErectionPlan = buildSteelErectionPlan({
+    generationContext: params.generationContext,
+    operations,
+    ruleSummary,
+  });
+  const steelOverlaySections = steelErectionPlan
+    ? buildSteelErectionOverlaySections(steelErectionPlan)
+    : [];
   const steelTaskModulesSection = buildSteelTaskModulesReferenceSection(
     params.generationContext,
     inlineOshaRefs
@@ -2960,6 +3029,7 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
           ? [referencesSection]
           : []),
         ...csepSelectedSections,
+        ...steelOverlaySections,
         ...programSections,
       ];
   const jurisdictionProfile = {
@@ -3053,6 +3123,7 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
     riskSummary,
     trainingProgram,
     narrativeSections,
+    steelErectionPlan,
     sectionMap: sections,
     coverageAudit: null,
     builderSnapshot: params.generationContext.legacyFormSnapshot,

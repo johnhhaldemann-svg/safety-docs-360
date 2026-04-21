@@ -271,7 +271,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         "Mechanical / HVAC",
         "Roof | Grid R1",
         "Install rooftop unit",
-        "Fall",
+        "Fall Exposure",
         "fall_protection",
         "Hard Hat",
       ])
@@ -318,7 +318,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         "Mechanical / HVAC",
         "Roof | Grid R1",
         "Install rooftop unit",
-        "elevated_work_notice",
+        "Elevated Work Notice",
       ])
     );
   });
@@ -509,7 +509,9 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     );
     expect(
       draft.sectionMap.find((section) => section.key === "roles_and_responsibilities")?.table?.rows
-    ).toEqual(expect.arrayContaining([expect.arrayContaining(["Jane Smith / Superintendent"])]));
+    ).toEqual(
+      expect.arrayContaining([expect.arrayContaining(["Jane Smith", "Superintendent"])])
+    );
     expect(
       draft.sectionMap.find((section) => section.key === "contractor_safety_meetings_and_engagement")
         ?.subsections?.[0]?.bullets
@@ -2835,7 +2837,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         "Unassigned Trade",
         "Laydown Yard | Grid C1",
         "Cleanup",
-        "Struck-by",
+        "Struck-By",
         "housekeeping",
         "Gloves",
       ])
@@ -3034,6 +3036,204 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       expect.arrayContaining([
         "Workers must immediately report unsafe conditions to supervision.",
         "Supervisors must correct hazards before work restarts.",
+      ])
+    );
+  });
+
+  it("keeps interface trades out of primary scope, normalizes permits and hazards, and adds steel overlay sections", () => {
+    const draft = buildGeneratedSafetyPlanDraft({
+      generationContext: {
+        project: {
+          projectName: "Riverfront Tower",
+          projectAddress: "100 River Rd",
+          ownerClient: "Owner",
+          gcCm: "GC",
+          contractorCompany: "ABC Steel",
+          contractorContact: "Sam Foreman",
+          contractorPhone: "555-111-2222",
+        },
+        scope: {
+          trades: ["Structural Steel / Metals"],
+          subTrades: ["Steel erection / decking"],
+          tasks: ["Set columns", "Install decking", "HVAC / Mechanical rough-in"],
+          equipment: ["Crane"],
+          location: "Level 5",
+        },
+        operations: [
+          {
+            operationId: "steel-op-1",
+            tradeCode: "steel",
+            tradeLabel: "Structural Steel / Metals",
+            subTradeCode: "steel_decking",
+            subTradeLabel: "Steel erection / decking",
+            taskCode: "install_decking",
+            taskTitle: "Install decking",
+            description: "Install metal deck",
+            equipmentUsed: ["Crane"],
+            workConditions: ["Elevated work"],
+            hazardHints: ["fall", "fire"],
+            requiredControlHints: ["fall_protection"],
+            permitHints: ["lift_plan", "elevated_work_notice"],
+            ppeHints: ["Hard Hat", "Harness"],
+            workAreaLabel: "Level 5",
+            locationGrid: "E5",
+            locationLabel: "Level 5",
+            weatherConditionCode: null,
+            startsAt: null,
+            endsAt: null,
+            crewSize: 5,
+            metadata: {},
+          },
+        ],
+        siteContext: {
+          location: "Level 5",
+          workConditions: ["Elevated work"],
+          siteRestrictions: [],
+          simultaneousOperations: ["HVAC / Mechanical trim-out", "Painting / Coatings touch-up"],
+          weather: {
+            conditionCode: null,
+            summary: null,
+          },
+          metadata: {},
+        },
+        programSelections: [],
+        builderInstructions: {
+          selectedBlockKeys: [
+            "scope_of_work",
+            "common_overlapping_trades",
+            "additional_permits",
+            "selected_hazards",
+          ],
+          blockInputs: {
+            additional_permits: ["Ladder Permit", "hot work permit"],
+            selected_hazards: ["Hot work", "fire", "Fire"],
+          },
+          builderInputHash: "hash-steel-normalization",
+          selectedFormatSectionKeys: [
+            "project_scope_and_trade_specific_activities",
+            "permits_and_forms",
+            "hse_elements_and_site_specific_hazard_analysis",
+          ],
+        },
+        documentProfile: {
+          documentType: "csep",
+          projectDeliveryType: "ground_up",
+          source: "builder_submit",
+          governingState: "IL",
+          jurisdictionCode: "federal",
+          jurisdictionLabel: "Federal OSHA",
+          jurisdictionPlanType: "federal_osha",
+          jurisdictionStandardsApplied: [],
+        },
+        legacyFormSnapshot: {
+          foreman_name: "Sam Foreman",
+          foreman_phone: "555-111-2222",
+        },
+      },
+      reviewContext: {
+        companyId: "company-1",
+        documentType: "csep",
+        buckets: [
+          {
+            bucketKey: "bucket-steel-1",
+            bucketType: "task_execution",
+            companyId: "company-1",
+            operationId: "steel-op-1",
+            taskTitle: "Install decking",
+            tradeCode: "steel",
+            subTradeCode: "steel_decking",
+            taskCode: "install_decking",
+            workAreaLabel: "Level 5",
+            locationGrid: "E5",
+            startsAt: null,
+            endsAt: null,
+            weatherConditionCode: null,
+            equipmentUsed: ["Crane"],
+            workConditions: ["Elevated work"],
+            siteRestrictions: [],
+            prohibitedEquipment: [],
+            hazardFamilies: ["fall", "fire"],
+            permitTriggers: ["lift_plan", "elevated_work_notice", "hot_work_permit"],
+            requiredControls: ["fall_protection"],
+            ppeRequirements: ["Hard Hat", "Harness", "Fall Protection Harness"],
+            trainingRequirementCodes: [],
+            payload: {},
+            source: {
+              module: "manual",
+              id: null,
+            },
+          },
+        ],
+        rulesEvaluations: [
+          {
+            bucketKey: "bucket-steel-1",
+            operationId: "steel-op-1",
+            findings: [],
+            permitTriggers: ["lift_plan", "elevated_work_notice", "hot_work_permit"],
+            hazardFamilies: ["fall", "fire"],
+            hazardCategories: ["Fire", "fire", "Hot work"],
+            ppeRequirements: ["Hard Hat", "Harness", "Fall Protection Harness"],
+            equipmentChecks: [],
+            weatherRestrictions: [],
+            requiredControls: ["fall_protection"],
+            siteRestrictions: [],
+            prohibitedEquipment: [],
+            trainingRequirements: [],
+            score: 10,
+            band: "moderate",
+            evaluationVersion: "v2",
+          },
+        ],
+        conflictEvaluations: [
+          {
+            bucketKey: "bucket-steel-1",
+            operationId: "steel-op-1",
+            conflicts: [],
+            score: 0,
+            band: "low",
+          },
+        ],
+        riskMemorySummary: null,
+      },
+      conflictMatrix: {
+        items: [],
+        score: 0,
+        band: "low",
+        intraDocumentConflictCount: 0,
+        externalConflictCount: 0,
+      },
+      narrativeSections: {
+        safetyNarrative: "Steel narrative.",
+      },
+      trainingProgram: {
+        rows: [],
+        summaryTrainingTitles: [],
+      },
+      riskMemorySummary: null,
+    });
+
+    expect(draft.ruleSummary.hazardCategories).toEqual(["Fire", "Hot Work"]);
+    expect(draft.ruleSummary.permitTriggers).toEqual([
+      "Lift Plan",
+      "Elevated Work Notice",
+      "Hot Work Permit",
+    ]);
+    expect(
+      draft.sectionMap.find((section) => section.key === "scope_of_work")?.bullets
+    ).toEqual(expect.arrayContaining(["Set columns", "Install decking"]));
+    expect(
+      draft.sectionMap.find((section) => section.key === "scope_of_work")?.bullets
+    ).not.toEqual(expect.arrayContaining(["HVAC / Mechanical rough-in"]));
+    expect(
+      draft.sectionMap.find((section) => section.key === "common_overlapping_trades")?.bullets
+    ).toEqual(
+      expect.arrayContaining(["HVAC / Mechanical trim-out", "Painting / Coatings touch-up"])
+    );
+    expect(draft.sectionMap.map((section) => section.key)).toEqual(
+      expect.arrayContaining([
+        "steel_fall_protection",
+        "steel_hazard_control_matrix",
+        "steel_erection_execution",
       ])
     );
   });

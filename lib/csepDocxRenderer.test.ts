@@ -232,6 +232,7 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).toContain(
       "Project-specific safety, environmental, and permit requirements for field execution"
     );
+    expect(documentXml).toContain("COMPANY LOGO PLACEMENT");
     expect(documentXml).toContain("0.0 Document Control");
     expect(documentXml).toContain("Revision History");
     expect(documentXml).toContain("Table of Contents");
@@ -267,13 +268,13 @@ describe("csepDocxRenderer", () => {
     const model = buildCsepRenderModelFromGeneratedDraft(draft);
 
     expect(model.frontMatterSections[0]?.title).toBe("0.0 Document Control");
-    expect(model.sections[0]?.title).toBe("1.0 Company Overview and Safety Philosophy");
+    expect(model.sections[0]?.title).toBe("2.0 Project Scope and Trade-Specific Activities");
 
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml, headerXml, footerXml } = await unzipDocx(rendered.body);
 
     expect(documentXml).toContain("0.0 Document Control");
-    expect(documentXml).toContain("1.0 Company Overview and Safety Philosophy");
+    expect(documentXml).toContain("2.0 Project Scope and Trade-Specific Activities");
     expect(documentXml).toContain("How to Use This Plan");
     expect(documentXml).not.toContain("Blueprint");
     expect(documentXml).toContain("Table of Contents");
@@ -281,5 +282,44 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).toContain("Disclaimer");
     expect(headerXml).toBe("");
     expect(footerXml).toContain("PAGE");
+  });
+
+  it("strips internal drafting notes and raw placeholders from the final DOCX", async () => {
+    const draft = createGeneratedDraft();
+    draft.documentControl = {
+      preparedBy: "SafetyDocs360 AI Draft Builder",
+      approvedBy: "Pending approval",
+      projectSite: "[Platform Fill Field]",
+    };
+    draft.aiAssemblyDecisions = {
+      frontMatterGuidance:
+        "Use the front matter to orient field teams quickly, keep placeholders explicit, and keep gap callouts visible.",
+      coverageGuidance: "Keep this section concise, customer-facing, and ready for builder edits.",
+      sectionDecisions: {
+        company_overview_and_safety_philosophy:
+          "Keep this section concise, customer-facing, and ready for builder edits.",
+      },
+    };
+    draft.sectionMap = [
+      {
+        key: "company_overview_and_safety_philosophy",
+        title: "Company Overview",
+        body: "Keep this section concise, customer-facing, and ready for builder edits.",
+      },
+      {
+        key: "emergency_procedures",
+        title: "Emergency Procedures",
+        body: "Call site supervision and move to the designated assembly point.",
+      },
+    ];
+
+    const rendered = await renderGeneratedCsepDocx(draft);
+    const { documentXml } = await unzipDocx(rendered.body);
+
+    expect(documentXml).not.toContain("Keep this section concise");
+    expect(documentXml).not.toContain("Use the front matter to orient field teams quickly");
+    expect(documentXml).not.toContain("Platform Fill Field");
+    expect(documentXml).not.toContain("Pending approval");
+    expect(documentXml).not.toContain("SafetyDocs360 AI Draft Builder");
   });
 });
