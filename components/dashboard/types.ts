@@ -1,5 +1,6 @@
 import type { PermissionMap } from "@/lib/rbac";
 import type { WorkspaceProduct } from "@/lib/workspaceProduct";
+import type { DashboardRole } from "@/lib/dashboardRole";
 
 export type DashboardDocument = {
   id: string;
@@ -73,7 +74,6 @@ export type DashboardCorrectiveAction = {
   status?: string | null;
   due_at?: string | null;
   title?: string | null;
-  created_at?: string | null;
 };
 
 export type DashboardStatusRow = {
@@ -92,7 +92,6 @@ export type DashboardRiskRow = {
   sif_flag?: boolean | null;
   escalation_level?: string | null;
   stop_work_status?: string | null;
-  created_at?: string | null;
 };
 
 export type CompanyDashboardMetrics = {
@@ -113,8 +112,6 @@ export type CompanyDashboardMetrics = {
 
 export type DashboardAnalyticsSummary = {
   topHazardCategories?: Array<{ category: string; count: number }>;
-  observationTrends?: Array<{ date: string; count: number }>;
-  sifTrends?: Array<{ date: string; count: number }>;
   jobsiteRiskScore?: Array<{
     jobsiteId: string;
     score: number;
@@ -160,12 +157,139 @@ export type DashboardBanner = {
   tone: "warning" | "error";
 } | null;
 
+export type DashboardHeroAction = {
+  label: string;
+  href: string;
+  variant: "primary" | "secondary";
+};
+
+export type DashboardHero = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  actions: DashboardHeroAction[];
+};
+
+export type DashboardMetric = {
+  title: string;
+  value: string;
+  detail: string;
+  tone?: "panel" | "elevated" | "attention";
+};
+
 export type DashboardFeedItem = {
   id: string;
   title: string;
   detail: string;
   meta: string;
   tone?: "neutral" | "success" | "warning" | "error" | "info";
+};
+
+export type DashboardAction = {
+  title: string;
+  description: string;
+  href: string;
+  actionLabel: string;
+  tone?: "panel" | "elevated" | "attention";
+};
+
+export type DashboardSummaryItem = {
+  id: string;
+  label: string;
+  value: string;
+  note: string;
+  href?: string;
+  tone?: "neutral" | "success" | "warning" | "error" | "info";
+};
+
+export type DashboardSectionEmpty = {
+  title: string;
+  description: string;
+  actionHref?: string;
+  actionLabel?: string;
+};
+
+export type DashboardFeedSection = {
+  title: string;
+  description: string;
+  items: DashboardFeedItem[];
+  empty: DashboardSectionEmpty;
+};
+
+export type DashboardActionSection = {
+  title: string;
+  description: string;
+  items: DashboardAction[];
+  empty: DashboardSectionEmpty;
+};
+
+export type DashboardSummarySection = {
+  title: string;
+  description: string;
+  items: DashboardSummaryItem[];
+  empty: DashboardSectionEmpty;
+};
+
+export type DashboardBlockId =
+  | "metric_primary"
+  | "metric_secondary"
+  | "metric_tertiary"
+  | "metric_quaternary"
+  | "priority_queue"
+  | "next_actions"
+  | "recent_activity"
+  | "recent_documents"
+  | "recent_reports"
+  | "risk_ranking"
+  | "hazard_trends"
+  | "support_signals"
+  | "company_access"
+  | "training_signal"
+  | "permit_followups"
+  | "incident_followups";
+
+export type DashboardAvailableBlock = {
+  id: DashboardBlockId;
+  title: string;
+  description: string;
+};
+
+export type DashboardMetricBlock = {
+  kind: "metric";
+  title: string;
+  value: string;
+  detail: string;
+  tone?: "panel" | "elevated" | "attention";
+};
+
+export type DashboardFeedBlock = {
+  kind: "feed";
+  section: DashboardFeedSection;
+  eyebrow?: string;
+};
+
+export type DashboardActionBlock = {
+  kind: "action";
+  section: DashboardActionSection;
+};
+
+export type DashboardSummaryBlock = {
+  kind: "summary";
+  section: DashboardSummarySection;
+  eyebrow?: string;
+};
+
+export type DashboardBlockModel =
+  | DashboardMetricBlock
+  | DashboardFeedBlock
+  | DashboardActionBlock
+  | DashboardSummaryBlock;
+
+export type DashboardViewModel = {
+  role: DashboardRole;
+  hero: DashboardHero;
+  banner?: DashboardBanner;
+  blocks: Record<DashboardBlockId, DashboardBlockModel>;
 };
 
 export type DashboardDataState = {

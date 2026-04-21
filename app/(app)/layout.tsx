@@ -6,8 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Toaster } from "sonner";
 import { AppCommandPalette } from "@/components/AppCommandPalette";
-import { BrandLogo } from "@/components/BrandLogo";
-import { appButtonQuietClassName, appNativeSelectClassName } from "@/components/WorkspacePrimitives";
 import {
   accountSetupSideSections,
   adminSideSections,
@@ -33,7 +31,6 @@ import type { PermissionMap } from "@/lib/rbac";
 import { getCsepNavSectionsForRole, type WorkspaceProduct } from "@/lib/workspaceProduct";
 import {
   getWorkspaceNavItemMeta,
-  type WorkspaceNavSection,
   groupCompanyWorkspaceSections,
 } from "@/lib/workspaceNavigationModel";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -222,165 +219,21 @@ function MobileMenuIcon() {
   );
 }
 
-function QuickJumpIcon() {
+function ChevronDownIcon({ expanded }: { expanded: boolean }) {
   return (
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
-      className="h-4 w-4"
+      className={cx("h-4 w-4 transition-transform duration-200", expanded && "rotate-180")}
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M5 12h14" />
-      <path d="m13 6 6 6-6 6" />
+      <path d="m6 9 6 6 6-6" />
     </svg>
   );
-}
-
-function DashboardBellIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M15 17H5.5l1.6-1.8c.6-.7.9-1.6.9-2.5v-1.4c0-2.6 1.8-4.8 4.2-5.4" />
-      <path d="M15 17h3.5l-1.6-1.8c-.6-.7-.9-1.6-.9-2.5v-1.4c0-2.9-2.2-5.3-5-5.7" />
-      <path d="M10 20a2 2 0 0 0 4 0" />
-    </svg>
-  );
-}
-
-function DashboardSearchIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.5-3.5" />
-    </svg>
-  );
-}
-
-function DashboardChevronIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m7 10 5 5 5-5" />
-    </svg>
-  );
-}
-
-function DashboardWorkspaceIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M4 7h6V4H4v3Zm10 0h6V4h-6v3ZM4 20h6v-9H4v9Zm10 0h6v-9h-6v9Z" />
-    </svg>
-  );
-}
-
-function DashboardRouteIcon({ href }: { href: string }) {
-  const normalized = href.toLowerCase();
-
-  if (normalized.includes("project") || normalized.includes("jobsite")) {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 20h18" />
-        <path d="M6 20v-7" />
-        <path d="M12 20V9" />
-        <path d="M18 20v-4" />
-      </svg>
-    );
-  }
-  if (normalized.includes("document") || normalized.includes("library") || normalized.includes("report")) {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M7 3h7l5 5v13H7z" />
-        <path d="M14 3v5h5" />
-        <path d="M10 13h6" />
-        <path d="M10 17h6" />
-      </svg>
-    );
-  }
-  if (normalized.includes("task") || normalized.includes("training")) {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 11 11 13 15 9" />
-        <path d="M20 12a8 8 0 1 1-3.2-6.4" />
-      </svg>
-    );
-  }
-  if (normalized.includes("incident") || normalized.includes("observation") || normalized.includes("issue")) {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 4 3 20h18L12 4Z" />
-        <path d="M12 9v4" />
-        <path d="M12 17h.01" />
-      </svg>
-    );
-  }
-  if (normalized.includes("analytic")) {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 19V8" />
-        <path d="M10 19V5" />
-        <path d="M16 19v-9" />
-        <path d="M22 19v-4" />
-      </svg>
-    );
-  }
-  if (normalized.includes("user") || normalized.includes("team")) {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
-        <circle cx="9.5" cy="7" r="3" />
-        <path d="M20 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16.5 4.1a3 3 0 0 1 0 5.8" />
-      </svg>
-    );
-  }
-  if (normalized.includes("setting")) {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5Z" />
-        <path d="m19.4 15 .6 1.1-1.6 2.8-1.2-.1a7.8 7.8 0 0 1-1.8 1l-.5 1.1H9.1l-.5-1.1a7.8 7.8 0 0 1-1.8-1l-1.2.1L4 16.1 4.6 15a7.5 7.5 0 0 1 0-2l-.6-1.1 1.6-2.8 1.2.1a7.8 7.8 0 0 1 1.8-1l.5-1.1h3.8l.5 1.1a7.8 7.8 0 0 1 1.8 1l1.2-.1 1.6 2.8-.6 1.1a7.5 7.5 0 0 1 0 2Z" />
-      </svg>
-    );
-  }
-
-  return <DashboardWorkspaceIcon />;
 }
 
 export default function AppLayout({
@@ -410,6 +263,7 @@ export default function AppLayout({
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [bootError, setBootError] = useState("");
+  const [expandedSectionKey, setExpandedSectionKey] = useState<string | null>(null);
   const isAdminArea = pathname.startsWith("/admin");
   const isSuperadminRoute = pathname.startsWith("/superadmin");
   /** Platform admin sidebar: /admin/* or superadmin-only analytics (Injury Weather, OSHA IPA lab). */
@@ -495,13 +349,22 @@ export default function AppLayout({
     [permissionMap, presentedSideSections, userRole]
   );
 
-  const commandPaletteItems = useMemo(
-    () => flattenNavItemsFromSections(sideSections),
+  const keyedSideSections = useMemo(
+    () =>
+      sideSections.map((section, index) => ({
+        ...section,
+        key: `${section.title}-${index}`,
+      })),
     [sideSections]
   );
 
+  const commandPaletteItems = useMemo(
+    () => flattenNavItemsFromSections(keyedSideSections),
+    [keyedSideSections]
+  );
+
   const currentNavItem = useMemo(() => {
-    for (const section of sideSections) {
+    for (const section of keyedSideSections) {
       for (const item of section.items) {
         if (isActivePath(pathname, item.href)) {
           return item;
@@ -514,42 +377,31 @@ export default function AppLayout({
       label: showPlatformAdminShell ? "Admin Workspace" : "Workspace",
       short: showPlatformAdminShell ? "AD" : "WS",
     };
-  }, [pathname, showPlatformAdminShell, sideSections]);
+  }, [keyedSideSections, pathname, showPlatformAdminShell]);
 
   const currentNavMeta = useMemo(() => getWorkspaceNavItemMeta(currentNavItem), [currentNavItem]);
 
   const currentNavSection = useMemo(() => {
-    return sideSections.find((section) =>
+    return keyedSideSections.find((section) =>
       section.items.some((item) => isActivePath(pathname, item.href))
     );
-  }, [pathname, sideSections]);
+  }, [keyedSideSections, pathname]);
 
-  const supportsCompanyHeaderDropdown =
-    !showPlatformAdminShell && isCompanyScopedUser && workspaceProduct !== "csep";
-  const useCompanyHeaderDropdown = false;
-  const isDashboardRoute = pathname === "/dashboard";
-  const companyDropdownSections = useMemo(
-    () =>
-      supportsCompanyHeaderDropdown
-        ? (sideSections as WorkspaceNavSection[])
-        : ([] as WorkspaceNavSection[]),
-    [sideSections, supportsCompanyHeaderDropdown]
-  );
-  const dashboardSideItems = useMemo(
-    () => sideSections.flatMap((section) => section.items).slice(0, 12),
-    [sideSections]
-  );
+  useEffect(() => {
+    if (currentNavSection) {
+      setExpandedSectionKey(currentNavSection.key);
+      return;
+    }
 
-  const handleWorkspaceDropdownChange = useCallback(
-    (event: React.ChangeEvent<HTMLSelectElement>) => {
-      const nextHref = event.target.value.trim();
-      if (!nextHref || nextHref === currentNavItem.href) {
-        return;
-      }
-      router.push(nextHref);
-    },
-    [currentNavItem.href, router]
-  );
+    if (
+      expandedSectionKey != null &&
+      keyedSideSections.some((section) => section.key === expandedSectionKey)
+    ) {
+      return;
+    }
+
+    setExpandedSectionKey(keyedSideSections[0]?.key ?? null);
+  }, [currentNavSection, expandedSectionKey, keyedSideSections]);
 
   useEffect(() => {
     let cancelled = false;
@@ -814,7 +666,6 @@ export default function AppLayout({
           "/companies",
           "/jobsites",
           "/field-id-exchange",
-          "/safety-intelligence",
           "/safety-submit",
           "/analytics",
           "/command-center",
@@ -939,9 +790,6 @@ export default function AppLayout({
       : isCompanyScopedUser
         ? "Company Workspace"
         : "User Workspace";
-  const displayName = getDisplayName(profileSummary, userEmail);
-  const profileJobTitle = profileSummary?.jobTitle || formatRole(userRole);
-  const profileSpecialty = profileSummary?.tradeSpecialty || formatRole(userRole);
   async function handleLogout() {
     try {
       setLoading(true);
@@ -1008,8 +856,8 @@ export default function AppLayout({
 
   if (loading) {
     return (
-      <div className="app-shell-light flex min-h-screen items-center justify-center">
-        <div className="rounded-3xl border border-[var(--app-border)] bg-[rgba(255,255,255,0.94)] px-8 py-6 text-sm font-semibold text-[var(--app-text)] shadow-[var(--app-shadow-soft)]">
+      <div className="flex min-h-screen items-center justify-center bg-app-canvas text-slate-300">
+        <div className="rounded-3xl border border-slate-700/80 bg-slate-900/80 px-8 py-6 text-sm font-semibold text-slate-200 shadow-lg">
           Loading workspace...
         </div>
       </div>
@@ -1018,19 +866,19 @@ export default function AppLayout({
 
   if (accountStatus === "pending") {
     return (
-      <div className="app-shell-light flex min-h-screen items-center justify-center px-6 py-10">
-        <div className="w-full max-w-xl rounded-[1.9rem] border border-[var(--app-border)] bg-[rgba(255,255,255,0.96)] p-8 shadow-[var(--app-shadow)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--semantic-warning)]">
+      <div className="flex min-h-screen items-center justify-center bg-app-canvas px-6 py-10">
+        <div className="w-full max-w-xl rounded-[1.9rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-lg">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-300">
             Approval Required
           </p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-[var(--app-text-strong)]">
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-white">
             Your account is waiting for administrator approval
           </h1>
-          <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">
+          <p className="mt-3 text-sm leading-6 text-slate-400">
             Your account has been created successfully, but access to the workspace stays
             locked until an administrator reviews and activates it.
           </p>
-          <div className="mt-6 rounded-2xl border border-[rgba(217,164,65,0.35)] bg-[var(--semantic-warning-bg)] px-4 py-3 text-sm text-[var(--app-text)]">
+          <div className="mt-6 rounded-2xl border border-amber-500/35 bg-amber-950/50 px-4 py-3 text-sm text-amber-100/95">
             {
               "We'll open the full workspace as soon as your account status is changed from pending to active."
             }
@@ -1048,15 +896,15 @@ export default function AppLayout({
 
   if (accountStatus === "suspended") {
     return (
-      <div className="app-shell-light flex min-h-screen items-center justify-center px-6 py-10">
-        <div className="w-full max-w-xl rounded-[1.9rem] border border-[var(--app-border)] bg-[rgba(255,255,255,0.96)] p-8 shadow-[var(--app-shadow)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--semantic-danger)]">
+      <div className="flex min-h-screen items-center justify-center bg-app-canvas px-6 py-10">
+        <div className="w-full max-w-xl rounded-[1.9rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-lg">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-red-300">
             Account Suspended
           </p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-[var(--app-text-strong)]">
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-white">
             This account is currently suspended
           </h1>
-          <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">
+          <p className="mt-3 text-sm leading-6 text-slate-400">
             Your access to the workspace has been temporarily disabled by an administrator.
           </p>
           <button
@@ -1152,254 +1000,260 @@ export default function AppLayout({
   }
 
   return (
-    <div className="app-shell-light app-shell-dashboard min-h-screen text-[var(--app-text)]">
+    <div className="app-shell-light min-h-screen bg-app-canvas text-[var(--app-text)]">
       <div className="flex min-h-screen">
         {mobileMenuOpen ? (
           <button
             aria-label="Close menu overlay"
-            className="fixed inset-0 z-40 bg-[rgba(37,99,235,0.06)] backdrop-blur-[2px] lg:hidden"
+            className="fixed inset-0 z-40 bg-slate-950/35 lg:hidden"
             onClick={() => setMobileMenuOpen(false)}
           />
         ) : null}
 
         <aside
           className={cx(
-            "fixed inset-y-0 left-0 z-50 w-[280px] max-w-[84vw] transition-transform duration-200",
-            "border-r border-[var(--app-border-subtle)] bg-[rgba(255,255,255,0.96)] text-[var(--app-text)] shadow-[inset_-1px_0_0_rgba(255,255,255,0.85)]",
-            "lg:static lg:w-[248px] lg:max-w-none lg:translate-x-0",
+            "fixed inset-y-0 left-0 z-50 w-[280px] max-w-[84vw] border-r border-[var(--app-border)] bg-[linear-gradient(180deg,_#f7fbff_0%,_#edf4ff_55%,_#e7f0fb_100%)] text-[var(--app-text-strong)] transition-transform duration-200 lg:static lg:w-[248px] lg:max-w-none lg:translate-x-0",
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
           <div className="flex h-full flex-col">
-            <div className="border-b border-[var(--app-border-subtle)] p-3 sm:p-4">
-              <Link
-                href="/dashboard"
-                className="block rounded-[2rem] outline-none ring-offset-2 ring-offset-[var(--app-surface-solid)] focus-visible:ring-2 focus-visible:ring-[var(--app-accent-primary)]"
-              >
-                <BrandLogo variant="sidebar-panel" className="w-full" />
-              </Link>
+            <div className="p-4 pb-1">
+              <div className="relative h-[5.8rem] w-full">
+                <Image
+                  src="/brand/safety360docs-reference-neon-tight.png"
+                  alt="Safety360Docs by Reliance EHS"
+                  fill
+                  priority
+                  sizes="248px"
+                  className="object-contain object-left"
+                />
+              </div>
             </div>
 
-            <nav className="flex-1 overflow-y-auto px-3 py-5">
-              <div className="space-y-0">
-                {sideSections.map((section, sectionIndex) => (
+            <nav className="flex-1 overflow-y-auto px-3 py-3">
+              <div className="px-3 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
+                Menu
+              </div>
+                    <div className="mt-4 space-y-0">
+                {keyedSideSections.map((section, sectionIndex) => (
                   (() => {
                     const sectionDescription =
                       (section as { description?: string }).description ?? "";
+                    const isExpanded = expandedSectionKey === section.key;
+                    const sectionContentId = `nav-section-panel-${section.key}`;
                     return (
-                      <div
-                        key={`nav-section-${sectionIndex}-${section.title}`}
-                        className={sectionIndex > 0 ? "mt-5 border-t border-[var(--app-border-subtle)] pt-5" : ""}
-                      >
-                        <div className="px-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]">
+                  <div
+                    key={`nav-section-${sectionIndex}-${section.title}`}
+                    className={sectionIndex > 0 ? "mt-5 border-t border-[var(--app-border)] pt-5" : ""}
+                  >
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      aria-controls={sectionContentId}
+                      onClick={() =>
+                        setExpandedSectionKey((current) =>
+                          current === section.key ? null : section.key
+                        )
+                      }
+                      className={cx(
+                        "flex w-full items-start justify-between gap-3 rounded-2xl px-3 py-2 text-left transition",
+                        isExpanded
+                          ? "bg-white/75 text-[var(--app-text-strong)] shadow-sm"
+                          : "text-slate-500 hover:bg-white/60 hover:text-[var(--app-text-strong)]"
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-[0.22em]">
                           {section.title}
                         </div>
                         {sectionDescription ? (
-                          <div className="mt-1 px-3 text-[11px] leading-5 text-[var(--app-muted)]">
+                          <div className="mt-1 text-[11px] leading-5 text-[var(--app-muted)]">
                             {sectionDescription}
                           </div>
                         ) : null}
-                        <div className="mt-3 space-y-1.5">
-                          {section.items.map((item) => {
-                            const active = isActivePath(pathname, item.href);
-                            const navMeta = getWorkspaceNavItemMeta(item);
-                            return (
-                              <Link
-                                key={`${section.title}-${item.href}`}
-                                href={item.href}
-                                className={cx(
-                                  "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition",
-                                  active
-                                    ? "bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)] shadow-[0_10px_22px_rgba(37,99,235,0.12)] ring-1 ring-[rgba(37,99,235,0.18)]"
-                                    : "text-[var(--app-text)] hover:bg-[rgba(234,241,255,0.85)] hover:text-[var(--app-text-strong)]"
-                                )}
-                              >
-                                <span
-                                  className={cx(
-                                    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                                    active
-                                      ? "bg-white text-[var(--app-accent-primary)] shadow-sm"
-                                      : "bg-[rgba(234,241,255,0.65)] text-[var(--app-muted)]"
-                                  )}
-                                >
-                                  <DashboardRouteIcon href={item.href} />
-                                </span>
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate">{item.label}</span>
-                                  {!active ? (
-                                    <span className="mt-0.5 block truncate text-[11px] text-[var(--app-muted)]">
-                                      {navMeta.description}
-                                    </span>
-                                  ) : null}
-                                </span>
-                              </Link>
-                            );
-                          })}
+                      </div>
+                      <span
+                        className={cx(
+                          "mt-0.5 inline-flex shrink-0 rounded-full border border-[var(--app-border)] bg-white/90 p-1 text-[var(--app-muted)]",
+                          isExpanded && "text-[var(--app-accent-primary)]"
+                        )}
+                      >
+                        <ChevronDownIcon expanded={isExpanded} />
+                      </span>
+                    </button>
+                    <div
+                      id={sectionContentId}
+                      className={cx(
+                        "grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-200 ease-out",
+                        isExpanded ? "mt-2 grid-rows-[1fr] opacity-100" : "mt-0 grid-rows-[0fr] opacity-0"
+                      )}
+                    >
+                      <div className="min-h-0 overflow-hidden">
+                        <div className="space-y-1.5 px-1 pb-1">
+                      {section.items.map((item) => {
+                          const active = isActivePath(pathname, item.href);
+                          const navMeta = getWorkspaceNavItemMeta(item);
+                          return (
+                            <Link
+                              key={`${section.title}-${item.href}`}
+                              href={item.href}
+                              className={cx(
+                                "flex items-center rounded-2xl border px-4 py-3 transition",
+                                active
+                                  ? "border-[rgba(79,125,243,0.24)] bg-[linear-gradient(135deg,_rgba(79,125,243,0.14)_0%,_rgba(79,125,243,0.08)_100%)] text-[var(--app-text-strong)] shadow-[0_12px_24px_rgba(79,125,243,0.08)]"
+                                  : "border-transparent text-[var(--app-text)] hover:bg-white/70 hover:text-[var(--app-text-strong)]"
+                              )}
+                              onClick={() => setMobileMenuOpen(false)}
+                            >
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">
+                                  {item.label}
+                                </div>
+                                {!active ? (
+                                  <div className="mt-0.5 truncate text-[11px] text-[var(--app-muted)]">
+                                    {navMeta.description}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </Link>
+                          );
+                        })}
                         </div>
                       </div>
+                    </div>
+                  </div>
                     );
                   })()
                 ))}
               </div>
             </nav>
 
-            <div className="border-t border-[var(--app-border-subtle)] p-3">
-              <div className="rounded-[1.5rem] border border-[var(--app-border)] bg-[rgba(255,255,255,0.92)] p-4 shadow-[var(--app-shadow-soft)]">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]">
+            <div className="border-t border-white/10 p-3">
+              <div className="rounded-[1.6rem] border border-[var(--app-border)] bg-white/80 p-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
                   Signed In
                 </div>
                 <div className="mt-3 flex items-center gap-3">
                   <ProfileAvatar profile={profileSummary} email={userEmail} />
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">{displayName}</div>
-                    <div className="mt-1 truncate text-xs text-[var(--app-muted)]">{profileJobTitle}</div>
+                    <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">
+                      {getDisplayName(profileSummary, userEmail)}
+                    </div>
+                    <div className="mt-1 truncate text-xs text-[var(--app-text)]">
+                      {profileSummary?.jobTitle || formatRole(userRole)}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-3 text-xs uppercase tracking-[0.16em] text-[var(--app-accent-primary)]">
-                  {profileSpecialty}
+                  {profileSummary?.tradeSpecialty || formatRole(userRole)}
                 </div>
-                <div className="mt-4 flex items-center justify-between rounded-2xl border border-[var(--app-border-subtle)] bg-[rgba(234,241,255,0.55)] px-3 py-2 text-xs text-[var(--app-text)]">
+                <div className="mt-4 flex items-center justify-between rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2 text-xs text-[var(--app-text)]">
                   <span>{workspaceLabel}</span>
                   <span className="capitalize">{accountStatus}</span>
                 </div>
-                <div className="mt-4 grid gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCommandPaletteOpen(true)}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
-                  >
-                    <QuickJumpIcon />
-                    Quick Jump
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="rounded-2xl bg-[var(--app-accent-primary)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(37,99,235,0.22)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
-                  >
-                    Logout
-                  </button>
-                </div>
+                <button
+                  onClick={handleLogout}
+                  className="mt-4 w-full rounded-2xl bg-[var(--app-accent-primary)] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_24px_rgba(79,125,243,0.24)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
+                >
+                  Logout
+                </button>
               </div>
             </div>
           </div>
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="border-b border-[var(--app-border-subtle)] bg-[rgba(255,255,255,0.94)] text-[var(--app-text-strong)] shadow-[0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-md">
-            <div className="mx-auto w-full max-w-[1680px] px-4 py-4 sm:px-6 xl:px-8">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <header className="border-b border-[var(--app-border)] bg-[rgba(248,251,255,0.88)] backdrop-blur">
+            <div className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6 xl:px-8">
+              <div className="flex flex-col gap-5">
                 <div className="flex min-w-0 items-start gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setMobileMenuOpen(true)}
-                    aria-label="Open navigation menu"
-                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--app-border)] bg-white text-[var(--app-text-strong)] shadow-sm lg:hidden"
-                  >
-                    <MobileMenuIcon />
-                  </button>
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-muted)]">
-                      {showPlatformAdminShell
-                        ? workspaceLabel
-                        : currentNavSection?.title || workspaceLabel}
-                    </div>
-                    <div className="mt-2 flex items-center gap-3">
-                      <span className="hidden h-11 w-11 items-center justify-center rounded-2xl border border-[var(--app-border-subtle)] bg-[rgba(234,241,255,0.65)] text-[var(--app-accent-primary)] sm:inline-flex">
-                        <DashboardWorkspaceIcon />
-                      </span>
-                      <div>
-                        <h1 className="text-2xl font-semibold tracking-tight text-[var(--app-text-strong)] sm:text-[2rem]">
-                          {currentNavItem.label}
-                        </h1>
-                        <p className="mt-1 text-sm text-[var(--app-text)]">
-                          {showPlatformAdminShell
-                            ? "Administrative tools and audit controls"
-                            : needsProfileSetup
-                              ? "Complete your profile to unlock the full company workspace."
+                    <button
+                      type="button"
+                      onClick={() => setMobileMenuOpen(true)}
+                      aria-label="Open navigation menu"
+                      className="inline-flex h-11 min-h-11 w-11 min-w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--app-border)] bg-white text-[var(--app-text)] shadow-sm lg:hidden"
+                    >
+                      <MobileMenuIcon />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <form onSubmit={handleHeaderSearchSubmit} className="mb-3 max-w-xl">
+                        <div className="flex items-center gap-2 rounded-2xl border border-[var(--app-border-strong)] bg-white px-3 py-2.5 shadow-sm">
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            className="h-4 w-4 shrink-0 text-[var(--app-muted)]"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <circle cx="11" cy="11" r="7" />
+                            <path d="m20 20-3.5-3.5" />
+                          </svg>
+                          <input
+                            type="search"
+                            value={searchQuery}
+                            onChange={(event) => setSearchQuery(event.target.value)}
+                            placeholder="Search documents, records, projects, or pages"
+                            aria-label="Search workspace"
+                            className="w-full border-0 bg-transparent text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)]"
+                          />
+                          <button
+                            type="submit"
+                            className="inline-flex shrink-0 rounded-xl bg-[var(--app-accent-primary)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
+                          >
+                            Search
+                          </button>
+                        </div>
+                      </form>
+                      <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-[var(--app-muted)]">
+                        {showPlatformAdminShell
+                          ? workspaceLabel
+                          : currentNavSection?.title || workspaceLabel}
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <div>
+                          <h1 className="text-2xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-3xl">
+                            {currentNavItem.label}
+                          </h1>
+                          <p className="mt-1 text-sm text-[var(--app-text)]">
+                            {showPlatformAdminShell
+                              ? "Administrative tools and audit controls"
+                              : needsProfileSetup
+                                ? "Complete your construction profile before opening company setup or workspace tools"
                               : needsCompanySetup
-                                ? "Create your company workspace before inviting employees or opening company tools."
-                                : currentNavMeta.description}
-                        </p>
+                                ? "Create your company workspace before inviting employees or opening company tools"
+                                : isCompanyScopedUser
+                                  ? currentNavMeta.description
+                                  : "Safety document workspace and active project tools"}
+                          </p>
+                        </div>
                       </div>
+                      <p className="mt-2 max-w-3xl text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--app-muted)] sm:text-sm">
+                        Enterprise Safety Management Platform
+                      </p>
                     </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <form onSubmit={handleHeaderSearchSubmit} className="w-full sm:min-w-[360px]">
-                    <div className="flex items-center gap-3 rounded-2xl border border-[var(--app-border)] bg-white px-4 py-3 shadow-sm">
-                      <span className="text-[var(--app-muted)]">
-                        <DashboardSearchIcon />
-                      </span>
-                      <input
-                        type="search"
-                        value={searchQuery}
-                        onChange={(event) => setSearchQuery(event.target.value)}
-                        placeholder="Search projects, documents, reports..."
-                        aria-label="Search workspace"
-                        className="w-full border-0 bg-transparent text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)]"
-                      />
-                      <span className="text-[var(--app-muted)]">
-                        <DashboardChevronIcon />
-                      </span>
-                    </div>
-                  </form>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--app-border)] bg-white text-[var(--app-text-strong)] shadow-sm"
-                    >
-                      <DashboardBellIcon />
-                      <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ff5a52] px-1 text-[10px] font-semibold text-white">
-                        3
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setCommandPaletteOpen(true)}
-                      className="hidden items-center gap-2 rounded-2xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--app-text-strong)] shadow-sm transition hover:bg-[var(--app-accent-primary-soft)] sm:inline-flex"
-                    >
-                      <QuickJumpIcon />
-                      Quick Jump
-                    </button>
-
-                    <div className="flex items-center gap-3 rounded-2xl border border-[var(--app-border)] bg-white px-3 py-2.5 shadow-sm">
-                      <ProfileAvatar profile={profileSummary} email={userEmail} />
-                      <div className="hidden min-w-0 sm:block">
-                        <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">{displayName}</div>
-                        <div className="mt-0.5 truncate text-xs text-[var(--app-muted)]">{profileJobTitle}</div>
-                      </div>
-                      <span className="text-[var(--app-muted)]">
-                        <DashboardChevronIcon />
-                      </span>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
           </header>
 
-          <main className="flex-1 bg-transparent px-4 py-5 sm:px-6 xl:px-8">
-            <div className="mx-auto w-full max-w-[1680px] space-y-5">
+          <main className="flex-1 px-4 py-6 sm:px-6 sm:py-7 xl:px-8">
+            <div className="mx-auto w-full max-w-[1600px] space-y-5">
               {bootError ? (
                 <div className="rounded-2xl border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] px-4 py-3 text-sm text-[var(--semantic-warning)] shadow-sm">
                   {bootError}
                 </div>
               ) : null}
-              {isDashboardRoute ? (
-                children
-              ) : (
-                <>
-                  <div className="workspace-frame rounded-[1.6rem] p-3 sm:rounded-[2rem] sm:p-4">
-                    <div className="workspace-content">{children}</div>
-                  </div>
-                  <div className="rounded-[1.3rem] border border-[var(--app-border-subtle)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.99)_0%,_rgba(242,248,255,0.92)_52%,_rgba(236,244,255,0.94)_100%)] px-4 py-4 text-center text-lg font-bold tracking-tight text-[var(--app-accent-primary)] shadow-[var(--app-shadow-soft)] sm:rounded-[1.6rem] sm:px-6 sm:py-5 sm:text-[1.5rem]">
-                    Systems live. Secure. Document. Stay Safe.
-                  </div>
-                </>
-              )}
+              <div className="workspace-frame rounded-[1.6rem] p-3 sm:rounded-[2rem] sm:p-4">
+                <div className="workspace-content">
+                {children}
+                </div>
+              </div>
+              <div className="rounded-[1.3rem] bg-[linear-gradient(135deg,_#4f7df3_0%,_#6ea0ff_100%)] px-4 py-4 text-center text-xl font-black tracking-tight text-white shadow-[0_16px_30px_rgba(79,125,243,0.2)] sm:rounded-[1.6rem] sm:px-6 sm:py-5 sm:text-[1.85rem]">
+                Systems live. Secure. Document. Stay Safe.
+              </div>
             </div>
           </main>
         </div>
