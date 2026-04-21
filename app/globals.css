@@ -195,6 +195,20 @@ textarea {
   color: var(--app-text);
 }
 
+.app-shell-dashboard {
+  background:
+    linear-gradient(180deg, #0f1a2c 0 120px, #f4f7fb 120px 100%);
+}
+
+.app-shell-dashboard :is(input, textarea, select) {
+  border-radius: 1rem;
+}
+
+.app-shell-dashboard :is(input, textarea, select):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(47, 108, 246, 0.18);
+}
+
 .workspace-frame {
   border: 1px solid rgba(111, 138, 177, 0.34);
   background:
