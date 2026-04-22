@@ -82,16 +82,8 @@ export function getStateRequirementSupplement(stateCode: string | null | undefin
   const stateName = state.stateName;
   const { building_code, stormwater, wetlands, other_key_permits, official_resources, notes } =
     state.entry;
-  const datasetDate = dataset.metadata?.last_updated?.trim() || null;
-  const usageNote = dataset.metadata?.usage_note?.trim() || null;
-  const nationalEnforcementNote = dataset.national_defaults?.enforcement_note?.trim() || null;
-
   const body = joinSentences([
-    `${stateName} building and environmental requirements supplement active for this draft`,
-    datasetDate
-      ? `The current workspace dataset was last updated ${datasetDate}`
-      : "The current workspace dataset should be treated as a planning reference",
-    usageNote,
+    `${stateName} state-specific building, environmental, and permit requirements may apply to this project`,
   ]);
 
   const bullets = [
@@ -115,14 +107,6 @@ export function getStateRequirementSupplement(stateCode: string | null | undefin
     other_key_permits?.length
       ? `Other key permits: ${other_key_permits.map((item) => item.trim()).filter(Boolean).join("; ")}.`
       : null,
-    notes ? sentence(`State notes: ${notes}`) : null,
-    official_resources?.length
-      ? `Official resources: ${official_resources
-          .map((item) => item.trim())
-          .filter(Boolean)
-          .join(" ; ")}.`
-      : null,
-    nationalEnforcementNote ? sentence(nationalEnforcementNote) : null,
   ].filter((item): item is string => Boolean(item));
 
   return {

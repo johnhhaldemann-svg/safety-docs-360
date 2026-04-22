@@ -105,10 +105,9 @@ export function buildJurisdictionProfileSection(params: {
     body: null,
     bullets: [] as string[],
   };
-  const standardLines = params.appliedStandards.map((standard) => {
-    const note = standard.content.adminReviewNote ?? standard.summary;
-    return `${standard.title}: ${note}`;
-  });
+  const standardLines = params.appliedStandards.map(
+    (standard) => `Applicable standard: ${standard.title}.`
+  );
   const bullets = standardLines.length
     ? standardLines
     : ["No jurisdiction-specific standards were applied."];
@@ -119,11 +118,11 @@ export function buildJurisdictionProfileSection(params: {
     body:
       params.profile.jurisdictionPlanType === "state_plan"
         ? appendBody(
-            `${params.profile.jurisdictionLabel} is active for this draft. Federal OSHA baseline requirements remain in scope, and the seeded state-plan deltas below must also be reviewed before approval.`,
+            `${params.profile.jurisdictionLabel} governs this project. Federal OSHA baseline requirements remain in scope, and applicable state-plan requirements must also be followed.`,
             [stateSupplement.body ?? ""]
           )
         : appendBody(
-            `${params.profile.jurisdictionLabel} is active for this draft. No seeded state-plan delta applies, so the document stays on the federal OSHA baseline.`,
+            `${params.profile.jurisdictionLabel} governs this project. The document follows the federal OSHA construction baseline unless a project-specific jurisdictional requirement adds to it.`,
             [stateSupplement.body ?? ""]
           ),
     bullets: appendBullets(bullets, stateSupplement.bullets),

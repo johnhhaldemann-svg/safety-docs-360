@@ -6,7 +6,9 @@ describe("state requirement supplements", () => {
     const supplement = getStateRequirementSupplement("WI");
 
     expect(supplement?.stateName).toBe("Wisconsin");
-    expect(supplement?.body).toContain("Wisconsin building and environmental requirements supplement active");
+    expect(supplement?.body).toContain(
+      "Wisconsin state-specific building, environmental, and permit requirements may apply"
+    );
     expect(supplement?.bullets).toEqual(
       expect.arrayContaining([
         expect.stringContaining("Commercial Building Code (SPS 361-366)"),
@@ -14,19 +16,20 @@ describe("state requirement supplements", () => {
         expect.stringContaining("Asbestos notification for demolition/renovation"),
       ])
     );
+    expect(supplement?.body).not.toContain("workspace dataset");
+    expect(supplement?.body).not.toContain("official_resources");
+    expect(supplement?.bullets.join(" ")).not.toContain("Official resources:");
+    expect(supplement?.bullets.join(" ")).not.toContain("State notes:");
   });
 
   it("returns federal-OSHA states like Texas with state permitting details", () => {
     const supplement = getStateRequirementSupplement("TX");
 
     expect(supplement?.stateName).toBe("Texas");
-    expect(supplement?.bullets).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining("Texas Department of Licensing and Regulation"),
-        expect.stringContaining("TXR150000"),
-        expect.stringContaining("No mandatory statewide building code"),
-      ])
-    );
+    const bulletsText = supplement?.bullets.join(" ") ?? "";
+    expect(bulletsText).toContain("Texas Department of Licensing and Regulation");
+    expect(bulletsText).toContain("TXR150000");
+    expect(bulletsText).toContain("Primarily local / home-rule");
   });
 
   it("returns null when no state code is supplied", () => {
