@@ -8,6 +8,7 @@ export const PUBLIC_ROUTES = [
   "/login",
   "/marketing",
   "/terms",
+  "/privacy",
   "/liability-waiver",
   "/company-signup",
 ] as const;
@@ -51,6 +52,12 @@ export const AUTH_APP_STATIC_ROUTES = [
   "/admin/settings",
   "/admin/agreements",
   "/admin/marketplace",
+  "/billing/invoices",
+  "/billing/invoices/new",
+  "/companies",
+  "/superadmin/csep-programs",
+  "/superadmin/csep-completeness-review",
+  "/superadmin/injury-forecast-lab",
 ] as const;
 
 /**
@@ -80,6 +87,9 @@ export const AUTH_APP_DYNAMIC_ROUTES = [
   `/companies/${id}/jobsites`,
   `/companies/${id}/analytics`,
   `/companies/${id}/users`,
+  `/billing/invoices/${id}`,
+  `/customer/billing/invoices/${id}`,
+  `/sor/${id}`,
 ] as const;
 
 /**

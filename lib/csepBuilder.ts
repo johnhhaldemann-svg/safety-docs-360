@@ -1666,12 +1666,150 @@ function normalizeToken(value: string | null | undefined) {
     .trim();
 }
 
+function stripExistingNumberPrefix(value: string) {
+  return value
+    .replace(/^(Section\s+)?\d+(?:\.\d+)*\.?\s+/i, "")
+    .replace(/^(Appendix\s+[A-Z])\.?\s+/i, "")
+    .trim();
+}
+
 const NORMALIZED_FORMAT_SECTION_KEY_LOOKUP = Object.fromEntries(
   CSEP_FORMAT_SECTION_KEYS.map((key) => [normalizeToken(key), key])
 ) as Record<string, CsepFormatSectionKey>;
 
 function uniqueNonEmpty(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))));
+}
+
+const PROJECT_SCOPE_SUMMARY_BY_TITLE: Record<string, string> = {
+  "unload steel": "Receive, inspect, and safely offload delivered steel members and materials.",
+  "sort members": "Organize steel by type, mark, sequence, and installation priority.",
+  rigging: "Select, inspect, and use rigging gear to safely lift and position materials.",
+  "crane picks": "Plan and execute crane lifts with controlled paths, communication, and exclusion zones.",
+  "column erection": "Set, align, and stabilize structural columns during initial steel installation.",
+  "beam setting": "Lift and place beams into position for connection and structural framing progress.",
+  bolting: "Install and tighten structural bolts to required connection standards.",
+  welding: "Perform structural welding in accordance with approved procedures and safety controls.",
+  "decking install": "Place and secure metal decking to support floors and roof assemblies.",
+  embeds: "Install or coordinate embedded items needed for structural or follow-on trade work.",
+  "punch list": "Identify and correct incomplete, damaged, or nonconforming work before closeout.",
+  "fire protection": "Install, modify, or coordinate fire protection systems and related components.",
+  "general conditions / site management":
+    "Manage site logistics, access, housekeeping, coordination, and overall field control.",
+  "hvac / mechanical": "Install or support mechanical systems, ductwork, piping, and equipment work.",
+  "painting / coatings":
+    "Apply protective or finish coatings with proper prep, ventilation, and surface control.",
+  "welding / hot work":
+    "Perform cutting, welding, or spark-producing work under permit and fire-watch controls.",
+};
+
+function projectScopeFieldSummary(label: string, value: string) {
+  const normalizedLabel = normalizeToken(label);
+  const normalizedValue = (value ?? "").trim();
+  const isPlaceholder = /tbd by contractor before issue/i.test(normalizedValue);
+
+  if (normalizedLabel.includes("project name")) {
+    return isPlaceholder
+      ? "Placeholder for the final project name to be confirmed before release."
+      : `Identifies the project name for this contractor CSEP as ${normalizedValue}.`;
+  }
+  if (normalizedLabel.includes("project number")) {
+    return isPlaceholder
+      ? "Placeholder for the project number to be added before issue."
+      : `Identifies the project number for this contractor CSEP as ${normalizedValue}.`;
+  }
+  if (normalizedLabel.includes("project address") || normalizedLabel.includes("project site")) {
+    return isPlaceholder
+      ? "Placeholder for the site address to be completed before issue."
+      : `Identifies the project site or address for this contractor CSEP as ${normalizedValue}.`;
+  }
+  if (normalizedLabel.includes("owner") || normalizedLabel.includes("client")) {
+    return isPlaceholder
+      ? "Placeholder for the owner or client name before final issue."
+      : `Identifies the owner or client for this contractor CSEP as ${normalizedValue}.`;
+  }
+  if (normalizedLabel.includes("gc") || normalizedLabel.includes("cm")) {
+    return isPlaceholder
+      ? "Placeholder for the general contractor or construction manager name before issue."
+      : `Identifies the general contractor or construction manager for this project as ${normalizedValue}.`;
+  }
+  if (normalizedLabel.includes("governing state")) {
+    return normalizedValue
+      ? `Indicates ${normalizedValue} is the governing state for this project's requirements.`
+      : "Indicates the governing state that controls the project requirements.";
+  }
+
+  return normalizedValue
+    ? `${label} is recorded for this project as ${normalizedValue}.`
+    : `${label} should be confirmed before the CSEP is issued.`;
+}
+
+function summarizeProjectScopeEntry(title: string, value?: string | null) {
+  const normalizedTitle = normalizeToken(title);
+  if (!normalizedTitle) return null;
+
+  if (PROJECT_SCOPE_SUMMARY_BY_TITLE[normalizedTitle]) {
+    return PROJECT_SCOPE_SUMMARY_BY_TITLE[normalizedTitle];
+  }
+
+  if (value !== undefined && value !== null) {
+    return projectScopeFieldSummary(title, value);
+  }
+
+  return `${title} is part of the contractor's active work scope and should be clearly defined for field execution.`;
+}
+
+function buildProjectScopeSummarySubsections(params: {
+  bullets: string[];
+  table: GeneratedSafetyPlanSection["table"] | null;
+}) {
+  const subsections: NonNullable<GeneratedSafetyPlanSection["subsections"]> = [];
+  const seen = new Set<string>();
+
+  const pushSubsection = (title: string, summary: string | null | undefined) => {
+    const cleanTitle = title.trim();
+    const cleanSummary = summary?.trim();
+    if (!cleanTitle || !cleanSummary) return;
+    const key = `${normalizeToken(cleanTitle)}::${normalizeToken(cleanSummary)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    subsections.push({
+      title: cleanTitle,
+      body: cleanSummary,
+      bullets: [],
+    });
+  };
+
+  params.bullets.forEach((item) => {
+    const fieldMatch = item.match(/^Field:\s*(.+?)\s+Value:\s*(.+)$/i);
+    if (fieldMatch) {
+      const label = fieldMatch[1]?.trim() || "Project field";
+      const value = fieldMatch[2]?.trim() || "";
+      pushSubsection(label, summarizeProjectScopeEntry(label, value));
+      return;
+    }
+
+    const title = stripExistingNumberPrefix(item).trim();
+    pushSubsection(title, summarizeProjectScopeEntry(title));
+  });
+
+  params.table?.rows.forEach((row) => {
+    const label = row[0]?.trim() || "Project field";
+    const value = row[1]?.trim() || "";
+    pushSubsection(label, summarizeProjectScopeEntry(label, value));
+  });
+
+  return subsections;
+}
+
+function isDuplicateStructuredText(
+  candidate: string | null | undefined,
+  values: readonly (string | null | undefined)[]
+) {
+  const normalizedCandidate = normalizeToken(candidate);
+  if (!normalizedCandidate) return false;
+
+  return values.some((value) => normalizeToken(value) === normalizedCandidate);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -1697,6 +1835,32 @@ function sectionTextParts(section: GeneratedSafetyPlanSection) {
       ...subsection.bullets,
     ]) as string[]),
   ]);
+}
+
+function isCatalogProgramSection(section: GeneratedSafetyPlanSection) {
+  return section.key.startsWith("program_");
+}
+
+function buildGroupedProgramSubsection(
+  section: GeneratedSafetyPlanSection
+): NonNullable<GeneratedSafetyPlanSection["subsections"]>[number] | null {
+  const bullets = uniqueNonEmpty(
+    (section.subsections ?? []).map((subsection) => {
+      const content = uniqueNonEmpty([subsection.body ?? null, ...subsection.bullets]).join(" ");
+      if (!content) return null;
+      return `${subsection.title}: ${content}`;
+    })
+  );
+
+  const body = uniqueNonEmpty([section.summary ?? null, section.body ?? null]).join(" ") || undefined;
+
+  if (!body && bullets.length === 0) return null;
+
+  return {
+    title: section.title,
+    body,
+    bullets,
+  };
 }
 
 function fallbackSectionBody(definition: CsepFormatSectionDefinition) {
@@ -1798,17 +1962,31 @@ function buildStaticFrontMatterSections(
     cleanFinalText(documentControl.clientOwner) ??
     cleanFinalText(draft.projectOverview.ownerClient) ??
     controlledTbd();
+  const currentIssueLabel = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date());
   const documentNumberRevision =
     uniqueNonEmpty([
       cleanFinalText(documentControl.documentNumber),
       cleanFinalText(documentControl.revision),
     ]).join(" / ") || controlledTbd();
+  const preparedByLabel =
+    cleanFinalText(documentControl.preparedBy) ??
+    cleanFinalText(draft.projectOverview.contractorCompany) ??
+    "Authorized Contractor Representative";
+  const approvedByLabel =
+    cleanFinalText(documentControl.approvedBy) ??
+    cleanFinalText(documentControl.reviewedBy) ??
+    cleanFinalText(draft.projectOverview.contractorCompany) ??
+    preparedByLabel;
   const preparedReviewedApproved =
     uniqueNonEmpty([
-      cleanFinalText(documentControl.preparedBy),
+      preparedByLabel,
       cleanFinalText(documentControl.reviewedBy),
-      cleanFinalText(documentControl.approvedBy),
-    ]).join(" / ") || controlledTbd();
+      cleanFinalText(documentControl.approvedBy) ?? approvedByLabel,
+    ]).join(" / ") || primeContractor;
 
   const definitionsTable = {
     columns: ["Term / Abbreviation", "Definition / Intended Use"],
@@ -1855,10 +2033,10 @@ function buildStaticFrontMatterSections(
         columns: ["Rev.", "Date", "Description of Revision", "Prepared", "Approved"],
         rows: [[
           cleanFinalText(documentControl.revision) || "1.0",
-          cleanFinalText(documentControl.issueDate) || controlledTbd(),
+          cleanFinalText(documentControl.issueDate) || currentIssueLabel,
           "Initial issuance for contractor CSEP export",
-          cleanFinalText(documentControl.preparedBy) || controlledTbd(),
-          cleanFinalText(documentControl.approvedBy) || controlledTbd(),
+          preparedByLabel,
+          approvedByLabel,
         ]],
       },
     },
@@ -1889,45 +2067,54 @@ function buildStaticFrontMatterSections(
   ];
 }
 
-function buildOperationalQuickReferenceSections(): GeneratedSafetyPlanSection[] {
-  const incidentRows = [
-    ["First Aid", "Minor first-aid-only case with no property damage or release.", "Notify foreman or supervision, document the event, and confirm any immediate corrective actions."],
-    ["Near Miss", "No injury, no release, or no loss event.", "Report to supervision and capture corrective actions before restart."],
-    ["Recordable", "OSHA recordable injury, illness, or exposure.", "Notify supervision, safety, and required project contacts immediately."],
-    ["Serious / Major", "Hospitalization, major property loss, permit breach, or severe environmental event.", "Activate escalation chain, preserve scene, and begin formal investigation."],
-  ];
-
-  const lifeSavingRuleRows = [
-    ["Domain 01", "Stop work when fall protection, access, or rescue conditions are not in place."],
-    ["Domain 02", "Do not bypass permit, energy-isolation, or authorization requirements."],
-    ["Domain 03", "Stay clear of line-of-fire, suspended-load, and struck-by exposure zones."],
-    ["Domain 04", "Use emergency response, shelter, and evacuation procedures immediately when triggers are met."],
-  ];
-
+function buildOperationalQuickReferenceSubsections(): NonNullable<GeneratedSafetyPlanSection["subsections"]> {
   return [
     {
-      key: "incident_overview",
-      kind: "main",
-      order: 15.1,
       title: "Incident Overview",
-      layoutKey: "incident_overview",
-      parentSectionKey: "emergency_preparedness_and_response",
-      table: {
-        columns: ["Level", "Trigger / Example", "Required Actions / Notifications"],
-        rows: incidentRows,
-      },
+      body: "Use these incident categories to align field notifications, scene control, and escalation requirements before restart.",
+      bullets: [],
     },
     {
-      key: "life_saving_rules",
-      kind: "main",
-      order: 15.2,
+      title: "First Aid",
+      body: [
+        "Example: Minor first-aid-only case with no property damage or release.",
+        "Required Actions / Notifications: Notify the foreman or supervision, document the event, and confirm any immediate corrective actions.",
+      ].join("\n\n"),
+      bullets: [],
+    },
+    {
+      title: "Near Miss",
+      body: [
+        "Example: No injury, no release, and no loss event.",
+        "Required Actions / Notifications: Report to supervision and capture corrective actions before restart.",
+      ].join("\n\n"),
+      bullets: [],
+    },
+    {
+      title: "Recordable",
+      body: [
+        "Example: OSHA recordable injury, illness, or exposure.",
+        "Required Actions / Notifications: Notify supervision, safety, and required project contacts immediately.",
+      ].join("\n\n"),
+      bullets: [],
+    },
+    {
+      title: "Serious / Major",
+      body: [
+        "Example: Hospitalization, major property loss, permit breach, or severe environmental event.",
+        "Required Actions / Notifications: Activate the escalation chain, preserve the scene, and begin a formal investigation.",
+      ].join("\n\n"),
+      bullets: [],
+    },
+    {
       title: "Life-Saving Rules",
-      layoutKey: "life_saving_rules",
-      parentSectionKey: "emergency_preparedness_and_response",
-      table: {
-        columns: ["Rule Domain", "Rule Text"],
-        rows: lifeSavingRuleRows,
-      },
+      body: "Stop-work authority and life-saving expectations apply whenever conditions defeat the planned controls.",
+      bullets: [
+        "Work Stoppage: Stop work when fall protection, access, or rescue conditions are not in place.",
+        "Permit and Authorization Control: Do not bypass permit, energy-isolation, or authorization requirements.",
+        "Line-of-Fire and Struck-By Prevention: Stay clear of line-of-fire, suspended-load, and struck-by exposure zones.",
+        "Emergency Response and Evacuation: Use emergency response, shelter, and evacuation procedures immediately when triggers are met.",
+      ],
     },
   ];
 }
@@ -2103,13 +2290,32 @@ export function buildStructuredCsepSectionMap(
   });
 
   const frontMatterSections = buildStaticFrontMatterSections(draft, selectedFormatSectionKeys);
-  const mainSections = selectedFormatSectionKeys.map((sectionKey) => {
+  const mainSections: Array<GeneratedSafetyPlanSection | null> = selectedFormatSectionKeys.map((sectionKey) => {
     const definition = getCsepFormatDefinition(sectionKey);
     const sourceSections = grouped.get(sectionKey) ?? [];
-    const combinedBullets = uniqueNonEmpty(sourceSections.flatMap((section) => section.bullets ?? []));
-    const combinedSubsections = sourceSections.flatMap((section) => section.subsections ?? []);
+    const programSourceSections = sourceSections.filter((section) => isCatalogProgramSection(section));
+    const narrativeSourceSections =
+      programSourceSections.length > 0
+        ? sourceSections.filter((section) => !isCatalogProgramSection(section))
+        : sourceSections;
+    const combinedBullets = uniqueNonEmpty(
+      narrativeSourceSections.flatMap((section) => section.bullets ?? [])
+    );
+    const combinedSubsections = [
+      ...narrativeSourceSections.flatMap((section) => section.subsections ?? []),
+      ...programSourceSections
+        .map((section) => buildGroupedProgramSubsection(section))
+        .filter(
+          (
+            subsection
+          ): subsection is NonNullable<GeneratedSafetyPlanSection["subsections"]>[number] =>
+            Boolean(subsection)
+        ),
+    ];
     const combinedTables = sourceSections.map((section) => section.table).find((table) => table?.rows.length) ?? null;
-    const narrativeParts = uniqueNonEmpty(sourceSections.flatMap((section) => sectionTextParts(section)));
+    const narrativeParts = uniqueNonEmpty(
+      narrativeSourceSections.flatMap((section) => sectionTextParts(section))
+    );
     const relatedFindings = findingsBySection.get(sectionKey) ?? [];
     const aiSectionDecision = aiAssemblyDecisions?.sectionDecisions?.[sectionKey]?.trim() ?? null;
     const fallbackBody = options?.finalIssueMode ? null : fallbackSectionBody(definition);
@@ -2120,6 +2326,28 @@ export function buildStructuredCsepSectionMap(
             ...combinedBullets,
           ])
         : combinedBullets;
+    const projectScopeSummarySubsections =
+      sectionKey === "project_scope_and_trade_specific_activities"
+        ? buildProjectScopeSummarySubsections({
+            bullets: permitBullets,
+            table: combinedTables,
+          })
+        : [];
+    const resolvedBody =
+      uniqueNonEmpty([
+        aiSectionDecision,
+        narrativeSourceSections[0]?.summary ?? null,
+        narrativeSourceSections[0]?.body ?? null,
+        narrativeParts[0] ?? null,
+        sourceSections.length === 0 ? fallbackBody : null,
+      ]).join(" ") || fallbackBody;
+    const body =
+      isDuplicateStructuredText(resolvedBody, permitBullets) ? undefined : resolvedBody;
+
+    const emergencyQuickReferenceSubsections =
+      sectionKey === "emergency_preparedness_and_response"
+        ? buildOperationalQuickReferenceSubsections()
+        : [];
 
     const nextSection = {
       key: sectionKey,
@@ -2128,23 +2356,24 @@ export function buildStructuredCsepSectionMap(
       title: definition.title,
       numberLabel: definition.numberLabel,
       layoutKey: sectionKey,
-      body:
-        uniqueNonEmpty([
-          aiSectionDecision,
-          sourceSections[0]?.summary ?? null,
-          sourceSections[0]?.body ?? null,
-          narrativeParts[0] ?? null,
-          sourceSections.length === 0 ? fallbackBody : null,
-        ]).join(" ") || fallbackBody,
-      bullets: permitBullets.length
+      body,
+      bullets:
+        projectScopeSummarySubsections.length > 0
+          ? undefined
+          : permitBullets.length
         ? permitBullets
         : relatedFindings.length
           ? relatedFindings.map((finding) => `${finding.title}: ${finding.detail}`)
           : undefined,
       subsections:
-        combinedSubsections.length || (relatedFindings.length && !options?.finalIssueMode)
+        projectScopeSummarySubsections.length ||
+        combinedSubsections.length ||
+        emergencyQuickReferenceSubsections.length ||
+        (relatedFindings.length && !options?.finalIssueMode)
           ? [
+              ...projectScopeSummarySubsections,
               ...combinedSubsections,
+              ...emergencyQuickReferenceSubsections,
               ...(!options?.finalIssueMode && relatedFindings.length
                 ? [
                     {
@@ -2158,7 +2387,7 @@ export function buildStructuredCsepSectionMap(
               : []),
             ]
           : undefined,
-      table: combinedTables,
+      table: projectScopeSummarySubsections.length > 0 ? null : combinedTables,
       parentSectionKey: null,
     } satisfies GeneratedSafetyPlanSection;
     if (
@@ -2174,19 +2403,7 @@ export function buildStructuredCsepSectionMap(
     return nextSection;
   });
   const appendixSections = buildAppendixLibrarySections(draft);
-  const quickReferenceSections = buildOperationalQuickReferenceSections();
-  const emergencyInsertIndex = mainSections.findIndex(
-    (section) => section?.key === "emergency_preparedness_and_response"
-  );
-  const orderedMainSections =
-    emergencyInsertIndex >= 0
-      ? [
-          ...mainSections.slice(0, emergencyInsertIndex + 1),
-          ...quickReferenceSections,
-          ...mainSections.slice(emergencyInsertIndex + 1),
-        ]
-      : [...mainSections];
-  const presentMainSections = orderedMainSections.filter(
+  const presentMainSections = mainSections.filter(
     (section): section is GeneratedSafetyPlanSection => Boolean(section)
   );
   const cleanedSections = options?.finalIssueMode

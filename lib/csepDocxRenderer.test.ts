@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import {
+  buildCsepTemplateSections,
   buildCsepRenderModelFromGeneratedDraft,
   renderCsepRenderModel,
   renderGeneratedCsepDocx,
@@ -105,6 +106,31 @@ function createGeneratedDraft(): GeneratedSafetyPlanDraft {
         title: "Emergency Procedures",
         body: "Notify site supervision and move to the designated assembly point.",
       },
+      {
+        key: "life_saving_rules",
+        title: "Life-Saving Rules",
+        table: {
+          columns: ["Rule Domain", "Rule Text"],
+          rows: [
+            [
+              "8.1 Work Stoppage",
+              "Stop work when fall protection, access, or rescue conditions are not in place.",
+            ],
+            [
+              "8.2 Permit and Authorization Control",
+              "Do not bypass permit, energy-isolation, or authorization requirements.",
+            ],
+            [
+              "8.3 Line-of-Fire and Struck-By Prevention",
+              "Stay clear of line-of-fire, suspended-load, and struck-by exposure zones.",
+            ],
+            [
+              "8.4 Emergency Response and Evacuation",
+              "Use emergency response, shelter, and evacuation procedures immediately when triggers are met.",
+            ],
+          ],
+        },
+      },
     ],
     provenance: {
       generator: "test",
@@ -121,7 +147,7 @@ describe("csepDocxRenderer", () => {
       subTradeLabel: "Decking",
       issueLabel: "April 20, 2026",
       statusLabel: "Draft Issue",
-      preparedBy: "SafetyDocs360 Draft Builder",
+      preparedBy: "ABC Steel",
       coverSubtitleLines: [
         "Trade: Steel Erection",
         "100 River Rd",
@@ -134,7 +160,7 @@ describe("csepDocxRenderer", () => {
         { label: "Owner / Client", value: "Owner Group" },
         { label: "GC / CM", value: "GC Partners" },
         { label: "Contractor", value: "ABC Steel" },
-        { label: "Prepared By", value: "SafetyDocs360 Draft Builder" },
+        { label: "Prepared By", value: "ABC Steel" },
         { label: "Date", value: "April 20, 2026" },
         { label: "Revision", value: "1.0" },
       ],
@@ -147,8 +173,8 @@ describe("csepDocxRenderer", () => {
           revision: "1.0",
           date: "April 20, 2026",
           description: "Initial issuance for contractor CSEP export",
-          preparedBy: "SafetyDocs360 Draft Builder",
-          approvedBy: "Pending approval",
+          preparedBy: "ABC Steel",
+          approvedBy: "ABC Steel",
         },
       ],
       frontMatterSections: [
@@ -176,12 +202,22 @@ describe("csepDocxRenderer", () => {
           numberLabel: "1.0",
           closingTagline:
             '"If we cannot perform the work safely and in full compliance with this CSEP and project requirements, we do not do it at all."',
-          subsections: [
+            subsections: [
+              {
+                title: "Company Overview and Safety Philosophy",
+                items: [
+                  "This section establishes the contractor's commitment to safe work.",
+                  "It applies to all field personnel assigned to the project.",
+                ],
+              },
             {
-              title: "Purpose and Scope",
+              title: "Resource Availability",
+              paragraphs: [
+                "Ensuring access to all necessary regulations and standards for training and compliance review.",
+              ],
               items: [
-                "This section establishes the contractor's commitment to safe work.",
-                "It applies to all field personnel assigned to the project.",
+                "Compliance documents readily available on site",
+                "Training on regulatory requirements included in orientation",
               ],
             },
           ],
@@ -232,13 +268,22 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).toContain(
       "Project-specific safety, environmental, and permit requirements for field execution"
     );
-    expect(documentXml).toContain("COMPANY LOGO PLACEMENT");
+    expect(documentXml).not.toContain("COMPANY LOGO PLACEMENT");
+    expect(documentXml).not.toContain("Insert contractor logo or approved company letterhead here");
     expect(documentXml).toContain("0.0 Document Control");
-    expect(documentXml).toContain("Revision History");
-    expect(documentXml).toContain("Table of Contents");
-    expect(documentXml).toContain("1.0 Company Overview and Safety Philosophy");
-    expect(documentXml).toContain("Purpose and Scope");
-    expect(documentXml).toContain("This section establishes the contractor");
+    expect(documentXml).toContain("0.0.1");
+    expect(documentXml).not.toContain("0.0.1.1");
+    expect(documentXml).toContain("Field: Project Name / Site");
+      expect(documentXml).toContain("Revision History");
+      expect(documentXml).toContain("Table of Contents");
+      expect(documentXml).toContain("1.0 Company Overview and Safety Philosophy");
+      expect(documentXml).toContain("This section establishes the contractor");
+      expect(documentXml).toContain("1.1");
+      expect(documentXml).toContain("1.2");
+      expect(documentXml).toContain("1.3 Resource Availability");
+      expect(documentXml).toContain("1.3.1");
+      expect(documentXml).toContain("Compliance documents readily available on site");
+      expect(documentXml).not.toContain("1.2 Resource Availability");
     expect(documentXml).toContain("Appendix A. Forms and Permit Library");
     expect(documentXml).toContain("Disclaimer");
     expect(documentXml).toContain("18.1 Activity Hazard Analysis Matrix");
@@ -268,20 +313,119 @@ describe("csepDocxRenderer", () => {
     const model = buildCsepRenderModelFromGeneratedDraft(draft);
 
     expect(model.frontMatterSections[0]?.title).toBe("0.0 Document Control");
-    expect(model.sections[0]?.title).toBe("2.0 Project Scope and Trade-Specific Activities");
+    expect(model.sections[0]?.title).toBe("Contractor Safety Policy Statement");
+    expect(model.sections.map((section) => section.title)).toContain(
+      "Project & Site Information"
+    );
+    expect(model.sections.map((section) => section.title)).toContain(
+      "Life-Saving Rules & Stop-Work Authority"
+    );
 
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml, headerXml, footerXml } = await unzipDocx(rendered.body);
 
     expect(documentXml).toContain("0.0 Document Control");
-    expect(documentXml).toContain("2.0 Project Scope and Trade-Specific Activities");
+    expect(documentXml).toContain("Definitions and Abbreviations");
+    expect(documentXml).toContain("CBA");
+    expect(documentXml).toContain("Collective bargaining or labor-agreement language");
+    expect(documentXml).not.toContain("0.1.1 Term / Abbreviation:");
+    expect(documentXml).not.toContain("Definition / Intended Use:");
+    expect(documentXml).toContain("Project &amp; Site Information");
     expect(documentXml).toContain("How to Use This Plan");
     expect(documentXml).not.toContain("Blueprint");
+    expect(documentXml).toContain("Life-Saving Rules");
+    expect(documentXml).not.toContain("Rule Domain:");
+    expect(documentXml).not.toContain("Rule Text:");
+    expect(documentXml).not.toContain("8.1 Work Stoppage");
     expect(documentXml).toContain("Table of Contents");
     expect(documentXml).toContain("Appendix A. Forms and Permit Library");
     expect(documentXml).toContain("Disclaimer");
     expect(headerXml).toBe("");
     expect(footerXml).toContain("PAGE");
+  });
+
+  it("suppresses repeated subsection headings when they only restate a numbered item", async () => {
+    const model: CsepRenderModel = {
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      tradeLabel: "Steel Erection",
+      subTradeLabel: "Decking",
+      issueLabel: "April 20, 2026",
+      statusLabel: "Draft Issue",
+      preparedBy: "ABC Steel",
+      coverSubtitleLines: [],
+      coverMetadataRows: [],
+      approvalLines: [],
+      revisionHistory: [],
+      frontMatterSections: [],
+      sections: [
+        {
+          key: "project_scope_and_trade_specific_activities",
+          kind: "main",
+          title: "2.0 Project Scope and Trade-Specific Activities",
+          numberLabel: "2.0",
+          subsections: [
+            {
+              title: "Unload steel",
+              paragraphs: [
+                "Receive, inspect, and safely offload delivered steel members and materials.",
+              ],
+            },
+            {
+              title: "Sort members",
+              paragraphs: [
+                "Organize steel by type, mark, sequence, and installation priority.",
+              ],
+            },
+          ],
+        },
+      ],
+      appendixSections: [],
+      disclaimerLines: ["Generated draft disclaimer."],
+      filenameProjectPart: "Riverfront_Tower",
+    };
+
+    const rendered = await renderCsepRenderModel(model);
+    const { documentXml } = await unzipDocx(rendered.body);
+
+    expect(documentXml).toContain("2.1 ");
+    expect(documentXml).toContain("2.2 ");
+    expect(documentXml).toContain("Unload steel");
+    expect(documentXml).toContain("Sort members");
+    expect(documentXml).toContain("Receive, inspect, and safely offload delivered steel members and materials.");
+    expect(documentXml).toContain("Organize steel by type, mark, sequence, and installation priority.");
+    expect(documentXml).not.toContain("2.1.1 Unload steel");
+    expect(documentXml).not.toContain("2.2.1 Sort members");
+    expect(documentXml.match(/Unload steel/g)?.length ?? 0).toBe(1);
+    expect(documentXml.match(/Sort members/g)?.length ?? 0).toBe(1);
+  });
+
+  it("folds main-section lead narrative into numbered fallback formatting when structured content exists", () => {
+    const [section] = buildCsepTemplateSections({
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      issueLabel: "April 20, 2026",
+      sourceSections: [
+        {
+          key: "roles_and_responsibilities",
+          kind: "main",
+          order: 12,
+          title: "3.0 Roles and Responsibilities",
+          numberLabel: "3.0",
+          body: "Custom role narrative from the builder.",
+          table: {
+            columns: ["Role", "Minimum Responsibilities", "Authority / Hold Point"],
+            rows: [["Superintendent", "Lead the crew.", "Approve restart."]],
+          },
+        },
+      ],
+    });
+
+    expect(section?.subsections[0]?.paragraphs ?? []).toEqual([]);
+    expect(section?.subsections[0]?.items ?? []).toContain("Custom role narrative from the builder.");
+    expect(section?.subsections[0]?.table?.rows).toEqual([
+      ["Superintendent", "Lead the crew.", "Approve restart."],
+    ]);
   });
 
   it("strips internal drafting notes and raw placeholders from the final DOCX", async () => {
@@ -321,5 +465,74 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).not.toContain("Platform Fill Field");
     expect(documentXml).not.toContain("Pending approval");
     expect(documentXml).not.toContain("SafetyDocs360 AI Draft Builder");
+  });
+
+  it("fails export when duplicate section numbers are present in the final model", async () => {
+    const model: CsepRenderModel = {
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      tradeLabel: "Steel Erection",
+      subTradeLabel: "Decking",
+      issueLabel: "April 20, 2026",
+      statusLabel: "Contractor Issue",
+      preparedBy: "ABC Steel",
+      coverSubtitleLines: [],
+      coverMetadataRows: [],
+      approvalLines: [],
+      revisionHistory: [],
+      frontMatterSections: [],
+      sections: [
+        {
+          key: "roles_and_responsibilities",
+          kind: "main",
+          title: "3.0 Roles and Responsibilities",
+          numberLabel: "3.0",
+          subsections: [{ title: "Superintendent", paragraphs: ["Lead the crew."], items: [] }],
+        },
+        {
+          key: "security_and_access_control",
+          kind: "main",
+          title: "3.0 Security and Access Control",
+          numberLabel: "3.0",
+          subsections: [{ title: "Worker access", paragraphs: ["Use approved gates only."], items: [] }],
+        },
+      ],
+      appendixSections: [],
+      disclaimerLines: ["Generated draft disclaimer."],
+      filenameProjectPart: "Riverfront_Tower",
+    };
+
+    await expect(renderCsepRenderModel(model)).rejects.toThrow("duplicate section number 3.0");
+  });
+
+  it("fails export when unresolved placeholder content remains in the final model", async () => {
+    const model: CsepRenderModel = {
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      tradeLabel: "Steel Erection",
+      subTradeLabel: "Decking",
+      issueLabel: "April 20, 2026",
+      statusLabel: "Contractor Issue",
+      preparedBy: "ABC Steel",
+      coverSubtitleLines: [],
+      coverMetadataRows: [],
+      approvalLines: [],
+      revisionHistory: [],
+      frontMatterSections: [],
+      sections: [
+        {
+          key: "roles_and_responsibilities",
+          kind: "main",
+          title: "3.0 Roles and Responsibilities",
+          numberLabel: "3.0",
+          subsections: [{ title: "Superintendent", paragraphs: ["TBD by contractor before issue"], items: [] }],
+        },
+      ],
+      appendixSections: [],
+      disclaimerLines: ["Generated draft disclaimer."],
+      filenameProjectPart: "Riverfront_Tower",
+    };
+
+    await expect(renderCsepRenderModel(model)).rejects.toThrow("unresolved placeholder content");
   });
 });

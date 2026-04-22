@@ -438,8 +438,9 @@ describe("legacy CSEP DOCX export", () => {
 
     expect(documentXml).toContain("Table of Contents");
     expect(documentXml).toContain("0.0 Document Control");
-    expect(documentXml).toContain("1.0 Company Overview and Safety Philosophy");
     expect(documentXml).toContain("How to Use This Plan");
+    expect(documentXml).toContain("2.0 Project Scope and Trade-Specific Activities");
+    expect(documentXml).toContain("6.0 Emergency Preparedness and Response");
     expect(documentXml).toContain("Appendix A. Forms and Permit Library");
     expect(documentXml).not.toContain("Blueprint");
     expect(documentXml).toContain("Disclaimer");

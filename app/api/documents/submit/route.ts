@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
+import { getCsepExportValidationDetail, isCsepExportValidationError } from "@/lib/csepExportValidation";
 import { getDefaultAgreementConfig, getUserAgreementRecord } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
 import { authorizeRequest } from "@/lib/rbac";
@@ -24,6 +25,16 @@ type SubmitPayload = {
   generated_document_id?: string;
   builder_input_hash?: string;
 };
+
+class PublicRouteError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "PublicRouteError";
+    this.status = status;
+  }
+}
 
 function normalizeRequiredString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
@@ -351,11 +362,26 @@ export async function POST(request: Request) {
     let generatedDocumentId: string | null = null;
     let bucketRunId: string | null = null;
 
+    async function renderSubmittedDraft(draft: GeneratedSafetyPlanDraft) {
+      try {
+        return normalizedType === "CSEP"
+          ? await renderGeneratedCsepDocx(draft)
+          : await renderSafetyPlanDocx(draft);
+      } catch (renderError) {
+        if (normalizedType === "CSEP" && isCsepExportValidationError(renderError)) {
+          throw new PublicRouteError(
+            409,
+            `The approved CSEP draft is not ready for final issue: ${getCsepExportValidationDetail(
+              renderError
+            )} Update the builder inputs, regenerate the AI draft, then submit again.`
+          );
+        }
+        throw renderError;
+      }
+    }
+
     if (approvedPreviewDraft) {
-      const rendered =
-        normalizedType === "CSEP"
-          ? await renderGeneratedCsepDocx(approvedPreviewDraft)
-          : await renderSafetyPlanDocx(approvedPreviewDraft);
+      const rendered = await renderSubmittedDraft(approvedPreviewDraft);
       fileData = rendered.body;
       generatedDocumentId = body.generated_document_id?.trim() ?? null;
       bucketRunId = approvedPreviewBucketRunId;
@@ -397,10 +423,7 @@ export async function POST(request: Request) {
           },
           riskMemorySummary: (riskMemory ?? null) as any,
         });
-        const rendered =
-          normalizedType === "CSEP"
-            ? await renderGeneratedCsepDocx(pipeline.draft)
-            : await renderSafetyPlanDocx(pipeline.draft);
+        const rendered = await renderSubmittedDraft(pipeline.draft);
         fileData = rendered.body;
         generatedDocumentId = pipeline.generatedDocumentId;
         bucketRunId = pipeline.bucketRunId;
@@ -470,6 +493,17 @@ export async function POST(request: Request) {
           await auth.supabase.from("documents").delete().eq("id", createdDocumentId);
         })
         .catch(() => undefined);
+    }
+    if (error instanceof PublicRouteError) {
+      serverLog("warn", "document_submit_public_error", {
+        status: error.status,
+        message: error.message.slice(0, 200),
+      });
+
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
     }
     serverLog("error", "document_submit_unexpected_error", {
       errorKind: error instanceof Error ? error.name : "unknown",

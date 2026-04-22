@@ -60,7 +60,7 @@ describe("buildGeneratedDocumentRecordFromDraft", () => {
           subsections: [
             {
               title: "When It Applies",
-              body: "Use this subsection for hot-work planning.",
+              body: "Use this subsection for hot-work planning.\n\nFinish the subsection before the numbered controls begin.",
               bullets: ["Selected work includes welding or cutting."],
             },
           ],
@@ -78,6 +78,10 @@ describe("buildGeneratedDocumentRecordFromDraft", () => {
     expect(record.htmlPreview).not.toContain("<table>");
     expect(record.htmlPreview).toContain("<h2>1.0 Definitions</h2>");
     expect(record.htmlPreview).toContain("<h3>1.1 When It Applies</h3>");
+    expect(record.htmlPreview).toContain("<p>Use this subsection for hot-work planning.</p>");
+    expect(record.htmlPreview).toContain(
+      "<p>Finish the subsection before the numbered controls begin.</p>"
+    );
     expect(record.htmlPreview).toContain("<p>1.1.1 Selected work includes welding or cutting.</p>");
     expect(record.htmlPreview).not.toContain("<h2>2. Definitions</h2>");
   });

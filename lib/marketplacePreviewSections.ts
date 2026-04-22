@@ -121,7 +121,7 @@ function normalizeSectionTitle(line: string, fallbackIndex: number) {
     return formatSectionLabel(fallbackIndex);
   }
 
-  const stripped = trimmed.replace(/[:\-–—\s]+$/u, "").trim();
+  const stripped = trimmed.replace(/[:\-\u2013\u2014\s]+$/u, "").trim();
   return stripped || formatSectionLabel(fallbackIndex);
 }
 
@@ -140,7 +140,7 @@ function inferSectionTopic(lines: string[]) {
     }
 
     if (isLikelySectionHeading(line)) {
-      const heading = line.replace(/[:\-â€“â€”\s]+$/u, "").trim();
+      const heading = line.replace(/[:\-\u2013\u2014\s]+$/u, "").trim();
       if (!/^section\s+\d+$/i.test(heading)) {
         return heading;
       }

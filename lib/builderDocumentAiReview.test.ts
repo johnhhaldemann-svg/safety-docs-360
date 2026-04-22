@@ -32,4 +32,56 @@ describe("generateBuilderProgramAiReview", () => {
     expect(qualitySummary).toContain("lists the tasks directly");
     expect(noteSummary).toContain("list the task");
   });
+
+  it("returns a first-class missing-items checklist in completeness mode", async () => {
+    const { review } = await generateBuilderProgramAiReview({
+      documentText: "Steel erection scope. Crews will install structural steel and decking.",
+      programLabel: "CSEP",
+      projectName: "Riverfront Tower",
+      reviewMode: "csep_completeness",
+      siteReferenceFileName: "gc-logistics.pdf",
+      siteReferenceText:
+        "Emergency Procedures\nResponders enter through Gate 2 and crews report to the south assembly area.",
+      builderExpectationSummary: [
+        "Scope of Work: Describe the exact self-performed work and excluded interface trades.",
+        "Emergency Procedures: State 911 wording, responder access, and notification chain.",
+      ],
+    });
+
+    expect(review.reviewMode).toBe("csep_completeness");
+    expect(review.missingItemsChecklist.length).toBeGreaterThan(0);
+    expect(review.missingItemsChecklist.join("\n")).toContain("Could not verify");
+    expect(review.builderAlignmentNotes[0]).toContain("Scope of Work");
+    expect(review.sectionReviewNotes.length).toBeGreaterThan(0);
+    expect(review.sectionReviewNotes[0].sectionLabel.length).toBeGreaterThan(0);
+    expect(review.detailedFindings.length).toBeGreaterThan(0);
+    expect(review.detailedFindings[0].documentExample.length).toBeGreaterThan(0);
+    expect(review.detailedFindings[0].preferredExample.length).toBeGreaterThan(0);
+    expect(review.detailedFindings[0].referenceSupport?.length).toBeGreaterThan(0);
+    expect(review.detailedFindings[0].whyItMatters?.length).toBeGreaterThan(0);
+    expect(
+      review.missingItemsChecklist.some((item) =>
+        item.includes("reference document")
+      )
+    ).toBe(true);
+    expect(
+      review.detailedFindings.some((item) =>
+        item.referenceSupport?.includes("gc-logistics.pdf")
+      )
+    ).toBe(true);
+  });
+
+  it("treats thin extracted text as insufficient context in completeness mode", async () => {
+    const { review } = await generateBuilderProgramAiReview({
+      documentText: "Cover page only",
+      programLabel: "CSEP",
+      projectName: "Riverfront Tower",
+      reviewMode: "csep_completeness",
+    });
+
+    expect(review.overallAssessment).toBe("insufficient_context");
+    expect(review.missingItemsChecklist.some((item) => item.includes("Could not verify"))).toBe(
+      true
+    );
+  });
 });

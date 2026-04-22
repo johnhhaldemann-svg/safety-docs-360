@@ -89,7 +89,6 @@ function buildPairConflictItems(params: {
   const rightPermitTriggers = safeArray(rightRules.permitTriggers);
   const leftHazardFamilies = safeArray(leftRules.hazardFamilies);
   const rightHazardFamilies = safeArray(rightRules.hazardFamilies);
-  const leftWeatherRestrictions = safeArray(leftRules.weatherRestrictions);
   const permitDependencies = [
     ...leftPermitTriggers,
     ...rightPermitTriggers,

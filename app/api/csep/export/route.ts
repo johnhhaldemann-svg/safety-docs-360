@@ -830,6 +830,76 @@ function addCatalogProgramSection(
   });
 }
 
+const CATALOG_PROGRAM_GROUPS: Array<{
+  category: CSEPProgramSection["category"];
+  title: string;
+  summary: string;
+}> = [
+  {
+    category: "hazard",
+    title: "Hazard Control Programs",
+    summary: "The following hazard-control programs apply to the selected contractor work scope.",
+  },
+  {
+    category: "permit",
+    title: "Permit and Authorization Programs",
+    summary: "The following permit and authorization programs apply to the selected contractor work scope.",
+  },
+  {
+    category: "ppe",
+    title: "Personal Protective Equipment Programs",
+    summary: "The following PPE programs apply to the selected contractor work scope.",
+  },
+];
+
+function formatCatalogProgramSubsectionValue(
+  subsection: CSEPProgramSection["subsections"][number]
+) {
+  return [
+    ...(subsection.body?.trim() ? [subsection.body.trim()] : []),
+    ...(subsection.bullets ?? []).map((bullet) => bullet.trim()).filter(Boolean),
+  ]
+    .join(" ")
+    .trim();
+}
+
+function appendCatalogProgramGroups(
+  children: Paragraph[],
+  sectionNumber: number,
+  programSections: CSEPProgramSection[]
+) {
+  let nextSectionNumber = sectionNumber;
+
+  CATALOG_PROGRAM_GROUPS.forEach((group) => {
+    const groupedPrograms = programSections.filter((program) => program.category === group.category);
+    if (!groupedPrograms.length) return;
+
+    children.push(heading1(`${nextSectionNumber}. ${group.title}`));
+    children.push(body(group.summary));
+
+    groupedPrograms.forEach((program, programIndex) => {
+      const programPrefix = `${nextSectionNumber}.${programIndex + 1}`;
+      children.push(heading2(`${programPrefix} ${program.title}`));
+      children.push(body(program.summary));
+
+      program.subsections.forEach((subsection, subsectionIndex) => {
+        const value = formatCatalogProgramSubsectionValue(subsection);
+        if (!value) return;
+        children.push(
+          createCsepLabeledParagraph(subsection.title, value, {
+            prefix: `${programPrefix}.${subsectionIndex + 1}`,
+            indentLeft: 240,
+          })
+        );
+      });
+    });
+
+    nextSectionNumber += 1;
+  });
+
+  return nextSectionNumber;
+}
+
 async function buildDoc(form: CSEPInput) {
   if (form.layoutVariant === SURVEY_TEST_LAYOUT_VARIANT) {
     return buildSurveyTestDoc(form);
@@ -1221,11 +1291,7 @@ async function buildDoc(form: CSEPInput) {
 
   if (programSections.length) {
     children.push(createCsepPageBreak());
-
-    programSections.forEach((program) => {
-      addCatalogProgramSection(children, sectionNumber, program);
-      sectionNumber++;
-    });
+    sectionNumber = appendCatalogProgramGroups(children, sectionNumber, programSections);
   }
 
   if (includedContent.drug_and_alcohol_testing) {

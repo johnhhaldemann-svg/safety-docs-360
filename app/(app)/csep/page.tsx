@@ -2072,6 +2072,14 @@ export default function CSEPPage() {
                             Preview styled to match the clean steel-erection document format
                           </div>
                         </div>
+                        <div className="mt-6 rounded-2xl border-2 border-dashed border-[#4F81BD]/35 bg-slate-50 px-6 py-8 text-center">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#365F91]">
+                            Company Logo Placement
+                          </div>
+                          <div className="mt-2 text-sm text-slate-500">
+                            Insert contractor logo or approved company letterhead on the final CSEP cover.
+                          </div>
+                        </div>
                         <div className="mt-6 space-y-6">
                           {previewState.draft.sectionMap.map((section) => (
                             <CsepDraftSectionPreview key={`finish-${section.key}`} section={section} />
@@ -2365,7 +2373,7 @@ function SectionBucket({
 }
 
 function parseKeySectionBullet(bullet: string) {
-  const match = bullet.match(/^Key sections:\s*(.+)$/i);
+  const match = bullet.match(/^(?:Key sections|Review these sections first):\s*(.+?)(?:\.)?$/i);
   if (!match) return null;
 
   const options = match[1]
@@ -2386,7 +2394,7 @@ function parseKeySectionBullet(bullet: string) {
 }
 
 function parseInterfacesWithBullet(bullet: string) {
-  const match = bullet.match(/^Interfaces With:\s*(.+)$/i);
+  const match = bullet.match(/^(?:Interfaces With|Interfaces to coordinate):\s*(.+)$/i);
   return match?.[1]?.trim() || null;
 }
 
@@ -2403,7 +2411,7 @@ function ReferencePackDetailBullet({
     return (
       <div className="space-y-2">
         <div className="text-sm font-semibold leading-6 text-slate-700">
-          {numberedLabel} Interfaces With
+          {numberedLabel} Coordination Notes
         </div>
         <p className="text-sm leading-7 text-slate-700">{interfacesBody}</p>
       </div>
@@ -2428,7 +2436,7 @@ function KeySectionsBullet({ bullet }: { bullet: string }) {
   return (
     <div className="space-y-2">
       <div className="text-sm font-semibold leading-6 text-slate-700">
-        17.1.1 Key sections
+        17.1.1 Review Focus
       </div>
       <div className="space-y-1 pl-4">
         {options.map((option, index) => (
@@ -2445,9 +2453,102 @@ function KeySectionsBullet({ bullet }: { bullet: string }) {
 }
 
 function formatGeneratedSectionTableRow(columns: string[], row: string[]) {
-  return columns
-    .map((column, columnIndex) => `${column}: ${row[columnIndex]?.trim() || "N/A"}`)
-    .join(" ");
+  return columns.map((column, columnIndex) => ({
+    label: column.trim(),
+    value: row[columnIndex]?.trim() || "N/A",
+  }));
+}
+
+function splitReadableParagraphs(text: string) {
+  return text
+    .split(/\n{2,}/)
+    .flatMap((block) => {
+      const trimmedBlock = block.trim();
+      if (!trimmedBlock) {
+        return [];
+      }
+
+      const sentences = trimmedBlock
+        .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
+        .map((sentence) => sentence.trim())
+        .filter(Boolean);
+
+      if (sentences.length <= 2 && trimmedBlock.length <= 240) {
+        return [trimmedBlock];
+      }
+
+      const paragraphs: string[] = [];
+      let current = "";
+
+      for (const sentence of sentences) {
+        const candidate = current ? `${current} ${sentence}` : sentence;
+        if (!current || (current.length < 240 && candidate.length <= 320)) {
+          current = candidate;
+          continue;
+        }
+
+        paragraphs.push(current);
+        current = sentence;
+      }
+
+      if (current) {
+        paragraphs.push(current);
+      }
+
+      return paragraphs;
+    });
+}
+
+function GeneratedSectionCopy({ text }: { text: string }) {
+  const paragraphs = splitReadableParagraphs(text);
+
+  return (
+    <div className="mt-3 max-w-[74ch] space-y-3">
+      {paragraphs.map((paragraph, paragraphIndex) => (
+        <p
+          key={`${paragraph.slice(0, 24)}-${paragraphIndex}`}
+          className="whitespace-pre-wrap text-sm leading-7 text-slate-700"
+        >
+          {paragraph}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function GeneratedSectionTableRow({
+  columns,
+  row,
+  rowLabel,
+}: {
+  columns: string[];
+  row: string[];
+  rowLabel: string;
+}) {
+  const cells = formatGeneratedSectionTableRow(columns, row);
+
+  return (
+    <div className="rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        <span className="inline-flex w-fit min-w-[3.25rem] justify-center rounded-full border border-[#4F81BD]/20 bg-[#4F81BD]/8 px-2.5 py-1 text-xs font-bold tracking-[0.12em] text-[#365F91]">
+          {rowLabel}
+        </span>
+        <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-3">
+          {cells.map((cell) => (
+            <div
+              key={`${rowLabel}-${cell.label}`}
+              className="rounded-xl bg-slate-50 px-3 py-3"
+            >
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                {cell.label}
+              </div>
+              <div className="mt-1 text-sm leading-6 text-slate-700">{cell.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function CsepDraftSectionPreview({
@@ -2464,9 +2565,37 @@ function CsepDraftSectionPreview({
     return value.replace(/\.$/, "").split(".").filter(Boolean).length;
   }
 
-  const subsectionBulletTotal =
-    section.subsections?.reduce((acc, sub) => acc + (sub.bullets?.length ?? 0), 0) ?? 0;
-  const numberedItemsBeforeTable = (section.bullets?.length ?? 0) + subsectionBulletTotal;
+  function normalizeComparableText(value?: string | null) {
+    return sanitizeNumberedTitle(value ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  }
+
+  function shouldRenderSubsectionHeading(
+    subsection: NonNullable<GeneratedSafetyPlanDraft["sectionMap"][number]["subsections"]>[number]
+  ) {
+    const title = sanitizeNumberedTitle(subsection.title).trim();
+    if (!title) return false;
+    if (normalizeComparableText(title) === normalizeComparableText(section.title)) return false;
+
+    const comparableContent = Array.from(
+      new Set(
+        [subsection.body, ...subsection.bullets]
+          .map((value) => normalizeComparableText(value))
+          .filter(Boolean)
+      )
+    );
+
+    return !(comparableContent.length === 1 && comparableContent[0] === normalizeComparableText(title));
+  }
+
+  const topLevelSubsectionBulletTotal =
+    section.subsections?.reduce(
+      (acc, subsection) => acc + (shouldRenderSubsectionHeading(subsection) ? 0 : subsection.bullets.length),
+      0
+    ) ?? 0;
+  const numberedItemsBeforeTable = (section.bullets?.length ?? 0) + topLevelSubsectionBulletTotal;
 
   const sectionMetaLabel =
     section.kind === "front_matter"
@@ -2507,14 +2636,8 @@ function CsepDraftSectionPreview({
           </div>
         </div>
       </div>
-      {section.summary ? (
-        <p className="mt-3 text-sm leading-7 text-slate-700">{section.summary}</p>
-      ) : null}
-      {section.body ? (
-        <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-          {section.body}
-        </p>
-      ) : null}
+      {section.summary ? <GeneratedSectionCopy text={section.summary} /> : null}
+      {section.body ? <GeneratedSectionCopy text={section.body} /> : null}
       {section.bullets?.length ? (
         <div className="mt-3 space-y-2">
           {section.bullets.map((bullet, bulletIndex) => (
@@ -2525,23 +2648,25 @@ function CsepDraftSectionPreview({
               <span className="pt-0.5 text-right text-xs font-semibold tracking-[0.08em] text-[#4F81BD]">
                 {sectionPrefix ? `${sectionPrefix}.${bulletIndex + 1}` : `${bulletIndex + 1}.`}
               </span>
-              <p className="text-sm leading-7 text-slate-700">{bullet}</p>
+              <p className="max-w-[72ch] text-sm leading-7 text-slate-700">{bullet}</p>
             </div>
           ))}
         </div>
       ) : null}
       {section.subsections?.length ? (
         <div className="mt-5 space-y-5">
-          {section.subsections.map((subsection, subsectionIndex) => {
+          {(() => {
+            let runningTopLevelItemIndex = section.bullets?.length ?? 0;
+
+            return section.subsections.map((subsection, subsectionIndex) => {
             const subsectionPrefix = sectionPrefix
               ? `${sectionPrefix}.${subsectionIndex + 1}`
               : `${subsectionIndex + 1}`;
             const subsectionDepth = getNumberDepth(subsectionPrefix);
-            const subsectionHeading =
-              subsection.title.trim() &&
-              subsection.title.trim().toLowerCase() !== section.title.trim().toLowerCase()
-                ? `${subsectionPrefix} ${sanitizeNumberedTitle(subsection.title)}`
-                : null;
+            const showSubsectionHeading = shouldRenderSubsectionHeading(subsection);
+            const subsectionHeading = showSubsectionHeading
+              ? `${subsectionPrefix} ${sanitizeNumberedTitle(subsection.title)}`
+              : null;
 
             return (
               <div
@@ -2562,60 +2687,53 @@ function CsepDraftSectionPreview({
                     </div>
                   </div>
                 ) : null}
-                {subsection.body ? (
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                    {subsection.body}
-                  </p>
-                ) : null}
+                {subsection.body ? <GeneratedSectionCopy text={subsection.body} /> : null}
                 {subsection.bullets.length ? (
                   <div className="mt-2 space-y-2">
                     {subsection.bullets.map((bullet, bulletIndex) => (
-                      <div
-                        key={`${section.key}-subsection-${subsectionIndex}-bullet-${bulletIndex}`}
-                        className="grid grid-cols-[5rem_minmax(0,1fr)] items-start gap-3 rounded-xl bg-slate-50/70 px-3 py-2"
-                      >
-                        <span className="pt-0.5 text-right text-xs font-semibold tracking-[0.08em] text-[#4F81BD]">
-                          {subsectionHeading
-                            ? `${subsectionPrefix}.${bulletIndex + 1}`
-                            : sectionPrefix
-                              ? `${sectionPrefix}.${bulletIndex + 1}`
-                              : `${bulletIndex + 1}.`}
-                        </span>
-                        <ReferencePackDetailBullet
-                          bullet={bullet}
-                          numberedLabel={
-                            subsectionHeading
-                              ? `${subsectionPrefix}.${bulletIndex + 1}`
-                              : sectionPrefix
-                                ? `${sectionPrefix}.${bulletIndex + 1}`
-                                : `${bulletIndex + 1}`
-                          }
-                        />
-                      </div>
+                      (() => {
+                        const numberedLabel = subsectionHeading
+                          ? `${subsectionPrefix}.${bulletIndex + 1}`
+                          : (() => {
+                              runningTopLevelItemIndex += 1;
+                              return sectionPrefix
+                                ? `${sectionPrefix}.${runningTopLevelItemIndex}`
+                                : `${runningTopLevelItemIndex}`;
+                            })();
+
+                        return (
+                          <div
+                            key={`${section.key}-subsection-${subsectionIndex}-bullet-${bulletIndex}`}
+                            className="grid grid-cols-[5rem_minmax(0,1fr)] items-start gap-3 rounded-xl bg-slate-50/70 px-3 py-2"
+                          >
+                            <span className="pt-0.5 text-right text-xs font-semibold tracking-[0.08em] text-[#4F81BD]">
+                              {sectionPrefix || subsectionHeading ? numberedLabel : `${numberedLabel}.`}
+                            </span>
+                            <ReferencePackDetailBullet bullet={bullet} numberedLabel={numberedLabel} />
+                          </div>
+                        );
+                      })()
                     ))}
                   </div>
                 ) : null}
               </div>
             );
-          })}
+            });
+          })()}
         </div>
       ) : null}
       {section.table?.rows?.length ? (
-        <div className="mt-5 space-y-2">
+        <div className="mt-5 space-y-3">
           {section.table.rows.map((row, rowIndex) => {
             const n = numberedItemsBeforeTable + rowIndex + 1;
             const rowLabel = sectionPrefix ? `${sectionPrefix}.${n}` : `${n}.`;
-            const line = formatGeneratedSectionTableRow(section.table!.columns, row);
             return (
-              <div
+              <GeneratedSectionTableRow
                 key={`${section.key}-table-row-${rowIndex}`}
-                className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-3 rounded-xl bg-slate-50/70 px-3 py-2"
-              >
-                <span className="pt-0.5 text-right text-xs font-semibold tracking-[0.08em] text-[#4F81BD]">
-                  {rowLabel}
-                </span>
-                <p className="text-sm leading-7 text-slate-700">{line}</p>
-              </div>
+                columns={section.table!.columns}
+                row={row}
+                rowLabel={rowLabel}
+              />
             );
           })}
         </div>
@@ -2654,4 +2772,3 @@ function CsepCoverageAuditPanel({
     </div>
   );
 }
-

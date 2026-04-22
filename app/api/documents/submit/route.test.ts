@@ -14,6 +14,7 @@ const {
   generateCsepDocx,
   generatePshsepDocx,
   serverLog,
+  renderGeneratedCsepDocx,
 } = vi.hoisted(() => ({
   authorizeRequest: vi.fn(),
   getUserAgreementRecord: vi.fn(),
@@ -28,6 +29,7 @@ const {
   generateCsepDocx: vi.fn(),
   generatePshsepDocx: vi.fn(),
   serverLog: vi.fn(),
+  renderGeneratedCsepDocx: vi.fn(),
 }));
 
 vi.mock("@/lib/rbac", () => ({ authorizeRequest }));
@@ -59,6 +61,7 @@ vi.mock("@/app/api/pshsep/export/route", () => ({
   generatePshsepDocx,
 }));
 vi.mock("@/lib/serverLog", () => ({ serverLog }));
+vi.mock("@/lib/csepDocxRenderer", () => ({ renderGeneratedCsepDocx }));
 
 import { POST } from "./route";
 
@@ -122,6 +125,10 @@ describe("documents submit route", () => {
       body: new Uint8Array([1, 2, 3]),
       filename: "NorthCampus_CSEP_Draft.docx",
     });
+    renderGeneratedCsepDocx.mockResolvedValue({
+      body: new Uint8Array([1, 2, 3]),
+      filename: "NorthCampus_CSEP_Draft.docx",
+    });
 
     const response = await POST(
       new Request("https://example.com/api/documents/submit", {
@@ -158,7 +165,7 @@ describe("documents submit route", () => {
         sourceDocumentId: "doc-1",
       })
     );
-    expect(renderSafetyPlanDocx).toHaveBeenCalled();
+    expect(renderGeneratedCsepDocx).toHaveBeenCalled();
     expect(upload).toHaveBeenCalled();
   });
 
@@ -440,7 +447,7 @@ describe("documents submit route", () => {
       siteContext: { jobsiteId: null },
       builderInstructions: { builderInputHash: "hash-1" },
     });
-    renderSafetyPlanDocx.mockResolvedValue({
+    renderGeneratedCsepDocx.mockResolvedValue({
       body: new Uint8Array([4, 5, 6]),
       filename: "Preview_CSEP_Draft.docx",
     });
@@ -474,7 +481,7 @@ describe("documents submit route", () => {
       bucket_run_id: "bucket-preview-1",
     });
     expect(runSafetyPlanDocumentPipeline).not.toHaveBeenCalled();
-    expect(renderSafetyPlanDocx).toHaveBeenCalled();
+    expect(renderGeneratedCsepDocx).toHaveBeenCalled();
     expect(syncGeneratedTrainingRequirements).toHaveBeenCalledWith(
       expect.objectContaining({
         companyId: "company-1",
@@ -482,6 +489,120 @@ describe("documents submit route", () => {
       })
     );
     expect(upload).toHaveBeenCalled();
+  });
+
+  it("returns a conflict instead of a generic 500 when final CSEP export validation fails", async () => {
+    const insertSingle = vi.fn().mockResolvedValue({
+      data: { id: "doc-preview-submit" },
+      error: null,
+    });
+    const insertSelect = vi.fn().mockReturnValue({ single: insertSingle });
+    const insert = vi.fn().mockReturnValue({ select: insertSelect });
+    const updateEq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+    const deleteEq = vi.fn().mockResolvedValue({ error: null });
+    const deleteTable = vi.fn().mockReturnValue({ eq: deleteEq });
+    const previewSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: "generated-preview-1",
+        company_id: "company-1",
+        created_by: "user-1",
+        document_type: "csep",
+        bucket_run_id: "bucket-preview-1",
+        provenance: {
+          builderInputHash: "hash-1",
+        },
+        draft_json: {
+          sectionMap: [],
+          trainingProgram: {
+            rows: [],
+            summaryTrainingTitles: [],
+          },
+        },
+      },
+      error: null,
+    });
+    const previewEq = vi.fn().mockReturnValue({ single: previewSingle });
+    const previewSelect = vi.fn().mockReturnValue({ eq: previewEq });
+    const from = vi.fn((table: string) => {
+      if (table === "documents") {
+        return {
+          insert,
+          update,
+          delete: deleteTable,
+        };
+      }
+      if (table === "company_generated_documents") {
+        return {
+          select: previewSelect,
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    const supabase = {
+      from,
+      storage: {
+        from: vi.fn(),
+      },
+    };
+
+    authorizeRequest.mockResolvedValue({
+      supabase,
+      user: { id: "user-1", user_metadata: {} },
+      team: null,
+    });
+    getUserAgreementRecord.mockResolvedValue({
+      data: {
+        accepted_terms: true,
+        terms_version: "v1",
+      },
+    });
+    getAgreementConfig.mockResolvedValue({ version: "v1" });
+    getDefaultAgreementConfig.mockReturnValue({ version: "v1" });
+    getCompanyScope.mockResolvedValue({ companyId: "company-1" });
+    buildRiskMemoryStructuredContext.mockResolvedValue(null);
+    ensureSafetyPlanGenerationContext.mockReturnValue({
+      documentProfile: { documentType: "csep", projectDeliveryType: "ground_up" },
+      siteContext: { jobsiteId: null },
+      builderInstructions: { builderInputHash: "hash-1" },
+    });
+    renderGeneratedCsepDocx.mockRejectedValue(
+      new Error(
+        "CSEP export validation failed: unresolved placeholder content remains in final export."
+      )
+    );
+
+    const response = await POST(
+      new Request("https://example.com/api/documents/submit", {
+        method: "POST",
+        body: JSON.stringify({
+          document_type: "CSEP",
+          project_name: "Preview Campus",
+          generated_document_id: "generated-preview-1",
+          builder_input_hash: "hash-1",
+          form_data: {
+            trade: "Mechanical",
+          },
+        }),
+      })
+    );
+
+    if (!response) {
+      throw new Error("Expected a response.");
+    }
+
+    const body = await response.json();
+    expect(response.status).toBe(409);
+    expect(body.error).toContain("not ready for final issue");
+    expect(body.error).toContain("unresolved placeholder content remains in final export");
+    expect(deleteEq).toHaveBeenCalledWith("id", "doc-preview-submit");
+    expect(serverLog).toHaveBeenCalledWith(
+      "warn",
+      "document_submit_public_error",
+      expect.objectContaining({
+        status: 409,
+      })
+    );
   });
 
   it("rejects a stale approved preview hash before creating a document row", async () => {

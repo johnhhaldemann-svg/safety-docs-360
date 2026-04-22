@@ -11,10 +11,12 @@ import type {
 } from "@/types/safety-intelligence";
 import { CSEP_BUILDER_BLOCK_TITLES } from "@/lib/csepBuilder";
 import { buildCsepProgramSections } from "@/lib/csepPrograms";
+import { getHazardModules } from "@/lib/hazardModules";
 import {
   applyJurisdictionStandardsToCsep,
   applyJurisdictionStandardsToPeshep,
 } from "@/lib/jurisdictionStandards/apply";
+import { getSiteManagementTaskModules } from "@/lib/siteManagementTaskModules";
 import { SITE_SAFETY_BLUEPRINT_TITLE } from "@/lib/safetyBlueprintLabels";
 import {
   cleanFinalText,
@@ -28,6 +30,9 @@ import {
   buildSteelErectionOverlaySections,
   buildSteelErectionPlan,
 } from "@/lib/steelErectionPlan";
+import { getSteelErectionHazardModules } from "@/lib/steelErectionHazardModules";
+import { getSteelErectionProgramModules } from "@/lib/steelErectionProgramModules";
+import { getSteelErectionTaskModules } from "@/lib/steelErectionTaskModules";
 import {
   getTradeConflictProfile,
   projectDeliveryTypeLabel,
@@ -793,28 +798,325 @@ type SteelProgramModuleContextRow = {
   matchedReasons: string[];
 };
 
+type ParsedReferencePackDoc = {
+  introLines: string[];
+  sections: Array<{
+    heading: string;
+    text: string;
+  }>;
+};
+
 function referencePackKeySections(sectionHeadings: string[]) {
-  return sentenceList(sectionHeadings.slice(0, 3), "Section headings not parsed");
+  return sentenceList(sectionHeadings.slice(0, 3), "module scope, main exposures, and critical controls");
 }
 
 function referencePackInterfacesWith(taskNames: string[], fallback: string) {
   const interfaces = sentenceList(taskNames, fallback);
-  return `Interfaces With: This module interfaces with other site management activities including ${interfaces}. Coordination between these activities is necessary to maintain safe and efficient site operations.`;
+  return `Interfaces to coordinate: ${interfaces}. Use this module to align sequence, access, and handoffs with that work.`;
 }
 
-function buildReferencePackSubsections<
-  T extends {
-    title: string;
-    summary: string;
-    sourceFilename: string;
-    sectionHeadings: string[];
-  },
->(items: T[], detailLines: (item: T) => string[]): GeneratedSafetyPlanSubsection[] {
-  return items.map((item) => ({
+function referencePackReviewFocus(sectionHeadings: string[]) {
+  return `Review these sections first: ${referencePackKeySections(sectionHeadings)}.`;
+}
+
+function humanizeReferencePackReason(reason: string) {
+  const match = reason.match(/^([^:]+):\s*(.+)$/);
+  if (!match) return reason;
+
+  const [, rawLabel, rawValue] = match;
+  const label = rawLabel.trim().toLowerCase();
+  const value = rawValue.trim();
+
+  switch (label) {
+    case "hazard":
+      return `the hazard ${value}`;
+    case "permit":
+      return `the ${value}`;
+    case "task keyword":
+      return `tasks involving ${value}`;
+    case "trade keyword":
+      return `the ${value} trade scope`;
+    case "sub-trade keyword":
+      return `the ${value} sub-trade scope`;
+    case "program selection":
+      return `the selected program ${value}`;
+    default:
+      return value;
+  }
+}
+
+function referencePackInclusionReason(matchedReasons: string[], fallback: string) {
+  const reasons = matchedReasons.length
+    ? matchedReasons.map(humanizeReferencePackReason)
+    : [fallback];
+
+  return `Included for this scope based on ${sentenceList(reasons, fallback)}.`;
+}
+
+function buildModuleLookup<T extends { moduleKey: string }>(items: T[]) {
+  return new Map(items.map((item) => [item.moduleKey, item]));
+}
+
+function mergeReferencePackContext<T extends {
+  moduleKey: string;
+  title: string;
+  summary: string;
+  sectionHeadings: string[];
+  plainText: string;
+  sourceFilename: string;
+}>(
+  item: T,
+  fullModule: Partial<T> | undefined
+) {
+  return {
+    ...item,
+    title: textOrNull(fullModule?.title) ?? item.title,
+    summary: textOrNull(fullModule?.summary) ?? item.summary,
+    sectionHeadings: stringList(fullModule?.sectionHeadings ?? item.sectionHeadings),
+    plainText: textOrNull(fullModule?.plainText) ?? item.plainText,
+    sourceFilename: textOrNull(fullModule?.sourceFilename) ?? item.sourceFilename,
+  };
+}
+
+function parseReferencePackPlainText(plainText: string): ParsedReferencePackDoc {
+  const lines = plainText
+    .split("\n")
+    .map((line) => cleanFinalText(line))
+    .filter((line): line is string => Boolean(line));
+  const sections: ParsedReferencePackDoc["sections"] = [];
+  const introLines: string[] = [];
+  let currentSection: { heading: string; lines: string[] } | null = null;
+
+  for (const line of lines) {
+    if (/^reference language/i.test(line) || /^applicable osha references/i.test(line)) {
+      break;
+    }
+
+    if (/^\d+\.\s+/.test(line)) {
+      if (currentSection?.lines.length) {
+        sections.push({
+          heading: currentSection.heading,
+          text: currentSection.lines.join(" "),
+        });
+      }
+
+      currentSection = {
+        heading: line.replace(/^\d+\.\s+/, "").trim(),
+        lines: [],
+      };
+      continue;
+    }
+
+    if (currentSection) {
+      currentSection.lines.push(line);
+      continue;
+    }
+
+    introLines.push(line);
+  }
+
+  if (currentSection?.lines.length) {
+    sections.push({
+      heading: currentSection.heading,
+      text: currentSection.lines.join(" "),
+    });
+  }
+
+  return {
+    introLines,
+    sections,
+  };
+}
+
+function findReferencePackSectionText(
+  parsed: ParsedReferencePackDoc,
+  keywords: string[]
+) {
+  const normalizedKeywords = keywords.map((keyword) => normalizeToken(keyword));
+  const matched = parsed.sections.find((section) =>
+    normalizedKeywords.some((keyword) => normalizeToken(section.heading).includes(keyword))
+  );
+
+  return matched?.text ?? null;
+}
+
+function directiveSnippet(value: string | null | undefined, maxLength = 220) {
+  const compacted = compactText(value, maxLength);
+  if (!compacted) return null;
+
+  return compacted
+    .replace(/\bshould\b/gi, "must")
+    .replace(/\bmay require\b/gi, "can require")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function summaryWithoutTrailingPeriod(value: string) {
+  return value.replace(/[.:\s]+$/g, "").trim();
+}
+
+function referencePackTriggerLine(
+  detail: string,
+  sectionHeadings: string[]
+) {
+  return `Trigger / reference: ${detail} Review these sections first: ${referencePackKeySections(sectionHeadings)}.`;
+}
+
+function buildModuleBody(summary: string, parsed: ParsedReferencePackDoc) {
+  const overview = directiveSnippet(
+    combineUniqueText(summary, parsed.introLines.slice(2).join(" ")),
+    320
+  ) ?? summary;
+
+  return overview.trim();
+}
+
+function buildControlModuleSubsection(item: TaskModuleContextRow): GeneratedSafetyPlanSubsection {
+  const parsed = parseReferencePackPlainText(item.plainText);
+  const planningText = findReferencePackSectionText(parsed, [
+    "Work Planning Steps",
+    "Pre-Task & Pre-Construction",
+  ]);
+  const controlsText = combineUniqueText(
+    findReferencePackSectionText(parsed, ["Risks & Hazards", "Hazards & Controls"]),
+    findReferencePackSectionText(parsed, ["Structural Stability"]),
+    findReferencePackSectionText(parsed, ["Required Equipment"]),
+    findReferencePackSectionText(parsed, ["Connecting & Decking"])
+  );
+  const permitsText = findReferencePackSectionText(parsed, ["Required Permits"]);
+  const relatedText = findReferencePackSectionText(parsed, ["Trades Most Affected"]);
+  const triggerLine = referencePackTriggerLine(
+    `apply when ${sentenceList(item.taskNames, "site setup")} is active.`,
+    item.sectionHeadings
+  );
+
+  return {
     title: item.title,
-    body: item.summary,
-    bullets: [...detailLines(item), `Source document: ${item.sourceFilename}`],
-  }));
+    body: buildModuleBody(item.summary, parsed),
+    bullets: [
+      `Purpose: Use this control module to direct ${summaryWithoutTrailingPeriod(item.summary)}. The superintendent or foreman briefs it before the affected crew, delivery team, or visitor movement starts.`,
+      `Applicability / trigger logic: Apply this module whenever ${sentenceList(item.taskNames, "site setup")} is in the active plan, when routes or restricted areas change, or when adjacent work creates a new interface that must be controlled.`,
+      `Pre-start verification: Verify the work area, access and egress route, restricted boundaries, equipment, signage or barricades, and adjacent-trade interfaces before the shift starts. ${directiveSnippet(planningText) ?? "Do not proceed until the foreman or competent person confirms the setup matches the plan."}`,
+      `Required controls during the work: Establish the boundary, maintain clear routes, keep the control in place as the work front changes, and stop crews from bypassing the control. ${directiveSnippet(controlsText, 240) ?? "Maintain the assigned control until the hazard or interface is removed and the area is formally released."}`,
+      `Required permits and PPE if triggered: Confirm whether this control affects traffic, public access, right-of-way, utility, lift, or owner-security permits before work starts. Inspect required PPE before use and do not proceed if project-required PPE is missing or damaged. ${directiveSnippet(permitsText) ?? ""}`.trim(),
+      "Stop-work triggers / hold points: Stop work if the route, barrier, fencing, gate, signage, lighting, or support condition no longer matches the plan, if unauthorized personnel enter the controlled area, or if surrounding work changes the exposure. Restart only after the foreman or competent person re-inspects the area and re-establishes the control.",
+      "Verification / documentation: Document the pre-task brief, inspections, route or boundary changes, permits, and corrective actions for this module. The superintendent, foreman, or competent person verifies the condition at start-up, after any change, and before the area is released.",
+      `Related tasks / interfaces: Coordinate with ${sentenceList(item.taskNames, "site setup")}. Also coordinate deliveries, pedestrian traffic, equipment movement, emergency access, and follow-on crews affected by this control. ${directiveSnippet(relatedText) ?? ""}`.trim(),
+      triggerLine,
+    ],
+  };
+}
+
+function buildHazardModuleSubsection(
+  item: HazardModuleContextRow | SteelHazardModuleContextRow,
+  scopeFallback: string
+): GeneratedSafetyPlanSubsection {
+  const parsed = parseReferencePackPlainText(item.plainText);
+  const planningText = findReferencePackSectionText(parsed, [
+    "Work Planning Steps",
+    "Pre-Task & Pre-Construction",
+  ]);
+  const controlsText = combineUniqueText(
+    findReferencePackSectionText(parsed, ["Risks & Hazards", "Hazards & Controls"]),
+    findReferencePackSectionText(parsed, ["Structural Stability"]),
+    findReferencePackSectionText(parsed, ["Connecting & Decking"]),
+    findReferencePackSectionText(parsed, ["Required Equipment"])
+  );
+  const permitsText = findReferencePackSectionText(parsed, [
+    "Required Permits",
+    "Permit / Approval Triggers",
+  ]);
+  const relatedText = findReferencePackSectionText(parsed, ["Trades Most Affected"]);
+  const triggerLine = referencePackTriggerLine(
+    `${referencePackInclusionReason(item.matchedReasons, scopeFallback).replace(/\.$/, "")}.`,
+    item.sectionHeadings
+  );
+
+  return {
+    title: item.title,
+    body: buildModuleBody(item.summary, parsed),
+    bullets: [
+      `Purpose: Use this hazard module to control ${summaryWithoutTrailingPeriod(item.summary)}. The competent person or foreman briefs the exposure and the control method before the crew enters the area.`,
+      `Applicability / trigger logic: Apply this module whenever the selected task, permit, trade scope, or adjacent interface creates this exposure. Activate it again whenever field conditions change during the shift.`,
+      `Pre-start verification: Inspect the hazard area, confirm the exposure is correctly identified, verify the control method, and confirm who owns the stop-work decision before exposure begins. ${directiveSnippet(planningText) ?? "Do not proceed until the competent person confirms the hazard controls match the actual field condition."}`,
+      `Required controls during the work: Establish the hazard boundary, maintain the selected controls, keep non-essential personnel out of the exposure zone, and correct drift immediately when field conditions change. ${directiveSnippet(controlsText, 240) ?? "Maintain the assigned control until the exposure is removed and the area is formally released."}`,
+      `Required permits and PPE if triggered: Confirm whether this exposure triggers a permit, engineered approval, rescue plan, or owner authorization before work starts. Inspect required PPE before use and do not proceed if the permit or PPE is missing, incompatible, or damaged. ${directiveSnippet(permitsText) ?? ""}`.trim(),
+      "Stop-work triggers / hold points: Stop work if the exposure expands, if the control method fails, if the supporting structure or access route changes, if unauthorized personnel enter the zone, or if weather, visibility, or sequencing conditions no longer match the plan. Restart only after the competent person re-verifies the area and releases the work.",
+      "Verification / documentation: Document the hazard assessment, inspections, permits, corrective actions, and release status for this module. The foreman or competent person verifies the condition at start-up, after any change, and before follow-on work enters the area.",
+      `Related tasks / interfaces: Coordinate this module with the active work face, access routes, hoisting paths, affected trades, and any follow-on crew that could inherit the exposure. ${directiveSnippet(relatedText) ?? ""}`.trim(),
+      triggerLine,
+    ],
+  };
+}
+
+function buildSteelTaskModuleSubsection(item: SteelTaskModuleContextRow): GeneratedSafetyPlanSubsection {
+  const parsed = parseReferencePackPlainText(item.plainText);
+  const planningText = findReferencePackSectionText(parsed, [
+    "Pre-Task & Pre-Construction Planning",
+    "Work Planning Steps",
+  ]);
+  const controlsText = combineUniqueText(
+    findReferencePackSectionText(parsed, ["Required Equipment and Access"]),
+    findReferencePackSectionText(parsed, ["Hazards & Controls"]),
+    findReferencePackSectionText(parsed, ["Structural Stability / Sequence Controls"])
+  );
+  const permitsText = findReferencePackSectionText(parsed, ["Permit / Approval Triggers"]);
+  const closeoutText = findReferencePackSectionText(parsed, [
+    "Inspection, Acceptance, and Closeout",
+  ]);
+  const triggerLine = referencePackTriggerLine(
+    `apply when ${sentenceList(item.taskNames, "the active steel-erection sequence")} is active.`,
+    item.sectionHeadings
+  );
+
+  return {
+    title: item.title,
+    body: buildModuleBody(item.summary, parsed),
+    bullets: [
+      `Purpose: Use this task module to direct ${summaryWithoutTrailingPeriod(item.summary)}. The superintendent or foreman briefs the sequence, access point, and handoff condition before the first crew member starts the task.`,
+      `Applicability / trigger logic: Apply this module whenever ${sentenceList(item.taskNames, "the active steel-erection sequence")} is in the work plan, when the crew changes phase, or when the next crew depends on the handoff condition created by this task.`,
+      `Pre-start verification: Verify the sequence, support steel, access point, material staging, equipment, communications, and rescue path before work starts. ${directiveSnippet(planningText) ?? "Do not proceed until the foreman and competent person confirm the work face matches the planned sequence."}`,
+      `Required controls during the work: Establish the work zone, maintain the sequence, control access, protect workers below, and keep the task stable for the next step before release. ${directiveSnippet(controlsText, 240) ?? "Maintain the required task controls until the crew reaches the planned stable condition and the area is formally handed off."}`,
+      `Required permits and PPE if triggered: Confirm whether this task requires lift planning, hot-work approval, leading-edge release, engineered review, or owner authorization before work starts. Inspect task-specific PPE before use and do not proceed if required PPE is missing or damaged. ${directiveSnippet(permitsText) ?? ""}`.trim(),
+      "Stop-work triggers / hold points: Stop work if the sequence changes without review, if support steel or access is not ready, if communications are lost, if required controls or permits are missing, or if the crew cannot maintain the planned stable condition. Restart only after the foreman or competent person re-verifies the work face and releases the next step.",
+      `Verification / documentation: Document the pre-task brief, inspections, permits, deviations, corrective actions, and handoff status for this task. ${directiveSnippet(closeoutText) ?? "The foreman documents what is complete, what remains restricted, and what the next crew may rely on before the area is released."}`,
+      `Related tasks / interfaces: Coordinate with ${sentenceList(item.taskNames, "the steel-erection sequence")}, the crane crew, riggers, connectors, deck crews, and any follow-on trade affected by the handoff condition created by this task.`,
+      triggerLine,
+    ],
+  };
+}
+
+function buildSteelProgramModuleSubsection(item: SteelProgramModuleContextRow): GeneratedSafetyPlanSubsection {
+  const parsed = parseReferencePackPlainText(item.plainText);
+  const rolesText = findReferencePackSectionText(parsed, ["Roles and Responsibilities"]);
+  const planningText = findReferencePackSectionText(parsed, [
+    "Required Pre-Task Steps and Field Procedure",
+    "Program Purpose and Applicability",
+  ]);
+  const documentationText = findReferencePackSectionText(parsed, [
+    "Documentation and Records",
+    "Review, Retraining, and Program Updates",
+  ]);
+  const triggerLine = referencePackTriggerLine(
+    `${referencePackInclusionReason(item.matchedReasons, "the current steel-erection scope").replace(/\.$/, "")}.`,
+    item.sectionHeadings
+  );
+
+  return {
+    title: item.title,
+    body: buildModuleBody(item.summary, parsed),
+    bullets: [
+      `Purpose: Use this high-risk program module to direct ${summaryWithoutTrailingPeriod(item.summary)}. The superintendent, foreman, and competent person assign ownership before the exposed work starts.`,
+      "Applicability / trigger logic: Apply this program before the first shift that exposes the crew to the covered condition and keep it active until the superintendent, foreman, or competent person formally releases the work face.",
+      `Pre-start verification: Verify responsible roles, communications, rescue or response path, equipment staging, permits, and the exact work face covered by the program before the shift starts. ${directiveSnippet(combineUniqueText(rolesText, planningText)) ?? "Do not proceed until program ownership, access limits, and the daily field procedure have been confirmed."}`,
+      `Required controls during the work: Establish the program boundary, maintain the assigned sequence, keep unauthorized personnel out of the area, and enforce the daily field procedure exactly as briefed. ${directiveSnippet(planningText, 240) ?? "Maintain the program controls until the exposed condition is closed and the area is formally released."}`,
+      "Required permits and PPE if triggered: Confirm whether this program requires a rescue plan, lift plan, hot-work permit, engineered approval, owner authorization, or specialty PPE before work starts. Inspect required PPE before use and do not proceed if permits, rescue capability, or PPE are missing or damaged.",
+      "Stop-work triggers / hold points: Stop work if the responsible roles are not staffed, if rescue or communication capability is unavailable, if access control fails, if the exposed condition changes without review, or if the program approvals are not active. Restart only after project leadership re-verifies the program and reauthorizes the work.",
+      `Verification / documentation: Document the daily brief, inspections, permit package, drill or rescue readiness, deviations, corrective actions, and release status for this program. ${directiveSnippet(documentationText) ?? "The superintendent, foreman, or competent person verifies the records before the next shift or follow-on crew proceeds."}`,
+      "Related tasks / interfaces: Coordinate this program with the steel-erection sequence, controlling contractor, crane and access crews, adjacent trades, and emergency responders supporting the exposed condition.",
+      triggerLine,
+    ],
+  };
 }
 
 function getTaskModulesFromGenerationContext(
@@ -822,24 +1124,30 @@ function getTaskModulesFromGenerationContext(
 ): TaskModuleContextRow[] {
   const metadata = (generationContext.siteContext.metadata ?? {}) as Record<string, unknown>;
   if (!Array.isArray(metadata.taskModules)) return [];
+  const fullModules = buildModuleLookup(getSiteManagementTaskModules());
 
   return metadata.taskModules
     .filter(
       (item): item is Record<string, unknown> =>
         Boolean(item) && typeof item === "object" && !Array.isArray(item)
     )
-    .map((item) => ({
-      title: textOrNull(item.title) ?? "Task module",
-      moduleKey:
-        textOrNull(item.moduleKey) ??
-        "task_module",
-      subTrade: textOrNull(item.subTrade) ?? "Unspecified",
-      taskNames: stringList(item.taskNames),
-      summary: textOrNull(item.summary) ?? "No summary provided.",
-      sectionHeadings: stringList(item.sectionHeadings),
-      plainText: textOrNull(item.plainText) ?? "",
-      sourceFilename: textOrNull(item.sourceFilename) ?? "Unknown source",
-    }))
+    .map((item) =>
+      mergeReferencePackContext(
+        {
+          title: textOrNull(item.title) ?? "Task module",
+          moduleKey:
+            textOrNull(item.moduleKey) ??
+            "task_module",
+          subTrade: textOrNull(item.subTrade) ?? "Unspecified",
+          taskNames: stringList(item.taskNames),
+          summary: textOrNull(item.summary) ?? "No summary provided.",
+          sectionHeadings: stringList(item.sectionHeadings),
+          plainText: textOrNull(item.plainText) ?? "",
+          sourceFilename: textOrNull(item.sourceFilename) ?? "Unknown source",
+        },
+        fullModules.get(textOrNull(item.moduleKey) ?? "")
+      )
+    )
     .filter((item) => item.title && item.summary);
 }
 
@@ -857,10 +1165,7 @@ function buildTaskModulesReferenceSection(
       "Task modules attached for the selected scope. This pack auto-applies when Site setup is selected in General Conditions / Site Management.",
       inlineOshaRefs
     ),
-    subsections: buildReferencePackSubsections(taskModules, (item) => [
-      referencePackInterfacesWith(item.taskNames, "Site setup"),
-      `Key sections: ${referencePackKeySections(item.sectionHeadings)}`,
-    ]),
+    subsections: taskModules.map((item) => buildControlModuleSubsection(item)),
   };
 }
 
@@ -869,23 +1174,29 @@ function getHazardModulesFromGenerationContext(
 ): HazardModuleContextRow[] {
   const metadata = (generationContext.siteContext.metadata ?? {}) as Record<string, unknown>;
   if (!Array.isArray(metadata.hazardModules)) return [];
+  const fullModules = buildModuleLookup(getHazardModules());
 
   return metadata.hazardModules
     .filter(
       (item): item is Record<string, unknown> =>
         Boolean(item) && typeof item === "object" && !Array.isArray(item)
     )
-    .map((item) => ({
-      title: textOrNull(item.title) ?? "Hazard module",
-      moduleKey:
-        textOrNull(item.moduleKey) ??
-        "hazard_module",
-      summary: textOrNull(item.summary) ?? "No summary provided.",
-      sectionHeadings: stringList(item.sectionHeadings),
-      plainText: textOrNull(item.plainText) ?? "",
-      sourceFilename: textOrNull(item.sourceFilename) ?? "Unknown source",
-      matchedReasons: stringList(item.matchedReasons),
-    }))
+    .map((item) =>
+      mergeReferencePackContext(
+        {
+          title: textOrNull(item.title) ?? "Hazard module",
+          moduleKey:
+            textOrNull(item.moduleKey) ??
+            "hazard_module",
+          summary: textOrNull(item.summary) ?? "No summary provided.",
+          sectionHeadings: stringList(item.sectionHeadings),
+          plainText: textOrNull(item.plainText) ?? "",
+          sourceFilename: textOrNull(item.sourceFilename) ?? "Unknown source",
+          matchedReasons: stringList(item.matchedReasons),
+        },
+        fullModules.get(textOrNull(item.moduleKey) ?? "")
+      )
+    )
     .filter((item) => item.title && item.summary);
 }
 
@@ -903,10 +1214,9 @@ function buildHazardModulesReferenceSection(
       "Matched hazard modules attached for the current CSEP hazards, permits, tasks, and trade selection.",
       inlineOshaRefs
     ),
-    subsections: buildReferencePackSubsections(hazardModules, (item) => [
-      `Why attached: ${sentenceList(item.matchedReasons, "Matched to current CSEP selection")}`,
-      `Key sections: ${referencePackKeySections(item.sectionHeadings)}`,
-    ]),
+    subsections: hazardModules.map((item) =>
+      buildHazardModuleSubsection(item, "the current CSEP scope")
+    ),
   };
 }
 
@@ -915,23 +1225,29 @@ function getSteelTaskModulesFromGenerationContext(
 ): SteelTaskModuleContextRow[] {
   const metadata = (generationContext.siteContext.metadata ?? {}) as Record<string, unknown>;
   if (!Array.isArray(metadata.steelTaskModules)) return [];
+  const fullModules = buildModuleLookup(getSteelErectionTaskModules());
 
   return metadata.steelTaskModules
     .filter(
       (item): item is Record<string, unknown> =>
         Boolean(item) && typeof item === "object" && !Array.isArray(item)
     )
-    .map((item) => ({
-      title: textOrNull(item.title) ?? "Steel task module",
-      moduleKey: textOrNull(item.moduleKey) ?? "steel_task_module",
-      trade: textOrNull(item.trade),
-      subTrade: textOrNull(item.subTrade),
-      taskNames: stringList(item.taskNames),
-      summary: textOrNull(item.summary) ?? "No summary provided.",
-      sectionHeadings: stringList(item.sectionHeadings),
-      plainText: textOrNull(item.plainText) ?? "",
-      sourceFilename: textOrNull(item.sourceFilename) ?? "Unknown source",
-    }))
+    .map((item) =>
+      mergeReferencePackContext(
+        {
+          title: textOrNull(item.title) ?? "Steel task module",
+          moduleKey: textOrNull(item.moduleKey) ?? "steel_task_module",
+          trade: textOrNull(item.trade),
+          subTrade: textOrNull(item.subTrade),
+          taskNames: stringList(item.taskNames),
+          summary: textOrNull(item.summary) ?? "No summary provided.",
+          sectionHeadings: stringList(item.sectionHeadings),
+          plainText: textOrNull(item.plainText) ?? "",
+          sourceFilename: textOrNull(item.sourceFilename) ?? "Unknown source",
+        },
+        fullModules.get(textOrNull(item.moduleKey) ?? "")
+      )
+    )
     .filter((item) => item.title && item.summary);
 }
 
@@ -949,10 +1265,7 @@ function buildSteelTaskModulesReferenceSection(
       "Steel-erection task modules attached for the active sequence, pre-task planning, access, and handoff guidance.",
       inlineOshaRefs
     ),
-    subsections: buildReferencePackSubsections(taskModules, (item) => [
-      referencePackInterfacesWith(item.taskNames, "Steel erection sequence"),
-      `Key sections: ${referencePackKeySections(item.sectionHeadings)}`,
-    ]),
+    subsections: taskModules.map((item) => buildSteelTaskModuleSubsection(item)),
   };
 }
 
@@ -961,21 +1274,27 @@ function getSteelHazardModulesFromGenerationContext(
 ): SteelHazardModuleContextRow[] {
   const metadata = (generationContext.siteContext.metadata ?? {}) as Record<string, unknown>;
   if (!Array.isArray(metadata.steelHazardModules)) return [];
+  const fullModules = buildModuleLookup(getSteelErectionHazardModules());
 
   return metadata.steelHazardModules
     .filter(
       (item): item is Record<string, unknown> =>
         Boolean(item) && typeof item === "object" && !Array.isArray(item)
     )
-    .map((item) => ({
-      title: textOrNull(item.title) ?? "Steel hazard module",
-      moduleKey: textOrNull(item.moduleKey) ?? "steel_hazard_module",
-      summary: textOrNull(item.summary) ?? "No summary provided.",
-      sectionHeadings: stringList(item.sectionHeadings),
-      plainText: textOrNull(item.plainText) ?? "",
-      sourceFilename: textOrNull(item.sourceFilename) ?? "Unknown source",
-      matchedReasons: stringList(item.matchedReasons),
-    }))
+    .map((item) =>
+      mergeReferencePackContext(
+        {
+          title: textOrNull(item.title) ?? "Steel hazard module",
+          moduleKey: textOrNull(item.moduleKey) ?? "steel_hazard_module",
+          summary: textOrNull(item.summary) ?? "No summary provided.",
+          sectionHeadings: stringList(item.sectionHeadings),
+          plainText: textOrNull(item.plainText) ?? "",
+          sourceFilename: textOrNull(item.sourceFilename) ?? "Unknown source",
+          matchedReasons: stringList(item.matchedReasons),
+        },
+        fullModules.get(textOrNull(item.moduleKey) ?? "")
+      )
+    )
     .filter((item) => item.title && item.summary);
 }
 
@@ -993,10 +1312,9 @@ function buildSteelHazardModulesReferenceSection(
       "Matched steel-erection hazard modules attached for the current scope, hazards, permits, and high-risk focus areas.",
       inlineOshaRefs
     ),
-    subsections: buildReferencePackSubsections(hazardModules, (item) => [
-      `Why attached: ${sentenceList(item.matchedReasons, "Matched to current steel work selection")}`,
-      `Key sections: ${referencePackKeySections(item.sectionHeadings)}`,
-    ]),
+    subsections: hazardModules.map((item) =>
+      buildHazardModuleSubsection(item, "the current steel-erection scope")
+    ),
   };
 }
 
@@ -1005,21 +1323,27 @@ function getSteelProgramModulesFromGenerationContext(
 ): SteelProgramModuleContextRow[] {
   const metadata = (generationContext.siteContext.metadata ?? {}) as Record<string, unknown>;
   if (!Array.isArray(metadata.steelProgramModules)) return [];
+  const fullModules = buildModuleLookup(getSteelErectionProgramModules());
 
   return metadata.steelProgramModules
     .filter(
       (item): item is Record<string, unknown> =>
         Boolean(item) && typeof item === "object" && !Array.isArray(item)
     )
-    .map((item) => ({
-      title: textOrNull(item.title) ?? "Steel program module",
-      moduleKey: textOrNull(item.moduleKey) ?? "steel_program_module",
-      summary: textOrNull(item.summary) ?? "No summary provided.",
-      sectionHeadings: stringList(item.sectionHeadings),
-      plainText: textOrNull(item.plainText) ?? "",
-      sourceFilename: textOrNull(item.sourceFilename) ?? "Unknown source",
-      matchedReasons: stringList(item.matchedReasons),
-    }))
+    .map((item) =>
+      mergeReferencePackContext(
+        {
+          title: textOrNull(item.title) ?? "Steel program module",
+          moduleKey: textOrNull(item.moduleKey) ?? "steel_program_module",
+          summary: textOrNull(item.summary) ?? "No summary provided.",
+          sectionHeadings: stringList(item.sectionHeadings),
+          plainText: textOrNull(item.plainText) ?? "",
+          sourceFilename: textOrNull(item.sourceFilename) ?? "Unknown source",
+          matchedReasons: stringList(item.matchedReasons),
+        },
+        fullModules.get(textOrNull(item.moduleKey) ?? "")
+      )
+    )
     .filter((item) => item.title && item.summary);
 }
 
@@ -1037,10 +1361,7 @@ function buildSteelProgramModulesReferenceSection(
       "Steel-erection high-risk program modules attached to supplement, not replace, the authored CSEP or PSHSEP program text.",
       inlineOshaRefs
     ),
-    subsections: buildReferencePackSubsections(programModules, (item) => [
-      `Why attached: ${sentenceList(item.matchedReasons, "Matched to current steel work selection")}`,
-      `Key sections: ${referencePackKeySections(item.sectionHeadings)}`,
-    ]),
+    subsections: programModules.map((item) => buildSteelProgramModuleSubsection(item)),
   };
 }
 
@@ -1082,6 +1403,10 @@ function combineParagraphs(parts: Array<string | null | undefined>, fallback?: s
   return value || fallback || null;
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function splitBuilderTextToBullets(value: string | null | undefined) {
   if (!value?.trim()) return [];
 
@@ -1097,12 +1422,12 @@ function splitBuilderTextToBullets(value: string | null | undefined) {
     .filter(Boolean);
 
   const bulletLines = lines
-    .filter((item) => /^[-*•]\s+/.test(item))
-    .map((item) => item.replace(/^[-*•]\s+/, "").trim())
+    .filter((item) => /^[-*\u2022]\s+/.test(item))
+    .map((item) => item.replace(/^[-*\u2022]\s+/, "").trim())
     .filter(Boolean);
 
   if (bulletLines.length > 0) {
-    const hasNarrativeOrHeadings = lines.some((item) => !/^[-*•]\s+/.test(item));
+    const hasNarrativeOrHeadings = lines.some((item) => !/^[-*\u2022]\s+/.test(item));
     return hasNarrativeOrHeadings ? [] : dedupe(bulletLines);
   }
 
@@ -1119,6 +1444,87 @@ function splitBuilderTextToBullets(value: string | null | undefined) {
   }
 
   return [];
+}
+
+function stripStandaloneHeadingPrefix(value: string, title: string) {
+  const cleanTitle = cleanFinalText(title);
+  if (!cleanTitle) return value.trim();
+
+  return value
+    .replace(
+      new RegExp(`^(?:\\d+(?:\\.\\d+)*[.)]?\\s*)?${escapeRegExp(cleanTitle)}\\s*:?\\s*`, "i"),
+      ""
+    )
+    .trim();
+}
+
+function buildStandaloneSubsectionContent(params: {
+  title: string;
+  value: string | null | undefined;
+  fallbackBody: string;
+  fallbackBullets?: string[];
+}) {
+  const normalized = params.value?.replace(/\r\n?/g, "\n").trim() ?? "";
+
+  if (!normalized) {
+    return {
+      body: params.fallbackBody,
+      bullets: params.fallbackBullets ?? [],
+    };
+  }
+
+  const bulletItems = dedupe(
+    normalized
+      .split("\n")
+      .map((line) => stripStandaloneHeadingPrefix(line.trim(), params.title))
+      .filter(Boolean)
+      .filter((line) => /^([-*\u2022]|\d+(?:\.\d+)*[.)])\s+/.test(line))
+      .map((line) => line.replace(/^([-*\u2022]|\d+(?:\.\d+)*[.)])\s+/, "").trim())
+      .filter(Boolean)
+  );
+
+  const paragraphBlocks = normalized
+    .split(/\n{2,}/)
+    .map((block) =>
+      block
+        .split("\n")
+        .map((line) => stripStandaloneHeadingPrefix(line.trim(), params.title))
+        .filter(Boolean)
+    )
+    .filter((lines) => lines.length > 0)
+    .map((lines) => lines.filter((line) => !/^([-*\u2022]|\d+(?:\.\d+)*[.)])\s+/.test(line)).join(" ").trim())
+    .map((block) => block.replace(/\s{2,}/g, " ").trim())
+    .filter(Boolean);
+
+  return {
+    body: paragraphBlocks.join("\n\n") || params.fallbackBody,
+    bullets: bulletItems.length ? bulletItems : params.fallbackBullets ?? [],
+  };
+}
+
+function buildStructuredRowSubsections(
+  columns: string[],
+  rows: string[][]
+): GeneratedSafetyPlanSubsection[] {
+  const detailColumns = columns.slice(1);
+
+  return rows
+    .map((row, index) => {
+      const title = cleanFinalText(row[0]) || `${cleanFinalText(columns[0]) || "Item"} ${index + 1}`;
+      const paragraphs = detailColumns
+        .map((column, columnIndex) => {
+          const value = cleanFinalText(row[columnIndex + 1]) || "N/A";
+          return `${column}: ${value}`;
+        })
+        .filter(Boolean);
+
+      return {
+        title,
+        body: paragraphs.join("\n\n") || null,
+        bullets: [],
+      };
+    })
+    .filter((subsection) => Boolean(subsection.title));
 }
 
 function prefixedInstructionBullets(values: string[], prefix: string) {
@@ -2241,6 +2647,29 @@ function buildCsepSelectedSections(params: {
   const derivedFormatSections: GeneratedSafetyPlanSection[] = [];
 
   if (selectedFormatSections.has("roles_and_responsibilities")) {
+    const rolesRows = [
+      [
+        project.contractorContact ? `${project.contractorContact} / Superintendent` : "Superintendent",
+        "Own implementation of this CSEP, staffing, sequencing, permit readiness, and coordination with the GC/CM and affected trades.",
+        "Authorize work start, stop work when controls fail, and approve restart after corrective action.",
+      ],
+      [
+        "Competent Person",
+        "Inspect the work area, verify required controls, monitor changing conditions, and correct hazards before and during work.",
+        "Hold work when access, protection, rescue, or permit conditions are incomplete.",
+      ],
+      [
+        "Foreman / Crew Lead",
+        "Run pre-task planning, verify crew understanding, maintain housekeeping, and confirm inspections and permits are in place.",
+        "Do not release the crew to start until controls, PPE, and authorizations are verified.",
+      ],
+      [
+        "Workers",
+        "Follow the CSEP, participate in pre-task planning, inspect assigned tools/PPE, and report hazards, incidents, and changing conditions immediately.",
+        "Exercise stop-work authority when conditions are unsafe or instructions conflict with field conditions.",
+      ],
+    ] satisfies string[][];
+
     derivedFormatSections.push({
       key: "roles_and_responsibilities",
       title: "Roles and Responsibilities",
@@ -2253,35 +2682,21 @@ function buildCsepSelectedSections(params: {
         ],
         "Accountable supervision, competent-person oversight, and worker stop-work authority apply to the active contractor scope."
       ),
-      table: {
-        columns: ["Role", "Minimum Responsibilities", "Authority / Hold Point"],
-        rows: [
-          [
-            project.contractorContact ? `${project.contractorContact} / Superintendent` : "Superintendent",
-            "Own implementation of this CSEP, staffing, sequencing, permit readiness, and coordination with the GC/CM and affected trades.",
-            "Authorize work start, stop work when controls fail, and approve restart after corrective action.",
-          ],
-          [
-            "Competent Person",
-            "Inspect the work area, verify required controls, monitor changing conditions, and correct hazards before and during work.",
-            "Hold work when access, protection, rescue, or permit conditions are incomplete.",
-          ],
-          [
-            "Foreman / Crew Lead",
-            "Run pre-task planning, verify crew understanding, maintain housekeeping, and confirm inspections and permits are in place.",
-            "Do not release the crew to start until controls, PPE, and authorizations are verified.",
-          ],
-          [
-            "Workers",
-            "Follow the CSEP, participate in pre-task planning, inspect assigned tools/PPE, and report hazards, incidents, and changing conditions immediately.",
-            "Exercise stop-work authority when conditions are unsafe or instructions conflict with field conditions.",
-          ],
-        ],
-      },
+      subsections: buildStructuredRowSubsections(
+        ["Role", "Minimum Responsibilities", "Authority / Hold Point"],
+        rolesRows
+      ),
     });
   }
 
   if (selectedFormatSections.has("security_and_access_control")) {
+    const securityRows = [
+      ["Worker access", "Verify orientation, badging, and daily work assignment before entry.", "Superintendent / Foreman"],
+      ["Visitors and deliveries", "Escort non-crew personnel and control delivery routes, staging, and unloading areas.", "Foreman / Receiving Lead"],
+      ["Restricted areas", "Barricade, sign, and control permit-required or high-hazard areas.", "Competent Person"],
+      ["End-of-shift security", "Secure tools, materials, permits, and access points before turnover.", "Crew Lead"],
+    ] satisfies string[][];
+
     derivedFormatSections.push({
       key: "security_and_access_control",
       title: "Security and Access Control",
@@ -2289,75 +2704,84 @@ function buildCsepSelectedSections(params: {
         [securityInput],
         "Access to active work areas is restricted to authorized personnel who have completed required orientation, badging, and task-specific review."
       ),
-      table: {
-        columns: ["Access Topic", "Minimum Requirement", "Responsible Party"],
-        rows: [
-          ["Worker access", "Verify orientation, badging, and daily work assignment before entry.", "Superintendent / Foreman"],
-          ["Visitors and deliveries", "Escort non-crew personnel and control delivery routes, staging, and unloading areas.", "Foreman / Receiving Lead"],
-          ["Restricted areas", "Barricade, sign, and control permit-required or high-hazard areas.", "Competent Person"],
-          ["End-of-shift security", "Secure tools, materials, permits, and access points before turnover.", "Crew Lead"],
-        ],
-      },
+      subsections: buildStructuredRowSubsections(
+        ["Access Topic", "Minimum Requirement", "Responsible Party"],
+        securityRows
+      ),
     });
   }
 
   if (selectedFormatSections.has("contractor_iipp")) {
+    const healthWellness = buildStandaloneSubsectionContent({
+      title: "Health and Wellness Expectations",
+      value: healthInput,
+      fallbackBody:
+        "Maintain fit-for-duty expectations, sanitation, hydration, first-aid access, and prompt reporting of symptoms, exposures, and restricted-work concerns.",
+      fallbackBullets: [
+        "Confirm workers are fit for duty before starting work.",
+        "Provide access to water, sanitation, and recovery measures appropriate to conditions.",
+        "Report symptoms, exposures, and medical restrictions immediately.",
+      ],
+    });
+    const incidentReporting = buildStandaloneSubsectionContent({
+      title: "Incident Reporting and Investigation",
+      value: incidentInput,
+      fallbackBody:
+        "All incidents, near misses, injuries, property damage, environmental releases, and permit breaches must be reported immediately and investigated to closure.",
+      fallbackBullets: [
+        "Stop work, stabilize the scene, and notify supervision immediately.",
+        "Preserve evidence, collect statements, and document contributing factors.",
+        "Track corrective actions to completion before restart where required.",
+      ],
+    });
+    const drugAlcohol = buildStandaloneSubsectionContent({
+      title: "Drug, Alcohol, and Fit-for-Duty Controls",
+      value: drugAlcoholInput,
+      fallbackBody:
+        "Workers must report fit-for-duty concerns and comply with owner, GC/CM, employer, and post-incident testing requirements where applicable.",
+      fallbackBullets: [
+        "Do not report to work impaired or unfit for duty.",
+        "Follow site and employer testing triggers, including post-incident requirements where applicable.",
+        "Remove workers from the task when impairment or unsafe behavior is suspected.",
+      ],
+    });
+    const enforcement = buildStandaloneSubsectionContent({
+      title: "Enforcement and Corrective Action",
+      value: enforcementInput,
+      fallbackBody:
+        "Noncompliance with plan requirements requires immediate correction, supervisory intervention, and documented follow-up proportional to the risk.",
+      fallbackBullets: [
+        "Correct unsafe conditions immediately when feasible.",
+        "Escalate repeated or high-risk violations to supervision and safety leadership.",
+        "Document corrective actions, retraining, and restart conditions.",
+      ],
+    });
+
     derivedFormatSections.push({
       key: "contractor_iipp",
       title: "Contractor Injury & Illness Prevention Program",
-      body: combineParagraphs(
-        [
-          healthInput,
-          incidentInput,
-          drugAlcoholInput,
-          enforcementInput,
-        ],
-        "The contractor shall maintain an active injury and illness prevention workflow covering fit-for-duty expectations, incident response, testing where required, corrective action, and worker accountability."
-      ),
+      body:
+        "The contractor shall maintain an active injury and illness prevention workflow covering fit-for-duty expectations, incident response, testing where required, corrective action, and worker accountability.",
       subsections: [
         {
           title: "Health and Wellness Expectations",
-          body: healthInput ?? "Maintain fit-for-duty expectations, sanitation, hydration, first-aid access, and prompt reporting of symptoms, exposures, and restricted-work concerns.",
-          bullets: splitBuilderTextToBullets(healthInput).length
-            ? splitBuilderTextToBullets(healthInput)
-            : [
-                "Confirm workers are fit for duty before starting work.",
-                "Provide access to water, sanitation, and recovery measures appropriate to conditions.",
-                "Report symptoms, exposures, and medical restrictions immediately.",
-              ],
+          body: healthWellness.body,
+          bullets: healthWellness.bullets,
         },
         {
           title: "Incident Reporting and Investigation",
-          body: incidentInput ?? "All incidents, near misses, injuries, property damage, environmental releases, and permit breaches must be reported immediately and investigated to closure.",
-          bullets: splitBuilderTextToBullets(incidentInput).length
-            ? splitBuilderTextToBullets(incidentInput)
-            : [
-                "Stop work, stabilize the scene, and notify supervision immediately.",
-                "Preserve evidence, collect statements, and document contributing factors.",
-                "Track corrective actions to completion before restart where required.",
-              ],
+          body: incidentReporting.body,
+          bullets: incidentReporting.bullets,
         },
         {
           title: "Drug, Alcohol, and Fit-for-Duty Controls",
-          body: drugAlcoholInput ?? "Workers must report fit-for-duty concerns and comply with owner, GC/CM, employer, and post-incident testing requirements where applicable.",
-          bullets: splitBuilderTextToBullets(drugAlcoholInput).length
-            ? splitBuilderTextToBullets(drugAlcoholInput)
-            : [
-                "Do not report to work impaired or unfit for duty.",
-                "Follow site and employer testing triggers, including post-incident requirements where applicable.",
-                "Remove workers from the task when impairment or unsafe behavior is suspected.",
-              ],
+          body: drugAlcohol.body,
+          bullets: drugAlcohol.bullets,
         },
         {
           title: "Enforcement and Corrective Action",
-          body: enforcementInput ?? "Noncompliance with plan requirements requires immediate correction, supervisory intervention, and documented follow-up proportional to the risk.",
-          bullets: splitBuilderTextToBullets(enforcementInput).length
-            ? splitBuilderTextToBullets(enforcementInput)
-            : [
-                "Correct unsafe conditions immediately when feasible.",
-                "Escalate repeated or high-risk violations to supervision and safety leadership.",
-                "Document corrective actions, retraining, and restart conditions.",
-              ],
+          body: enforcement.body,
+          bullets: enforcement.bullets,
         },
       ],
     });
@@ -2504,15 +2928,7 @@ function buildCsepSelectedSections(params: {
     derivedFormatSections.push({
       key: "sub_tier_contractor_management",
       title: "Sub-Tier Contractor Management",
-      body: combineParagraphs(
-        [
-          overlapInput.length
-            ? `Trade interfaces requiring coordination include ${overlapInput.join(", ")}.`
-            : null,
-          rolesInput,
-        ],
-        "Lower-tier crews and overlapping trades must be onboarded, briefed on interfaces, and monitored so their work does not break the controls in this CSEP."
-      ),
+      body: null,
       table: {
         columns: ["Oversight Topic", "Minimum Requirement", "Responsible Party"],
         rows: overlapRows.length
@@ -2592,7 +3008,17 @@ function buildCsepSelectedSections(params: {
   const selectedSections = selectedSectionOrder
     .filter((key) => hasSelectedCsepBlock(instructions, key))
     .map((key) => sectionsByKey[key])
-    .filter((section): section is GeneratedSafetyPlanSection => Boolean(section));
+    .filter((section): section is GeneratedSafetyPlanSection => Boolean(section))
+    .filter((section) => {
+      if (
+        section.key === "roles_and_responsibilities" &&
+        selectedFormatSections.has("roles_and_responsibilities")
+      ) {
+        return false;
+      }
+
+      return true;
+    });
 
   if (selectedSections.length > 0) {
     return [
@@ -3151,3 +3577,4 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
     },
   };
 }
+

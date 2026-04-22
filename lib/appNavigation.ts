@@ -1,8 +1,8 @@
 /**
  * Single source of truth for app shell navigation (sidebar, quick links, setup flows).
- * Keep in sync with route files under app/ — see appNavigationIntegrity.test.ts.
+ * Keep in sync with route files under app/ - see appNavigationIntegrity.test.ts.
  *
- * Sidebar groups: overview → safety & programs → insights → create & submit → account.
+ * Sidebar groups: overview -> safety & programs -> insights -> create & submit -> account.
  */
 
 import {
@@ -69,6 +69,7 @@ export const adminQuickLinks: NavItem[] = [
   { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },
   { href: "/superadmin/system-test", label: "System test", short: "SY" },
   { href: "/superadmin/csep-survey-test", label: "Survey test CSEP", short: "ST" },
+  { href: "/superadmin/csep-completeness-review", label: "CSEP completeness review", short: "CR" },
   { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
   { href: "/superadmin/osha-ipa-lab", label: "Compliance tracker", short: "OA" },
 ];
@@ -98,8 +99,8 @@ export const companyAdminQuickLinks: NavItem[] = [
   { href: "/company-users", label: "Team", short: "TM" },
   { href: "/training-matrix", label: "Training", short: "TR" },
   { href: "/field-id-exchange", label: "Issues", short: "CA" },
-  { href: "/analytics/safety-intelligence", label: "Analytics Â· Safety Intelligence", short: "SA" },
-  { href: "/analytics", label: "Analytics · Risk Memory", short: "AN" },
+  { href: "/analytics/safety-intelligence", label: "Analytics - Safety Intelligence", short: "SA" },
+  { href: "/analytics", label: "Analytics - Risk Memory", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
@@ -128,8 +129,8 @@ export const companyManagerQuickLinks: NavItem[] = [
   { href: "/purchases", label: "My purchases", short: "MP" },
   { href: "/training-matrix", label: "Training", short: "TR" },
   { href: "/field-id-exchange", label: "Issues", short: "CA" },
-  { href: "/analytics/safety-intelligence", label: "Analytics Â· Safety Intelligence", short: "SA" },
-  { href: "/analytics", label: "Analytics · Risk Memory", short: "AN" },
+  { href: "/analytics/safety-intelligence", label: "Analytics - Safety Intelligence", short: "SA" },
+  { href: "/analytics", label: "Analytics - Risk Memory", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
@@ -200,6 +201,7 @@ export const adminSideSections: NavSection[] = [
     items: [
       { href: "/superadmin/system-test", label: "System test", short: "SY" },
       { href: "/superadmin/csep-survey-test", label: "Survey test CSEP", short: "ST" },
+      { href: "/superadmin/csep-completeness-review", label: "CSEP completeness review", short: "CR" },
       { href: "/superadmin/builder-text", label: "Builder text", short: "BT" },
       {
         href: "/superadmin/jurisdiction-standards",
@@ -278,8 +280,8 @@ export const companyAdminSideSections: NavSection[] = [
     items: [
       { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
-      { href: "/analytics", label: "Analytics · Risk Memory", short: "AN" },
-      { href: "/analytics/safety-intelligence", label: "Analytics · Safety Intelligence", short: "SA" },
+      { href: "/analytics", label: "Analytics - Risk Memory", short: "AN" },
+      { href: "/analytics/safety-intelligence", label: "Analytics - Safety Intelligence", short: "SA" },
       { href: "/settings/risk-memory", label: "Risk Memory setup", short: "RM" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
@@ -333,8 +335,8 @@ export const companyManagerSideSections: NavSection[] = [
     items: [
       { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
-      { href: "/analytics", label: "Analytics · Risk Memory", short: "AN" },
-      { href: "/analytics/safety-intelligence", label: "Analytics · Safety Intelligence", short: "SA" },
+      { href: "/analytics", label: "Analytics - Risk Memory", short: "AN" },
+      { href: "/analytics/safety-intelligence", label: "Analytics - Safety Intelligence", short: "SA" },
       { href: "/settings/risk-memory", label: "Risk Memory setup", short: "RM" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
@@ -461,3 +463,4 @@ export function getDeclaredAppNavHrefs(): string[] {
   }
   return hrefs.sort();
 }
+

@@ -144,6 +144,18 @@ export function buildGeneratedDocumentRecordFromDraft(
       .join("");
   }
 
+  function renderParagraphBlocks(text: string | null | undefined) {
+    if (!text?.trim()) return "";
+
+    return text
+      .replace(/\r\n?/g, "\n")
+      .split(/\n{2,}/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => `<p>${part}</p>`)
+      .join("");
+  }
+
   function renderTable(table: NonNullable<(typeof draft.sectionMap)[number]["table"]>) {
     const header = table.columns.map((column) => `<th>${column}</th>`).join("");
     const rows = table.rows
@@ -204,8 +216,8 @@ export function buildGeneratedDocumentRecordFromDraft(
         const numberedItemsBeforeTable =
           (section.bullets?.length ?? 0) + subsectionBulletTotal;
         const parts = [
-          section.summary ? `<p>${section.summary}</p>` : "",
-          section.body ? `<p>${section.body}</p>` : "",
+          renderParagraphBlocks(section.summary),
+          renderParagraphBlocks(section.body),
           renderNumberedItems(sectionNumber, section.bullets),
           section.subsections?.length
             ? section.subsections
@@ -216,7 +228,7 @@ export function buildGeneratedDocumentRecordFromDraft(
                     stripNumberPrefix(subsection.title).toLowerCase() !==
                       stripNumberPrefix(section.title).toLowerCase();
                   return `${showHeading ? `<h3>${subsectionPrefix} ${stripNumberPrefix(subsection.title)}</h3>` : ""}${
-                    subsection.body ? `<p>${subsection.body}</p>` : ""
+                    renderParagraphBlocks(subsection.body)
                   }${renderNumberedItems(showHeading ? subsectionPrefix : sectionNumber, subsection.bullets)}`;
                 })
                 .join("")

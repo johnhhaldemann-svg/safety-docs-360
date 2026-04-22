@@ -256,7 +256,7 @@ describe("csepPrograms", () => {
         }),
         expect.objectContaining({
           title: "Applicable References",
-          body: expect.stringContaining("OSHA 1926 Subpart M - Fall Protection."),
+          body: expect.stringContaining("R1 OSHA 1926 Subpart M - Fall Protection."),
           bullets: [],
         }),
         expect.objectContaining({
@@ -289,7 +289,7 @@ describe("csepPrograms", () => {
         }),
         expect.objectContaining({
           title: "Applicable References",
-          body: "OSHA 1926 Subpart E - PPE.",
+          body: "R1 OSHA 1926 Subpart E - PPE.",
           bullets: [],
         }),
         expect.objectContaining({

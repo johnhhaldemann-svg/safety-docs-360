@@ -267,14 +267,17 @@ describe("createBlueprintDocument", () => {
       key: "task_modules_reference",
       title: "Task Modules Reference Pack",
       body: "Task modules attached for the selected scope.",
-      subsections: [
-        {
-          title: "Access Control",
-          body: "Controlled entry and movement measures for workers, visitors, and deliveries.",
-          bullets: [
-            "Mapped tasks: Access control, Site setup",
-            "Key sections: 1.1 Unauthorized entry, 1.2 Misrouted movement",
-            "Source document: 01_Access_Control.docx",
+        subsections: [
+          {
+            title: "Access Control",
+            body: [
+              "Controlled entry and movement measures for workers, visitors, and deliveries.",
+              "Finish the brief before the supporting numbered controls begin.",
+            ].join("\n\n"),
+            bullets: [
+              "Mapped tasks: Access control, Site setup",
+              "Key sections: 1.1 Unauthorized entry, 1.2 Misrouted movement",
+              "Source document: 01_Access_Control.docx",
           ],
         },
       ],
@@ -288,6 +291,7 @@ describe("createBlueprintDocument", () => {
     expect(documentXml).toContain("Task Modules Reference Pack");
     expect(documentXml).toContain("Access Control");
     expect(documentXml).toContain("Controlled entry and movement measures for workers, visitors, and deliveries.");
+    expect(documentXml).toContain("Finish the brief before the supporting numbered controls begin.");
     expect(documentXml).toContain("Mapped tasks: Access control, Site setup");
     expect(documentXml).toContain("Key sections: 1.1 Unauthorized entry, 1.2 Misrouted movement");
     expect(documentXml).toContain("Source document: 01_Access_Control.docx");

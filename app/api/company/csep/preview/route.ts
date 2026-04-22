@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
 import { buildStructuredCsepDraft } from "@/lib/csepBuilder";
+import { getCsepExportValidationDetail, isCsepExportValidationError } from "@/lib/csepExportValidation";
+import { renderGeneratedCsepDocx } from "@/lib/csepDocxRenderer";
 import { authorizeRequest } from "@/lib/rbac";
 import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
 import { serverLog } from "@/lib/serverLog";
@@ -100,6 +102,22 @@ export async function POST(request: Request) {
       structuredDraft = buildStructuredCsepDraft(pipeline.draft);
     } catch {
       structuredDraft = pipeline.draft;
+    }
+
+    try {
+      await renderGeneratedCsepDocx(pipeline.draft);
+    } catch (renderError) {
+      if (isCsepExportValidationError(renderError)) {
+        return NextResponse.json(
+          {
+            error: `This CSEP draft is not ready for final issue: ${getCsepExportValidationDetail(
+              renderError
+            )} Update the builder inputs and regenerate the draft.`,
+          },
+          { status: 409 }
+        );
+      }
+      throw renderError;
     }
 
     return NextResponse.json({

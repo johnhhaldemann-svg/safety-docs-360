@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildGeneratedSafetyPlanDraft } from "@/lib/safety-intelligence/documents/assemble";
+import { buildStructuredCsepDraft } from "@/lib/csepBuilder";
 import {
   buildHazardModuleAiContext,
   getHazardModulesForCsepSelection,
@@ -295,7 +296,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       expect.arrayContaining([
         expect.objectContaining({
           title: "Applicable References",
-          body: "OSHA 1926 Subpart E - PPE.",
+          body: expect.stringContaining("OSHA 1926 Subpart E - PPE."),
           bullets: [],
         }),
         expect.objectContaining({
@@ -494,7 +495,20 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       riskMemorySummary: null,
     });
 
-    expect(draft.sectionMap.map((section) => section.key)).toEqual(
+    const selectedFormatSectionKeys = [
+      "roles_and_responsibilities",
+      "security_and_access_control",
+      "contractor_iipp",
+      "weather_requirements_and_severe_weather_response",
+      "contractor_monitoring_audits_and_reporting",
+      "contractor_safety_meetings_and_engagement",
+      "sub_tier_contractor_management",
+      "project_close_out",
+      "checklists_and_inspections",
+    ] as const;
+    const structuredDraft = buildStructuredCsepDraft(draft, { selectedFormatSectionKeys });
+
+    expect(structuredDraft.sectionMap.map((section) => section.key)).toEqual(
       expect.arrayContaining([
         "roles_and_responsibilities",
         "security_and_access_control",
@@ -507,13 +521,45 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         "checklists_and_inspections",
       ])
     );
-    expect(
-      draft.sectionMap.find((section) => section.key === "roles_and_responsibilities")?.table?.rows
-    ).toEqual(
-      expect.arrayContaining([expect.arrayContaining(["Jane Smith", "Superintendent"])])
+    const rolesSection = structuredDraft.sectionMap.find(
+      (section) => section.key === "roles_and_responsibilities"
     );
+    const securitySection = structuredDraft.sectionMap.find(
+      (section) => section.key === "security_and_access_control" && section.subsections?.length
+    );
+
+    expect(rolesSection?.title).toBe("3.0 Roles and Responsibilities");
+    expect(securitySection).toMatchObject({
+      subsections: expect.arrayContaining([
+        expect.objectContaining({
+          title: "Worker access",
+          body: expect.stringContaining("Responsible Party: Superintendent / Foreman"),
+        }),
+        expect.objectContaining({
+          title: "Restricted areas",
+          body: expect.stringContaining("Minimum Requirement: Barricade, sign, and control permit-required or high-hazard areas."),
+        }),
+      ]),
+      table: null,
+    });
     expect(
-      draft.sectionMap.find((section) => section.key === "contractor_safety_meetings_and_engagement")
+      structuredDraft.sectionMap.find((section) => section.key === "contractor_iipp")
+    ).toMatchObject({
+      body:
+        "The contractor shall maintain an active injury and illness prevention workflow covering fit-for-duty expectations, incident response, testing where required, corrective action, and worker accountability.",
+      subsections: expect.arrayContaining([
+        expect.objectContaining({
+          title: "Health and Wellness Expectations",
+          body: "Provide hydration, rest breaks, and prompt reporting of fatigue or heat stress concerns.",
+        }),
+        expect.objectContaining({
+          title: "Incident Reporting and Investigation",
+          body: "Notify supervision immediately, preserve the scene, and track corrective actions to closure.",
+        }),
+      ]),
+    });
+    expect(
+      structuredDraft.sectionMap.find((section) => section.key === "contractor_safety_meetings_and_engagement")
         ?.subsections?.[0]?.bullets
     ).toEqual(
       expect.arrayContaining([
@@ -522,7 +568,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       ])
     );
     expect(
-      draft.sectionMap.find(
+      structuredDraft.sectionMap.find(
         (section) => section.key === "weather_requirements_and_severe_weather_response"
       )?.subsections?.[0]?.bullets
     ).toEqual(
@@ -531,6 +577,150 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         "Communication method: Superintendent text alert",
       ])
     );
+    expect(
+      structuredDraft.sectionMap.find((section) => section.key === "sub_tier_contractor_management")
+    ).toMatchObject({
+      body: "Prequalification, onboarding, documentation turnover, and field oversight expectations.",
+      table: {
+        rows: expect.arrayContaining([
+          expect.arrayContaining([
+            "Electrical rough-in below",
+            "Review interfaces, sequencing, shared permits, barricades, and stop-work triggers before work starts.",
+            "Superintendent / Foreman",
+          ]),
+          expect.arrayContaining([
+            "Facade access coordination",
+            "Review interfaces, sequencing, shared permits, barricades, and stop-work triggers before work starts.",
+            "Superintendent / Foreman",
+          ]),
+        ]),
+      },
+    });
+  });
+
+  it("renders sub-tier contractor management as structured oversight rows without a duplicate intro paragraph", () => {
+    const draft = buildGeneratedSafetyPlanDraft({
+      generationContext: {
+        project: {
+          projectName: "Tower A",
+          projectAddress: "100 Center St",
+          ownerClient: "Owner",
+          gcCm: "GC",
+          contractorCompany: "Contractor",
+        },
+        scope: {
+          trades: ["Steel Erection"],
+          subTrades: ["Structural Steel"],
+          tasks: ["Set columns"],
+          equipment: ["Crane"],
+          location: "Level 4",
+        },
+        operations: [
+          {
+            operationId: "op-1",
+            tradeCode: "steel_erection",
+            tradeLabel: "Steel Erection",
+            subTradeCode: "structural_steel",
+            subTradeLabel: "Structural Steel",
+            taskCode: "set_columns",
+            taskTitle: "Set columns",
+            description: "Erect structural steel columns",
+            equipmentUsed: ["Crane"],
+            workConditions: ["Exterior"],
+            hazardHints: ["fall"],
+            requiredControlHints: ["fall_protection"],
+            permitHints: ["lift_plan"],
+            ppeHints: ["Hard Hat"],
+            workAreaLabel: "Level 4",
+            locationGrid: "B4",
+            locationLabel: "Level 4",
+            weatherConditionCode: "wind",
+            startsAt: "2026-04-13T14:00:00.000Z",
+            endsAt: "2026-04-13T17:00:00.000Z",
+            crewSize: 6,
+            metadata: {},
+          },
+        ],
+        siteContext: {
+          location: "Level 4",
+          workConditions: ["Exterior"],
+          siteRestrictions: ["Maintain decking exclusion zone."],
+          simultaneousOperations: ["Electrical rough-in below"],
+          weather: {
+            conditionCode: "wind",
+            summary: "High winds require lift review and exposed-work controls.",
+          },
+        },
+        programSelections: [],
+        builderInstructions: {
+          selectedBlockKeys: ["roles_and_responsibilities", "common_overlapping_trades"],
+          selectedFormatSectionKeys: ["sub_tier_contractor_management"],
+          blockInputs: {
+            roles_and_responsibilities:
+              "The superintendent assigns daily work ownership and verifies competent-person coverage before exposed work starts.",
+            common_overlapping_trades: ["Fire Protection", "HVAC / Mechanical"],
+          },
+          builderInputHash: "hash-subtier-only",
+        },
+        documentProfile: {
+          documentType: "csep",
+          projectDeliveryType: "ground_up",
+          source: "builder_submit",
+          governingState: "WI",
+          jurisdictionCode: "federal",
+          jurisdictionLabel: "Federal OSHA",
+          jurisdictionPlanType: "federal_osha",
+          jurisdictionStandardsApplied: [],
+        },
+        legacyFormSnapshot: {},
+      },
+      reviewContext: {
+        companyId: "company-1",
+        jobsiteId: "jobsite-1",
+        documentType: "csep",
+        buckets: [],
+        rulesEvaluations: [],
+        conflictEvaluations: [],
+        riskMemorySummary: null,
+      },
+      conflictMatrix: {
+        items: [],
+        score: 0,
+        band: "low",
+        intraDocumentConflictCount: 0,
+        externalConflictCount: 0,
+      },
+      narrativeSections: {},
+      trainingProgram: {
+        rows: [],
+        summaryTrainingTitles: [],
+      },
+      riskMemorySummary: null,
+    });
+
+    expect(draft.sectionMap.find((section) => section.key === "sub_tier_contractor_management")).toMatchObject({
+      body: null,
+      table: {
+        columns: ["Oversight Topic", "Minimum Requirement", "Responsible Party"],
+        rows: expect.arrayContaining([
+          expect.arrayContaining([
+            "Fire Protection",
+            "Review interfaces, sequencing, shared permits, barricades, and stop-work triggers before work starts.",
+            "Superintendent / Foreman",
+          ]),
+          expect.arrayContaining([
+            "HVAC / Mechanical",
+            "Review interfaces, sequencing, shared permits, barricades, and stop-work triggers before work starts.",
+            "Superintendent / Foreman",
+          ]),
+          expect.arrayContaining([
+            "Electrical rough-in below",
+            "Review interfaces, sequencing, shared permits, barricades, and stop-work triggers before work starts.",
+            "Superintendent / Foreman",
+          ]),
+        ]),
+      },
+    });
   });
 
   it("reduces repeated reference-pack narrative when structured module rows are present", () => {
@@ -1260,19 +1450,39 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     expect(taskModulesSection?.subsections).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: "Site Setup",
+          title: "Barricades",
           bullets: expect.arrayContaining([
-            expect.stringContaining("Interfaces With: This module interfaces with other site management activities including Site setup."),
-            expect.stringContaining("Key sections:"),
-            expect.stringContaining("Source document:"),
+            expect.stringContaining("Purpose:"),
+            expect.stringContaining("Applicability / trigger logic:"),
+            expect.stringContaining("Pre-start verification:"),
+            expect.stringContaining("Required controls during the work:"),
+            expect.stringContaining("Required permits and PPE if triggered:"),
+            expect.stringContaining("Stop-work triggers / hold points:"),
+            expect.stringContaining("Verification / documentation:"),
+            expect.stringContaining(
+              "Related tasks / interfaces: Coordinate with Barricades, Site setup."
+            ),
+            expect.stringContaining(
+              "Trigger / reference: apply when Barricades, Site setup is active."
+            ),
           ]),
         }),
         expect.objectContaining({
           title: "Access Control",
           bullets: expect.arrayContaining([
-            expect.stringContaining("Interfaces With: This module interfaces with other site management activities including Access control, Site setup."),
-            expect.stringContaining("Key sections:"),
-            expect.stringContaining("Source document:"),
+            expect.stringContaining("Purpose:"),
+            expect.stringContaining("Applicability / trigger logic:"),
+            expect.stringContaining("Pre-start verification:"),
+            expect.stringContaining("Required controls during the work:"),
+            expect.stringContaining("Required permits and PPE if triggered:"),
+            expect.stringContaining("Stop-work triggers / hold points:"),
+            expect.stringContaining("Verification / documentation:"),
+            expect.stringContaining(
+              "Related tasks / interfaces: Coordinate with Access control, Site setup."
+            ),
+            expect.stringContaining(
+              "Trigger / reference: apply when Access control, Site setup is active."
+            ),
           ]),
         }),
       ])
@@ -1463,17 +1673,29 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         expect.objectContaining({
           title: "Electrical Safety and Temporary Power",
           bullets: expect.arrayContaining([
-            expect.stringContaining("Why attached:"),
-            expect.stringContaining("Key sections:"),
-            expect.stringContaining("Source document:"),
+            expect.stringContaining("Purpose:"),
+            expect.stringContaining("Applicability / trigger logic:"),
+            expect.stringContaining("Pre-start verification:"),
+            expect.stringContaining("Required controls during the work:"),
+            expect.stringContaining("Required permits and PPE if triggered:"),
+            expect.stringContaining("Stop-work triggers / hold points:"),
+            expect.stringContaining("Verification / documentation:"),
+            expect.stringContaining("Related tasks / interfaces:"),
+            expect.stringContaining("Trigger / reference: Included for this scope based on"),
           ]),
         }),
         expect.objectContaining({
           title: "Lockout Tagout and Hazardous Energy Control",
           bullets: expect.arrayContaining([
-            expect.stringContaining("Why attached:"),
-            expect.stringContaining("Key sections:"),
-            expect.stringContaining("Source document:"),
+            expect.stringContaining("Purpose:"),
+            expect.stringContaining("Applicability / trigger logic:"),
+            expect.stringContaining("Pre-start verification:"),
+            expect.stringContaining("Required controls during the work:"),
+            expect.stringContaining("Required permits and PPE if triggered:"),
+            expect.stringContaining("Stop-work triggers / hold points:"),
+            expect.stringContaining("Verification / documentation:"),
+            expect.stringContaining("Related tasks / interfaces:"),
+            expect.stringContaining("Trigger / reference: Included for this scope based on"),
           ]),
         }),
       ])
@@ -1941,7 +2163,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     expect(keys.indexOf("steel_program_modules_reference")).toBeLessThan(firstProgramIndex);
   });
 
-  it("uses stacked-brief fallback text when reference-pack metadata is sparse", () => {
+  it("uses operational fallback text when reference-pack metadata is sparse", () => {
     const draft = buildGeneratedSafetyPlanDraft({
       generationContext: {
         project: {
@@ -2089,11 +2311,19 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     ).toEqual([
       expect.objectContaining({
         title: "Fallback Task Module",
-        bullets: [
-          "Interfaces With: This module interfaces with other site management activities including Site setup. Coordination between these activities is necessary to maintain safe and efficient site operations.",
-          "Key sections: Section headings not parsed",
-          "Source document: fallback-task-module.md",
-        ],
+        bullets: expect.arrayContaining([
+          expect.stringContaining("Purpose: Use this control module to direct Task fallback summary"),
+          expect.stringContaining(
+            "Applicability / trigger logic: Apply this module whenever site setup is in the active plan"
+          ),
+          expect.stringContaining("Pre-start verification:"),
+          expect.stringContaining("Required controls during the work:"),
+          expect.stringContaining("Required permits and PPE if triggered:"),
+          expect.stringContaining("Stop-work triggers / hold points:"),
+          expect.stringContaining("Verification / documentation:"),
+          expect.stringContaining("Related tasks / interfaces: Coordinate with site setup."),
+          expect.stringContaining("Trigger / reference: apply when site setup is active."),
+        ]),
       }),
     ]);
     expect(
@@ -2101,11 +2331,19 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     ).toEqual([
       expect.objectContaining({
         title: "Fallback Hazard Module",
-        bullets: [
-          "Why attached: Matched to current CSEP selection",
-          "Key sections: Section headings not parsed",
-          "Source document: fallback-hazard-module.md",
-        ],
+        bullets: expect.arrayContaining([
+          expect.stringContaining("Purpose: Use this hazard module to control Hazard fallback summary"),
+          expect.stringContaining("Applicability / trigger logic:"),
+          expect.stringContaining("Pre-start verification:"),
+          expect.stringContaining("Required controls during the work:"),
+          expect.stringContaining("Required permits and PPE if triggered:"),
+          expect.stringContaining("Stop-work triggers / hold points:"),
+          expect.stringContaining("Verification / documentation:"),
+          expect.stringContaining("Related tasks / interfaces:"),
+          expect.stringContaining(
+            "Trigger / reference: Included for this scope based on the current CSEP scope."
+          ),
+        ]),
       }),
     ]);
     expect(
@@ -2114,11 +2352,23 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     ).toEqual([
       expect.objectContaining({
         title: "Fallback Steel Task Module",
-        bullets: [
-          "Interfaces With: This module interfaces with other site management activities including Steel erection sequence. Coordination between these activities is necessary to maintain safe and efficient site operations.",
-          "Key sections: Section headings not parsed",
-          "Source document: fallback-steel-task-module.md",
-        ],
+        bullets: expect.arrayContaining([
+          expect.stringContaining(
+            "Purpose: Use this task module to direct Steel task fallback summary"
+          ),
+          expect.stringContaining("Applicability / trigger logic: Apply this module whenever the active steel-erection sequence is in the work plan"),
+          expect.stringContaining("Pre-start verification:"),
+          expect.stringContaining("Required controls during the work:"),
+          expect.stringContaining("Required permits and PPE if triggered:"),
+          expect.stringContaining("Stop-work triggers / hold points:"),
+          expect.stringContaining("Verification / documentation:"),
+          expect.stringContaining(
+            "Related tasks / interfaces: Coordinate with the steel-erection sequence"
+          ),
+          expect.stringContaining(
+            "Trigger / reference: apply when the active steel-erection sequence is active."
+          ),
+        ]),
       }),
     ]);
     expect(
@@ -2127,11 +2377,21 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     ).toEqual([
       expect.objectContaining({
         title: "Fallback Steel Hazard Module",
-        bullets: [
-          "Why attached: Matched to current steel work selection",
-          "Key sections: Section headings not parsed",
-          "Source document: fallback-steel-hazard-module.md",
-        ],
+        bullets: expect.arrayContaining([
+          expect.stringContaining(
+            "Purpose: Use this hazard module to control Steel hazard fallback summary"
+          ),
+          expect.stringContaining("Applicability / trigger logic:"),
+          expect.stringContaining("Pre-start verification:"),
+          expect.stringContaining("Required controls during the work:"),
+          expect.stringContaining("Required permits and PPE if triggered:"),
+          expect.stringContaining("Stop-work triggers / hold points:"),
+          expect.stringContaining("Verification / documentation:"),
+          expect.stringContaining("Related tasks / interfaces:"),
+          expect.stringContaining(
+            "Trigger / reference: Included for this scope based on the current steel-erection scope."
+          ),
+        ]),
       }),
     ]);
     expect(
@@ -2140,11 +2400,21 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     ).toEqual([
       expect.objectContaining({
         title: "Fallback Steel Program Module",
-        bullets: [
-          "Why attached: Matched to current steel work selection",
-          "Key sections: Section headings not parsed",
-          "Source document: fallback-steel-program-module.md",
-        ],
+        bullets: expect.arrayContaining([
+          expect.stringContaining(
+            "Purpose: Use this high-risk program module to direct Steel program fallback summary"
+          ),
+          expect.stringContaining("Applicability / trigger logic:"),
+          expect.stringContaining("Pre-start verification:"),
+          expect.stringContaining("Required controls during the work:"),
+          expect.stringContaining("Required permits and PPE if triggered:"),
+          expect.stringContaining("Stop-work triggers / hold points:"),
+          expect.stringContaining("Verification / documentation:"),
+          expect.stringContaining("Related tasks / interfaces:"),
+          expect.stringContaining(
+            "Trigger / reference: Included for this scope based on the current steel-erection scope."
+          ),
+        ]),
       }),
     ]);
   });
@@ -3019,20 +3289,14 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       riskMemorySummary: null,
     });
 
-    const normalizedEnforcementBody = enforcementText.replace(/\s+/g, " ").trim();
     const enforcementSubsection = draft.sectionMap
       .flatMap((section) => section.subsections ?? [])
-      .find((subsection) => subsection.body === normalizedEnforcementBody);
+      .find((subsection) => subsection.title === "Enforcement and Corrective Action");
 
-    expect(enforcementSubsection?.body).toBe(normalizedEnforcementBody);
-    expect(enforcementSubsection?.bullets).toEqual(
-      expect.arrayContaining([
-        "Correct unsafe conditions immediately when feasible.",
-        "Escalate repeated or high-risk violations to supervision and safety leadership.",
-        "Document corrective actions, retraining, and restart conditions.",
-      ])
+    expect(enforcementSubsection?.body).toBe(
+      "Unsafe conditions identified during steel-erection work will be addressed through a systematic approach. Correction Procedures:"
     );
-    expect(enforcementSubsection?.bullets).not.toEqual(
+    expect(enforcementSubsection?.bullets).toEqual(
       expect.arrayContaining([
         "Workers must immediately report unsafe conditions to supervision.",
         "Supervisors must correct hazards before work restarts.",

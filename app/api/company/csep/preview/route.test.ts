@@ -6,6 +6,7 @@ const {
   buildRiskMemoryStructuredContext,
   ensureSafetyPlanGenerationContext,
   runSafetyPlanDocumentPipeline,
+  renderGeneratedCsepDocx,
   serverLog,
 } = vi.hoisted(() => ({
   authorizeRequest: vi.fn(),
@@ -13,6 +14,7 @@ const {
   buildRiskMemoryStructuredContext: vi.fn(),
   ensureSafetyPlanGenerationContext: vi.fn(),
   runSafetyPlanDocumentPipeline: vi.fn(),
+  renderGeneratedCsepDocx: vi.fn(),
   serverLog: vi.fn(),
 }));
 
@@ -26,6 +28,9 @@ vi.mock("@/lib/safety-intelligence/documentIntake", () => ({
 }));
 vi.mock("@/lib/safety-intelligence/documents/pipeline", () => ({
   runSafetyPlanDocumentPipeline,
+}));
+vi.mock("@/lib/csepDocxRenderer", () => ({
+  renderGeneratedCsepDocx,
 }));
 vi.mock("@/lib/serverLog", () => ({ serverLog }));
 
@@ -64,6 +69,10 @@ describe("company csep preview route", () => {
         htmlPreview: "<section><h2>1. Scope of Work</h2></section>",
       },
     });
+    renderGeneratedCsepDocx.mockResolvedValue({
+      body: new Uint8Array([1, 2, 3]),
+      filename: "NorthCampus_CSEP.docx",
+    });
 
     const response = await POST(
       new Request("https://example.com/api/company/csep/preview", {
@@ -98,5 +107,63 @@ describe("company csep preview route", () => {
     expect(
       runSafetyPlanDocumentPipeline.mock.calls[0]?.[0]?.generationContext?.documentProfile?.source
     ).toBe("csep_preview");
+    expect(renderGeneratedCsepDocx).toHaveBeenCalled();
+  });
+
+  it("returns a conflict when the generated CSEP cannot pass final export validation", async () => {
+    authorizeRequest.mockResolvedValue({
+      supabase: {},
+      user: { id: "user-1" },
+      team: null,
+    });
+    getCompanyScope.mockResolvedValue({ companyId: "company-1" });
+    buildRiskMemoryStructuredContext.mockResolvedValue(null);
+    ensureSafetyPlanGenerationContext.mockReturnValue({
+      siteContext: { jobsiteId: null },
+      documentProfile: {
+        documentType: "csep",
+        projectDeliveryType: "ground_up",
+        source: "builder_submit",
+      },
+      builderInstructions: {
+        builderInputHash: "hash-1",
+      },
+    });
+    runSafetyPlanDocumentPipeline.mockResolvedValue({
+      generatedDocumentId: "generated-1",
+      draft: {
+        sectionMap: [{ key: "scope_of_work", title: "Scope of Work" }],
+      },
+      document: {
+        htmlPreview: "<section><h2>1. Scope of Work</h2></section>",
+      },
+    });
+    renderGeneratedCsepDocx.mockRejectedValue(
+      new Error(
+        "CSEP export validation failed: unresolved placeholder content remains in final export."
+      )
+    );
+
+    const response = await POST(
+      new Request("https://example.com/api/company/csep/preview", {
+        method: "POST",
+        body: JSON.stringify({
+          project_name: "North Campus",
+          form_data: {
+            project_name: "North Campus",
+            trade: "Mechanical",
+          },
+        }),
+      })
+    );
+
+    if (!response) {
+      throw new Error("Expected a response.");
+    }
+
+    const body = await response.json();
+    expect(response.status).toBe(409);
+    expect(body.error).toContain("not ready for final issue");
+    expect(body.error).toContain("unresolved placeholder content remains in final export");
   });
 });

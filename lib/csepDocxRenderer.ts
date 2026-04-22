@@ -325,8 +325,16 @@ function splitParagraphs(value?: string | null) {
     .filter(Boolean);
 }
 
+function normalizeCompareToken(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 function normalizeToken(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function stripExistingNumberPrefix(value: string) {
@@ -338,6 +346,361 @@ function stripExistingNumberPrefix(value: string) {
 
 function normalizeDisplayPrefix(value: string) {
   return value.endsWith(".0") ? value.slice(0, -2) : value;
+}
+
+function splitNarrativeSentences(value: string) {
+  return value
+    .split(/(?<=[.!?])\s+(?=[A-Z])/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+function cleanRoleLabel(value: string) {
+  return value
+    .replace(/^role:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function subsectionHasContent(subsection: CsepTemplateSubsection) {
+  return Boolean(
+    subsection.paragraphs?.some((paragraph) => paragraph.trim()) ||
+      subsection.items?.some((item) => item.trim()) ||
+      subsection.table?.rows.some((row) => row.some((cell) => cell.trim()))
+  );
+}
+
+function dedupeTemplateSubsections(subsections: CsepTemplateSubsection[]) {
+  const seen = new Set<string>();
+
+  return subsections.filter((subsection) => {
+    const key = JSON.stringify({
+      title: normalizeCompareToken(subsection.title),
+      paragraphs: (subsection.paragraphs ?? []).map(normalizeCompareToken),
+      items: (subsection.items ?? []).map(normalizeCompareToken),
+      table: subsection.table
+        ? {
+            columns: subsection.table.columns.map(normalizeCompareToken),
+            rows: subsection.table.rows.map((row) => row.map(normalizeCompareToken)),
+          }
+        : null,
+    });
+
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return subsectionHasContent(subsection);
+  });
+}
+
+function validateNoRepeatedSentences(section: CsepTemplateSection) {
+  const seen = new Set<string>();
+
+  for (const subsection of section.subsections) {
+    const sentences = [
+      ...(subsection.paragraphs ?? []).flatMap(splitNarrativeSentences),
+      ...(subsection.items ?? []),
+    ]
+      .map(normalizeCompareToken)
+      .filter(Boolean);
+
+    for (const sentence of sentences) {
+      if (seen.has(sentence)) {
+        throw new Error(`CSEP export validation failed: repeated content detected in section ${section.title}.`);
+      }
+      seen.add(sentence);
+    }
+  }
+}
+
+function collectVisibleModelText(model: CsepRenderModel) {
+  const visibleSections = [...model.frontMatterSections, ...model.sections, ...model.appendixSections];
+
+  return [
+    model.projectName,
+    model.contractorName,
+    model.tradeLabel ?? "",
+    model.subTradeLabel ?? "",
+    model.issueLabel,
+    model.statusLabel,
+    model.preparedBy,
+    ...model.coverSubtitleLines,
+    ...model.coverMetadataRows.flatMap((row) => [row.label, row.value]),
+    ...model.approvalLines,
+    ...model.revisionHistory.flatMap((row) => [
+      row.revision,
+      row.date,
+      row.description,
+      row.preparedBy,
+      row.approvedBy,
+    ]),
+    ...visibleSections.flatMap((section) => [
+      section.title,
+      section.numberLabel ?? "",
+      section.closingTagline ?? "",
+      ...section.subsections.flatMap((subsection) => [
+        subsection.title,
+        ...(subsection.paragraphs ?? []),
+        ...(subsection.items ?? []),
+        ...(subsection.table
+          ? [...subsection.table.columns, ...subsection.table.rows.flat()]
+          : []),
+      ]),
+    ]),
+    ...model.disclaimerLines,
+  ].filter(Boolean);
+}
+
+function validateSectionOrdering(sections: CsepTemplateSection[]) {
+  let priorNumbers: number[] | null = null;
+
+  sections.forEach((section) => {
+    const numberLabel = section.numberLabel?.trim() ?? "";
+    if (!numberLabel) return;
+
+    const parsed = normalizeDisplayPrefix(numberLabel)
+      .split(".")
+      .map((part) => Number.parseInt(part, 10))
+      .filter((part) => Number.isFinite(part));
+
+    if (!parsed.length) return;
+
+    if (priorNumbers) {
+      const maxLength = Math.max(priorNumbers.length, parsed.length);
+      for (let index = 0; index < maxLength; index += 1) {
+        const priorValue = priorNumbers[index] ?? 0;
+        const currentValue = parsed[index] ?? 0;
+        if (currentValue > priorValue) break;
+        if (currentValue < priorValue) {
+          throw new Error(
+            `CSEP export validation failed: section numbering is out of order at ${section.title}.`
+          );
+        }
+      }
+    }
+
+    priorNumbers = parsed;
+  });
+}
+
+function validateCsepRenderModel(model: CsepRenderModel) {
+  const numberedSections = model.sections.filter((section) => Boolean(section.numberLabel?.trim()));
+  const seenNumbers = new Set<string>();
+  const invalidExactTokens = new Set([
+    "test",
+    "pending approval",
+    "platform fill field",
+    "fill",
+    "safetydocs360 ai draft builder",
+  ]);
+  const placeholderPattern =
+    /tbd by contractor before issue|company logo placement|insert contractor logo|page\s+of/i;
+
+  validateSectionOrdering(numberedSections);
+
+  numberedSections.forEach((section) => {
+    const numberLabel = section.numberLabel?.trim() ?? "";
+    if (seenNumbers.has(numberLabel)) {
+      throw new Error(`CSEP export validation failed: duplicate section number ${numberLabel}.`);
+    }
+    seenNumbers.add(numberLabel);
+
+    const seenTitles = new Set<string>();
+    section.subsections.forEach((subsection) => {
+      const normalizedTitle = normalizeCompareToken(subsection.title);
+      if (normalizedTitle) {
+        if (seenTitles.has(normalizedTitle)) {
+          throw new Error(
+            `CSEP export validation failed: duplicate subsection heading "${subsection.title}" under ${section.title}.`
+          );
+        }
+        seenTitles.add(normalizedTitle);
+      }
+
+      if (!subsectionHasContent(subsection)) {
+        throw new Error(
+          `CSEP export validation failed: subsection "${subsection.title || section.title}" is empty.`
+        );
+      }
+
+      const firstBlock = subsection.paragraphs?.[0] ?? subsection.items?.[0] ?? "";
+      if (firstBlock && /^[a-z,;:]/.test(firstBlock.trim())) {
+        throw new Error(
+          `CSEP export validation failed: subsection "${subsection.title || section.title}" starts mid-sentence.`
+        );
+      }
+    });
+
+    validateNoRepeatedSentences(section);
+  });
+
+  const visibleText = collectVisibleModelText(model);
+  const hasPlaceholderContent = visibleText.some((value) => {
+    const normalized = normalizeCompareToken(value);
+    return invalidExactTokens.has(normalized) || placeholderPattern.test(value);
+  });
+
+  if (hasPlaceholderContent) {
+    throw new Error(
+      "CSEP export validation failed: unresolved placeholder content remains in final export."
+    );
+  }
+}
+
+function buildRoleAliases(value: string) {
+  const cleanValue = cleanRoleLabel(value);
+  if (!cleanValue) return [];
+
+  const aliases = new Set<string>([cleanValue]);
+  cleanValue
+    .split(/\s*\/\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .forEach((part) => {
+      aliases.add(part);
+      aliases.add(part.replace(/^cm\s+/i, "").trim());
+      aliases.add(part.replace(/^project\s+/i, "").trim());
+    });
+  aliases.add(cleanValue.replace(/^cm\s+/i, "").trim());
+  aliases.add(cleanValue.replace(/^project\s+/i, "").trim());
+
+  return Array.from(aliases).filter(Boolean);
+}
+
+function buildRoleReplacementItems(source: GeneratedSafetyPlanSection) {
+  if (source.key !== "roles_and_responsibilities") {
+    return [];
+  }
+
+  const narrative = uniqueItems([
+    ...splitParagraphs(source.summary),
+    ...splitParagraphs(source.body),
+  ]).join(" ");
+  if (!narrative) {
+    return [];
+  }
+
+  const defaultRoles = [
+    "CM Project Manager",
+    "Project Manager",
+    "CM Project Superintendent",
+    "Project Superintendent",
+    "Superintendent",
+    "Competent Person",
+    "Foreman / Crew Lead",
+    "Foreman",
+    "Crew Lead",
+    "Workers",
+    "All site workers",
+  ];
+  const tableRoles = (source.table?.rows ?? [])
+    .map((row) => cleanRoleLabel(row[0] ?? ""))
+    .filter(Boolean);
+  const roleAnchors = uniqueItems([...tableRoles, ...defaultRoles]).map((title) => ({
+    title,
+    aliases: buildRoleAliases(title),
+  }));
+  const matches: Array<{ start: number; end: number; title: string; matchedText: string }> = [];
+
+  roleAnchors.forEach((anchor) => {
+    anchor.aliases
+      .sort((left, right) => right.length - left.length)
+      .forEach((alias) => {
+        const pattern = new RegExp(`\\b${escapeRegExp(alias)}\\b`, "gi");
+        let match = pattern.exec(narrative);
+        while (match) {
+          matches.push({
+            start: match.index,
+            end: match.index + match[0].length,
+            title: anchor.title,
+            matchedText: match[0],
+          });
+          match = pattern.exec(narrative);
+        }
+      });
+  });
+
+  const orderedMatches = matches
+    .sort((left, right) => left.start - right.start || right.end - left.end)
+    .filter((match, index, collection) => {
+      const previous = collection[index - 1];
+      if (!previous) return true;
+      return match.start >= previous.end;
+    });
+
+  if (orderedMatches.length < 2) {
+    return [];
+  }
+
+  return orderedMatches
+    .map((match, index) => {
+      const nextStart = orderedMatches[index + 1]?.start ?? narrative.length;
+      let chunk = narrative.slice(match.start, nextStart).trim();
+      chunk = chunk.replace(new RegExp(`^${escapeRegExp(match.matchedText)}\\b[:\\-\\s]*`, "i"), "").trim();
+      chunk = chunk.replace(/^(?:is\s+responsible\s+for|is\s+responsible\s+to|is|will|shall|must)\s+/i, "");
+
+      const sentences = splitNarrativeSentences(chunk);
+      const responsibilitySentences: string[] = [];
+      const authoritySentences: string[] = [];
+
+      sentences.forEach((sentence) => {
+        if (
+          /stop[-\s]?work|authority|hold point|approve|authorization|authorize|restart|do not release|release the crew|hold access/i.test(
+            sentence
+          )
+        ) {
+          authoritySentences.push(sentence);
+          return;
+        }
+        responsibilitySentences.push(sentence);
+      });
+
+      const parts = [`Role: ${match.title}`];
+      if (responsibilitySentences.length) {
+        parts.push(`Minimum Responsibilities: ${responsibilitySentences.join(" ")}`);
+      } else if (!authoritySentences.length && chunk) {
+        parts.push(chunk);
+      }
+      if (authoritySentences.length) {
+        parts.push(`Authority / Hold Point: ${authoritySentences.join(" ")}`);
+      }
+
+      return parts.join(" ").trim();
+    })
+    .filter(Boolean);
+}
+
+function buildRuleTableSubsections(
+  source: GeneratedSafetyPlanSection
+): CsepTemplateSubsection[] {
+  if (!source.table?.rows.length) {
+    return [];
+  }
+
+  const columns = source.table.columns.map(normalizeToken);
+  if (!columns.includes("rule domain") || !columns.includes("rule text")) {
+    return [];
+  }
+
+  const items = uniqueItems(
+    source.table.rows
+      .map((row) => {
+        const ruleDomain = stripExistingNumberPrefix(cleanFinalText(row[0]) ?? "");
+        const ruleText = cleanFinalText(row[1]) ?? "";
+        return [ruleDomain, ruleText].filter(Boolean).join(": ").trim();
+      })
+      .filter(Boolean)
+  );
+
+  if (!items.length) {
+    return [];
+  }
+
+  return [
+    {
+      title: normalizeToken(source.key) === "life_saving_rules" ? "Life-Saving Rules" : source.title,
+      items,
+    },
+  ];
 }
 
 function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
@@ -474,17 +837,45 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
 
 function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplateSubsection[] {
   const subsections: CsepTemplateSubsection[] = [];
+  const ruleTableSubsections = buildRuleTableSubsections(source);
+  if (ruleTableSubsections.length) {
+    return dedupeTemplateSubsections(ruleTableSubsections);
+  }
+  const roleReplacementItems = buildRoleReplacementItems(source);
+  if (roleReplacementItems.length) {
+    subsections.push({
+      title: "",
+      items: roleReplacementItems,
+    });
+
+    (source.subsections ?? []).forEach((subsection) => {
+      subsections.push({
+        title: subsection.title,
+        paragraphs: uniqueItems(splitParagraphs(subsection.body)),
+        items: uniqueItems(subsection.bullets),
+      });
+    });
+
+    return dedupeTemplateSubsections(subsections);
+  }
+
   const leadingParagraphs = uniqueItems([
     ...splitParagraphs(source.summary),
     ...splitParagraphs(source.body),
   ]);
   const leadingItems = uniqueItems(source.bullets ?? []);
+  const shouldFoldLeadingParagraphsIntoItems =
+    source.kind === "main" &&
+    Boolean((source.subsections ?? []).length || source.table?.rows.length);
+  const formattedLeadingParagraphItems = shouldFoldLeadingParagraphsIntoItems ? leadingParagraphs : [];
+  const leadingNarrativeParagraphs = shouldFoldLeadingParagraphsIntoItems ? [] : leadingParagraphs;
+  const initialItems = uniqueItems([...formattedLeadingParagraphItems, ...leadingItems]);
 
-  if (leadingParagraphs.length || leadingItems.length || source.table?.rows.length) {
+  if (leadingNarrativeParagraphs.length || initialItems.length || source.table?.rows.length) {
     subsections.push({
-      title: source.title,
-      paragraphs: leadingParagraphs,
-      items: leadingItems,
+      title: "",
+      paragraphs: leadingNarrativeParagraphs,
+      items: initialItems,
       table: source.table ?? null,
     });
   }
@@ -497,9 +888,7 @@ function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplate
     });
   });
 
-  return subsections.length
-    ? subsections
-    : [];
+  return subsections.length ? dedupeTemplateSubsections(subsections) : [];
 }
 
 function toTemplateSection(source: GeneratedSafetyPlanSection): CsepTemplateSection {
@@ -553,18 +942,27 @@ export function buildCsepRenderModelFromGeneratedDraft(
   draft: GeneratedSafetyPlanDraft
 ): CsepRenderModel {
   const structuredDraft = buildStructuredCsepDraft(draft, { finalIssueMode: true });
+  const draftHasStructuredKinds = draft.sectionMap.some((section) =>
+    ["front_matter", "main", "appendix"].includes(section.kind ?? "")
+  );
+  const contractorName = valueOrNA(draft.projectOverview.contractorCompany);
   const tradeLabels = uniqueValues(draft.operations.map((operation) => operation.tradeLabel));
   const subTradeLabels = uniqueValues(draft.operations.map((operation) => operation.subTradeLabel));
   const taskTitles = uniqueValues(draft.operations.map((operation) => operation.taskTitle));
+  const legacySanitizedSections = draft.sectionMap.map(sanitizeGeneratedSection);
   const sanitizedSections = structuredDraft.sectionMap.map(sanitizeGeneratedSection);
   const issueLabel = structuredDraft.documentControl?.issueDate || todayIssueLabel();
   const preparedBy =
     cleanFinalText(structuredDraft.documentControl?.preparedBy) ||
     cleanFinalText(draft.projectOverview.contractorCompany) ||
-    controlledTbd();
+    "Authorized Contractor Representative";
+  const approvedBy =
+    cleanFinalText(structuredDraft.documentControl?.approvedBy) ||
+    cleanFinalText(structuredDraft.documentControl?.reviewedBy) ||
+    cleanFinalText(draft.projectOverview.contractorCompany) ||
+    preparedBy;
   const projectName = valueOrNA(draft.projectOverview.projectName);
   const projectAddress = valueOrNA(draft.projectOverview.projectAddress);
-  const contractorName = valueOrNA(draft.projectOverview.contractorCompany);
   const frontMatterSections = sanitizedSections
     .filter((section) => section.kind === "front_matter")
     .sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
@@ -575,7 +973,7 @@ export function buildCsepRenderModelFromGeneratedDraft(
     tradeLabel: joinDisplayValues(tradeLabels, "N/A"),
     subTradeLabel: joinDisplayValues(subTradeLabels, "N/A"),
     issueLabel,
-    sourceSections: sanitizedSections,
+    sourceSections: draftHasStructuredKinds ? sanitizedSections : legacySanitizedSections,
   });
   const appendixSections = sanitizedSections
     .filter((section) => section.kind === "appendix")
@@ -616,10 +1014,7 @@ export function buildCsepRenderModelFromGeneratedDraft(
         date: issueLabel,
         description: "Initial issuance for generated CSEP export",
         preparedBy,
-        approvedBy:
-          cleanFinalText(structuredDraft.documentControl?.approvedBy) ||
-          cleanFinalText(structuredDraft.documentControl?.reviewedBy) ||
-          controlledTbd(),
+        approvedBy,
       },
     ],
     frontMatterSections,
@@ -743,6 +1138,29 @@ function numberedParagraph(numberLabel: string, text: string) {
   );
 }
 
+function termDefinitionParagraph(term: string, definition: string) {
+  return makeParagraph(
+    [
+      new TextRun({
+        text: `${term}: `,
+        font: "Calibri",
+        bold: true,
+        size: 21,
+        color: COLORS.ink,
+      }),
+      new TextRun({
+        text: definition,
+        font: "Calibri",
+        size: 21,
+        color: COLORS.ink,
+      }),
+    ],
+    {
+      style: STYLE_IDS.body,
+    }
+  );
+}
+
 function createRunningFooter() {
   return new Footer({
     children: [
@@ -831,8 +1249,8 @@ function revisionHistoryAsParagraphs(rows: CsepRevisionEntry[]) {
           revision: "1.0",
           date: todayIssueLabel(),
           description: "Initial issuance",
-          preparedBy: controlledTbd(),
-          approvedBy: controlledTbd(),
+          preparedBy: "Authorized Contractor Representative",
+          approvedBy: "Authorized Contractor Representative",
         },
       ];
 
@@ -898,31 +1316,6 @@ function createCover(model: CsepRenderModel) {
         alignment: AlignmentType.CENTER,
       }
     ),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 120, after: 220 },
-      border: {
-        top: { color: COLORS.border, style: BorderStyle.SINGLE, size: 10, space: 1 },
-        bottom: { color: COLORS.border, style: BorderStyle.SINGLE, size: 10, space: 1 },
-        left: { color: COLORS.border, style: BorderStyle.SINGLE, size: 10, space: 1 },
-        right: { color: COLORS.border, style: BorderStyle.SINGLE, size: 10, space: 1 },
-      },
-      children: [
-        new TextRun({
-          text: "COMPANY LOGO PLACEMENT",
-          font: "Calibri",
-          bold: true,
-          size: 20,
-          color: COLORS.titleBlue,
-        }),
-        new TextRun({
-          text: "  Insert contractor logo or approved company letterhead here",
-          font: "Calibri",
-          size: 18,
-          color: COLORS.gray,
-        }),
-      ],
-    }),
   ];
 
   if (model.projectName.trim() && model.projectName !== "N/A") {
@@ -986,17 +1379,59 @@ function appendTableRowsAsNumberedParagraphs(
   children: Paragraph[],
   table: NonNullable<GeneratedSafetyPlanSection["table"]>,
   subsectionLabel: string,
-  priorItemCount: number
+  priorItemCount: number,
+  options?: {
+    renderMode?: "numbered" | "definitions";
+  }
 ) {
   if (!table.rows.length) return;
 
   table.rows.forEach((row, rowIndex) => {
+    if (options?.renderMode === "definitions") {
+      const term = row[0]?.trim() || "Term";
+      const definition = row[1]?.trim() || "Definition pending";
+      children.push(termDefinitionParagraph(term, definition));
+      return;
+    }
+
     const num = `${subsectionLabel}.${priorItemCount + rowIndex + 1}`;
     const text = table.columns
       .map((column, columnIndex) => `${column}: ${row[columnIndex]?.trim() || "N/A"}`)
       .join(" ");
     children.push(numberedParagraph(num, text));
   });
+}
+
+function appendTopLevelTableRows(
+  children: Paragraph[],
+  table: NonNullable<GeneratedSafetyPlanSection["table"]>,
+  basePrefix: string,
+  startingIndex: number,
+  options?: {
+    renderMode?: "numbered" | "definitions";
+  }
+) {
+  if (!table.rows.length) return startingIndex;
+
+  if (options?.renderMode === "definitions") {
+    table.rows.forEach((row) => {
+      const term = row[0]?.trim() || "Term";
+      const definition = row[1]?.trim() || "Definition pending";
+      children.push(termDefinitionParagraph(term, definition));
+    });
+    return startingIndex;
+  }
+
+  let currentIndex = startingIndex;
+  table.rows.forEach((row) => {
+    currentIndex += 1;
+    const text = table.columns
+      .map((column, columnIndex) => `${column}: ${row[columnIndex]?.trim() || "N/A"}`)
+      .join(" ");
+    children.push(numberedParagraph(`${basePrefix}.${currentIndex}`, text));
+  });
+
+  return currentIndex;
 }
 
 function displayHeadingForSection(section: CsepTemplateSection, sectionNumber: number) {
@@ -1019,7 +1454,9 @@ function displayHeadingForSection(section: CsepTemplateSection, sectionNumber: n
 
 function sectionPrefix(section: CsepTemplateSection, sectionNumber: number) {
   if (section.numberLabel?.trim()) {
-    return normalizeDisplayPrefix(section.numberLabel.trim());
+    return section.kind === "front_matter"
+      ? section.numberLabel.trim()
+      : normalizeDisplayPrefix(section.numberLabel.trim());
   }
 
   return String(sectionNumber);
@@ -1029,10 +1466,29 @@ function isDistinctSubheading(sectionTitle: string, subsectionTitle: string) {
   return normalizeToken(stripExistingNumberPrefix(sectionTitle)) !== normalizeToken(stripExistingNumberPrefix(subsectionTitle));
 }
 
+function shouldRenderSubheading(sectionTitle: string, subsection: CsepTemplateSubsection) {
+  const title = stripExistingNumberPrefix(subsection.title).trim();
+  if (!title) return false;
+  if (!isDistinctSubheading(sectionTitle, subsection.title)) return false;
+  if (subsection.table?.rows.length) return true;
+
+  const comparableContent = uniqueItems([
+    ...(subsection.paragraphs ?? []),
+    ...(subsection.items ?? []),
+  ]).map((value) => normalizeToken(value));
+  const uniqueComparableContent = Array.from(new Set(comparableContent.filter(Boolean)));
+
+  return !(uniqueComparableContent.length === 1 && uniqueComparableContent[0] === normalizeToken(title));
+}
+
 function appendParagraphs(children: Paragraph[], paragraphs?: string[]) {
   (paragraphs ?? []).forEach((paragraph) => {
     children.push(bodyParagraph(paragraph));
   });
+}
+
+function pageBreakParagraph() {
+  return new Paragraph({ children: [new PageBreak()] });
 }
 
 function createContents(model: CsepRenderModel) {
@@ -1060,31 +1516,53 @@ function renderSection(sectionNumber: number, section: CsepTemplateSection) {
     sectionHeading(displayHeadingForSection(section, sectionNumber), sectionHeadingTone(section)),
   ];
   const basePrefix = sectionPrefix(section, sectionNumber);
+  let topLevelItemIndex = 0;
+  let nestedSubsectionCount = 0;
 
-  section.subsections.forEach((subsection, subsectionIndex) => {
-    const distinctSubheading = subsection.title.trim()
-      ? isDistinctSubheading(section.title, subsection.title)
-      : false;
-    const subsectionLabel = `${basePrefix}.${subsectionIndex + 1}`;
-    const itemPrefixBase = subsectionLabel;
+  section.subsections.forEach((subsection) => {
+    const distinctSubheading = shouldRenderSubheading(section.title, subsection);
+    const renderMode =
+      section.key === "definitions_and_abbreviations" ? "definitions" : "numbered";
+
+    let subsectionLabel = basePrefix;
+    let itemPrefixBase = basePrefix;
 
     if (distinctSubheading) {
+      nestedSubsectionCount += 1;
+      subsectionLabel = `${basePrefix}.${topLevelItemIndex + nestedSubsectionCount}`;
+      itemPrefixBase = subsectionLabel;
       children.push(subheading(`${subsectionLabel} ${stripExistingNumberPrefix(subsection.title)}`));
     }
 
     appendParagraphs(children, subsection.paragraphs);
 
     (subsection.items ?? []).forEach((item, itemIndex) => {
-      children.push(numberedParagraph(`${itemPrefixBase}.${itemIndex + 1}`, item));
+      if (distinctSubheading) {
+        children.push(numberedParagraph(`${itemPrefixBase}.${itemIndex + 1}`, item));
+      } else {
+        topLevelItemIndex += 1;
+        children.push(numberedParagraph(`${basePrefix}.${topLevelItemIndex}`, item));
+      }
     });
 
     if (subsection.table?.rows.length) {
-      appendTableRowsAsNumberedParagraphs(
-        children,
-        subsection.table,
-        subsectionLabel,
-        (subsection.items ?? []).length
-      );
+      if (distinctSubheading) {
+        appendTableRowsAsNumberedParagraphs(
+          children,
+          subsection.table,
+          itemPrefixBase,
+          (subsection.items ?? []).length,
+          { renderMode }
+        );
+      } else {
+        topLevelItemIndex = appendTopLevelTableRows(
+          children,
+          subsection.table,
+          basePrefix,
+          topLevelItemIndex,
+          { renderMode }
+        );
+      }
     }
   });
 
@@ -1097,17 +1575,21 @@ export async function createCsepDocument(model: CsepRenderModel) {
   children.push(...createCover(model));
 
   if (!model.frontMatterSections.length) {
-    children.push(new Paragraph({ children: [new PageBreak()] }));
+    children.push(pageBreakParagraph());
     children.push(sectionHeading("Revision History"));
     children.push(...revisionHistoryAsParagraphs(model.revisionHistory));
-    children.push(new Paragraph({ children: [new PageBreak()] }));
+    children.push(pageBreakParagraph());
     children.push(...createContents(model));
   }
 
   const frontMatterKeys = new Set(model.frontMatterSections.map((section) => section.key));
 
-  model.frontMatterSections.forEach((section) => {
-    children.push(new Paragraph({ children: [new PageBreak()] }));
+  model.frontMatterSections.forEach((section, index) => {
+    if (index === 0) {
+      children.push(pageBreakParagraph());
+    } else {
+      children.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
+    }
     if (section.key === "revision_history") {
       children.push(sectionHeading(section.title));
       children.push(...revisionHistoryAsParagraphs(model.revisionHistory));
@@ -1121,27 +1603,31 @@ export async function createCsepDocument(model: CsepRenderModel) {
   });
 
   if (model.frontMatterSections.length && !frontMatterKeys.has("revision_history")) {
-    children.push(new Paragraph({ children: [new PageBreak()] }));
+    children.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
     children.push(sectionHeading("Revision History"));
     children.push(...revisionHistoryAsParagraphs(model.revisionHistory));
   }
 
   if (model.frontMatterSections.length && !frontMatterKeys.has("table_of_contents")) {
-    children.push(new Paragraph({ children: [new PageBreak()] }));
+    children.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
     children.push(...createContents(model));
   }
 
   model.sections.forEach((section, index) => {
-    children.push(new Paragraph({ children: [new PageBreak()] }));
+    if (index === 0) {
+      children.push(pageBreakParagraph());
+    } else {
+      children.push(new Paragraph({ spacing: { before: 160, after: 80 }, children: [] }));
+    }
     children.push(...renderSection(index + 1, section));
   });
 
   model.appendixSections.forEach((section) => {
-    children.push(new Paragraph({ children: [new PageBreak()] }));
+    children.push(pageBreakParagraph());
     children.push(...renderSection(0, section));
   });
 
-  children.push(new Paragraph({ children: [new PageBreak()] }));
+  children.push(pageBreakParagraph());
   children.push(sectionHeading("Disclaimer"));
   model.disclaimerLines.forEach((line) => {
     children.push(bodyParagraph(line));
@@ -1158,7 +1644,7 @@ export async function createCsepDocument(model: CsepRenderModel) {
           },
           paragraph: {
             spacing: {
-              after: 160,
+              after: 120,
               line: 276,
             },
           },
@@ -1170,7 +1656,7 @@ export async function createCsepDocument(model: CsepRenderModel) {
           name: STYLE_IDS.body,
           paragraph: {
             spacing: {
-              after: 160,
+              after: 120,
               line: 276,
             },
           },
@@ -1233,8 +1719,8 @@ export async function createCsepDocument(model: CsepRenderModel) {
           name: STYLE_IDS.sectionHeading,
           paragraph: {
             spacing: {
-              before: 360,
-              after: 140,
+              before: 220,
+              after: 100,
             },
           },
           run: {
@@ -1249,8 +1735,8 @@ export async function createCsepDocument(model: CsepRenderModel) {
           name: STYLE_IDS.subheading,
           paragraph: {
             spacing: {
-              before: 220,
-              after: 90,
+              before: 140,
+              after: 70,
             },
           },
           run: {
@@ -1304,6 +1790,7 @@ export async function createCsepDocument(model: CsepRenderModel) {
 }
 
 export async function renderCsepRenderModel(model: CsepRenderModel) {
+  validateCsepRenderModel(model);
   const doc = await createCsepDocument(model);
   const buffer = await Packer.toBuffer(doc);
 

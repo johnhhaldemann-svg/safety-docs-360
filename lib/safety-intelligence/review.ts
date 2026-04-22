@@ -148,10 +148,6 @@ function isTrainingGapCode(code: SafetyReviewGapCode) {
   return code === "training_missing" || code === "training_removed_by_override";
 }
 
-function isPpeGapCode(code: SafetyReviewGapCode) {
-  return code === "ppe_missing" || code === "ppe_removed_by_override";
-}
-
 function buildReviewAction(domain: SafetyReviewGap["domain"], rawInput: RawTaskInput): SafetyReviewAction {
   if (domain === "permit") {
     return {

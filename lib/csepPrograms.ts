@@ -73,6 +73,25 @@ function formatProgramParagraph(values: readonly string[], fallback?: string) {
   return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
+function formatProgramReferenceParagraph(values: readonly string[], fallback?: string) {
+  const items = dedupe(values);
+  if (items.length > 0) {
+    return items
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item, index) => {
+        const sentence = /[.!?]$/.test(item) ? item : `${item}.`;
+        return `R${index + 1} ${sentence}`;
+      })
+      .join(" ");
+  }
+
+  const text = fallback?.trim() || "";
+  if (!text) return undefined;
+  const sentence = /[.!?]$/.test(text) ? text : `${text}.`;
+  return `R1 ${sentence}`;
+}
+
 const PROGRAM_PARAGRAPH_SUBSECTION_TITLES = new Set([
   "When It Applies",
   "Applicable References",
@@ -1748,7 +1767,11 @@ export function buildCsepProgramSection(
         PROGRAM_PARAGRAPH_SUBSECTION_TITLES.has(section.title)
           ? {
               title: section.title,
-              body: section.body ?? formatProgramParagraph(section.bullets),
+              body:
+                section.body ??
+                (section.title === "Applicable References"
+                  ? formatProgramReferenceParagraph(section.bullets)
+                  : formatProgramParagraph(section.bullets)),
               bullets: [] as string[],
             }
           : section

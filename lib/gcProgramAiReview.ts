@@ -24,6 +24,7 @@ export type GcProgramAiReview = {
 
 const DISCLAIMER =
   "This AI review is for internal triage only. It is not legal advice, does not replace a competent safety professional or the AHJ, and may omit or misread content. Verify against current OSHA / state rules and the contract documents.";
+const DEFAULT_GC_REVIEW_MODEL = "gpt-4o-mini";
 
 function includesAny(text: string, tokens: string[]) {
   return tokens.some((token) => text.includes(token));
@@ -195,78 +196,106 @@ export async function generateGcProgramAiReview(params: {
     contextBlock,
   ].join("\n\n");
 
-  const res = await fetch(`${getOpenAiApiBaseUrl()}/responses`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: resolveOpenAiCompatibleModelId("gpt-4.1"),
-      input: prompt,
-      text: {
-        format: {
-          type: "json_schema",
-          name: "gc_program_ai_review",
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              executiveSummary: { type: "string" },
-              alignmentWithGcSiteRequirements: { type: "string" },
-              oshaRelatedStrengths: {
-                type: "array",
-                items: { type: "string" },
-                minItems: 2,
-                maxItems: 6,
+  const preferredModel = (
+    process.env.COMPANY_AI_MODEL?.trim() ||
+    process.env.OPENAI_MODEL?.trim() ||
+    DEFAULT_GC_REVIEW_MODEL
+  ).trim();
+  const modelCandidates = [
+    preferredModel,
+    DEFAULT_GC_REVIEW_MODEL,
+  ].filter((model, index, list) => Boolean(model) && list.indexOf(model) === index);
+
+  let res: Response | null = null;
+  let errText = "";
+  for (const candidate of modelCandidates) {
+    res = await fetch(`${getOpenAiApiBaseUrl()}/responses`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: resolveOpenAiCompatibleModelId(candidate),
+        input: prompt,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "gc_program_ai_review",
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                executiveSummary: { type: "string" },
+                alignmentWithGcSiteRequirements: { type: "string" },
+                oshaRelatedStrengths: {
+                  type: "array",
+                  items: { type: "string" },
+                  minItems: 2,
+                  maxItems: 6,
+                },
+                oshaRelatedGapsOrRisks: {
+                  type: "array",
+                  items: { type: "string" },
+                  minItems: 2,
+                  maxItems: 8,
+                },
+                recommendedFollowUps: {
+                  type: "array",
+                  items: { type: "string" },
+                  minItems: 2,
+                  maxItems: 6,
+                },
+                documentQualityIssues: {
+                  type: "array",
+                  items: { type: "string" },
+                  maxItems: 6,
+                },
+                noteCoverage: {
+                  type: "array",
+                  items: { type: "string" },
+                  maxItems: 8,
+                },
+                overallAssessment: {
+                  type: "string",
+                  enum: ["sufficient", "needs_work", "insufficient_context"],
+                },
               },
-              oshaRelatedGapsOrRisks: {
-                type: "array",
-                items: { type: "string" },
-                minItems: 2,
-                maxItems: 8,
-              },
-              recommendedFollowUps: {
-                type: "array",
-                items: { type: "string" },
-                minItems: 2,
-                maxItems: 6,
-              },
-              documentQualityIssues: {
-                type: "array",
-                items: { type: "string" },
-                maxItems: 6,
-              },
-              noteCoverage: {
-                type: "array",
-                items: { type: "string" },
-                maxItems: 8,
-              },
-              overallAssessment: {
-                type: "string",
-                enum: ["sufficient", "needs_work", "insufficient_context"],
-              },
+              required: [
+                "executiveSummary",
+                "alignmentWithGcSiteRequirements",
+                "oshaRelatedStrengths",
+                "oshaRelatedGapsOrRisks",
+                "recommendedFollowUps",
+                "overallAssessment",
+              ],
             },
-            required: [
-              "executiveSummary",
-              "alignmentWithGcSiteRequirements",
-              "oshaRelatedStrengths",
-              "oshaRelatedGapsOrRisks",
-              "recommendedFollowUps",
-              "overallAssessment",
-            ],
           },
         },
-      },
-    }),
-  });
+      }),
+    });
 
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`OpenAI request failed (${res.status}): ${errText.slice(0, 500)}`);
+    if (res.ok) {
+      break;
+    }
+
+    errText = await res.text().catch(() => "");
+    const shouldRetryOnFallback =
+      candidate !== DEFAULT_GC_REVIEW_MODEL &&
+      (errText.includes("model_not_found") ||
+        errText.includes("does not have access to model") ||
+        errText.includes("invalid_request_error"));
+    if (!shouldRetryOnFallback) {
+      break;
+    }
   }
 
-  const json: unknown = await res.json();
+  if (!res || !res.ok) {
+    throw new Error(`OpenAI request failed (${res?.status ?? 502}): ${errText.slice(0, 500)}`);
+  }
+  const successfulResponse = res;
+
+  const json: unknown = await successfulResponse.json();
   const rawText = extractResponsesApiOutputText(json);
   if (!rawText) {
     throw new Error("Empty model output.");

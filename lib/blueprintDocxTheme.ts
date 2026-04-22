@@ -329,26 +329,14 @@ function prefixDepth(prefix: string) {
   return Math.max(1, prefix.split(".").length);
 }
 
-function makeParagraph(
-  text: string,
-  style = STYLE_IDS.body,
-  alignment = AlignmentType.LEFT,
-  options: {
-    keepNext?: boolean;
-    keepLines?: boolean;
-    spacingAfter?: number;
-    indentLeft?: number;
-  } = {}
-) {
-  return new Paragraph({
-    style,
-    alignment,
-    keepNext: options.keepNext,
-    keepLines: options.keepLines,
-    spacing: options.spacingAfter !== undefined ? { after: options.spacingAfter } : undefined,
-    indent: options.indentLeft ? { left: options.indentLeft } : undefined,
-    children: [new TextRun({ text })],
-  });
+function splitStructuredParagraphs(text: string | null | undefined) {
+  if (!text?.trim()) return [];
+
+  return text
+    .replace(/\r\n?/g, "\n")
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 function makeBodyParagraph(
@@ -1173,7 +1161,13 @@ async function createBodyChildren(draft: GeneratedSafetyPlanDraft) {
     }
 
     if (section.body) {
-      children.push(makeBodyParagraph(section.body));
+      splitStructuredParagraphs(section.body).forEach((paragraph, paragraphIndex, paragraphs) => {
+        children.push(
+          makeBodyParagraph(paragraph, AlignmentType.LEFT, {
+            keepNext: paragraphIndex < paragraphs.length - 1,
+          })
+        );
+      });
     }
 
     if (section.bullets?.length) {
@@ -1188,7 +1182,14 @@ async function createBodyChildren(draft: GeneratedSafetyPlanDraft) {
         children.push(makeSubheading(`${subsectionPrefix} ${subsection.title}`));
 
         if (subsection.body) {
-          children.push(makeBodyParagraph(subsection.body));
+          splitStructuredParagraphs(subsection.body).forEach((paragraph, paragraphIndex, paragraphs) => {
+            children.push(
+              makeBodyParagraph(paragraph, AlignmentType.LEFT, {
+                keepNext:
+                  paragraphIndex < paragraphs.length - 1 || subsection.bullets.length > 0,
+              })
+            );
+          });
         }
 
         subsection.bullets.forEach((item, bulletIndex) => {
