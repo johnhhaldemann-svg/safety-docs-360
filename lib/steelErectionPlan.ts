@@ -154,7 +154,7 @@ export function buildSteelErectionPlan(params: {
         "Call 911, identify the project as an active steel-erection site, give the project address, access gate, level, and rescue location.",
       siteAccessInstructions:
         cleanFinalText(String(steel.siteAccessInstructions ?? "")) ??
-        `Emergency access route: ${cleanFinalText(params.generationContext.project.projectAddress) ?? controlledTbd()}.`,
+        `Emergency access route: ${cleanFinalText(params.generationContext.project.projectAddress) ?? "Coordinate responders through the designated project gate and active work area"}.`,
       notifyRoles: ["Superintendent", "Foreman", "Competent Person", "Safety Director"],
       primaryRescueMethod:
         cleanFinalText(String(steel.primaryRescueMethod ?? "")) ??

@@ -533,6 +533,75 @@ describe("csepDocxRenderer", () => {
       filenameProjectPart: "Riverfront_Tower",
     };
 
-    await expect(renderCsepRenderModel(model)).rejects.toThrow("unresolved placeholder content");
+    await expect(renderCsepRenderModel(model)).rejects.toThrow(
+      'unresolved placeholder content remains in final export. Source: Subsection paragraph: 3.0 Roles and Responsibilities / Superintendent / 1 = "TBD by contractor before issue".'
+    );
+  });
+
+  it("fails export when internal-only generation terminology remains in the final model", async () => {
+    const model: CsepRenderModel = {
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      tradeLabel: "Steel Erection",
+      subTradeLabel: "Decking",
+      issueLabel: "April 20, 2026",
+      statusLabel: "Contractor Issue",
+      preparedBy: "ABC Steel",
+      coverSubtitleLines: [],
+      coverMetadataRows: [],
+      approvalLines: [],
+      revisionHistory: [],
+      frontMatterSections: [],
+      sections: [
+        {
+          key: "site_controls",
+          kind: "main",
+          title: "1.0 Site Controls",
+          numberLabel: "1.0",
+          subsections: [
+            {
+              title: "Access",
+              paragraphs: ["Applicability / trigger logic: Apply this module whenever access control changes."],
+              items: [],
+            },
+          ],
+        },
+      ],
+      appendixSections: [],
+      disclaimerLines: ["Generated draft disclaimer."],
+      filenameProjectPart: "Riverfront_Tower",
+    };
+
+    await expect(renderCsepRenderModel(model)).rejects.toThrow(
+      'internal-only generation terminology remains in final export. Source: Subsection paragraph: 1.0 Site Controls / Access / 1 = "Applicability / trigger logic: Apply this module whenever access control changes.".'
+    );
+  });
+
+  it("renders document-control front matter with N/A instead of blocking placeholders when optional fields are blank", async () => {
+    const draft = createGeneratedDraft();
+    draft.projectOverview.projectName = "";
+    draft.projectOverview.projectNumber = "";
+    draft.projectOverview.projectAddress = "";
+    draft.projectOverview.ownerClient = "";
+    draft.projectOverview.gcCm = "";
+    draft.projectOverview.contractorCompany = "";
+    draft.documentControl = {
+      projectSite: "",
+      primeContractor: "",
+      clientOwner: "",
+      documentNumber: "",
+      revision: "",
+      issueDate: "",
+      preparedBy: "",
+      reviewedBy: "",
+      approvedBy: "",
+    };
+
+    const rendered = await renderGeneratedCsepDocx(draft);
+    const { documentXml } = await unzipDocx(rendered.body);
+
+    expect(documentXml).toContain("Field: Project Name / Site");
+    expect(documentXml).toContain("Value: N/A");
+    expect(documentXml).not.toContain("TBD by contractor before issue");
   });
 });

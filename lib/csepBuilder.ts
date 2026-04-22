@@ -1950,18 +1950,19 @@ function buildStaticFrontMatterSections(
     ...buildDefaultCsepDocumentControlFields(builderSnapshot),
     ...(draft.documentControl ?? {}),
   };
+  const displayOrNA = (value: string | null | undefined) => cleanFinalText(value) ?? "N/A";
   const projectSite =
     cleanFinalText(documentControl.projectSite) ??
     cleanFinalText(draft.projectOverview.projectName) ??
-    controlledTbd();
+    "N/A";
   const primeContractor =
     cleanFinalText(documentControl.primeContractor) ??
     cleanFinalText(draft.projectOverview.contractorCompany) ??
-    controlledTbd();
+    "N/A";
   const clientOwner =
     cleanFinalText(documentControl.clientOwner) ??
     cleanFinalText(draft.projectOverview.ownerClient) ??
-    controlledTbd();
+    "N/A";
   const currentIssueLabel = new Intl.DateTimeFormat("en-US", {
     month: "long",
     day: "numeric",
@@ -1971,7 +1972,7 @@ function buildStaticFrontMatterSections(
     uniqueNonEmpty([
       cleanFinalText(documentControl.documentNumber),
       cleanFinalText(documentControl.revision),
-    ]).join(" / ") || controlledTbd();
+    ]).join(" / ") || "N/A";
   const preparedByLabel =
     cleanFinalText(documentControl.preparedBy) ??
     cleanFinalText(draft.projectOverview.contractorCompany) ??
@@ -2014,11 +2015,11 @@ function buildStaticFrontMatterSections(
       table: {
         columns: ["Field", "Value"],
         rows: [
-          ["Project Name / Site", projectSite],
-          ["Prime / Contractor", primeContractor],
-          ["Client / Owner", clientOwner],
-          ["Document Number / Revision", documentNumberRevision],
-          ["Prepared By / Reviewed By / Approved By", preparedReviewedApproved],
+          ["Project Name / Site", displayOrNA(projectSite)],
+          ["Prime / Contractor", displayOrNA(primeContractor)],
+          ["Client / Owner", displayOrNA(clientOwner)],
+          ["Document Number / Revision", displayOrNA(documentNumberRevision)],
+          ["Prepared By / Reviewed By / Approved By", displayOrNA(preparedReviewedApproved)],
         ],
       },
     },

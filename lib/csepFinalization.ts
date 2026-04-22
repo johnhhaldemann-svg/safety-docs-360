@@ -16,6 +16,32 @@ const INTERNAL_PHRASE_PATTERNS = [
   /platform generator note:\s*/gi,
 ];
 
+const EXPORT_TEXT_REMOVALS = [
+  /Use this module to align sequence, access, and handoffs with that work\.?/gi,
+  /selected program hazard\s*\/\s*/gi,
+];
+
+const EXPORT_TEXT_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/^Trigger \/ reference:\s*/gi, ""],
+  [/^Applicability \/ trigger logic:\s*Apply this module whenever\s*/gi, "This section applies when "],
+  [/^Applicability \/ trigger logic:\s*Apply this program before\s*/gi, "This section applies before "],
+  [/^Applicability \/ trigger logic:\s*/gi, "This section applies when "],
+  [
+    /Included for this scope based on/gi,
+    "This section is included because the selected work involves",
+  ],
+  [/Review these sections first:/gi, "Related considerations include"],
+  [/Interfaces to coordinate:/gi, "Coordinate with"],
+  [/\bPrimary exposure\b/gi, "Primary hazard"],
+  [/\bSecondary exposure\b/gi, "Additional hazard"],
+  [/\bChanging condition risk\b/gi, "Changing site conditions"],
+  [/\bTask Scope\s*&\s*Work Conditions\b/gi, "Task scope and work conditions"],
+  [/\bTask purpose\b/gi, "Purpose"],
+  [/\bMain exposure profile\b/gi, "Main hazards"],
+  [/\bProgram Purpose and Applicability\b/gi, "Purpose"],
+  [/\bRoles and Responsibilities\b/gi, "Responsibilities"],
+];
+
 const INVALID_EXACT_TOKENS = new Set([
   "test",
   "pending approval",
@@ -119,7 +145,35 @@ export function cleanFinalText(value: string | null | undefined, options?: { all
     return options?.allowTbd ? CONTROLLED_TBD : null;
   }
 
+  if (cleaned.toLowerCase() === CONTROLLED_TBD.toLowerCase()) {
+    return options?.allowTbd ? CONTROLLED_TBD : null;
+  }
+
   return cleaned;
+}
+
+export function normalizeFinalExportText(
+  value: string | null | undefined,
+  options?: { allowTbd?: boolean }
+) {
+  const cleaned = cleanFinalText(value, options);
+  if (!cleaned) return cleaned;
+
+  let normalized = cleaned;
+  for (const pattern of EXPORT_TEXT_REMOVALS) {
+    normalized = normalized.replace(pattern, " ");
+  }
+
+  for (const [pattern, replacement] of EXPORT_TEXT_REPLACEMENTS) {
+    normalized = normalized.replace(pattern, replacement);
+  }
+
+  normalized = normalized
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .trim();
+
+  return normalized || (options?.allowTbd ? CONTROLLED_TBD : null);
 }
 
 export function isMeaningfulFinalText(value: string | null | undefined) {
@@ -227,20 +281,20 @@ export function splitScopeTasksAndInterfaces(values: Array<string | null | undef
 export function cleanSectionForFinalIssue(
   section: GeneratedSafetyPlanSection
 ): GeneratedSafetyPlanSection | null {
-  const title = cleanFinalText(section.title);
+  const title = normalizeFinalExportText(section.title);
   if (!title) return null;
 
-  const summary = cleanFinalText(section.summary);
-  const body = cleanFinalText(section.body);
+  const summary = normalizeFinalExportText(section.summary);
+  const body = normalizeFinalExportText(section.body);
   const bullets = (section.bullets ?? [])
-    .map((item) => cleanFinalText(item))
+    .map((item) => normalizeFinalExportText(item))
     .filter((item): item is string => Boolean(item));
   const subsections = (section.subsections ?? [])
     .map((subsection) => {
-      const subsectionTitle = cleanFinalText(subsection.title);
-      const subsectionBody = cleanFinalText(subsection.body);
+      const subsectionTitle = normalizeFinalExportText(subsection.title);
+      const subsectionBody = normalizeFinalExportText(subsection.body);
       const subsectionBullets = subsection.bullets
-        .map((item) => cleanFinalText(item))
+        .map((item) => normalizeFinalExportText(item))
         .filter((item): item is string => Boolean(item));
 
       if (!subsectionTitle && !subsectionBody && !subsectionBullets.length) {
@@ -267,12 +321,12 @@ export function cleanSectionForFinalIssue(
   const table = section.table
     ? {
         columns: section.table.columns
-          .map((column) => cleanFinalText(column))
+          .map((column) => normalizeFinalExportText(column))
           .filter((column): column is string => Boolean(column)),
         rows: section.table.rows
           .map((row) =>
             row
-              .map((cell) => cleanFinalText(cell, { allowTbd: true }))
+              .map((cell) => normalizeFinalExportText(cell) ?? "N/A")
               .filter((cell): cell is string => Boolean(cell))
           )
           .filter((row) => row.length > 0),

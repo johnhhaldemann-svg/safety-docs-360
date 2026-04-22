@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { cleanFinalText } from "@/lib/csepFinalization";
+import {
+  cleanFinalText,
+  cleanSectionForFinalIssue,
+  normalizeFinalExportText,
+} from "@/lib/csepFinalization";
 
 describe("csepFinalization", () => {
   it("removes platform generator drafting phrases from final text", () => {
@@ -26,5 +30,70 @@ describe("csepFinalization", () => {
     expect(
       cleanFinalText("Portable generator cords shall be inspected before each shift.")
     ).toBe("Portable generator cords shall be inspected before each shift.");
+  });
+
+  it("drops the controlled placeholder unless explicitly allowed", () => {
+    expect(cleanFinalText("TBD by contractor before issue")).toBeNull();
+    expect(cleanFinalText("TBD by contractor before issue", { allowTbd: true })).toBe(
+      "TBD by contractor before issue"
+    );
+  });
+
+  it("converts unresolved table placeholders to N/A during final issue cleanup", () => {
+    const cleaned = cleanSectionForFinalIssue({
+      key: "policy_statement",
+      title: "Contractor Safety Policy Statement",
+      table: {
+        columns: ["Requirement", "Details", "Responsible Party"],
+        rows: [["Policy communication", "Discuss during orientation", "TBD by contractor before issue"]],
+      },
+    });
+
+    expect(cleaned?.table?.rows).toEqual([["Policy communication", "Discuss during orientation", "N/A"]]);
+  });
+
+  it("normalizes internal automation labels into export-ready wording", () => {
+    expect(
+      normalizeFinalExportText(
+        "Applicability / trigger logic: Apply this module whenever Beam setting, Bolting is in the work plan."
+      )
+    ).toBe("This section applies when Beam setting, Bolting is in the work plan.");
+
+    expect(
+      normalizeFinalExportText(
+        "Trigger / reference: Included for this scope based on the selected program hazard / fall protection. Review these sections first: module scope and main exposures."
+      )
+    ).toBe(
+      "This section is included because the selected work involves the fall protection. Related considerations include module scope and main exposures."
+    );
+
+    expect(
+      normalizeFinalExportText(
+        "Interfaces to coordinate: deck crews and crane crew. Use this module to align sequence, access, and handoffs with that work."
+      )
+    ).toBe("Coordinate with deck crews and crane crew.");
+  });
+
+  it("normalizes internal headings during final issue cleanup", () => {
+    const cleaned = cleanSectionForFinalIssue({
+      key: "program_module",
+      title: "Program Purpose and Applicability",
+      subsections: [
+        {
+          title: "Task Scope & Work Conditions",
+          body: "Main exposure profile",
+          bullets: ["Primary exposure", "Secondary exposure", "Changing condition risk"],
+        },
+      ],
+    });
+
+    expect(cleaned?.title).toBe("Purpose");
+    expect(cleaned?.subsections?.[0]?.title).toBe("Task scope and work conditions");
+    expect(cleaned?.subsections?.[0]?.body).toBe("Main hazards");
+    expect(cleaned?.subsections?.[0]?.bullets).toEqual([
+      "Primary hazard",
+      "Additional hazard",
+      "Changing site conditions",
+    ]);
   });
 });

@@ -269,6 +269,10 @@ function valueOrNA(value?: string | null) {
   return value?.trim() ? value.trim() : "N/A";
 }
 
+function finalValueOrNA(value?: string | null) {
+  return cleanFinalText(value) ?? "N/A";
+}
+
 function uniqueValues(values: Array<string | null | undefined>) {
   return Array.from(
     new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))
@@ -412,42 +416,79 @@ function validateNoRepeatedSentences(section: CsepTemplateSection) {
   }
 }
 
-function collectVisibleModelText(model: CsepRenderModel) {
+type VisibleModelTextEntry = {
+  label: string;
+  value: string;
+};
+
+function collectVisibleModelText(model: CsepRenderModel): VisibleModelTextEntry[] {
   const visibleSections = [...model.frontMatterSections, ...model.sections, ...model.appendixSections];
 
   return [
-    model.projectName,
-    model.contractorName,
-    model.tradeLabel ?? "",
-    model.subTradeLabel ?? "",
-    model.issueLabel,
-    model.statusLabel,
-    model.preparedBy,
-    ...model.coverSubtitleLines,
-    ...model.coverMetadataRows.flatMap((row) => [row.label, row.value]),
-    ...model.approvalLines,
-    ...model.revisionHistory.flatMap((row) => [
-      row.revision,
-      row.date,
-      row.description,
-      row.preparedBy,
-      row.approvedBy,
+    { label: "Project name", value: model.projectName },
+    { label: "Contractor", value: model.contractorName },
+    { label: "Trade", value: model.tradeLabel ?? "" },
+    { label: "Sub-trade", value: model.subTradeLabel ?? "" },
+    { label: "Issue date", value: model.issueLabel },
+    { label: "Status", value: model.statusLabel },
+    { label: "Prepared by", value: model.preparedBy },
+    ...model.coverSubtitleLines.map((value, index) => ({
+      label: `Cover subtitle ${index + 1}`,
+      value,
+    })),
+    ...model.coverMetadataRows.map((row) => ({
+      label: `Cover metadata: ${row.label}`,
+      value: row.value,
+    })),
+    ...model.approvalLines.map((value, index) => ({
+      label: `Approval line ${index + 1}`,
+      value,
+    })),
+    ...model.revisionHistory.flatMap((row, index) => [
+      { label: `Revision history ${index + 1}: revision`, value: row.revision },
+      { label: `Revision history ${index + 1}: date`, value: row.date },
+      { label: `Revision history ${index + 1}: description`, value: row.description },
+      { label: `Revision history ${index + 1}: prepared by`, value: row.preparedBy },
+      { label: `Revision history ${index + 1}: approved by`, value: row.approvedBy },
     ]),
     ...visibleSections.flatMap((section) => [
-      section.title,
-      section.numberLabel ?? "",
-      section.closingTagline ?? "",
-      ...section.subsections.flatMap((subsection) => [
-        subsection.title,
-        ...(subsection.paragraphs ?? []),
-        ...(subsection.items ?? []),
+      { label: `Section title: ${section.key}`, value: section.title },
+      { label: `Section number: ${section.key}`, value: section.numberLabel ?? "" },
+      { label: `Section closing tagline: ${section.key}`, value: section.closingTagline ?? "" },
+      ...section.subsections.flatMap((subsection, subsectionIndex) => [
+        {
+          label: `Subsection title: ${section.title} / ${subsectionIndex + 1}`,
+          value: subsection.title,
+        },
+        ...(subsection.paragraphs ?? []).map((value, paragraphIndex) => ({
+          label: `Subsection paragraph: ${section.title} / ${subsection.title || subsectionIndex + 1} / ${paragraphIndex + 1}`,
+          value,
+        })),
+        ...(subsection.items ?? []).map((value, itemIndex) => ({
+          label: `Subsection item: ${section.title} / ${subsection.title || subsectionIndex + 1} / ${itemIndex + 1}`,
+          value,
+        })),
         ...(subsection.table
-          ? [...subsection.table.columns, ...subsection.table.rows.flat()]
+          ? [
+              ...subsection.table.columns.map((value, columnIndex) => ({
+                label: `Subsection table column: ${section.title} / ${subsection.title || subsectionIndex + 1} / ${columnIndex + 1}`,
+                value,
+              })),
+              ...subsection.table.rows.flatMap((row, rowIndex) =>
+                row.map((value, columnIndex) => ({
+                  label: `Subsection table cell: ${section.title} / ${subsection.title || subsectionIndex + 1} / row ${rowIndex + 1} col ${columnIndex + 1}`,
+                  value,
+                }))
+              ),
+            ]
           : []),
       ]),
     ]),
-    ...model.disclaimerLines,
-  ].filter(Boolean);
+    ...model.disclaimerLines.map((value, index) => ({
+      label: `Disclaimer line ${index + 1}`,
+      value,
+    })),
+  ].filter((entry) => Boolean(entry.value));
 }
 
 function validateSectionOrdering(sections: CsepTemplateSection[]) {
@@ -494,6 +535,8 @@ function validateCsepRenderModel(model: CsepRenderModel) {
   ]);
   const placeholderPattern =
     /tbd by contractor before issue|company logo placement|insert contractor logo|page\s+of/i;
+  const bannedInternalPhrasePattern =
+    /Applicability \/ trigger logic|Included for this scope|Review these sections first|Interfaces to coordinate|selected program hazard|Use this module to align sequence, access, and handoffs with that work|primary exposure|secondary exposure|changing condition risk|task scope\s*&\s*work conditions|main exposure profile|program purpose and applicability/i;
 
   validateSectionOrdering(numberedSections);
 
@@ -534,14 +577,22 @@ function validateCsepRenderModel(model: CsepRenderModel) {
   });
 
   const visibleText = collectVisibleModelText(model);
-  const hasPlaceholderContent = visibleText.some((value) => {
-    const normalized = normalizeCompareToken(value);
-    return invalidExactTokens.has(normalized) || placeholderPattern.test(value);
+  const placeholderEntry = visibleText.find((entry) => {
+    const normalized = normalizeCompareToken(entry.value);
+    return (
+      invalidExactTokens.has(normalized) ||
+      placeholderPattern.test(entry.value) ||
+      bannedInternalPhrasePattern.test(entry.value)
+    );
   });
 
-  if (hasPlaceholderContent) {
+  if (placeholderEntry) {
+    const preview = placeholderEntry.value.replace(/\s+/g, " ").trim().slice(0, 120);
+    const isInternalPhrase = bannedInternalPhrasePattern.test(placeholderEntry.value);
     throw new Error(
-      "CSEP export validation failed: unresolved placeholder content remains in final export."
+      isInternalPhrase
+        ? `CSEP export validation failed: internal-only generation terminology remains in final export. Source: ${placeholderEntry.label} = "${preview}".`
+        : `CSEP export validation failed: unresolved placeholder content remains in final export. Source: ${placeholderEntry.label} = "${preview}".`
     );
   }
 }
@@ -945,7 +996,7 @@ export function buildCsepRenderModelFromGeneratedDraft(
   const draftHasStructuredKinds = draft.sectionMap.some((section) =>
     ["front_matter", "main", "appendix"].includes(section.kind ?? "")
   );
-  const contractorName = valueOrNA(draft.projectOverview.contractorCompany);
+  const contractorName = finalValueOrNA(draft.projectOverview.contractorCompany);
   const tradeLabels = uniqueValues(draft.operations.map((operation) => operation.tradeLabel));
   const subTradeLabels = uniqueValues(draft.operations.map((operation) => operation.subTradeLabel));
   const taskTitles = uniqueValues(draft.operations.map((operation) => operation.taskTitle));
@@ -961,8 +1012,8 @@ export function buildCsepRenderModelFromGeneratedDraft(
     cleanFinalText(structuredDraft.documentControl?.reviewedBy) ||
     cleanFinalText(draft.projectOverview.contractorCompany) ||
     preparedBy;
-  const projectName = valueOrNA(draft.projectOverview.projectName);
-  const projectAddress = valueOrNA(draft.projectOverview.projectAddress);
+  const projectName = finalValueOrNA(draft.projectOverview.projectName);
+  const projectAddress = finalValueOrNA(draft.projectOverview.projectAddress);
   const frontMatterSections = sanitizedSections
     .filter((section) => section.kind === "front_matter")
     .sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
@@ -995,10 +1046,10 @@ export function buildCsepRenderModelFromGeneratedDraft(
       ...(taskTitles.length ? [`Tasks: ${taskTitles.join(", ")}`] : []),
     ],
     coverMetadataRows: [
-      { label: "Project Number", value: valueOrNA(draft.projectOverview.projectNumber) },
+      { label: "Project Number", value: finalValueOrNA(draft.projectOverview.projectNumber) },
       { label: "Project Address", value: projectAddress },
-      { label: "Owner / Client", value: valueOrNA(draft.projectOverview.ownerClient) },
-      { label: "GC / CM", value: valueOrNA(draft.projectOverview.gcCm) },
+      { label: "Owner / Client", value: finalValueOrNA(draft.projectOverview.ownerClient) },
+      { label: "GC / CM", value: finalValueOrNA(draft.projectOverview.gcCm) },
       { label: "Contractor", value: contractorName },
       { label: "Prepared By", value: preparedBy },
       { label: "Date", value: issueLabel },
