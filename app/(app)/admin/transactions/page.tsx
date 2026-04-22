@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   EmptyState,
@@ -10,10 +10,7 @@ import {
   SectionCard,
 } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type AuditTransaction = {
   id: string;
@@ -58,9 +55,7 @@ function formatRelative(timestamp?: string | null) {
 }
 
 function transactionTone(amount: number) {
-  return amount >= 0
-    ? "bg-emerald-100 text-emerald-700"
-    : "bg-amber-100 text-amber-700";
+  return amount >= 0 ? "app-badge-success" : "app-badge-warning";
 }
 
 function transactionLabel(type: string) {

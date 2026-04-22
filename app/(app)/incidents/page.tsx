@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
@@ -42,10 +42,7 @@ import {
   type RiskMemoryFormInput,
 } from "@/lib/riskMemory/form";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 function occurredAtToLocalInput(iso: string | null | undefined): string {
   if (!iso?.trim()) return "";
@@ -340,7 +337,7 @@ export default function IncidentsPage() {
         description="Classify event/exposure, equipment source, injury details when applicable, and DART outcomes—so hazards tie to outcomes across the program."
       >
         <div className="grid gap-3 md:grid-cols-3">
-          <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Incident title" className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]" />
+          <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Incident title" aria-label="Incident title" className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]" />
           <select
             value={form.category}
             onChange={(event) =>
@@ -514,12 +511,14 @@ export default function IncidentsPage() {
             value={form.observationId}
             onChange={(event) => setForm((prev) => ({ ...prev, observationId: event.target.value }))}
             placeholder="Observation ID (optional)"
+            aria-label="Observation ID"
             className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
           />
           <input
             value={form.dapActivityId}
             onChange={(event) => setForm((prev) => ({ ...prev, dapActivityId: event.target.value }))}
             placeholder="JSA Activity ID (optional)"
+            aria-label="JSA Activity ID"
             className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
           />
           <div className="col-span-full mt-2 rounded-2xl border border-slate-700/60 bg-slate-950/40 p-4">

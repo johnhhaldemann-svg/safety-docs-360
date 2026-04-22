@@ -78,7 +78,45 @@ describe("workspaceNavigationModel", () => {
     });
     expect(grouped[3]?.items[0]).toMatchObject({
       href: "/profile",
-      description: "Manage workspace controls, analytics, reporting, and account details.",
+      description: "Update your account profile, contact details, role context, and personal settings.",
+    });
+  });
+
+  it("assigns route-specific admin descriptions instead of one generic workspace blurb", () => {
+    expect(
+      getWorkspaceNavItemMeta({
+        href: "/billing",
+        label: "Billing",
+        short: "BL",
+      })
+    ).toMatchObject({
+      group: "admin",
+      description: "Review billing activity, invoices, payment status, and account charges.",
+      primaryActionLabel: "Open billing",
+    });
+
+    expect(
+      getWorkspaceNavItemMeta({
+        href: "/company-users",
+        label: "Team",
+        short: "TM",
+      })
+    ).toMatchObject({
+      group: "admin",
+      description: "Manage team members, invitations, access roles, and company user permissions.",
+      primaryActionLabel: "Open team",
+    });
+
+    expect(
+      getWorkspaceNavItemMeta({
+        href: "/settings/risk-memory",
+        label: "Risk Memory setup",
+        short: "RM",
+      })
+    ).toMatchObject({
+      group: "admin",
+      description: "Tune Risk Memory rules, recommendations, and company knowledge settings.",
+      primaryActionLabel: "Open settings",
     });
   });
 });

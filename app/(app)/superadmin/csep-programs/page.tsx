@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   getDefaultProgramDefinitions,
@@ -19,10 +19,7 @@ import type {
   CSEPProgramSubtypeValue,
 } from "@/types/csep-programs";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type ProgramArrayField = keyof Pick<
   CSEPProgramDefinitionContent,
@@ -477,7 +474,7 @@ function ProgramEditorCard({
             type="text"
             value={definition.title}
             onChange={(event) => onTextChange("title", event.target.value)}
-            className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+            className="app-dark-input"
           />
         </Field>
 
@@ -486,7 +483,7 @@ function ProgramEditorCard({
             value={definition.summary}
             onChange={(event) => onTextChange("summary", event.target.value)}
             rows={4}
-            className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+            className="app-dark-input"
           />
         </Field>
 
@@ -504,7 +501,7 @@ function ProgramEditorCard({
                   ? 6
                   : 4
               }
-              className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+              className="app-dark-input"
             />
           </Field>
         ))}
@@ -539,7 +536,7 @@ function ProgramVariantEditorCard({
             type="text"
             value={value.title ?? ""}
             onChange={(event) => onTextChange(subtype, "title", event.target.value)}
-            className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+            className="app-dark-input"
           />
         </Field>
 
@@ -548,7 +545,7 @@ function ProgramVariantEditorCard({
             value={value.summary ?? ""}
             onChange={(event) => onTextChange(subtype, "summary", event.target.value)}
             rows={4}
-            className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+            className="app-dark-input"
           />
         </Field>
 
@@ -566,7 +563,7 @@ function ProgramVariantEditorCard({
                   ? 6
                   : 4
               }
-              className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+              className="app-dark-input"
             />
           </Field>
         ))}

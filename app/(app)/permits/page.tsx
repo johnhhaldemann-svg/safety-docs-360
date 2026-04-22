@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PermitCopilotPanel } from "@/components/permits/PermitCopilotPanel";
@@ -13,10 +13,7 @@ import {
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type PermitRow = {
   id: string;
@@ -389,8 +386,14 @@ export default function PermitsPage() {
 
             <div className="grid gap-3 md:grid-cols-2">
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Permit title</label>
+                <label
+                  htmlFor="permit-title"
+                  className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500"
+                >
+                  Permit title
+                </label>
                 <input
+                  id="permit-title"
                   value={form.title}
                   onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
                   placeholder="Permit title"
@@ -457,8 +460,14 @@ export default function PermitsPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Due date</label>
+                <label
+                  htmlFor="permit-due-date"
+                  className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500"
+                >
+                  Due date
+                </label>
                 <input
+                  id="permit-due-date"
                   type="datetime-local"
                   value={form.dueAt}
                   onChange={(event) => setForm((prev) => ({ ...prev, dueAt: event.target.value }))}
@@ -466,8 +475,14 @@ export default function PermitsPage() {
                 />
               </div>
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Owner user id</label>
+                <label
+                  htmlFor="permit-owner-user-id"
+                  className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500"
+                >
+                  Owner user id
+                </label>
                 <input
+                  id="permit-owner-user-id"
                   value={form.ownerUserId}
                   onChange={(event) => setForm((prev) => ({ ...prev, ownerUserId: event.target.value }))}
                   placeholder="Optional owner user id"
@@ -546,8 +561,14 @@ export default function PermitsPage() {
                 </div>
               </div>
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Observation id</label>
+                <label
+                  htmlFor="permit-observation-id"
+                  className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500"
+                >
+                  Observation id
+                </label>
                 <input
+                  id="permit-observation-id"
                   value={form.observationId}
                   onChange={(event) => setForm((prev) => ({ ...prev, observationId: event.target.value }))}
                   placeholder="Observation id (optional)"

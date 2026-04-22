@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useState } from "react";
 import {
   type AgreementConfig,
@@ -14,10 +14,7 @@ import {
   SectionCard,
 } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type AgreementAuditSummary = {
   totalUsers: number;
@@ -401,10 +398,10 @@ function StatusRow({
 }) {
   const toneClass =
     tone === "green"
-      ? "bg-emerald-100 text-emerald-700"
+      ? "app-badge-success"
       : tone === "amber"
-        ? "bg-amber-100 text-amber-700"
-        : "bg-red-100 text-red-200";
+        ? "app-badge-warning"
+        : "app-badge-danger";
 
   return (
     <div className="flex items-center justify-between rounded-2xl border border-slate-700/80 px-4 py-4">

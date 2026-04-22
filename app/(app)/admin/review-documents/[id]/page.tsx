@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { MarketplacePreviewModal } from "@/components/MarketplacePreviewModal";
 import {
   EmptyState,
@@ -30,10 +30,7 @@ import {
 import type { GcProgramAiReview } from "@/lib/gcProgramAiReview";
 import { formatSafetyBlueprintDocumentType } from "@/lib/safetyBlueprintLabels";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type DocumentItem = {
   id: string;
@@ -1535,10 +1532,13 @@ export default function ReviewDocumentPage() {
                   value={builderAiContext}
                   onChange={(e) => setBuilderAiContext(e.target.value)}
                   placeholder="e.g. Contract exhibit references, site-specific controls, environmental requirements, client redlines to verify…"
-                  className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                  className="app-dark-input"
                 />
                 <div>
-                  <label className="block text-sm font-semibold text-slate-200">
+                  <label
+                    htmlFor="builder-site-reference-file"
+                    className="block text-sm font-semibold text-slate-200"
+                  >
                     Site / GC reference document (optional)
                   </label>
                   <p className="mt-1 text-xs text-slate-500">
@@ -1546,6 +1546,7 @@ export default function ReviewDocumentPage() {
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-3">
                     <input
+                      id="builder-site-reference-file"
                       type="file"
                       accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                       className="block w-full max-w-md text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800/70 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-200 hover:file:bg-slate-200"
@@ -1674,10 +1675,13 @@ export default function ReviewDocumentPage() {
                   value={gcAiContext}
                   onChange={(e) => setGcAiContext(e.target.value)}
                   placeholder="e.g. Site-specific safety plan elements, exhibit references, hot work rules, crane mat requirements…"
-                  className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                  className="app-dark-input"
                 />
                 <div>
-                  <label className="block text-sm font-semibold text-slate-200">
+                  <label
+                    htmlFor="gc-site-reference-file"
+                    className="block text-sm font-semibold text-slate-200"
+                  >
                     Site / GC reference document (optional)
                   </label>
                   <p className="mt-1 text-xs text-slate-500">
@@ -1685,6 +1689,7 @@ export default function ReviewDocumentPage() {
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-3">
                     <input
+                      id="gc-site-reference-file"
                       type="file"
                       accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                       className="block w-full max-w-md text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800/70 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-200 hover:file:bg-slate-200"
@@ -1890,10 +1895,14 @@ export default function ReviewDocumentPage() {
 
                 <div className="grid gap-5 lg:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-200">
+                    <label
+                      htmlFor="final-docx-upload"
+                      className="mb-2 block text-sm font-semibold text-slate-200"
+                    >
                       Final DOCX
                     </label>
                     <input
+                      id="final-docx-upload"
                       type="file"
                       accept=".docx"
                       onChange={(event) => setFile(event.target.files?.[0] || null)}
@@ -1905,15 +1914,19 @@ export default function ReviewDocumentPage() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-200">
+                    <label
+                      htmlFor="reviewer-email"
+                      className="mb-2 block text-sm font-semibold text-slate-200"
+                    >
                       Reviewer Email
                     </label>
                     <input
+                      id="reviewer-email"
                       type="email"
                       value={reviewerEmail}
                       onChange={(event) => setReviewerEmail(event.target.value)}
                       placeholder="reviewer@company.com"
-                      className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                      className="app-dark-input"
                     />
                   </div>
                 </div>
@@ -1927,7 +1940,7 @@ export default function ReviewDocumentPage() {
                     value={reviewNotes}
                     onChange={(event) => setReviewNotes(event.target.value)}
                     placeholder="Summarize corrections, approvals, or handoff notes for the user."
-                    className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                    className="app-dark-input"
                   />
                 </div>
 
@@ -1978,15 +1991,19 @@ export default function ReviewDocumentPage() {
               </label>
 
               <div className="max-w-xs">
-                <label className="mb-2 block text-sm font-semibold text-slate-200">
+                <label
+                  htmlFor="marketplace-credit-cost"
+                  className="mb-2 block text-sm font-semibold text-slate-200"
+                >
                   Credit Cost
                 </label>
                 <input
+                  id="marketplace-credit-cost"
                   type="number"
                   min={1}
                   value={creditCost}
                   onChange={(event) => setCreditCost(event.target.value)}
-                  className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                  className="app-dark-input"
                 />
               </div>
 

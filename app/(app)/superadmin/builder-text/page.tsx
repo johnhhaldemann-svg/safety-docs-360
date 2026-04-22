@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG,
@@ -28,10 +28,7 @@ import type {
   CSEPProgramSubtypeValue,
 } from "@/types/csep-programs";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type BuilderTab = "csep_sections" | "site_builder_sections" | "csep_programs";
 
@@ -669,7 +666,7 @@ function BuilderSectionEditor({
               title: event.target.value,
             }))
           }
-          className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+          className="app-dark-input"
         />
       </Field>
 
@@ -683,7 +680,7 @@ function BuilderSectionEditor({
             }))
           }
           rows={Math.max(3, section.paragraphs.length || 3)}
-          className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+          className="app-dark-input"
         />
       </Field>
 
@@ -697,7 +694,7 @@ function BuilderSectionEditor({
             }))
           }
           rows={Math.max(3, section.bullets.length || 3)}
-          className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+          className="app-dark-input"
         />
       </Field>
 
@@ -810,14 +807,14 @@ function ProgramEditorCard({
   return (
     <SectionCard title={title} description={description}>
       <Field label="Program Title">
-        <input type="text" value={definition.title} onChange={(event) => onTextChange("title", event.target.value)} className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500" />
+        <input type="text" value={definition.title} onChange={(event) => onTextChange("title", event.target.value)} className="app-dark-input" />
       </Field>
       <Field label="Summary">
-        <textarea value={definition.summary} onChange={(event) => onTextChange("summary", event.target.value)} rows={4} className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500" />
+        <textarea value={definition.summary} onChange={(event) => onTextChange("summary", event.target.value)} rows={4} className="app-dark-input" />
       </Field>
       {ARRAY_FIELDS.map((field) => (
         <Field key={field.field} label={field.label} help={field.help}>
-          <textarea value={linesToText(definition[field.field])} onChange={(event) => onArrayChange(field.field, event.target.value)} rows={getArrayFieldRows(field.field)} className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500" />
+          <textarea value={linesToText(definition[field.field])} onChange={(event) => onArrayChange(field.field, event.target.value)} rows={getArrayFieldRows(field.field)} className="app-dark-input" />
         </Field>
       ))}
     </SectionCard>
@@ -842,14 +839,14 @@ function ProgramVariantEditorCard({
   return (
     <SectionCard title={`Subtype Override · ${subtype}`} description="Overrides applied when this subtype is selected.">
       <Field label="Subtype Title">
-        <input type="text" value={value.title ?? ""} onChange={(event) => onTextChange(subtype, "title", event.target.value)} className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500" />
+        <input type="text" value={value.title ?? ""} onChange={(event) => onTextChange(subtype, "title", event.target.value)} className="app-dark-input" />
       </Field>
       <Field label="Subtype Summary">
-        <textarea value={value.summary ?? ""} onChange={(event) => onTextChange(subtype, "summary", event.target.value)} rows={4} className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500" />
+        <textarea value={value.summary ?? ""} onChange={(event) => onTextChange(subtype, "summary", event.target.value)} rows={4} className="app-dark-input" />
       </Field>
       {ARRAY_FIELDS.map((field) => (
         <Field key={field.field} label={field.label} help={field.help}>
-          <textarea value={linesToText(value[field.field] ?? [])} onChange={(event) => onArrayChange(subtype, field.field, event.target.value)} rows={getArrayFieldRows(field.field)} className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500" />
+          <textarea value={linesToText(value[field.field] ?? [])} onChange={(event) => onArrayChange(subtype, field.field, event.target.value)} rows={getArrayFieldRows(field.field)} className="app-dark-input" />
         </Field>
       ))}
     </SectionCard>

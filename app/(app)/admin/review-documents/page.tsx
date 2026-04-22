@@ -9,7 +9,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { MarketplacePreviewModal } from "@/components/MarketplacePreviewModal";
 import {
   EmptyState,
@@ -27,10 +27,7 @@ import {
 } from "@/lib/documentStatus";
 import { formatSafetyBlueprintDocumentType } from "@/lib/safetyBlueprintLabels";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type DocumentItem = {
   id: string;

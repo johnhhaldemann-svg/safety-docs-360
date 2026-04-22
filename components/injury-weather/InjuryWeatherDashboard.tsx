@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useRouter } from "next/navigation";
 import { InjuryWeatherDiagnosticsPanel, MonthlyFocusPanel } from "@/components/injury-weather/MonthlyFocusPanel";
 import { LeadingIndicatorsPanel } from "@/components/injury-weather/LeadingIndicatorsPanel";
@@ -72,10 +72,7 @@ function controlsForCategory(trade: string, categoryName: string, risk: RiskLeve
   return bullets.slice(0, 5);
 }
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 function riskTone(level: RiskLevel) {
   if (level === "CRITICAL") return "bg-red-500/20 text-red-200 border-red-400/40";

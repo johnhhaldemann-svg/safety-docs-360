@@ -1,14 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useMemo, useState } from "react";
 import { InlineMessage, PageHero, SectionCard, StatusBadge } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type ObservationRow = {
   id: string;
@@ -596,8 +593,8 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Quick Add</div>
             <div className="mt-1 text-lg font-bold text-slate-100">New Observation</div>
             <div className="mt-4 space-y-3">
-              <input value={quickAddTitle} onChange={(e) => setQuickAddTitle(e.target.value)} placeholder="Title" className="w-full rounded border px-3 py-2 text-sm" />
-              <textarea value={quickAddDescription} onChange={(e) => setQuickAddDescription(e.target.value)} rows={4} placeholder="Description" className="w-full rounded border px-3 py-2 text-sm" />
+              <input value={quickAddTitle} onChange={(e) => setQuickAddTitle(e.target.value)} placeholder="Title" aria-label="Observation title" className="w-full rounded border px-3 py-2 text-sm" />
+              <textarea value={quickAddDescription} onChange={(e) => setQuickAddDescription(e.target.value)} rows={4} placeholder="Description" aria-label="Observation description" className="w-full rounded border px-3 py-2 text-sm" />
               <select value={quickAddSeverity} onChange={(e) => setQuickAddSeverity(e.target.value)} className="w-full rounded border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200 [color-scheme:dark]">
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>

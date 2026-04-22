@@ -146,15 +146,53 @@ const ITEM_META: Array<{
     primaryActionLabel: "Open jobsite",
   },
   {
+    matcher: (href) => href === "/customer/billing" || href === "/billing",
+    group: "admin",
+    description: "Review billing activity, invoices, payment status, and account charges.",
+    primaryActionLabel: "Open billing",
+  },
+  {
+    matcher: (href) => href === "/company-users",
+    group: "admin",
+    description: "Manage team members, invitations, access roles, and company user permissions.",
+    primaryActionLabel: "Open team",
+  },
+  {
+    matcher: (href) => href === "/profile",
+    group: "admin",
+    description: "Update your account profile, contact details, role context, and personal settings.",
+    primaryActionLabel: "Open profile",
+  },
+  {
+    matcher: (href) => href === "/analytics",
+    group: "admin",
+    description: "Review risk-memory trends, learned patterns, and portfolio-level performance signals.",
+    primaryActionLabel: "Open analytics",
+  },
+  {
+    matcher: (href) => href === "/analytics/safety-intelligence",
+    group: "admin",
+    description: "Track safety-intelligence activity, document pipeline trends, and workflow throughput.",
+    primaryActionLabel: "Open analytics",
+  },
+  {
+    matcher: (href) => href === "/settings/risk-memory",
+    group: "admin",
+    description: "Tune Risk Memory rules, recommendations, and company knowledge settings.",
+    primaryActionLabel: "Open settings",
+  },
+  {
+    matcher: (href) => href === "/reports",
+    group: "admin",
+    description: "Open company reports, summaries, and export-ready management views.",
+    primaryActionLabel: "Open reports",
+  },
+  {
     matcher: (href) =>
-      href === "/company-users" ||
-      href === "/reports" ||
-      href === "/analytics" ||
       href.startsWith("/analytics/") ||
-      href === "/settings/risk-memory" ||
-      href === "/customer/billing" ||
-      href === "/billing" ||
-      href === "/profile",
+      href.startsWith("/settings/") ||
+      href.startsWith("/billing/") ||
+      href.startsWith("/customer/billing/"),
     group: "admin",
     description: "Manage workspace controls, analytics, reporting, and account details.",
     primaryActionLabel: "Open controls",

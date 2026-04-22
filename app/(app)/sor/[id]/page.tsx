@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { PageHero, SectionCard } from "@/components/WorkspacePrimitives";
@@ -8,10 +8,7 @@ import { SorAuditHistoryPanel } from "@/components/sor/SorAuditHistoryPanel";
 import { SorStatusBadge, SorVerificationBadge } from "@/components/sor/SorBadges";
 import type { SorAuditLogRow, SorRecordRow } from "@/lib/sor/types";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 export default function SorDetailPage() {
   const params = useParams<{ id: string }>();

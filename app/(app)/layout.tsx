@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import { AppCommandPalette } from "@/components/AppCommandPalette";
 import {
@@ -264,6 +264,7 @@ export default function AppLayout({
   const [searchQuery, setSearchQuery] = useState("");
   const [bootError, setBootError] = useState("");
   const [expandedSectionKey, setExpandedSectionKey] = useState<string | null>(null);
+  const lastSidebarSyncPathRef = useRef<string | null>(null);
   const isAdminArea = pathname.startsWith("/admin");
   const isSuperadminRoute = pathname.startsWith("/superadmin");
   /** Platform admin sidebar: /admin/* or superadmin-only analytics (Injury Weather, OSHA IPA lab). */
@@ -388,11 +389,18 @@ export default function AppLayout({
   }, [keyedSideSections, pathname]);
 
   useEffect(() => {
-    if (currentNavSection) {
-      setExpandedSectionKey(currentNavSection.key);
+    const nextKey = currentNavSection?.key ?? keyedSideSections[0]?.key ?? null;
+    const hasRouteChanged = lastSidebarSyncPathRef.current !== pathname;
+
+    if (!hasRouteChanged) {
       return;
     }
 
+    lastSidebarSyncPathRef.current = pathname;
+    setExpandedSectionKey(nextKey);
+  }, [currentNavSection?.key, pathname, keyedSideSections]);
+
+  useEffect(() => {
     if (
       expandedSectionKey != null &&
       keyedSideSections.some((section) => section.key === expandedSectionKey)
@@ -400,8 +408,8 @@ export default function AppLayout({
       return;
     }
 
-    setExpandedSectionKey(keyedSideSections[0]?.key ?? null);
-  }, [currentNavSection, expandedSectionKey, keyedSideSections]);
+    setExpandedSectionKey(currentNavSection?.key ?? keyedSideSections[0]?.key ?? null);
+  }, [currentNavSection?.key, expandedSectionKey, keyedSideSections]);
 
   useEffect(() => {
     let cancelled = false;
@@ -875,8 +883,8 @@ export default function AppLayout({
             Your account is waiting for administrator approval
           </h1>
           <p className="mt-3 text-sm leading-6 text-slate-400">
-            Your account has been created successfully, but access to the workspace stays
-            locked until an administrator reviews and activates it.
+            Your account has been created successfully, but access to the workspace will
+            remain locked until an administrator reviews and activates it.
           </p>
           <div className="mt-6 rounded-2xl border border-amber-500/35 bg-amber-950/50 px-4 py-3 text-sm text-amber-100/95">
             {
@@ -885,9 +893,9 @@ export default function AppLayout({
           </div>
           <button
             onClick={handleLogout}
-            className="mt-6 rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(79,125,243,0.22)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
+            className="app-btn-primary mt-6 px-5 py-3 text-sm app-shadow-action transition"
           >
-            Logout
+            Log out
           </button>
         </div>
       </div>
@@ -909,9 +917,9 @@ export default function AppLayout({
           </p>
           <button
             onClick={handleLogout}
-            className="mt-6 rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(79,125,243,0.22)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
+            className="app-btn-primary mt-6 px-5 py-3 text-sm app-shadow-action transition"
           >
-            Logout
+            Log out
           </button>
         </div>
       </div>
@@ -969,29 +977,29 @@ export default function AppLayout({
           ) : null}
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/terms" className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)]">
+            <Link href="/terms" className="app-btn-secondary px-4 py-3 text-sm transition">
               View Terms
             </Link>
-            <Link href="/privacy" className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)]">
+            <Link href="/privacy" className="app-btn-secondary px-4 py-3 text-sm transition">
               Privacy
             </Link>
-            <Link href="/liability-waiver" className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)]">
+            <Link href="/liability-waiver" className="app-btn-secondary px-4 py-3 text-sm transition">
               View Liability Waiver
             </Link>
             <button
               type="button"
               onClick={handleAcceptTerms}
               disabled={acceptingTerms}
-              className="rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(79,125,243,0.22)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)] disabled:opacity-60"
+              className="app-btn-primary px-5 py-3 text-sm app-shadow-action transition disabled:opacity-60"
             >
               {acceptingTerms ? "Accepting..." : "Accept & Continue"}
             </button>
             <button
               type="button"
               onClick={handleLogout}
-              className="rounded-xl border border-[var(--app-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)]"
+              className="app-btn-secondary px-5 py-3 text-sm transition"
             >
-              Logout
+              Log out
             </button>
           </div>
         </div>
@@ -1153,9 +1161,9 @@ export default function AppLayout({
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="mt-4 w-full rounded-2xl bg-[var(--app-accent-primary)] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_24px_rgba(79,125,243,0.24)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
+                  className="app-btn-primary app-radius-card mt-4 w-full px-4 py-3 text-sm font-bold app-shadow-action transition"
                 >
-                  Logout
+                  Log out
                 </button>
               </div>
             </div>
@@ -1201,7 +1209,7 @@ export default function AppLayout({
                           />
                           <button
                             type="submit"
-                            className="inline-flex shrink-0 rounded-xl bg-[var(--app-accent-primary)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]"
+                            className="app-btn-primary inline-flex shrink-0 px-3 py-2 text-xs transition"
                           >
                             Search
                           </button>
@@ -1239,7 +1247,7 @@ export default function AppLayout({
             </div>
           </header>
 
-          <main className="flex-1 px-4 py-6 sm:px-6 sm:py-7 xl:px-8">
+          <main id="main-content" className="flex-1 px-4 py-6 sm:px-6 sm:py-7 xl:px-8">
             <div className="mx-auto w-full max-w-[1600px] space-y-5">
               {bootError ? (
                 <div className="rounded-2xl border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] px-4 py-3 text-sm text-[var(--semantic-warning)] shadow-sm">
@@ -1251,7 +1259,7 @@ export default function AppLayout({
                 {children}
                 </div>
               </div>
-              <div className="rounded-[1.3rem] bg-[linear-gradient(135deg,_#4f7df3_0%,_#6ea0ff_100%)] px-4 py-4 text-center text-xl font-black tracking-tight text-white shadow-[0_16px_30px_rgba(79,125,243,0.2)] sm:rounded-[1.6rem] sm:px-6 sm:py-5 sm:text-[1.85rem]">
+              <div className="app-radius-card bg-[linear-gradient(135deg,_#4f7df3_0%,_#6ea0ff_100%)] px-4 py-4 text-center text-xl font-black tracking-tight text-white shadow-[0_16px_30px_rgba(79,125,243,0.2)] sm:rounded-[1.6rem] sm:px-6 sm:py-5 sm:text-[1.85rem]">
                 Systems live. Secure. Document. Stay Safe.
               </div>
             </div>

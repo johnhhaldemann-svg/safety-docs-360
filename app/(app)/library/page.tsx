@@ -1110,9 +1110,7 @@ function LibraryPageContent() {
                         <span
                           className={[
                             "rounded-full px-3 py-1 text-xs font-semibold",
-                            tx.amount >= 0
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-amber-100 text-amber-700",
+                            tx.amount >= 0 ? "app-badge-success" : "app-badge-warning",
                           ].join(" ")}
                         >
                           {tx.amount >= 0 ? `+${tx.amount}` : tx.amount}
@@ -1146,11 +1144,15 @@ function LibraryPageContent() {
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="grid flex-1 gap-4 md:grid-cols-3">
             <div className="md:col-span-1">
-              <label className="mb-2 block text-sm font-semibold text-slate-300">
+              <label
+                htmlFor="library-search"
+                className="mb-2 block text-sm font-semibold text-slate-300"
+              >
                 Search library
               </label>
               <input
-                type="text"
+                id="library-search"
+                type="search"
                 placeholder="Search title, project, file name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}

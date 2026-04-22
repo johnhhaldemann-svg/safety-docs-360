@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DEFAULT_JURISDICTION_STANDARDS_CONFIG,
@@ -15,14 +15,10 @@ import {
 import type {
   JurisdictionStandard,
   JurisdictionStandardContent,
-  JurisdictionStandardMapping,
   JurisdictionStandardsConfig,
 } from "@/types/jurisdiction-standards";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 function cloneConfig(config: JurisdictionStandardsConfig): JurisdictionStandardsConfig {
   return JSON.parse(JSON.stringify(config)) as JurisdictionStandardsConfig;
@@ -445,7 +441,7 @@ export default function SuperadminJurisdictionStandardsPage() {
                       title: event.target.value,
                     }))
                   }
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+                  className="app-dark-input"
                 />
               </Field>
 
@@ -459,7 +455,7 @@ export default function SuperadminJurisdictionStandardsPage() {
                     }))
                   }
                   rows={4}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+                  className="app-dark-input"
                 />
               </Field>
 
@@ -468,7 +464,7 @@ export default function SuperadminJurisdictionStandardsPage() {
                   value={applicabilityDraft}
                   onChange={(event) => setApplicabilityDraft(event.target.value)}
                   rows={6}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 font-mono text-sm text-slate-200 outline-none focus:border-sky-500"
+                  className="app-dark-input font-mono"
                 />
               </Field>
 
@@ -477,7 +473,7 @@ export default function SuperadminJurisdictionStandardsPage() {
                   value={selectedStandard.content.body ?? ""}
                   onChange={(event) => updateContentField("body", event.target.value)}
                   rows={5}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+                  className="app-dark-input"
                 />
               </Field>
 
@@ -486,7 +482,7 @@ export default function SuperadminJurisdictionStandardsPage() {
                   value={selectedStandard.content.builderGuidance ?? ""}
                   onChange={(event) => updateContentField("builderGuidance", event.target.value)}
                   rows={3}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+                  className="app-dark-input"
                 />
               </Field>
 
@@ -495,7 +491,7 @@ export default function SuperadminJurisdictionStandardsPage() {
                   value={selectedStandard.content.adminReviewNote ?? ""}
                   onChange={(event) => updateContentField("adminReviewNote", event.target.value)}
                   rows={3}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+                  className="app-dark-input"
                 />
               </Field>
 
@@ -505,7 +501,7 @@ export default function SuperadminJurisdictionStandardsPage() {
                     value={linesToText(selectedStandard.content[field.key])}
                     onChange={(event) => updateContentField(field.key, event.target.value)}
                     rows={field.key === "requiredControls" ? 6 : 4}
-                    className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+                    className="app-dark-input"
                   />
                 </Field>
               ))}
@@ -518,7 +514,7 @@ export default function SuperadminJurisdictionStandardsPage() {
                   value={linesToText(selectedStandard.content.checklist?.requiredFields)}
                   onChange={(event) => updateChecklistField("requiredFields", event.target.value)}
                   rows={4}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+                  className="app-dark-input"
                 />
               </Field>
 
@@ -527,7 +523,7 @@ export default function SuperadminJurisdictionStandardsPage() {
                   value={selectedStandard.content.checklist?.note ?? ""}
                   onChange={(event) => updateChecklistField("note", event.target.value)}
                   rows={3}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+                  className="app-dark-input"
                 />
               </Field>
             </SectionCard>
@@ -547,7 +543,7 @@ export default function SuperadminJurisdictionStandardsPage() {
             >
               {selectedMappings.length ? (
                 <div className="space-y-4">
-                  {selectedMappings.map((mapping, index) => (
+                  {selectedMappings.map((mapping) => (
                     <div
                       key={mapping.id}
                       className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4"
@@ -576,7 +572,7 @@ export default function SuperadminJurisdictionStandardsPage() {
                             onChange={(event) =>
                               updateMapping(mapping.id, "mappingKey", event.target.value)
                             }
-                            className="w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none focus:border-sky-500"
+                            className="app-dark-input"
                           />
                         </Field>
 

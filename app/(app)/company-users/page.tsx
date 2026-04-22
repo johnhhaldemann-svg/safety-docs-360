@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityFeed,
@@ -13,10 +13,7 @@ import {
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type CompanyUser = {
   id: string;
@@ -85,16 +82,16 @@ function statusTone(status: string): "success" | "warning" | "error" | "neutral"
 }
 
 function roleClasses(role: string) {
-  if (role === "Safety Manager") return "bg-emerald-100 text-emerald-700";
-  if (role === "Project Manager") return "bg-indigo-100 text-indigo-700";
-  if (role === "Field Supervisor") return "bg-cyan-100 text-cyan-700";
-  if (role === "Foreman") return "bg-cyan-100 text-cyan-700";
-  if (role === "Field User") return "bg-lime-100 text-lime-700";
-  if (role === "Read Only") return "bg-slate-200 text-slate-300";
-  if (role === "Company Admin") return "bg-violet-100 text-violet-700";
-  if (role === "Operations Manager") return "bg-sky-100 text-sky-300";
-  if (role === "Company User") return "bg-amber-100 text-amber-700";
-  return "bg-slate-800/70 text-slate-300";
+  if (role === "Safety Manager") return "app-badge-success";
+  if (role === "Project Manager") return "app-badge-indigo";
+  if (role === "Field Supervisor") return "app-badge-cyan";
+  if (role === "Foreman") return "app-badge-cyan";
+  if (role === "Field User") return "app-badge-lime";
+  if (role === "Read Only") return "app-badge-neutral";
+  if (role === "Company Admin") return "app-badge-accent";
+  if (role === "Operations Manager") return "app-badge-info";
+  if (role === "Company User") return "app-badge-warning";
+  return "app-badge-neutral";
 }
 
 function formatRelative(timestamp?: string | null) {
@@ -918,7 +915,8 @@ export default function CompanyUsersPage() {
       >
         <div className="mb-4">
           <input
-            type="text"
+            type="search"
+            aria-label="Search active employees"
             placeholder="Search active employees..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}

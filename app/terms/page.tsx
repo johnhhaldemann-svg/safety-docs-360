@@ -7,7 +7,7 @@ export default async function TermsPage() {
   const terms = config.termsOfService;
 
   return (
-    <main className="min-h-screen bg-app-canvas px-6 py-10">
+    <main id="main-content" className="min-h-screen bg-app-canvas px-6 py-10">
       <div className="mx-auto max-w-4xl rounded-3xl border border-[var(--app-border)] bg-[rgba(248,251,255,0.96)] p-8 shadow-[var(--app-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -17,7 +17,7 @@ export default async function TermsPage() {
             <h1 className="mt-2 text-4xl font-bold tracking-tight text-[var(--app-text-strong)]">
               {terms.title}
             </h1>
-            <p className="mt-2 text-sm text-[var(--app-muted)]">Version {config.version}</p>
+            <p className="mt-2 text-sm text-slate-600">Version {config.version}</p>
           </div>
 
           <Link

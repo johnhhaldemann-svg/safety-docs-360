@@ -2,14 +2,11 @@
 
 import type { DragEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { InlineMessage, SectionCard } from "@/components/WorkspacePrimitives";
 import type { PermissionMap } from "@/lib/rbac";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type GcDoc = {
   id: string;

@@ -74,6 +74,20 @@ describe("csepFinalization", () => {
     ).toBe("Coordinate with deck crews and crane crew.");
   });
 
+  it("removes flattened related-considerations leaks, inline refs, and repeated wording", () => {
+    expect(
+      normalizeFinalExportText(
+        "Related considerations include 1.1 Purpose Verify access. 1.2 Main hazards Watch overhead work."
+      )
+    ).toBeNull();
+
+    expect(
+      normalizeFinalExportText(
+        "Workers should understand workers should understand the lift path (R1, R2, R3, R4)."
+      )
+    ).toBe("workers should understand the lift path.");
+  });
+
   it("normalizes internal headings during final issue cleanup", () => {
     const cleaned = cleanSectionForFinalIssue({
       key: "program_module",
@@ -95,5 +109,51 @@ describe("csepFinalization", () => {
       "Additional hazard",
       "Changing site conditions",
     ]);
+  });
+
+  it("drops empty label-only subsection headings during final issue cleanup", () => {
+    const cleaned = cleanSectionForFinalIssue({
+      key: "task_module",
+      title: "Task Modules",
+      subsections: [
+        {
+          title: "Pre-task review",
+          bullets: [],
+        },
+        {
+          title: "Verification",
+          body: "Document the pre-task brief and permit status.",
+          bullets: [],
+        },
+      ],
+    });
+
+    expect(cleaned?.subsections).toEqual([
+      {
+        title: "Verification",
+        body: "Document the pre-task brief and permit status.",
+        bullets: [],
+      },
+    ]);
+  });
+
+  it("removes raw export label lines and humanizes raw source tokens", () => {
+    expect(normalizeFinalExportText("Trade / Subtrade: Steel Erection / Decking")).toBeNull();
+    expect(normalizeFinalExportText("Activity: Deck placement")).toBeNull();
+    expect(
+      normalizeFinalExportText(
+        "Controls include fire_watch, spark_containment, flammable_clearance, signal_person, drop_zone_control, and lift_plan_review."
+      )
+    ).toBe(
+      "Controls include fire watch, spark containment, flammable-material clearance, designated signal person, drop-zone control, and lift plan review."
+    );
+  });
+
+  it("drops orphan builder filler sentences during final issue cleanup", () => {
+    expect(
+      normalizeFinalExportText(
+        "This program establishes controls for elevated work and fall exposures."
+      )
+    ).toBeNull();
   });
 });

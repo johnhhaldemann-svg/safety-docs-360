@@ -1,14 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useRouter } from "next/navigation";
 import { PageHero, SectionCard } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 /** Base URL for the Streamlit OSHA IPA app (e.g. http://127.0.0.1:8501). Set NEXT_PUBLIC_STREAMLIT_OSHA_URL in .env.local. */
 const STREAMLIT_BASE = (process.env.NEXT_PUBLIC_STREAMLIT_OSHA_URL ?? "").trim().replace(/\/$/, "");

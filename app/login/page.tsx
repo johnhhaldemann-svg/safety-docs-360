@@ -1,14 +1,11 @@
 "use client";
 import Link from "next/link";
 import { Suspense, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 const capabilityTiles = [
   "Inspections",
@@ -131,28 +128,28 @@ function LoginPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(79,125,243,0.14),_transparent_24%),linear-gradient(180deg,_#f7fbff_0%,_#eef5ff_48%,_#e7f0fb_100%)] px-4 py-6 sm:px-6 lg:px-8">
+    <main id="main-content" className="app-auth-canvas px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl items-center justify-center">
-        <div className="grid w-full overflow-hidden rounded-[2rem] border border-[rgba(111,138,177,0.28)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(241,247,255,0.96)_100%)] shadow-[0_28px_72px_rgba(38,64,106,0.16)] lg:grid-cols-[1.08fr_0.92fr]">
+        <div className="app-auth-card app-radius-panel grid w-full overflow-hidden lg:grid-cols-[1.08fr_0.92fr]">
           <section className="relative overflow-hidden border-b border-[rgba(111,138,177,0.2)] bg-[radial-gradient(circle_at_top_left,_rgba(79,125,243,0.12),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(235,243,255,0.92)_100%)] px-6 py-7 sm:px-8 sm:py-8 lg:min-h-[760px] lg:border-b-0 lg:border-r lg:border-r-[rgba(111,138,177,0.2)] lg:px-10 lg:py-10">
             <div className="absolute inset-0 bg-[linear-gradient(135deg,_rgba(255,255,255,0.36)_0%,_transparent_38%),radial-gradient(circle_at_bottom,_rgba(46,158,91,0.12),_transparent_26%)]" />
             <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(111,138,177,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(111,138,177,0.08)_1px,transparent_1px)] [background-size:38px_38px]" />
 
             <div className="relative z-10 flex h-full flex-col">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="rounded-full border border-[rgba(46,158,91,0.2)] bg-[rgba(46,158,91,0.1)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#2e9e5b]">
+                <div className="rounded-full border border-[rgba(46,158,91,0.22)] bg-[var(--semantic-success-bg)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--app-text-strong)]">
                   Systems live
                 </div>
               </div>
 
               <div className="mt-10 max-w-xl">
-                <h1 className="text-4xl font-black leading-[0.95] tracking-tight text-[#143252] sm:text-5xl lg:text-[4.1rem]">
+                <h1 className="text-4xl font-black leading-[0.95] tracking-tight text-[var(--app-text-strong)] sm:text-5xl lg:text-[4.1rem]">
                   <span className="block">Secure.</span>
-                  <span className="block text-[#2e9e5b]">Document.</span>
+                  <span className="block text-[var(--semantic-success)]">Document.</span>
                   <span className="block">Stay Safe.</span>
                 </h1>
 
-                <p className="mt-6 max-w-lg text-base leading-8 text-[#496581]">
+                  <p className="mt-6 max-w-lg text-base leading-8 text-[var(--app-text)]">
                   The complete safety documentation platform trusted by industrial
                   leaders. Manage incidents, inspections, and compliance from one
                   secure command center.
@@ -176,7 +173,7 @@ function LoginPageContent() {
                       ].join(" ")}
                     />
                     <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-xl bg-[rgba(20,50,82,0.08)] px-3 py-2 backdrop-blur">
-                      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#143252]">
+                      <div className="text-xs font-black uppercase tracking-[0.16em] text-[var(--app-text-strong)]">
                         {tile}
                       </div>
                     </div>
@@ -189,7 +186,7 @@ function LoginPageContent() {
                   {securityPills.map((pill) => (
                     <div
                       key={pill}
-                      className="rounded-xl border border-[rgba(111,138,177,0.18)] bg-white/78 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#496581]"
+                      className="rounded-xl border border-[rgba(111,138,177,0.18)] bg-white/78 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-text)]"
                     >
                       {pill}
                     </div>
@@ -201,14 +198,14 @@ function LoginPageContent() {
 
           <section className="flex items-center justify-center bg-[linear-gradient(180deg,_rgba(247,251,255,0.92)_0%,_rgba(234,241,255,0.94)_100%)] px-5 py-7 sm:px-8 lg:px-10">
             <div className="w-full max-w-md">
-              <div className="rounded-[1.8rem] border border-[rgba(111,138,177,0.24)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.96)_100%)] p-6 shadow-[0_22px_54px_rgba(38,64,106,0.14)] backdrop-blur sm:p-8">
+              <div className="app-auth-card app-radius-card p-6 backdrop-blur sm:p-8">
                 <div>
-                  <p className="text-3xl font-black leading-tight tracking-tight text-[#143252] sm:text-4xl">
+                  <p className="text-3xl font-black leading-tight tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
                     Secure Access
                     <br />
                     Portal
                   </p>
-                  <p className="mt-3 text-sm leading-6 text-[#5f7a98]">
+                  <p className="mt-3 text-sm leading-6 text-[var(--app-muted)]">
                     Sign in to your Safety360Docs workspace.
                   </p>
                 </div>
@@ -220,8 +217,8 @@ function LoginPageContent() {
                     className={[
                       "rounded-xl px-4 py-3 text-sm font-semibold transition",
                       mode === "login"
-                        ? "bg-white text-[#143252] ring-1 ring-[rgba(111,138,177,0.16)] shadow-sm"
-                        : "text-[#6b84a0] hover:text-[#143252]",
+                        ? "app-toggle-pill-active"
+                        : "text-[var(--app-muted)] hover:text-[var(--app-text-strong)]",
                     ].join(" ")}
                   >
                     Login
@@ -242,19 +239,19 @@ function LoginPageContent() {
                     className={[
                       "rounded-xl px-4 py-3 text-sm font-semibold transition",
                       mode === "signup"
-                        ? "bg-white text-[#143252] ring-1 ring-[rgba(111,138,177,0.16)] shadow-sm"
-                        : "text-[#6b84a0] hover:text-[#143252]",
+                        ? "app-toggle-pill-active"
+                        : "text-[var(--app-muted)] hover:text-[var(--app-text-strong)]",
                     ].join(" ")}
                   >
                     Create Account
                   </button>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-[rgba(111,138,177,0.2)] bg-[rgba(234,241,255,0.76)] px-4 py-3 text-sm text-[#496581]">
-                  <div className="font-semibold text-[#143252]">
+                <div className="app-info-panel mt-4 rounded-2xl px-4 py-3 text-sm">
+                  <div className="font-semibold text-[var(--app-text-strong)]">
                     Create your own account first, then build your construction profile before company setup or employee access.
                   </div>
-                  <div className="mt-1 text-[#5f7a98]">
+                  <div className="mt-1 text-[var(--app-muted)]">
                     Internal employees, company owners, and invited employees all start from the same account-first entry point.
                   </div>
                 </div>
@@ -264,10 +261,8 @@ function LoginPageContent() {
                     <div
                       data-testid={formTone === "error" ? "login-error" : "login-success"}
                       className={[
-                        "rounded-2xl border px-4 py-3 text-sm",
-                        formTone === "error"
-                          ? "border-[rgba(217,83,79,0.24)] bg-[rgba(253,236,236,0.96)] text-[#a33f3c]"
-                          : "border-[rgba(46,158,91,0.22)] bg-[rgba(231,246,236,0.96)] text-[#2e9e5b]",
+                        "rounded-2xl px-4 py-3 text-sm",
+                        formTone === "error" ? "app-danger-panel" : "app-success-panel",
                       ].join(" ")}
                     >
                       {formMessage}
@@ -277,51 +272,64 @@ function LoginPageContent() {
                   <div>
                     {mode === "signup" ? (
                       <>
-                        <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[#6b84a0]">
+                        <label
+                          htmlFor="login-full-name"
+                          className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]"
+                        >
                           Full Name
                         </label>
-                        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-[rgba(111,138,177,0.22)] bg-white px-4 py-3.5 text-[#6b84a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] transition focus-within:border-[rgba(79,125,243,0.35)] focus-within:bg-white">
+                        <div className="app-input-shell mb-4">
                           <IconUser />
                           <input
+                            id="login-full-name"
                             type="text"
                             placeholder="Your full name"
                             value={fullName}
                             onChange={(e) => setFullName(e.target.value)}
-                            className="auth-input w-full bg-transparent text-sm text-[#143252] outline-none placeholder:text-[#8aa0b8]"
+                            className="auth-input w-full bg-transparent text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)]"
                           />
                         </div>
                       </>
                     ) : null}
 
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[#6b84a0]">
+                    <label
+                      htmlFor="login-email"
+                      className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]"
+                    >
                       Employee ID / Email
                     </label>
-                    <div className="flex items-center gap-3 rounded-2xl border border-[rgba(111,138,177,0.22)] bg-white px-4 py-3.5 text-[#6b84a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] transition focus-within:border-[rgba(79,125,243,0.35)] focus-within:bg-white">
+                    <div className="app-input-shell">
                       <IconMail />
                       <input
+                        id="login-email"
                         type="text"
                         inputMode="email"
                         autoComplete="username"
                         placeholder="name@company.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="auth-input w-full bg-transparent text-sm text-[#143252] outline-none placeholder:text-[#8aa0b8]"
+                        className="auth-input w-full bg-transparent text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)]"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[#6b84a0]">
+                    <label
+                      htmlFor="login-password"
+                      className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]"
+                    >
                       Password
                     </label>
-                    <div className="flex items-center gap-3 rounded-2xl border border-[rgba(111,138,177,0.22)] bg-white px-4 py-3.5 text-[#6b84a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] transition focus-within:border-[rgba(79,125,243,0.35)] focus-within:bg-white">
+                    <div className="app-input-shell">
                       <IconLock />
                       <input
+                        id="login-password"
                         type="password"
+                        autoComplete={mode === "signup" ? "new-password" : "current-password"}
                         placeholder="Enter password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="auth-input w-full bg-transparent text-sm text-[#143252] outline-none placeholder:text-[#8aa0b8]"
+                        className="auth-input w-full bg-transparent text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)]"
                       />
                       <IconEye />
                     </div>
@@ -329,24 +337,29 @@ function LoginPageContent() {
 
                   {mode === "signup" ? (
                     <div>
-                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[#6b84a0]">
+                      <label
+                        htmlFor="login-confirm-password"
+                        className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]"
+                      >
                         Confirm Password
                       </label>
-                      <div className="flex items-center gap-3 rounded-2xl border border-[rgba(111,138,177,0.22)] bg-white px-4 py-3.5 text-[#6b84a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] transition focus-within:border-[rgba(79,125,243,0.35)] focus-within:bg-white">
+                      <div className="app-input-shell">
                         <IconLock />
                         <input
+                          id="login-confirm-password"
                           type="password"
+                          autoComplete="new-password"
                           placeholder="Confirm password"
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="auth-input w-full bg-transparent text-sm text-[#143252] outline-none placeholder:text-[#8aa0b8]"
+                          className="auth-input w-full bg-transparent text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)]"
                         />
                       </div>
                     </div>
                   ) : null}
 
                   <div className="flex items-center justify-between gap-4">
-                    <label className="inline-flex items-center gap-3 text-sm text-[#5f7a98]">
+                    <label className="inline-flex items-center gap-3 text-sm text-[var(--app-muted)]">
                       <input
                         type="checkbox"
                         checked={rememberDevice}
@@ -357,12 +370,12 @@ function LoginPageContent() {
                     </label>
                   </div>
 
-                  <div className="rounded-2xl border border-[rgba(111,138,177,0.2)] bg-[rgba(234,241,255,0.76)] px-4 py-3 text-sm text-[#5f7a98]">
+                  <div className="app-info-panel rounded-2xl px-4 py-3 text-sm text-[var(--app-muted)]">
                     Need help accessing your workspace? Create your account first, complete your construction profile, and the app will guide you through company setup or your invite flow.
                   </div>
 
                   {mode === "signup" ? (
-                    <div className="rounded-2xl border border-[rgba(111,138,177,0.2)] bg-[rgba(234,241,255,0.76)] p-4">
+                    <div className="app-info-panel rounded-2xl p-4">
                       <LegalAcceptanceBlock checked={agreed} onChange={setAgreed} compact />
                     </div>
                   ) : null}
@@ -370,7 +383,7 @@ function LoginPageContent() {
                   <button
                     onClick={mode === "login" ? handleLogin : handleCreateAccount}
                     disabled={loading || (mode === "signup" && !agreed)}
-                    className="w-full rounded-2xl bg-[var(--app-accent-primary)] px-4 py-4 text-sm font-black uppercase tracking-[0.16em] text-white shadow-[0_16px_36px_rgba(79,125,243,0.24)] transition hover:bg-[var(--app-accent-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="app-btn-primary app-radius-card w-full px-4 py-4 text-sm font-black uppercase tracking-[0.16em] app-shadow-action-strong transition disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loading
                       ? mode === "login"
@@ -382,15 +395,15 @@ function LoginPageContent() {
                   </button>
                 </div>
 
-                <div className="mt-6 rounded-2xl border border-[rgba(46,158,91,0.2)] bg-[rgba(231,246,236,0.96)] px-4 py-4 text-sm text-[#2e9e5b]">
+                <div className="app-success-panel mt-6 rounded-2xl px-4 py-4 text-sm">
                   TLS 1.3 encrypted. Zero-knowledge architecture ready. 2FA supported.
                 </div>
 
-                <div className="mt-5 rounded-2xl border border-[rgba(79,125,243,0.2)] bg-[rgba(234,241,255,0.92)] px-4 py-4 text-sm text-[#496581]">
+                <div className="app-info-panel mt-5 rounded-2xl border-[rgba(79,125,243,0.2)] bg-[rgba(234,241,255,0.92)] px-4 py-4 text-sm">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="font-semibold text-[#143252]">New here?</p>
-                      <p className="mt-1 text-[#496581]">
+                      <p className="font-semibold text-[var(--app-text-strong)]">New here?</p>
+                      <p className="mt-1 text-[var(--app-text)]">
                         Create your account first. After you sign in, the app will walk you through your construction profile, company setup, and employee invites.
                       </p>
                     </div>
@@ -403,14 +416,14 @@ function LoginPageContent() {
                           "Create your account first. After sign-in, you will build your construction profile, launch your company workspace, and then invite employees."
                         );
                       }}
-                      className="inline-flex items-center justify-center rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)]"
+                      className="app-btn-primary inline-flex items-center justify-center px-4 py-2.5 text-sm transition"
                     >
                       Create Account
                     </button>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-[rgba(217,164,65,0.2)] bg-[rgba(255,244,219,0.96)] px-4 py-4 text-sm text-[#805d17]">
+                <div className="app-warning-panel mt-4 rounded-2xl px-4 py-4 text-sm">
                   If you are joining an existing company, create your account with the exact invited email. Your construction profile comes first, and the app keeps access scoped to that company workspace.
                 </div>
               </div>
@@ -418,21 +431,21 @@ function LoginPageContent() {
           </section>
         </div>
       </div>
-      <footer className="mx-auto max-w-7xl px-4 pb-8 text-center text-xs text-[#6b84a0] sm:px-6 lg:px-8">
-        <Link href="/terms" className="font-semibold text-[#5f7a98] hover:text-[#143252]">
+      <footer className="mx-auto max-w-7xl px-4 pb-8 text-center text-xs text-[var(--app-muted)] sm:px-6 lg:px-8">
+        <Link href="/terms" className="font-semibold text-[var(--app-muted)] hover:text-[var(--app-text-strong)]">
           Terms
         </Link>
-        <span className="mx-2 text-[#8aa0b8]" aria-hidden>
-          ·
+        <span className="mx-2 text-[var(--app-muted)]" aria-hidden>
+          &middot;
         </span>
-        <Link href="/privacy" className="font-semibold text-[#5f7a98] hover:text-[#143252]">
+        <Link href="/privacy" className="font-semibold text-[var(--app-muted)] hover:text-[var(--app-text-strong)]">
           Privacy
         </Link>
-        <span className="mx-2 text-[#8aa0b8]" aria-hidden>
-          ·
+        <span className="mx-2 text-[var(--app-muted)]" aria-hidden>
+          &middot;
         </span>
-        <Link href="/liability-waiver" className="font-semibold text-[#5f7a98] hover:text-[#143252]">
-          Liability waiver
+        <Link href="/liability-waiver" className="font-semibold text-[var(--app-muted)] hover:text-[var(--app-text-strong)]">
+          Liability Waiver
         </Link>
       </footer>
     </main>
@@ -441,9 +454,9 @@ function LoginPageContent() {
 
 function LoginPageFallback() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(79,125,243,0.14),_transparent_24%),linear-gradient(180deg,_#f7fbff_0%,_#eef5ff_48%,_#e7f0fb_100%)] px-4 py-6 sm:px-6 lg:px-8">
+    <main id="main-content" className="app-auth-canvas px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl items-center justify-center">
-        <div className="w-full max-w-md rounded-[1.8rem] border border-[rgba(111,138,177,0.24)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.96)_100%)] p-8 text-center text-[#496581] shadow-[0_22px_54px_rgba(38,64,106,0.14)]">
+        <div className="app-auth-card app-radius-card w-full max-w-md p-8 text-center text-[var(--app-text)]">
           Loading secure access portal...
         </div>
       </div>
@@ -480,7 +493,7 @@ function IconEye() {
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
-      className="h-5 w-5 text-[#8aa0b8]"
+      className="h-5 w-5 text-[var(--app-muted)]"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
@@ -492,3 +505,4 @@ function IconEye() {
     </svg>
   );
 }
+

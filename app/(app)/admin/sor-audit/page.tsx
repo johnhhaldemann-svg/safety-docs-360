@@ -1,16 +1,13 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { PageHero, SectionCard } from "@/components/WorkspacePrimitives";
 import { SorStatusBadge, SorVerificationBadge } from "@/components/sor/SorBadges";
 import type { SorAuditLogRow, SorRecordRow } from "@/lib/sor/types";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type RecordWithVerification = SorRecordRow & { verification: "valid" | "invalid" };
 

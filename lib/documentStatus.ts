@@ -50,17 +50,9 @@ export function getDocumentStatusTone(
 ) {
   const normalized = normalizeDocumentStatus(status, hasFinalFile);
 
-  if (normalized === "approved") {
-    return "bg-emerald-100 text-emerald-700";
-  }
+  if (normalized === "approved") return "app-badge-success";
+  if (normalized === "submitted") return "app-badge-warning";
+  if (normalized === "archived") return "app-badge-neutral";
 
-  if (normalized === "submitted") {
-    return "bg-amber-100 text-amber-700";
-  }
-
-  if (normalized === "archived") {
-    return "bg-slate-200 text-slate-700";
-  }
-
-  return "bg-sky-100 text-sky-700";
+  return "app-badge-info";
 }

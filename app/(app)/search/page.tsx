@@ -1,17 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage } from "@/components/WorkspacePrimitives";
 import { getDocumentStatusLabel } from "@/lib/documentStatus";
 import type { PermissionMap } from "@/lib/rbac";
 import { formatSafetyBlueprintDocumentType } from "@/lib/safetyBlueprintLabels";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type DocumentRow = {
   id: string;

@@ -4,7 +4,7 @@ const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim();
 
 export default function PrivacyPage() {
   return (
-    <main className="min-h-screen bg-app-canvas px-6 py-10">
+    <main id="main-content" className="min-h-screen bg-app-canvas px-6 py-10">
       <div className="mx-auto max-w-4xl rounded-3xl border border-[var(--app-border)] bg-[rgba(248,251,255,0.96)] p-8 shadow-[var(--app-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>

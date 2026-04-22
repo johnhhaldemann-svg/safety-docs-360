@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useState } from "react";
 import {
   InlineMessage,
@@ -10,10 +10,7 @@ import {
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type ReportRow = {
   id: string;
@@ -291,6 +288,7 @@ export default function ReportsPage() {
             <div className="grid gap-3 md:grid-cols-2">
               <input
                 type="text"
+                aria-label="Jobsite ID"
                 value={jobsiteId}
                 onChange={(event) => setJobsiteId(event.target.value)}
                 placeholder="Jobsite ID (optional)"
@@ -298,6 +296,7 @@ export default function ReportsPage() {
               />
               <input
                 type="date"
+                aria-label="Work date"
                 value={workDate}
                 onChange={(event) => setWorkDate(event.target.value)}
                 className="rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm"
@@ -377,6 +376,7 @@ export default function ReportsPage() {
                   ) : null}
                   <input
                     type="file"
+                    aria-label="Attach supporting file to report"
                     onChange={(event) =>
                       setAttachmentFiles((prev) => ({
                         ...prev,

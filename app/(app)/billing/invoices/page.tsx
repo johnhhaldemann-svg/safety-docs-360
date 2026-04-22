@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useState } from "react";
 import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
 import {
@@ -10,10 +10,7 @@ import {
   getBillingSourceTone,
 } from "@/lib/billing/invoicePresentation";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type InvoiceRow = {
   id: string;
@@ -194,10 +191,10 @@ export default function BillingInvoicesListPage() {
                           <span
                             className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
                               getBillingSourceTone(invoice.billing_source) === "success"
-                                ? "bg-emerald-500/15 text-emerald-200"
+                                ? "app-badge-success"
                                 : getBillingSourceTone(invoice.billing_source) === "info"
-                                  ? "bg-sky-500/15 text-sky-200"
-                                  : "bg-slate-800 text-slate-300"
+                                  ? "app-badge-info"
+                                  : "app-badge-neutral"
                             }`}
                           >
                             {getBillingSourceLabel(invoice.billing_source)}
@@ -219,12 +216,12 @@ export default function BillingInvoicesListPage() {
                       </td>
                       <td className="py-3 pr-3">
                         <span
-                          className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                          className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
                             getStatusTone(invoice.status) === "success"
-                              ? "bg-emerald-500/15 text-emerald-200"
+                              ? "app-badge-success"
                               : getStatusTone(invoice.status) === "warning"
-                                ? "bg-amber-500/15 text-amber-200"
-                                : "bg-slate-800 text-slate-300"
+                                ? "app-badge-warning"
+                                : "app-badge-neutral"
                           }`}
                         >
                           {invoice.status}

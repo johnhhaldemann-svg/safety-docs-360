@@ -1,13 +1,10 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useState } from "react";
 import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 const planOptions = [
   {
@@ -273,6 +270,7 @@ export default function CompanySetupPage() {
 
             <input
               type="text"
+              aria-label="Company name"
               placeholder="Company name"
               value={companyName}
               onChange={(event) => setCompanyName(event.target.value)}
@@ -280,6 +278,7 @@ export default function CompanySetupPage() {
             />
             <input
               type="text"
+              aria-label="Industry"
               placeholder="Industry"
               value={industry}
               onChange={(event) => setIndustry(event.target.value)}
@@ -287,6 +286,7 @@ export default function CompanySetupPage() {
             />
             <input
               type="tel"
+              aria-label="Company phone"
               placeholder="Company phone"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
@@ -294,6 +294,7 @@ export default function CompanySetupPage() {
             />
             <input
               type="url"
+              aria-label="Website (optional)"
               placeholder="Website (optional)"
               value={website}
               onChange={(event) => setWebsite(event.target.value)}
@@ -301,6 +302,7 @@ export default function CompanySetupPage() {
             />
             <input
               type="text"
+              aria-label="Address line 1"
               placeholder="Address line 1"
               value={addressLine1}
               onChange={(event) => setAddressLine1(event.target.value)}
@@ -309,6 +311,7 @@ export default function CompanySetupPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <input
                 type="text"
+                aria-label="City"
                 placeholder="City"
                 value={city}
                 onChange={(event) => setCity(event.target.value)}
@@ -316,6 +319,7 @@ export default function CompanySetupPage() {
               />
               <input
                 type="text"
+                aria-label="State or region"
                 placeholder="State / Region"
                 value={stateRegion}
                 onChange={(event) => setStateRegion(event.target.value)}
@@ -325,6 +329,7 @@ export default function CompanySetupPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <input
                 type="text"
+                aria-label="Postal code"
                 placeholder="Postal code"
                 value={postalCode}
                 onChange={(event) => setPostalCode(event.target.value)}
@@ -332,6 +337,7 @@ export default function CompanySetupPage() {
               />
               <input
                 type="text"
+                aria-label="Country"
                 placeholder="Country"
                 value={country}
                 onChange={(event) => setCountry(event.target.value)}

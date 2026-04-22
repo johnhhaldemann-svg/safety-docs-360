@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityFeed,
@@ -18,10 +18,7 @@ import {
   type PermissionOverrides,
 } from "@/lib/permissionOverrides";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type CompanyDetail = {
   id: string;
@@ -751,6 +748,7 @@ export default function AdminCompanyDetailPage({
             </p>
             <input
               type="text"
+              aria-label="Type workspace name to confirm deletion"
               value={deleteConfirmName}
               onChange={(e) => setDeleteConfirmName(e.target.value)}
               className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-100 outline-none ring-slate-400 focus:ring-2"
@@ -969,7 +967,7 @@ export default function AdminCompanyDetailPage({
                   <select
                     value={subStatusDraft}
                     onChange={(e) => setSubStatusDraft(e.target.value)}
-                    className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-100 outline-none focus:border-sky-500"
+                    className="app-dark-input mt-2"
                   >
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
@@ -983,7 +981,7 @@ export default function AdminCompanyDetailPage({
                     value={subPlanDraft}
                     onChange={(e) => setSubPlanDraft(e.target.value)}
                     placeholder="Pro, CSEP, …"
-                    className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-100 outline-none focus:border-sky-500"
+                    className="app-dark-input mt-2"
                   />
                 </label>
                 <label className="block text-sm">
@@ -994,7 +992,7 @@ export default function AdminCompanyDetailPage({
                     value={subMaxSeatsDraft}
                     onChange={(e) => setSubMaxSeatsDraft(e.target.value)}
                     placeholder="Blank = unlimited"
-                    className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-100 outline-none focus:border-sky-500"
+                    className="app-dark-input mt-2"
                   />
                 </label>
               </div>

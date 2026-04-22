@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   EmptyState,
@@ -11,10 +11,7 @@ import {
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type CompanySummary = {
   id: string;
@@ -520,7 +517,8 @@ export default function AdminCompaniesPage() {
       >
         <div className="mb-4">
           <input
-            type="text"
+            type="search"
+            aria-label="Search company workspaces"
             placeholder="Search company workspaces..."
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}

@@ -2,16 +2,14 @@
 
 import Link from "next/link";
 import { Check, Minus, X } from "lucide-react";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import { ComplianceCommandCenter } from "@/components/training-matrix/ComplianceCommandCenter";
 import {
-  ActionTile,
   InlineMessage,
   MetricTile,
-  PageHero,
   SectionCard,
   appButtonPrimaryClassName,
   appButtonSecondaryClassName,
@@ -27,10 +25,7 @@ import {
   CONSTRUCTION_TRADES,
 } from "@/lib/constructionProfileOptions";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type Requirement = {
   id: string;
@@ -1046,7 +1041,7 @@ export default function TrainingMatrixPage() {
 
   return (
     <div className="training-matrix-light space-y-8">
-      <section className="overflow-hidden rounded-3xl border border-[rgba(121,151,196,0.42)] bg-[linear-gradient(135deg,rgba(255,255,255,0.99)_0%,rgba(239,246,255,0.98)_55%,rgba(229,239,255,0.98)_100%)] p-6 shadow-[var(--app-shadow)] sm:p-8">
+      <section className="training-hero-surface overflow-hidden rounded-3xl p-6 sm:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent-primary)]">
@@ -1475,7 +1470,7 @@ export default function TrainingMatrixPage() {
           <table className="min-w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-zinc-800 bg-zinc-900/90">
-                <th className="sticky left-0 z-10 min-w-[260px] max-w-[320px] bg-zinc-900 px-4 py-3 font-semibold text-zinc-200 shadow-[1px_0_0_0_rgb(63_63_70)]">
+                <th className="training-sticky-divider sticky left-0 z-10 min-w-[260px] max-w-[320px] bg-zinc-900 px-4 py-3 font-semibold text-zinc-200">
                   Person & field profile
                 </th>
                 {requirements.map((r) => (
@@ -1497,7 +1492,7 @@ export default function TrainingMatrixPage() {
                 const positionRollup = buildPositionRollup(row, requirements);
                 return (
                   <tr key={row.userId} className="border-b border-zinc-800/80 bg-zinc-950/30">
-                    <td className="sticky left-0 z-10 min-w-[260px] max-w-[320px] bg-zinc-950 px-4 py-3 align-top shadow-[1px_0_0_0_rgb(63_63_70)]">
+                    <td className="training-sticky-divider sticky left-0 z-10 min-w-[260px] max-w-[320px] bg-zinc-950 px-4 py-3 align-top">
                       <div className="font-semibold text-white">{row.name}</div>
                       <div className="text-xs text-zinc-500">{row.email || row.userId}</div>
                       <dl className="mt-2 space-y-1 text-xs text-zinc-300">

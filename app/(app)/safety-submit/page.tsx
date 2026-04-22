@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useState } from "react";
 import {
   InlineMessage,
@@ -12,10 +12,7 @@ import {
 } from "@/components/WorkspacePrimitives";
 import { useCompanyWorkspaceData } from "@/components/company-workspace/useCompanyWorkspaceData";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 async function getAuthHeaders() {
   const sessionResult = await supabase.auth.getSession();

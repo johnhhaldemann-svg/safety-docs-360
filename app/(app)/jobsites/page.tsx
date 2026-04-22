@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
@@ -19,10 +19,7 @@ import {
 } from "@/components/company-workspace/useCompanyWorkspaceData";
 import { getDocumentStatusLabel } from "@/lib/documentStatus";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type MessageTone = "neutral" | "success" | "warning" | "error";
 
@@ -425,10 +422,14 @@ export default function JobsitesPage() {
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              <label
+                htmlFor="jobsite-name"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
+              >
                 Jobsite Name
               </label>
               <input
+                id="jobsite-name"
                 type="text"
                 value={composer.name}
                 onChange={(event) => updateComposer("name", event.target.value)}
@@ -437,10 +438,14 @@ export default function JobsitesPage() {
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              <label
+                htmlFor="jobsite-project-number"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
+              >
                 Project Number
               </label>
               <input
+                id="jobsite-project-number"
                 type="text"
                 value={composer.projectNumber}
                 onChange={(event) => updateComposer("projectNumber", event.target.value)}
@@ -449,10 +454,14 @@ export default function JobsitesPage() {
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              <label
+                htmlFor="jobsite-location"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
+              >
                 Location
               </label>
               <input
+                id="jobsite-location"
                 type="text"
                 value={composer.location}
                 onChange={(event) => updateComposer("location", event.target.value)}
@@ -461,10 +470,14 @@ export default function JobsitesPage() {
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              <label
+                htmlFor="jobsite-status"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
+              >
                 Status
               </label>
               <select
+                id="jobsite-status"
                 value={composer.status}
                 onChange={(event) =>
                   updateComposer("status", event.target.value as ComposerState["status"])
@@ -478,10 +491,14 @@ export default function JobsitesPage() {
               </select>
             </div>
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              <label
+                htmlFor="jobsite-project-manager"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
+              >
                 Project Manager
               </label>
               <input
+                id="jobsite-project-manager"
                 type="text"
                 value={composer.projectManager}
                 onChange={(event) => updateComposer("projectManager", event.target.value)}
@@ -490,10 +507,14 @@ export default function JobsitesPage() {
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              <label
+                htmlFor="jobsite-safety-lead"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
+              >
                 Safety Lead
               </label>
               <input
+                id="jobsite-safety-lead"
                 type="text"
                 value={composer.safetyLead}
                 onChange={(event) => updateComposer("safetyLead", event.target.value)}
@@ -502,10 +523,14 @@ export default function JobsitesPage() {
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              <label
+                htmlFor="jobsite-start-date"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
+              >
                 Start Date
               </label>
               <input
+                id="jobsite-start-date"
                 type="date"
                 value={composer.startDate}
                 onChange={(event) => updateComposer("startDate", event.target.value)}
@@ -513,10 +538,14 @@ export default function JobsitesPage() {
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              <label
+                htmlFor="jobsite-end-date"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
+              >
                 End Date
               </label>
               <input
+                id="jobsite-end-date"
                 type="date"
                 value={composer.endDate}
                 onChange={(event) => updateComposer("endDate", event.target.value)}
@@ -597,7 +626,8 @@ export default function JobsitesPage() {
         >
           <div className="grid gap-3 sm:grid-cols-[1.4fr_0.7fr]">
             <input
-              type="text"
+              type="search"
+              aria-label="Search jobsites, project numbers, or site leads"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search jobsites, project numbers, or site leads..."

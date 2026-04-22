@@ -148,10 +148,10 @@ export default function CompanySignupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(79,125,243,0.14),_transparent_26%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_48%,_#e7f0fb_100%)] px-4 py-8 sm:px-6 lg:px-8">
+    <main id="main-content" className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(79,125,243,0.14),_transparent_26%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_48%,_#e7f0fb_100%)] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl items-center justify-center">
-        <div className="grid w-full gap-6 rounded-[2rem] border border-[var(--app-border)] bg-[rgba(248,251,255,0.96)] p-6 shadow-[var(--app-shadow)] lg:grid-cols-[0.9fr_1.1fr] lg:p-8">
-          <section className="rounded-[1.75rem] border border-[var(--app-border)] bg-[radial-gradient(circle_at_top_left,_rgba(79,125,243,0.12),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(234,241,255,0.96)_100%)] p-6 text-[var(--app-text)]">
+        <div className="app-radius-panel grid w-full gap-6 border border-[var(--app-border)] bg-[rgba(248,251,255,0.96)] p-6 shadow-[var(--app-shadow)] lg:grid-cols-[0.9fr_1.1fr] lg:p-8">
+          <section className="app-radius-card border border-[var(--app-border)] bg-[radial-gradient(circle_at_top_left,_rgba(79,125,243,0.12),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(234,241,255,0.96)_100%)] p-6 text-[var(--app-text)]">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--app-accent-primary)]">
               Company Workspace
             </p>
@@ -179,7 +179,7 @@ export default function CompanySignupPage() {
                 {
                   step: "03",
                   title: "Sign in with the same email",
-                  body: "After approval, the owner signs in with that same account. No second signup is needed.",
+                  body: "After approval, the owner signs in with that same account. No second sign-up is needed.",
                 },
                 {
                   step: "04",
@@ -204,144 +204,154 @@ export default function CompanySignupPage() {
               ))}
             </div>
 
-            <div className="mt-8 rounded-3xl border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] p-5 text-sm leading-7 text-[var(--semantic-warning)]">
+            <div className="app-warning-panel mt-8 rounded-3xl border-amber-300/70 bg-amber-50 p-5 text-sm leading-7 text-[var(--app-text-strong)]">
               One email can only be used for one real account. If the company request is still
               pending, the app will tell you to wait instead of creating duplicate company
-              signup tickets. After approval, billing, credits, and subscriptions are managed
+              sign-up requests. After approval, billing, credits, and subscriptions are managed
               from the company workspace rather than by creating a second account.
             </div>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/login"
-                className="inline-flex items-center justify-center rounded-xl border border-[var(--app-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)]"
-              >
+              <Link href="/login" className="app-btn-secondary inline-flex items-center justify-center px-5 py-3 text-sm transition">
                 Already have an account? Sign in
               </Link>
-              <Link
-                href="/"
-                className="inline-flex items-center justify-center rounded-xl border border-[var(--app-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)]"
-              >
+              <Link href="/" className="app-btn-secondary inline-flex items-center justify-center px-5 py-3 text-sm transition">
                 Back to site
               </Link>
             </div>
           </section>
 
-          <section className="rounded-[1.75rem] border border-[var(--app-border)] bg-white/80 p-6 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-[0.26em] text-[var(--app-muted)]">
+          <section className="app-radius-card border border-[var(--app-border)] bg-white/80 p-6 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-[0.26em] text-slate-600">
               Company Owner Signup
             </div>
             <div className="mt-2 text-3xl font-black tracking-tight text-[var(--app-text-strong)]">
               Create your company account
             </div>
-            <p className="mt-3 text-sm leading-6 text-[var(--app-muted)]">
+            <p className="mt-3 text-sm leading-6 text-slate-600">
               This owner account becomes the company admin after approval.
             </p>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <input
                 type="text"
+                aria-label="Company name"
                 placeholder="Company name"
                 value={companyName}
                 onChange={(event) => setCompanyName(event.target.value)}
-                className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
+                className="app-form-input"
               />
               <input
                 type="text"
+                aria-label="Industry"
                 placeholder="Industry"
                 value={industry}
                 onChange={(event) => setIndustry(event.target.value)}
-                className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
+                className="app-form-input"
               />
               <input
                 type="tel"
+                aria-label="Company phone"
                 placeholder="Company phone"
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
-                className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
+                className="app-form-input"
               />
               <input
                 type="url"
+                aria-label="Website (optional)"
                 placeholder="Website (optional)"
                 value={website}
                 onChange={(event) => setWebsite(event.target.value)}
-                className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
+                className="app-form-input"
               />
               <input
                 type="text"
+                aria-label="Address line 1"
                 placeholder="Address line 1"
                 value={addressLine1}
                 onChange={(event) => setAddressLine1(event.target.value)}
-                className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] md:col-span-2"
+                className="app-form-input md:col-span-2"
               />
               <input
                 type="text"
+                aria-label="City"
                 placeholder="City"
                 value={city}
                 onChange={(event) => setCity(event.target.value)}
-                className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
+                className="app-form-input"
               />
               <input
                 type="text"
+                aria-label="State or region"
                 placeholder="State / Region"
                 value={stateRegion}
                 onChange={(event) => setStateRegion(event.target.value)}
-                className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
+                className="app-form-input"
               />
               <input
                 type="text"
+                aria-label="Postal code"
                 placeholder="Postal code"
                 value={postalCode}
                 onChange={(event) => setPostalCode(event.target.value)}
-                className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
+                className="app-form-input"
               />
               <input
                 type="text"
+                aria-label="Country"
                 placeholder="Country"
                 value={country}
                 onChange={(event) => setCountry(event.target.value)}
-                className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
+                className="app-form-input"
               />
             </div>
 
             <div className="mt-6 rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-600">
                 Owner account
               </div>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <input
                   type="text"
+                  aria-label="Owner full name"
                   placeholder="Owner full name"
                   value={fullName}
                   onChange={(event) => setFullName(event.target.value)}
-                  className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
+                  className="app-form-input"
                 />
                 <input
                   type="email"
+                  aria-label="Owner email"
+                  autoComplete="email"
                   placeholder="Owner email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
+                  className="app-form-input"
                 />
                 <input
                   type="password"
+                  aria-label="Password"
+                  autoComplete="new-password"
                   placeholder="Password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
+                  className="app-form-input"
                 />
                 <input
                   type="password"
+                  aria-label="Confirm password"
+                  autoComplete="new-password"
                   placeholder="Confirm password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
-                  className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
+                  className="app-form-input"
                 />
               </div>
             </div>
 
             <div className="mt-6 rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-600">
                 Plan
               </div>
               <div className="mt-3 space-y-3">
@@ -360,7 +370,7 @@ export default function CompanySignupPage() {
                       ].join(" ")}
                     >
                       <div className="text-sm font-semibold text-[var(--app-text-strong)]">{option.title}</div>
-                      <div className="mt-1 text-sm text-[var(--app-muted)]">{option.detail}</div>
+                      <div className="mt-1 text-sm text-slate-600">{option.detail}</div>
                     </button>
                   );
                 })}
@@ -374,12 +384,12 @@ export default function CompanySignupPage() {
             {message ? (
               <div
                 className={[
-                  "mt-6 rounded-2xl border px-4 py-3 text-sm",
+                  "mt-6 rounded-2xl px-4 py-3 text-sm",
                   messageTone === "error"
-                    ? "border-red-500/35 bg-red-950/40 text-red-700"
+                    ? "app-danger-panel"
                     : messageTone === "warning"
-                      ? "border-amber-500/35 bg-amber-950/40 text-amber-100"
-                      : "border-emerald-500/30 bg-emerald-950/35 text-emerald-700",
+                      ? "app-warning-panel"
+                      : "app-success-panel",
                 ].join(" ")}
               >
                 {message}
@@ -391,14 +401,11 @@ export default function CompanySignupPage() {
                 type="button"
                 onClick={() => void handleSubmit()}
                 disabled={loading || (completed && messageTone !== "error")}
-                className="inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-btn-primary inline-flex items-center justify-center px-5 py-3 text-sm app-shadow-action transition disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitLabel}
               </button>
-              <Link
-                href="/login"
-                className="inline-flex items-center justify-center rounded-xl border border-[var(--app-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)]"
-              >
+              <Link href="/login" className="app-btn-secondary inline-flex items-center justify-center px-5 py-3 text-sm transition">
                 Go to Login
               </Link>
             </div>

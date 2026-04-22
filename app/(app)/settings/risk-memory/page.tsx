@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useState } from "react";
 import {
   appNativeSelectClassName,
@@ -10,10 +10,7 @@ import {
   SectionCard,
 } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type ContractorRow = { id: string; name: string };
 type CrewRow = { id: string; name: string; jobsiteId: string | null };
@@ -126,8 +123,7 @@ export default function RiskMemorySettingsPage() {
     setSaving(null);
   }
 
-  const inputClass =
-    "w-full rounded-xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.98)] px-3 py-2.5 text-sm text-[var(--app-text-strong)] placeholder:text-slate-400 shadow-[0_4px_12px_rgba(76,108,161,0.05)] outline-none focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[rgba(79,125,243,0.15)]";
+  const inputClass = "app-text-input";
   const btnClass =
     "rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50";
 
@@ -168,7 +164,7 @@ export default function RiskMemorySettingsPage() {
                 contractors.map((c) => (
                   <li
                     key={c.id}
-                    className="rounded-lg border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.6)] px-3 py-2 text-[var(--app-text-strong)]"
+                    className="app-soft-field rounded-lg px-3 py-2 text-[var(--app-text-strong)]"
                   >
                     {c.name}
                   </li>
@@ -177,8 +173,14 @@ export default function RiskMemorySettingsPage() {
             </ul>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="min-w-0 flex-1">
-                <label className="mb-1 block text-xs font-medium text-[var(--app-text)]">New contractor name</label>
+                <label
+                  htmlFor="risk-memory-new-contractor"
+                  className="mb-1 block text-xs font-medium text-[var(--app-text)]"
+                >
+                  New contractor name
+                </label>
                 <input
+                  id="risk-memory-new-contractor"
                   value={contractorName}
                   onChange={(e) => setContractorName(e.target.value)}
                   className={inputClass}
@@ -213,7 +215,7 @@ export default function RiskMemorySettingsPage() {
                 crews.map((c) => (
                   <li
                     key={c.id}
-                    className="rounded-lg border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.6)] px-3 py-2"
+                    className="app-soft-field rounded-lg px-3 py-2"
                   >
                     {c.name}
                     {c.jobsiteId ? (
@@ -225,8 +227,14 @@ export default function RiskMemorySettingsPage() {
             </ul>
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--app-text)]">New crew name</label>
+                <label
+                  htmlFor="risk-memory-new-crew"
+                  className="mb-1 block text-xs font-medium text-[var(--app-text)]"
+                >
+                  New crew name
+                </label>
                 <input
+                  id="risk-memory-new-crew"
                   value={crewName}
                   onChange={(e) => setCrewName(e.target.value)}
                   className={inputClass}

@@ -288,6 +288,7 @@ export function CompanyMemoryBankPanel({ className = "" }: Props) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title"
+            aria-label="Memory entry title"
             className="w-full rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-sm text-slate-200 outline-none focus:border-sky-500/50"
           />
           <textarea
@@ -314,6 +315,7 @@ export function CompanyMemoryBankPanel({ className = "" }: Props) {
             <input
               ref={fileInputRef}
               type="file"
+              aria-label="Upload memory document"
               accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               className="hidden"
               onChange={(e) => {

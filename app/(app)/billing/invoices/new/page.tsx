@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type CustomerRow = { id: string; company_id: string; company_name: string; billing_email: string };
 
@@ -271,6 +268,7 @@ export default function NewInvoicePage() {
               className="grid gap-2 rounded-xl border border-slate-700/80 p-3 md:grid-cols-12"
             >
               <input
+                aria-label={`Line item ${index + 1} description`}
                 placeholder="Description"
                 value={row.description}
                 onChange={(e) => {
@@ -282,6 +280,7 @@ export default function NewInvoicePage() {
               />
               <input
                 type="number"
+                aria-label={`Line item ${index + 1} quantity`}
                 placeholder="Qty"
                 value={row.quantity}
                 onChange={(e) => {
@@ -293,6 +292,7 @@ export default function NewInvoicePage() {
               />
               <input
                 type="number"
+                aria-label={`Line item ${index + 1} unit price in cents`}
                 placeholder="Unit (cents)"
                 value={row.unit_price_cents}
                 onChange={(e) => {

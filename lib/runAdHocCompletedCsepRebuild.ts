@@ -859,16 +859,18 @@ async function generateCompletedCsepRebuildDraft(params: {
   builderExpectationSummary: string[];
   review: BuilderProgramAiReview;
 }) {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  const normalizedDocumentText = normalizeStructuredText(params.documentText);
-  const normalizedReferenceText = normalizeStructuredText(params.siteReferenceText);
-  if (!apiKey || normalizedDocumentText.length < 120) {
-    return buildFallbackDraft({
+  const buildLocalFallback = () =>
+    buildFallbackDraft({
       fileName: params.fileName,
       review: params.review,
       builderExpectationSummary: params.builderExpectationSummary,
       documentText: normalizedDocumentText,
     });
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  const normalizedDocumentText = normalizeStructuredText(params.documentText);
+  const normalizedReferenceText = normalizeStructuredText(params.siteReferenceText);
+  if (!apiKey || normalizedDocumentText.length < 120) {
+    return buildLocalFallback();
   }
 
   const sourceOutline = buildSourceOutline(normalizedDocumentText);
@@ -1113,7 +1115,11 @@ async function generateCompletedCsepRebuildDraft(params: {
   }
 
   if (!res || !res.ok) {
-    throw new Error(`OpenAI request failed (${res?.status ?? 502}): ${errText.slice(0, 500)}`);
+    serverLog("warn", "ad_hoc_completed_csep_rebuild_model_fallback", {
+      fileName: params.fileName,
+      reason: `OpenAI request failed (${res?.status ?? 502})`,
+    });
+    return buildLocalFallback();
   }
 
   const json: unknown = await res.json();
@@ -1126,7 +1132,11 @@ async function generateCompletedCsepRebuildDraft(params: {
   try {
     parsed = JSON.parse(rawText) as CompletedCsepRebuildPayload;
   } catch {
-    throw new Error("Could not parse rebuilt CSEP JSON.");
+    serverLog("warn", "ad_hoc_completed_csep_rebuild_parse_fallback", {
+      fileName: params.fileName,
+      reason: "Could not parse rebuilt CSEP JSON.",
+    });
+    return buildLocalFallback();
   }
 
   return withCoreSectionsFilled({

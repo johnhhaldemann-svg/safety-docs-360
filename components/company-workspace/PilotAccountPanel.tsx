@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useState } from "react";
 import { InlineMessage, SectionCard } from "@/components/WorkspacePrimitives";
 import type { CompanyProfile } from "@/components/company-workspace/useCompanyWorkspaceData";
@@ -10,10 +10,7 @@ type PilotCompanyProfile = CompanyProfile & {
   pilot_converted_at?: string | null;
 };
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 function isPilotMode(profile: PilotCompanyProfile | null): profile is PilotCompanyProfile {
   if (!profile) return false;

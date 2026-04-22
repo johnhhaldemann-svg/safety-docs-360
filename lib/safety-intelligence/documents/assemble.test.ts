@@ -598,6 +598,131 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     });
   });
 
+  it("keeps overlapping-trades output concise and strips conflict-engine dumps", () => {
+    const draft = buildGeneratedSafetyPlanDraft({
+      generationContext: {
+        project: {
+          projectName: "Riverfront Tower",
+          projectAddress: "100 Main St",
+          contractorCompany: "ABC Steel",
+        },
+        scope: {
+          trades: ["Steel Erection"],
+          subTrades: ["Decking"],
+          tasks: ["Install decking"],
+          equipment: ["Crane"],
+          location: "Level 4",
+        },
+        operations: [
+          {
+            operationId: "op-overlap-1",
+            tradeCode: "steel",
+            tradeLabel: "Steel Erection",
+            subTradeCode: "decking",
+            subTradeLabel: "Decking",
+            taskTitle: "Install decking",
+            locationLabel: "Level 4",
+            hazardCategories: ["Fall exposure"],
+            permitTriggers: ["lift_plan"],
+            ppeRequirements: ["Hard Hat", "Harness"],
+            requiredControls: ["Controlled decking zone"],
+            trainingRequirements: [],
+            equipmentUsed: ["Crane"],
+            workConditions: ["Exterior"],
+            siteRestrictions: ["Maintain decking exclusion zone."],
+            prohibitedEquipment: [],
+            hazardFamilies: ["fall"],
+            payload: {},
+            source: {
+              module: "manual",
+              id: null,
+            },
+          },
+        ],
+        siteContext: {
+          location: "Level 4",
+          workConditions: ["Exterior"],
+          siteRestrictions: ["Maintain decking exclusion zone."],
+          simultaneousOperations: ["Electrical rough-in below"],
+          weather: null,
+        },
+        programSelections: [],
+        builderInstructions: {
+          selectedBlockKeys: ["site_specific_notes", "common_overlapping_trades"],
+          selectedFormatSectionKeys: [],
+          blockInputs: {
+            site_specific_notes: "Coordinate the unloading path with the active facade staging area.",
+            common_overlapping_trades: ["Facade access coordination"],
+          },
+          builderInputHash: "hash-overlap-cleanup",
+        },
+        documentProfile: {
+          documentType: "csep",
+          projectDeliveryType: "ground_up",
+          source: "builder_submit",
+          governingState: "WI",
+          jurisdictionCode: "federal",
+          jurisdictionLabel: "Federal OSHA",
+          jurisdictionPlanType: "federal_osha",
+          jurisdictionStandardsApplied: [],
+        },
+        legacyFormSnapshot: {},
+      },
+      reviewContext: {
+        companyId: "company-1",
+        jobsiteId: "jobsite-1",
+        documentType: "csep",
+        buckets: [],
+        rulesEvaluations: [],
+        conflictEvaluations: [],
+        riskMemorySummary: null,
+      },
+      conflictMatrix: {
+        items: [
+          {
+            code: "overlap_1",
+            type: "hazard_propagation",
+            severity: "high",
+            sourceScope: "intra_document",
+            rationale: "Facade access overlaps the active decking drop zone.",
+            operationIds: ["op-overlap-1"],
+            relatedBucketKeys: [],
+            requiredMitigations: ["drop_zone_control"],
+            permitDependencies: ["lift_plan"],
+            resequencingSuggestion: "Separate facade access from lifting windows.",
+          },
+        ],
+        score: 5,
+        band: "moderate",
+        intraDocumentConflictCount: 1,
+        externalConflictCount: 0,
+      },
+      narrativeSections: {},
+      trainingProgram: {
+        rows: [],
+        summaryTrainingTitles: [],
+      },
+      riskMemorySummary: null,
+    });
+
+    expect(draft.sectionMap.find((section) => section.key === "site_specific_notes")?.body).toContain(
+      "Coordinate the unloading path with the active facade staging area."
+    );
+    expect(
+      draft.sectionMap.find((section) => section.key === "site_specific_notes")?.body
+    ).not.toContain("identified conflict point");
+
+    expect(draft.sectionMap.find((section) => section.key === "common_overlapping_trades")).toMatchObject({
+      body:
+        "Coordinate overlapping work areas, access routes, permit ownership, protection below, and stop-work handoffs before affected crews begin work.",
+      bullets: expect.arrayContaining(["Facade access coordination"]),
+      table: null,
+    });
+    expect(
+      draft.sectionMap.find((section) => section.key === "common_overlapping_trades")?.body
+    ).not.toContain("The conflict engine identified");
+  });
+
   it("renders sub-tier contractor management as structured oversight rows without a duplicate intro paragraph", () => {
     const draft = buildGeneratedSafetyPlanDraft({
       generationContext: {
@@ -894,9 +1019,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     );
 
     expect(taskModulesSection).toBeDefined();
-    expect(taskModulesSection?.body ?? null).toSatisfy((value: string | null) =>
-      value === null || value.includes("Task modules attached for the selected scope.")
-    );
+    expect(taskModulesSection?.body).toBe("Reference task modules supporting the selected scope.");
     expect(taskModulesSection?.table).toBeUndefined();
     expect(taskModulesSection?.bullets).toBeUndefined();
     expect(taskModulesSection?.subsections?.length).toBeGreaterThan(0);
@@ -1452,36 +1575,28 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         expect.objectContaining({
           title: "Barricades",
           bullets: expect.arrayContaining([
-            expect.stringContaining("Purpose:"),
-            expect.stringContaining("Applicability / trigger logic:"),
+            expect.stringContaining("Scope and use:"),
             expect.stringContaining("Pre-start verification:"),
-            expect.stringContaining("Required controls during the work:"),
-            expect.stringContaining("Required permits and PPE if triggered:"),
-            expect.stringContaining("Stop-work triggers / hold points:"),
-            expect.stringContaining("Verification / documentation:"),
+            expect.stringContaining("Required controls:"),
+            expect.stringContaining("Permits and PPE:"),
+            expect.stringContaining("Stop-work triggers:"),
+            expect.stringContaining("Verification and handoff:"),
             expect.stringContaining(
-              "Related tasks / interfaces: Coordinate with Barricades, Site setup."
-            ),
-            expect.stringContaining(
-              "Trigger / reference: apply when Barricades, Site setup is active."
+              "Related interfaces: Coordinate with Barricades, Site setup."
             ),
           ]),
         }),
         expect.objectContaining({
           title: "Access Control",
           bullets: expect.arrayContaining([
-            expect.stringContaining("Purpose:"),
-            expect.stringContaining("Applicability / trigger logic:"),
+            expect.stringContaining("Scope and use:"),
             expect.stringContaining("Pre-start verification:"),
-            expect.stringContaining("Required controls during the work:"),
-            expect.stringContaining("Required permits and PPE if triggered:"),
-            expect.stringContaining("Stop-work triggers / hold points:"),
-            expect.stringContaining("Verification / documentation:"),
+            expect.stringContaining("Required controls:"),
+            expect.stringContaining("Permits and PPE:"),
+            expect.stringContaining("Stop-work triggers:"),
+            expect.stringContaining("Verification and handoff:"),
             expect.stringContaining(
-              "Related tasks / interfaces: Coordinate with Access control, Site setup."
-            ),
-            expect.stringContaining(
-              "Trigger / reference: apply when Access control, Site setup is active."
+              "Related interfaces: Coordinate with Access control, Site setup."
             ),
           ]),
         }),
@@ -1673,29 +1788,25 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         expect.objectContaining({
           title: "Electrical Safety and Temporary Power",
           bullets: expect.arrayContaining([
-            expect.stringContaining("Purpose:"),
-            expect.stringContaining("Applicability / trigger logic:"),
+            expect.stringContaining("Hazard overview:"),
             expect.stringContaining("Pre-start verification:"),
-            expect.stringContaining("Required controls during the work:"),
-            expect.stringContaining("Required permits and PPE if triggered:"),
-            expect.stringContaining("Stop-work triggers / hold points:"),
-            expect.stringContaining("Verification / documentation:"),
-            expect.stringContaining("Related tasks / interfaces:"),
-            expect.stringContaining("Trigger / reference: Included for this scope based on"),
+            expect.stringContaining("Required controls:"),
+            expect.stringContaining("Permits and PPE:"),
+            expect.stringContaining("Stop-work triggers:"),
+            expect.stringContaining("Verification and handoff:"),
+            expect.stringContaining("Related interfaces:"),
           ]),
         }),
         expect.objectContaining({
           title: "Lockout Tagout and Hazardous Energy Control",
           bullets: expect.arrayContaining([
-            expect.stringContaining("Purpose:"),
-            expect.stringContaining("Applicability / trigger logic:"),
+            expect.stringContaining("Hazard overview:"),
             expect.stringContaining("Pre-start verification:"),
-            expect.stringContaining("Required controls during the work:"),
-            expect.stringContaining("Required permits and PPE if triggered:"),
-            expect.stringContaining("Stop-work triggers / hold points:"),
-            expect.stringContaining("Verification / documentation:"),
-            expect.stringContaining("Related tasks / interfaces:"),
-            expect.stringContaining("Trigger / reference: Included for this scope based on"),
+            expect.stringContaining("Required controls:"),
+            expect.stringContaining("Permits and PPE:"),
+            expect.stringContaining("Stop-work triggers:"),
+            expect.stringContaining("Verification and handoff:"),
+            expect.stringContaining("Related interfaces:"),
           ]),
         }),
       ])
@@ -2310,19 +2421,16 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       draft.sectionMap.find((section) => section.key === "task_modules_reference")?.subsections
     ).toEqual([
       expect.objectContaining({
+        body: "Task fallback summary.",
         title: "Fallback Task Module",
         bullets: expect.arrayContaining([
-          expect.stringContaining("Purpose: Use this control module to direct Task fallback summary"),
-          expect.stringContaining(
-            "Applicability / trigger logic: Apply this module whenever site setup is in the active plan"
-          ),
+          expect.stringContaining("Scope and use: Task fallback summary."),
           expect.stringContaining("Pre-start verification:"),
-          expect.stringContaining("Required controls during the work:"),
-          expect.stringContaining("Required permits and PPE if triggered:"),
-          expect.stringContaining("Stop-work triggers / hold points:"),
-          expect.stringContaining("Verification / documentation:"),
-          expect.stringContaining("Related tasks / interfaces: Coordinate with site setup."),
-          expect.stringContaining("Trigger / reference: apply when site setup is active."),
+          expect.stringContaining("Required controls:"),
+          expect.stringContaining("Permits and PPE:"),
+          expect.stringContaining("Stop-work triggers:"),
+          expect.stringContaining("Verification and handoff:"),
+          expect.stringContaining("Related interfaces: Coordinate with site setup."),
         ]),
       }),
     ]);
@@ -2330,19 +2438,16 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       draft.sectionMap.find((section) => section.key === "hazard_modules_reference")?.subsections
     ).toEqual([
       expect.objectContaining({
+        body: "Hazard fallback summary.",
         title: "Fallback Hazard Module",
         bullets: expect.arrayContaining([
-          expect.stringContaining("Purpose: Use this hazard module to control Hazard fallback summary"),
-          expect.stringContaining("Applicability / trigger logic:"),
+          expect.stringContaining("Hazard overview: Hazard fallback summary."),
           expect.stringContaining("Pre-start verification:"),
-          expect.stringContaining("Required controls during the work:"),
-          expect.stringContaining("Required permits and PPE if triggered:"),
-          expect.stringContaining("Stop-work triggers / hold points:"),
-          expect.stringContaining("Verification / documentation:"),
-          expect.stringContaining("Related tasks / interfaces:"),
-          expect.stringContaining(
-            "Trigger / reference: Included for this scope based on the current CSEP scope."
-          ),
+          expect.stringContaining("Required controls:"),
+          expect.stringContaining("Permits and PPE:"),
+          expect.stringContaining("Stop-work triggers:"),
+          expect.stringContaining("Verification and handoff:"),
+          expect.stringContaining("Related interfaces:"),
         ]),
       }),
     ]);
@@ -2351,23 +2456,16 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         ?.subsections
     ).toEqual([
       expect.objectContaining({
+        body: "Steel task fallback summary.",
         title: "Fallback Steel Task Module",
         bullets: expect.arrayContaining([
-          expect.stringContaining(
-            "Purpose: Use this task module to direct Steel task fallback summary"
-          ),
-          expect.stringContaining("Applicability / trigger logic: Apply this module whenever the active steel-erection sequence is in the work plan"),
+          expect.stringContaining("Task scope and sequence: Steel task fallback summary."),
           expect.stringContaining("Pre-start verification:"),
-          expect.stringContaining("Required controls during the work:"),
-          expect.stringContaining("Required permits and PPE if triggered:"),
-          expect.stringContaining("Stop-work triggers / hold points:"),
-          expect.stringContaining("Verification / documentation:"),
-          expect.stringContaining(
-            "Related tasks / interfaces: Coordinate with the steel-erection sequence"
-          ),
-          expect.stringContaining(
-            "Trigger / reference: apply when the active steel-erection sequence is active."
-          ),
+          expect.stringContaining("Required controls:"),
+          expect.stringContaining("Permits and PPE:"),
+          expect.stringContaining("Stop-work triggers:"),
+          expect.stringContaining("Verification and handoff:"),
+          expect.stringContaining("Related interfaces: Coordinate with the steel-erection sequence"),
         ]),
       }),
     ]);
@@ -2376,21 +2474,16 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         ?.subsections
     ).toEqual([
       expect.objectContaining({
+        body: "Steel hazard fallback summary.",
         title: "Fallback Steel Hazard Module",
         bullets: expect.arrayContaining([
-          expect.stringContaining(
-            "Purpose: Use this hazard module to control Steel hazard fallback summary"
-          ),
-          expect.stringContaining("Applicability / trigger logic:"),
+          expect.stringContaining("Hazard overview: Steel hazard fallback summary."),
           expect.stringContaining("Pre-start verification:"),
-          expect.stringContaining("Required controls during the work:"),
-          expect.stringContaining("Required permits and PPE if triggered:"),
-          expect.stringContaining("Stop-work triggers / hold points:"),
-          expect.stringContaining("Verification / documentation:"),
-          expect.stringContaining("Related tasks / interfaces:"),
-          expect.stringContaining(
-            "Trigger / reference: Included for this scope based on the current steel-erection scope."
-          ),
+          expect.stringContaining("Required controls:"),
+          expect.stringContaining("Permits and PPE:"),
+          expect.stringContaining("Stop-work triggers:"),
+          expect.stringContaining("Verification and handoff:"),
+          expect.stringContaining("Related interfaces:"),
         ]),
       }),
     ]);
@@ -2399,24 +2492,155 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         ?.subsections
     ).toEqual([
       expect.objectContaining({
+        body: "Steel program fallback summary.",
         title: "Fallback Steel Program Module",
         bullets: expect.arrayContaining([
-          expect.stringContaining(
-            "Purpose: Use this high-risk program module to direct Steel program fallback summary"
-          ),
-          expect.stringContaining("Applicability / trigger logic:"),
+          expect.stringContaining("Program scope: Steel program fallback summary."),
           expect.stringContaining("Pre-start verification:"),
-          expect.stringContaining("Required controls during the work:"),
-          expect.stringContaining("Required permits and PPE if triggered:"),
-          expect.stringContaining("Stop-work triggers / hold points:"),
-          expect.stringContaining("Verification / documentation:"),
-          expect.stringContaining("Related tasks / interfaces:"),
-          expect.stringContaining(
-            "Trigger / reference: Included for this scope based on the current steel-erection scope."
-          ),
+          expect.stringContaining("Required controls:"),
+          expect.stringContaining("Permits and PPE:"),
+          expect.stringContaining("Stop-work triggers:"),
+          expect.stringContaining("Verification and handoff:"),
+          expect.stringContaining("Related interfaces:"),
         ]),
       }),
     ]);
+  });
+
+  it("strips source child numbering labels from steel task module snippets", () => {
+    const draft = buildGeneratedSafetyPlanDraft({
+      generationContext: {
+        project: {
+          projectName: "Steel Delivery",
+          projectAddress: "10 Yard Rd",
+          contractorCompany: "ABC Steel",
+        },
+        scope: {
+          trades: ["Steel Erection"],
+          subTrades: ["Steel erection / decking"],
+          tasks: ["Unload steel"],
+          equipment: ["Crane"],
+          location: "Laydown yard",
+        },
+        operations: [
+          {
+            operationId: "steel-unload-1",
+            tradeCode: "steel_erection",
+            tradeLabel: "Steel Erection",
+            subTradeCode: "steel_erection_decking",
+            subTradeLabel: "Steel erection / decking",
+            taskCode: "unload_steel",
+            taskTitle: "Unload steel",
+            description: "Unload and stage delivered steel.",
+            equipmentUsed: ["Crane"],
+            workConditions: ["Laydown yard"],
+            hazardHints: [],
+            requiredControlHints: [],
+            permitHints: [],
+            ppeHints: [],
+            metadata: {},
+          },
+        ],
+        siteContext: {
+          location: "Laydown yard",
+          workConditions: ["Laydown yard"],
+          siteRestrictions: [],
+          simultaneousOperations: [],
+          weather: {
+            conditionCode: null,
+            summary: null,
+          },
+          metadata: {
+            steelTaskModules: [
+              {
+                title: "Receiving, Unloading, Inspecting and Staging Steel",
+                moduleKey: "steel_receiving_unloading_inspecting_and_staging",
+                summary:
+                  "Material delivery, shakeout, laydown order, site inspection, and preparation of steel for safe erection.",
+                taskNames: ["Unload steel", "Sort members"],
+                sourceFilename: "Task_02_Receiving_Unloading.docx",
+                sectionHeadings: [
+                  "3. Required Equipment and Access",
+                  "4. Hazards & Controls",
+                ],
+                plainText: [
+                  "RECEIVING, UNLOADING, INSPECTING, AND STAGING STEEL MODULE",
+                  "",
+                  "3. Required Equipment and Access",
+                  "",
+                  "3.1 Core equipment  Typical equipment includes lifting equipment, approved rigging, tag lines, dunnage, radios, inspection paperwork, and access-control devices for the unloading zone.",
+                  "",
+                  "4. Hazards & Controls",
+                  "",
+                  "4.2 Primary controls  Primary controls for the task include pre-positioned blocking, controlled hook-up, exclusion zones, clear communication, immediate damage reporting, and staging by erection sequence rather than convenience.",
+                ].join("\n"),
+              },
+            ],
+          },
+        },
+        programSelections: [],
+        builderInstructions: {
+          selectedBlockKeys: ["scope_of_work"],
+          blockInputs: {
+            scope_of_work: "Unload and stage delivered steel.",
+          },
+          builderInputHash: "steel-unload-hash",
+        },
+        documentProfile: {
+          documentType: "csep",
+          projectDeliveryType: "ground_up",
+          source: "builder_submit",
+          governingState: null,
+          jurisdictionCode: "federal",
+          jurisdictionLabel: "Federal OSHA",
+          jurisdictionPlanType: "federal_osha",
+          jurisdictionStandardsApplied: [],
+        },
+        legacyFormSnapshot: {},
+      },
+      reviewContext: {
+        companyId: "company-1",
+        documentType: "csep",
+        buckets: [],
+        rulesEvaluations: [],
+        conflictEvaluations: [],
+        riskMemorySummary: null,
+      },
+      conflictMatrix: {
+        items: [],
+        score: 0,
+        band: "low",
+        intraDocumentConflictCount: 0,
+        externalConflictCount: 0,
+      },
+      trainingProgram: {
+        rows: [],
+        summaryTrainingTitles: [],
+      },
+      riskMemorySummary: null,
+    });
+
+    const steelTaskSubsection = draft.sectionMap
+      .find((section) => section.key === "steel_task_modules_reference")
+      ?.subsections?.find(
+        (subsection) => subsection.title === "Receiving, Unloading, Inspecting and Staging Steel"
+      );
+
+    const requiredControlsBullet = steelTaskSubsection?.bullets.find((bullet) =>
+      bullet.startsWith("Required controls:")
+    );
+
+    expect(requiredControlsBullet).toBe(
+      "Required controls: Establish the work zone, maintain the sequence, control access, protect workers below, and keep the task stable for the next step before release."
+    );
+    expect(steelTaskSubsection?.bullets).not.toEqual(
+      expect.arrayContaining([expect.stringContaining("Trigger / reference:")])
+    );
+    expect(requiredControlsBullet).not.toContain(
+      "Typical equipment includes lifting equipment, approved rigging, tag lines, dunnage, radios, inspection paperwork, and access-control devices for the unloading zone."
+    );
+    expect(requiredControlsBullet).not.toContain("3.1 Core equipment");
+    expect(requiredControlsBullet).not.toContain("4.2 Primary controls");
   });
 
   it("dedupes overlapping fall-protection sections and strips repeated inline OSHA tails", () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
@@ -12,10 +12,7 @@ import {
   summarizeBillingCharges,
 } from "@/lib/billing/invoicePresentation";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 function formatMoney(cents: number, currency: string) {
   return new Intl.NumberFormat(undefined, {
@@ -309,10 +306,10 @@ export default function BillingInvoiceDetailPage() {
               <span
                 className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
                   sourceSummary.tone === "success"
-                    ? "bg-emerald-500/15 text-emerald-200"
+                    ? "app-badge-success"
                     : sourceSummary.tone === "info"
-                      ? "bg-sky-500/15 text-sky-200"
-                      : "bg-slate-800 text-slate-300"
+                      ? "app-badge-info"
+                      : "app-badge-neutral"
                 }`}
               >
                 {sourceSummary.source}

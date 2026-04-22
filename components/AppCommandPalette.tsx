@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { NavItem } from "@/lib/appNavigation";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 
 type AppCommandPaletteProps = {
   open: boolean;
@@ -12,6 +13,7 @@ type AppCommandPaletteProps = {
 
 export function AppCommandPalette({ open, onOpenChange, items }: AppCommandPaletteProps) {
   const [query, setQuery] = useState("");
+  const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
@@ -30,27 +32,16 @@ export function AppCommandPalette({ open, onOpenChange, items }: AppCommandPalet
   useEffect(() => {
     if (!open) return;
     const clearQuery = window.setTimeout(() => setQuery(""), 0);
-    const focusInput = window.setTimeout(() => inputRef.current?.focus(), 10);
     return () => {
       window.clearTimeout(clearQuery);
-      window.clearTimeout(focusInput);
     };
   }, [open]);
 
-  const onKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape" && open) {
-        e.preventDefault();
-        onOpenChange(false);
-      }
-    },
-    [open, onOpenChange]
-  );
-
-  useEffect(() => {
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onKeyDown]);
+  useFocusTrap(dialogRef, {
+    active: open,
+    onEscape: () => onOpenChange(false),
+    initialFocus: inputRef,
+  });
 
   if (!open) {
     return null;
@@ -65,6 +56,7 @@ export function AppCommandPalette({ open, onOpenChange, items }: AppCommandPalet
         onClick={() => onOpenChange(false)}
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Go to page"

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   buildMarketplacePreviewSections,
   normalizePreviewText,
   splitPreviewLines,
 } from "@/lib/marketplacePreviewSections";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 
 type PreviewVariant = "marketplace" | "workspace" | "admin";
 
@@ -158,6 +159,14 @@ export function MarketplacePreviewModal({
   variant = "marketplace",
 }: Props) {
   const [showAllExcerpt, setShowAllExcerpt] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useFocusTrap(dialogRef, {
+    active: open,
+    onEscape: onClose,
+    initialFocus: closeButtonRef,
+  });
 
   if (!open) {
     return null;
@@ -259,6 +268,7 @@ export function MarketplacePreviewModal({
         onClick={onClose}
       />
       <div
+        ref={dialogRef}
         className={`relative z-[101] flex w-full max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-[1.75rem] border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.96)_100%)] shadow-[0_28px_64px_rgba(38,64,106,0.18)] sm:max-h-[calc(100dvh-3rem)] ${
           pdfObjectUrl ? "max-w-[min(94vw,72rem)]" : "max-w-[min(94vw,64rem)]"
         }`}
@@ -282,6 +292,7 @@ export function MarketplacePreviewModal({
               </p>
             </div>
             <button
+              ref={closeButtonRef}
               type="button"
               onClick={onClose}
               className="shrink-0 rounded-xl border border-[var(--app-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-accent-primary-soft)] hover:text-[var(--app-text-strong)]"

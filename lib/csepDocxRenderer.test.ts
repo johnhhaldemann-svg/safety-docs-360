@@ -271,9 +271,10 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).not.toContain("COMPANY LOGO PLACEMENT");
     expect(documentXml).not.toContain("Insert contractor logo or approved company letterhead here");
     expect(documentXml).toContain("0.0 Document Control");
-    expect(documentXml).toContain("0.0.1");
-    expect(documentXml).not.toContain("0.0.1.1");
-    expect(documentXml).toContain("Field: Project Name / Site");
+    expect(documentXml).not.toContain("0.0.1");
+    expect(documentXml).toContain("Project Name / Site");
+    expect(documentXml).not.toContain("Field:");
+    expect(documentXml).not.toContain("Value:");
       expect(documentXml).toContain("Revision History");
       expect(documentXml).toContain("Table of Contents");
       expect(documentXml).toContain("1.0 Company Overview and Safety Philosophy");
@@ -290,8 +291,12 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).toContain("18.1.1");
     expect(documentXml).toContain("Review lift path before each pick.");
     expect(documentXml).toContain("18.1.2");
-    expect(documentXml).toContain("Activity: Deck placement");
-    expect(documentXml).toContain("Hazard: Fall exposure");
+    expect(documentXml).toContain("Deck placement");
+    expect(documentXml).toContain("Hazard:");
+    expect(documentXml).toContain("Fall exposure");
+    expect(documentXml).toContain("Controls:");
+    expect(documentXml).toContain("Controlled decking zone");
+    expect(documentXml).not.toContain("Activity: Deck placement");
     expect(documentXml).not.toContain("<w:tbl>");
     expect(documentXml.indexOf("1.0 Company Overview and Safety Philosophy")).toBeLessThan(
       documentXml.indexOf("18.0 HSE Elements / Site-Specific Hazard Analysis")
@@ -312,28 +317,31 @@ describe("csepDocxRenderer", () => {
     const draft = createGeneratedDraft();
     const model = buildCsepRenderModelFromGeneratedDraft(draft);
 
-    expect(model.frontMatterSections[0]?.title).toBe("0.0 Document Control");
-    expect(model.sections[0]?.title).toBe("Contractor Safety Policy Statement");
+    expect(model.frontMatterSections[0]?.title).toBe("Document Control");
     expect(model.sections.map((section) => section.title)).toContain(
-      "Project & Site Information"
+      "Project & Contractor Information"
     );
     expect(model.sections.map((section) => section.title)).toContain(
-      "Life-Saving Rules & Stop-Work Authority"
+      "Scope Summary"
+    );
+    expect(model.sections.map((section) => section.title)).toContain(
+      "Hazard Control Sections"
     );
 
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml, headerXml, footerXml } = await unzipDocx(rendered.body);
 
-    expect(documentXml).toContain("0.0 Document Control");
-    expect(documentXml).toContain("Definitions and Abbreviations");
-    expect(documentXml).toContain("CBA");
-    expect(documentXml).toContain("Collective bargaining or labor-agreement language");
+    expect(documentXml).toContain("Document Control");
+    expect(documentXml).not.toContain("Definitions and Abbreviations");
+    expect(documentXml).not.toContain("How to Use This Plan");
+    expect(documentXml).not.toContain("CBA");
+    expect(documentXml).not.toContain("Collective bargaining or labor-agreement language");
     expect(documentXml).not.toContain("0.1.1 Term / Abbreviation:");
     expect(documentXml).not.toContain("Definition / Intended Use:");
-    expect(documentXml).toContain("Project &amp; Site Information");
-    expect(documentXml).toContain("How to Use This Plan");
+    expect(documentXml).toContain("Project &amp; Contractor Information");
+    expect(documentXml).toContain("Scope Summary");
     expect(documentXml).not.toContain("Blueprint");
-    expect(documentXml).toContain("Life-Saving Rules");
+    expect(documentXml).toContain("Hazard Control Sections");
     expect(documentXml).not.toContain("Rule Domain:");
     expect(documentXml).not.toContain("Rule Text:");
     expect(documentXml).not.toContain("8.1 Work Stoppage");
@@ -455,6 +463,140 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).toContain('w:left="780"');
   });
 
+  it("renders numbered source items from subsection bullets as true child sections", async () => {
+    const model: CsepRenderModel = {
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      tradeLabel: "Steel Erection",
+      subTradeLabel: "Decking",
+      issueLabel: "April 20, 2026",
+      statusLabel: "Draft Issue",
+      preparedBy: "ABC Steel",
+      coverSubtitleLines: [],
+      coverMetadataRows: [],
+      approvalLines: [],
+      revisionHistory: [],
+      frontMatterSections: [],
+      sections: [
+        {
+          key: "steel_task_modules_reference",
+          kind: "main",
+          title: "1.25.9 Steel Erection Task Modules Reference Pack",
+          numberLabel: "1.25.9",
+          subsections: [
+            {
+              title: "Receiving, Unloading, Inspecting and Staging Steel",
+              items: [
+                "Required controls during the work: Establish the work zone, maintain the sequence, control access, protect workers below, and keep the task stable for the next step before release.",
+                "3.1 Core equipment  Typical equipment includes lifting equipment, approved rigging, tag lines, dunnage, radios, inspection paperwork, and access-control devices for the unloading zone.",
+                "7.1 Typical approvals  This task may require traffic-control, road-use, or site-access approvals when unloading affects shared routes or occupied facilities.",
+              ],
+            },
+          ],
+        },
+      ],
+      appendixSections: [],
+      disclaimerLines: ["Generated draft disclaimer."],
+      filenameProjectPart: "Riverfront_Tower",
+    };
+
+    const rendered = await renderCsepRenderModel(model);
+    const { documentXml } = await unzipDocx(rendered.body);
+
+    expect(documentXml).toContain(
+      "Required controls during the work: Establish the work zone, maintain the sequence, control access, protect workers below, and keep the task stable for the next step before release."
+    );
+    expect(documentXml).toMatch(
+      /1\.25\.9\.1[\s\S]*Receiving, Unloading, Inspecting and Staging Steel/
+    );
+    expect(documentXml).toMatch(/1\.25\.9\.1\.1[\s\S]*Core equipment/);
+    expect(documentXml).toContain(
+      "Typical equipment includes lifting equipment, approved rigging, tag lines, dunnage, radios, inspection paperwork, and access-control devices for the unloading zone."
+    );
+    expect(documentXml).toMatch(/1\.25\.9\.1\.2[\s\S]*Typical approvals/);
+    expect(documentXml).not.toContain("3.1 Core equipment");
+    expect(documentXml).not.toContain("7.1 Typical approvals");
+  });
+
+  it("promotes inline numbered narrative fragments into clean items and drops orphaned partial fragments", () => {
+    const [section] = buildCsepTemplateSections({
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      issueLabel: "April 20, 2026",
+      sourceSections: [
+        {
+          key: "training_orientation",
+          kind: "main",
+          title: "6.0 Training, Permit, and PPE",
+          numberLabel: "6.0",
+          body:
+            "The crew shall review training, permit ownership, and PPE readiness before starting exposed work. 1. Confirm active permit coverage and posting at the work face. 2. Training relevant to steel erection, rigging, and welding. 3. Verify required PPE is inspected and available for each assigned worker.",
+        },
+      ],
+    });
+
+    expect(section.subsections).toEqual([
+      {
+        title: "",
+        paragraphs: [
+          "The crew shall review training, permit ownership, and PPE readiness before starting exposed work.",
+        ],
+        items: [
+          "Confirm active permit coverage and posting at the work face.",
+          "Verify required PPE is inspected and available for each assigned worker.",
+        ],
+        table: null,
+      },
+    ]);
+  });
+
+  it("keeps security and access subsections out of subcontractor management in fallback grouping", () => {
+    const sections = buildCsepTemplateSections({
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      issueLabel: "April 20, 2026",
+      sourceSections: [
+        {
+          key: "common_overlapping_trades",
+          title: "Common Overlapping Trades",
+          bullets: ["Fire Protection", "HVAC / Mechanical"],
+        },
+        {
+          key: "security_and_access_control",
+          title: "Security and Access Control",
+          subsections: [
+            {
+              title: "Worker access",
+              body: "Minimum Requirement: Verify orientation, badging, and daily work assignment before entry. Responsible Party: Superintendent / Foreman",
+              bullets: [],
+            },
+            {
+              title: "Restricted areas",
+              body: "Minimum Requirement: Barricade and control permit-required or high-hazard areas.",
+              bullets: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    const taskExecutionModules = sections.find(
+      (section) => section.key === "task_execution_modules"
+    );
+
+    expect(taskExecutionModules?.subsections).toEqual(
+      expect.arrayContaining([
+      {
+        title: "",
+        paragraphs: [],
+        items: ["Fire Protection", "HVAC / Mechanical"],
+        table: null,
+      },
+      expect.objectContaining({ title: "Worker access" }),
+      expect.objectContaining({ title: "Restricted areas" }),
+    ]));
+  });
+
   it("folds main-section lead narrative into numbered fallback formatting when structured content exists", () => {
     const [section] = buildCsepTemplateSections({
       projectName: "Riverfront Tower",
@@ -540,10 +682,8 @@ describe("csepDocxRenderer", () => {
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml } = await unzipDocx(rendered.body);
 
-    expect(documentXml).toContain(
-      "This section applies when Unload steel, Sort members is in the work plan, when the crew changes phase."
-    );
     expect(documentXml).not.toContain("Applicability / trigger logic");
+    expect(documentXml).not.toContain("Apply this module whenever");
   });
 
   it("fails export when duplicate section numbers are present in the final model", async () => {
@@ -656,6 +796,48 @@ describe("csepDocxRenderer", () => {
     );
   });
 
+  it("normalizes lowercase lead narrative in unnamed subsections before validation", async () => {
+    const model: CsepRenderModel = {
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      tradeLabel: "Steel Erection",
+      subTradeLabel: "Decking",
+      issueLabel: "April 20, 2026",
+      statusLabel: "Contractor Issue",
+      preparedBy: "ABC Steel",
+      coverSubtitleLines: [],
+      coverMetadataRows: [],
+      approvalLines: [],
+      revisionHistory: [],
+      frontMatterSections: [],
+      sections: [
+        {
+          key: "project_contractor_information",
+          kind: "main",
+          title: "1.0 Project & Contractor Information",
+          numberLabel: "1.0",
+          subsections: [
+            {
+              title: "",
+              paragraphs: ["project-specific contact and governing-state details are confirmed before issue."],
+              items: [],
+            },
+          ],
+        },
+      ],
+      appendixSections: [],
+      disclaimerLines: ["Generated draft disclaimer."],
+      filenameProjectPart: "Riverfront_Tower",
+    };
+
+    const rendered = await renderCsepRenderModel(model);
+    const { documentXml } = await unzipDocx(rendered.body);
+
+    expect(documentXml).toContain(
+      "Project-specific contact and governing-state details are confirmed before issue."
+    );
+  });
+
   it("renders document-control front matter with N/A instead of blocking placeholders when optional fields are blank", async () => {
     const draft = createGeneratedDraft();
     draft.projectOverview.projectName = "";
@@ -679,8 +861,271 @@ describe("csepDocxRenderer", () => {
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml } = await unzipDocx(rendered.body);
 
-    expect(documentXml).toContain("Field: Project Name / Site");
-    expect(documentXml).toContain("Value: N/A");
+    expect(documentXml).toContain("Document Control");
+    expect(documentXml).toContain("Prepared By:");
+    expect(documentXml).toContain("Date:");
+    expect(documentXml).toContain("Revision:");
+    expect(documentXml).not.toContain("Document-control details were not provided for this issue.");
+    expect(documentXml).not.toContain("Project Name / Site");
+    expect(documentXml).not.toContain("Field:");
+    expect(documentXml).not.toContain("Value:");
     expect(documentXml).not.toContain("TBD by contractor before issue");
+  });
+
+  it("collapses trade-summary task rows into a single scope-summary subsection", () => {
+    const [section] = buildCsepTemplateSections({
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      issueLabel: "April 20, 2026",
+      sourceSections: [
+        {
+          key: "trade_summary",
+          kind: "main",
+          title: "Trade Summary",
+          table: {
+            columns: ["Trade", "Sub-trade", "Tasks", "Hazards", "Permits"],
+            rows: [
+              ["Steel Erection", "Decking", "Deck placement", "Fall exposure", "Lift plan"],
+              ["Steel Erection", "Decking", "Material staging", "Struck-by", "None"],
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(section.subsections).toEqual([
+      {
+        title: "Scope Summary",
+        paragraphs: [
+          "Current contractor scope includes Deck placement, Material staging for Steel Erection / Decking. Primary hazards include Fall exposure, Struck-by. Anticipated permit triggers include Lift plan.",
+        ],
+        items: [],
+      },
+    ]);
+  });
+
+  it("prefixes generic child headings with their source module title when grouping sections", () => {
+    const sections = buildCsepTemplateSections({
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      issueLabel: "April 20, 2026",
+      sourceSections: [
+        {
+          key: "steel_task_module_a",
+          kind: "main",
+          title: "Receiving and Staging Steel",
+          subsections: [
+            {
+              title: "When It Applies",
+              body: "Use this module when unloading and staging members at the work face.",
+              bullets: [],
+            },
+          ],
+        },
+        {
+          key: "steel_task_module_b",
+          kind: "main",
+          title: "Deck Placement",
+          subsections: [
+            {
+              title: "When It Applies",
+              body: "Use this module when metal deck is being landed, aligned, and released.",
+              bullets: [],
+            },
+            {
+              title: "Responsibilities and Training",
+              body: "Qualified connectors, deck installers, and signal personnel are assigned before work begins.",
+              bullets: [],
+            },
+            {
+              title: "Minimum Required Controls",
+              body: "Maintain controlled access, verified staging, and protected routes before the task starts.",
+              bullets: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    const taskExecutionSection = sections.find((section) => section.key === "task_execution_modules");
+
+    expect(taskExecutionSection?.subsections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: "Receiving and Staging Steel: When It Applies" }),
+        expect.objectContaining({ title: "Deck Placement: When It Applies" }),
+        expect.objectContaining({ title: "Deck Placement: Responsibilities and Training" }),
+        expect.objectContaining({ title: "Deck Placement: Minimum Required Controls" }),
+      ])
+    );
+  });
+
+  it("prefixes per-program procedure headings (Related Tasks etc.) when multiple programs bucket into the same fixed section", () => {
+    const sections = buildCsepTemplateSections({
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      issueLabel: "April 20, 2026",
+      sourceSections: [
+        {
+          key: "task_module_steel_erection",
+          kind: "main",
+          title: "Task Module: Steel Erection",
+          subsections: [
+            {
+              title: "When It Applies",
+              body: "Applies whenever working six feet or higher above a lower level.",
+              bullets: [],
+            },
+            {
+              title: "Pre-Task Setup",
+              body: "Anchor points verified and rescue plan reviewed before work.",
+              bullets: [],
+            },
+            {
+              title: "Work Execution",
+              body: "Maintain 100% tie-off while exposed to fall hazards.",
+              bullets: [],
+            },
+            {
+              title: "Stop-Work / Escalation",
+              body: "Stop work and escalate if any anchor, lanyard, or harness is compromised.",
+              bullets: [],
+            },
+            {
+              title: "Post-Task / Closeout",
+              body: "Inspect and stow fall-arrest equipment; log any damage.",
+              bullets: [],
+            },
+            {
+              title: "Minimum Required Controls",
+              body: "Personal fall arrest, guardrails, and covers as applicable.",
+              bullets: [],
+            },
+            {
+              title: "Related Tasks",
+              body: "These related tasks apply to this program scope: Roof work, Decking install.",
+              bullets: [],
+            },
+          ],
+        },
+        {
+          key: "task_module_confined_space_entry",
+          kind: "main",
+          title: "Task Module: Confined Space Entry",
+          subsections: [
+            {
+              title: "When It Applies",
+              body: "Applies to entries into permit-required confined spaces.",
+              bullets: [],
+            },
+            {
+              title: "Pre-Task Setup",
+              body: "Permit issued, atmospheric testing complete, rescue stationed.",
+              bullets: [],
+            },
+            {
+              title: "Work Execution",
+              body: "Entrant, attendant, and supervisor roles are filled and verified.",
+              bullets: [],
+            },
+            {
+              title: "Stop-Work / Escalation",
+              body: "Evacuate and stop work on any atmospheric alarm or communication loss.",
+              bullets: [],
+            },
+            {
+              title: "Post-Task / Closeout",
+              body: "Close permit, log entry duration, and reset the space.",
+              bullets: [],
+            },
+            {
+              title: "Minimum Required Controls",
+              body: "Continuous atmospheric monitoring and permit controls in place.",
+              bullets: [],
+            },
+            {
+              title: "Related Tasks",
+              body: "These related tasks apply to this program scope: Vault entry, Tank inspection.",
+              bullets: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    const taskExecutionSection = sections.find(
+      (section) => section.key === "task_execution_modules"
+    );
+
+    expect(taskExecutionSection).toBeTruthy();
+
+    const titles = (taskExecutionSection?.subsections ?? []).map((subsection) => subsection.title);
+
+    const titleCounts = titles.reduce<Record<string, number>>((acc, title) => {
+      acc[title] = (acc[title] ?? 0) + 1;
+      return acc;
+    }, {});
+    for (const [title, count] of Object.entries(titleCounts)) {
+      expect(count, `duplicate subsection title "${title}" under Task Execution Modules`).toBe(1);
+    }
+
+    expect(titles).toEqual(
+      expect.arrayContaining([
+        "Task Module: Steel Erection: Related Tasks",
+        "Task Module: Confined Space Entry: Related Tasks",
+        "Task Module: Steel Erection: Pre-Task Setup",
+        "Task Module: Confined Space Entry: Pre-Task Setup",
+        "Task Module: Steel Erection: Work Execution",
+        "Task Module: Confined Space Entry: Work Execution",
+        "Task Module: Steel Erection: Stop-Work / Escalation",
+        "Task Module: Confined Space Entry: Stop-Work / Escalation",
+        "Task Module: Steel Erection: Post-Task / Closeout",
+        "Task Module: Confined Space Entry: Post-Task / Closeout",
+      ])
+    );
+  });
+
+  it("prefixes repeated applicable-reference headings with their source module title when grouping sections", () => {
+    const sections = buildCsepTemplateSections({
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      issueLabel: "April 20, 2026",
+      sourceSections: [
+        {
+          key: "high_risk_program_a",
+          kind: "main",
+          title: "Fall Protection Program Module",
+          subsections: [
+            {
+              title: "Applicable References",
+              body: "29 CFR 1926 Subpart M and the project fall-protection plan apply.",
+              bullets: [],
+            },
+          ],
+        },
+        {
+          key: "high_risk_program_b",
+          kind: "main",
+          title: "Hoisting and Rigging Program Module",
+          subsections: [
+            {
+              title: "Applicable References",
+              body: "Project lift planning requirements and manufacturer instructions apply.",
+              bullets: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    const subsectionTitles = sections.flatMap((section) =>
+      (section.subsections ?? []).map((subsection) => subsection.title)
+    );
+
+    expect(subsectionTitles).toEqual(
+      expect.arrayContaining([
+        "Fall Protection Program Module: Applicable References",
+        "Hoisting and Rigging Program Module: Applicable References",
+      ])
+    );
   });
 });

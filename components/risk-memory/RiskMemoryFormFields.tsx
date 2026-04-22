@@ -248,6 +248,7 @@ export function RiskMemoryFormFields({
         value={value.contractor}
         onChange={(e) => patch({ contractor: e.target.value })}
         placeholder="Contractor note (free text)"
+        aria-label="Contractor note"
         className={`${selectClass} placeholder:text-slate-500`}
       />
       <select
@@ -267,12 +268,14 @@ export function RiskMemoryFormFields({
         value={value.locationArea}
         onChange={(e) => patch({ locationArea: e.target.value })}
         placeholder="Area / zone"
+        aria-label="Area or zone"
         className={`${selectClass} placeholder:text-slate-500`}
       />
       <input
         value={value.locationGrid}
         onChange={(e) => patch({ locationGrid: e.target.value })}
         placeholder="Location grid / map ref (optional)"
+        aria-label="Location grid or map reference"
         className={`${selectClass} placeholder:text-slate-500`}
       />
       <select
@@ -359,6 +362,7 @@ export function RiskMemoryFormFields({
         value={value.equipmentType}
         onChange={(e) => patch({ equipmentType: e.target.value })}
         placeholder="Equipment type (short)"
+        aria-label="Equipment type"
         className={`${selectClass} placeholder:text-slate-500`}
       />
       <select
@@ -414,6 +418,7 @@ export function RiskMemoryFormFields({
             value={value.correctiveActionStatus}
             onChange={(e) => patch({ correctiveActionStatus: e.target.value })}
             placeholder="Corrective action status note (optional)"
+            aria-label="Corrective action status note"
             className={`md:col-span-2 ${selectClass} placeholder:text-slate-500`}
           />
         </>

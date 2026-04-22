@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
   InlineMessage,
@@ -118,10 +118,7 @@ type BuilderAiSectionState = {
   tone: BuilderAiMessageTone;
 };
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 const tradeOptions = getCsepTradeOptions();
 const jurisdictionStateOptions = getJurisdictionStateOptions();
@@ -2065,7 +2062,7 @@ export default function CSEPPage() {
                       ) : null}
                       <div className="mt-4 rounded-xl border border-slate-300 bg-white px-6 py-6 shadow-sm">
                         <div className="border-b border-slate-200 pb-4 text-center">
-                          <div className="text-base font-semibold text-[#365F91]">
+                          <div className="csep-doc-heading text-base font-semibold">
                             Contractor Safety &amp; Environmental Plan
                           </div>
                           <div className="mt-1 text-sm italic text-slate-500">
@@ -2073,7 +2070,7 @@ export default function CSEPPage() {
                           </div>
                         </div>
                         <div className="mt-6 rounded-2xl border-2 border-dashed border-[#4F81BD]/35 bg-slate-50 px-6 py-8 text-center">
-                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#365F91]">
+                          <div className="csep-doc-heading text-xs font-semibold uppercase tracking-[0.18em]">
                             Company Logo Placement
                           </div>
                           <div className="mt-2 text-sm text-slate-500">
@@ -2441,7 +2438,7 @@ function KeySectionsBullet({ bullet }: { bullet: string }) {
       <div className="space-y-1 pl-4">
         {options.map((option, index) => (
           <div key={option.value} className="text-sm leading-6 text-slate-700">
-            <span className="mr-2 font-semibold text-[#4F81BD]">
+            <span className="csep-doc-number-text mr-2 font-semibold">
               {String.fromCharCode(97 + index)}.
             </span>
             {option.title}
@@ -2528,9 +2525,9 @@ function GeneratedSectionTableRow({
   const cells = formatGeneratedSectionTableRow(columns, row);
 
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+    <div className="csep-soft-elevated rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <span className="inline-flex w-fit min-w-[3.25rem] justify-center rounded-full border border-[#4F81BD]/20 bg-[#4F81BD]/8 px-2.5 py-1 text-xs font-bold tracking-[0.12em] text-[#365F91]">
+        <span className="csep-doc-number-badge inline-flex w-fit min-w-[3.25rem] justify-center rounded-full px-2.5 py-1 text-xs font-bold tracking-[0.12em]">
           {rowLabel}
         </span>
         <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-3">
@@ -2626,12 +2623,12 @@ function CsepDraftSectionPreview({
       ) : null}
       <div className="mt-2 flex items-start gap-3">
         {sectionPrefix ? (
-          <span className="inline-flex min-w-[3.25rem] justify-center rounded-full border border-[#4F81BD]/20 bg-[#4F81BD]/8 px-2.5 py-1 text-[11px] font-bold tracking-[0.12em] text-[#365F91]">
+          <span className="csep-doc-number-badge inline-flex min-w-[3.25rem] justify-center rounded-full px-2.5 py-1 text-[11px] font-bold tracking-[0.12em]">
             {sectionPrefix}
           </span>
         ) : null}
         <div className="min-w-0 flex-1 pt-0.5">
-          <div className="text-[15px] font-semibold text-[#365F91]">
+          <div className="csep-doc-heading text-[15px] font-semibold">
             {sectionPrefix ? sanitizeNumberedTitle(cleanTitle) : cleanTitle}
           </div>
         </div>
@@ -2645,7 +2642,7 @@ function CsepDraftSectionPreview({
               key={`${section.key}-bullet-${bulletIndex}`}
               className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-3 rounded-xl bg-slate-50/70 px-3 py-2"
             >
-              <span className="pt-0.5 text-right text-xs font-semibold tracking-[0.08em] text-[#4F81BD]">
+              <span className="csep-doc-number-text pt-0.5 text-right text-xs font-semibold tracking-[0.08em]">
                 {sectionPrefix ? `${sectionPrefix}.${bulletIndex + 1}` : `${bulletIndex + 1}.`}
               </span>
               <p className="max-w-[72ch] text-sm leading-7 text-slate-700">{bullet}</p>
@@ -2679,10 +2676,10 @@ function CsepDraftSectionPreview({
               >
                 {subsectionHeading ? (
                   <div className="flex items-start gap-3">
-                    <span className="inline-flex min-w-[3rem] justify-end pt-0.5 text-xs font-semibold tracking-[0.08em] text-[#4F81BD]">
+                    <span className="csep-doc-number-text inline-flex min-w-[3rem] justify-end pt-0.5 text-xs font-semibold tracking-[0.08em]">
                       {subsectionPrefix}
                     </span>
-                    <div className="min-w-0 flex-1 text-sm font-semibold text-[#4F81BD]">
+                    <div className="csep-doc-number-text min-w-0 flex-1 text-sm font-semibold">
                       {sanitizeNumberedTitle(subsectionHeading)}
                     </div>
                   </div>
@@ -2706,7 +2703,7 @@ function CsepDraftSectionPreview({
                             key={`${section.key}-subsection-${subsectionIndex}-bullet-${bulletIndex}`}
                             className="grid grid-cols-[5rem_minmax(0,1fr)] items-start gap-3 rounded-xl bg-slate-50/70 px-3 py-2"
                           >
-                            <span className="pt-0.5 text-right text-xs font-semibold tracking-[0.08em] text-[#4F81BD]">
+                            <span className="csep-doc-number-text pt-0.5 text-right text-xs font-semibold tracking-[0.08em]">
                               {sectionPrefix || subsectionHeading ? numberedLabel : `${numberedLabel}.`}
                             </span>
                             <ReferencePackDetailBullet bullet={bullet} numberedLabel={numberedLabel} />

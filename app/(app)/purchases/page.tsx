@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
@@ -17,10 +17,7 @@ import {
   StartChecklist,
 } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 const USD_FORMATTER = new Intl.NumberFormat(undefined, {
   style: "currency",
@@ -552,9 +549,7 @@ export default function PurchasesPage() {
                       <span
                         className={[
                           "rounded-full px-3 py-1 text-xs font-semibold",
-                          ownedByUser
-                            ? "bg-sky-100 text-sky-300"
-                            : "bg-emerald-100 text-emerald-700",
+                          ownedByUser ? "app-badge-info" : "app-badge-success",
                         ].join(" ")}
                       >
                         {ownedByUser ? "Your Approved File" : "Purchased"}
@@ -670,9 +665,7 @@ export default function PurchasesPage() {
                     <span
                       className={[
                         "rounded-full px-3 py-1 text-xs font-semibold",
-                        tx.amount >= 0
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-amber-100 text-amber-700",
+                        tx.amount >= 0 ? "app-badge-success" : "app-badge-warning",
                       ].join(" ")}
                     >
                       {tx.amount >= 0 ? `+${tx.amount}` : tx.amount}

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -21,10 +21,7 @@ import {
   CONSTRUCTION_TRADES,
 } from "@/lib/constructionProfileOptions";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type AuthMeResponse = {
   user?: {
@@ -674,8 +671,8 @@ export default function ProfilePage() {
             }
           >
             <div className="grid gap-5 lg:grid-cols-[0.78fr_1.22fr]">
-              <div className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-5">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+              <div className="app-soft-field rounded-3xl p-5">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--app-muted)]">
                   Profile Picture
                 </div>
                 <div className="mt-4 flex flex-col items-center text-center">
@@ -685,14 +682,14 @@ export default function ProfilePage() {
                       alt={displayName}
                       width={144}
                       height={144}
-                      className="h-36 w-36 rounded-[2rem] border border-slate-700/80 object-cover shadow-sm"
+                      className="app-photo-frame h-36 w-36 rounded-[2rem] object-cover"
                     />
                   ) : (
-                    <div className="flex h-36 w-36 items-center justify-center rounded-[2rem] bg-[linear-gradient(135deg,_#dbeafe_0%,_#bfdbfe_100%)] text-4xl font-black text-sky-300 shadow-sm">
+                    <div className="app-photo-placeholder flex h-36 w-36 items-center justify-center rounded-[2rem] text-4xl font-black text-[var(--app-accent-primary)]">
                       {getInitials(displayName)}
                     </div>
                   )}
-                  <label className="mt-5 inline-flex cursor-pointer rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">
+                  <label className="app-btn-primary app-shadow-action mt-5 inline-flex cursor-pointer px-4 py-2.5 text-sm">
                     Upload Photo
                     <input
                       type="file"
@@ -701,7 +698,7 @@ export default function ProfilePage() {
                       className="hidden"
                     />
                   </label>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                  <p className="mt-3 text-xs leading-5 text-[var(--app-muted)]">
                     Use a clear headshot or field-ready portrait. This becomes the visible identity card for your construction profile.
                   </p>
                 </div>
@@ -711,26 +708,31 @@ export default function ProfilePage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <input
                     type="text"
+                    aria-label="Full name"
                     placeholder="Full name"
                     value={fullName}
                     onChange={(event) => setFullName(event.target.value)}
                     className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
                   />
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-400">
+                    <label
+                      htmlFor="profile-jobsite-title"
+                      className="block text-xs font-semibold text-slate-400"
+                    >
                       Jobsite title <span className="text-red-600">*</span>
                     </label>
                     <p className="text-xs leading-5 text-slate-500">
                       Shown on your construction card (e.g. Site Safety Manager). Not the same as your app role.
                     </p>
                     <select
+                      id="profile-jobsite-title"
                       value={positionSelect}
                       onChange={(e) => {
                         const v = e.target.value;
                         setPositionSelect(v);
                         if (v !== OTHER_SELECT) setPositionOther("");
                       }}
-                      className="mt-1.5 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
+                      className="app-dark-input mt-1.5"
                     >
                       <option value="">Select jobsite title…</option>
                       {CONSTRUCTION_POSITIONS.map((p) => (
@@ -743,6 +745,7 @@ export default function ProfilePage() {
                     {positionSelect === OTHER_SELECT ? (
                       <input
                         type="text"
+                        aria-label="Describe your jobsite title"
                         placeholder="Describe your jobsite title"
                         value={positionOther}
                         onChange={(e) => setPositionOther(e.target.value)}
@@ -754,17 +757,21 @@ export default function ProfilePage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-400">
+                    <label
+                      htmlFor="profile-primary-trade"
+                      className="block text-xs font-semibold text-slate-400"
+                    >
                       Primary trade <span className="text-red-600">*</span>
                     </label>
                     <select
+                      id="profile-primary-trade"
                       value={tradeSelect}
                       onChange={(e) => {
                         const v = e.target.value;
                         setTradeSelect(v);
                         if (v !== OTHER_SELECT) setTradeOther("");
                       }}
-                      className="w-full rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
+                      className="app-dark-input"
                     >
                       <option value="">Select trade…</option>
                       {CONSTRUCTION_TRADES.map((t) => (
@@ -777,6 +784,7 @@ export default function ProfilePage() {
                     {tradeSelect === OTHER_SELECT ? (
                       <input
                         type="text"
+                        aria-label="Describe your trade"
                         placeholder="Describe your trade"
                         value={tradeOther}
                         onChange={(e) => setTradeOther(e.target.value)}
@@ -787,6 +795,7 @@ export default function ProfilePage() {
                   <input
                     type="number"
                     min="0"
+                    aria-label="Years in the field"
                     placeholder="Years in the field"
                     value={yearsExperience}
                     onChange={(event) => setYearsExperience(event.target.value)}
@@ -797,6 +806,7 @@ export default function ProfilePage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <input
                     type="tel"
+                    aria-label="Work mobile"
                     placeholder="Work mobile"
                     value={phone}
                     onChange={(event) => setPhone(event.target.value)}
@@ -804,6 +814,7 @@ export default function ProfilePage() {
                   />
                   <input
                     type="text"
+                    aria-label="Primary work city"
                     placeholder="Primary work city"
                     value={city}
                     onChange={(event) => setCity(event.target.value)}
@@ -813,6 +824,7 @@ export default function ProfilePage() {
 
                 <input
                   type="text"
+                  aria-label="State or region"
                   placeholder="State / region"
                   value={stateRegion}
                   onChange={(event) => setStateRegion(event.target.value)}
@@ -1045,7 +1057,7 @@ export default function ProfilePage() {
         </div>
 
         <div className="space-y-5">
-          <section className="rounded-[1.9rem] border border-[rgba(198,212,236,0.9)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(236,244,255,0.96)_100%)] p-6 text-[var(--app-text-strong)] shadow-[0_20px_42px_rgba(79,125,243,0.12)]">
+          <section className="app-profile-card app-radius-panel p-6">
             <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-[var(--app-accent-primary)]">
               Construction Profile
             </div>
@@ -1057,10 +1069,10 @@ export default function ProfilePage() {
                   alt={displayName}
                   width={96}
                   height={96}
-                  className="h-24 w-24 rounded-[1.8rem] border border-[rgba(198,212,236,0.85)] object-cover shadow-[0_10px_24px_rgba(79,125,243,0.08)]"
+                  className="app-photo-frame h-24 w-24 rounded-[1.8rem] object-cover"
                 />
               ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-[1.8rem] bg-[rgba(232,240,255,0.96)] text-2xl font-black text-[var(--app-accent-primary)] shadow-[0_10px_24px_rgba(79,125,243,0.08)]">
+                <div className="app-photo-placeholder flex h-24 w-24 items-center justify-center rounded-[1.8rem] text-2xl font-black text-[var(--app-accent-primary)]">
                   {getInitials(displayName)}
                 </div>
               )}
@@ -1088,7 +1100,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.92)] px-4 py-3">
+              <div className="app-soft-field rounded-2xl px-4 py-3">
                 <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--app-muted)]">
                   Work Region
                 </div>
@@ -1096,7 +1108,7 @@ export default function ProfilePage() {
                   {[city, stateRegion].filter(Boolean).join(", ") || "Set location"}
                 </div>
               </div>
-              <div className="rounded-2xl border border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.92)] px-4 py-3">
+              <div className="app-soft-field rounded-2xl px-4 py-3">
                 <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--app-muted)]">
                   Work Mobile
                 </div>
@@ -1106,7 +1118,7 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.92)] p-4">
+            <div className="app-soft-field mt-6 rounded-2xl p-4">
               <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-muted)]">
                 Experience Summary
               </div>

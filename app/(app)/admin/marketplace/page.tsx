@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   EmptyState,
@@ -10,10 +10,7 @@ import {
   SectionCard,
 } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type MarketplaceDocument = {
   id: string;
@@ -343,9 +340,7 @@ function MarketplaceCard({
             <span
               className={[
                 "rounded-full px-3 py-1 text-xs font-semibold",
-                document.marketplaceEnabled
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-slate-800/70 text-slate-300",
+                document.marketplaceEnabled ? "app-badge-success" : "app-badge-neutral",
               ].join(" ")}
             >
               {document.marketplaceEnabled ? "Listed" : "Hidden"}

@@ -1,16 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage } from "@/components/WorkspacePrimitives";
 import { userVisibleInjuryModelMessage } from "@/lib/analytics/injuryModelMessage";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type AnalyticsSummary = {
   totals?: {
@@ -292,19 +289,19 @@ function AnalyticsFocusedTab({
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5 shadow-inner">
+        <div className="analytics-dark-panel p-5 shadow-inner">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Observation trend</p>
-          <div className="mt-4 rounded-xl border border-white/6 bg-[#080d18] px-3 py-2">
+          <div className="analytics-dark-panel-soft mt-4 px-3 py-2">
             <TrendSparkline points={trends} />
           </div>
         </div>
-        <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5">
+        <div className="analytics-dark-panel p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recent reports</p>
           <ul className="mt-4 space-y-3">
             {rows.map((row) => (
               <li
                 key={row.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-white/6 bg-[#080d18] px-4 py-3"
+                className="analytics-dark-panel-soft flex items-center justify-between gap-3 px-4 py-3"
               >
                 <span className="min-w-0 truncate text-sm font-semibold text-slate-100">{row.title}</span>
                 <span
@@ -334,13 +331,13 @@ function AnalyticsFocusedTab({
       {tab === "hazards" ? (
         <div className="grid gap-5 lg:grid-cols-12">
           <div className="lg:col-span-7">
-            <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5">
+            <div className="analytics-dark-panel p-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Trending hazards</p>
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {hazardTiles.map((tile) => (
                   <div
                     key={tile.label}
-                    className="rounded-xl border border-white/6 bg-[#080d18] p-4 text-center"
+                    className="analytics-dark-panel-soft p-4 text-center"
                   >
                     <p className="text-[11px] font-semibold text-slate-300">{tile.label}</p>
                     <p className="mt-2 text-2xl font-black text-cyan-300">{loading ? "—" : tile.count}</p>
@@ -360,7 +357,7 @@ function AnalyticsFocusedTab({
       ) : null}
 
       {tab === "near_misses" && leadership ? (
-        <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5">
+        <div className="analytics-dark-panel p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Leadership mix</p>
           <div className="mt-4 flex flex-wrap gap-6 text-sm text-slate-300">
             <div>
@@ -382,7 +379,7 @@ function AnalyticsFocusedTab({
       <div className="flex justify-end">
         <Link
           href="/reports"
-          className="rounded-xl bg-cyan-400/90 px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white shadow-[0_0_20px_rgba(34,211,238,0.15)] transition hover:bg-cyan-300"
+          className="analytics-action-primary px-4 py-2.5 text-xs uppercase tracking-wide transition"
         >
           Open reports
         </Link>
@@ -686,7 +683,7 @@ export default function AnalyticsPage() {
               type="button"
               onClick={() => void loadSummary(days)}
               disabled={loading}
-              className="rounded-full bg-[linear-gradient(135deg,#4f7df3_0%,#5b92ff_100%)] px-4 py-2 text-xs font-black uppercase tracking-wide text-white shadow-[0_16px_28px_rgba(79,125,243,0.24)] transition hover:brightness-105 disabled:opacity-50"
+              className="analytics-action-primary rounded-full px-4 py-2 text-xs uppercase tracking-wide transition disabled:opacity-50"
             >
               {loading ? "Refreshing…" : "Refresh view"}
             </button>
@@ -858,7 +855,7 @@ export default function AnalyticsPage() {
             aria-labelledby="analytics-tab-overview"
           >
         <div className="grid gap-5 lg:grid-cols-2">
-          <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5 shadow-inner">
+          <div className="analytics-dark-panel p-5 shadow-inner">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Overview</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
@@ -886,7 +883,7 @@ export default function AnalyticsPage() {
                 </p>
               </div>
             </div>
-            <div className="mt-5 rounded-xl border border-white/6 bg-[#080d18] px-3 py-2">
+            <div className="analytics-dark-panel-soft mt-5 px-3 py-2">
               <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Trend
               </p>
@@ -898,7 +895,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5">
+          <div className="analytics-dark-panel p-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Observation priority
             </p>
@@ -948,11 +945,11 @@ export default function AnalyticsPage() {
                   Structured facets from incidents, observations, and JSAs (last {riskMemory.windowDays} days).
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                  <div className="rounded-xl border border-white/10 bg-[#080d18] p-4">
+                  <div className="analytics-dark-panel-soft p-4">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Facet rows</p>
                     <p className="mt-2 text-2xl font-black text-white">{riskMemory.facetCount}</p>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-[#080d18] p-4">
+                  <div className="analytics-dark-panel-soft p-4">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Score (facets only)</p>
                     <p className="mt-2 text-2xl font-black text-white">{riskMemory.aggregated.score}</p>
                   </div>
@@ -964,13 +961,13 @@ export default function AnalyticsPage() {
                       {riskMemory.aggregatedWithBaseline?.score ?? riskMemory.aggregated.score}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-[#080d18] p-4">
+                  <div className="analytics-dark-panel-soft p-4">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Band</p>
                     <p className="mt-2 text-xl font-black capitalize text-violet-100">
                       {riskMemory.aggregatedWithBaseline?.band ?? riskMemory.aggregated.band}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-[#080d18] p-4">
+                  <div className="analytics-dark-panel-soft p-4">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Open CA hints</p>
                     <p className="mt-2 text-2xl font-black text-white">
                       {riskMemory.openCorrectiveFacetHints.openStyleStatuses}
@@ -978,7 +975,7 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
                 {typeof riskMemory.derivedRollupConfidence === "number" ? (
-                  <div className="mt-3 rounded-xl border border-white/8 bg-[#080d18] px-3 py-2 text-xs text-slate-400">
+                  <div className="analytics-dark-panel-soft mt-3 px-3 py-2 text-xs text-slate-400">
                     <span className="font-semibold text-slate-300">Rollup confidence (heuristic): </span>
                     {(riskMemory.derivedRollupConfidence * 100).toFixed(0)}% — reflects score strength and
                     how many facet rows sit in this window (not a medical forecast).
@@ -1047,7 +1044,7 @@ export default function AnalyticsPage() {
                   </div>
                 ) : null}
                 {riskMemory.baselineHints && riskMemory.baselineHints.length > 0 ? (
-                  <div className="mt-4 rounded-xl border border-white/8 bg-[#080d18] px-3 py-2 text-xs text-slate-400">
+                  <div className="analytics-dark-panel-soft mt-4 px-3 py-2 text-xs text-slate-400">
                     <span className="font-semibold text-slate-300">Baseline patterns matched: </span>
                     {riskMemory.baselineHints.map((h) => `${h.scope_code}+${h.hazard_code}`).join(" · ")}
                   </div>
@@ -1094,7 +1091,7 @@ export default function AnalyticsPage() {
               </Link>
             </div>
           {riskMemoryRecommendations.length > 0 ? (
-            <div className="mt-4 space-y-3 rounded-xl border border-white/8 bg-[#080d18] p-4">
+            <div className="analytics-dark-panel-soft mt-4 space-y-3 p-4">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Stored recommendations
               </p>
@@ -1124,7 +1121,7 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="grid gap-5 lg:grid-cols-2">
-          <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5">
+          <div className="analytics-dark-panel p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -1183,7 +1180,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5">
+          <div className="analytics-dark-panel p-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Recent reports
             </p>
@@ -1191,7 +1188,7 @@ export default function AnalyticsPage() {
               {(loading ? [] : filteredRecent.length > 0 ? filteredRecent : recent).map((row) => (
                 <li
                   key={row.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-white/6 bg-[#080d18] px-4 py-3"
+                  className="analytics-dark-panel-soft flex items-center justify-between gap-3 px-4 py-3"
                 >
                   <span className="min-w-0 truncate text-sm font-semibold text-slate-100">
                     {row.title}
@@ -1222,7 +1219,7 @@ export default function AnalyticsPage() {
 
         <div className="grid gap-5 lg:grid-cols-12">
           <div className="lg:col-span-5">
-            <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5">
+            <div className="analytics-dark-panel p-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Trending hazards
               </p>
@@ -1230,7 +1227,7 @@ export default function AnalyticsPage() {
                 {hazardTiles.map((tile) => (
                   <div
                     key={tile.label}
-                    className="rounded-xl border border-white/6 bg-[#080d18] p-4 text-center"
+                    className="analytics-dark-panel-soft p-4 text-center"
                   >
                     <p className="text-[11px] font-semibold text-slate-300">{tile.label}</p>
                     <p className="mt-2 text-2xl font-black text-cyan-300">{loading ? "—" : tile.count}</p>
@@ -1238,7 +1235,7 @@ export default function AnalyticsPage() {
                 ))}
               </div>
             </div>
-            <div className="mt-5 rounded-2xl border border-white/8 bg-[#0d1424] p-5">
+            <div className="analytics-dark-panel mt-5 p-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Risk heatmap
               </p>
@@ -1285,7 +1282,7 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="space-y-5 lg:col-span-4">
-            <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5">
+            <div className="analytics-dark-panel p-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Summary</p>
               <ul className="mt-4 space-y-3 text-sm">
                 <li className="flex justify-between border-b border-white/5 py-2 text-slate-400">
@@ -1314,7 +1311,7 @@ export default function AnalyticsPage() {
                 </li>
               </ul>
             </div>
-            <div className="rounded-2xl border border-white/8 bg-[#0d1424] p-5">
+            <div className="analytics-dark-panel p-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Leadership
               </p>
@@ -1371,7 +1368,7 @@ export default function AnalyticsPage() {
           />
         )}
 
-        <div className="flex flex-col gap-4 rounded-2xl border border-[rgba(198,212,236,0.9)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(240,246,255,0.94)_100%)] px-5 py-4 shadow-[0_12px_28px_rgba(79,125,243,0.08)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="analytics-panel flex flex-col gap-4 px-5 py-4 shadow-[0_12px_28px_rgba(79,125,243,0.08)] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-3 text-slate-500">
             <Link
               href="/dashboard"
@@ -1395,7 +1392,7 @@ export default function AnalyticsPage() {
             </Link>
             <Link
               href="/reports"
-              className="rounded-xl bg-[linear-gradient(135deg,#4f7df3_0%,#5b92ff_100%)] px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white shadow-[0_16px_28px_rgba(79,125,243,0.22)] transition hover:brightness-105"
+              className="analytics-action-primary px-4 py-2.5 text-xs uppercase tracking-wide transition"
             >
               Open reports
             </Link>

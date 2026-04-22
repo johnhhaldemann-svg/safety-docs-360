@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
 import {
@@ -10,10 +10,7 @@ import {
   getBillingSourceTone,
 } from "@/lib/billing/invoicePresentation";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type Row = {
   id: string;
@@ -179,18 +176,18 @@ export default function CustomerBillingPage() {
                         </span>
                       ) : null}
                       <span
-                        className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                        className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${
                           getStatusTone(invoice.status) === "success"
-                            ? "bg-emerald-500/15 text-emerald-200"
+                            ? "app-badge-success"
                             : getStatusTone(invoice.status) === "warning"
-                              ? "bg-amber-500/15 text-amber-200"
-                              : "bg-slate-800 text-slate-300"
+                              ? "app-badge-warning"
+                              : "app-badge-neutral"
                         }`}
                       >
                         {invoice.status}
                       </span>
                       {isOverdue ? (
-                        <span className="rounded-full bg-amber-500/15 px-2 py-1 text-[11px] font-semibold text-amber-200">
+                        <span className="app-badge-warning inline-flex rounded-full px-2 py-1 text-[11px] font-semibold">
                           Overdue
                         </span>
                       ) : null}

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import { ChecklistCoveragePanel } from "@/components/compliance/ChecklistCoveragePanel";
@@ -112,10 +112,7 @@ type DraftableAnswerField =
   | "chemical_storage_text";
 
 const LS_KEY = "pshsep_universal_v3";
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 const jurisdictionStateOptions = getJurisdictionStateOptions();
 
 const steps = [
@@ -767,7 +764,7 @@ export default function PESHEPUniversalPage() {
             <button
               type="button"
               onClick={() => setStep(7)}
-              className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)]"
+              className="app-btn-gradient-primary px-4 py-3 text-sm"
             >
               Jump to Submit
             </button>
@@ -1376,7 +1373,7 @@ export default function PESHEPUniversalPage() {
           </SectionCard>
 
           <div className="sticky bottom-4 z-10">
-            <div className="rounded-[1.5rem] border border-slate-700/80 bg-slate-900/92 p-4 shadow-[0_18px_36px_rgba(0,0,0,0.35)] backdrop-blur">
+            <div className="app-sticky-dark-bar p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="text-sm font-semibold text-slate-100">{steps[step].title}</div>
@@ -1398,7 +1395,7 @@ export default function PESHEPUniversalPage() {
                       type="button"
                       onClick={() => setStep((current) => Math.min(7, current + 1))}
                       disabled={authLoading || !canUseBuilder}
-                      className="rounded-xl bg-[linear-gradient(135deg,_#5b6cff_0%,_#4f7cff_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(91,108,255,0.22)]"
+                      className="app-btn-gradient-primary px-4 py-3 text-sm disabled:opacity-50"
                     >
                       Next Step
                     </button>
@@ -1407,7 +1404,7 @@ export default function PESHEPUniversalPage() {
                       type="button"
                       onClick={handleSubmitForReview}
                       disabled={submitLoading || !agreedToSubmissionTerms || authLoading || !canSubmitDocuments}
-                      className="rounded-xl bg-[linear-gradient(135deg,_#0ea5e9_0%,_#2563eb_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(37,99,235,0.24)] disabled:opacity-50"
+                      className="app-btn-gradient-submit px-4 py-3 text-sm disabled:opacity-50"
                     >
                       {submitLoading ? "Submitting..." : "Submit for Review"}
                     </button>
@@ -1493,7 +1490,7 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
   return (
     <label className="block">
       <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className="h-12 w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 text-sm font-semibold text-slate-100 outline-none transition focus:border-sky-500" />
+      <input value={value} onChange={(e) => onChange(e.target.value)} className="app-dark-input h-12 font-semibold" />
     </label>
   );
 }
@@ -1526,7 +1523,7 @@ function TextArea({
           </button>
         ) : null}
       </div>
-      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={5} className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-slate-100 outline-none transition focus:border-sky-500" />
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={5} className="app-dark-input font-semibold" />
     </label>
   );
 }
@@ -1556,7 +1553,7 @@ function Select({
   return (
     <label className="block">
       <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="h-12 w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 text-sm font-semibold text-slate-100 outline-none transition focus:border-sky-500">
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="app-dark-input h-12 font-semibold">
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}

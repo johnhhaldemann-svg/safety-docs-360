@@ -21,9 +21,11 @@ import { runAdHocCompletedCsepRebuild } from "./runAdHocCompletedCsepRebuild";
 
 describe("runAdHocCompletedCsepRebuild", () => {
   const originalApiKey = process.env.OPENAI_API_KEY;
+  const originalFetch = global.fetch;
 
   afterEach(() => {
     vi.clearAllMocks();
+    global.fetch = originalFetch;
     if (originalApiKey === undefined) {
       delete process.env.OPENAI_API_KEY;
     } else {
@@ -146,5 +148,68 @@ describe("runAdHocCompletedCsepRebuild", () => {
         }),
       ])
     );
+  });
+
+  it("falls back to local draft when OpenAI rebuild request fails", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    global.fetch = vi.fn(async () => new Response("upstream failure", { status: 502 })) as typeof fetch;
+
+    extractBuilderReviewDocumentText.mockResolvedValue({
+      ok: true,
+      text: [
+        "1.0 Project Scope",
+        "Set structural steel, install decking, stage deliveries, and coordinate crane picks in the south laydown area.",
+        "6.0 Emergency Procedures",
+        "Call 911 and direct responders to Gate 3 on River Road. Notify the superintendent and project safety manager immediately.",
+        "15.0 Permits",
+        "Hot work permit required for welding and torch cutting. Lift plan required before critical picks.",
+      ].join("\n"),
+      method: "docx-text",
+      truncated: false,
+      annotations: [],
+    });
+    generateBuilderProgramAiReview.mockResolvedValue({
+      review: {
+        reviewMode: "csep_completeness",
+        executiveSummary: "Needs work.",
+        scopeTradeAndHazardCoverage: "Scope and emergency content need to be tightened up.",
+        regulatoryAndProgramStrengths: ["Some project facts are present.", "Basic structure exists."],
+        gapsRisksOrClarifications: ["Emergency section is weak.", "Permit logic is not clear."],
+        recommendedEditsBeforeApproval: ["Add clearer emergency language.", "Clarify permits."],
+        missingItemsChecklist: ["Could not verify a full emergency response package."],
+        builderAlignmentNotes: ["Scope of Work: Describe the exact self-performed work."],
+        sectionReviewNotes: [],
+        detailedFindings: [],
+        checklistDelta: [],
+        documentQualityIssues: [],
+        noteCoverage: [],
+        overallAssessment: "needs_work",
+      },
+      disclaimer: "Internal only.",
+    });
+    renderGeneratedCsepDocx.mockResolvedValue({
+      filename: "rebuilt.docx",
+      body: new Uint8Array([1, 2, 3]),
+    });
+
+    const result = await runAdHocCompletedCsepRebuild({
+      document: {
+        buffer: Buffer.from("doc"),
+        fileName: "outside-csep.docx",
+      },
+      additionalReviewerContext: "Fix it into our format.",
+      builderExpectationSummary: [
+        "Scope of Work: Describe the exact self-performed work.",
+        "Emergency Procedures: State 911 wording and responder access.",
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected rebuild to succeed.");
+    }
+    expect(global.fetch).toHaveBeenCalled();
+    expect(renderGeneratedCsepDocx).toHaveBeenCalledTimes(1);
+    expect(result.filename).toBe("rebuilt_rebuilt.docx");
   });
 });

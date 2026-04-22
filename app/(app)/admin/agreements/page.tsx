@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   EmptyState,
@@ -10,10 +10,7 @@ import {
   SectionCard,
 } from "@/components/WorkspacePrimitives";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type AgreementAuditRow = {
   id: string;
@@ -370,9 +367,9 @@ export default function AdminAgreementsPage() {
                           "rounded-full px-3 py-1 text-xs font-semibold",
                           row.acceptedTerms
                             ? row.isCurrentVersion
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-amber-100 text-amber-700"
-                            : "bg-slate-200 text-slate-300",
+                              ? "app-badge-success"
+                              : "app-badge-warning"
+                            : "app-badge-neutral",
                         ].join(" ")}
                       >
                         {row.acceptedTerms

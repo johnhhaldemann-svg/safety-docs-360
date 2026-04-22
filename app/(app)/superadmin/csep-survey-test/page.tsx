@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   InlineMessage,
@@ -22,10 +22,7 @@ import {
   type SurveyTestFormData,
 } from "@/lib/csepSurveyTest";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 const steps = [
   { title: "Trade selection", detail: "Lock the workflow to the survey / layout trade." },

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityFeed,
@@ -18,10 +18,7 @@ import {
   type PermissionOverrides,
 } from "@/lib/permissionOverrides";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type AdminUser = {
   id: string;
@@ -88,25 +85,25 @@ const companyAssignableRoles = new Set([
 ]);
 
 function statusClasses(status: string) {
-  if (status === "Active") return "bg-[#d8f1e2] text-[#247c49]";
-  if (status === "Pending") return "bg-[#fdeabf] text-[#9b6b12]";
-  if (status === "Suspended") return "bg-[#fad9d8] text-[#b94440]";
-  return "bg-[#e7edf5] text-[#637387]";
+  if (status === "Active") return "app-badge-success";
+  if (status === "Pending") return "app-badge-warning";
+  if (status === "Suspended") return "app-badge-danger";
+  return "app-badge-neutral";
 }
 
 function roleClasses(role: string) {
-  if (role === "Super Admin") return "bg-[#fad9d8] text-[#b94440]";
-  if (role === "Admin") return "bg-[#d8e6ff] text-[#325fda]";
-  if (role === "Operations Manager") return "bg-violet-100 text-violet-700";
-  if (role === "Company Admin") return "bg-indigo-100 text-indigo-700";
-  if (role === "Safety Manager") return "bg-emerald-100 text-emerald-700";
-  if (role === "Project Manager") return "bg-sky-100 text-sky-700";
-  if (role === "Field Supervisor" || role === "Foreman") return "bg-cyan-100 text-cyan-700";
-  if (role === "Field User") return "bg-lime-100 text-lime-700";
-  if (role === "Read Only") return "bg-slate-200 text-slate-600";
-  if (role === "Company User") return "bg-[#fdeabf] text-[#9b6b12]";
-  if (role === "Editor") return "bg-[#fdeabf] text-[#9b6b12]";
-  return "bg-[#e7edf5] text-[#637387]";
+  if (role === "Super Admin") return "app-badge-danger";
+  if (role === "Admin") return "app-badge-info";
+  if (role === "Operations Manager") return "app-badge-accent";
+  if (role === "Company Admin") return "app-badge-indigo";
+  if (role === "Safety Manager") return "app-badge-success";
+  if (role === "Project Manager") return "app-badge-info";
+  if (role === "Field Supervisor" || role === "Foreman") return "app-badge-cyan";
+  if (role === "Field User") return "app-badge-lime";
+  if (role === "Read Only") return "app-badge-neutral";
+  if (role === "Company User") return "app-badge-warning";
+  if (role === "Editor") return "app-badge-warning";
+  return "app-badge-neutral";
 }
 
 function formatRelative(timestamp?: string | null) {
@@ -749,7 +746,7 @@ export default function AdminUsersPage() {
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {userStats.map((item) => (
-          <div key={item.title} className="rounded-2xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.95)] p-6 shadow-sm">
+          <div key={item.title} className="app-white-card rounded-2xl p-6 shadow-sm">
             <p className="text-sm font-medium text-[var(--app-muted)]">{item.title}</p>
             <p className="mt-3 text-4xl font-bold tracking-tight text-[var(--app-text-strong)]">
               {loading ? "-" : item.value}
@@ -806,6 +803,7 @@ export default function AdminUsersPage() {
         <div className="grid gap-3 md:grid-cols-2">
           <input
             type="email"
+            aria-label="Invite staff by email"
             placeholder="Invite staff by email..."
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
@@ -813,13 +811,15 @@ export default function AdminUsersPage() {
           />
           <input
             type="text"
+            aria-label="Internal team"
             placeholder="Internal team"
             value={inviteTeam}
             onChange={(e) => setInviteTeam(e.target.value)}
             className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
           />
           <input
-            type="text"
+            type="search"
+            aria-label="Search platform staff"
             placeholder="Search platform staff..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -876,7 +876,7 @@ export default function AdminUsersPage() {
           ) : (
             <div className="space-y-4">
               {pendingApprovals.slice(0, 6).map((user) => (
-                <div key={user.id} className="rounded-2xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.92)] p-4">
+                <div key={user.id} className="app-white-card rounded-2xl p-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -975,7 +975,7 @@ export default function AdminUsersPage() {
             {filteredUsers.map((user) => (
               <div
                 key={user.id}
-                className="rounded-2xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.92)] p-4"
+                className="app-white-card rounded-2xl p-4"
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
@@ -989,7 +989,7 @@ export default function AdminUsersPage() {
                         {user.role}
                       </span>
                       {hasPermissionOverrides(user.permissionOverrides) ? (
-                        <span className="inline-flex rounded-full bg-[#efe8ff] px-3 py-1 text-xs font-semibold text-[#6f4fc4] ring-1 ring-[rgba(120,96,196,0.22)]">
+                        <span className="app-badge-accent inline-flex rounded-full px-3 py-1 text-xs font-semibold">
                           Function overrides
                         </span>
                       ) : null}

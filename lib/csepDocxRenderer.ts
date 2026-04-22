@@ -16,7 +16,14 @@ import {
   getSafetyBlueprintDraftFilename,
 } from "@/lib/safetyBlueprintLabels";
 import { buildStructuredCsepDraft } from "@/lib/csepBuilder";
-import { cleanFinalText, controlledTbd, normalizeFinalExportText } from "@/lib/csepFinalization";
+import {
+  cleanFinalText,
+  controlledTbd,
+  normalizeFinalExportText,
+  normalizeHazardList,
+  normalizePermitList,
+  normalizePpeList,
+} from "@/lib/csepFinalization";
 import type { GeneratedSafetyPlanDraft, GeneratedSafetyPlanSection } from "@/types/safety-intelligence";
 
 export type CsepCoverMetadataRow = {
@@ -44,6 +51,7 @@ export type CsepTemplateSection = {
   title: string;
   kind?: "front_matter" | "main" | "appendix" | "gap";
   numberLabel?: string | null;
+  descriptor?: string | null;
   subsections: CsepTemplateSubsection[];
   closingTagline?: string | null;
 };
@@ -79,8 +87,7 @@ type BuildCsepTemplateSectionsParams = {
 type FixedSectionDefinition = {
   key: string;
   title: string;
-  fallbackTitle: string;
-  fallbackItems: (context: BuildCsepTemplateSectionsParams) => string[];
+  descriptor: string;
 };
 
 type ParsedSourceNumberedItem = {
@@ -94,6 +101,7 @@ const STYLE_IDS = {
   coverSubtitle: "CsepCoverSubtitle",
   coverMeta: "CsepCoverMeta",
   sectionHeading: "CsepSectionHeading",
+  sectionDescriptor: "CsepSectionDescriptor",
   subheading: "CsepSubheading",
   contentsEntry: "CsepContentsEntry",
 } as const;
@@ -121,150 +129,58 @@ const INDENTS = {
 
 const FIXED_SECTION_DEFINITIONS: FixedSectionDefinition[] = [
   {
-    key: "policy_statement",
-    title: "Contractor Safety Policy Statement",
-    fallbackTitle: "Purpose and Scope",
-    fallbackItems: ({ contractorName, projectName }) => [
-      `${contractorName} establishes this CSEP as the governing safety expectation for work performed on ${projectName}.`,
-      "Safety is a condition of employment, and work shall not proceed when hazards are uncontrolled.",
-    ],
+    key: "project_contractor_information",
+    title: "Project & Contractor Information",
+    descriptor:
+      "Project identification, governing-state details, and primary contractor contacts for the current issue.",
   },
   {
-    key: "project_site_information",
-    title: "Project & Site Information",
-    fallbackTitle: "Project Overview",
-    fallbackItems: ({ projectName, tradeLabel, subTradeLabel }) => [
-      `${projectName} is the active project addressed by this contractor CSEP.`,
-      `Current scope includes ${joinDisplayValues([tradeLabel, subTradeLabel], "the selected contractor work scope")}.`,
-    ],
+    key: "scope_summary",
+    title: "Scope Summary",
+    descriptor:
+      "Active trade scope, selected tasks, major hazards, permits, and work-area assumptions for this phase.",
   },
   {
     key: "roles_responsibilities",
-    title: "Roles, Responsibilities & Competent Persons",
-    fallbackTitle: "Responsible Person",
-    fallbackItems: ({ contractorName }) => [
-      `${contractorName} shall assign competent supervision to oversee field execution, hazard controls, and coordination requirements.`,
-    ],
+    title: "Roles and Responsibilities",
+    descriptor:
+      "Field leadership, competent-person authority, and responsibility assignments for safe execution and stop-work decisions.",
   },
   {
-    key: "safety_organization_chart",
-    title: "Safety Organization Chart",
-    fallbackTitle: "Reporting Structure",
-    fallbackItems: ({ contractorName }) => [
-      `${contractorName} shall communicate the project safety reporting chain, escalation path, and stop-work contacts before field work begins.`,
-    ],
+    key: "task_execution_modules",
+    title: "Task Execution Modules",
+    descriptor:
+      "Task-specific planning, access, controls, permits, PPE, stop-work triggers, and handoff expectations for the active work face.",
   },
   {
-    key: "hazard_identification",
-    title: "Hazard Identification, Risk Assessment & JSAs",
-    fallbackTitle: "Hazard Review",
-    fallbackItems: () => [
-      "Hazards, risk exposures, and activity-specific controls shall be reviewed before work starts and whenever conditions change.",
-    ],
+    key: "hazard_control_sections",
+    title: "Hazard Control Sections",
+    descriptor:
+      "Hazard-specific control guidance, exposure verification, permit triggers, and release criteria for the current phase.",
   },
   {
-    key: "site_controls",
-    title: "Site-Specific Controls & Safe Work Procedures",
-    fallbackTitle: "Key Requirements and Procedures",
-    fallbackItems: () => [
-      "Site-specific controls, access restrictions, permit triggers, and sequencing constraints shall be reviewed with affected crews before work begins.",
-    ],
+    key: "high_risk_work_programs",
+    title: "High-Risk Work Programs",
+    descriptor:
+      "Program-level requirements for high-risk operations, specialty approvals, rescue readiness, and exposed-work boundaries.",
   },
   {
-    key: "life_saving_rules",
-    title: "Life-Saving Rules & Stop-Work Authority",
-    fallbackTitle: "Stop-Work Authority",
-    fallbackItems: () => [
-      "Any worker may stop work when an unsafe condition exists, the work plan changes, or permit requirements are not satisfied.",
-    ],
+    key: "emergency_weather_housekeeping",
+    title: "Emergency, Weather, Fire Prevention & Housekeeping",
+    descriptor:
+      "Emergency coordination, severe-weather response, fire prevention, housekeeping, and field-condition controls that remain active across the site.",
   },
   {
-    key: "ppe_matrix",
-    title: "Personal Protective Equipment (PPE) Matrix",
-    fallbackTitle: "Required PPE",
-    fallbackItems: () => [
-      "Required PPE shall be identified for each work activity and enforced throughout the active scope.",
-    ],
+    key: "training_inspections_monitoring",
+    title: "Training, Inspections, Monitoring & Recordkeeping",
+    descriptor:
+      "Training expectations, inspection routines, meetings, monitoring steps, and recordkeeping requirements needed to support field execution.",
   },
   {
-    key: "emergency_response",
-    title: "Emergency Response, Incident Reporting & Notification",
-    fallbackTitle: "Emergency Coordination",
-    fallbackItems: ({ issueLabel }) => [
-      `Emergency notification, assembly, and escalation procedures shall remain active for the current issue dated ${issueLabel ?? "the current draft"}.`,
-    ],
-  },
-  {
-    key: "training_orientation",
-    title: "Training, Safety Orientation & Daily Huddles",
-    fallbackTitle: "Training Requirements",
-    fallbackItems: () => [
-      "Workers shall complete required orientation, training, and pre-task communication before starting work.",
-    ],
-  },
-  {
-    key: "weather_requirements",
-    title: "Weather Requirements and Severe Weather Response",
-    fallbackTitle: "Weather Controls",
-    fallbackItems: () => [
-      "Weather conditions shall be monitored continuously, and work plans shall be revised when wind, lightning, heat, cold, or storm conditions affect safety.",
-    ],
-  },
-  {
-    key: "housekeeping_fire_prevention",
-    title: "Housekeeping, Fire Prevention & Hot-Work Permit",
-    fallbackTitle: "Housekeeping and Fire Prevention",
-    fallbackItems: () => [
-      "Housekeeping, ignition-source control, and hot-work permitting requirements shall be maintained throughout the work area.",
-    ],
-  },
-  {
-    key: "tool_equipment_inspection",
-    title: "Tool & Equipment Inspection Program",
-    fallbackTitle: "Inspection Expectations",
-    fallbackItems: () => [
-      "Tools and equipment shall be inspected before use and removed from service when damaged, defective, or unsuitable for the task.",
-    ],
-  },
-  {
-    key: "environmental_protection",
-    title: "Environmental Protection & Brownfield Controls",
-    fallbackTitle: "Environmental Controls",
-    fallbackItems: () => [
-      "Environmental controls, contamination-response measures, and waste-handling requirements shall be followed when site conditions warrant.",
-    ],
-  },
-  {
-    key: "subcontractor_management",
-    title: "Subcontractor Management",
-    fallbackTitle: "Coordination Expectations",
-    fallbackItems: () => [
-      "Subcontractors and overlapping trades shall coordinate work areas, permits, and sequencing before activities begin.",
-    ],
-  },
-  {
-    key: "drug_alcohol_workplace",
-    title: "Drug & Alcohol-Free Workplace",
-    fallbackTitle: "Workplace Requirements",
-    fallbackItems: () => [
-      "Personnel shall report fit for duty and comply with the project's drug- and alcohol-free workplace requirements.",
-    ],
-  },
-  {
-    key: "recordkeeping_inspections",
-    title: "Recordkeeping & Inspections",
-    fallbackTitle: "Documentation and Records",
-    fallbackItems: () => [
-      "Inspection records, training verifications, corrective actions, and required documentation shall be maintained for the active work scope.",
-    ],
-  },
-  {
-    key: "plan_review_acknowledgement",
-    title: "Plan Review, Acknowledgement & Revision Log",
-    fallbackTitle: "Plan Review",
-    fallbackItems: () => [
-      "This CSEP shall be reviewed, acknowledged, and updated whenever scope, conditions, or responsible personnel change.",
-    ],
+    key: "close_out_appendices",
+    title: "Close-Out, Lessons Learned & Appendices",
+    descriptor:
+      "Close-out expectations, handoff records, lessons learned, acknowledgements, and supporting appendix materials for the final issue.",
   },
 ];
 
@@ -345,6 +261,80 @@ function splitParagraphs(value?: string | null) {
     .filter(Boolean);
 }
 
+function inlineNumberMarkerIndexes(value: string) {
+  return Array.from(value.matchAll(/(?:^|\s)(\d+)\.\s+/g)).map((match) => ({
+    index: (match.index ?? 0) + (match[0].startsWith(" ") ? 1 : 0),
+  }));
+}
+
+function normalizeInlineEnumeratedItem(value: string) {
+  const cleaned = normalizeFinalExportText(value)?.trim() ?? "";
+  if (!cleaned) return null;
+  if (/^[a-z]/.test(cleaned)) return null;
+  if (/^[\d.]/.test(cleaned)) return null;
+  if (
+    !/\b(is|are|shall|must|should|confirm|verify|review|document|maintain|ensure|inspect|complete|use|obtain|coordinate|provide|keep|stop|leave|remove|restore|report|assign)\b/i.test(
+      cleaned
+    )
+  ) {
+    return null;
+  }
+  if (!/[.!?]$/.test(cleaned) && cleaned.split(/\s+/).length <= 5) return null;
+  return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;
+}
+
+function splitInlineEnumeratedParagraph(value: string) {
+  const cleaned = cleanFinalText(value)?.trim() ?? "";
+  if (!cleaned) {
+    return { intro: null as string | null, items: [] as string[] };
+  }
+
+  const markers = inlineNumberMarkerIndexes(cleaned);
+  if (markers.length === 0) {
+    return { intro: normalizeFinalExportText(cleaned), items: [] as string[] };
+  }
+
+  const firstIndex = markers[0]?.index ?? 0;
+  const intro = normalizeFinalExportText(cleaned.slice(0, firstIndex)) ?? null;
+  const items: string[] = [];
+
+  markers.forEach((marker, index) => {
+    const nextMarker = markers[index + 1];
+    const rawSegment = cleaned
+      .slice(marker.index, nextMarker ? nextMarker.index : undefined)
+      .replace(/^\d+\.\s+/, "")
+      .trim();
+    const normalized = normalizeInlineEnumeratedItem(rawSegment);
+    if (normalized) {
+      items.push(normalized);
+    }
+  });
+
+  if (!items.length) {
+    return { intro: intro ?? cleaned, items };
+  }
+
+  return { intro, items };
+}
+
+function splitInlineEnumeratedParagraphs(paragraphs: string[]) {
+  const cleanParagraphs: string[] = [];
+  const items: string[] = [];
+
+  paragraphs.forEach((paragraph) => {
+    const split = splitInlineEnumeratedParagraph(paragraph);
+    if (split.intro) {
+      cleanParagraphs.push(split.intro);
+    }
+    items.push(...split.items);
+  });
+
+  return {
+    paragraphs: uniqueItems(cleanParagraphs),
+    items: uniqueItems(items),
+  };
+}
+
 function normalizeCompareToken(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -362,6 +352,114 @@ function stripExistingNumberPrefix(value: string) {
     .replace(/^(Section\s+)?\d+(?:\.\d+)*\.?\s+/i, "")
     .replace(/^(Appendix\s+[A-Z])\.?\s+/i, "")
     .trim();
+}
+
+function splitSentenceValues(value?: string | null) {
+  const normalized = normalizeFinalExportText(value)?.trim();
+  if (!normalized) return [];
+
+  return uniqueItems(
+    normalized
+      .split(/\s*[,;]\s*/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  );
+}
+
+function tableColumnIndexes(table: NonNullable<GeneratedSafetyPlanSection["table"]>) {
+  const columns = table.columns.map((column) => normalizeToken(column));
+
+  const findIndex = (...aliases: string[]) =>
+    columns.findIndex((column) => aliases.some((alias) => column === normalizeToken(alias)));
+
+  return {
+    trade: findIndex("trade", "trade subtrade", "trade / subtrade"),
+    subTrade: findIndex("subtrade", "sub-trade"),
+    activity: findIndex("activity", "task", "task title"),
+    hazards: findIndex("hazard", "hazards", "primary hazard", "main hazards"),
+    controls: findIndex("control", "controls", "required controls"),
+    ppe: findIndex("ppe", "required ppe"),
+    permits: findIndex("permit", "permits", "required permits"),
+    competency: findIndex("competency", "training", "training requirements"),
+  };
+}
+
+function valueAt(row: string[], index: number) {
+  return index >= 0 ? normalizeFinalExportText(row[index]) : null;
+}
+
+function joinSentenceList(values: string[]) {
+  if (!values.length) return "";
+  if (values.length === 1) return values[0]!;
+  if (values.length === 2) return `${values[0]} and ${values[1]}`;
+  return `${values.slice(0, -1).join(", ")}, and ${values.at(-1)}`;
+}
+
+function formatActivityMatrixRow(
+  table: NonNullable<GeneratedSafetyPlanSection["table"]>,
+  row: string[]
+) {
+  const indexes = tableColumnIndexes(table);
+  const hasActivityMatrixContent = [
+    indexes.trade,
+    indexes.subTrade,
+    indexes.activity,
+    indexes.hazards,
+    indexes.controls,
+    indexes.ppe,
+    indexes.permits,
+    indexes.competency,
+  ].some((index) => index >= 0);
+
+  if (!hasActivityMatrixContent) {
+    return null;
+  }
+
+  const trade = valueAt(row, indexes.trade);
+  const subTrade = valueAt(row, indexes.subTrade);
+  const activity = valueAt(row, indexes.activity);
+  const hazards = normalizeHazardList(splitSentenceValues(valueAt(row, indexes.hazards)));
+  const controls = splitSentenceValues(valueAt(row, indexes.controls));
+  const ppe = normalizePpeList(splitSentenceValues(valueAt(row, indexes.ppe)));
+  const permits = normalizePermitList(splitSentenceValues(valueAt(row, indexes.permits)));
+  const competency = splitSentenceValues(valueAt(row, indexes.competency));
+
+  const scope = joinDisplayValues([trade, subTrade], "");
+  const subject = activity || scope || "This work activity";
+  const sentences: string[] = [];
+
+  if (activity && scope) {
+    sentences.push(`${activity} for ${scope} involves ${joinSentenceList(hazards)}.`);
+  } else if (activity && hazards.length) {
+    sentences.push(`${activity} involves ${joinSentenceList(hazards)}.`);
+  } else if (scope && hazards.length) {
+    sentences.push(`${scope} work involves ${joinSentenceList(hazards)}.`);
+  }
+
+  if (controls.length) {
+    sentences.push(`Required controls include ${joinSentenceList(controls)}.`);
+  }
+
+  if (ppe.length) {
+    sentences.push(`Required PPE includes ${joinSentenceList(ppe)}.`);
+  }
+
+  if (permits.length) {
+    sentences.push(`Required permits include ${joinSentenceList(permits)}.`);
+  }
+
+  if (competency.length) {
+    sentences.push(`Required competency includes ${joinSentenceList(competency)}.`);
+  }
+
+  if (!sentences.length) {
+    const fallback = normalizeFinalExportText(
+      row.map((cell) => cell?.trim()).filter(Boolean).join(" ")
+    );
+    return fallback || null;
+  }
+
+  return sentences.join(" ");
 }
 
 function stripSourceNumberingLabel(value?: string | null) {
@@ -421,10 +519,107 @@ function subsectionHasContent(subsection: CsepTemplateSubsection) {
   );
 }
 
+function normalizeLeadingVisibleBlock(value?: string | null) {
+  const cleaned = value?.trim();
+  if (!cleaned) return null;
+
+  const withoutLeadingPunctuation = cleaned.replace(/^[,;:]+\s*/, "");
+  return withoutLeadingPunctuation.replace(/^([a-z])/, (match) => match.toUpperCase());
+}
+
+function normalizeSubsectionLead(subsection: CsepTemplateSubsection): CsepTemplateSubsection {
+  const paragraphs = [...(subsection.paragraphs ?? [])];
+  const items = [...(subsection.items ?? [])];
+
+  if (paragraphs.length) {
+    const normalized = normalizeLeadingVisibleBlock(paragraphs[0]);
+    if (normalized) {
+      paragraphs[0] = normalized;
+    }
+  } else if (items.length) {
+    const normalized = normalizeLeadingVisibleBlock(items[0]);
+    if (normalized) {
+      items[0] = normalized;
+    }
+  }
+
+  return {
+    ...subsection,
+    paragraphs: paragraphs.length ? uniqueItems(paragraphs) : subsection.paragraphs,
+    items: items.length ? uniqueItems(items) : subsection.items,
+  };
+}
+
+const GENERIC_SUBSECTION_TITLES = new Set(
+  [
+    "when it applies",
+    "purpose",
+    "hazard overview",
+    "task scope and sequence",
+    "program scope",
+    "pre start verification",
+    "required controls",
+    "permits and ppe",
+    "stop work triggers",
+    "verification and handoff",
+    "related interfaces",
+    "applicable references",
+    "responsibilities and training",
+    "minimum required controls",
+    // Per-program procedure subsections produced by buildCsepProgramSection in
+    // lib/csepPrograms.ts. Multiple programs can land in the same fixed
+    // section (e.g. "Task Execution Modules"), so these generic titles must be
+    // prefixed with their source program title to avoid duplicate headings
+    // under a shared parent section.
+    "pre task setup",
+    "work execution",
+    "stop work escalation",
+    "post task closeout",
+    "related tasks",
+  ].map((value) => normalizeCompareToken(value))
+);
+
+function contextualizeSubsectionTitle(sourceTitle: string, subsectionTitle: string) {
+  const cleanSourceTitle = stripExistingNumberPrefix(sourceTitle).trim();
+  const cleanSubsectionTitle = stripExistingNumberPrefix(subsectionTitle).trim();
+  if (!cleanSourceTitle || !cleanSubsectionTitle) {
+    return subsectionTitle;
+  }
+
+  const normalizedSubsectionTitle = normalizeCompareToken(cleanSubsectionTitle);
+  if (!GENERIC_SUBSECTION_TITLES.has(normalizedSubsectionTitle)) {
+    return subsectionTitle;
+  }
+
+  if (normalizeCompareToken(cleanSourceTitle) === normalizedSubsectionTitle) {
+    return subsectionTitle;
+  }
+
+  return `${cleanSourceTitle}: ${cleanSubsectionTitle}`;
+}
+
+function normalizeTemplateSection(section: CsepTemplateSection): CsepTemplateSection {
+  return {
+    ...section,
+    subsections: section.subsections.map((subsection) => normalizeSubsectionLead(subsection)),
+  };
+}
+
+function normalizeRenderModel(model: CsepRenderModel): CsepRenderModel {
+  return {
+    ...model,
+    frontMatterSections: model.frontMatterSections.map((section) => normalizeTemplateSection(section)),
+    sections: model.sections.map((section) => normalizeTemplateSection(section)),
+    appendixSections: model.appendixSections.map((section) => normalizeTemplateSection(section)),
+  };
+}
+
 function dedupeTemplateSubsections(subsections: CsepTemplateSubsection[]) {
   const seen = new Set<string>();
 
-  return subsections.filter((subsection) => {
+  return subsections
+    .map((subsection) => normalizeSubsectionLead(subsection))
+    .filter((subsection) => {
     const key = JSON.stringify({
       title: normalizeCompareToken(subsection.title),
       paragraphs: (subsection.paragraphs ?? []).map(normalizeCompareToken),
@@ -440,7 +635,7 @@ function dedupeTemplateSubsections(subsections: CsepTemplateSubsection[]) {
     if (seen.has(key)) return false;
     seen.add(key);
     return subsectionHasContent(subsection);
-  });
+    });
 }
 
 function validateNoRepeatedSentences(section: CsepTemplateSection) {
@@ -571,7 +766,10 @@ function validateSectionOrdering(sections: CsepTemplateSection[]) {
 }
 
 function validateCsepRenderModel(model: CsepRenderModel) {
-  const numberedSections = model.sections.filter((section) => Boolean(section.numberLabel?.trim()));
+  const numberedSections = model.sections.map((section, index) => ({
+    ...section,
+    numberLabel: section.numberLabel?.trim() || String(index + 1),
+  }));
   const seenNumbers = new Set<string>();
   const invalidExactTokens = new Set([
     "test",
@@ -801,6 +999,82 @@ function buildRuleTableSubsections(
   ];
 }
 
+function buildTradeSummarySubsections(
+  source: GeneratedSafetyPlanSection
+): CsepTemplateSubsection[] | null {
+  if (normalizeToken(source.key) !== "trade summary") {
+    return null;
+  }
+
+  const paragraphs = uniqueItems([
+    ...splitParagraphs(source.summary),
+    ...splitParagraphs(source.body),
+  ]);
+  const items = uniqueItems(source.bullets ?? []);
+  const table = source.table;
+
+  if (!table?.rows.length) {
+    return [
+      {
+        title: "Scope Summary",
+        paragraphs,
+        items,
+      },
+    ];
+  }
+
+  const columns = table.columns.map(normalizeToken);
+  const tradeIndex = columns.findIndex((column) => column === "trade");
+  const subTradeIndex = columns.findIndex((column) => column === "sub trade");
+  const taskIndex = columns.findIndex((column) => column === "tasks");
+  const hazardIndex = columns.findIndex((column) => column === "hazards");
+  const permitIndex = columns.findIndex((column) => column === "permits");
+
+  const tradePackages = uniqueItems(
+    table.rows.map((row) =>
+      [row[tradeIndex] ?? "", row[subTradeIndex] ?? ""]
+        .map((value) => cleanFinalText(value))
+        .filter(Boolean)
+        .join(" / ")
+    )
+  );
+  const taskTitles = uniqueItems(table.rows.map((row) => cleanFinalText(row[taskIndex] ?? "")));
+  const hazards = uniqueItems(
+    table.rows.flatMap((row) =>
+      (row[hazardIndex] ?? "")
+        .split(/,\s*/)
+        .map((value) => cleanFinalText(value))
+    )
+  );
+  const permits = uniqueItems(
+    table.rows.flatMap((row) =>
+      (row[permitIndex] ?? "")
+        .split(/,\s*/)
+        .map((value) => cleanFinalText(value))
+    )
+  ).filter((value) => normalizeToken(value) !== "none");
+
+  const synthesizedParagraph = normalizeFinalExportText(
+    [
+      taskTitles.length
+        ? `Current contractor scope includes ${taskTitles.join(", ")} for ${tradePackages.join(", ") || "the assigned trade package"}.`
+        : null,
+      hazards.length ? `Primary hazards include ${hazards.join(", ")}.` : null,
+      permits.length ? `Anticipated permit triggers include ${permits.join(", ")}.` : null,
+    ]
+      .filter(Boolean)
+      .join(" ")
+  );
+
+  return [
+    {
+      title: "Scope Summary",
+      paragraphs: uniqueItems([...paragraphs, synthesizedParagraph]),
+      items,
+    },
+  ];
+}
+
 function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
   const key = normalizeToken(section.key);
   const title = normalizeToken(section.title);
@@ -810,49 +1084,83 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
     combined.includes("project information") ||
     combined.includes("contractor information") ||
     combined.includes("project overview") ||
-    combined.includes("trade summary")
+    combined.includes("project site information")
   ) {
-    return "project_site_information";
-  }
-
-  if (combined.includes("roles and responsibilities") || combined.includes("competent")) {
-    return "roles_responsibilities";
-  }
-
-  if (combined.includes("organization chart")) {
-    return "safety_organization_chart";
+    return "project_contractor_information";
   }
 
   if (
+    combined.includes("trade summary") ||
+    combined.includes("scope of work") ||
+    combined.includes("scope summary") ||
+    combined.includes("project scope") ||
+    combined.includes("purpose") ||
+    combined.includes("how to use") ||
+    combined.includes("company overview")
+  ) {
+    return "scope_summary";
+  }
+
+  if (
+    combined.includes("roles and responsibilities") ||
+    combined.includes("competent") ||
+    combined.includes("organization chart")
+  ) {
+    return "roles_responsibilities";
+  }
+
+  if (
+    combined.includes("task module") ||
+    combined.includes("task execution") ||
+    combined.includes("site controls") ||
+    combined.includes("safe work") ||
+    combined.includes("security and access") ||
+    combined.includes("worker access") ||
+    combined.includes("restricted area") ||
+    combined.includes("visitor") ||
+    combined.includes("delivery") ||
+    combined.includes("subcontract") ||
+    combined.includes("overlapping trades") ||
+    combined.includes("trade conflict") ||
+    combined.includes("permit") ||
+    combined.includes("required controls")
+  ) {
+    return "task_execution_modules";
+  }
+
+  if (
+    combined.includes("hazard module") ||
     combined.includes("hazard") ||
     combined.includes("risk") ||
     combined.includes("jsa") ||
     combined.includes("activity hazard") ||
     combined.includes("task hazard") ||
-    combined.includes("selected hazards")
+    combined.includes("selected hazards") ||
+    combined.includes("life saving") ||
+    combined.includes("ppe")
   ) {
-    return "hazard_identification";
-  }
-
-  if (combined.includes("ppe")) {
-    return "ppe_matrix";
+    return "hazard_control_sections";
   }
 
   if (combined.includes("emergency") || combined.includes("incident")) {
-    return "emergency_response";
+    return "emergency_weather_housekeeping";
   }
 
   if (
     combined.includes("training") ||
     combined.includes("orientation") ||
     combined.includes("health and wellness") ||
-    combined.includes("daily huddle")
+    combined.includes("daily huddle") ||
+    combined.includes("inspection") ||
+    combined.includes("recordkeeping") ||
+    combined.includes("continuous improvement") ||
+    combined.includes("monitoring") ||
+    combined.includes("oversight") ||
+    combined.includes("meeting") ||
+    combined.includes("drug") ||
+    combined.includes("alcohol")
   ) {
-    return "training_orientation";
-  }
-
-  if (combined.includes("weather")) {
-    return "weather_requirements";
+    return "training_inspections_monitoring";
   }
 
   if (
@@ -860,81 +1168,40 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
     combined.includes("fire prevention") ||
     combined.includes("hot work")
   ) {
-    return "housekeeping_fire_prevention";
-  }
-
-  if (combined.includes("tool") || combined.includes("equipment")) {
-    return "tool_equipment_inspection";
+    return "emergency_weather_housekeeping";
   }
 
   if (
+    combined.includes("program") ||
     combined.includes("environment") ||
     combined.includes("brownfield") ||
-    combined.includes("contamination")
+    combined.includes("contamination") ||
+    combined.includes("rescue")
   ) {
-    return "environmental_protection";
-  }
-
-  if (
-    combined.includes("subcontract") ||
-    combined.includes("security and access") ||
-    combined.includes("overlapping trades") ||
-    combined.includes("trade conflict")
-  ) {
-    return "subcontractor_management";
-  }
-
-  if (combined.includes("drug") || combined.includes("alcohol")) {
-    return "drug_alcohol_workplace";
-  }
-
-  if (
-    combined.includes("recordkeeping") ||
-    combined.includes("inspection") ||
-    combined.includes("continuous improvement")
-  ) {
-    return "recordkeeping_inspections";
+    return "high_risk_work_programs";
   }
 
   if (
     combined.includes("acknowledgment") ||
     combined.includes("revision") ||
     combined.includes("review") ||
-    combined.includes("disclaimer")
+    combined.includes("disclaimer") ||
+    combined.includes("lessons learned") ||
+    combined.includes("closeout") ||
+    combined.includes("close out")
   ) {
-    return "plan_review_acknowledgement";
+    return "close_out_appendices";
   }
 
-  if (
-    combined.includes("stop work") ||
-    combined.includes("enforcement") ||
-    combined.includes("corrective action") ||
-    combined.includes("general safety expectations") ||
-    combined.includes("life saving")
-  ) {
-    return "life_saving_rules";
-  }
-
-  if (
-    combined.includes("scope of work") ||
-    combined.includes("site specific") ||
-    combined.includes("permit") ||
-    combined.includes("required controls") ||
-    combined.includes("program") ||
-    combined.includes("safe work")
-  ) {
-    return "site_controls";
-  }
-
-  if (combined.includes("reference")) {
-    return "policy_statement";
-  }
-
-  return "policy_statement";
+  return null;
 }
 
 function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplateSubsection[] {
   const subsections: CsepTemplateSubsection[] = [];
+  const tradeSummarySubsections = buildTradeSummarySubsections(source);
+  if (tradeSummarySubsections) {
+    return dedupeTemplateSubsections(tradeSummarySubsections);
+  }
   const ruleTableSubsections = buildRuleTableSubsections(source);
   if (ruleTableSubsections.length) {
     return dedupeTemplateSubsections(ruleTableSubsections);
@@ -948,7 +1215,7 @@ function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplate
 
     (source.subsections ?? []).forEach((subsection) => {
       subsections.push({
-        title: subsection.title,
+        title: contextualizeSubsectionTitle(source.title, subsection.title),
         paragraphs: uniqueItems(splitParagraphs(subsection.body)),
         items: uniqueItems(subsection.bullets),
       });
@@ -961,13 +1228,22 @@ function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplate
     ...splitParagraphs(source.summary),
     ...splitParagraphs(source.body),
   ]);
+  const splitLeading = splitInlineEnumeratedParagraphs(leadingParagraphs);
   const leadingItems = uniqueItems(source.bullets ?? []);
   const shouldFoldLeadingParagraphsIntoItems =
     source.kind === "main" &&
     Boolean((source.subsections ?? []).length || source.table?.rows.length);
-  const formattedLeadingParagraphItems = shouldFoldLeadingParagraphsIntoItems ? leadingParagraphs : [];
-  const leadingNarrativeParagraphs = shouldFoldLeadingParagraphsIntoItems ? [] : leadingParagraphs;
-  const initialItems = uniqueItems([...formattedLeadingParagraphItems, ...leadingItems]);
+  const formattedLeadingParagraphItems = shouldFoldLeadingParagraphsIntoItems
+    ? splitLeading.paragraphs
+    : [];
+  const leadingNarrativeParagraphs = shouldFoldLeadingParagraphsIntoItems
+    ? []
+    : splitLeading.paragraphs;
+  const initialItems = uniqueItems([
+    ...formattedLeadingParagraphItems,
+    ...splitLeading.items,
+    ...leadingItems,
+  ]);
 
   if (leadingNarrativeParagraphs.length || initialItems.length || source.table?.rows.length) {
     subsections.push({
@@ -979,10 +1255,13 @@ function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplate
   }
 
   (source.subsections ?? []).forEach((subsection) => {
+    const splitSubsectionParagraphs = splitInlineEnumeratedParagraphs(
+      uniqueItems(splitParagraphs(subsection.body))
+    );
     subsections.push({
-      title: subsection.title,
-      paragraphs: uniqueItems(splitParagraphs(subsection.body)),
-      items: uniqueItems(subsection.bullets),
+      title: contextualizeSubsectionTitle(source.title, subsection.title),
+      paragraphs: splitSubsectionParagraphs.paragraphs,
+      items: uniqueItems([...splitSubsectionParagraphs.items, ...uniqueItems(subsection.bullets)]),
     });
   });
 
@@ -1003,37 +1282,37 @@ function toTemplateSection(source: GeneratedSafetyPlanSection): CsepTemplateSect
 export function buildCsepTemplateSections(
   params: BuildCsepTemplateSectionsParams
 ): CsepTemplateSection[] {
-  const mainSections = params.sourceSections.filter((section) => section.kind === "main");
-
-  if (mainSections.length > 0) {
-    return mainSections.sort((left, right) => (left.order ?? 0) - (right.order ?? 0)).map(toTemplateSection);
-  }
-
   const grouped = new Map<string, CsepTemplateSubsection[]>();
 
-  params.sourceSections.forEach((section) => {
+  params.sourceSections
+    .filter((section) => section.kind !== "front_matter")
+    .forEach((section) => {
     const mappedKey = mapSourceSectionToFixedSection(section);
+    if (!mappedKey) return;
     const existing = grouped.get(mappedKey) ?? [];
     existing.push(...toTemplateSubsections(section));
     grouped.set(mappedKey, existing);
-  });
+    });
 
-  return FIXED_SECTION_DEFINITIONS.map((definition) => {
-    const subsections = grouped.get(definition.key) ?? [
+  return FIXED_SECTION_DEFINITIONS.flatMap((definition) => {
+    const subsections = dedupeTemplateSubsections(grouped.get(definition.key) ?? []);
+    if (!subsections.length) return [];
+
+    return [
       {
-        title: definition.fallbackTitle,
-        items: definition.fallbackItems(params),
+        key: definition.key,
+        title: definition.title,
+        descriptor: definition.descriptor,
+        kind: "main",
+        subsections,
+        closingTagline: null,
       },
     ];
-
-    return {
-      key: definition.key,
-      title: definition.title,
-      kind: "main",
-      subsections,
-      closingTagline: null,
-    };
   });
+}
+
+function meaningfulFieldRows(rows: CsepCoverMetadataRow[]) {
+  return rows.filter((row) => normalizeCompareToken(row.value) !== "n a");
 }
 
 export function buildCsepRenderModelFromGeneratedDraft(
@@ -1061,10 +1340,58 @@ export function buildCsepRenderModelFromGeneratedDraft(
     preparedBy;
   const projectName = finalValueOrNA(draft.projectOverview.projectName);
   const projectAddress = finalValueOrNA(draft.projectOverview.projectAddress);
-  const frontMatterSections = sanitizedSections
-    .filter((section) => section.kind === "front_matter")
-    .sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
-    .map(toTemplateSection);
+  const coverMetadataRows = meaningfulFieldRows([
+    { label: "Project Number", value: finalValueOrNA(draft.projectOverview.projectNumber) },
+    { label: "Project Address", value: projectAddress },
+    { label: "Owner / Client", value: finalValueOrNA(draft.projectOverview.ownerClient) },
+    { label: "GC / CM", value: finalValueOrNA(draft.projectOverview.gcCm) },
+    { label: "Contractor", value: contractorName },
+    { label: "Prepared By", value: preparedBy },
+    { label: "Date", value: issueLabel },
+    { label: "Revision", value: structuredDraft.documentControl?.revision || "1.0" },
+  ]);
+  const frontMatterSections: CsepTemplateSection[] = [
+    {
+      key: "document_control",
+      kind: "front_matter",
+      title: "Document Control",
+      descriptor: "Current issue information, project identifiers, and release metadata for this document.",
+      subsections: coverMetadataRows.length
+        ? [
+            {
+              title: "Document Control",
+              table: {
+                columns: ["Field", "Value"],
+                rows: coverMetadataRows.map((row) => [row.label, row.value]),
+              },
+            },
+          ]
+        : [
+            {
+              title: "Document Control",
+              paragraphs: ["Document-control details were not provided for this issue."],
+            },
+          ],
+    },
+    {
+      key: "revision_history",
+      kind: "front_matter",
+      title: "Revision History",
+      descriptor: "Issue history and approval record for the current CSEP release.",
+      subsections: [
+        {
+          title: "Revision History",
+          paragraphs: [],
+        },
+      ],
+    },
+    {
+      key: "table_of_contents",
+      kind: "front_matter",
+      title: "Table of Contents",
+      subsections: [],
+    },
+  ];
   const mainSections = buildCsepTemplateSections({
     projectName,
     contractorName,
@@ -1087,21 +1414,14 @@ export function buildCsepRenderModelFromGeneratedDraft(
     statusLabel: "Contractor Issue",
     preparedBy,
     coverSubtitleLines: [
-      projectAddress,
-      `Trade: ${joinDisplayValues(tradeLabels, "N/A")}`,
+      contractorName !== "N/A" ? contractorName : null,
+      projectAddress !== "N/A" ? projectAddress : null,
+      tradeLabels.length ? `Trade: ${joinDisplayValues(tradeLabels, "N/A")}` : null,
       ...(subTradeLabels.length ? [`Sub-trade: ${joinDisplayValues(subTradeLabels, "N/A")}`] : []),
       ...(taskTitles.length ? [`Tasks: ${taskTitles.join(", ")}`] : []),
-    ],
-    coverMetadataRows: [
-      { label: "Project Number", value: finalValueOrNA(draft.projectOverview.projectNumber) },
-      { label: "Project Address", value: projectAddress },
-      { label: "Owner / Client", value: finalValueOrNA(draft.projectOverview.ownerClient) },
-      { label: "GC / CM", value: finalValueOrNA(draft.projectOverview.gcCm) },
-      { label: "Contractor", value: contractorName },
-      { label: "Prepared By", value: preparedBy },
-      { label: "Date", value: issueLabel },
-      { label: "Revision", value: structuredDraft.documentControl?.revision || "1.0" },
-    ],
+      issueLabel ? `Issue Date: ${issueLabel}` : null,
+    ].filter((line): line is string => Boolean(line)),
+    coverMetadataRows,
     approvalLines: [
       "Project Manager / Competent Person: ___________________________ Signature / Date",
       "Corporate Safety Director: ___________________________ Signature / Date",
@@ -1188,6 +1508,25 @@ function sectionHeading(text: string, color: string = COLORS.titleBlue) {
   );
 }
 
+function sectionDescriptorParagraph(text: string) {
+  return makeParagraph(
+    [
+      new TextRun({
+        text,
+        font: "Calibri",
+        italics: true,
+        size: 20,
+        color: COLORS.gray,
+      }),
+    ],
+    {
+      style: STYLE_IDS.sectionDescriptor,
+      keepNext: true,
+      spacing: { before: 40, after: 180, line: 276 },
+    }
+  );
+}
+
 function sectionHeadingTone(section: CsepTemplateSection) {
   const token = normalizeToken(`${section.title} ${section.key}`);
   if (token.includes("incident") || token.includes("communication")) {
@@ -1220,6 +1559,7 @@ function numberedParagraph(
   text: string,
   options?: {
     indent?: { left?: number; hanging?: number };
+    spacing?: { before?: number; after?: number; line?: number };
   }
 ) {
   return makeParagraph(
@@ -1240,6 +1580,7 @@ function numberedParagraph(
     {
       style: STYLE_IDS.body,
       indent: options?.indent ?? { left: INDENTS.numberedLeft, hanging: INDENTS.numberedHanging },
+      spacing: options?.spacing,
     }
   );
 }
@@ -1319,7 +1660,11 @@ function subtleDivider() {
   });
 }
 
-function labeledFieldParagraph(label: string, value: string) {
+function labeledFieldParagraph(
+  label: string,
+  value: string,
+  options?: { indent?: { left?: number; hanging?: number }; spacing?: { after?: number; line?: number } }
+) {
   return makeParagraph(
     [
       new TextRun({
@@ -1338,7 +1683,8 @@ function labeledFieldParagraph(label: string, value: string) {
     ],
     {
       style: STYLE_IDS.body,
-      spacing: { after: 100, line: 276 },
+      spacing: options?.spacing ?? { after: 100, line: 276 },
+      indent: options?.indent,
     }
   );
 }
@@ -1388,10 +1734,6 @@ function approvalSignatureAsParagraphs(lines: string[]) {
 function createCover(model: CsepRenderModel) {
   const coverChildren: Paragraph[] = [
     subtleDivider(),
-    bodyParagraph(`${model.contractorName} | Contractor Logo / Letterhead`, {
-      alignment: AlignmentType.LEFT,
-      style: STYLE_IDS.coverMeta,
-    }),
     makeParagraph(
       [
         new TextRun({
@@ -1444,8 +1786,22 @@ function createCover(model: CsepRenderModel) {
     );
   }
 
+  if (model.contractorName.trim() && model.contractorName !== "N/A") {
+    coverChildren.push(
+      bodyParagraph(model.contractorName, {
+        alignment: AlignmentType.CENTER,
+        style: STYLE_IDS.coverMeta,
+      })
+    );
+  }
+
   model.coverSubtitleLines
-    .filter((line) => line.trim() && line.trim() !== "N/A")
+    .filter(
+      (line) =>
+        line.trim() &&
+        line.trim() !== "N/A" &&
+        normalizeCompareToken(line) !== normalizeCompareToken(model.contractorName)
+    )
     .forEach((line) => {
       coverChildren.push(
         bodyParagraph(line, {
@@ -1456,18 +1812,6 @@ function createCover(model: CsepRenderModel) {
     });
 
   coverChildren.push(new Paragraph({ children: [] }));
-  coverChildren.push(
-    bodyParagraph("Project / Document Control", {
-      style: STYLE_IDS.subheading,
-    })
-  );
-  coverChildren.push(...metadataMatrixAsParagraphs(model.coverMetadataRows));
-  coverChildren.push(
-    bodyParagraph("Revision History", {
-      style: STYLE_IDS.subheading,
-    })
-  );
-  coverChildren.push(...revisionHistoryAsParagraphs(model.revisionHistory));
   coverChildren.push(
     bodyParagraph(
       "Approvals",
@@ -1501,9 +1845,30 @@ function appendTableRowsAsNumberedParagraphs(
     }
 
     const num = `${subsectionLabel}.${priorItemCount + rowIndex + 1}`;
-    const text = table.columns
-      .map((column, columnIndex) => `${column}: ${row[columnIndex]?.trim() || "N/A"}`)
-      .join(" ");
+    const structuredRow = buildStructuredTableRow(table, row, rowIndex);
+    if (structuredRow) {
+      children.push(
+        numberedParagraph(num, structuredRow.title, {
+          indent: { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging },
+          spacing: { before: 60, after: 60, line: 276 },
+        })
+      );
+      structuredRow.fields.forEach((field) => {
+        children.push(
+          labeledFieldParagraph(field.label, field.value, {
+            indent: { left: INDENTS.grandchildBodyLeft },
+            spacing: { after: 110, line: 276 },
+          })
+        );
+      });
+      return;
+    }
+
+    const text =
+      formatActivityMatrixRow(table, row) ??
+      table.columns
+        .map((column, columnIndex) => `${column}: ${row[columnIndex]?.trim() || "N/A"}`)
+        .join(" ");
     children.push(numberedParagraph(num, text));
   });
 }
@@ -1531,13 +1896,92 @@ function appendTopLevelTableRows(
   let currentIndex = startingIndex;
   table.rows.forEach((row) => {
     currentIndex += 1;
-    const text = table.columns
-      .map((column, columnIndex) => `${column}: ${row[columnIndex]?.trim() || "N/A"}`)
-      .join(" ");
+    const structuredRow = buildStructuredTableRow(table, row, currentIndex - 1);
+    if (structuredRow) {
+      children.push(
+        numberedParagraph(`${basePrefix}.${currentIndex}`, structuredRow.title, {
+          spacing: { before: 80, after: 60, line: 276 },
+        })
+      );
+      structuredRow.fields.forEach((field) => {
+        children.push(
+          labeledFieldParagraph(field.label, field.value, {
+            indent: { left: INDENTS.childBodyLeft },
+            spacing: { after: 110, line: 276 },
+          })
+        );
+      });
+      return;
+    }
+
+    const text =
+      formatActivityMatrixRow(table, row) ??
+      table.columns
+        .map((column, columnIndex) => `${column}: ${row[columnIndex]?.trim() || "N/A"}`)
+        .join(" ");
     children.push(numberedParagraph(`${basePrefix}.${currentIndex}`, text));
   });
 
   return currentIndex;
+}
+
+function isFieldValueTable(table: NonNullable<GeneratedSafetyPlanSection["table"]>) {
+  const columns = table.columns.map(normalizeToken);
+  return columns.length === 2 && columns[0] === "field" && columns[1] === "value";
+}
+
+function appendFieldValueTableParagraphs(
+  children: Paragraph[],
+  table: NonNullable<GeneratedSafetyPlanSection["table"]>,
+  options?: { indent?: { left?: number; hanging?: number } }
+) {
+  table.rows.forEach((row) => {
+    const label = cleanFinalText(row[0]) ?? "";
+    const value = cleanFinalText(row[1]);
+    if (!label || !value || normalizeCompareToken(value) === "n a") {
+      return;
+    }
+    children.push(
+      labeledFieldParagraph(label, value, {
+        indent: options?.indent,
+        spacing: { after: 120, line: 276 },
+      })
+    );
+  });
+}
+
+function buildStructuredTableRow(
+  table: NonNullable<GeneratedSafetyPlanSection["table"]>,
+  row: string[],
+  rowIndex: number
+) {
+  if (table.columns.length < 2 || isFieldValueTable(table)) {
+    return null;
+  }
+
+  const title =
+    cleanFinalText(row[0]) ??
+    cleanFinalText(`${cleanFinalText(table.columns[0]) ?? "Item"} ${rowIndex + 1}`);
+  if (!title || normalizeCompareToken(title) === "n a") {
+    return null;
+  }
+
+  const fields = table.columns
+    .slice(1)
+    .map((column, columnIndex) => ({
+      label: cleanFinalText(column) ?? `Detail ${columnIndex + 1}`,
+      value: normalizeFinalExportText(row[columnIndex + 1]),
+    }))
+    .filter(
+      (entry): entry is { label: string; value: string } =>
+        Boolean(entry.label && entry.value && normalizeCompareToken(entry.value) !== "n a")
+    );
+
+  if (!fields.length) {
+    return null;
+  }
+
+  return { title, fields };
 }
 
 function displayHeadingForSection(section: CsepTemplateSection, sectionNumber: number) {
@@ -1589,7 +2033,11 @@ function shouldRenderSubheading(sectionTitle: string, subsection: CsepTemplateSu
 
 function appendParagraphs(children: Paragraph[], paragraphs?: string[]) {
   (paragraphs ?? []).forEach((paragraph) => {
-    children.push(bodyParagraph(stripSourceNumberingLabel(paragraph)));
+    children.push(
+      bodyParagraph(stripSourceNumberingLabel(paragraph), {
+        spacing: { after: 140, line: 276 },
+      })
+    );
   });
 }
 
@@ -1602,6 +2050,7 @@ function appendIndentedParagraphs(
     children.push(
       bodyParagraph(stripSourceNumberingLabel(paragraph), {
         indent,
+        spacing: { after: 150, line: 276 },
       })
     );
   });
@@ -1655,6 +2104,9 @@ function renderSection(sectionNumber: number, section: CsepTemplateSection) {
   const children: Paragraph[] = [
     sectionHeading(displayHeadingForSection(section, sectionNumber), sectionHeadingTone(section)),
   ];
+  if (section.descriptor?.trim()) {
+    children.push(sectionDescriptorParagraph(section.descriptor.trim()));
+  }
   const basePrefix = sectionPrefix(section, sectionNumber);
   let topLevelItemIndex = 0;
   let nestedSubsectionCount = 0;
@@ -1676,6 +2128,7 @@ function renderSection(sectionNumber: number, section: CsepTemplateSection) {
       children.push(
         numberedParagraph(subsectionLabel, stripExistingNumberPrefix(subsection.title), {
           indent: { left: INDENTS.childLeft, hanging: INDENTS.childHanging },
+          spacing: { before: 120, after: 90, line: 276 },
         })
       );
     }
@@ -1694,11 +2147,13 @@ function renderSection(sectionNumber: number, section: CsepTemplateSection) {
         children.push(
           numberedParagraph(childNumber, entry.title, {
             indent: { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging },
+            spacing: { before: 60, after: 60, line: 276 },
           })
         );
         children.push(
           bodyParagraph(entry.body, {
             indent: { left: INDENTS.grandchildBodyLeft },
+            spacing: { after: 170, line: 276 },
           })
         );
         return;
@@ -1708,11 +2163,13 @@ function renderSection(sectionNumber: number, section: CsepTemplateSection) {
       children.push(
         numberedParagraph(`${basePrefix}.${topLevelItemIndex}`, entry.title, {
           indent: { left: INDENTS.childLeft, hanging: INDENTS.childHanging },
+          spacing: { before: 90, after: 70, line: 276 },
         })
       );
       children.push(
         bodyParagraph(entry.body, {
           indent: { left: INDENTS.childBodyLeft },
+          spacing: { after: 180, line: 276 },
         })
       );
     });
@@ -1722,15 +2179,29 @@ function renderSection(sectionNumber: number, section: CsepTemplateSection) {
         children.push(
           numberedParagraph(`${itemPrefixBase}.${structuredEntries.length + itemIndex + 1}`, item, {
             indent: { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging },
+            spacing: { before: 50, after: 110, line: 276 },
           })
         );
       } else {
         topLevelItemIndex += 1;
-        children.push(numberedParagraph(`${basePrefix}.${topLevelItemIndex}`, item));
+        children.push(
+          numberedParagraph(`${basePrefix}.${topLevelItemIndex}`, item, {
+            spacing: { before: 70, after: 130, line: 276 },
+          })
+        );
       }
     });
 
     if (subsection.table?.rows.length) {
+      if (isFieldValueTable(subsection.table)) {
+        appendFieldValueTableParagraphs(
+          children,
+          subsection.table,
+          distinctSubheading ? { indent: { left: INDENTS.childBodyLeft } } : undefined
+        );
+        return;
+      }
+
       if (distinctSubheading) {
         appendTableRowsAsNumberedParagraphs(
           children,
@@ -1777,6 +2248,9 @@ export async function createCsepDocument(model: CsepRenderModel) {
     }
     if (section.key === "revision_history") {
       children.push(sectionHeading(section.title));
+      if (section.descriptor?.trim()) {
+        children.push(sectionDescriptorParagraph(section.descriptor.trim()));
+      }
       children.push(...revisionHistoryAsParagraphs(model.revisionHistory));
       return;
     }
@@ -1916,6 +2390,22 @@ export async function createCsepDocument(model: CsepRenderModel) {
           },
         },
         {
+          id: STYLE_IDS.sectionDescriptor,
+          name: STYLE_IDS.sectionDescriptor,
+          paragraph: {
+            spacing: {
+              before: 40,
+              after: 180,
+            },
+          },
+          run: {
+            font: "Calibri",
+            italics: true,
+            size: 20,
+            color: COLORS.gray,
+          },
+        },
+        {
           id: STYLE_IDS.subheading,
           name: STYLE_IDS.subheading,
           paragraph: {
@@ -1975,13 +2465,14 @@ export async function createCsepDocument(model: CsepRenderModel) {
 }
 
 export async function renderCsepRenderModel(model: CsepRenderModel) {
-  validateCsepRenderModel(model);
-  const doc = await createCsepDocument(model);
+  const normalizedModel = normalizeRenderModel(model);
+  validateCsepRenderModel(normalizedModel);
+  const doc = await createCsepDocument(normalizedModel);
   const buffer = await Packer.toBuffer(doc);
 
   return {
     body: new Uint8Array(buffer),
-    filename: getSafetyBlueprintDraftFilename(model.filenameProjectPart, "csep").replace(
+    filename: getSafetyBlueprintDraftFilename(normalizedModel.filenameProjectPart, "csep").replace(
       "_Draft",
       ""
     ),

@@ -3,7 +3,7 @@
 import * as Tabs from "@radix-ui/react-tabs";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
@@ -27,10 +27,7 @@ import {
   type RiskMemoryFormInput,
 } from "@/lib/riskMemory/form";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 type CorrectiveActionRow = {
   id: string;

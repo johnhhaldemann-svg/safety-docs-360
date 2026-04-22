@@ -908,7 +908,7 @@ function parseReferencePackPlainText(plainText: string): ParsedReferencePackDoc 
     }
 
     if (currentSection) {
-      currentSection.lines.push(line);
+      currentSection.lines.push(normalizeReferencePackSectionLine(line));
       continue;
     }
 
@@ -926,6 +926,120 @@ function parseReferencePackPlainText(plainText: string): ParsedReferencePackDoc 
     introLines,
     sections,
   };
+}
+
+function stripReferencePackNumberPrefix(value: string) {
+  return value.replace(/^(Section\s+)?\d+(?:\.\d+)*\.?\s+/i, "").trim();
+}
+
+function normalizeReferencePackSectionLine(line: string) {
+  if (!/^\d+\.\d+\.?\s+/i.test(line)) {
+    return line;
+  }
+
+  const withoutNumber = stripReferencePackNumberPrefix(line);
+  if (!withoutNumber) {
+    return line;
+  }
+
+  const matched = withoutNumber.match(/^(.+?)(?:\s{2,}|:\s+)(.+)$/);
+  if (!matched) {
+    return withoutNumber;
+  }
+
+  const [, , rawBody] = matched;
+  return cleanFinalText(rawBody) ?? rawBody.trim();
+}
+
+function numberedReferencePackLines(
+  sectionHeadings: string[] | undefined,
+  plainText: string
+) {
+  const normalizedSectionHeadings = sectionHeadings ?? [];
+  const candidateLines = normalizedSectionHeadings.length
+    ? normalizedSectionHeadings
+    : plainText
+        .split("\n")
+        .map((line) => cleanFinalText(line))
+        .filter((line): line is string => Boolean(line));
+
+  return dedupe(
+    candidateLines.filter((line) => /^\d+\.\d+\.?\s+/i.test(line))
+  );
+}
+
+function selectReferencePackChildItems(
+  sectionHeadings: string[] | undefined,
+  plainText: string,
+  matchers: RegExp[]
+) {
+  return numberedReferencePackLines(sectionHeadings, plainText).filter((line) =>
+    matchers.some((matcher) => matcher.test(stripReferencePackNumberPrefix(line)))
+  );
+}
+
+function parseReferencePackChildItem(line: string) {
+  const withoutNumber = stripReferencePackNumberPrefix(line);
+  const matched = withoutNumber.match(/^(.+?)(?:\s{2,}|:\s+)(.+)$/);
+  if (!matched) {
+    return {
+      title: withoutNumber.trim(),
+      body: "",
+    };
+  }
+
+  return {
+    title: cleanFinalText(matched[1]) ?? "",
+    body: cleanFinalText(matched[2]) ?? "",
+  };
+}
+
+function cleanupReferencePackChildItems(
+  summary: string,
+  items: string[],
+  suppressedTitleMatchers: RegExp[] = []
+) {
+  const normalizedSummary = normalizeToken(summary);
+  const seenTitles = new Set<string>();
+  const seenBodies = new Set<string>();
+
+  return items.filter((item) => {
+    const parsed = parseReferencePackChildItem(item);
+    const normalizedTitle = normalizeToken(parsed.title);
+    const normalizedBody = normalizeToken(parsed.body);
+
+    if (!normalizedBody) {
+      return false;
+    }
+
+    if (
+      suppressedTitleMatchers.some((matcher) => matcher.test(parsed.title)) ||
+      /^(purpose|main hazards?|pre construction planning|pre task review|core controls|related permit triggers|primary affected parties|recordkeeping|training|continuous improvement)$/i.test(
+        parsed.title
+      )
+    ) {
+      return false;
+    }
+
+    if (normalizedTitle && seenTitles.has(normalizedTitle)) {
+      return false;
+    }
+
+    if (normalizedBody && seenBodies.has(normalizedBody)) {
+      return false;
+    }
+
+    if (
+      (/purpose|main hazards?/i.test(parsed.title) && normalizedBody.includes(normalizedSummary)) ||
+      normalizedBody === normalizedTitle
+    ) {
+      return false;
+    }
+
+    if (normalizedTitle) seenTitles.add(normalizedTitle);
+    if (normalizedBody) seenBodies.add(normalizedBody);
+    return true;
+  });
 }
 
 function findReferencePackSectionText(
@@ -971,38 +1085,102 @@ function buildModuleBody(summary: string, parsed: ParsedReferencePackDoc) {
   return overview.trim();
 }
 
+function buildTradeScopeSummary(
+  groupedTradePackages: GroupedTradePackage[],
+  activeScopeTasks: string[],
+  ruleSummary: GeneratedSafetyPlanDraft["ruleSummary"]
+) {
+  const packageLabels = dedupe(groupedTradePackages.map((pkg) => pkg.label));
+  const taskTitles = dedupe([
+    ...groupedTradePackages.flatMap((pkg) => pkg.taskTitles),
+    ...activeScopeTasks,
+  ]);
+  const hazardCategories = dedupe([
+    ...groupedTradePackages.flatMap((pkg) => pkg.hazardCategories),
+    ...normalizeHazardList(ruleSummary.hazardCategories),
+  ]);
+  const permitTriggers = dedupe([
+    ...groupedTradePackages.flatMap((pkg) => pkg.permitTriggers),
+    ...normalizePermitList(ruleSummary.permitTriggers),
+  ]);
+  const locationLabels = dedupe(groupedTradePackages.flatMap((pkg) => pkg.locationLabels));
+
+  return combineParagraphs(
+    [
+      taskTitles.length
+        ? `Current contractor scope includes ${sentenceList(taskTitles, "the selected work scope")} for ${sentenceList(packageLabels, "the assigned trade package")}.`
+        : packageLabels.length
+          ? `Current contractor scope is being performed by ${sentenceList(packageLabels, "the assigned trade package")}.`
+          : null,
+      locationLabels.length
+        ? `Primary work areas for this phase include ${sentenceList(locationLabels)}.`
+        : null,
+      hazardCategories.length
+        ? `Primary hazards for the active phase include ${sentenceList(hazardCategories)}.`
+        : null,
+      permitTriggers.length
+        ? `Anticipated permit triggers include ${sentenceList(permitTriggers)}.`
+        : "No special permit triggers were identified beyond standard project controls.",
+    ],
+    "Current contractor scope summary was not fully provided in the builder payload."
+  );
+}
+
 function buildControlModuleSubsection(item: TaskModuleContextRow): GeneratedSafetyPlanSubsection {
   const parsed = parseReferencePackPlainText(item.plainText);
-  const planningText = findReferencePackSectionText(parsed, [
-    "Work Planning Steps",
-    "Pre-Task & Pre-Construction",
-  ]);
-  const controlsText = combineUniqueText(
-    findReferencePackSectionText(parsed, ["Risks & Hazards", "Hazards & Controls"]),
-    findReferencePackSectionText(parsed, ["Structural Stability"]),
-    findReferencePackSectionText(parsed, ["Required Equipment"]),
-    findReferencePackSectionText(parsed, ["Connecting & Decking"])
+  const planningItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /planning/i,
+      /startup/i,
+      /pre-task/i,
+      /daily review/i,
+    ])
   );
-  const permitsText = findReferencePackSectionText(parsed, ["Required Permits"]);
-  const relatedText = findReferencePackSectionText(parsed, ["Trades Most Affected"]);
-  const triggerLine = referencePackTriggerLine(
-    `apply when ${sentenceList(item.taskNames, "site setup")} is active.`,
-    item.sectionHeadings
+  const controlsItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /equipment/i,
+      /access/i,
+      /hazards?/i,
+      /controls?/i,
+      /stability/i,
+      /load and access limits/i,
+    ])
+  );
+  const permitsItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /permit/i,
+      /approval/i,
+      /deviation/i,
+    ])
+  );
+  const relatedItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /affected/i,
+      /practical use/i,
+      /recordkeeping/i,
+      /communication/i,
+    ])
   );
 
   return {
     title: item.title,
     body: buildModuleBody(item.summary, parsed),
     bullets: [
-      `Purpose: Use this control module to direct ${summaryWithoutTrailingPeriod(item.summary)}. The superintendent or foreman briefs it before the affected crew, delivery team, or visitor movement starts.`,
-      `Applicability / trigger logic: Apply this module whenever ${sentenceList(item.taskNames, "site setup")} is in the active plan, when routes or restricted areas change, or when adjacent work creates a new interface that must be controlled.`,
-      `Pre-start verification: Verify the work area, access and egress route, restricted boundaries, equipment, signage or barricades, and adjacent-trade interfaces before the shift starts. ${directiveSnippet(planningText) ?? "Do not proceed until the foreman or competent person confirms the setup matches the plan."}`,
-      `Required controls during the work: Establish the boundary, maintain clear routes, keep the control in place as the work front changes, and stop crews from bypassing the control. ${directiveSnippet(controlsText, 240) ?? "Maintain the assigned control until the hazard or interface is removed and the area is formally released."}`,
-      `Required permits and PPE if triggered: Confirm whether this control affects traffic, public access, right-of-way, utility, lift, or owner-security permits before work starts. Inspect required PPE before use and do not proceed if project-required PPE is missing or damaged. ${directiveSnippet(permitsText) ?? ""}`.trim(),
-      "Stop-work triggers / hold points: Stop work if the route, barrier, fencing, gate, signage, lighting, or support condition no longer matches the plan, if unauthorized personnel enter the controlled area, or if surrounding work changes the exposure. Restart only after the foreman or competent person re-inspects the area and re-establishes the control.",
-      "Verification / documentation: Document the pre-task brief, inspections, route or boundary changes, permits, and corrective actions for this module. The superintendent, foreman, or competent person verifies the condition at start-up, after any change, and before the area is released.",
-      `Related tasks / interfaces: Coordinate with ${sentenceList(item.taskNames, "site setup")}. Also coordinate deliveries, pedestrian traffic, equipment movement, emergency access, and follow-on crews affected by this control. ${directiveSnippet(relatedText) ?? ""}`.trim(),
-      triggerLine,
+      `Scope and use: ${summaryWithoutTrailingPeriod(item.summary)}. Review this section before affected crews, delivery teams, or visitors enter the controlled area.`,
+      "Pre-start verification: Verify the work area, access and egress route, restricted boundaries, equipment, signage or barricades, and adjacent-trade interfaces before the shift starts.",
+      ...planningItems,
+      "Required controls: Establish the boundary, maintain clear routes, keep the control in place as the work front changes, and stop crews from bypassing the control.",
+      ...controlsItems,
+      "Permits and PPE: Confirm whether this control affects traffic, public access, right-of-way, utility, lift, or owner-security permits before work starts. Inspect required PPE before use and do not proceed if project-required PPE is missing or damaged.",
+      ...permitsItems,
+      "Stop-work triggers: Stop work if the route, barrier, fencing, gate, signage, lighting, or support condition no longer matches the plan, if unauthorized personnel enter the controlled area, or if surrounding work changes the exposure. Restart only after the foreman or competent person re-inspects the area and re-establishes the control.",
+      "Verification and handoff: Document the pre-task brief, inspections, route or boundary changes, permits, and corrective actions for this section. The superintendent, foreman, or competent person verifies the condition at start-up, after any change, and before the area is released.",
+      `Related interfaces: Coordinate with ${sentenceList(item.taskNames, "site setup")}. Also coordinate deliveries, pedestrian traffic, equipment movement, emergency access, and follow-on crews affected by this control.`,
+      ...relatedItems,
     ],
   };
 }
@@ -1012,109 +1190,168 @@ function buildHazardModuleSubsection(
   scopeFallback: string
 ): GeneratedSafetyPlanSubsection {
   const parsed = parseReferencePackPlainText(item.plainText);
-  const planningText = findReferencePackSectionText(parsed, [
-    "Work Planning Steps",
-    "Pre-Task & Pre-Construction",
-  ]);
-  const controlsText = combineUniqueText(
-    findReferencePackSectionText(parsed, ["Risks & Hazards", "Hazards & Controls"]),
-    findReferencePackSectionText(parsed, ["Structural Stability"]),
-    findReferencePackSectionText(parsed, ["Connecting & Decking"]),
-    findReferencePackSectionText(parsed, ["Required Equipment"])
+  const planningItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /planning/i,
+      /startup/i,
+      /pre-task/i,
+      /daily review/i,
+    ])
   );
-  const permitsText = findReferencePackSectionText(parsed, [
-    "Required Permits",
-    "Permit / Approval Triggers",
-  ]);
-  const relatedText = findReferencePackSectionText(parsed, ["Trades Most Affected"]);
-  const triggerLine = referencePackTriggerLine(
-    `${referencePackInclusionReason(item.matchedReasons, scopeFallback).replace(/\.$/, "")}.`,
-    item.sectionHeadings
+  const controlsItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /equipment/i,
+      /access/i,
+      /hazards?/i,
+      /controls?/i,
+      /stability/i,
+      /load and access limits/i,
+      /connecting/i,
+      /decking/i,
+    ])
+  );
+  const permitsItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /permit/i,
+      /approval/i,
+      /deviation/i,
+    ])
+  );
+  const relatedItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /affected/i,
+      /practical use/i,
+      /recordkeeping/i,
+      /communication/i,
+    ])
   );
 
   return {
     title: item.title,
     body: buildModuleBody(item.summary, parsed),
     bullets: [
-      `Purpose: Use this hazard module to control ${summaryWithoutTrailingPeriod(item.summary)}. The competent person or foreman briefs the exposure and the control method before the crew enters the area.`,
-      `Applicability / trigger logic: Apply this module whenever the selected task, permit, trade scope, or adjacent interface creates this exposure. Activate it again whenever field conditions change during the shift.`,
-      `Pre-start verification: Inspect the hazard area, confirm the exposure is correctly identified, verify the control method, and confirm who owns the stop-work decision before exposure begins. ${directiveSnippet(planningText) ?? "Do not proceed until the competent person confirms the hazard controls match the actual field condition."}`,
-      `Required controls during the work: Establish the hazard boundary, maintain the selected controls, keep non-essential personnel out of the exposure zone, and correct drift immediately when field conditions change. ${directiveSnippet(controlsText, 240) ?? "Maintain the assigned control until the exposure is removed and the area is formally released."}`,
-      `Required permits and PPE if triggered: Confirm whether this exposure triggers a permit, engineered approval, rescue plan, or owner authorization before work starts. Inspect required PPE before use and do not proceed if the permit or PPE is missing, incompatible, or damaged. ${directiveSnippet(permitsText) ?? ""}`.trim(),
-      "Stop-work triggers / hold points: Stop work if the exposure expands, if the control method fails, if the supporting structure or access route changes, if unauthorized personnel enter the zone, or if weather, visibility, or sequencing conditions no longer match the plan. Restart only after the competent person re-verifies the area and releases the work.",
-      "Verification / documentation: Document the hazard assessment, inspections, permits, corrective actions, and release status for this module. The foreman or competent person verifies the condition at start-up, after any change, and before follow-on work enters the area.",
-      `Related tasks / interfaces: Coordinate this module with the active work face, access routes, hoisting paths, affected trades, and any follow-on crew that could inherit the exposure. ${directiveSnippet(relatedText) ?? ""}`.trim(),
-      triggerLine,
+      `Hazard overview: ${summaryWithoutTrailingPeriod(item.summary)}. Review the exposure, control method, and affected interface before the crew enters the area.`,
+      "Pre-start verification: Inspect the hazard area, confirm the exposure is correctly identified, verify the control method, and confirm who owns the stop-work decision before exposure begins.",
+      ...planningItems,
+      "Required controls: Establish the hazard boundary, maintain the selected controls, keep non-essential personnel out of the exposure zone, and correct drift immediately when field conditions change.",
+      ...controlsItems,
+      "Permits and PPE: Confirm whether this exposure triggers a permit, engineered approval, rescue plan, or owner authorization before work starts. Inspect required PPE before use and do not proceed if the permit or PPE is missing, incompatible, or damaged.",
+      ...permitsItems,
+      "Stop-work triggers: Stop work if the exposure expands, if the control method fails, if the supporting structure or access route changes, if unauthorized personnel enter the zone, or if weather, visibility, or sequencing conditions no longer match the plan. Restart only after the competent person re-verifies the area and releases the work.",
+      "Verification and handoff: Document the hazard assessment, inspections, permits, corrective actions, and release status for this section. The foreman or competent person verifies the condition at start-up, after any change, and before follow-on work enters the area.",
+      "Related interfaces: Coordinate this section with the active work face, access routes, hoisting paths, affected trades, and any follow-on crew that could inherit the exposure.",
+      ...relatedItems,
     ],
   };
 }
 
 function buildSteelTaskModuleSubsection(item: SteelTaskModuleContextRow): GeneratedSafetyPlanSubsection {
   const parsed = parseReferencePackPlainText(item.plainText);
-  const planningText = findReferencePackSectionText(parsed, [
-    "Pre-Task & Pre-Construction Planning",
-    "Work Planning Steps",
-  ]);
-  const controlsText = combineUniqueText(
-    findReferencePackSectionText(parsed, ["Required Equipment and Access"]),
-    findReferencePackSectionText(parsed, ["Hazards & Controls"]),
-    findReferencePackSectionText(parsed, ["Structural Stability / Sequence Controls"])
+  const planningItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /planning/i,
+      /startup/i,
+      /pre-task/i,
+      /daily review/i,
+    ])
   );
-  const permitsText = findReferencePackSectionText(parsed, ["Permit / Approval Triggers"]);
-  const closeoutText = findReferencePackSectionText(parsed, [
-    "Inspection, Acceptance, and Closeout",
-  ]);
-  const triggerLine = referencePackTriggerLine(
-    `apply when ${sentenceList(item.taskNames, "the active steel-erection sequence")} is active.`,
-    item.sectionHeadings
+  const controlsItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /equipment/i,
+      /access/i,
+      /hazards?/i,
+      /controls?/i,
+      /stability/i,
+      /load and access limits/i,
+    ])
+  );
+  const permitsItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /permit/i,
+      /approval/i,
+      /deviation/i,
+    ])
+  );
+  const closeoutItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /completion standard/i,
+      /handoff/i,
+      /inspection/i,
+      /acceptance/i,
+      /closeout/i,
+      /recordkeeping/i,
+      /communication/i,
+      /practical use/i,
+    ])
   );
 
   return {
     title: item.title,
     body: buildModuleBody(item.summary, parsed),
     bullets: [
-      `Purpose: Use this task module to direct ${summaryWithoutTrailingPeriod(item.summary)}. The superintendent or foreman briefs the sequence, access point, and handoff condition before the first crew member starts the task.`,
-      `Applicability / trigger logic: Apply this module whenever ${sentenceList(item.taskNames, "the active steel-erection sequence")} is in the work plan, when the crew changes phase, or when the next crew depends on the handoff condition created by this task.`,
-      `Pre-start verification: Verify the sequence, support steel, access point, material staging, equipment, communications, and rescue path before work starts. ${directiveSnippet(planningText) ?? "Do not proceed until the foreman and competent person confirm the work face matches the planned sequence."}`,
-      `Required controls during the work: Establish the work zone, maintain the sequence, control access, protect workers below, and keep the task stable for the next step before release. ${directiveSnippet(controlsText, 240) ?? "Maintain the required task controls until the crew reaches the planned stable condition and the area is formally handed off."}`,
-      `Required permits and PPE if triggered: Confirm whether this task requires lift planning, hot-work approval, leading-edge release, engineered review, or owner authorization before work starts. Inspect task-specific PPE before use and do not proceed if required PPE is missing or damaged. ${directiveSnippet(permitsText) ?? ""}`.trim(),
-      "Stop-work triggers / hold points: Stop work if the sequence changes without review, if support steel or access is not ready, if communications are lost, if required controls or permits are missing, or if the crew cannot maintain the planned stable condition. Restart only after the foreman or competent person re-verifies the work face and releases the next step.",
-      `Verification / documentation: Document the pre-task brief, inspections, permits, deviations, corrective actions, and handoff status for this task. ${directiveSnippet(closeoutText) ?? "The foreman documents what is complete, what remains restricted, and what the next crew may rely on before the area is released."}`,
-      `Related tasks / interfaces: Coordinate with ${sentenceList(item.taskNames, "the steel-erection sequence")}, the crane crew, riggers, connectors, deck crews, and any follow-on trade affected by the handoff condition created by this task.`,
-      triggerLine,
+      `Task scope and sequence: ${summaryWithoutTrailingPeriod(item.summary)}. Review the sequence, access point, and handoff condition before the first crew member starts the task.`,
+      "Pre-start verification: Verify the sequence, support steel, access point, material staging, equipment, communications, and rescue path before work starts.",
+      ...planningItems,
+      "Required controls: Establish the work zone, maintain the sequence, control access, protect workers below, and keep the task stable for the next step before release.",
+      ...controlsItems,
+      "Permits and PPE: Confirm whether this task requires lift planning, hot-work approval, leading-edge release, engineered review, or owner authorization before work starts. Inspect task-specific PPE before use and do not proceed if required PPE is missing or damaged.",
+      ...permitsItems,
+      "Stop-work triggers: Stop work if the sequence changes without review, if support steel or access is not ready, if communications are lost, if required controls or permits are missing, or if the crew cannot maintain the planned stable condition. Restart only after the foreman or competent person re-verifies the work face and releases the next step.",
+      "Verification and handoff: Document the pre-task brief, inspections, permits, deviations, corrective actions, and handoff status for this task.",
+      ...closeoutItems,
+      `Related interfaces: Coordinate with ${sentenceList(item.taskNames, "the steel-erection sequence")}, the crane crew, riggers, connectors, deck crews, and any follow-on trade affected by the handoff condition created by this task.`,
     ],
   };
 }
 
 function buildSteelProgramModuleSubsection(item: SteelProgramModuleContextRow): GeneratedSafetyPlanSubsection {
   const parsed = parseReferencePackPlainText(item.plainText);
-  const rolesText = findReferencePackSectionText(parsed, ["Roles and Responsibilities"]);
-  const planningText = findReferencePackSectionText(parsed, [
-    "Required Pre-Task Steps and Field Procedure",
-    "Program Purpose and Applicability",
-  ]);
-  const documentationText = findReferencePackSectionText(parsed, [
-    "Documentation and Records",
-    "Review, Retraining, and Program Updates",
-  ]);
-  const triggerLine = referencePackTriggerLine(
-    `${referencePackInclusionReason(item.matchedReasons, "the current steel-erection scope").replace(/\.$/, "")}.`,
-    item.sectionHeadings
+  const planningItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /roles?/i,
+      /responsibilities/i,
+      /planning/i,
+      /pre-task/i,
+      /field procedure/i,
+      /purpose/i,
+      /applicability/i,
+    ])
+  );
+  const documentationItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /documentation/i,
+      /records?/i,
+      /review/i,
+      /retraining/i,
+      /updates?/i,
+      /permit/i,
+      /approval/i,
+    ])
   );
 
   return {
     title: item.title,
     body: buildModuleBody(item.summary, parsed),
     bullets: [
-      `Purpose: Use this high-risk program module to direct ${summaryWithoutTrailingPeriod(item.summary)}. The superintendent, foreman, and competent person assign ownership before the exposed work starts.`,
-      "Applicability / trigger logic: Apply this program before the first shift that exposes the crew to the covered condition and keep it active until the superintendent, foreman, or competent person formally releases the work face.",
-      `Pre-start verification: Verify responsible roles, communications, rescue or response path, equipment staging, permits, and the exact work face covered by the program before the shift starts. ${directiveSnippet(combineUniqueText(rolesText, planningText)) ?? "Do not proceed until program ownership, access limits, and the daily field procedure have been confirmed."}`,
-      `Required controls during the work: Establish the program boundary, maintain the assigned sequence, keep unauthorized personnel out of the area, and enforce the daily field procedure exactly as briefed. ${directiveSnippet(planningText, 240) ?? "Maintain the program controls until the exposed condition is closed and the area is formally released."}`,
-      "Required permits and PPE if triggered: Confirm whether this program requires a rescue plan, lift plan, hot-work permit, engineered approval, owner authorization, or specialty PPE before work starts. Inspect required PPE before use and do not proceed if permits, rescue capability, or PPE are missing or damaged.",
-      "Stop-work triggers / hold points: Stop work if the responsible roles are not staffed, if rescue or communication capability is unavailable, if access control fails, if the exposed condition changes without review, or if the program approvals are not active. Restart only after project leadership re-verifies the program and reauthorizes the work.",
-      `Verification / documentation: Document the daily brief, inspections, permit package, drill or rescue readiness, deviations, corrective actions, and release status for this program. ${directiveSnippet(documentationText) ?? "The superintendent, foreman, or competent person verifies the records before the next shift or follow-on crew proceeds."}`,
-      "Related tasks / interfaces: Coordinate this program with the steel-erection sequence, controlling contractor, crane and access crews, adjacent trades, and emergency responders supporting the exposed condition.",
-      triggerLine,
+      `Program scope: ${summaryWithoutTrailingPeriod(item.summary)}. The superintendent, foreman, and competent person assign ownership before the exposed work starts and keep the program active until the work face is formally released.`,
+      "Pre-start verification: Verify responsible roles, communications, rescue or response path, equipment staging, permits, and the exact work face covered by the program before the shift starts.",
+      ...planningItems,
+      "Required controls: Establish the program boundary, maintain the assigned sequence, keep unauthorized personnel out of the area, and enforce the daily field procedure exactly as briefed.",
+      "Permits and PPE: Confirm whether this program requires a rescue plan, lift plan, hot-work permit, engineered approval, owner authorization, or specialty PPE before work starts. Inspect required PPE before use and do not proceed if permits, rescue capability, or PPE are missing or damaged.",
+      "Stop-work triggers: Stop work if the responsible roles are not staffed, if rescue or communication capability is unavailable, if access control fails, if the exposed condition changes without review, or if the program approvals are not active. Restart only after project leadership re-verifies the program and reauthorizes the work.",
+      "Verification and handoff: Document the daily brief, inspections, permit package, drill or rescue readiness, deviations, corrective actions, and release status for this program.",
+      ...documentationItems,
+      "Related interfaces: Coordinate this program with the steel-erection sequence, controlling contractor, crane and access crews, adjacent trades, and emergency responders supporting the exposed condition.",
     ],
   };
 }
@@ -1161,10 +1398,7 @@ function buildTaskModulesReferenceSection(
   return {
     key: "task_modules_reference",
     title: "Task Modules Reference Pack",
-    body: appendInlineOsha(
-      "Task modules attached for the selected scope. This pack auto-applies when Site setup is selected in General Conditions / Site Management.",
-      inlineOshaRefs
-    ),
+    body: appendInlineOsha("Reference task modules supporting the selected scope.", inlineOshaRefs),
     subsections: taskModules.map((item) => buildControlModuleSubsection(item)),
   };
 }
@@ -1210,10 +1444,7 @@ function buildHazardModulesReferenceSection(
   return {
     key: "hazard_modules_reference",
     title: "Hazard Modules Reference Pack",
-    body: appendInlineOsha(
-      "Matched hazard modules attached for the current CSEP hazards, permits, tasks, and trade selection.",
-      inlineOshaRefs
-    ),
+    body: appendInlineOsha("Reference hazard modules supporting the selected hazards and permits.", inlineOshaRefs),
     subsections: hazardModules.map((item) =>
       buildHazardModuleSubsection(item, "the current CSEP scope")
     ),
@@ -1261,10 +1492,7 @@ function buildSteelTaskModulesReferenceSection(
   return {
     key: "steel_task_modules_reference",
     title: "Steel Erection Task Modules Reference Pack",
-    body: appendInlineOsha(
-      "Steel-erection task modules attached for the active sequence, pre-task planning, access, and handoff guidance.",
-      inlineOshaRefs
-    ),
+    body: appendInlineOsha("Reference steel-erection task modules supporting the active scope.", inlineOshaRefs),
     subsections: taskModules.map((item) => buildSteelTaskModuleSubsection(item)),
   };
 }
@@ -1308,10 +1536,7 @@ function buildSteelHazardModulesReferenceSection(
   return {
     key: "steel_hazard_modules_reference",
     title: "Steel Erection Hazard Modules Reference Pack",
-    body: appendInlineOsha(
-      "Matched steel-erection hazard modules attached for the current scope, hazards, permits, and high-risk focus areas.",
-      inlineOshaRefs
-    ),
+    body: appendInlineOsha("Reference steel-erection hazard modules supporting the active exposures.", inlineOshaRefs),
     subsections: hazardModules.map((item) =>
       buildHazardModuleSubsection(item, "the current steel-erection scope")
     ),
@@ -1357,10 +1582,7 @@ function buildSteelProgramModulesReferenceSection(
   return {
     key: "steel_program_modules_reference",
     title: "Steel Erection High-Risk Programs Reference Pack",
-    body: appendInlineOsha(
-      "Steel-erection high-risk program modules attached to supplement, not replace, the authored CSEP or PSHSEP program text.",
-      inlineOshaRefs
-    ),
+    body: appendInlineOsha("Reference high-risk program modules supporting the active steel-erection work.", inlineOshaRefs),
     subsections: programModules.map((item) => buildSteelProgramModuleSubsection(item)),
   };
 }
@@ -2246,6 +2468,17 @@ function buildTradeConflictCoordinationSection(
   };
 }
 
+function overlapCoordinationNarrative(
+  conflictCount: number,
+  interfaceTrades: string[]
+) {
+  if (conflictCount > 0 || interfaceTrades.length > 0) {
+    return "Coordinate overlapping work areas, access routes, permit ownership, protection below, and stop-work handoffs before affected crews begin work.";
+  }
+
+  return "Review overlapping work areas, access routes, permit ownership, and stop-work handoffs before affected crews begin work.";
+}
+
 export function buildFallbackNarratives(params: DraftParams) {
   const trades = dedupe(
     params.generationContext.operations.map(
@@ -2391,12 +2624,12 @@ function buildCsepSelectedSections(params: {
       body: appendInlineOsha(
         combineParagraphs(
           [
-            project.projectName
-              ? `Project ${project.projectName} is the active contractor planning record for this scope.`
+            project.projectName || project.projectAddress
+              ? `${project.projectName || "This project"}${project.projectAddress ? ` at ${project.projectAddress}` : ""} is the work site covered by this CSEP.`
               : null,
-            project.projectAddress ? `Work location: ${project.projectAddress}.` : null,
+            "This section identifies the project, location, and governing-site information used for field coordination.",
           ],
-          "Project details were not fully provided in the current builder payload."
+          "Project identification details were not fully provided in the current builder payload."
         ),
         params.inlineOshaRefs
       ),
@@ -2418,9 +2651,11 @@ function buildCsepSelectedSections(params: {
       body: combineParagraphs(
         [
           project.contractorCompany
-            ? `${project.contractorCompany} is the submitting contractor for this CSEP.`
+            ? `${project.contractorCompany} is responsible for performing the work covered by this CSEP in accordance with project requirements.`
             : null,
-          project.contractorContact ? `Primary contact: ${project.contractorContact}.` : null,
+          project.contractorContact
+            ? `Primary coordination contact: ${project.contractorContact}${project.contractorPhone ? `, ${project.contractorPhone}` : ""}${project.contractorEmail ? `, ${project.contractorEmail}` : ""}.`
+            : null,
         ],
         "Contractor contact details were not fully provided in the current builder payload."
       ),
@@ -2440,6 +2675,7 @@ function buildCsepSelectedSections(params: {
       body: appendInlineOsha(
         combineParagraphs(
           [
+            buildTradeScopeSummary(groupedTradePackages, activeScopeTasks, params.ruleSummary),
             tradeSummaryInput,
             params.narrativeSections.tradeBreakdownSummary,
           ],
@@ -2447,24 +2683,7 @@ function buildCsepSelectedSections(params: {
         ),
         params.inlineOshaRefs
       ),
-      table: {
-        columns: ["Trade", "Sub-trade", "Tasks", "Hazards", "Permits"],
-        rows: params.operations.length
-          ? params.operations.map((operation) => [
-              operation.tradeLabel ?? operation.tradeCode ?? "N/A",
-              operation.subTradeLabel ?? operation.subTradeCode ?? "N/A",
-              operation.taskTitle,
-              sentenceList(normalizeHazardList(operation.hazardCategories)),
-              sentenceList(normalizePermitList(operation.permitTriggers), "None"),
-            ])
-          : [[
-              scope.trades[0] ?? "N/A",
-              scope.subTrades[0] ?? "N/A",
-              sentenceList(activeScopeTasks, "N/A"),
-              sentenceList(normalizeHazardList(params.ruleSummary.hazardCategories)),
-              sentenceList(normalizePermitList(params.ruleSummary.permitTriggers), "None"),
-            ]],
-      },
+      table: null,
     },
     scope_of_work: {
       key: "scope_of_work",
@@ -2488,12 +2707,7 @@ function buildCsepSelectedSections(params: {
       title: CSEP_BUILDER_BLOCK_TITLES.site_specific_notes,
       body: appendInlineOsha(
         combineParagraphs(
-          [
-            siteNotesInput,
-            params.conflictMatrix.items.length
-              ? `Simultaneous operations require coordination across ${params.conflictMatrix.items.length} identified conflict point(s).`
-              : null,
-          ],
+          [siteNotesInput],
           "No additional site-specific notes were supplied."
         ),
         params.inlineOshaRefs
@@ -2567,9 +2781,7 @@ function buildCsepSelectedSections(params: {
           key: "common_overlapping_trades",
           title: CSEP_BUILDER_BLOCK_TITLES.common_overlapping_trades,
           body: appendInlineOsha(
-            params.conflictMatrix.items.length
-              ? `The conflict engine identified ${params.conflictMatrix.items.length} simultaneous-operation issue(s) that should be coordinated before work starts.`
-              : undefined,
+            overlapCoordinationNarrative(params.conflictMatrix.items.length, interfaceTrades),
             params.inlineOshaRefs
           ),
           bullets: overlapInput.length
@@ -2577,17 +2789,7 @@ function buildCsepSelectedSections(params: {
             : interfaceTrades.length
               ? interfaceTrades
               : undefined,
-          table: params.conflictMatrix.items.length
-            ? {
-                columns: ["Severity", "Type", "Scope", "Required Mitigations"],
-                rows: params.conflictMatrix.items.map((item) => [
-                  item.severity,
-                  item.type.replace(/_/g, " "),
-                  item.sourceScope.replace(/_/g, " "),
-                  sentenceList(item.requiredMitigations),
-                ]),
-              }
-            : null,
+          table: null,
         }
       : undefined,
     osha_references: hasOshaSectionContent

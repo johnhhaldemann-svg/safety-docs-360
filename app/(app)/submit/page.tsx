@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
@@ -20,10 +20,7 @@ import {
 import { getDocumentStatusLabel } from "@/lib/documentStatus";
 import type { PermissionMap } from "@/lib/rbac";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = getSupabaseBrowserClient();
 
 function formatRelative(timestamp?: string | null) {
   if (!timestamp) return "Recently";
