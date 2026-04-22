@@ -53,6 +53,7 @@ type DocumentItem = {
   marketplace_updated_by_email?: string | null;
   notes?: string | null;
   draft_file_path: string | null;
+  generated_document_id?: string | null;
   file_path?: string | null;
   final_file_path: string | null;
   reviewer_email: string | null;
@@ -109,19 +110,10 @@ function formatAbsolute(timestamp?: string | null) {
 function statusClasses(status?: string | null) {
   const normalized = status?.trim().toLowerCase();
 
-  if (normalized === "approved") {
-    return "border-emerald-500/30 bg-emerald-950/35 text-emerald-700";
-  }
-
-  if (normalized === "submitted") {
-    return "border-amber-500/35 bg-amber-950/40 text-amber-700";
-  }
-
-  if (normalized === "archived") {
-    return "border-slate-600 bg-slate-800/70 text-slate-300";
-  }
-
-  return "border-slate-700/80 bg-slate-950/50 text-slate-300";
+  if (normalized === "approved") return "app-badge-success";
+  if (normalized === "submitted") return "app-badge-warning";
+  if (normalized === "archived") return "app-badge-neutral";
+  return "app-badge-neutral";
 }
 
 function adminApiJsonErrorMessage(res: Response, rawText: string, parsed: unknown): string {
@@ -233,6 +225,7 @@ export default function ReviewDocumentPage() {
   const [generatingPreview, setGeneratingPreview] = useState(false);
   const [previewExcerptLoading, setPreviewExcerptLoading] = useState(false);
   const [fullFileDownloadLoading, setFullFileDownloadLoading] = useState(false);
+  const [regenerateDraftLoading, setRegenerateDraftLoading] = useState(false);
   const [excerptModal, setExcerptModal] = useState<{
     title: string;
     excerpt: string;
@@ -495,6 +488,52 @@ export default function ReviewDocumentPage() {
       setFullFileDownloadLoading(false);
     }
   }, [documentItem?.id, getAccessToken, setFeedbackMessage]);
+
+  const regenerateDraft = useCallback(async () => {
+    if (!documentItem?.id) {
+      return;
+    }
+
+    setRegenerateDraftLoading(true);
+
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`/api/admin/documents/${documentItem.id}/regenerate-draft`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const raw = await res.text();
+      type RegenerateDraftJson = { error?: string; success?: boolean };
+      let data: RegenerateDraftJson | null = null;
+      try {
+        data = raw ? (JSON.parse(raw) as RegenerateDraftJson) : null;
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        const message =
+          (data && typeof data.error === "string" && data.error) ||
+          (raw.trim() && !raw.trim().startsWith("<")
+            ? raw.trim().slice(0, 500)
+            : `Draft regeneration failed (HTTP ${res.status}).`);
+        throw new Error(message);
+      }
+
+      await loadDocument();
+      setFeedbackMessage("Draft regenerated from the saved AI draft.", "success");
+    } catch (error) {
+      setFeedbackMessage(
+        error instanceof Error ? error.message : "Draft regeneration failed.",
+        "error"
+      );
+    } finally {
+      setRegenerateDraftLoading(false);
+    }
+  }, [documentItem?.id, getAccessToken, loadDocument, setFeedbackMessage]);
 
   async function runGcReview(action: "approve" | "reject") {
     if (!documentItem?.id) {
@@ -1228,6 +1267,11 @@ export default function ReviewDocumentPage() {
   const canOpenPrimaryReviewFile = isGcProgramDoc
     ? Boolean(documentItem.file_path)
     : Boolean(documentItem.draft_file_path);
+  const canRegenerateStoredDraft =
+    !isGcProgramDoc &&
+    Boolean(documentItem.generated_document_id) &&
+    Boolean(documentItem.draft_file_path) &&
+    canApproveDocuments;
   const reviewNotesProvided = Boolean(reviewerEmail.trim() || reviewNotes.trim());
   const hasFinalFile = Boolean(documentItem.final_file_path);
   const marketplacePreviewPath = getMarketplacePreviewPath(documentItem.notes);
@@ -1348,6 +1392,22 @@ export default function ReviewDocumentPage() {
                       ? "Open full upload"
                       : "Download full draft"}
                 </button>
+                {!isGcProgramDoc ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void regenerateDraft();
+                    }}
+                    disabled={regenerateDraftLoading || !canRegenerateStoredDraft}
+                    className="rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-5 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-950/50 disabled:opacity-60"
+                  >
+                    {regenerateDraftLoading
+                      ? "Regenerating..."
+                      : canRegenerateStoredDraft
+                        ? "Regenerate draft"
+                        : "Regeneration unavailable"}
+                  </button>
+                ) : null}
               </>
             ) : null}
             <Link
@@ -1415,7 +1475,7 @@ export default function ReviewDocumentPage() {
             description="Document details, reviewer ownership, and current approval readiness."
             aside={
               <span
-                className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusClasses(documentItem.status)}`}
+                className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClasses(documentItem.status)}`}
               >
                 {documentItem.status || "unknown"}
               </span>
@@ -1513,6 +1573,20 @@ export default function ReviewDocumentPage() {
                         className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:opacity-60"
                       >
                         {fullFileDownloadLoading ? "Opening…" : "Download full draft"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void regenerateDraft();
+                        }}
+                        disabled={regenerateDraftLoading || !canRegenerateStoredDraft}
+                        className="rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-950/50 disabled:opacity-60"
+                      >
+                        {regenerateDraftLoading
+                          ? "Regenerating..."
+                          : canRegenerateStoredDraft
+                            ? "Regenerate draft"
+                            : "Regeneration unavailable"}
                       </button>
                     </>
                   )}
