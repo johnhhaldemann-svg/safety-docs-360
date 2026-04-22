@@ -83,6 +83,11 @@ type FixedSectionDefinition = {
   fallbackItems: (context: BuildCsepTemplateSectionsParams) => string[];
 };
 
+type ParsedSourceNumberedItem = {
+  title: string;
+  body: string;
+};
+
 const STYLE_IDS = {
   body: "CsepBody",
   coverTitle: "CsepCoverTitle",
@@ -101,6 +106,17 @@ const COLORS = {
   accentRed: "D63A34",
   gray: "7A7A7A",
   border: "C6D4E1",
+} as const;
+
+const INDENTS = {
+  numberedLeft: 180,
+  numberedHanging: 180,
+  childLeft: 540,
+  childHanging: 240,
+  childBodyLeft: 780,
+  grandchildLeft: 900,
+  grandchildHanging: 240,
+  grandchildBodyLeft: 1140,
 } as const;
 
 const FIXED_SECTION_DEFINITIONS: FixedSectionDefinition[] = [
@@ -346,6 +362,37 @@ function stripExistingNumberPrefix(value: string) {
     .replace(/^(Section\s+)?\d+(?:\.\d+)*\.?\s+/i, "")
     .replace(/^(Appendix\s+[A-Z])\.?\s+/i, "")
     .trim();
+}
+
+function stripSourceNumberingLabel(value?: string | null) {
+  const normalized = normalizeFinalExportText(value) ?? "";
+  return stripExistingNumberPrefix(normalized);
+}
+
+function parseSourceNumberedItem(value?: string | null): ParsedSourceNumberedItem | null {
+  const raw = value?.trim() ?? "";
+  if (!/^(Section\s+)?\d+(?:\.\d+)*\.?\s+/i.test(raw)) {
+    return null;
+  }
+
+  const withoutNumber = stripExistingNumberPrefix(raw);
+  if (!withoutNumber) {
+    return null;
+  }
+
+  const matched = withoutNumber.match(/^(.+?)(?:\s{2,}|:\s+)(.+)$/);
+  if (!matched) {
+    return null;
+  }
+
+  const [, rawTitle, rawBody] = matched;
+  const title = stripSourceNumberingLabel(rawTitle);
+  const body = normalizeFinalExportText(rawBody)?.trim() ?? "";
+  if (!title || !body) {
+    return null;
+  }
+
+  return { title, body };
 }
 
 function normalizeDisplayPrefix(value: string) {
@@ -1082,7 +1129,7 @@ function makeParagraph(children: TextRun[], options?: {
   spacing?: { before?: number; after?: number; line?: number };
   keepNext?: boolean;
   heading?: (typeof HeadingLevel)[keyof typeof HeadingLevel];
-  indent?: { left?: number };
+  indent?: { left?: number; hanging?: number };
 }) {
   return new Paragraph({
     style: options?.style,
@@ -1101,6 +1148,7 @@ function bodyParagraph(
     alignment?: (typeof AlignmentType)[keyof typeof AlignmentType];
     style?: string;
     spacing?: { before?: number; after?: number; line?: number };
+    indent?: { left?: number; hanging?: number };
   }
 ) {
   return makeParagraph(
@@ -1116,6 +1164,7 @@ function bodyParagraph(
       style: options?.style ?? STYLE_IDS.body,
       alignment: options?.alignment,
       spacing: options?.spacing,
+      indent: options?.indent,
     }
   );
 }
@@ -1166,7 +1215,13 @@ function subheading(text: string) {
   );
 }
 
-function numberedParagraph(numberLabel: string, text: string) {
+function numberedParagraph(
+  numberLabel: string,
+  text: string,
+  options?: {
+    indent?: { left?: number; hanging?: number };
+  }
+) {
   return makeParagraph(
     [
       new TextRun({
@@ -1184,7 +1239,7 @@ function numberedParagraph(numberLabel: string, text: string) {
     ],
     {
       style: STYLE_IDS.body,
-      indent: { left: 180 },
+      indent: options?.indent ?? { left: INDENTS.numberedLeft, hanging: INDENTS.numberedHanging },
     }
   );
 }
@@ -1534,8 +1589,42 @@ function shouldRenderSubheading(sectionTitle: string, subsection: CsepTemplateSu
 
 function appendParagraphs(children: Paragraph[], paragraphs?: string[]) {
   (paragraphs ?? []).forEach((paragraph) => {
-    children.push(bodyParagraph(paragraph));
+    children.push(bodyParagraph(stripSourceNumberingLabel(paragraph)));
   });
+}
+
+function appendIndentedParagraphs(
+  children: Paragraph[],
+  paragraphs: string[] | undefined,
+  indent: { left?: number; hanging?: number }
+) {
+  (paragraphs ?? []).forEach((paragraph) => {
+    children.push(
+      bodyParagraph(stripSourceNumberingLabel(paragraph), {
+        indent,
+      })
+    );
+  });
+}
+
+function splitStructuredSourceItems(values?: string[]) {
+  const structured: ParsedSourceNumberedItem[] = [];
+  const plain: string[] = [];
+
+  (values ?? []).forEach((value) => {
+    const parsed = parseSourceNumberedItem(value);
+    if (parsed) {
+      structured.push(parsed);
+      return;
+    }
+
+    const stripped = stripSourceNumberingLabel(value);
+    if (stripped) {
+      plain.push(stripped);
+    }
+  });
+
+  return { structured, plain };
 }
 
 function pageBreakParagraph() {
@@ -1574,6 +1663,8 @@ function renderSection(sectionNumber: number, section: CsepTemplateSection) {
     const distinctSubheading = shouldRenderSubheading(section.title, subsection);
     const renderMode =
       section.key === "definitions_and_abbreviations" ? "definitions" : "numbered";
+    const paragraphSplit = splitStructuredSourceItems(subsection.paragraphs);
+    const itemSplit = splitStructuredSourceItems(subsection.items);
 
     let subsectionLabel = basePrefix;
     let itemPrefixBase = basePrefix;
@@ -1582,14 +1673,57 @@ function renderSection(sectionNumber: number, section: CsepTemplateSection) {
       nestedSubsectionCount += 1;
       subsectionLabel = `${basePrefix}.${topLevelItemIndex + nestedSubsectionCount}`;
       itemPrefixBase = subsectionLabel;
-      children.push(subheading(`${subsectionLabel} ${stripExistingNumberPrefix(subsection.title)}`));
+      children.push(
+        numberedParagraph(subsectionLabel, stripExistingNumberPrefix(subsection.title), {
+          indent: { left: INDENTS.childLeft, hanging: INDENTS.childHanging },
+        })
+      );
     }
 
-    appendParagraphs(children, subsection.paragraphs);
+    if (distinctSubheading) {
+      appendIndentedParagraphs(children, paragraphSplit.plain, { left: INDENTS.childBodyLeft });
+    } else {
+      appendParagraphs(children, paragraphSplit.plain);
+    }
 
-    (subsection.items ?? []).forEach((item, itemIndex) => {
+    const structuredEntries = [...paragraphSplit.structured, ...itemSplit.structured];
+
+    structuredEntries.forEach((entry, entryIndex) => {
       if (distinctSubheading) {
-        children.push(numberedParagraph(`${itemPrefixBase}.${itemIndex + 1}`, item));
+        const childNumber = `${itemPrefixBase}.${entryIndex + 1}`;
+        children.push(
+          numberedParagraph(childNumber, entry.title, {
+            indent: { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging },
+          })
+        );
+        children.push(
+          bodyParagraph(entry.body, {
+            indent: { left: INDENTS.grandchildBodyLeft },
+          })
+        );
+        return;
+      }
+
+      topLevelItemIndex += 1;
+      children.push(
+        numberedParagraph(`${basePrefix}.${topLevelItemIndex}`, entry.title, {
+          indent: { left: INDENTS.childLeft, hanging: INDENTS.childHanging },
+        })
+      );
+      children.push(
+        bodyParagraph(entry.body, {
+          indent: { left: INDENTS.childBodyLeft },
+        })
+      );
+    });
+
+    itemSplit.plain.forEach((item, itemIndex) => {
+      if (distinctSubheading) {
+        children.push(
+          numberedParagraph(`${itemPrefixBase}.${structuredEntries.length + itemIndex + 1}`, item, {
+            indent: { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging },
+          })
+        );
       } else {
         topLevelItemIndex += 1;
         children.push(numberedParagraph(`${basePrefix}.${topLevelItemIndex}`, item));
@@ -1602,7 +1736,7 @@ function renderSection(sectionNumber: number, section: CsepTemplateSection) {
           children,
           subsection.table,
           itemPrefixBase,
-          (subsection.items ?? []).length,
+          structuredEntries.length + itemSplit.plain.length,
           { renderMode }
         );
       } else {

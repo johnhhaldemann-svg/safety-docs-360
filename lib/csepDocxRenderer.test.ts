@@ -280,13 +280,13 @@ describe("csepDocxRenderer", () => {
       expect(documentXml).toContain("This section establishes the contractor");
       expect(documentXml).toContain("1.1");
       expect(documentXml).toContain("1.2");
-      expect(documentXml).toContain("1.3 Resource Availability");
+      expect(documentXml).toMatch(/1\.3[\s\S]*Resource Availability/);
       expect(documentXml).toContain("1.3.1");
       expect(documentXml).toContain("Compliance documents readily available on site");
       expect(documentXml).not.toContain("1.2 Resource Availability");
     expect(documentXml).toContain("Appendix A. Forms and Permit Library");
     expect(documentXml).toContain("Disclaimer");
-    expect(documentXml).toContain("18.1 Activity Hazard Analysis Matrix");
+    expect(documentXml).toMatch(/18\.1[\s\S]*Activity Hazard Analysis Matrix/);
     expect(documentXml).toContain("18.1.1");
     expect(documentXml).toContain("Review lift path before each pick.");
     expect(documentXml).toContain("18.1.2");
@@ -398,6 +398,61 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).not.toContain("2.2.1 Sort members");
     expect(documentXml.match(/Unload steel/g)?.length ?? 0).toBe(1);
     expect(documentXml.match(/Sort members/g)?.length ?? 0).toBe(1);
+  });
+
+  it("renders nested source-numbered items as indented child paragraphs instead of inline parent text", async () => {
+    const model: CsepRenderModel = {
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      tradeLabel: "Steel Erection",
+      subTradeLabel: "Decking",
+      issueLabel: "April 20, 2026",
+      statusLabel: "Draft Issue",
+      preparedBy: "ABC Steel",
+      coverSubtitleLines: [],
+      coverMetadataRows: [],
+      approvalLines: [],
+      revisionHistory: [],
+      frontMatterSections: [],
+      sections: [
+        {
+          key: "related_considerations",
+          kind: "main",
+          title: "1.28.9 Related Considerations",
+          numberLabel: "1.28.9",
+          subsections: [
+            {
+              title: "Related Considerations",
+              paragraphs: [
+                "1.1 Task Scope and Work Conditions  Verify the active sequence, work area, support steel, and handoff assumptions before work starts.",
+                "1.2 Main Hazards  Review unstable access, shifting loads, changing weather, and interface risk before the crew proceeds.",
+              ],
+            },
+          ],
+        },
+      ],
+      appendixSections: [],
+      disclaimerLines: ["Generated draft disclaimer."],
+      filenameProjectPart: "Riverfront_Tower",
+    };
+
+    const rendered = await renderCsepRenderModel(model);
+    const { documentXml } = await unzipDocx(rendered.body);
+
+    expect(documentXml).toContain("1.28.9 Related Considerations");
+    expect(documentXml).toMatch(/1\.28\.9\.1[\s\S]*Task Scope and Work Conditions/);
+    expect(documentXml).toContain(
+      "Verify the active sequence, work area, support steel, and handoff assumptions before work starts."
+    );
+    expect(documentXml).toMatch(/1\.28\.9\.2[\s\S]*Main Hazards/);
+    expect(documentXml).toContain(
+      "Review unstable access, shifting loads, changing weather, and interface risk before the crew proceeds."
+    );
+    expect(documentXml).not.toContain("1.1 Task Scope and Work Conditions");
+    expect(documentXml).not.toContain("1.2 Main Hazards");
+    expect(documentXml).toContain('w:left="540"');
+    expect(documentXml).toContain('w:hanging="240"');
+    expect(documentXml).toContain('w:left="780"');
   });
 
   it("folds main-section lead narrative into numbered fallback formatting when structured content exists", () => {
