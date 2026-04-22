@@ -16,7 +16,7 @@ import {
   getSafetyBlueprintDraftFilename,
 } from "@/lib/safetyBlueprintLabels";
 import { buildStructuredCsepDraft } from "@/lib/csepBuilder";
-import { cleanFinalText, controlledTbd } from "@/lib/csepFinalization";
+import { cleanFinalText, controlledTbd, normalizeFinalExportText } from "@/lib/csepFinalization";
 import type { GeneratedSafetyPlanDraft, GeneratedSafetyPlanSection } from "@/types/safety-intelligence";
 
 export type CsepCoverMetadataRow = {
@@ -270,7 +270,7 @@ function valueOrNA(value?: string | null) {
 }
 
 function finalValueOrNA(value?: string | null) {
-  return cleanFinalText(value) ?? "N/A";
+  return normalizeFinalExportText(value) ?? "N/A";
 }
 
 function uniqueValues(values: Array<string | null | undefined>) {
@@ -291,7 +291,7 @@ function joinDisplayValues(values: Array<string | null | undefined>, fallback = 
 function sanitizeGeneratedText(value?: string | null) {
   if (!value) return "";
   return (
-    cleanFinalText(
+    normalizeFinalExportText(
       value
     .replace(/\bContractor Blueprint\b/g, CONTRACTOR_SAFETY_BLUEPRINT_TITLE)
     .replace(/\bSite Blueprint\b/g, CONTRACTOR_SAFETY_BLUEPRINT_TITLE)

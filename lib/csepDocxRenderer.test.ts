@@ -467,6 +467,30 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).not.toContain("SafetyDocs360 AI Draft Builder");
   });
 
+  it("normalizes internal automation labels before validating generated CSEP exports", async () => {
+    const draft = createGeneratedDraft();
+    draft.sectionMap.push({
+      key: "contractor_safety_policy_statement_generated",
+      title: "Contractor Safety Policy Statement",
+      subsections: [
+        {
+          title: "Receiving, Unloading, Inspecting and Staging Steel",
+          bullets: [
+            "Applicability / trigger logic: Apply this module whenever Unload steel, Sort members is in the work plan, when the crew changes phase.",
+          ],
+        },
+      ],
+    });
+
+    const rendered = await renderGeneratedCsepDocx(draft);
+    const { documentXml } = await unzipDocx(rendered.body);
+
+    expect(documentXml).toContain(
+      "This section applies when Unload steel, Sort members is in the work plan, when the crew changes phase."
+    );
+    expect(documentXml).not.toContain("Applicability / trigger logic");
+  });
+
   it("fails export when duplicate section numbers are present in the final model", async () => {
     const model: CsepRenderModel = {
       projectName: "Riverfront Tower",
