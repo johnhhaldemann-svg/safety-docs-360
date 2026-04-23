@@ -13,8 +13,6 @@ const COMMENTS_REL_TYPE =
   "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments";
 const COMMENTS_CONTENT_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml";
-const MIN_REVIEW_COMMENTS = 20;
-
 type XmlNodeLike = {
   nodeName?: string | null;
   textContent?: string | null;
@@ -81,7 +79,7 @@ function buildMatchTokens(text: string) {
     .slice(0, 18);
 }
 
-function paragraphScore(paragraphText: string, finding: BuilderProgramAiReviewFinding) {
+function paragraphScore(paragraphText: string, finding: ReviewCommentTarget) {
   const paragraphLower = paragraphText.toLowerCase();
   const exampleText = normalizeWhitespace(finding.documentExample.replace(/\.\.\./g, " "));
   const exampleLower = exampleText.toLowerCase();
@@ -141,57 +139,6 @@ function findingToCommentTarget(finding: BuilderProgramAiReviewFinding): ReviewC
   };
 }
 
-function inferSectionLabelFromText(text: string) {
-  const lower = normalizeWhitespace(text).toLowerCase();
-  if (!lower) return "Document Review";
-  if (lower.includes("emergency") || lower.includes("911") || lower.includes("incident")) {
-    return "Emergency Procedures";
-  }
-  if (lower.includes("rescue") || lower.includes("fall")) {
-    return "Fall Rescue";
-  }
-  if (lower.includes("permit") || lower.includes("hot work") || lower.includes("lift plan")) {
-    return "Permit Requirements";
-  }
-  if (lower.includes("training") || lower.includes("orientation") || lower.includes("competent")) {
-    return "Training Requirements";
-  }
-  if (lower.includes("inspection") || lower.includes("checklist") || lower.includes("audit")) {
-    return "Inspection and Verification";
-  }
-  if (lower.includes("ppe") || lower.includes("hard hat") || lower.includes("gloves")) {
-    return "PPE Requirements";
-  }
-  if (lower.includes("hazard") || lower.includes("control") || lower.includes("risk")) {
-    return "Hazard Controls";
-  }
-  if (lower.includes("scope") || lower.includes("task") || lower.includes("trade")) {
-    return "Scope of Work";
-  }
-  if (lower.includes("environment") || lower.includes("spill") || lower.includes("waste")) {
-    return "Environmental Controls";
-  }
-  if (lower.includes("quality") || lower.includes("placeholder") || lower.includes("draft")) {
-    return "Document Quality";
-  }
-  return "Document Review";
-}
-
-function supplementalTextToCommentTarget(
-  text: string,
-  preferredExample: string,
-  reviewerNote?: string
-): ReviewCommentTarget {
-  const sectionLabel = inferSectionLabelFromText(text);
-  return {
-    sectionLabel,
-    issue: text,
-    documentExample: text,
-    preferredExample,
-    reviewerNote: reviewerNote ?? preferredExample,
-  };
-}
-
 function buildCommentTargets(review: BuilderProgramAiReview) {
   const targets: ReviewCommentTarget[] = [];
   const seen = new Set<string>();
@@ -206,57 +153,12 @@ function buildCommentTargets(review: BuilderProgramAiReview) {
   }
 
   for (const finding of review.detailedFindings) {
+    if (finding.sentiment === "positive") continue;
     const target = findingToCommentTarget(finding);
     const key = `${target.sectionLabel.toLowerCase()}::${normalizeWhitespace(target.issue).toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
     targets.push(target);
-  }
-
-  const supplementalItems = [
-    ...(review.missingItemsChecklist ?? []),
-    ...(review.recommendedEditsBeforeApproval ?? []),
-    ...(review.documentQualityIssues ?? []),
-    ...(review.checklistDelta ?? []),
-    ...(review.builderAlignmentNotes ?? []),
-  ];
-
-  for (const item of supplementalItems) {
-    const target = supplementalTextToCommentTarget(
-      item,
-      item,
-      "Tighten this section so the final document addresses this point clearly."
-    );
-    const key = `${target.sectionLabel.toLowerCase()}::${normalizeWhitespace(target.issue).toLowerCase()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    targets.push(target);
-  }
-
-  if (targets.length < MIN_REVIEW_COMMENTS) {
-    for (const note of review.sectionReviewNotes) {
-      if (targets.length >= MIN_REVIEW_COMMENTS) break;
-      const variants = [
-        supplementalTextToCommentTarget(
-          `${note.sectionLabel}: ${note.whatNeedsWork}`,
-          note.suggestedBuilderTarget,
-          note.whatNeedsWork
-        ),
-        supplementalTextToCommentTarget(
-          `${note.sectionLabel}: ${note.suggestedBuilderTarget}`,
-          note.suggestedBuilderTarget,
-          "Use this as the target structure for the section."
-        ),
-      ];
-
-      for (const target of variants) {
-        if (targets.length >= MIN_REVIEW_COMMENTS) break;
-        const key = `${target.sectionLabel.toLowerCase()}::${normalizeWhitespace(target.issue).toLowerCase()}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        targets.push(target);
-      }
-    }
   }
 
   return targets;
@@ -265,10 +167,17 @@ function buildCommentTargets(review: BuilderProgramAiReview) {
 function composeCommentText(target: ReviewCommentTarget, _index: number) {
   return formatCsepFindingNote({
     sectionLabel: target.sectionLabel,
+    sentiment: "negative",
     issue: `${target.sectionLabel}: ${target.issue}`,
+    problem: target.issue,
     documentExample: target.documentExample,
     preferredExample: target.preferredExample,
     reviewerNote: target.reviewerNote,
+    requiredOutput: target.preferredExample,
+    acceptanceCheck:
+      "The updated paragraph is specific to the actual work, matches the section intent, and reads like final issue language.",
+    doNot:
+      "Do not leave this as a generic note, checklist fragment, or placeholder statement that is not tied to the paragraph.",
     referenceSupport: target.referenceSupport,
     whyItMatters: target.whyItMatters,
   });
@@ -301,15 +210,7 @@ function findBestParagraphIndex(
   if (headingIndex >= 0) {
     return headingIndex;
   }
-
-  const nextUnusedIndex = paragraphTexts.findIndex(
-    (_paragraphText, index) => !usedParagraphIndexes.has(index)
-  );
-  if (nextUnusedIndex >= 0) {
-    return nextUnusedIndex;
-  }
-
-  return paragraphTexts.length ? paragraphTexts.length - 1 : 0;
+  return -1;
 }
 
 function ensureCommentsDocument(zip: JSZip) {
@@ -424,6 +325,7 @@ export async function annotateCsepReviewDocx(params: {
   const usedParagraphIndexes = new Set<number>();
   for (const target of commentTargets) {
     const bestIndex = findBestParagraphIndex(paragraphTexts, target, usedParagraphIndexes);
+    if (bestIndex < 0) continue;
     usedParagraphIndexes.add(bestIndex);
     commentPlacements.push({ paragraphIndex: bestIndex, target });
   }

@@ -124,6 +124,11 @@ export default function SuperadminCsepCompletenessReviewPage() {
       .join(" ");
   }, [siteExtraction]);
 
+  const complianceSummary = useMemo(() => {
+    if (!review) return null;
+    return review.complianceSummary;
+  }, [review]);
+
   useEffect(() => {
     void (async () => {
       try {
@@ -515,6 +520,43 @@ export default function SuperadminCsepCompletenessReviewPage() {
                     <InlineMessage tone={review.overallAssessment === "sufficient" ? "success" : "warning"}>
                       {review.executiveSummary}
                     </InlineMessage>
+                    {complianceSummary ? (
+                      <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white p-4 shadow-[var(--app-shadow-soft)]">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold text-[var(--app-text-strong)]">
+                              Compliance coverage
+                            </div>
+                            <p className="mt-1 text-sm text-[var(--app-text)]">
+                              Weighted from the section audit below: present sections count fully, partial sections count halfway.
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">
+                              {complianceSummary.compliancePercent}%
+                            </div>
+                            <p className="mt-1 text-xs text-[var(--app-text)]">
+                              {complianceSummary.totalSections} audited section
+                              {complianceSummary.totalSections === 1 ? "" : "s"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <StatusBadge
+                            label={`${complianceSummary.presentCount} present`}
+                            tone="success"
+                          />
+                          <StatusBadge
+                            label={`${complianceSummary.partialCount} partial`}
+                            tone="info"
+                          />
+                          <StatusBadge
+                            label={`${complianceSummary.missingCount} missing`}
+                            tone="warning"
+                          />
+                        </div>
+                      </div>
+                    ) : null}
                     <Bucket
                       title="Missing items checklist"
                       items={review.missingItemsChecklist}

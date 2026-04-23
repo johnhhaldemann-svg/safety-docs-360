@@ -79,6 +79,10 @@ describe("/api/superadmin/csep-completeness-review", () => {
           {
             sectionLabel: "Scope of Work",
             status: "missing",
+            problem: "Scope of Work is not present in the body of the CSEP.",
+            requiredOutput: "Insert a Scope of Work section that describes the exact self-performed work and excluded interface trades.",
+            acceptanceCheck: "Scope of Work lists the active tasks grouped under the correct trade.",
+            doNot: "Do not include tasks from other trades.",
             whatWasFound: "No clear scope section was confirmed.",
             whatNeedsWork: "Add a dedicated scope section with self-performed work only.",
             suggestedBuilderTarget:
@@ -88,14 +92,26 @@ describe("/api/superadmin/csep-completeness-review", () => {
         detailedFindings: [
           {
             sectionLabel: "Emergency Procedures",
+            sentiment: "negative",
+            problem: "Emergency Procedures does not contain 911 wording or responder access.",
+            requiredOutput: "Replace the emergency paragraph with: 'Call 911, direct responders to Gate 2, and notify the superintendent.'",
+            acceptanceCheck: "Emergency Procedures contains 911 wording, responder gate, and named contact.",
+            doNot: "Do not leave emergency content as a generic paragraph.",
             issue: "Emergency content is too thin.",
             documentExample: "No clear 911 wording was found.",
             preferredExample: "Call 911, direct responders to Gate 2, and notify the superintendent.",
-            reviewerNote: "Match the builder's emergency package before issue.",
+            reviewerNote: "Insert the 911 wording and responder gate above.",
           },
         ],
         checklistDelta: ["Training evidence is weak."],
         overallAssessment: "needs_work",
+        complianceSummary: {
+          compliancePercent: 25,
+          presentCount: 0,
+          partialCount: 1,
+          missingCount: 1,
+          totalSections: 2,
+        },
       },
       disclaimer: "Internal only.",
       extraction: { ok: true, method: "pdf-text", truncated: false, annotations: [] },
@@ -129,6 +145,7 @@ describe("/api/superadmin/csep-completeness-review", () => {
     expect(body.review.missingItemsChecklist).toEqual([
       "Could not verify rescue equipment staging.",
     ]);
+    expect(body.review.complianceSummary.compliancePercent).toBe(25);
   });
 
   it("allows internal reviewers through the API route", async () => {
@@ -177,6 +194,10 @@ describe("/api/superadmin/csep-completeness-review", () => {
           {
             sectionLabel: "Emergency Procedures",
             status: "partial",
+            problem: "Emergency Procedures has some text but does not name 911 wording, responder access, or assembly area.",
+            requiredOutput: "Insert 911 wording, named site contact, responder gate, and assembly area as a labeled subsection.",
+            acceptanceCheck: "Emergency Procedures contains 911 wording, named contact, responder gate, and assembly area.",
+            doNot: "Do not leave 911 wording or responder access as placeholders.",
             whatWasFound: "Some emergency text is present, but it is thin.",
             whatNeedsWork: "Expand responder access and reporting steps.",
             suggestedBuilderTarget:
@@ -186,14 +207,26 @@ describe("/api/superadmin/csep-completeness-review", () => {
         detailedFindings: [
           {
             sectionLabel: "Emergency Procedures",
+            sentiment: "negative",
+            problem: "Emergency Procedures does not show the site phone number or named site supervision contact.",
+            requiredOutput: "Replace the emergency paragraph with: 'Call 911, notify site supervision, and meet responders at the main gate.'",
+            acceptanceCheck: "Emergency Procedures contains 911, named supervision contact, and the responder gate.",
+            doNot: "Do not leave the emergency phone number as a placeholder.",
             issue: "Emergency content is too thin.",
             documentExample: "Emergency phone number not shown.",
             preferredExample: "Call 911, notify site supervision, and meet responders at the main gate.",
-            reviewerNote: "Add site access wording before approval.",
+            reviewerNote: "Insert the 911 / supervision / gate wording above.",
           },
         ],
         checklistDelta: [],
         overallAssessment: "needs_work",
+        complianceSummary: {
+          compliancePercent: 50,
+          presentCount: 0,
+          partialCount: 1,
+          missingCount: 0,
+          totalSections: 1,
+        },
       },
       disclaimer: "Internal only.",
       extraction: { ok: true, method: "docx-text", truncated: false, annotations: [] },
