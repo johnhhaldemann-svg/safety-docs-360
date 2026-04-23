@@ -1306,12 +1306,22 @@ function mergeGeneratedSafetyPlanSections(group: GeneratedSafetyPlanSection[]): 
   const allBullets = uniqueItems(group.flatMap((s) => s.bullets ?? []));
   const summaryParts = group.map((s) => s.summary).filter((v): v is string => Boolean(v?.trim()));
   const bodyParts = group.map((s) => s.body).filter((v): v is string => Boolean(v?.trim()));
+  const nk = normalizeToken(first.key ?? "");
+  const mergedBullets =
+    nk === "required ppe" && allBullets.length ? normalizePpeList(allBullets) : allBullets;
+  const mergedSubsections =
+    nk === "required ppe" && allSubs.length
+      ? allSubs.map((sub) => ({
+          ...sub,
+          bullets: sub.bullets?.length ? normalizePpeList(sub.bullets) : sub.bullets,
+        }))
+      : allSubs;
   return {
     ...first,
     summary: summaryParts.length ? summaryParts.join("\n\n") : first.summary,
     body: bodyParts.length ? bodyParts.join("\n\n") : first.body,
-    bullets: allBullets.length ? allBullets : first.bullets,
-    subsections: allSubs.length ? allSubs : first.subsections,
+    bullets: mergedBullets.length ? mergedBullets : first.bullets,
+    subsections: mergedSubsections.length ? mergedSubsections : first.subsections,
   };
 }
 
@@ -2085,9 +2095,9 @@ function synthesizeScopeSubsections(
   }
   const siteBody = siteBodyParts.length
     ? siteBodyParts.join(" ")
-    : steelErectionScope
-      ? "[Add site facts only—no generic scope filler.] For example: pick/staging zones and swing limits, occupied-floor tie-ins, access routes, weather/wind or lightning holds, and restricted or release-controlled areas. Do not restate the task list here."
-      : "[Add when known.] Laydown limits, delivery routes, gate rules, after-hours work, and occupied-area or sequencing constraints. Omit this block in the final issue if not applicable (avoid restating the task list).";
+      : steelErectionScope
+      ? "[Add field-verified site facts; no task-list filler.] E.g. crane pad/swing, laydown and closed roads, max wind/lightning for picks, column-line or deck-edge holds, hoisting with occupied floors below, muck or mat limits. Tie to the lift and steel plan in §11."
+      : "[Add when known.] Laydown limits, delivery routes, gate rules, after-hours work, and occupied-area or sequencing constraints. Omit in the final issue if N/A (do not restate the task list).";
 
   return [
     {
@@ -2110,7 +2120,7 @@ function riskDedupeKey(value: string) {
 }
 
 const SCOPE_NARRATIVE_EXCLUSION =
-  /\b(iipp\b|injury\s+and\s+illness|illness prevention|health and wellness|wellness program|incident report|incident reporting|incident investigation|drug[-\s]?|alcohol testing|substance|fit[-\s]?for[-\s]?duty|enforcement program|corrective action accountability)\b/i;
+  /\b(iipp\b|injury\s+and\s+illness|illness prevention|health and wellness|wellness program|incident report|incident reporting|incident investigation|drug[-\s]?|alcohol testing|substance|fit[-\s]?for[-\s]?duty|enforcement program|corrective action accountability|hazard communication|hazcom|\bsds\b|sanitation|housekeeping program|toolbox|audits?\s|monitoring program|sub[-\s]?tier|training record)\b/i;
 
 const SECURITY_NON_OWNER =
   /(\b(?:final|torque|bolt[-\s]?up|weld|shear connector|steel execution|erection release|ncr|shop drawing)\b)/i;
@@ -2188,7 +2198,7 @@ function filterSecurityAtSiteSubsections(subsections: CsepTemplateSubsection[]):
 }
 
 const DISCIPLINARY_NON_OWNER_LINE =
-  /\b(work\s+attire|toolbox|audit|close[-\s]?out|checklist|inspection\s+sheet|contractor\s+monitor(ing)?|kpi|training\s+record|sub[-\s]?tier|ppe\s+matrix|hazard\s+module)\b/i;
+  /\b(work\s+attire|sanitation|hygiene|toolbox|audit|close[-\s]?out|checklist|inspection\s+sheet|contractor\s+monitor(ing)?|kpi|training\s+record|sub[-\s]?tier|ppe\s+matrix|hazard\s+module|housekeeping|environmental|stormwater)\b/i;
 
 function filterDisciplinaryLine(text: string) {
   const s = text.trim();
@@ -2367,14 +2377,14 @@ function synthesizeIippSubsections(): CsepTemplateSubsection[] {
     {
       title: "IIPP / Emergency Response",
       items: [
-        "Immediate reporting: Injuries, illnesses, near misses, property or environmental loss, and security-related events are reported to site supervision without delay; recordable and owner/GC notification rules are followed for each case type.",
-        "Scene control: Stop the unsafe condition, secure energy sources when applicable, keep unnecessary personnel out, preserve the area for photos and witness names, and hand off to medical or fire/EMS per the event.",
-        "Medical response: Provide or arrange first aid; obtain professional care for serious injury; for suspension or fall arrest, do not perform improvised rescue outside trained procedures and the site plan.",
-        "Emergency notification: Workers know how to place a 911 or site-medic call from the work face, the project address, and access gate; after-hours escalation paths are defined for key contacts.",
-        "Investigation: Supervision begins a fact-based review, identifies immediate contributing factors, and documents corrective actions; lessons learned are shared with affected crews.",
-        "Corrective action and follow-up: Deficiencies are tracked to closure with responsible parties and dates; repeat findings trigger stronger controls or retraining before work continues.",
-        "Restart conditions: Work resumes only when the hazard is abated, permits are re-validated, and the qualified competent person (or owner process) approves the restart in writing when required.",
-        "Severe events: Weather, fire, utility strike, or structural alert triggers muster, roll-call, and directed evacuation or shelter; return only after the incident commander or GC releases the area.",
+        "Report: Injuries, illnesses, near misses, and significant property or environmental loss to supervision immediately; use recordable and owner/GC notification rules for each type.",
+        "Control the scene: Stop the unsafe act or condition, isolate energy when needed, limit access, preserve evidence, support EMS.",
+        "Medical / rescue: First aid and EMS per site plan; no improvised fall-arrest rescue outside trained, equipped procedures.",
+        "Notify: Workers know how to reach 911 / site medic, give the project address, and use after-hours escalation when required.",
+        "Investigate: Document facts, causes, and corrective actions; share lessons with affected crews; track repeat trends.",
+        "Close the loop: Assign owners and dates; verify fixes in the field; retain training/visit records as the program requires.",
+        "Restart: When hazards are abated, permits revalidated, and the competent person (or owner process) approves in writing if required.",
+        "Major events: Muster, roll-call, evacuate or shelter for weather, fire, utility, or structural emergencies; re-enter only when released.",
       ],
     },
   ];
@@ -2418,13 +2428,10 @@ function buildHazardCrossReference(value: string) {
   ) {
     return "Follow the project-wide Site Access, Laydown, and Traffic Control requirements in the Security at Site section.";
   }
-  if (
-    normalized.includes("discipline") ||
-    normalized.includes("enforcement") ||
-    normalized.includes("drug") ||
-    normalized.includes("alcohol") ||
-    normalized.includes("fit for duty")
-  ) {
+  if (normalized.includes("drug") || normalized.includes("alcohol") || normalized.includes("substance") || normalized.includes("fit for duty")) {
+    return "Follow the project IIPP / Emergency Response requirements defined in the IIPP / Emergency Response section.";
+  }
+  if (normalized.includes("discipline") || normalized.includes("enforcement") || normalized.includes("unsafe act")) {
     return "Follow the project Disciplinary Program requirements defined in the Disciplinary Program section.";
   }
   if (

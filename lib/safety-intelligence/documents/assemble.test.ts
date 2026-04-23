@@ -679,7 +679,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       structuredDraft.sectionMap.find((section) => section.key === "contractor_iipp")
     ).toMatchObject({
       body: expect.stringMatching(
-        /The contractor shall maintain an active injury and illness prevention workflow[\s\S]*incident response[\s\S]*fall from height is a major ongoing project risk/i
+        /The contractor shall maintain an active injury and illness prevention workflow[\s\S]*structural steel in scope[\s\S]*high-priority report and investigation triggers/i
       ),
       subsections: expect.arrayContaining([
         expect.objectContaining({
@@ -899,7 +899,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       table: null,
     });
     expect(overlapSection?.body).toContain(
-      "Coordinate overlapping work areas, access routes, permit ownership, protection below, and stop-work handoffs before affected crews begin work."
+      "Coordinate overlapping work areas, workfront access, permit ownership, protection below, and stop-work handoffs before affected crews begin work."
     );
     expect(overlapSection?.body).toContain("structural steel erection");
     expect(overlapSection?.subsections?.length).toBe(16);

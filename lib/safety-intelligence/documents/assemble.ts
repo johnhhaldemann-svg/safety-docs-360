@@ -2271,6 +2271,40 @@ function partitionCsepWeatherInput(values: string[]) {
   return { monitoring, communication, other, skippedEnvironmental };
 }
 
+/**
+ * When builder weather text includes explicit lightning numbers, use them so 9.3
+ * does not contradict other lines in the same section.
+ */
+function parseLightningStopRadiusMilesFromWeatherInput(values: string[]): number | null {
+  for (const raw of values) {
+    const line = (cleanFinalText(String(raw)) ?? "").trim();
+    if (!line) continue;
+    const m = line.match(
+      /lightning(?:\s+stop)?(?:\s+work)?\s+radius[^0-9]{0,48}(\d+(?:\.\d+)?)\s*(?:mile|miles|mi)\b/i
+    );
+    if (m) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n) && n > 0 && n < 200) return n;
+    }
+  }
+  return null;
+}
+
+function parseLightningAllClearMinutesFromWeatherInput(values: string[]): number | null {
+  for (const raw of values) {
+    const line = (cleanFinalText(String(raw)) ?? "").trim();
+    if (!line) continue;
+    const m = line.match(
+      /lightning\s+all[-\s]?clear[^0-9]{0,48}(\d+(?:\.\d+)?)\s*(?:minute|minutes|min)\b/i
+    );
+    if (m) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n) && n > 0 && n < 180) return n;
+    }
+  }
+  return null;
+}
+
 function humanizeCode(value: string) {
   return value
     .replace(/_/g, " ")
@@ -3508,7 +3542,12 @@ function buildCsepSelectedSections(params: {
           key: "selected_hazards",
           title: CSEP_BUILDER_BLOCK_TITLES.selected_hazards,
           body: appendInlineOsha(
-            params.narrativeSections.riskPrioritySummary,
+            combineParagraphs(
+              [params.narrativeSections.riskPrioritySummary, APPENDIX_E_TASK_HAZARD_CONTROL_MATRIX_REF].filter(
+                (p): p is string => Boolean(p?.trim())
+              ),
+              `Hazard themes and control direction for the active scope. ${APPENDIX_E_TASK_HAZARD_CONTROL_MATRIX_REF}`
+            ),
             params.inlineOshaRefs
           ),
           subsections: groupedTradePackages.length
@@ -3597,6 +3636,11 @@ function buildCsepSelectedSections(params: {
       ["Worker access", "Verify orientation, badging, and daily work assignment before entry.", "Superintendent / Foreman"],
       ["Visitor escort", "Escort non-crew personnel and confirm site-specific orientation before entry into active work areas.", "Foreman / Receiving Lead"],
       ["Restricted areas", generalRestrictedAreaDescription, "Competent Person"],
+      [
+        "CAZ / leading-edge and deck access",
+        "Control zones for decking, leading edges, and steel access follow the project fall-protection and steel plan (flags, barricades, or controlled decking zones as applicable). Do not remove or change limits without a competent-person re-brief; site gates and traffic routing stay under access and delivery rules here.",
+        "Competent person / foreman",
+      ],
       ["End-of-shift security", "Secure tools, materials, permits, and access points before turnover.", "Crew Lead"],
     ] satisfies string[][];
 
@@ -3653,9 +3697,9 @@ function buildCsepSelectedSections(params: {
       params.operations
     );
     const iippBodyLead =
-      "The contractor shall maintain an active injury and illness prevention workflow covering incident response, corrective action, and worker accountability. Fit-for-duty, substance, and site-access expectations are in the subsections below so they are not repeated between 6.3 Drug, Alcohol, and Fit-for-Duty Controls and 6.4 Enforcement and Corrective Action.";
+      "The contractor shall maintain an active injury and illness prevention workflow: reporting, training and records, monitoring, incident response, and corrective follow-up. Fit-for-duty, substance, and work-attire expectations are in the subsections below; enforcement and accountability are in the Disciplinary Program section when that block is included separately.";
     const iippSteelRisk = steelErectionInScope
-      ? " For the active structural steel or steel erection trade scope, fall from height is a major ongoing project risk. Incident and investigation requirements in subsections 5.7.1 through 5.7.6 apply in full, with fall-related and fall-arrest events treated as primary report and review triggers when they occur on site."
+      ? " For structural steel in scope, treat falls, struck-by in the load path, and fall-arrest / rescue events as high-priority report and investigation triggers in the IIPP flow below (see also Hazards and Controls for task controls)."
       : "";
     const drugAlcohol = buildStandaloneSubsectionContent({
       title: "Drug, Alcohol, and Fit-for-Duty Controls",
@@ -3726,7 +3770,7 @@ function buildCsepSelectedSections(params: {
       title: hazFormat.title,
       body: combineParagraphs(
         [hazcomInput],
-        "This section is the project Hazard Communication (HazCom) program for chemicals and hazardous materials. Life-safety emergency response, evacuation, and posted emergency numbers are in Section 6.0. Environmental compliance for stormwater, site waste, and agency-reportable releases is in Section 11.0. Do not duplicate those programs here."
+        "Hazard Communication (HazCom) for chemicals: SDS, labeling, inventory, and worker chemical awareness. Life-safety emergency response and medical escalation are in IIPP / Emergency Response—do not restate the full emergency program here. Stormwater, site waste, and reportable environmental releases are covered under environmental / site programs—HazCom still governs SDS, labels, and chemical awareness."
       ),
       subsections: [
         {
@@ -3752,7 +3796,7 @@ function buildCsepSelectedSections(params: {
           body: "Each employer or trade bringing chemicals to the site coordinates with the GC/CM or designated competent person for compatible storage, quantity limits, and special posting. Damaged, bulging, or leaking containers are reported at once, isolated, and managed under SDS, owner, and regulatory expectations.",
           bullets: [
             "Notify the site when bringing regulated quantities, cylinder gases, or unusual materials so permits, hot-work separation, and fire protections stay valid.",
-            "For leaks: protect personnel, control ignition sources, use compatible absorbent or containment from the spill cart, and escalate per Section 6.0 and Section 11.0 if the release leaves the immediate work area, enters soil or water, or exceeds workers’ training.",
+            "For leaks: protect personnel, control ignition sources, use compatible absorbent or containment from the spill cart, and escalate per IIPP / Emergency Response and environmental / site release rules if the release leaves the work face, enters soil or water, or exceeds workers’ training.",
           ],
         },
       ],
@@ -3762,6 +3806,23 @@ function buildCsepSelectedSections(params: {
   if (selectedFormatSections.has("weather_requirements_and_severe_weather_response")) {
     const wxFormat = getCsepFormatDefinition("weather_requirements_and_severe_weather_response");
     const wxPart = partitionCsepWeatherInput(weatherInput);
+    const legacySnapshot = (params.generationContext.legacyFormSnapshot ?? null) as Record<string, unknown> | null;
+    const lrLegacy =
+      legacySnapshot && typeof legacySnapshot["lightningRadiusMiles"] === "number"
+        ? (legacySnapshot["lightningRadiusMiles"] as number)
+        : legacySnapshot && typeof legacySnapshot["lightningStopRadiusMiles"] === "number"
+          ? (legacySnapshot["lightningStopRadiusMiles"] as number)
+          : null;
+    const acLegacy =
+      legacySnapshot && typeof legacySnapshot["lightningAllClearMinutes"] === "number"
+        ? (legacySnapshot["lightningAllClearMinutes"] as number)
+        : null;
+    const parsedMiles = parseLightningStopRadiusMilesFromWeatherInput(weatherInput);
+    const parsedClear = parseLightningAllClearMinutesFromWeatherInput(weatherInput);
+    const lightningMiles =
+      lrLegacy != null && Number.isFinite(lrLegacy) ? lrLegacy : (parsedMiles ?? 20);
+    const lightningAllClear =
+      acLegacy != null && Number.isFinite(acLegacy) ? acLegacy : (parsedClear ?? 30);
     const sectionLead = combineParagraphs(
       [
         params.generationContext.siteContext.weather?.summary ?? null,
@@ -3771,10 +3832,10 @@ function buildCsepSelectedSections(params: {
               .join(", ")}.`
           : null,
         wxPart.skippedEnvironmental
-          ? "Builder lines beginning with 'Environmental control:' are handled in Section 11.0 (Environmental Controls), not restated in this section."
+          ? "Builder lines beginning with 'Environmental control:' belong under environmental execution / site waste programs, not restated here."
           : null,
       ],
-      "This section governs how crews coordinate in the field for weather, heat, cold, fire prevention, and housekeeping. It supplements—but does not replace—Section 6.0 (emergency and evacuation programs) and Section 8.0 (HazCom and SDS for chemicals)."
+      "Field coordination for weather, heat, cold, fire prevention, and housekeeping. Lightning stop radius and all-clear timing are defined only in subsection 9.3 (single source). Cross-read IIPP / Emergency Response for full emergency/medical flow and HazCom for chemical-specific response."
     );
     const monCommBody = [
       wxPart.monitoring.length
@@ -3788,8 +3849,7 @@ function buildCsepSelectedSections(params: {
       .join(" ");
 
     const defaultStopWorkBullets = [
-      "Suspend exposed work, hoisting, and elevated work when wind, lightning, or storm conditions exceed the plan, manufacturer limits, or site rules; secure loads and access routes as needed.",
-      "Enforce the site lightning or high-wind all-clear and restart sequence before crews leave shelter or re-establish work at height.",
+      "Stop or change work when wind, storm, heat/cold, or site conditions exceed the plan, manufacturer limits, or site rules; secure loads and travel paths. Do not restate lightning radius or all-clear here—use 9.3 only.",
       "Reassess slings, sheeting, barriers, and temporary power after severe wind or water intrusion before the next shift.",
     ];
     const stopWorkBullets =
@@ -3802,7 +3862,7 @@ function buildCsepSelectedSections(params: {
       subsections: [
         {
           title: "9.1 Emergency coordination and response (field tie-in)",
-          body: "In an alarm, fire, major medical event, or utility emergency, follow Section 6.0, posted site maps, and the owner/GC plan. This subsection covers how weather-related and stop-work events tie back to that program—not full emergency content.",
+          body: "In an alarm, fire, major medical event, or utility emergency, follow IIPP / Emergency Response, posted site maps, and the owner/GC plan. This subsection is only how weather stand-downs tie to assembly and muster routes—not a duplicate emergency program.",
           bullets: [
             "Keep assembly area routes clear during weather stand-downs; do not block fire lanes or site gates used by responders.",
             "Account for workers after sheltering, evacuation, or stop-work: use the project roll-call or GC method.",
@@ -3828,12 +3888,12 @@ function buildCsepSelectedSections(params: {
         },
         {
           title: "9.3 Lightning and electrical-storm response",
-          body: "This project’s site requirement uses a 20-mile monitoring and stop-work radius for electrical storms unless the site owner, GC, or local emergency authority specifies a stricter standard; align the field plan with the posted site weather SOP. Keep all-clear timing consistent with the same site rules and this subsection.",
+          body: `This plan uses a ${lightningMiles}-mile monitoring and stop-work radius for electrical storms unless the owner, GC, or local authority requires stricter control; align the field plan with the posted site weather SOP. All-clear timing uses ${lightningAllClear} minutes in this same subsection—do not use other radius or interval values elsewhere in this weather section.`,
           bullets: [
-            "Lightning watch / stop-work radius: 20 miles for this plan. When lightning risk is within that radius, stop exposed outdoor work, hoisting, and elevated work per the site SOP. A different radius applies only if the owner or GC documents it in the site weather SOP.",
-            "Lightning all-clear: 30 minutes from the last detected strike or flash within the trigger radius, unless site rules, owner standards, or an approved weather service prescribes a longer or shorter interval; document the source used for restart.",
-            "Suspend crane operations, high work on steel or deck, MEWP/steel access baskets, and metal-roof or topping-out activity when the lightning plan triggers; do not use shelters that leave workers exposed to step potential or ungrounded mobile equipment as the sole protection.",
-            "Re-start exposed work only after the all-clear clock has completed and a competent person has re-authorized the task list for that weather window.",
+            `Lightning watch / stop-work radius: ${lightningMiles} miles. When risk is within that radius, stop exposed outdoor work, hoisting, and elevated work per the site SOP. A different radius applies only if the owner or GC documents it in the site weather SOP.`,
+            `Lightning all-clear: ${lightningAllClear} minutes from the last strike or flash within the trigger radius, unless a written site SOP, owner standard, or approved weather service prescribes otherwise; document the source used for restart.`,
+            "Stop crane work, high steel or deck, MEWPs in the exposure, and similar exposed tasks when the lightning plan triggers; do not rely on ad hoc ‘shelter’ that still leaves people in open steel, on unsecured deck, or next to ungrounded mobile equipment.",
+            "Restart exposed work only after the all-clear clock completes and a competent person re-approves the task list for that weather window.",
           ],
         },
         {
@@ -3849,7 +3909,7 @@ function buildCsepSelectedSections(params: {
         },
         {
           title: "9.5 Earthquake and seismic event response (when applicable)",
-          body: "Use this block when the project is in a seismic area or the owner, GC, or jurisdiction requires a documented earthquake response. It supplements Section 6.0; it is not a substitute for the project emergency or evacuation program.",
+          body: "Use this block when the project is in a seismic area or the owner, GC, or jurisdiction requires a documented earthquake response. It supplements IIPP / Emergency Response; it is not a substitute for the full project emergency or evacuation program.",
           bullets: [
             "On shaking or a seismic warning: stop work immediately; do not run through active steel, under suspended loads, scaffolds, or crane booms, or next to freestanding wall panels and glass that can shift or fall.",
             "Move to an open, clear area away from structures, fuel points, and overhead utilities when an outdoor “drop, cover, hold” location is the site plan; otherwise follow the posted indoor refuge or roof-access freeze plan.",
@@ -3890,7 +3950,7 @@ function buildCsepSelectedSections(params: {
         },
         {
           title: "9.9 Stop-work triggers and protective actions",
-          body: "Stop or modify work when on-site conditions no longer match the JHA, permit, or manufacturer limits. For chemical releases beyond a minor spill controlled at the work face, use Section 6.0, Section 8.0, and Section 11.0 as applicable.",
+          body: "Stop or modify work when on-site conditions no longer match the JHA, permit, or manufacturer limits. For chemical releases beyond a minor spill at the work face, follow IIPP / Emergency Response, HazCom, and environmental / site release rules. For lightning radius, all-clear, and storm restart, use 9.3 only.",
           bullets: stopWorkBullets,
         },
       ],
