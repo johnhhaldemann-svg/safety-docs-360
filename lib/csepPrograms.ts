@@ -1775,12 +1775,12 @@ function buildFallProtectionGoverningProgramSection(
         ]
   );
 
-  let planningBody = FALL_CONTROL_LINES.planning;
+  let planningBody: string = FALL_CONTROL_LINES.planning;
   if (definition.preTaskProcedures.length) {
     planningBody = `${planningBody} ${definition.preTaskProcedures.map(sentenceize).join(" ")}`.trim();
   }
 
-  let trainingBody = FALL_CONTROL_LINES.training;
+  let trainingBody: string = FALL_CONTROL_LINES.training;
   if (definition.training.length) {
     trainingBody = `${trainingBody} ${definition.training.map(sentenceize).join(" ")}`.trim();
   }
@@ -1788,7 +1788,7 @@ function buildFallProtectionGoverningProgramSection(
     trainingBody = `${trainingBody} ${definition.responsibilities.map(sentenceize).join(" ")}`.trim();
   }
 
-  let stopBody = FALL_CONTROL_LINES.stopWork;
+  let stopBody: string = FALL_CONTROL_LINES.stopWork;
   const addedStop = dedupe([...definition.stopWorkProcedures, ...definition.closeoutProcedures]);
   if (addedStop.length) {
     stopBody = `${stopBody} ${addedStop.map(sentenceize).join(" ")}`.trim();
