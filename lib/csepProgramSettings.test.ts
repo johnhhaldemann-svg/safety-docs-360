@@ -23,15 +23,21 @@ describe("normalizeCsepProgramConfig", () => {
       (definition) =>
         definition.category === "hazard" && definition.item === "Electrical shock"
     );
+    const hotWorkProgram = config.definitions.find(
+      (definition) => definition.category === "hazard" && definition.item === "Hot work / fire"
+    );
 
     expect(fallProgram?.title).toBe("Edited Fall Protection Program");
     expect(fallProgram?.summary).toBe("Edited summary");
     expect(fallProgram?.controls).toEqual(["Edited control"]);
-    expect(fallProgram?.preTaskProcedures.length).toBeGreaterThan(0);
-    expect(fallProgram?.workProcedures.length).toBeGreaterThan(0);
-    expect(fallProgram?.stopWorkProcedures.length).toBeGreaterThan(0);
-    expect(fallProgram?.closeoutProcedures.length).toBeGreaterThan(0);
+    // Fall catalog merge uses empty procedure templates so governing text is not duplicated in exports.
+    expect(fallProgram?.preTaskProcedures).toEqual([]);
+    expect(fallProgram?.workProcedures).toEqual([]);
+    expect(fallProgram?.stopWorkProcedures).toEqual([]);
+    expect(fallProgram?.closeoutProcedures).toEqual([]);
     expect(electricalProgram?.title).toBe("Electrical Safety Program");
     expect(electricalProgram?.preTaskProcedures.length).toBeGreaterThan(0);
+    expect(hotWorkProgram?.title).toBe("Hot Work Program");
+    expect(hotWorkProgram?.preTaskProcedures).toEqual([]);
   });
 });

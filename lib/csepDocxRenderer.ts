@@ -44,6 +44,16 @@ export type CsepTemplateSubsection = {
   paragraphs?: string[];
   items?: string[];
   table?: GeneratedSafetyPlanSection["table"];
+  /**
+   * For simple one-line task lists (e.g. Scope of Work), render `items` as indented
+   * body lines without subsection numbering. Defaults to numbered list styling.
+   */
+  plainItemsStyle?: "numbered" | "offset_lines";
+  /**
+   * Task-hazard matrices and similar tables: render rows as indented blocks without
+   * a deep 5.85.1-style number chain. Default is numbered rows for legacy tables.
+   */
+  tableRowsStyle?: "numbered" | "offset_lines";
 };
 
 export type CsepTemplateSection = {
@@ -523,6 +533,43 @@ function formatActivityMatrixRow(
   return sentences.join(" ");
 }
 
+function isTaskHazardStyleTable(table: NonNullable<GeneratedSafetyPlanSection["table"]>) {
+  const indexes = tableColumnIndexes(table);
+  return [
+    indexes.trade,
+    indexes.subTrade,
+    indexes.activity,
+    indexes.hazards,
+    indexes.controls,
+    indexes.ppe,
+    indexes.permits,
+  ].some((index) => index >= 0);
+}
+
+/**
+ * Matrices and line-list tables should not produce a deep outline (e.g. 5.85.1, 5.85.2 for each row).
+ */
+function shouldUseOffsetTableRows(
+  source: Pick<GeneratedSafetyPlanSection, "key" | "title" | "table">
+): boolean {
+  if (!source.table?.rows.length) return false;
+  const key = normalizeToken(source.key ?? "");
+  const title = normalizeToken(source.title ?? "");
+  if (
+    key.includes("activity_hazard") ||
+    key.includes("task_hazard") ||
+    (key.includes("matrix") && (key.includes("hazard") || key.includes("task") || key.includes("steel"))) ||
+    (title.includes("hazard") && title.includes("matrix")) ||
+    (title.includes("task") && title.includes("matrix")) ||
+    (title.includes("steel") && title.includes("matrix")) ||
+    title.includes("hazardcontrolmatrix") ||
+    title.includes("activityhazard")
+  ) {
+    return true;
+  }
+  return isTaskHazardStyleTable(source.table);
+}
+
 function stripSourceNumberingLabel(value?: string | null) {
   const normalized = normalizeFinalExportText(value) ?? "";
   return stripExistingNumberPrefix(normalized);
@@ -685,12 +732,14 @@ function dedupeTemplateSubsections(subsections: CsepTemplateSubsection[]) {
       title: normalizeCompareToken(subsection.title),
       paragraphs: (subsection.paragraphs ?? []).map(normalizeCompareToken),
       items: (subsection.items ?? []).map(normalizeCompareToken),
+      plainItemsStyle: subsection.plainItemsStyle ?? null,
       table: subsection.table
         ? {
             columns: subsection.table.columns.map(normalizeCompareToken),
             rows: subsection.table.rows.map((row) => row.map(normalizeCompareToken)),
           }
         : null,
+      tableRowsStyle: subsection.tableRowsStyle ?? null,
     });
 
     if (seen.has(key)) return false;
@@ -1129,6 +1178,7 @@ function buildRuleTableSubsections(
     {
       title: normalizeToken(source.key) === "life_saving_rules" ? "Life-Saving Rules" : source.title,
       items,
+      plainItemsStyle: "offset_lines",
     },
   ];
 }
@@ -1235,6 +1285,14 @@ function includesAny(value: string, needles: string[]) {
 function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
   const keyTitle = normalizeToken(`${section.key} ${section.title}`);
   const combined = sourceSearchText(section);
+  const keyNorm = normalizeToken(section.key ?? "");
+
+  if (keyNorm === "weather requirements and severe weather response") {
+    return "hazards_and_controls";
+  }
+  if (keyNorm === "hazard communication program" || keyNorm === "hazard communication") {
+    return "hazcom";
+  }
 
   if (
     includesAny(keyTitle, [
@@ -1404,7 +1462,6 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
       "recordkeeping",
       "continuous improvement",
       "training and instruction",
-      "weather requirements and severe weather response",
     ])
   ) {
     return "iipp_emergency_response";
@@ -1491,11 +1548,32 @@ function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplate
     source.table?.rows.length ||
     parentHeadingTitle
   ) {
+    const mapsToTopRisks =
+      mapSourceSectionToFixedSection(source) === "top_10_risks" ||
+      /^top[_\s-]*(10|ten)\s*risks?$/i.test(normalizeToken(source.key)) ||
+      /^top[_\s-]*(10|ten)\s*risks?$/i.test(normalizeToken(source.title));
+    const listLikeKeyNorms = new Set([
+      "additional permits",
+      "selected hazards",
+      "common overlapping trades",
+    ]);
+    const key = normalizeToken(source.key ?? "");
+    const plainListLineItems = listLikeKeyNorms.has(key);
+    const plainItemsStyle: CsepTemplateSubsection["plainItemsStyle"] =
+      initialItems.length > 0 &&
+      (source.key === "scope_of_work" || mapsToTopRisks || plainListLineItems)
+        ? "offset_lines"
+        : undefined;
+    const tableRowsStyle: CsepTemplateSubsection["tableRowsStyle"] = shouldUseOffsetTableRows(source)
+      ? "offset_lines"
+      : undefined;
     subsections.push({
       title: parentHeadingTitle,
       paragraphs: leadingNarrativeParagraphs,
       items: initialItems,
       table: source.table ?? null,
+      plainItemsStyle,
+      tableRowsStyle,
     });
   }
 
@@ -1884,6 +1962,23 @@ function filterScopeTemplateSubsections(subsections: CsepTemplateSubsection[]): 
     .filter((sub) => subsectionHasContent(sub));
 }
 
+/** §3 Scope: Scope → site notes → project → contractor → trade, then other (stable). Top 10 is §4. */
+function sortScopeSubsectionsInProjectSetupOrder(subsections: CsepTemplateSubsection[]): CsepTemplateSubsection[] {
+  const rank = (title: string) => {
+    const t = title.toLowerCase();
+    if (t.includes("scope of work") || t.includes("scope summary")) return 1;
+    if (t.includes("site specific") || t.includes("site-specific field")) return 2;
+    if (t.includes("project information")) return 3;
+    if (t.includes("contractor information")) return 4;
+    if (t.includes("trade summary")) return 5;
+    return 100;
+  };
+  return subsections
+    .map((sub, index) => ({ sub, index, r: rank(sub.title ?? "") }))
+    .sort((a, b) => (a.r !== b.r ? a.r - b.r : a.index - b.index))
+    .map(({ sub }) => sub);
+}
+
 function filterSecurityAtSiteSubsections(subsections: CsepTemplateSubsection[]): CsepTemplateSubsection[] {
   return subsections
     .map((sub) => {
@@ -1970,6 +2065,7 @@ function synthesizeTopRiskSubsections(
     {
       title: "Top 10 Risks",
       items: items.length ? items : [placeholderParagraphForSection("top_10_risks")],
+      plainItemsStyle: "offset_lines",
     },
   ];
 }
@@ -2180,7 +2276,7 @@ function buildSectionSubsections(
   );
 
   if (definition.key === "scope") {
-    subsections = filterScopeTemplateSubsections(subsections);
+    subsections = sortScopeSubsectionsInProjectSetupOrder(filterScopeTemplateSubsections(subsections));
   }
   if (definition.key === "security_at_site") {
     subsections = filterSecurityAtSiteSubsections(subsections);
@@ -2239,6 +2335,7 @@ function buildSectionSubsections(
       {
         title: "Top 10 Risks",
         items: merged.length ? merged : [placeholderParagraphForSection("top_10_risks")],
+        plainItemsStyle: "offset_lines",
       },
     ];
   }
@@ -2798,6 +2895,87 @@ function createCover(model: CsepRenderModel) {
   return coverChildren;
 }
 
+/**
+ * Renders table rows as indented body/labeled content without 5.85.1, 5.85.2-style line numbers.
+ */
+function appendTableRowsAsOffsetParagraphs(
+  children: Paragraph[],
+  table: NonNullable<GeneratedSafetyPlanSection["table"]>,
+  options: {
+    renderMode?: "numbered" | "definitions";
+    /** Under a numbered subsection (5.x.y) — deeper indent for matrix rows. */
+    nested: boolean;
+  }
+) {
+  if (!table.rows.length) return;
+
+  const titleIndent = options.nested
+    ? { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging }
+    : { left: INDENTS.childLeft, hanging: INDENTS.childHanging };
+  const fieldIndent = options.nested
+    ? { left: INDENTS.grandchildBodyLeft }
+    : { left: INDENTS.childBodyLeft };
+  const simpleIndent = options.nested
+    ? { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging }
+    : { left: INDENTS.childBodyLeft };
+
+  table.rows.forEach((row, rowIndex) => {
+    if (options.renderMode === "definitions") {
+      const term = row[0]?.trim() || "Term";
+      const definition = row[1]?.trim() || "Definition pending";
+      children.push(termDefinitionParagraph(term, definition));
+      return;
+    }
+
+    const structuredRow = buildStructuredTableRow(table, row, rowIndex);
+    if (structuredRow) {
+      children.push(
+        bodyParagraph(structuredRow.title, {
+          indent: titleIndent,
+          spacing: { before: 60, after: 60, line: 276 },
+        })
+      );
+      structuredRow.fields.forEach((field) => {
+        children.push(
+          labeledFieldParagraph(field.label, field.value, {
+            indent: fieldIndent,
+            spacing: { after: 110, line: 276 },
+          })
+        );
+      });
+      return;
+    }
+
+    const text =
+      formatActivityMatrixRow(table, row) ??
+      table.columns
+        .map((column, columnIndex) => `${column}: ${row[columnIndex]?.trim() || "N/A"}`)
+        .join(" ");
+    children.push(
+      bodyParagraph(text, {
+        indent: simpleIndent,
+        spacing: { before: 60, after: 90, line: 276 },
+      })
+    );
+  });
+}
+
+/**
+ * Top-level table rows (no distinct subsection) as offset body — does not advance the outline counter.
+ */
+function appendTopLevelTableRowsAsOffset(
+  children: Paragraph[],
+  table: NonNullable<GeneratedSafetyPlanSection["table"]>,
+  options?: {
+    renderMode?: "numbered" | "definitions";
+  }
+) {
+  appendTableRowsAsOffsetParagraphs(children, table, {
+    ...options,
+    nested: false,
+  });
+}
+
 function appendTableRowsAsNumberedParagraphs(
   children: Paragraph[],
   table: NonNullable<GeneratedSafetyPlanSection["table"]>,
@@ -3190,6 +3368,15 @@ function renderSection(sectionNumber: number, section: CsepTemplateSection) {
     });
 
     itemSplit.plain.forEach((item, itemIndex) => {
+      if (subsection.plainItemsStyle === "offset_lines") {
+        children.push(
+          bodyParagraph(item, {
+            indent: { left: INDENTS.childBodyLeft },
+            spacing: { before: itemIndex === 0 ? 120 : 50, after: 90, line: 276 },
+          })
+        );
+        return;
+      }
       if (distinctSubheading) {
         children.push(
           numberedParagraph(`${itemPrefixBase}.${structuredEntries.length + itemIndex + 1}`, item, {
@@ -3217,12 +3404,26 @@ function renderSection(sectionNumber: number, section: CsepTemplateSection) {
         return;
       }
 
+      if (subsection.tableRowsStyle === "offset_lines") {
+        if (distinctSubheading) {
+          appendTableRowsAsOffsetParagraphs(children, subsection.table, {
+            renderMode,
+            nested: true,
+          });
+        } else {
+          appendTopLevelTableRowsAsOffset(children, subsection.table, { renderMode });
+        }
+        return;
+      }
+
       if (distinctSubheading) {
+        const numberedPlainItemCount =
+          subsection.plainItemsStyle === "offset_lines" ? 0 : itemSplit.plain.length;
         appendTableRowsAsNumberedParagraphs(
           children,
           subsection.table,
           itemPrefixBase,
-          structuredEntries.length + itemSplit.plain.length,
+          structuredEntries.length + numberedPlainItemCount,
           { renderMode }
         );
       } else {

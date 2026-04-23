@@ -477,7 +477,8 @@ function profileForTask(
   };
 }
 
-function buildRiskItem(tradeLabel: string, subTradeLabel: string, taskLabel: string): CSEPRiskItem {
+/** Exported for CSEP document assembly (task-hazard matrix rows). */
+export function buildRiskItem(tradeLabel: string, subTradeLabel: string, taskLabel: string): CSEPRiskItem {
   const profile = profileForTask(tradeLabel, subTradeLabel, taskLabel);
   return {
     activity: taskLabel,

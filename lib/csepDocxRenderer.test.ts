@@ -191,6 +191,98 @@ describe("csepDocxRenderer", () => {
     expect(model.sections[0]?.numberLabel).toBe("11");
   });
 
+  it("renders Top 10 Risks as offset body lines without 4.1, 4.2-style numbering", async () => {
+    const draft = createGeneratedDraft();
+    const sections = buildCsepTemplateSections({
+      draft,
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      tradeLabel: "Steel Erection",
+      subTradeLabel: "Decking",
+      taskTitles: ["Deck placement"],
+      sourceSections: draft.sectionMap,
+    });
+    const topSub = sections.find((s) => s.key === "top_10_risks")?.subsections[0];
+    expect(topSub?.title).toBe("Top 10 Risks");
+    expect(topSub?.plainItemsStyle).toBe("offset_lines");
+
+    const rendered = await renderGeneratedCsepDocx(draft);
+    const { documentXml } = await unzipDocx(rendered.body);
+    expect(documentXml).toContain("Falls while decking");
+    expect(documentXml).not.toMatch(/4\.\d+\s+Falls while decking/);
+    expect(documentXml).not.toMatch(/4\.\d+\s+Struck-by or caught-in/);
+  });
+
+  it("tags hazard–control style matrices for offset table rows (no 11.x.y.z per row)", () => {
+    const draft = createGeneratedDraft();
+    draft.sectionMap.push({
+      key: "steel_erection_hazard_control_matrix",
+      title: "Steel Erection Hazard-Control Matrix",
+      table: {
+        columns: [
+          "Trade",
+          "Sub Trade",
+          "Activity",
+          "Hazards",
+          "Required Controls",
+          "PPE",
+          "Permits",
+        ],
+        rows: [
+          [
+            "Steel",
+            "Erection",
+            "Column set",
+            "Struck by, collapse",
+            "Lift plan, tag lines",
+            "Hard hat, harness",
+            "None",
+          ],
+        ],
+      },
+    });
+    const sections = buildCsepTemplateSections({
+      draft,
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      tradeLabel: "Steel Erection",
+      subTradeLabel: "Decking",
+      taskTitles: ["Deck placement"],
+      sourceSections: draft.sectionMap,
+    });
+    const haz = sections.find((s) => s.key === "hazards_and_controls");
+    const matrixSub = haz?.subsections.find((s) => s.table?.rows.length && s.tableRowsStyle);
+    expect(matrixSub?.tableRowsStyle).toBe("offset_lines");
+  });
+
+  it("renders Scope of Work tasks as offset lines without subsection numbers like 3.1.1", async () => {
+    const draft = createGeneratedDraft();
+    draft.sectionMap.unshift({
+      key: "scope_of_work",
+      title: "Scope of Work",
+      body: "Self-performed structural steel for this phase.",
+      bullets: ["Unload steel", "Rigging", "Crane picks"],
+    });
+
+    const sections = buildCsepTemplateSections({
+      draft,
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      tradeLabel: "Steel Erection",
+      subTradeLabel: "Decking",
+      taskTitles: ["Deck placement"],
+      sourceSections: draft.sectionMap,
+    });
+    const scopeSub = sections.find((s) => s.key === "scope")?.subsections.find((sub) => /scope of work/i.test(sub.title));
+    expect(scopeSub?.plainItemsStyle).toBe("offset_lines");
+
+    const rendered = await renderGeneratedCsepDocx(draft);
+    const { documentXml } = await unzipDocx(rendered.body);
+    expect(documentXml).toContain("Unload steel");
+    expect(documentXml).not.toContain("3.1.1");
+    expect(documentXml).not.toContain("3.2.1");
+  });
+
   it("keeps one instance of each required section and supplies placeholders where needed", () => {
     const draft = createGeneratedDraft();
     const sections = buildCsepTemplateSections({

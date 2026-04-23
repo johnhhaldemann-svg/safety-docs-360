@@ -574,6 +574,10 @@ export type SteelErectionPlan = {
     permits?: string[];
     competency?: string[];
   }>;
+  /**
+   * When tasks are excluded from the matrix (e.g. punch list, embeds not in field scope), brief field-facing notes.
+   */
+  hazardMatrixScopeNotes?: string[];
   trainingAndCompetency?: {
     orientationRequired?: boolean;
     orientationSchedule?: string;
@@ -589,6 +593,8 @@ export type SteelErectionPlan = {
   };
   workAttireAndTesting?: {
     attireRules?: string[];
+    /** Minimum project PPE for steel—listed separately from clothing (see ppeList). */
+    ppeList?: string[];
     drugTestingRules?: string[];
   };
   erectionExecution?: {

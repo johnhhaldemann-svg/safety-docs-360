@@ -60,11 +60,11 @@ describe("normalizeDocumentBuilderTextConfig", () => {
 
     expect(section?.paragraphs[0]).toContain("Project leadership will monitor weather conditions");
     expect(section?.paragraphs.at(-1)).toContain(
-      "Contractors shall monitor weather daily, adjust work plans accordingly"
+      "Contractors shall monitor weather and field conditions daily, adjust work plans for heat, cold, wind, and lightning"
     );
     expect(section?.bullets).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("lightning is detected within 10 miles"),
+        expect.stringContaining("Lightning watch / stop-work radius: 20 miles"),
         expect.stringContaining("Review weather conditions during the morning huddle"),
       ])
     );

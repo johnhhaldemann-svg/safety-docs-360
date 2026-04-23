@@ -1,11 +1,15 @@
 import {
   cleanFinalText,
   controlledTbd,
-  normalizeHazardList,
   normalizePermitList,
   normalizePpeList,
   normalizeTaskList,
 } from "@/lib/csepFinalization";
+import {
+  effectiveLiftPlanLikelyForTask,
+  filterTasksForSteelHazardMatrix,
+  getSteelErectionTaskMatrixContent,
+} from "@/lib/steelErectionTaskMatrix";
 import type {
   GeneratedSafetyPlanDraft,
   GeneratedSafetyPlanSection,
@@ -18,6 +22,28 @@ function normalizeToken(value: string | null | undefined) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+function buildDefaultSteelPpeList(ppe: string[]) {
+  const merged = normalizePpeList([
+    "Hard hat",
+    "Safety glasses or approved eye protection",
+    "Gloves",
+    "High-visibility vest",
+    "Steel-toe boots or approved protective footwear",
+    "Hearing protection",
+    ...ppe,
+  ]);
+  if (
+    !merged.some((item) =>
+      /fall\s*protection|harness|lanyard|arrest|tie[-\s]?off/i.test(item)
+    )
+  ) {
+    merged.push(
+      "Fall protection (harness, lanyard, and anchorage) when the task or exposure requires it"
+    );
+  }
+  return merged;
 }
 
 function hasSteelKeyword(values: Array<string | null | undefined>) {
@@ -285,10 +311,14 @@ export function buildSteelErectionPlan(params: {
     ...params.generationContext.scope.tasks,
     ...params.operations.map((operation) => operation.taskTitle),
   ]);
-  const hazards = normalizeHazardList([
-    ...params.ruleSummary.hazardCategories,
-    ...params.operations.flatMap((operation) => operation.hazardCategories),
-  ]);
+  const embedsScopeFlag =
+    boolFromUnknown(steel.embeds_in_active_field_scope) ?? boolFromUnknown(steel.embedsInActiveFieldScope);
+  const { includedTasks: matrixTasks, scopeNotes: hazardMatrixScopeNotes } = filterTasksForSteelHazardMatrix({
+    allTasks: tasks,
+    operations: params.operations,
+    scopeTaskTitles: params.generationContext.scope.tasks,
+    embedsInActiveFieldScope: embedsScopeFlag,
+  });
   const ppe = normalizePpeList([
     ...params.ruleSummary.ppeRequirements,
     ...params.operations.flatMap((operation) => operation.ppeRequirements),
@@ -386,20 +416,22 @@ export function buildSteelErectionPlan(params: {
         cleanFinalText(String(steel.perimeterProtection ?? "")) ??
         "Install temporary guardrails or perimeter cable where the sequence creates exposed deck edges or access routes.",
     },
-    hazardMatrix: tasks.map((task) => ({
-      activity: task,
-      hazards: hazards.length ? hazards : ["Steel-erection exposure"],
-      controls: [
-        "Pre-task plan reviewed with erection sequence and access route.",
-        ...normalizeTaskList(params.ruleSummary.requiredControls),
-      ],
-      ppe,
-      permits,
-      competency: [
-        "Competent person oversight",
-        ...(triggersLiftControls ? ["Qualified rigger / signal person"] : []),
-      ],
-    })),
+    hazardMatrix: matrixTasks.length
+      ? matrixTasks.map((task) => {
+          const spec = getSteelErectionTaskMatrixContent(task, {
+            liftPlanLikely: effectiveLiftPlanLikelyForTask(task, triggersLiftControls),
+          });
+          return {
+            activity: task,
+            hazards: spec.hazards,
+            controls: spec.controls,
+            ppe: spec.ppe,
+            permits: spec.permits,
+            competency: spec.competency,
+          };
+        })
+      : undefined,
+    hazardMatrixScopeNotes: hazardMatrixScopeNotes.length ? hazardMatrixScopeNotes : undefined,
     trainingAndCompetency: {
       orientationRequired: true,
       orientationSchedule:
@@ -446,10 +478,11 @@ export function buildSteelErectionPlan(params: {
     },
     workAttireAndTesting: {
       attireRules: [
-        "Wear hard hat, safety glasses, gloves, steel-toe boots, and high-visibility apparel suitable for steel handling and erection access.",
-        ...(ppe.includes("Fall Protection Harness")
-          ? ["Inspect and wear the assigned fall-protection system whenever exposed to a fall hazard."] : []),
+        "Wear shirts with sleeves. Tank tops, sleeveless shirts, and similar upper-body apparel are not acceptable in the work area unless the project issues a site-specific, task-limited exception.",
+        "Wear durable work pants suitable for construction activity; shorts are not used unless a written site rule explicitly allows them for defined conditions.",
+        "Do not wear loose, torn, or unsafe clothing that can catch on steel, tools, rigging, or equipment; clothing and accessories must not create caught-in, snag, or entanglement hazards.",
       ],
+      ppeList: buildDefaultSteelPpeList(ppe),
       drugTestingRules: normalizeTaskList([
         ...listFromUnknown(steel.drugTestingRules),
         "Comply with project drug and alcohol testing rules before mobilization and after any incident or client-directed screening trigger.",
@@ -610,21 +643,16 @@ export function buildSteelErectionOverlaySections(plan: SteelErectionPlan): Gene
     });
   }
 
-  if (plan.hazardMatrix?.length) {
+  if (plan.hazardMatrix?.length || plan.hazardMatrixScopeNotes?.length) {
+    const appendixRef =
+      "See Appendix E – Task-Hazard-Control Matrix for the task-specific hazard, control, PPE, permit, and competency breakdown.";
+    const noteBlock = plan.hazardMatrixScopeNotes?.length
+      ? `${appendixRef}\n\n${plan.hazardMatrixScopeNotes.join("\n\n")}`
+      : appendixRef;
     sections.push({
       key: "steel_hazard_control_matrix",
       title: "Steel Erection Hazard-Control Matrix",
-      table: {
-        columns: ["Activity", "Hazards", "Controls", "PPE", "Permits", "Competency"],
-        rows: plan.hazardMatrix.map((item) => [
-          item.activity,
-          item.hazards.join(", "),
-          item.controls.join(", "),
-          (item.ppe ?? []).join(", "),
-          (item.permits ?? []).join(", "),
-          (item.competency ?? []).join(", "),
-        ]),
-      },
+      body: noteBlock,
     });
   }
 
@@ -678,14 +706,20 @@ export function buildSteelErectionOverlaySections(plan: SteelErectionPlan): Gene
   if (plan.workAttireAndTesting) {
     sections.push({
       key: "drug_and_alcohol_testing",
-      title: "Work Attire and Drug Testing",
+      title: "Site Administration and Support Controls",
       subsections: [
         {
-          title: "Required Work Attire",
+          title: "6.1 Work Attire Requirements",
           bullets: normalizeTaskList(plan.workAttireAndTesting.attireRules ?? []),
         },
         {
-          title: "Project Drug and Alcohol Testing Rules",
+          title: "6.2 Personal Protective Equipment (PPE)",
+          body:
+            "The following is the reference list for the steel program. The contractor enforces the list; task- or site-specific PPE (e.g., hot work, rescue, or electrical) is added by JHA, lift plan, permit, or client rules.",
+          bullets: normalizeTaskList(plan.workAttireAndTesting.ppeList ?? []),
+        },
+        {
+          title: "6.3 Project Drug and Alcohol Testing Rules",
           bullets: normalizeTaskList(plan.workAttireAndTesting.drugTestingRules ?? []),
         },
       ],

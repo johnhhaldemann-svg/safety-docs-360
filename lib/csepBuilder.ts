@@ -72,6 +72,11 @@ const BLOCK_OPTION_DEFINITIONS: Array<{
     title: "Emergency Procedures",
   },
   {
+    key: "hazard_communication",
+    label: "Hazard Communication (HazCom)",
+    title: "Hazard Communication (HazCom)",
+  },
+  {
     key: "weather_requirements_and_severe_weather_response",
     label: "Weather Requirements and Severe Weather Response",
     title: "Weather Requirements and Severe Weather Response",
@@ -329,23 +334,36 @@ const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
     legacyBlockKeys: ["required_ppe"],
   },
   {
-    key: "weather_requirements_and_severe_weather_response",
+    key: "hazard_communication_program",
     kind: "main",
     order: 17,
-    title: "8.0 Weather Requirements and Severe Weather Response",
-    shortTitle: "Weather Requirements and Severe Weather Response",
+    title: "8.0 Hazard Communication (HazCom)",
+    shortTitle: "Hazard Communication (HazCom)",
     numberLabel: "8.0",
-    purpose: "Daily review, high wind, lightning, heat, cold, storms, and weather-related environmental controls.",
+    purpose:
+      "GHS labels, secondary containers, SDS access, training, chemical inventory, contractor notification, and damaged-container reporting (not general environmental or emergency response).",
+    aiEligible: true,
+    legacyBlockKeys: ["hazard_communication"],
+  },
+  {
+    key: "weather_requirements_and_severe_weather_response",
+    kind: "main",
+    order: 18,
+    title: "9.0 Emergency, Weather, Fire Prevention & Housekeeping",
+    shortTitle: "Emergency, Weather, Fire Prevention & Housekeeping",
+    numberLabel: "9.0",
+    purpose:
+      "Field coordination for weather, heat, cold, fire prevention, and housekeeping, cross-referenced to the emergency program—not a substitute for full emergency plans or the HazCom section.",
     aiEligible: true,
     legacyBlockKeys: ["weather_requirements_and_severe_weather_response"],
   },
   {
     key: "safe_work_practices_and_trade_specific_procedures",
     kind: "main",
-    order: 18,
-    title: "9.0 Safe Work Practices and Trade Specific Procedures",
+    order: 19,
+    title: "10.0 Safe Work Practices and Trade Specific Procedures",
     shortTitle: "Safe Work Practices and Trade Specific Procedures",
-    numberLabel: "9.0",
+    numberLabel: "10.0",
     purpose: "Core policy modules, equipment/material handling, and trade-specific procedure references.",
     aiEligible: true,
     appendixRefs: ["appendix_a_forms_and_permit_library"],
@@ -354,21 +372,21 @@ const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
   {
     key: "environmental_execution_requirements",
     kind: "main",
-    order: 19,
-    title: "10.0 Environmental Execution Requirements",
-    shortTitle: "Environmental Execution Requirements",
-    numberLabel: "10.0",
-    purpose: "SWPPP, waste, stormwater, dust, noise, spills, chemical handling, and compliance modules.",
+    order: 20,
+    title: "11.0 Environmental Controls",
+    shortTitle: "Environmental Controls",
+    numberLabel: "11.0",
+    purpose: "SWPPP, waste, stormwater, dust, noise, spill response in the field, and compliance modules. Chemical labeling and worker HazCom are in Section 8.0; inventory of hazardous chemicals is in HazCom, not in environmental.",
     aiEligible: true,
     legacyBlockKeys: ["site_specific_notes"],
   },
   {
     key: "contractor_monitoring_audits_and_reporting",
     kind: "main",
-    order: 20,
-    title: "11.0 Contractor Monitoring, Audits & Reporting",
+    order: 21,
+    title: "12.0 Contractor Monitoring, Audits & Reporting",
     shortTitle: "Contractor Monitoring, Audits & Reporting",
-    numberLabel: "11.0",
+    numberLabel: "12.0",
     purpose: "KPIs, audits, corrective action tracking, and reporting cadence.",
     aiEligible: true,
     appendixRefs: ["appendix_c_checklists_and_inspection_sheets"],
@@ -377,10 +395,10 @@ const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
   {
     key: "contractor_safety_meetings_and_engagement",
     kind: "main",
-    order: 21,
-    title: "12.0 Contractor Safety Meetings and Engagement",
+    order: 22,
+    title: "13.0 Contractor Safety Meetings and Engagement",
     shortTitle: "Contractor Safety Meetings and Engagement",
-    numberLabel: "12.0",
+    numberLabel: "13.0",
     purpose: "Daily huddles, toolbox talks, stand-down triggers, and engagement workflow.",
     aiEligible: true,
     appendixRefs: ["appendix_c_checklists_and_inspection_sheets"],
@@ -389,10 +407,10 @@ const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
   {
     key: "sub_tier_contractor_management",
     kind: "main",
-    order: 22,
-    title: "13.0 Sub-Tier Contractor Management",
+    order: 23,
+    title: "14.0 Sub-Tier Contractor Management",
     shortTitle: "Sub-Tier Contractor Management",
-    numberLabel: "13.0",
+    numberLabel: "14.0",
     purpose: "Prequalification, onboarding, documentation turnover, and field oversight expectations.",
     aiEligible: true,
     legacyBlockKeys: ["common_overlapping_trades", "roles_and_responsibilities"],
@@ -400,21 +418,21 @@ const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
   {
     key: "project_close_out",
     kind: "main",
-    order: 23,
-    title: "14.0 Project Close-Out",
+    order: 24,
+    title: "15.0 Project Close-Out",
     shortTitle: "Project Close-Out",
-    numberLabel: "14.0",
-    purpose: "Close-out workflow, lessons learned, environmental turnover, and demobilization planning.",
+    numberLabel: "15.0",
+    purpose: "Action-based close-out of corrective actions, permits, documentation, and turnover before final release.",
     aiEligible: true,
     legacyBlockKeys: ["continuous_improvement", "recordkeeping"],
   },
   {
     key: "permits_and_forms",
     kind: "main",
-    order: 24,
-    title: "15.0 Permits and Forms",
+    order: 25,
+    title: "16.0 Permits and Forms",
     shortTitle: "Permits and Forms",
-    numberLabel: "15.0",
+    numberLabel: "16.0",
     purpose: "Permit/form library overview and cross-references to generated appendix content.",
     aiEligible: true,
     appendixRefs: ["appendix_a_forms_and_permit_library"],
@@ -423,10 +441,10 @@ const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
   {
     key: "checklists_and_inspections",
     kind: "main",
-    order: 25,
-    title: "16.0 Checklists and Inspections",
+    order: 26,
+    title: "17.0 Checklists and Inspections",
     shortTitle: "Checklists and Inspections",
-    numberLabel: "16.0",
+    numberLabel: "17.0",
     purpose: "Checklist trigger/frequency cards and inspection reference logic.",
     aiEligible: true,
     appendixRefs: ["appendix_c_checklists_and_inspection_sheets"],
@@ -435,10 +453,10 @@ const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
   {
     key: "regulatory_framework",
     kind: "main",
-    order: 26,
-    title: "17.0 Regulatory Framework",
+    order: 27,
+    title: "18.0 Regulatory Framework",
     shortTitle: "Regulatory Framework",
-    numberLabel: "17.0",
+    numberLabel: "18.0",
     purpose: "OSHA, state, local, owner, and labor-framework quick-reference content.",
     aiEligible: true,
     legacyBlockKeys: ["osha_references"],
@@ -446,10 +464,10 @@ const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
   {
     key: "hse_elements_and_site_specific_hazard_analysis",
     kind: "main",
-    order: 27,
-    title: "18.0 HSE Elements / Site-Specific Hazard Analysis",
+    order: 28,
+    title: "19.0 HSE Elements / Site-Specific Hazard Analysis",
     shortTitle: "HSE Elements / Site-Specific Hazard Analysis",
-    numberLabel: "18.0",
+    numberLabel: "19.0",
     purpose: "Hazard module library with purpose, controls, training, and response expectations.",
     aiEligible: true,
     appendixRefs: ["appendix_a_forms_and_permit_library", "appendix_b_incident_and_investigation_package"],
@@ -458,10 +476,10 @@ const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
   {
     key: "appendices_and_support_library",
     kind: "main",
-    order: 28,
-    title: "19.0 Appendices and Support Library",
+    order: 29,
+    title: "20.0 Appendices and Support Library",
     shortTitle: "Appendices and Support Library",
-    numberLabel: "19.0",
+    numberLabel: "20.0",
     purpose: "Divider page and appendix library cards for forms, investigations, checklists, and field references.",
     aiEligible: true,
     appendixRefs: [...CSEP_APPENDIX_KEYS],
@@ -607,10 +625,10 @@ const CSEP_BUILDER_AI_SECTION_DEFINITIONS: readonly CsepBuilderAiSectionConfig[]
   {
     id: "weather",
     kind: "weather",
-    title: "Weather Requirements and Severe Weather Response",
-    includedSectionLabel: "Weather Requirements and Severe Weather Response",
+    title: "Emergency, Weather, Fire Prevention & Housekeeping",
+    includedSectionLabel: "Emergency, Weather, Fire Prevention & Housekeeping",
     draftingFocus:
-      "Cover monitoring, communication, stop-work triggers, sheltering, environmental protection, accountability, and restart conditions that support the selected tasks.",
+      "Cover field coordination for heat, cold, wind, and lightning, fire prevention and housekeeping, monitoring and comm (grouped, not one-line repeated prefixes), and stop-work. Cross-reference the dedicated Emergency and HazCom sections instead of restating them.",
   },
   {
     id: "roles_and_responsibilities_text",
@@ -1408,7 +1426,7 @@ export function buildCsepBuilderAiPrompt(params: CsepBuilderAiPromptParams) {
           communicationMethods: ["string"],
           highWindThresholdText: "string",
           lightningShelterNotes: "string",
-          lightningRadiusMiles: 10,
+          lightningRadiusMiles: 20,
           lightningAllClearMinutes: 30,
           heatTriggerText: "string",
           coldTriggerText: "string",
@@ -1575,7 +1593,7 @@ export function buildCsepCoverageAudit(input: CsepCoverageAuditInput): CsepCover
       key: "permits_library_required",
       severity: "required",
       title: "Permit library coverage missing",
-      detail: "Selected permits should be surfaced in Section 15 and cross-referenced into Appendix A.",
+      detail: "Selected permits should be surfaced in Section 16 and cross-referenced into Appendix A.",
       sectionKey: "permits_and_forms",
       appendixKey: "appendix_a_forms_and_permit_library",
     });
@@ -1596,7 +1614,7 @@ export function buildCsepCoverageAudit(input: CsepCoverageAuditInput): CsepCover
       key: "subtier_coordination_gap",
       severity: "warning",
       title: "Trade-interface oversight not visible",
-      detail: "Overlapping trade context exists, so Section 13 should stay in the package for coordination and lower-tier oversight language.",
+      detail: "Overlapping trade context exists, so Section 14 should stay in the package for coordination and lower-tier oversight language.",
       sectionKey: "sub_tier_contractor_management",
     });
   }
@@ -1606,7 +1624,7 @@ export function buildCsepCoverageAudit(input: CsepCoverageAuditInput): CsepCover
       key: "regulatory_matrix_missing",
       severity: "warning",
       title: "Regulatory framework missing",
-      detail: "A governing state was identified, but Section 17 is not available to show state, local, owner, and labor-framework requirements.",
+      detail: "A governing state was identified, but Section 18 is not available to show state, local, owner, and labor-framework requirements.",
       sectionKey: "regulatory_framework",
     });
   }
@@ -1616,7 +1634,7 @@ export function buildCsepCoverageAudit(input: CsepCoverageAuditInput): CsepCover
       key: "hazard_library_missing",
       severity: "required",
       title: "Hazard analysis library missing",
-      detail: "Selected hazards require Section 18 so the formatted CSEP still includes consistent hazard-module coverage.",
+      detail: "Selected hazards require Section 19 so the formatted CSEP still includes consistent hazard-module coverage.",
       sectionKey: "hse_elements_and_site_specific_hazard_analysis",
     });
   }
@@ -1644,7 +1662,7 @@ export function buildCsepCoverageAudit(input: CsepCoverageAuditInput): CsepCover
       key: "checklist_reference_gap",
       severity: "info",
       title: "Checklist appendix can strengthen program enforcement",
-      detail: "Triggered programs were found. Section 16 and Appendix C can hold inspection/checklist references without crowding the body pages.",
+      detail: "Triggered programs were found. Section 17 and Appendix C can hold inspection/checklist references without crowding the body pages.",
       sectionKey: "checklists_and_inspections",
       appendixKey: "appendix_c_checklists_and_inspection_sheets",
     });
@@ -1914,6 +1932,14 @@ function inferFormatSectionKey(section: GeneratedSafetyPlanSection): CsepFormatS
   }
   if (combined.includes("environmental") || combined.includes("stormwater") || combined.includes("spill")) {
     return "environmental_execution_requirements";
+  }
+  if (
+    combined.includes("hazcom") ||
+    (combined.includes("hazard") && combined.includes("communication")) ||
+    combined.includes("sds") ||
+    combined.includes("ghs")
+  ) {
+    return "hazard_communication_program";
   }
   if (combined.includes("emergency") || combined.includes("evacuation") || combined.includes("rescue")) {
     return "emergency_preparedness_and_response";

@@ -201,7 +201,7 @@ Use this draft weather overlay:
   "communicationMethods": ["Foreman text thread", "Air horn and verbal callout"],
   "highWindThresholdText": "Stop crane picks and unsecured sheet handling when sustained winds reach 25 mph or gusts exceed 35 mph.",
   "lightningShelterNotes": "Crews move to enclosed vehicles or the designated hardened shelter when lightning enters the project stop radius.",
-  "lightningRadiusMiles": 10,
+  "lightningRadiusMiles": 20,
   "lightningAllClearMinutes": 30,
   "heatTriggerText": "Increase heat protections when the heat index reaches 90 F.",
   "coldTriggerText": "Escalate cold-weather protections when the wind chill reaches 20 F or lower.",
@@ -224,7 +224,7 @@ Use this draft weather overlay:
         "Stop crane picks and unsecured sheet handling when sustained winds reach 25 mph or gusts exceed 35 mph.",
       lightningShelterNotes:
         "Crews move to enclosed vehicles or the designated hardened shelter when lightning enters the project stop radius.",
-      lightningRadiusMiles: 10,
+      lightningRadiusMiles: 20,
       lightningAllClearMinutes: 30,
       heatTriggerText: "Increase heat protections when the heat index reaches 90 F.",
       coldTriggerText: "Escalate cold-weather protections when the wind chill reaches 20 F or lower.",
@@ -367,7 +367,7 @@ Use this draft weather overlay:
         "Life-Saving Rules",
       ])
     );
-    expect(structured.sectionMap.some((section) => section.title === "19.0 Appendices and Support Library")).toBe(
+    expect(structured.sectionMap.some((section) => section.title === "20.0 Appendices and Support Library")).toBe(
       true
     );
     expect(structured.coverageAudit?.findings.length).toBeGreaterThan(0);

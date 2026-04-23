@@ -9,13 +9,18 @@ import type {
   SafetyPlanGenerationContext,
   SafetyPlanTrainingProgram,
 } from "@/types/safety-intelligence";
-import { CSEP_BUILDER_BLOCK_TITLES } from "@/lib/csepBuilder";
+import {
+  CSEP_BUILDER_BLOCK_TITLES,
+  getCsepFormatDefinition,
+  normalizeSelectedCsepBlockKeys,
+} from "@/lib/csepBuilder";
 import { buildCsepProgramSections } from "@/lib/csepPrograms";
 import { getHazardModules } from "@/lib/hazardModules";
 import {
   applyJurisdictionStandardsToCsep,
   applyJurisdictionStandardsToPeshep,
 } from "@/lib/jurisdictionStandards/apply";
+import { buildRiskItem } from "@/lib/csepTradeSelection";
 import { getSiteManagementTaskModules } from "@/lib/siteManagementTaskModules";
 import { SITE_SAFETY_BLUEPRINT_TITLE } from "@/lib/safetyBlueprintLabels";
 import {
@@ -63,6 +68,57 @@ function dedupe(values: string[]) {
   }
 
   return out;
+}
+
+const DEFAULT_CSEP_WORK_ATTIRE_BULLETS = [
+  "Wear shirts with sleeves; do not work in tank tops, sleeveless shirts, or other apparel that does not protect the upper body in a construction environment.",
+  "Wear durable work pants; shorts and non-work footwear are not acceptable unless the project owner or site rules explicitly authorize them for defined conditions.",
+  "Work clothing must be suitable for construction activity and may not be loose, torn, or unsafe in ways that add caught-in, snag, trip, or entanglement risk.",
+];
+
+/** Normalized PPE list with a final task-dependent fall-protection line when not already present. */
+function buildCsepPpeBulletList(
+  ppeInput: string[],
+  rulePpe: string[]
+): string[] {
+  const base = dedupe(
+    normalizePpeList(ppeInput.length > 0 ? ppeInput : rulePpe)
+  );
+  if (base.length === 0) {
+    return [];
+  }
+  const withFall = [...base];
+  const hasFall = withFall.some((item) =>
+    /fall\s*protection|harness|lanyard|arrest|tie[-\s]?off/i.test(item)
+  );
+  if (!hasFall) {
+    withFall.push(
+      "Fall protection (e.g., harness, lanyard, anchorage) when the task, exposure, or site rules require it"
+    );
+  }
+  return withFall;
+}
+
+/** IIPP: always show a PPE block; fall back to a site minimum if the builder has no PPE selected. */
+function buildCsepIippPpeBullets(
+  ppeInput: string[],
+  rulePpe: string[]
+): string[] {
+  const fromProject = buildCsepPpeBulletList(ppeInput, rulePpe);
+  if (fromProject.length > 0) {
+    return fromProject;
+  }
+  return buildCsepPpeBulletList(
+    [
+      "Hard hat",
+      "Safety glasses or approved eye protection",
+      "Gloves",
+      "High-visibility vest",
+      "Protective footwear",
+      "Hearing protection",
+    ],
+    []
+  );
 }
 
 function bandFromScore(score: number): RiskBand {
@@ -133,6 +189,8 @@ const CSEP_REFERENCE_PACK_KEYS = new Set([
   "steel_hazard_modules_reference",
   "steel_program_modules_reference",
 ]);
+
+const CSEP_REFERENCE_PACK_BODY_COMPACT = 400;
 
 function normalizeToken(value: string | null | undefined) {
   return (value ?? "")
@@ -214,6 +272,226 @@ function groupOperationsByTradePackage(operations: DraftOperation[]) {
   }
 
   return grouped;
+}
+
+function augmentCsepActivityMatrixByTaskName(
+  taskTitle: string,
+  risk: { hazard: string; controls: string[]; permit: string },
+  base: { hazards: string[]; controls: string[] }
+) {
+  const t = normalizeToken(taskTitle);
+  const extraH: string[] = [];
+  const extraC: string[] = [];
+  if (t.includes("cable") && t.includes("pull")) {
+    extraH.push("Cable tension, jam, and path-of-travel coordination during the pull");
+    extraC.push("Verify pull path; keep communication with the pull operator; stop on bind, overload, or loss of control");
+  }
+  if (t.includes("isolation") && (t.includes("walk") || t.includes("verify") || t.includes("lock"))) {
+    extraH.push("Unverified energy state and unexpected re-energization at the isolation boundary");
+    extraC.push("LOTO / isolation list; test-before-touch; control boundaries and signage to the de-energized zone");
+  }
+  if (t.includes("cleanup") || (t.includes("housekeep") && t.includes("laydown"))) {
+    extraH.push("Struck-by mobile equipment, slips, trips, and manual handling in active yard traffic");
+    extraC.push("Segregate people from equipment paths; use spotters when equipment moves; maintain clear egress");
+  }
+  return {
+    hazards: dedupe([...base.hazards, ...extraH]),
+    controls: dedupe([...base.controls, ...extraC]),
+  };
+}
+
+function competencyListForCsepActivityMatrix(
+  taskTitle: string,
+  risk: { hazard: string },
+  trainingRequirements: string[]
+) {
+  const t = normalizeToken(taskTitle);
+  const parts: string[] = [];
+  if (t.includes("crane") || t.includes("rigg") || t.includes("pick") || t.includes("hoist") || t.includes("signal")) {
+    parts.push("Qualified rigger; qualified signal person when hoisting or critical picks apply");
+  }
+  if (t.includes("weld") || t.includes("torch") || risk.hazard === "Hot work / fire") {
+    parts.push("Fire watch; qualified welder to applicable WPS / procedure when required");
+  }
+  if (t.includes("electr") || t.includes("arc") || risk.hazard === "Electrical shock") {
+    parts.push("Qualified electrical worker; LOTO-authorized where isolation applies");
+  }
+  if (t.includes("cleanup") || t.includes("housekeep")) {
+    parts.push("Supervision brief on active equipment, laydown rules, and spotter use");
+  }
+  if (parts.length === 0) {
+    parts.push("Competent person oversight for the listed task and active scope");
+  }
+  for (const tr of trainingRequirements.slice(0, 2)) {
+    if (tr && !parts.some((p) => p.toLowerCase().includes(tr.toLowerCase().slice(0, 20)))) {
+      parts.push(`Training: ${tr}`);
+    }
+  }
+  return dedupe(parts);
+}
+
+function buildCsepActivityHazardMatrixTable(params: {
+  operations: DraftOperation[];
+  groupedTradePackages: GroupedTradePackage[];
+  ruleSummary: GeneratedSafetyPlanDraft["ruleSummary"];
+  scope: SafetyPlanGenerationContext["scope"];
+  siteLocation: string | null | undefined;
+  activeScopeTasks: string[];
+}): { columns: string[]; rows: string[][] } {
+  const trainingPool = params.ruleSummary.trainingRequirements;
+  const columns = [
+    "Trade / Subtrade",
+    "Areas",
+    "Tasks",
+    "Hazards",
+    "Controls",
+    "PPE",
+    "Permits",
+    "Competency",
+  ] as const;
+
+  const rowFromParts = (parts: {
+    label: string;
+    area: string;
+    task: string;
+    hazards: string[];
+    controls: string[];
+    ppe: string[];
+    permits: string[];
+    competency: string[];
+  }): string[] => [
+    parts.label,
+    parts.area,
+    parts.task,
+    sentenceList(parts.hazards, "N/A"),
+    sentenceList(parts.controls, "N/A"),
+    sentenceList(parts.ppe, "N/A"),
+    sentenceList(parts.permits, "None"),
+    sentenceList(parts.competency, "Not specified"),
+  ];
+
+  if (params.operations.length) {
+    return {
+      columns: [...columns],
+      rows: params.operations.map((op) => {
+        const label = tradePackageLabelForOperation(op).label;
+        const area = locationLabelForOperation(op) ?? "N/A";
+        const task = op.taskTitle;
+        const risk = buildRiskItem(
+          op.tradeLabel?.trim() || "Unassigned Trade",
+          op.subTradeLabel?.trim() || "General",
+          task
+        );
+        let hazards = normalizeHazardList(op.hazardCategories);
+        let controls = [...op.requiredControls];
+        if (!hazards.length) {
+          hazards = [risk.hazard];
+        }
+        if (!controls.length) {
+          controls = [...risk.controls];
+        }
+        const aug = augmentCsepActivityMatrixByTaskName(task, risk, { hazards, controls });
+        const ppeList = normalizePpeList(op.ppeRequirements);
+        const ppeOut = ppeList.length ? ppeList : ["PPE per JHA and site program for the listed task"];
+        let permits = normalizePermitList(op.permitTriggers);
+        if (!permits.length) {
+          permits = risk.permit !== "None" ? [risk.permit] : ["None identified"];
+        }
+        const competency = competencyListForCsepActivityMatrix(task, risk, trainingPool);
+        return rowFromParts({
+          label,
+          area,
+          task,
+          hazards: aug.hazards,
+          controls: aug.controls,
+          ppe: ppeOut,
+          permits,
+          competency,
+        });
+      }),
+    };
+  }
+
+  if (params.groupedTradePackages.length) {
+    return {
+      columns: [...columns],
+      rows: params.groupedTradePackages.flatMap((pkg) =>
+        pkg.taskTitles.map((taskTitle) => {
+          const risk = buildRiskItem(
+            pkg.tradeLabel,
+            pkg.subTradeLabel?.trim() ? pkg.subTradeLabel : "General",
+            taskTitle
+          );
+          let hazards = normalizeHazardList(pkg.hazardCategories);
+          let controls = [...pkg.requiredControls];
+          if (!hazards.length) {
+            hazards = [risk.hazard];
+          }
+          if (!controls.length) {
+            controls = [...risk.controls];
+          }
+          const aug = augmentCsepActivityMatrixByTaskName(taskTitle, risk, { hazards, controls });
+          const ppeList = normalizePpeList(pkg.ppeRequirements);
+          const ppeOut = ppeList.length ? ppeList : ["PPE per JHA and site program for the listed task"];
+          let permits = normalizePermitList(pkg.permitTriggers);
+          if (!permits.length) {
+            permits = risk.permit !== "None" ? [risk.permit] : ["None identified"];
+          }
+          const competency = competencyListForCsepActivityMatrix(taskTitle, risk, trainingPool);
+          return rowFromParts({
+            label: pkg.label,
+            area: sentenceList(pkg.locationLabels, "N/A"),
+            task: taskTitle,
+            hazards: aug.hazards,
+            controls: aug.controls,
+            ppe: ppeOut,
+            permits,
+            competency,
+          });
+        })
+      ),
+    };
+  }
+
+  return {
+    columns: [...columns],
+    rows: [
+      [
+        sentenceList(params.scope.trades, "N/A"),
+        sentenceList([params.scope.location ?? params.siteLocation ?? "N/A"], "N/A"),
+        sentenceList(params.activeScopeTasks, "N/A"),
+        sentenceList(normalizeHazardList(params.ruleSummary.hazardCategories)),
+        sentenceList(params.ruleSummary.requiredControls),
+        sentenceList(normalizePpeList(params.ruleSummary.ppeRequirements)),
+        sentenceList(normalizePermitList(params.ruleSummary.permitTriggers), "None"),
+        sentenceList(
+          trainingPool.length
+            ? trainingPool
+            : ["Competent person oversight for the active scope; task-specific JHA before work"],
+          "Not specified"
+        ),
+      ],
+    ],
+  };
+}
+
+/** Cross-reference when the full matrix lives in Appendix E only. */
+export const APPENDIX_E_TASK_HAZARD_CONTROL_MATRIX_REF =
+  "See Appendix E – Task-Hazard-Control Matrix for the task-specific hazard, control, PPE, permit, and competency breakdown.";
+
+function buildActivityHazardMatrixSectionForDraft(params: {
+  operations: DraftOperation[];
+  groupedTradePackages: GroupedTradePackage[];
+  ruleSummary: GeneratedSafetyPlanDraft["ruleSummary"];
+  scope: SafetyPlanGenerationContext["scope"];
+  siteLocation: string | null | undefined;
+  activeScopeTasks: string[];
+}): GeneratedSafetyPlanSection {
+  return {
+    key: "activity_hazard_matrix",
+    title: CSEP_BUILDER_BLOCK_TITLES.activity_hazard_matrix,
+    table: buildCsepActivityHazardMatrixTable(params),
+  };
 }
 
 function buildGroupedHazardSubsections(packages: GroupedTradePackage[]) {
@@ -609,7 +887,7 @@ function suppressRedundantCsepNarrative(section: GeneratedSafetyPlanSection) {
     return {
       ...section,
       summary: nextSummary,
-      body: compactText(nextBody, 160),
+      body: compactText(nextBody, CSEP_REFERENCE_PACK_BODY_COMPACT),
       bullets: undefined,
     };
   }
@@ -669,7 +947,7 @@ function compactCsepSections(sections: GeneratedSafetyPlanSection[]) {
     CSEP_REFERENCE_PACK_KEYS.has(section.key)
       ? {
           ...section,
-          body: compactText(section.body, 160),
+          body: compactText(section.body, CSEP_REFERENCE_PACK_BODY_COMPACT),
           bullets: undefined,
         }
       : section
@@ -1490,7 +1768,10 @@ function buildTaskModulesReferenceSection(
   return {
     key: "task_modules_reference",
     title: "Task Modules Reference Pack",
-    body: appendInlineOsha("Reference task modules supporting the selected scope.", inlineOshaRefs),
+    body: appendInlineOsha(
+      "The subsections in this pack are the full task module entries selected for the scope. See Section 11 Hazards and Controls; Section 3 Scope (or trade-specific scope) where the CSEP states how tasks map to the contract; and Appendix E. Task-Hazard-Control Matrix for the task, hazard, and control lines tied to the active work.",
+      inlineOshaRefs
+    ),
     subsections: taskModules.map((item) => buildControlModuleSubsection(item)),
   };
 }
@@ -1536,7 +1817,10 @@ function buildHazardModulesReferenceSection(
   return {
     key: "hazard_modules_reference",
     title: "Hazard Modules Reference Pack",
-    body: appendInlineOsha("Reference hazard modules supporting the selected hazards and permits.", inlineOshaRefs),
+    body: appendInlineOsha(
+      "The subsections in this pack expand the same hazard content summarized under Section 11 Hazards and Controls. See also Section 4 Top 10 Risks; Section 5 Trade Interaction Info; Section 8 Security at Site (where access and site traffic connect); Section 9 HazCom (chemical/SDS context); Section 10 IIPP / Emergency Response; and Appendix E. Task-Hazard-Control Matrix. Each parent hazard block in Section 11 remains the project binding structure; this pack provides the full write-up for the modules selected in metadata.",
+      inlineOshaRefs
+    ),
     subsections: hazardModules.map((item) =>
       buildHazardModuleSubsection(item)
     ),
@@ -1585,7 +1869,10 @@ function buildSteelTaskModulesReferenceSection(
   return {
     key: "steel_task_modules_reference",
     title: "Steel Erection Task Modules Reference Pack",
-    body: appendInlineOsha("Reference steel-erection task modules supporting the active scope.", inlineOshaRefs),
+    body: appendInlineOsha(
+      "The subsections in this pack are the steel erection task modules for the current scope. Use them with Section 11 Hazards and Controls; the Project Description / scope sections that name steel work; Section 10 IIPP / Emergency Response (fall rescue and medical escalation where applicable); Section 3 Scope or the steel sub-scope narrative where this CSEP records sequence and interfaces; and Appendix E. Task-Hazard-Control Matrix for steel task, hazard, and control lines. Cited 29 CFR 1926 Subpart R provisions in the plan or matrix apply to the work described in these modules.",
+      inlineOshaRefs
+    ),
     subsections: taskModules.map((item) => buildSteelTaskModuleSubsection(item)),
   };
 }
@@ -1655,7 +1942,10 @@ function buildSteelHazardModulesReferenceSection(
   return {
     key: "steel_hazard_modules_reference",
     title: "Steel Erection Hazard Modules Reference Pack",
-    body: appendInlineOsha("Reference steel-erection hazard modules supporting the active exposures.", inlineOshaRefs),
+    body: appendInlineOsha(
+      "The subsections in this pack are the steel erection hazard modules selected for this CSEP. Cross-read Section 10 IIPP / Emergency Response; Section 11 Hazards and Controls (match each subsection below to its same-titled or companion block in the main hazards section; include Steel Erection Hazard-Control Matrix when that matrix appears in the steel portion of the generated plan); and Appendix E. Task-Hazard-Control Matrix. Regulatory anchors are 29 CFR 1926 Subpart R and any Subpart CC hoisting content referenced in the modules or the site lift plan, as applicable.",
+      inlineOshaRefs
+    ),
     subsections: hazardModules.map((item) => buildSteelErectionHazardModuleSubsection(item)),
   };
 }
@@ -1700,7 +1990,10 @@ function buildSteelProgramModulesReferenceSection(
   return {
     key: "steel_program_modules_reference",
     title: "Steel Erection High-Risk Programs Reference Pack",
-    body: appendInlineOsha("Reference high-risk program modules supporting the active steel-erection work.", inlineOshaRefs),
+    body: appendInlineOsha(
+      "The subsections in this pack are the high-risk program modules (leading edge, CDZ, multi-lift, etc.) selected for steel erection. See Section 10 IIPP / Emergency Response; Section 11 Hazards and Controls for the program blocks and steel subsections; and Appendix E. Task-Hazard-Control Matrix when program controls are line-listed there. See 29 CFR 1926 Subpart R, including 29 CFR 1926.760 (fall protection during steel erection), as cited in the program text and this CSEP's steel plan.",
+      inlineOshaRefs
+    ),
     subsections: programModules.map((item) => buildSteelProgramModuleSubsection(item)),
   };
 }
@@ -1955,6 +2248,29 @@ function prefixedInstructionBullets(values: string[], prefix: string) {
   );
 }
 
+/** Split builder weather lines; "Environmental control:" lines belong in Environmental Controls (Section 11.0), not here. */
+function partitionCsepWeatherInput(values: string[]) {
+  const monitoring: string[] = [];
+  const communication: string[] = [];
+  const other: string[] = [];
+  let skippedEnvironmental = false;
+  for (const raw of values) {
+    const line = cleanFinalText(String(raw)) ?? "";
+    if (!line) continue;
+    const lo = line.toLowerCase();
+    if (lo.startsWith("monitoring source:")) {
+      monitoring.push(line.replace(/^monitoring source:\s*/i, "").trim());
+    } else if (lo.startsWith("communication method:")) {
+      communication.push(line.replace(/^communication method:\s*/i, "").trim());
+    } else if (lo.startsWith("environmental control:")) {
+      skippedEnvironmental = true;
+    } else {
+      other.push(line);
+    }
+  }
+  return { monitoring, communication, other, skippedEnvironmental };
+}
+
 function humanizeCode(value: string) {
   return value
     .replace(/_/g, " ")
@@ -1988,22 +2304,25 @@ function orderGeneratedSections(
       section.key !== referencesSection?.key &&
       section.key !== jurisdictionProfileSection?.key
   );
-  const narrativeSections = remainingSections.filter(
-    (section) => !section.table && !section.key.startsWith("program_permit__")
-  );
-  const tableSections = remainingSections.filter((section) => Boolean(section.table));
-  const permitProgramSections = remainingSections.filter((section) =>
-    section.key.startsWith("program_permit__")
-  );
+
+  const pshsepOrderedRemainder = (() => {
+    if (!isPshsep) return null;
+    const narrativeSections = remainingSections.filter(
+      (section) => !section.table && !section.key.startsWith("program_permit__")
+    );
+    const tableSections = remainingSections.filter((section) => Boolean(section.table));
+    const permitProgramSections = remainingSections.filter((section) =>
+      section.key.startsWith("program_permit__")
+    );
+    return [...narrativeSections, ...tableSections, ...permitProgramSections];
+  })();
 
   return [
     ...(definitionsSection ? [definitionsSection] : []),
     ...(isPshsep
       ? [...(referencesSection ? [referencesSection] : []), ...(jurisdictionProfileSection ? [jurisdictionProfileSection] : [])]
       : [...(jurisdictionProfileSection ? [jurisdictionProfileSection] : []), ...(referencesSection ? [referencesSection] : [])]),
-    ...narrativeSections,
-    ...tableSections,
-    ...permitProgramSections,
+    ...(pshsepOrderedRemainder ?? remainingSections),
   ];
 }
 
@@ -2584,7 +2903,20 @@ function collectOshaReferences(
   }
   for (const section of programSections) {
     const refsSection = section.subsections?.find((subsection) => subsection.title === "Applicable References");
-    refsSection?.bullets.forEach((ref) => refs.add(ref));
+    refsSection?.bullets?.forEach((ref) => refs.add(ref));
+    for (const subsection of section.subsections ?? []) {
+      subsection.bullets?.forEach((b) => {
+        if (/\bOSHA\b|29\s*CFR|\b1926\b/i.test(b)) refs.add(b.trim());
+      });
+      const body = subsection.body;
+      if (!body) continue;
+      for (const match of body.matchAll(/\bR\d+\s+([^R]+?)(?=\s+R\d+|$)/g)) {
+        const chunk = match[1]?.replace(/\s+/g, " ").trim();
+        if (chunk && /\bOSHA\b|29\s*CFR|\b1926\b/i.test(chunk)) {
+          refs.add(chunk.replace(/[.;]+$/, ""));
+        }
+      }
+    }
   }
   Object.values(narrativeSections ?? {}).forEach((value) => {
     const extracted = extractInlineOshaSuffix(value);
@@ -2614,12 +2946,14 @@ type DraftParams = {
 function buildTrainingProgramSection(
   trainingProgram: SafetyPlanTrainingProgram
 ): GeneratedSafetyPlanSection {
+  const recordsNote =
+    " Training records, certifications, and qualification documents shall be maintained current and made available to CM / HSE, site supervision, and owner representatives for verification upon request and before personnel perform work requiring that qualification.";
   return {
     key: "training_program",
     title: "Training Program",
     body: trainingProgram.rows.length
-      ? "Training requirements were derived from the selected trade scope, task templates, and rule evaluation outputs for the current contractor plan."
-      : "No task-based training requirements were derived from the current contractor plan inputs.",
+      ? `Training requirements were derived from the selected trade scope, task templates, and rule evaluation outputs for the current contractor plan.${recordsNote}`
+      : `No task-based training requirements were derived from the current contractor plan inputs.${recordsNote}`,
     table: {
       columns: ["Trade", "Subtrade", "Task", "Required Training", "Why / Source"],
       rows: trainingProgram.rows.length
@@ -2872,7 +3206,12 @@ function buildCsepSelectedSections(params: {
   inlineOshaRefs: string[];
 }) {
   const instructions = getCsepBuilderInstructions(params.generationContext);
-  const selectedSectionOrder = instructions?.selectedBlockKeys ?? [];
+  const selectedSectionOrder = instructions
+    ? normalizeSelectedCsepBlockKeys({
+        includedSections: instructions.selectedBlockKeys,
+        includedContent: instructions.blockInputs,
+      })
+    : [];
   const groupedTradePackages = groupOperationsByTradePackage(params.operations);
   const permitListFromRules = normalizePermitList([
     ...params.ruleSummary.permitTriggers,
@@ -2913,6 +3252,7 @@ function buildCsepSelectedSections(params: {
     getCsepBlockInput(instructions, "weather_requirements_and_severe_weather_response")
   );
   const ppeInput = normalizePpeList(asTextList(getCsepBlockInput(instructions, "required_ppe")));
+  const hazcomInput = asTextValue(getCsepBlockInput(instructions, "hazard_communication"));
   const overlapInput = normalizeTaskList(
     asTextList(getCsepBlockInput(instructions, "common_overlapping_trades"))
   );
@@ -3092,10 +3432,7 @@ function buildCsepSelectedSections(params: {
             params.narrativeSections.requiredControlsSummary,
             params.inlineOshaRefs
           ),
-          bullets:
-            ppeInput.length
-              ? ppeInput
-              : normalizePpeList(params.ruleSummary.ppeRequirements),
+          bullets: buildCsepPpeBulletList(ppeInput, params.ruleSummary.ppeRequirements),
         }
       : undefined,
     additional_permits: hasPermitSectionContent
@@ -3186,30 +3523,14 @@ function buildCsepSelectedSections(params: {
                 : normalizeHazardList(params.operations.flatMap((operation) => operation.hazardCategories)),
         }
       : undefined,
-    activity_hazard_matrix: {
-      key: "activity_hazard_matrix",
-      title: CSEP_BUILDER_BLOCK_TITLES.activity_hazard_matrix,
-      table: {
-        columns: ["Trade / Subtrade", "Areas", "Tasks", "Hazards", "Controls", "PPE"],
-        rows: groupedTradePackages.length
-          ? groupedTradePackages.map((pkg) => [
-              pkg.label,
-              sentenceList(pkg.locationLabels, "N/A"),
-              sentenceList(pkg.taskTitles, "N/A"),
-              sentenceList(normalizeHazardList(pkg.hazardCategories)),
-              sentenceList(pkg.requiredControls),
-              sentenceList(normalizePpeList(pkg.ppeRequirements)),
-            ])
-          : [[
-              sentenceList(scope.trades, "N/A"),
-              sentenceList([scope.location ?? params.generationContext.siteContext.location ?? "N/A"], "N/A"),
-              sentenceList(activeScopeTasks, "N/A"),
-              sentenceList(normalizeHazardList(params.ruleSummary.hazardCategories)),
-              sentenceList(params.ruleSummary.requiredControls),
-              sentenceList(normalizePpeList(params.ruleSummary.ppeRequirements)),
-            ]],
-      },
-    },
+    activity_hazard_matrix: buildActivityHazardMatrixSectionForDraft({
+      operations: params.operations,
+      groupedTradePackages,
+      ruleSummary: params.ruleSummary,
+      scope: params.generationContext.scope,
+      siteLocation: params.generationContext.siteContext.location,
+      activeScopeTasks,
+    }),
   };
 
   const derivedFormatSections: GeneratedSafetyPlanSection[] = [];
@@ -3332,7 +3653,7 @@ function buildCsepSelectedSections(params: {
       params.operations
     );
     const iippBodyLead =
-      "The contractor shall maintain an active injury and illness prevention workflow covering incident response, corrective action, and worker accountability. Fit-for-duty, substance, and site-access expectations are in the subsections below so they are not repeated between Drug, Alcohol, and Fit-for-Duty Controls and Enforcement and Corrective Action.";
+      "The contractor shall maintain an active injury and illness prevention workflow covering incident response, corrective action, and worker accountability. Fit-for-duty, substance, and site-access expectations are in the subsections below so they are not repeated between 6.3 Drug, Alcohol, and Fit-for-Duty Controls and 6.4 Enforcement and Corrective Action.";
     const iippSteelRisk = steelErectionInScope
       ? " For the active structural steel or steel erection trade scope, fall from height is a major ongoing project risk. Incident and investigation requirements in subsections 5.7.1 through 5.7.6 apply in full, with fall-related and fall-arrest events treated as primary report and review triggers when they occur on site."
       : "";
@@ -3354,7 +3675,7 @@ function buildCsepSelectedSections(params: {
       title: "Enforcement and Corrective Action",
       value: enforcementInput,
       fallbackBody:
-        "This subsection governs correction, escalation, documentation, field verification, and approved restart after CSEP or site-rule violations. It does not restate the substance, testing, and fit-for-duty program (see Drug, Alcohol, and Fit-for-Duty Controls).",
+        "This subsection governs correction, escalation, documentation, field verification, and approved restart after CSEP or site-rule violations. It does not restate the substance, testing, and fit-for-duty program (see 6.3 Drug, Alcohol, and Fit-for-Duty Controls).",
       fallbackBullets: [
         "Correct the deficiency at once or stop the work: issue clear, task-specific direction on what must change before the crew or equipment re-engages.",
         "Escalate in proportion to risk: foreman to superintendent to company safety; involve owner/GC and union stewards when program rules, labor agreements, or contract terms require it.",
@@ -3363,21 +3684,34 @@ function buildCsepSelectedSections(params: {
         "Disciplinary and contract consequences, including removal from site, follow employer policy, labor obligations, and owner/GC direction; communicate outcomes as those rules require.",
       ],
     });
+    const iippPpeBullets = buildCsepIippPpeBullets(
+      ppeInput,
+      params.ruleSummary.ppeRequirements
+    );
 
     derivedFormatSections.push({
       key: "contractor_iipp",
       title: "Contractor Injury & Illness Prevention Program",
       body: `${iippBodyLead.trim()}${iippSteelRisk}`,
       subsections: [
+        {
+          title: "6.1 Work Attire Requirements",
+          bullets: [...DEFAULT_CSEP_WORK_ATTIRE_BULLETS],
+        },
+        {
+          title: "6.2 Personal Protective Equipment (PPE)",
+          body: "The following is the reference list for minimum project PPE. Supervision uses it for enforcement, substitutions, and documented deviations. Task- or site-specific PPE (e.g., hot work, electrical, or rescue) is added by JHA, permit, and client or GC direction.",
+          bullets: iippPpeBullets,
+        },
         ...buildHealthAndWellnessExpectationsSubsections(healthInput),
         ...buildIncidentReportingInvestigationSubsections(incidentInput, steelErectionInScope),
         {
-          title: "Drug, Alcohol, and Fit-for-Duty Controls",
+          title: "6.3 Drug, Alcohol, and Fit-for-Duty Controls",
           body: drugAlcohol.body,
           bullets: drugAlcohol.bullets,
         },
         {
-          title: "Enforcement and Corrective Action",
+          title: "6.4 Enforcement and Corrective Action",
           body: enforcement.body,
           bullets: enforcement.bullets,
         },
@@ -3385,82 +3719,241 @@ function buildCsepSelectedSections(params: {
     });
   }
 
-  if (selectedFormatSections.has("weather_requirements_and_severe_weather_response")) {
+  if (selectedFormatSections.has("hazard_communication_program")) {
+    const hazFormat = getCsepFormatDefinition("hazard_communication_program");
     derivedFormatSections.push({
-      key: "weather_requirements_and_severe_weather_response",
-      title: "Weather Requirements and Severe Weather Response",
+      key: "hazard_communication_program",
+      title: hazFormat.title,
       body: combineParagraphs(
-        [
-          params.generationContext.siteContext.weather?.summary ?? null,
-          params.ruleSummary.weatherRestrictions.length
-            ? `Weather-sensitive restrictions in force: ${params.ruleSummary.weatherRestrictions
-                .map(humanizeCode)
-                .join(", ")}.`
-            : null,
-        ],
-        "Monitor forecast changes, communicate trigger thresholds, and stop or modify work when weather conditions defeat the planned controls."
+        [hazcomInput],
+        "This section is the project Hazard Communication (HazCom) program for chemicals and hazardous materials. Life-safety emergency response, evacuation, and posted emergency numbers are in Section 6.0. Environmental compliance for stormwater, site waste, and agency-reportable releases is in Section 11.0. Do not duplicate those programs here."
       ),
       subsections: [
         {
-          title: "Monitoring and Communication",
-          body: prefixedInstructionBullets(weatherInput, "Monitoring source:").length
-            ? null
-            : "Use designated forecast sources, communicate trigger changes before work starts, and brief crews when conditions change.",
-          bullets:
-            prefixedInstructionBullets(weatherInput, "Monitoring source:").length ||
-            prefixedInstructionBullets(weatherInput, "Communication method:").length
-              ? [
-                  ...prefixedInstructionBullets(weatherInput, "Monitoring source:").map(
-                    (item) => `Monitoring source: ${item}`
-                  ),
-                  ...prefixedInstructionBullets(weatherInput, "Communication method:").map(
-                    (item) => `Communication method: ${item}`
-                  ),
-                ]
-              : [
-                  "Review forecast and site conditions before shift start and as conditions change.",
-                  "Communicate stop-work and restart decisions through supervision and field leads.",
-                ],
+          title: "8.1 Labeling, GHS elements, and site marking",
+          body: "Primary containers keep manufacturer or supplier labels. Secondary and portable containers (spray bottles, transfer cans, day tanks) are labeled with product identity and GHS-style hazard information (pictograms, signal word, hazard and precautionary statements) or a site-approved equivalent. Workers shall not work from unmarked or unknown chemical containers.",
+          bullets: [
+            "Match labels to the product in the container; relabel or remove from service if the label is missing, defaced, or no longer correct.",
+            "Post or maintain NFPA 704, HMCIS, or other owner-required hazard markings at fixed chemical storage, fuel points, and temporary storage yards when the site plan requires it.",
+            "Bar-code or QR site systems are acceptable only if every affected worker can still access the identity and hazard class before use.",
+          ],
         },
         {
-          title: "Stop-Work Triggers and Protective Actions",
-          body: null,
-          bullets:
-            weatherInput.length > 0
-              ? weatherInput
-              : [
-                  "Suspend exposed work when wind, lightning, storm, heat, or cold conditions defeat planned controls.",
-                  "Move crews to approved shelter or protected areas when severe-weather triggers are met.",
-                ],
+          title: "8.2 SDS availability, chemical inventory, and training",
+          body: "SDS for all hazardous chemicals brought onto the site shall be maintained on site, readily accessible to workers, and provided to CM / HSE for verification upon request. Containers and secondary containers shall be labeled in accordance with site requirements and applicable HazCom / GHS rules. SDSs are available to workers at all times through the project SDS system (e.g., trailer binder, project portal, or GC-provided app). A chemical inventory or other documented communication process ties introduced products to SDSs before first use. Training covers how to read labels and SDS, physical and health hazards, and where to get help.",
+          bullets: [
+            "Before first use of a new chemical on the job, confirm an SDS is on file, on site, accessible, and understood by the crew that will use it.",
+            "Update the inventory and SDS library when new products, concentrations, or suppliers change field hazards.",
+            "Subcontractors shall present SDS and usage information to the host employer / GC / CM for products they introduce so multi-employer coordination stays current.",
+          ],
+        },
+        {
+          title: "8.3 Contractor notification and damaged or leaking containers",
+          body: "Each employer or trade bringing chemicals to the site coordinates with the GC/CM or designated competent person for compatible storage, quantity limits, and special posting. Damaged, bulging, or leaking containers are reported at once, isolated, and managed under SDS, owner, and regulatory expectations.",
+          bullets: [
+            "Notify the site when bringing regulated quantities, cylinder gases, or unusual materials so permits, hot-work separation, and fire protections stay valid.",
+            "For leaks: protect personnel, control ignition sources, use compatible absorbent or containment from the spill cart, and escalate per Section 6.0 and Section 11.0 if the release leaves the immediate work area, enters soil or water, or exceeds workers’ training.",
+          ],
+        },
+      ],
+    });
+  }
+
+  if (selectedFormatSections.has("weather_requirements_and_severe_weather_response")) {
+    const wxFormat = getCsepFormatDefinition("weather_requirements_and_severe_weather_response");
+    const wxPart = partitionCsepWeatherInput(weatherInput);
+    const sectionLead = combineParagraphs(
+      [
+        params.generationContext.siteContext.weather?.summary ?? null,
+        params.ruleSummary.weatherRestrictions.length
+          ? `Weather-sensitive restrictions in force: ${params.ruleSummary.weatherRestrictions
+              .map(humanizeCode)
+              .join(", ")}.`
+          : null,
+        wxPart.skippedEnvironmental
+          ? "Builder lines beginning with 'Environmental control:' are handled in Section 11.0 (Environmental Controls), not restated in this section."
+          : null,
+      ],
+      "This section governs how crews coordinate in the field for weather, heat, cold, fire prevention, and housekeeping. It supplements—but does not replace—Section 6.0 (emergency and evacuation programs) and Section 8.0 (HazCom and SDS for chemicals)."
+    );
+    const monCommBody = [
+      wxPart.monitoring.length
+        ? `Use these monitoring sources: ${wxPart.monitoring.join("; ")}.`
+        : "Use the project’s designated forecast sources, on-site anemometer or site-specific wind/heat/cold tools, and the project weather SOP to decide when to adjust or stop work.",
+      wxPart.communication.length
+        ? `Use these communication paths for weather triggers: ${wxPart.communication.join("; ")}.`
+        : "Communicate trigger changes, shelter locations, and restart conditions through the superintendent, competent person, and foreman before work resumes in affected areas.",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const defaultStopWorkBullets = [
+      "Suspend exposed work, hoisting, and elevated work when wind, lightning, or storm conditions exceed the plan, manufacturer limits, or site rules; secure loads and access routes as needed.",
+      "Enforce the site lightning or high-wind all-clear and restart sequence before crews leave shelter or re-establish work at height.",
+      "Reassess slings, sheeting, barriers, and temporary power after severe wind or water intrusion before the next shift.",
+    ];
+    const stopWorkBullets =
+      wxPart.other.length > 0 ? [...defaultStopWorkBullets, ...wxPart.other] : defaultStopWorkBullets;
+
+    derivedFormatSections.push({
+      key: "weather_requirements_and_severe_weather_response",
+      title: wxFormat.title,
+      body: sectionLead,
+      subsections: [
+        {
+          title: "9.1 Emergency coordination and response (field tie-in)",
+          body: "In an alarm, fire, major medical event, or utility emergency, follow Section 6.0, posted site maps, and the owner/GC plan. This subsection covers how weather-related and stop-work events tie back to that program—not full emergency content.",
+          bullets: [
+            "Keep assembly area routes clear during weather stand-downs; do not block fire lanes or site gates used by responders.",
+            "Account for workers after sheltering, evacuation, or stop-work: use the project roll-call or GC method.",
+            "Report injuries, near misses, and significant near-miss weather events to supervision per the IIPP, even if no one was hurt.",
+          ],
+        },
+        {
+          title: "9.2 Weather events, heat exposure, and cold exposure",
+          body: "Match work plans to forecast and on-site readings. Wind, precipitation, and reduced visibility can affect cranes, sheeting, roofing, and temporary lighting. Plan heat and cold controls before the shift; adjust for new workers, returning crews, and changing forecasts. Lightning, tornado, and (where applicable) earthquake controls are in 9.3 through 9.5.",
+          bullets: [
+            "General wind and storm exposure: follow project trigger tables; re-brief the crew when the forecast or radar changes; secure loose materials, formwork, and temporary enclosures.",
+            "Heat—hydration: provide accessible cool drinking water; encourage frequent drinking; add stations when work is far from a fixed source.",
+            "Heat—rest and environment: add shade, cooling, or A/C recovery when heat index, workload, and clothing combine to raise heat-stress risk; increase break frequency and length during heat advisories and peak sun.",
+            "Heat—acclimatization: plan lighter workloads the first week for new hires or after absences; pair new workers with experienced partners for buddy checks.",
+            "Heat—symptoms and monitoring: watch for cramps, heavy sweating with weakness, hot dry skin, confusion, nausea, and dizziness; use supervisor rounds during peak heat; stop work and cool workers when heat illness is suspected.",
+            "Heat—work-rest and stop-work: apply site work/rest charts when required; reassign heavy exertion; stop or postpone work when controls cannot keep heat stress in an acceptable range.",
+            "Cold—clothing: layer clothing; use weather-appropriate PPE and dry, insulated hand protection suitable for the task; change out of wet clothing during the shift.",
+            "Cold—rest and comfort: add warm-up breaks and heated or wind-protected recovery when wind chill, wet conditions, and duration combine to lower dexterity or comfort.",
+            "Cold—health monitoring: watch for shivering, loss of fine motor control, numbness, stiff joints, and frostnip; rotate tasks when work keeps hands in cold or wet contact.",
+            "Cold—wind and precipitation: re-plan exposed work, ladder use, and roof access for ice, gusts, and reduced footing.",
+            "Cold—task rotation and stop-work: rotate workers through shorter cycles in the cold; stop work when cold stress would prevent safe use of tools, PPE, or fall protection.",
+          ],
+        },
+        {
+          title: "9.3 Lightning and electrical-storm response",
+          body: "This project’s site requirement uses a 20-mile monitoring and stop-work radius for electrical storms unless the site owner, GC, or local emergency authority specifies a stricter standard; align the field plan with the posted site weather SOP. Keep all-clear timing consistent with the same site rules and this subsection.",
+          bullets: [
+            "Lightning watch / stop-work radius: 20 miles for this plan. When lightning risk is within that radius, stop exposed outdoor work, hoisting, and elevated work per the site SOP. A different radius applies only if the owner or GC documents it in the site weather SOP.",
+            "Lightning all-clear: 30 minutes from the last detected strike or flash within the trigger radius, unless site rules, owner standards, or an approved weather service prescribes a longer or shorter interval; document the source used for restart.",
+            "Suspend crane operations, high work on steel or deck, MEWP/steel access baskets, and metal-roof or topping-out activity when the lightning plan triggers; do not use shelters that leave workers exposed to step potential or ungrounded mobile equipment as the sole protection.",
+            "Re-start exposed work only after the all-clear clock has completed and a competent person has re-authorized the task list for that weather window.",
+          ],
+        },
+        {
+          title: "9.4 Tornado and severe convective-storm response",
+          body: "A tornado or severe convective warning requires immediate, coordinated action. Supervision, the GC/CM, or the site’s designated weather authority (per the project emergency and severe-weather addendum) issues stop-work and shelter or evacuation orders. Do not improvise a single-sentence “go inside” without using posted shelter maps and headcount methods.",
+          bullets: [
+            "Order and communication: the superintendent, site safety lead, or GC/CM representative shall issue the shelter or evacuation order and confirm it is sent on the project’s communication path (radio, mass text, siren, or as posted).",
+            "Move immediately to the designated in-building shelter, hardened interior rooms, or other owner-approved refuges identified on the site map. Do not remain on lifts, exposed structural steel, roofs, open deck, latticed cranes, or in open yards during a watch or warning unless an emergency release has been given by a responder.",
+            "Vehicles: do not treat ordinary pickups or job trucks as safe shelters; only use a vehicle as shelter when the project policy or fire marshal explicitly approves a vehicle plan (e.g., low-lying, sealed cab with instructions)—otherwise proceed to a designated building shelter.",
+            "Accountability: at the shelter, foremen and the GC/CM (or their designee) perform a field headcount or electronic roll against the muster list; report missing workers only through the site emergency process.",
+            "Restart: return to the workface only after site leadership, emergency services, or the GC/CM has formally released the site for work. Re-brief the crew, re-walk the area for downed power, damaged weather enclosure, and unstable material before re-engaging.",
+          ],
+        },
+        {
+          title: "9.5 Earthquake and seismic event response (when applicable)",
+          body: "Use this block when the project is in a seismic area or the owner, GC, or jurisdiction requires a documented earthquake response. It supplements Section 6.0; it is not a substitute for the project emergency or evacuation program.",
+          bullets: [
+            "On shaking or a seismic warning: stop work immediately; do not run through active steel, under suspended loads, scaffolds, or crane booms, or next to freestanding wall panels and glass that can shift or fall.",
+            "Move to an open, clear area away from structures, fuel points, and overhead utilities when an outdoor “drop, cover, hold” location is the site plan; otherwise follow the posted indoor refuge or roof-access freeze plan.",
+            "After the event, evacuate or shelter as directed; account for all personnel. Do not restart in affected bays until a competent person has inspected for fallen steel, damaged connections, dislodged rigging, cracked concrete, and damaged access ladders.",
+            "Re-inspect crane bases, outrigger pads, tower ties, and laydown for movement before the next pick. Confirm temporary power, gas, and standpipes for damage before re-energizing.",
+          ],
+        },
+        {
+          title: "9.6 Fire prevention controls",
+          body: "Control combustibles, ignition sources, and egress before work begins each day and after weather or trade changes. Coordinate with hot-work permits, temporary heat, and the owner’s fire-protection rules.",
+          bullets: [
+            "Keep combustible scrap, packaging, and wood forms away from hot work, temporary power, panel boards, and heaters; remove fuel sources from the line of fire and arc flash zones.",
+            "Maintain clear access to extinguishers, standpipes, yard hydrants, and site alarm boxes; never block them with material or waste.",
+            "Keep separation or fire-watch interfaces where the hot-work program or owner rules require a watch between ignition sources and combustible construction, debris, or weather plastic.",
+            "Clear debris, banding, and obstructions that could carry fire or block egress and exit doors; keep means of egress open per site rules.",
+            "Open flames, temporary heaters, and extension cords: follow the site hot-work, electrical, and fire-watch programs.",
+          ],
+        },
+        {
+          title: "9.7 Housekeeping controls",
+          body: "Continuous housekeeping supports trip-and-fire prevention, weather drainage, and clean egress. Align with the site waste and environmental plan for containers and stockpiles.",
+          bullets: [
+            "Debris and scrap: remove on a defined cadence (end of task, end of day, and before hand-off to another trade where the site requires it).",
+            "Walkways and work paths: keep them clear of hose, stock, and scrap; re-mark tripping and slip hazards when lighting or weather changes.",
+            "Material stacking: stack to the project plan, band or tie loads, and keep stacks clear of drop zones, access routes, and weather-exposed limits.",
+            "Openings, edges, and floor penetrations: keep cut-outs free of material buildup that could fall or create trip edges.",
+            "Egress: keep exit routes, stairs, and doors unobstructed; remove scrap, banding, tools, and cord runs that would slow evacuation.",
+            "Loose items: control banding, tie wire, and small scrap at foot level—especially after wind that spreads lightweight debris.",
+          ],
+        },
+        {
+          title: "9.8 Monitoring and communication",
+          body: monCommBody,
+          bullets: [
+            "Consolidate monitoring and comm plans into pre-task and shift briefings; avoid fragmenting the same information across many one-line list entries in the field packet.",
+            "Log significant trigger changes and restart approvals when the owner or program requires a written record.",
+          ],
+        },
+        {
+          title: "9.9 Stop-work triggers and protective actions",
+          body: "Stop or modify work when on-site conditions no longer match the JHA, permit, or manufacturer limits. For chemical releases beyond a minor spill controlled at the work face, use Section 6.0, Section 8.0, and Section 11.0 as applicable.",
+          bullets: stopWorkBullets,
         },
       ],
     });
   }
 
   if (selectedFormatSections.has("environmental_execution_requirements")) {
+    const envFormat = getCsepFormatDefinition("environmental_execution_requirements");
     derivedFormatSections.push({
       key: "environmental_execution_requirements",
-      title: "Environmental Execution Requirements",
-      body: combineParagraphs(
-        [
-          prefixedInstructionBullets(weatherInput, "Environmental control:").length
-            ? `Environmental controls for this project include ${prefixedInstructionBullets(
-                weatherInput,
-                "Environmental control:"
-              ).join(", ")}.`
-            : null,
-        ],
-        "Control dust, noise, and debris; protect storm drains and soil; store and handle fuels and chemicals to prevent releases; and dispose of waste through approved means. Spills are reported and cleaned per site and regulatory requirements."
-      ),
-      table: {
-        columns: ["Environmental Topic", "Minimum Control", "Responsible Party"],
-        rows: [
-          ["Housekeeping and waste", "Keep work areas orderly, contain debris, and dispose of waste in designated containers.", "Foreman / Crew"],
-          ["Stormwater / drain protection", "Protect drains, inlets, and exposed surfaces from debris or releases.", "Competent Person / Crew Lead"],
-          ["Spill and chemical control", "Store materials properly, maintain spill-response materials, and report releases immediately.", "Superintendent / Material Handler"],
-          ["Dust / noise / nuisance control", "Use project-required suppression and timing controls to limit impacts to adjacent operations.", "Foreman / Superintendent"],
-        ],
-      },
+      title: envFormat.title,
+      body: "This section addresses environmental field controls only—waste, drainage, releases, and nuisance management. It does not replace site orientation, trade permits, fall protection, rigging, PPE, or work procedures, which are covered elsewhere in this plan.",
+      subsections: [
+        {
+          title: "11.1 Environmental concerns for the active scope",
+          body: "Call out the environmental profile of the current scope: waste streams, sensitive areas, and how this work fits the site SWPPP and owner requirements.",
+          bullets: [
+            "Match debris and waste handling to the active tasks; avoid mixing incompatible wastes or using unapproved containers.",
+            "Protect adjacent soil, water features, and occupied areas from migration of scrap, dust, and fluids from the work area.",
+            "Communicate with GC or environmental oversight when the scope is near inlets, retention features, or property lines.",
+          ],
+        },
+        {
+          title: "11.2 Housekeeping and waste",
+          body: "Keep work areas orderly; stage and remove waste before it blocks access, creates fire load, or overwhelms containments.",
+          bullets: [
+            "Use project-designated roll-offs, totes, or scrap areas; keep lids closed and labels accurate where the site requires it.",
+            "Segregate materials as required (e.g., recyclable metals, general construction waste, and hazardous-compatible streams).",
+          ],
+        },
+        {
+          title: "11.3 Stormwater and drain protection",
+          body: "Keep storm inlets, trench drains, and other conveyances free of construction debris, sediment, and process fluids.",
+          bullets: [
+            "Use inlet protection, cover, or diversion per the site SWPPP or direction from a competent person when work could discharge to the system.",
+            "Prohibit uncontrolled equipment washout, concrete wash, or other discharge to drains or surface water unless an approved method is in use.",
+          ],
+        },
+        {
+          title: "11.4 Spill and chemical control",
+          body: "Store, transfer, and use fuels, lubricants, and other job-site chemicals to prevent uncontrolled release.",
+          bullets: [
+            "Stage secondary containment and compatible spill response materials where bulk fluids and daily-use containers are kept.",
+            "Report releases immediately; stop ignition sources and protect responders until the situation is fully assessed per site policy.",
+          ],
+        },
+        {
+          title: "11.5 Dust, noise, and nuisance control",
+          body: "Limit dust, noise, vibration, and other nuisances to neighbors, occupied spaces, and adjacent work.",
+          bullets: [
+            "Use water, vacuum, or equipment selection to control dust in dry, windy, or interior-adjacent work.",
+            "Adhere to owner or local restrictions on high-noise or high-dust work timing when they apply to this site.",
+          ],
+        },
+        {
+          title: "11.6 Weather, precipitation, and disturbed-area controls (when applicable)",
+          body: "When ground disturbance, stockpiles, or exposed soil is in scope, manage erosion, tracking, and runoff per the site plan. For primarily interior, slab-on, or minimally disturbed scopes, 11.1 through 11.5 still apply; add 11.6 measures when the site SWPPP or conditions require them.",
+          bullets: [
+            "Stabilize or protect stockpiles, slopes, and exposed areas before significant precipitation when the site plan requires it.",
+            "Control track-out and sediment at exits and along haul paths when site conditions or inspections trigger additional measures.",
+          ],
+        },
+      ],
     });
   }
 
@@ -3470,14 +3963,19 @@ function buildCsepSelectedSections(params: {
       title: "Contractor Monitoring, Audits & Reporting",
       body: combineParagraphs(
         [recordkeepingInput],
-        "The contractor shall monitor field execution, document inspections and corrective actions, and maintain reporting records that demonstrate ongoing compliance."
+        "The contractor shall monitor field execution, document inspections and corrective actions, and maintain reporting records that demonstrate ongoing compliance. All required permits shall be obtained before the task begins, fully completed, kept active for the duration of the work as required, and maintained on site for review by supervision, CM / HSE, or other authorized representatives."
       ),
       table: {
         columns: ["Monitoring Activity", "Minimum Frequency", "Responsible Party", "Required Record"],
         rows: [
           ["Pre-task plan / JHA review", "Each shift and when the task changes", "Foreman / Crew Lead", "Daily pre-task record"],
           ["Field safety inspection", "Daily or as triggered by conditions", "Competent Person / Superintendent", "Inspection log"],
-          ["Permit status review", "Before start and when conditions change", "Superintendent / Permit Holder", "Permit register"],
+          [
+            "Permit status review",
+            "Before start and when conditions change",
+            "Superintendent / Permit Holder",
+            "Each active permit obtained before the task, fully completed, and kept on site for supervision / CM / HSE review",
+          ],
           ["Corrective action tracking", "Until closed", "Supervisor / Safety Lead", "Corrective action log"],
           ["Incident and trend reporting", "Immediately and during weekly review", "Superintendent / Safety Lead", "Incident report and follow-up notes"],
         ],
@@ -3486,6 +3984,34 @@ function buildCsepSelectedSections(params: {
   }
 
   if (selectedFormatSections.has("contractor_safety_meetings_and_engagement")) {
+    const ruleDerivedTraining = params.trainingProgram.summaryTrainingTitles.map(
+      (item: string) => `Active scope / rules evaluation: ${item}`
+    );
+    const equipmentAndRoleTraining = [
+      "Crane operators: qualified and authorized for the class of crane and work method (e.g., lattice boom, truck crane, tower) in use, per site, owner, and Subpart CC requirements as applicable.",
+      "MEWP / aerial lift operators: current familiarization and operation training for the make and model; site rules for travel path, fall protection, and load limits apply.",
+      "Lull / telehandler operators: authorized and trained for the specific vehicle, attachments, and load types; respect pick charts and site traffic plans.",
+      "PIV / powered industrial vehicle operators (where separate from telehandlers in site policy): site/traffic and industrial-truck training before operating in work areas, laydown, or around pedestrians.",
+      "Forklifts: where forklifts or equivalent trucks are in scope, verify power-industrial-truck or owner-equivalent training and pre-use inspection before operation.",
+      "Qualified riggers: assigned where load handling, steel erection, or critical hoisting require qualified rigger coverage under 29 CFR 1926 Subpart R, CC, or site program.",
+      "Qualified signal persons: where hoisting, crane picks, or blind lifts require a qualified signal person, verify designation before picks proceed.",
+      "Welders and hot work: WPS, procedure, and fire-watch / hot-work permit alignment for tasks that involve cutting, heating, or welding on site.",
+    ];
+    const trainingForScopeSubsection = {
+      title: "Required training, qualifications, and equipment roles (active scope)",
+      body: "Tie every listed requirement to the tasks, equipment, and permit triggers in this CSEP. Add owner-, GC-, or trade-specific program requirements when the site directs.",
+      bullets: dedupe([...equipmentAndRoleTraining, ...ruleDerivedTraining]),
+    };
+    const trainingRecordsSubsection = {
+      title: "Training records, certifications, and qualifications",
+      body: "Training records, certifications, and qualification documents shall be maintained current and made available to CM / HSE, site supervision, and owner representatives for verification upon request and before personnel perform work requiring that qualification.",
+      bullets: [
+        "Maintain current records for the active scope, including training records; trade, task, and equipment certifications; operator qualifications; welder or procedure qualifications when welding or cutting applies; qualified rigger and qualified signal person credentials when hoisting applies; and OSHA training cards or other site-required credentials.",
+        "Provide these records for verification before or during site access when the project requires it, and before work starts that depends on the qualification.",
+        "Retain evidence in the format the site requires (paper, electronic, badge, or union roster). Withhold or rescind work authorization when required training or credentials are missing, expired, or cannot be produced on request.",
+        "Field leads shall confirm current qualifications during pre-task review when the task, equipment, or permit changes mid-shift or between crews.",
+      ],
+    };
     derivedFormatSections.push({
       key: "contractor_safety_meetings_and_engagement",
       title: "Contractor Safety Meetings and Engagement",
@@ -3502,18 +4028,7 @@ function buildCsepSelectedSections(params: {
           ["Stand-down / re-brief", "After incidents, near misses, or major plan changes", "Leadership / Supervision", "Restart conditions and revised controls documented"],
         ],
       },
-      subsections:
-        params.trainingProgram.summaryTrainingTitles.length > 0
-          ? [
-              {
-                title: "Training Focus for the Active Scope",
-                body: null,
-                bullets: params.trainingProgram.summaryTrainingTitles.map(
-                  (item: string) => `Required training / competency: ${item}`
-                ),
-              },
-            ]
-          : undefined,
+      subsections: [trainingForScopeSubsection, trainingRecordsSubsection],
     });
   }
 
@@ -3544,22 +4059,65 @@ function buildCsepSelectedSections(params: {
   }
 
   if (selectedFormatSections.has("project_close_out")) {
+    const closeOutIntro =
+      "Close-out actions shall be completed before final turnover of the work area, records, and remaining responsibilities.";
+    const closeOutOpenInput = continuousImprovementInput?.trim() ?? null;
+    const closeOutBody = closeOutOpenInput
+      ? `${closeOutIntro} ${closeOutOpenInput}`
+      : closeOutIntro;
+    const closeOutAction = (minimum: string, party: string) => ({
+      bullets: [
+        `Minimum Requirement: ${minimum}`,
+        `Responsible Party: ${party}`,
+      ],
+    });
+
     derivedFormatSections.push({
       key: "project_close_out",
       title: "Project Close-Out",
-      body: combineParagraphs(
-        [continuousImprovementInput],
-        "Before demobilization, the contractor shall close open actions, complete turnover items, capture lessons learned, and verify that no temporary controls or permits remain unresolved."
-      ),
-      table: {
-        columns: ["Close-Out Item", "Minimum Requirement", "Responsible Party"],
-        rows: [
-          ["Open corrective actions", "Verify all required actions are closed or transferred with documented ownership.", "Superintendent / Safety Lead"],
-          ["Permit and form closeout", "Close permits, archive required forms, and remove expired postings.", "Permit Holder / Foreman"],
-          ["Environmental and housekeeping turnover", "Remove waste, temporary protections, and outstanding environmental controls as required.", "Foreman / Crew Lead"],
-          ["Lessons learned", "Capture scope-specific issues, improvements, and retraining opportunities before final turnover.", "Leadership / Supervision"],
-        ],
-      },
+      body: closeOutBody,
+      subsections: [
+        {
+          title: "15.1.1 Open corrective actions",
+          body: null,
+          ...closeOutAction(
+            "Verify all required actions are closed or transferred with documented ownership.",
+            "Superintendent / Safety Lead"
+          ),
+        },
+        {
+          title: "15.1.2 Permit and form closeout",
+          body: null,
+          ...closeOutAction(
+            "Close permits, archive required forms, and remove expired postings.",
+            "Permit Holder / Foreman"
+          ),
+        },
+        {
+          title: "15.1.3 Environmental and housekeeping turnover",
+          body: null,
+          ...closeOutAction(
+            "Remove waste, temporary protections, and outstanding environmental controls as required.",
+            "Foreman / Crew Lead"
+          ),
+        },
+        {
+          title: "15.1.4 Lessons learned",
+          body: null,
+          ...closeOutAction(
+            "Capture scope-specific issues, improvements, and retraining opportunities before final turnover.",
+            "Leadership / Supervision"
+          ),
+        },
+        {
+          title: "15.1.5 Final documentation review",
+          body: null,
+          ...closeOutAction(
+            "Confirm required training, permits, inspections, incident records, and corrective-action records are complete and filed as required.",
+            "Superintendent / Safety Lead"
+          ),
+        },
+      ],
     });
   }
 
@@ -3835,29 +4393,7 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
     {
       key: "task_hazard_analysis",
       title: "Task-Level Hazard Analysis",
-      table: {
-        columns: ["Trade / Subtrade", "Areas", "Tasks", "Hazards", "Controls", "PPE"],
-        rows: groupedTradePackages.length
-          ? groupedTradePackages.map((pkg) => [
-              pkg.label,
-              sentenceList(pkg.locationLabels, "N/A"),
-              sentenceList(pkg.taskTitles, "N/A"),
-              sentenceList(normalizeHazardList(pkg.hazardCategories)),
-              sentenceList(pkg.requiredControls),
-              sentenceList(normalizePpeList(pkg.ppeRequirements)),
-            ])
-          : [[
-              sentenceList(params.generationContext.scope.trades, "N/A"),
-              sentenceList(
-                [params.generationContext.scope.location ?? params.generationContext.siteContext.location ?? "N/A"],
-                "N/A"
-              ),
-              sentenceList(activeScopeTasks, "N/A"),
-              sentenceList(ruleSummary.hazardCategories),
-              sentenceList(ruleSummary.requiredControls),
-              sentenceList(ruleSummary.ppeRequirements),
-            ]],
-      },
+      body: APPENDIX_E_TASK_HAZARD_CONTROL_MATRIX_REF,
     },
     {
       key: "permit_matrix",
@@ -3974,6 +4510,14 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
       body: appendInlineOsha(narrativeSections.safetyNarrative, inlineOshaRefs),
     },
   ];
+  const activityHazardMatrixAppendixSection = buildActivityHazardMatrixSectionForDraft({
+    operations,
+    groupedTradePackages,
+    ruleSummary,
+    scope: params.generationContext.scope,
+    siteLocation: params.generationContext.siteContext.location,
+    activeScopeTasks,
+  });
   const [
     projectOverviewSection,
     tradeRiskBreakdownSection,
@@ -4026,6 +4570,7 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
         ...pshsepCoreSections,
         tradeRiskBreakdownSection,
         taskHazardAnalysisSection,
+        activityHazardMatrixAppendixSection,
         permitMatrixSection,
         trainingProgramSection,
         simultaneousOperationsSection,

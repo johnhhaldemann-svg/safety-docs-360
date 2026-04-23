@@ -78,14 +78,20 @@ export const DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG: DocumentBuilderTextConfig = {
             "In the event of an emergency, workers shall stop work, notify supervision immediately, follow site alarm and evacuation procedures, and report to the designated assembly area.",
           ],
         }),
+        section("hazard_communication", "Hazard Communication (HazCom)", "Hazard Communication (HazCom)", {
+          paragraphs: [
+            "SDS for all hazardous chemicals brought onto the site shall be maintained on site, readily accessible to workers, and provided to CM / HSE for verification upon request. Containers and secondary containers shall be labeled in accordance with site requirements and applicable HazCom / GHS rules.",
+            "Chemical hazards shall be communicated to workers before use. Contractor-introduced materials and damaged-container reporting follow the project HazCom program.",
+          ],
+        }),
         section(
           "weather_requirements_and_severe_weather_response",
-          "Weather Requirements and Severe Weather Response",
-          "Weather Requirements and Severe Weather Response",
+          "Emergency, Weather, Fire Prevention & Housekeeping",
+          "Emergency, Weather, Fire Prevention & Housekeeping",
           {
             references: [{ builderId: "site_builder", key: "severe_weather" }],
             paragraphs: [
-              "Contractors shall monitor weather daily, adjust work plans accordingly, and coordinate weather-related restrictions with the CM/GC before affected work begins.",
+              "Contractors shall monitor weather and field conditions daily, adjust work plans for heat, cold, wind, and lightning, maintain fire prevention and housekeeping, and coordinate restrictions with the CM/GC before affected work begins.",
             ],
             bullets: [
               "Review weather conditions during the morning huddle and update the JHA/PTP for ice, wind, lightning, heat, cold, or storm exposure.",
@@ -231,11 +237,11 @@ export const DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG: DocumentBuilderTextConfig = {
           {
             references: [{ builderId: "csep", key: "training_requirements" }],
             paragraphs: [
-              "Required training, instruction, and certifications shall be verified before workers perform trade-specific work, use specialty equipment, or enter regulated work areas.",
+              "Required training, instruction, and certifications shall be verified before workers perform trade-specific work, use specialty equipment, or enter regulated work areas. Equipment operators (crane, MEWP, telehandler, PIV / forklift as applicable), qualified riggers, qualified signal persons, and welders or hot-work-qualified personnel must match the active scope and equipment in use.",
             ],
             bullets: [
               "Provide site orientation, toolbox talks, and task-specific instruction in a language and vocabulary workers understand.",
-              "Verify OSHA, competent-person, operator, rigging, equipment, environmental, and other applicable certifications before mobilization when required by the work scope.",
+              "Before mobilization, verify site-required credentials: crane and MEWP operators, telehandler and other PIV operators, fork-truck operators when used, qualified riggers and signal persons for hoisting, and welding / hot-work qualifications when cutting or heating is in scope; add competent-person, environmental, and other certifications the work demands.",
             ],
           }
         ),
@@ -278,9 +284,12 @@ export const DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG: DocumentBuilderTextConfig = {
           {
             paragraphs: [
               "The contractor shall maintain records needed to demonstrate training, inspections, hazard reviews, incidents, permits, and other required compliance activities for the active scope of work.",
+              "Training records, certifications, and qualification documents shall be maintained current and made available to CM / HSE, site supervision, and owner representatives for verification upon request and before personnel perform work requiring that qualification. Records shall include, as applicable: training and orientations; trade and equipment certifications; operator qualifications; welder and hot-work qualifications; qualified rigger and signal person credentials; and OSHA or other site-required cards or credentials for personnel on the work.",
+              "All required permits shall be obtained before the task begins, fully completed, kept active for the duration of the work as required, and maintained on site for review by supervision, CM / HSE, or other authorized representatives.",
             ],
             bullets: [
-              "Maintain training records, JHA/PTP logs, inspections, permits, and incident documentation.",
+              "Retain training and qualification evidence in the form the project requires so CM / HSE, site supervision, or owner representatives can verify before or during access when the site requires it, and before work authorization for covered tasks.",
+              "Keep JHA/PTP logs, inspection records, current permit files, and incident documentation on site and available for the same review paths when audits, inspections, or work releases apply.",
               "Retain OSHA logs, union certifications, and other supporting records when applicable to the project or trade scope.",
             ],
           }
@@ -319,7 +328,8 @@ export const DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG: DocumentBuilderTextConfig = {
           "Activity Hazard Analysis Matrix",
           {
             paragraphs: [
-              "No trade activity matrix was provided. Select a trade, sub-trade, tasks, and hazards on the CSEP page to load activities, hazards, controls, and permit triggers.",
+              "See Appendix E – Task-Hazard-Control Matrix for the task-specific hazard, control, PPE, permit, and competency breakdown. The full matrix is not repeated in the body.",
+              "If no matrix appears in the appendix, add a trade, sub-trade, tasks, and hazards on the CSEP page so the plan can generate it.",
             ],
           }
         ),
@@ -466,9 +476,10 @@ export const DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG: DocumentBuilderTextConfig = {
                   "Weather conditions shall be reviewed during daily huddles, and changing conditions shall be communicated through the approved site notification methods.",
                 ],
                 bullets: [
-                  "Stop outdoor work when lightning is detected within 10 miles and do not resume until 30 minutes after the last strike within that radius unless stricter site rules apply.",
+                  "Lightning watch / stop-work radius: 20 miles (site default for this program). Lightning all-clear: 30 minutes from the last strike within the trigger radius, unless the site SOP, owner, or local authority requires a different interval.",
                   "Suspend crane, lift, scaffold, and elevated work when wind, storms, or visibility conditions exceed manufacturer limits, site thresholds, or safe operating conditions.",
-                  "Use designated shelters, evacuation routes, and accountability procedures for tornado warnings, severe storms, and other emergency weather events.",
+                  "Tornado or severe convective warning: supervision or GC/CM issues immediate shelter or evacuation; leave lifts, open steel, roofs, open deck, and cranes; use designated in-building or posted shelters, not unapproved vehicles, unless the site plan explicitly provides for them; take headcount at the shelter; restart only after site leadership releases work.",
+                  "Earthquake or strong seismic shaking in seismically required projects: stop work, move clear of suspended loads and overhead steel, do not run under active steel or crane paths, evacuate or shelter per the site plan, and re-inspect structure, rigging, and access before restart.",
                   "Inspect stormwater, erosion-control, waste, staging, and temporary structures before and after significant weather events.",
                 ],
               }),

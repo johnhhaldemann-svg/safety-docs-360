@@ -234,26 +234,12 @@ function applyProcedureFields<T extends object>(
 
 const HAZARD_PROCEDURE_CONTENT: Record<string, ProgramProcedureFields> = {
   "Falls from height": createProcedureFields({
-    preTaskProcedures: [
-      "Review the specific fall exposure, access method, anchorage plan, and rescue notification path before work starts.",
-      "Inspect the work area for leading edges, floor openings, brittle surfaces, and lower-level exposure before crews are released to work.",
-      "Verify harnesses, lanyards, SRLs, anchors, ladders, scaffolds, or lifts are available, compatible, and in serviceable condition.",
-    ],
-    workProcedures: [
-      "Establish the approved access route and keep workers inside the planned fall-protection system while exposed to height.",
-      "Maintain tie-off, guardrail protection, covers, or exclusion controls as the work face moves or access conditions change.",
-      "Coordinate material handling and tool use so dropped-object exposure below the work area stays controlled.",
-    ],
-    stopWorkProcedures: [
-      "Stop work immediately when anchor points, access equipment, edge protection, or rescue communication are missing or become unreliable.",
-      "Stop work if weather, housekeeping, or changing site conditions make footing or fall protection use unsafe.",
-      "Do not resume until the fall exposure is re-evaluated and the required protection is restored.",
-    ],
-    closeoutProcedures: [
-      "Secure floor openings, remove temporary exposure points, and leave the elevated work area in a protected condition.",
-      "Inspect fall-protection equipment after use, remove damaged gear from service, and store reusable equipment correctly.",
-      "Release barricades or exclusion zones only after overhead and fall exposure to others has ended.",
-    ],
+    // Fall program text is assembled in buildFallProtectionGoverningProgramSection; keep these
+    // empty so catalog merges do not duplicate inspection / planning language in exports.
+    preTaskProcedures: [],
+    workProcedures: [],
+    stopWorkProcedures: [],
+    closeoutProcedures: [],
   }),
   "Electrical shock": createProcedureFields({
     preTaskProcedures: [
@@ -278,26 +264,12 @@ const HAZARD_PROCEDURE_CONTENT: Record<string, ProgramProcedureFields> = {
     ],
   }),
   "Hot work / fire": createProcedureFields({
-    preTaskProcedures: [
-      "Review the hot-work scope, permit status, nearby combustibles, adjacent occupancies, and fire-watch assignments before ignition sources are introduced.",
-      "Stage extinguishers, spark containment, ventilation, and cylinder handling controls before cutting, welding, or grinding starts.",
-      "Inspect the work area above, below, and on the opposite side of the work surface for hidden combustible exposure.",
-    ],
-    workProcedures: [
-      "Keep the permit active at the work area and maintain fire-watch coverage, spark containment, and housekeeping while hot work is in progress.",
-      "Control cylinders, leads, hoses, and combustible loading so the active work area stays orderly and defensible.",
-      "Pause the task as needed to reassess changing conditions, especially when work shifts location or penetrates new surfaces.",
-    ],
-    stopWorkProcedures: [
-      "Stop work immediately if permit conditions change, fire-watch coverage is lost, combustibles migrate into the area, or alarms/emergency conditions develop.",
-      "Stop work when extinguishers, containment, ventilation, or gas-equipment condition are not adequate for the active task.",
-      "Do not resume until the permit and field controls are revalidated.",
-    ],
-    closeoutProcedures: [
-      "Complete the required fire-watch and area inspection after the hot-work activity ends.",
-      "Shut down torches, leads, and cylinders safely and remove ignition sources from the area.",
-      "Close out the permit and verify the work area is free of smoldering material before releasing it for normal access.",
-    ],
+    // Governing text is in buildHotWorkGoverningProgramSection; keep arrays empty
+    // so catalog merges do not duplicate hot-work content in exports.
+    preTaskProcedures: [],
+    workProcedures: [],
+    stopWorkProcedures: [],
+    closeoutProcedures: [],
   }),
   "Struck by equipment": createProcedureFields({
     preTaskProcedures: [
@@ -575,21 +547,17 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
     category: "hazard",
     item: "Falls from height",
     title: "Fall Protection Program",
-    summary: "Controls for fall exposure at leading edges, openings, and elevated work, including access equipment compatibility and dropped-object protection below.",
+    summary:
+      "Governing fall protection for this CSEP. Hazards and Controls may add task detail; this program states equipment, tie-off, inspection, and stop-work requirements.",
     oshaRefs: ["OSHA 1926 Subpart M - Fall Protection"],
     applicableWhen: [
-      "The selected scope includes work at height or use of ladders, scaffolds, or aerial lifts where fall protection is required by rule or by site plan.",
+      "Fall to a lower level: edges, openings, leading deck, or incomplete floor.",
+      "Steel, decking, or connector work where the plan or rules require a fall system or collective protection.",
+      "Aerial lift, ladder, or scaffold work where the equipment or site rules require personal fall protection.",
     ],
-    responsibilities: [
-      "Supervision plans fall protection and stops work if anchors, access, or edge protection is inadequate.",
-    ],
-    controls: [
-      "Use approved guardrails, covers, PFAS / restraint, or warning lines as required; barricade below elevated work; inspect harnesses, lanyards, SRLs, and anchors before use and maintain housekeeping to limit dropped objects.",
-    ],
-    training: [
-      "Workers are trained on system selection, inspection, limits, and rescue or escalation for the work face (see site orientation and IIPP for general reporting).",
-    ],
-    compactLayout: true,
+    responsibilities: [],
+    controls: [],
+    training: [],
   },
   {
     category: "hazard",
@@ -618,24 +586,13 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
     category: "hazard",
     item: "Hot work / fire",
     title: "Hot Work Program",
-    summary: "This program establishes fire prevention and hot-work controls for welding, cutting, grinding, brazing, soldering, and spark-producing tasks.",
+    summary:
+      "Governing hot work and fire prevention for this CSEP. The project hot work permit and supporting forms own authorization; this program states the risk, field controls, verification, and closeout. Use Security at Site and IIPP / Emergency Response for access and response detail.",
     oshaRefs: ["OSHA 1926 Subpart J - Fire Protection and Prevention"],
-    applicableWhen: [
-      "Selected work includes welding, torch work, grinding, cutting, or any spark-producing process.",
-    ],
-    responsibilities: [
-      "Supervision shall verify hot-work authorization, combustibles control, and fire-watch coverage before work starts.",
-      "Workers shall stop hot work immediately if unsafe conditions develop.",
-    ],
-    controls: [
-      "Do not begin hot work until required permits are obtained.",
-      "Remove or protect combustibles in the work area.",
-      "Maintain fire extinguishers and spark containment in the immediate area.",
-      "Follow post-work fire-watch duration and closeout expectations.",
-    ],
-    training: [
-      "Workers shall be trained on hot-work permit requirements, fire watch duties, and equipment inspection.",
-    ],
+    applicableWhen: [],
+    responsibilities: [],
+    controls: [],
+    training: [],
   },
   {
     category: "hazard",
@@ -1770,6 +1727,209 @@ export function buildCsepProgramSelections(params: BuildSelectionsParams) {
   };
 }
 
+const FALL_WHEN_NOT_REQUIRED_LEAD =
+  "This program does not apply where employees are working from a fully protected walking/working surface and no fall exposure exists, including ground-level work, work behind compliant guardrails, or work areas where approved covers or barriers fully eliminate the fall hazard.";
+
+const FALL_WHEN_NOT_REQUIRED_BULLETS = [
+  "Ground-level work with no unprotected change in elevation.",
+  "Compliant, continuous edge protection (or approved barrier) for the path of travel.",
+  "Covered, secured, and marked openings where no lower-level fall exposure remains for the task.",
+];
+
+const FALL_CONTROL_LINES = {
+  planning:
+    "Verify the fall hazard, access method, anchorage plan, rescue path, and release authority before exposed work begins.",
+  inspection:
+    "Inspect harnesses, lanyards, SRLs, hooks, connectors, and anchors before each use. Remove damaged, defective, or deployed equipment from service immediately.",
+  anchorage:
+    "Use only approved anchorage points and compatible components rated for the intended application.",
+  tieOff: "Maintain 100% tie-off where required by the activity, site rules, or fall exposure.",
+  fallClearance:
+    "Confirm adequate free-fall, swing, and lower-level clearance before work and whenever anchorage, position, or conditions change.",
+  leadingEdge:
+    "Use approved fall protection for leading-edge work, incomplete decking, connectors, and elevated access areas as defined in the pre-task plan.",
+  damage: "Protect fall protection equipment from sharp edges, heat, welding exposure, chemicals, and physical damage.",
+  training:
+    "Workers shall be trained on inspection, fitting, anchorage selection, equipment limits, and rescue notification before use.",
+  stopWork:
+    "Stop work when anchor points, edge protection, access, rescue readiness, or equipment condition are not adequate for the task.",
+} as const;
+
+function sentenceize(value: string) {
+  const t = value.trim();
+  if (!t) return t;
+  return /[.!?]$/.test(t) ? t : `${t}.`;
+}
+
+function buildFallProtectionGoverningProgramSection(
+  selection: CSEPProgramSelection,
+  definition: CSEPProgramDefinition,
+  relatedTasks: string[]
+): CSEPProgramSection {
+  const whenRequired = dedupe(
+    definition.applicableWhen.length
+      ? definition.applicableWhen
+      : [
+          "Fall to a lower level: edges, openings, leading deck, or incomplete floor.",
+          "Steel, decking, or connector work where the plan or rules require a fall system or collective protection.",
+        ]
+  );
+
+  let planningBody = FALL_CONTROL_LINES.planning;
+  if (definition.preTaskProcedures.length) {
+    planningBody = `${planningBody} ${definition.preTaskProcedures.map(sentenceize).join(" ")}`.trim();
+  }
+
+  let trainingBody = FALL_CONTROL_LINES.training;
+  if (definition.training.length) {
+    trainingBody = `${trainingBody} ${definition.training.map(sentenceize).join(" ")}`.trim();
+  }
+  if (definition.responsibilities.length) {
+    trainingBody = `${trainingBody} ${definition.responsibilities.map(sentenceize).join(" ")}`.trim();
+  }
+
+  let stopBody = FALL_CONTROL_LINES.stopWork;
+  const addedStop = dedupe([...definition.stopWorkProcedures, ...definition.closeoutProcedures]);
+  if (addedStop.length) {
+    stopBody = `${stopBody} ${addedStop.map(sentenceize).join(" ")}`.trim();
+  }
+
+  const subsections: CSEPProgramSection["subsections"] = [
+    { title: "References", body: formatProgramReferenceParagraph(definition.oshaRefs), bullets: [] },
+    { title: "When Required", body: undefined, bullets: whenRequired },
+    { title: "When Not Required", body: FALL_WHEN_NOT_REQUIRED_LEAD, bullets: FALL_WHEN_NOT_REQUIRED_BULLETS },
+    { title: "Planning / Release for Work", body: planningBody, bullets: [] },
+    { title: "Inspection", body: FALL_CONTROL_LINES.inspection, bullets: [] },
+    { title: "Anchorage and Compatibility", body: FALL_CONTROL_LINES.anchorage, bullets: [] },
+    { title: "Tie-Off", body: FALL_CONTROL_LINES.tieOff, bullets: [] },
+    { title: "Fall Clearance", body: FALL_CONTROL_LINES.fallClearance, bullets: [] },
+    { title: "Leading Edge / Access Conditions", body: FALL_CONTROL_LINES.leadingEdge, bullets: [] },
+    { title: "Protection from Damage", body: FALL_CONTROL_LINES.damage, bullets: [] },
+    { title: "Training", body: trainingBody, bullets: [] },
+    { title: "Stop-Work", body: stopBody, bullets: [] },
+  ];
+
+  if (definition.controls.length) {
+    subsections.push({ title: "Site-Specific", body: undefined, bullets: definition.controls });
+  }
+  if (definition.workProcedures.length) {
+    subsections.push({
+      title: "Work Execution (additions)",
+      body: undefined,
+      bullets: definition.workProcedures,
+    });
+  }
+  if (relatedTasks.length) {
+    subsections.push({
+      title: "Related Tasks",
+      body: `Related tasks: ${relatedTasks.join(", ")}.`,
+      bullets: [],
+    });
+  }
+
+  return {
+    key: `program_${getProgramSelectionKey(selection.category, selection.item, selection.subtype)}`,
+    category: selection.category,
+    item: selection.item,
+    subtype: selection.subtype ?? null,
+    title: definition.title,
+    summary: definition.summary?.trim() ?? undefined,
+    relatedTasks,
+    subsections,
+  };
+}
+
+const HOT_WORK_PURPOSE_WHEN = `Use this program whenever welding, cutting, grinding, brazing, soldering, or other spark- or flame-producing work is performed. The core risk is fire from open flame, sparks, or hot metal igniting combustibles, coatings, or concealed materials—and fire spread to nearby work areas, floors, or occupancies.`;
+
+const HOT_WORK_PRE_TASK = `Confirm the hot work permit is active, combustibles are removed or protected, fire extinguishers are staged, ventilation is adequate, and the work area above, below, and on the opposite side is checked before starting.`;
+
+const HOT_WORK_ACTIVE = `Maintain spark containment, fire-watch coverage, controlled access, orderly hose and lead routing, and protection of adjacent workers and materials while hot work is in progress.`;
+
+const HOT_WORK_CLOSEOUT = `Complete the required fire-watch period, inspect the area for smoldering material, shut down equipment safely, and close out the permit before normal access is restored.`;
+
+const HOT_WORK_STOP = `Stop work when fire-watch coverage, extinguishers, ventilation, permit conditions, spark containment, or area control are not adequate for the active task.`;
+
+const HOT_WORK_CORE_BULLETS: string[] = [
+  "Permit: Use an active, task- and location-appropriate hot work permit before ignition; follow the project permit process for authorization and posting (do not restate full permit language from the permit section here).",
+  "Combustibles: Remove or protect combustibles in the heat and spark path; re-check when the work front moves, openings are created, or new materials enter.",
+  "Extinguishers: Stage the required class and number of fire extinguishers in the immediate area; verify operability and access before starting.",
+  "Fire watch: Assign fire watch when the permit, policy, or conditions require it; maintain continuous, trained coverage with relief as required.",
+  "Overhead / below / opposite: Check exposure above, below, and on the opposite side of the work before start and when conditions change.",
+  "Spark containment: Control sparks, slag, and spatter with shields, blankets, baffles, or screens as required.",
+  "Cylinders, hoses, leads: Keep torch equipment, hoses, and leads in good condition, clear of hot metal and trip paths, per manufacturer and site rules.",
+  "Ventilation: Provide ventilation suitable for the process and space (including fume control where required).",
+  "Adjacent trades / occupancies: Coordinate to protect adjacent workers, materials, and occupancies; control access in the spark and heat path.",
+  "Training: Train workers assigned to hot work or fire watch on permit rules, equipment checks, watch duties, and stop-work triggers before assignment.",
+  "Cross-references: For permit templates, use the project hot work / permit section; for access and barricades, Security at Site; for alarms and emergency response, IIPP / Emergency Response—cite those sections instead of copying them here.",
+];
+
+function buildHotWorkGoverningProgramSection(
+  selection: CSEPProgramSelection,
+  definition: CSEPProgramDefinition,
+  relatedTasks: string[]
+): CSEPProgramSection {
+  let purposeBody = HOT_WORK_PURPOSE_WHEN;
+  if (definition.applicableWhen.length) {
+    purposeBody = `${purposeBody} ${definition.applicableWhen.map(sentenceize).join(" ")}`.trim();
+  }
+
+  const coreBullets = dedupe([
+    ...HOT_WORK_CORE_BULLETS,
+    ...definition.training.map((line) => `Supplemental training: ${sentenceize(line)}`),
+    ...definition.responsibilities.map((line) => `Supplemental roles: ${sentenceize(line)}`),
+    ...definition.controls.map(sentenceize),
+  ]);
+
+  let preTaskBody = HOT_WORK_PRE_TASK;
+  if (definition.preTaskProcedures.length) {
+    preTaskBody = `${preTaskBody} ${definition.preTaskProcedures.map(sentenceize).join(" ")}`.trim();
+  }
+
+  let workBody = HOT_WORK_ACTIVE;
+  if (definition.workProcedures.length) {
+    workBody = `${workBody} ${definition.workProcedures.map(sentenceize).join(" ")}`.trim();
+  }
+
+  let closeoutBody = HOT_WORK_CLOSEOUT;
+  if (definition.closeoutProcedures.length) {
+    closeoutBody = `${closeoutBody} ${definition.closeoutProcedures.map(sentenceize).join(" ")}`.trim();
+  }
+
+  let stopBody = HOT_WORK_STOP;
+  if (definition.stopWorkProcedures.length) {
+    stopBody = `${stopBody} ${definition.stopWorkProcedures.map(sentenceize).join(" ")}`.trim();
+  }
+
+  const subsections: CSEPProgramSection["subsections"] = [
+    { title: "References", body: formatProgramReferenceParagraph(definition.oshaRefs), bullets: [] },
+    { title: "Purpose / When Required", body: purposeBody, bullets: [] },
+    { title: "Core Requirements", body: undefined, bullets: coreBullets },
+    { title: "Pre-Task Verification", body: preTaskBody, bullets: [] },
+    { title: "Work Controls", body: workBody, bullets: [] },
+    { title: "Fire Watch / Closeout", body: closeoutBody, bullets: [] },
+    { title: "Stop-Work / Reassessment", body: stopBody, bullets: [] },
+  ];
+
+  if (relatedTasks.length) {
+    subsections.push({
+      title: "Related Tasks",
+      body: `Related tasks: ${relatedTasks.join(", ")}.`,
+      bullets: [],
+    });
+  }
+
+  return {
+    key: `program_${getProgramSelectionKey(selection.category, selection.item, selection.subtype)}`,
+    category: selection.category,
+    item: selection.item,
+    subtype: selection.subtype ?? null,
+    title: definition.title,
+    summary: definition.summary?.trim() ?? undefined,
+    relatedTasks,
+    subsections,
+  };
+}
+
 function buildCompactProgramSection(
   selection: CSEPProgramSelection,
   definition: CSEPProgramDefinition,
@@ -1827,6 +1987,14 @@ export function buildCsepProgramSection(
   const relatedTasksBody = relatedTasks.length
     ? `These related tasks apply to this program scope: ${relatedTasks.join(", ")}.`
     : "This program was included from the current CSEP selection set.";
+
+  if (definition.category === "hazard" && definition.item === "Falls from height") {
+    return buildFallProtectionGoverningProgramSection(selection, definition, relatedTasks);
+  }
+
+  if (definition.category === "hazard" && definition.item === "Hot work / fire") {
+    return buildHotWorkGoverningProgramSection(selection, definition, relatedTasks);
+  }
 
   if (definition.compactLayout) {
     return buildCompactProgramSection(selection, definition, relatedTasks);
@@ -1911,7 +2079,16 @@ export function buildCsepProgramSections(
     ? selections.filter((s) => !(s.category === "hazard" && s.item === "Ladder misuse"))
     : selections;
 
-  return effectiveSelections.map((selection) => buildCsepProgramSection(selection, options));
+  const hasFallsFromHeight = effectiveSelections.some(
+    (s) => s.category === "hazard" && s.item === "Falls from height"
+  );
+  const withoutHarnessDuplicate = hasFallsFromHeight
+    ? effectiveSelections.filter(
+        (s) => !(s.category === "ppe" && s.item === "Fall Protection Harness")
+      )
+    : effectiveSelections;
+
+  return withoutHarnessDuplicate.map((selection) => buildCsepProgramSection(selection, options));
 }
 
 export function listProgramTitles(

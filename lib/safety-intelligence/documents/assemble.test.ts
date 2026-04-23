@@ -259,15 +259,21 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     expect(keys.indexOf("jurisdiction_profile")).toBeLessThan(
       keys.indexOf("project_information")
     );
+    // Scope / project setup: scope and site notes precede project identity tables; tables are not
+    // deferred after narrative blocks (e.g. enforcement) in sectionMap order.
+    expect(keys.indexOf("scope_of_work")).toBeLessThan(keys.indexOf("project_information"));
+    expect(keys.indexOf("site_specific_notes")).toBeLessThan(keys.indexOf("project_information"));
+    expect(keys.indexOf("project_information")).toBeLessThan(keys.indexOf("trade_summary"));
     expect(draft.ruleSummary.siteRestrictions).toContain("No A-frame ladders.");
     expect(draft.ruleSummary.trainingRequirements).toContain("OSHA 10");
     expect(draft.conflictSummary.total).toBe(1);
     expect(draft.projectDeliveryType).toBe("ground_up");
     expect(draft.narrativeSections.safetyNarrative).toBe("Structured narrative.");
     expect(draft.trainingProgram.rows).toHaveLength(1);
-    expect(
-      draft.sectionMap.find((section) => section.key === "activity_hazard_matrix")?.table?.rows[0]
-    ).toEqual(
+    const matrixRow =
+      draft.sectionMap.find((section) => section.key === "activity_hazard_matrix")?.table?.rows[0] ?? [];
+    expect(matrixRow).toHaveLength(8);
+    expect(matrixRow).toEqual(
       expect.arrayContaining([
         "Mechanical / HVAC",
         "Roof | Grid R1",
@@ -277,15 +283,25 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         "Hard Hat",
       ])
     );
+    expect(String(matrixRow[6] ?? "")).toMatch(/elevated|work|notice|none|identified/i);
+    expect(String(matrixRow[7] ?? "")).toMatch(/competent|training|osha|person/i);
     expect(
       draft.sectionMap.find((section) => section.key === "program_hazard__falls_from_height__base")
         ?.subsections
     ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: "Program controls — Fall Protection Program",
-          body: expect.stringMatching(/fall protection|guardrails|harness|Subpart M/i),
+          title: "References",
+          body: expect.stringMatching(/R1|OSHA|Subpart M|fall/i),
           bullets: [],
+        }),
+        expect.objectContaining({
+          title: "When Not Required",
+          body: expect.stringMatching(/fully protected|ground-level|guardrail|fall exposure/i),
+        }),
+        expect.objectContaining({
+          title: "Tie-Off",
+          body: expect.stringMatching(/100%/i),
         }),
       ])
     );
@@ -667,6 +683,14 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       ),
       subsections: expect.arrayContaining([
         expect.objectContaining({
+          title: "6.1 Work Attire Requirements",
+          bullets: expect.arrayContaining([expect.stringMatching(/sleeves/i)]),
+        }),
+        expect.objectContaining({
+          title: "6.2 Personal Protective Equipment (PPE)",
+          bullets: expect.arrayContaining([expect.stringMatching(/Hard hat|harness|Fall protection/i)]),
+        }),
+        expect.objectContaining({
           title: "5.6 Health and Wellness Expectations",
           body: expect.stringContaining("Project- or site-specific notes:"),
         }),
@@ -731,19 +755,18 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         ?.subsections?.[0]?.bullets
     ).toEqual(
       expect.arrayContaining([
-        "Required training / competency: Qualified connector",
-        "Required training / competency: Signal person",
+        "Active scope / rules evaluation: Qualified connector",
+        "Active scope / rules evaluation: Signal person",
       ])
     );
-    expect(
-      structuredDraft.sectionMap.find(
-        (section) => section.key === "weather_requirements_and_severe_weather_response"
-      )?.subsections?.[0]?.bullets
-    ).toEqual(
-      expect.arrayContaining([
-        "Monitoring source: National Weather Service",
-        "Communication method: Superintendent text alert",
-      ])
+    const weatherSection = structuredDraft.sectionMap.find(
+      (section) => section.key === "weather_requirements_and_severe_weather_response"
+    );
+    const weatherMonitoring = weatherSection?.subsections?.find((subsection) =>
+      subsection.title?.includes("9.8 Monitoring and communication")
+    );
+    expect(weatherMonitoring?.body).toEqual(
+      expect.stringMatching(/National Weather Service[\s\S]*Superintendent text alert/)
     );
     expect(
       structuredDraft.sectionMap.find((section) => section.key === "sub_tier_contractor_management")
@@ -1179,7 +1202,9 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     );
 
     expect(taskModulesSection).toBeDefined();
-    expect(taskModulesSection?.body).toBe("Reference task modules supporting the selected scope.");
+    expect(taskModulesSection?.body).toBe(
+      "The subsections in this pack are the full task module entries selected for the scope. See Section 11 Hazards and Controls; Section 3 Scope (or trade-specific scope) where the CSEP states how tasks map to the contract; and Appendix E. Task-Hazard-Control Matrix for the task, hazard, and control lines tied to the active work."
+    );
     expect(taskModulesSection?.table).toBeUndefined();
     expect(taskModulesSection?.bullets).toBeUndefined();
     expect(taskModulesSection?.subsections?.length).toBeGreaterThan(0);
@@ -1514,8 +1539,8 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       "incident_injury_response",
       "inspections_recurring_events",
       "weather_environmental_controls",
+      "task_hazard_analysis",
       "equipment_conditions",
-      "high_risk_loto",
     ]);
     expect(keys).toEqual(
       expect.arrayContaining([
@@ -3481,27 +3506,20 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     const groupedMatrixRows =
       draft.sectionMap.find((section) => section.key === "activity_hazard_matrix")?.table?.rows ?? [];
 
-    expect(groupedMatrixRows).toHaveLength(2);
-    expect(groupedMatrixRows[0]).toEqual(
-      expect.arrayContaining([
-        "Electrical / Shutdown",
-        "Level 2 | Grid B2",
-        "Cable pull, Isolation walkdown",
-        "Electrical, Arc flash",
-        "verified_isolation",
-        "Arc-rated PPE",
-      ])
-    );
-    expect(groupedMatrixRows[1]).toEqual(
-      expect.arrayContaining([
-        "Unassigned Trade",
-        "Laydown Yard | Grid C1",
-        "Cleanup",
-        "Struck-By",
-        "housekeeping",
-        "Gloves",
-      ])
-    );
+    expect(groupedMatrixRows).toHaveLength(3);
+    expect(groupedMatrixRows[0]?.[2]).toBe("Cable pull");
+    expect(groupedMatrixRows[1]?.[2]).toBe("Isolation walkdown");
+    expect(groupedMatrixRows[2]?.[2]).toBe("Cleanup");
+    expect(groupedMatrixRows[0]![3]).not.toBe(groupedMatrixRows[1]![3]);
+    expect(String(groupedMatrixRows[0]![3] ?? "")).toMatch(/cable|tension|pull/i);
+    expect(String(groupedMatrixRows[0]![3] ?? "")).toContain("Electrical");
+    expect(String(groupedMatrixRows[0]![4] ?? "")).toContain("verified_isolation");
+    expect(String(groupedMatrixRows[1]![3] ?? "")).toMatch(/isolation|energ|boundary|electrical|arc/i);
+    expect(String(groupedMatrixRows[1]![4] ?? "")).toContain("verified_isolation");
+    expect(groupedMatrixRows[2]![0]).toBe("Unassigned Trade");
+    expect(String(groupedMatrixRows[2]![3] ?? "")).toMatch(/struck|slip|equipment|yard/i);
+    expect(String(groupedMatrixRows[2]![4] ?? "")).toContain("housekeeping");
+    expect(String(groupedMatrixRows[2]![5] ?? "")).toContain("Gloves");
     expect(
       draft.sectionMap.find((section) => section.key === "selected_hazards")?.subsections
     ).toEqual(
@@ -3681,7 +3699,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
 
     const enforcementSubsection = draft.sectionMap
       .flatMap((section) => section.subsections ?? [])
-      .find((subsection) => subsection.title === "Enforcement and Corrective Action");
+      .find((subsection) => subsection.title === "6.4 Enforcement and Corrective Action");
 
     expect(enforcementSubsection?.body).toBe(
       "Unsafe conditions identified during steel-erection work will be addressed through a systematic approach. Correction Procedures:"

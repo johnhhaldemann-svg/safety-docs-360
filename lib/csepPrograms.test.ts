@@ -172,7 +172,6 @@ describe("csepPrograms", () => {
     fallProtection.summary = "Custom summary for review.";
     fallProtection.preTaskProcedures = ["Custom pre-task procedure"];
     fallProtection.controls = ["Custom control 1", "Custom control 2"];
-    fallProtection.compactLayout = false;
 
     const section = buildCsepProgramSection(
       {
@@ -189,15 +188,40 @@ describe("csepPrograms", () => {
     expect(section.title).toBe("Custom Fall Program");
     expect(section.summary).toBe("Custom summary for review.");
     expect(
-      section.subsections.find((subsection) => subsection.title === "Pre-Task Setup")?.bullets
-    ).toEqual(["Custom pre-task procedure"]);
-    expect(
-      section.subsections.find((subsection) => subsection.title === "Minimum Required Controls")
+      section.subsections.find((subsection) => subsection.title === "Planning / Release for Work")
         ?.body
-    ).toBe("Custom control 1. Custom control 2.");
+    ).toContain("Custom pre-task procedure");
+    expect(
+      section.subsections.find((subsection) => subsection.title === "Site-Specific")?.bullets
+    ).toEqual(expect.arrayContaining(["Custom control 1", "Custom control 2"]));
   });
 
-  it("renders first-class procedure subsections in the expected order for hazard programs", () => {
+  it("renders a consolidated hot work program with governing subsections in order", () => {
+    const section = buildCsepProgramSection({
+      category: "hazard",
+      item: "Hot work / fire",
+      relatedTasks: ["Weld handrail"],
+      source: "selected",
+    });
+
+    expect(section.title).toBe("Hot Work Program");
+    expect(section.subsections.map((s) => s.title)).toEqual([
+      "References",
+      "Purpose / When Required",
+      "Core Requirements",
+      "Pre-Task Verification",
+      "Work Controls",
+      "Fire Watch / Closeout",
+      "Stop-Work / Reassessment",
+      "Related Tasks",
+    ]);
+    expect(section.subsections.find((s) => s.title === "Purpose / When Required")?.body).toMatch(
+      /spark|welding|fire/i
+    );
+    expect(section.subsections.find((s) => s.title === "Core Requirements")?.bullets.length).toBeGreaterThan(5);
+  });
+
+  it("renders a consolidated fall-protection program with applicability subsections in order", () => {
     const section = buildCsepProgramSection({
       category: "hazard",
       item: "Falls from height",
@@ -206,11 +230,23 @@ describe("csepPrograms", () => {
     });
 
     expect(section.subsections.map((subsection) => subsection.title)).toEqual([
-      "Program controls — Fall Protection Program",
+      "References",
+      "When Required",
+      "When Not Required",
+      "Planning / Release for Work",
+      "Inspection",
+      "Anchorage and Compatibility",
+      "Tie-Off",
+      "Fall Clearance",
+      "Leading Edge / Access Conditions",
+      "Protection from Damage",
+      "Training",
+      "Stop-Work",
+      "Related Tasks",
     ]);
   });
 
-  it("renders related tasks as one paragraph instead of bullet items", () => {
+  it("lists related tasks in a Related Tasks subsection for the fall program", () => {
     const section = buildCsepProgramSection({
       category: "hazard",
       item: "Falls from height",
@@ -219,7 +255,7 @@ describe("csepPrograms", () => {
     });
 
     expect(
-      section.subsections.find((subsection) => subsection.title.startsWith("Program controls —"))?.body
+      section.subsections.find((subsection) => subsection.title === "Related Tasks")?.body
     ).toContain("Related tasks: Unload steel, Sort members, Rigging.");
   });
 
@@ -240,11 +276,16 @@ describe("csepPrograms", () => {
     expect(hazardSection.subsections).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: "Program controls — Fall Protection Program",
-          body: expect.stringMatching(
-            /selected scope|fall protection|guardrails|Subpart M|Related tasks: Unload steel/i
-          ),
-          bullets: [],
+          title: "References",
+          body: expect.stringMatching(/R1|OSHA|Subpart M/i),
+        }),
+        expect.objectContaining({
+          title: "When Not Required",
+          body: expect.stringMatching(/fully protected|ground-level/),
+        }),
+        expect.objectContaining({
+          title: "Inspection",
+          body: expect.stringMatching(/harness|Remove damaged/i),
         }),
       ])
     );
@@ -281,6 +322,25 @@ describe("csepPrograms", () => {
         }),
       ])
     );
+  });
+
+  it("omits the separate Fall Protection Harness PPE program when the falls hazard program is selected", () => {
+    const sections = buildCsepProgramSections([
+      {
+        category: "hazard",
+        item: "Falls from height",
+        relatedTasks: ["Edge work"],
+        source: "selected",
+      },
+      {
+        category: "ppe",
+        item: "Fall Protection Harness",
+        relatedTasks: ["Edge work"],
+        source: "selected",
+      },
+    ]);
+    expect(sections).toHaveLength(1);
+    expect(sections[0]?.title).toBe("Fall Protection Program");
   });
 
   it("omits the ladder-hazard program when a Ladder Permit program is also selected", () => {
@@ -323,23 +383,23 @@ describe("csepPrograms", () => {
       definitions: [
         {
           category: "hazard",
-          item: "Falls from height",
-          title: "Legacy Fall Program",
+          item: "Electrical shock",
+          title: "Legacy Electrical Program",
           summary: "Legacy summary",
           controls: ["Legacy control"],
         },
       ],
     });
 
-    const fallProgram = config.definitions.find(
+    const electricalProgram = config.definitions.find(
       (definition) =>
-        definition.category === "hazard" && definition.item === "Falls from height"
+        definition.category === "hazard" && definition.item === "Electrical shock"
     );
 
-    expect(fallProgram?.title).toBe("Legacy Fall Program");
-    expect(fallProgram?.preTaskProcedures.length).toBeGreaterThan(0);
-    expect(fallProgram?.workProcedures.length).toBeGreaterThan(0);
-    expect(fallProgram?.stopWorkProcedures.length).toBeGreaterThan(0);
-    expect(fallProgram?.closeoutProcedures.length).toBeGreaterThan(0);
+    expect(electricalProgram?.title).toBe("Legacy Electrical Program");
+    expect(electricalProgram?.preTaskProcedures.length).toBeGreaterThan(0);
+    expect(electricalProgram?.workProcedures.length).toBeGreaterThan(0);
+    expect(electricalProgram?.stopWorkProcedures.length).toBeGreaterThan(0);
+    expect(electricalProgram?.closeoutProcedures.length).toBeGreaterThan(0);
   });
 });

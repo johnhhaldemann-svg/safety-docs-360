@@ -735,6 +735,15 @@ export function buildLegacyCsepRenderModel(
       ],
   });
 
+  if (includedContent.activity_hazard_matrix) {
+    const activityMatrixTemplate = getResolvedCsepSection(builderTextConfig, "activity_hazard_analysis_matrix");
+    sections.push({
+      key: "appendix_e_task_hazard_matrix_reference",
+      title: activityMatrixTemplate?.title ?? "Activity Hazard Analysis Matrix",
+      body: composeResolvedSectionBody(activityMatrixTemplate),
+    });
+  }
+
   // Activity / Task-Hazard-Control matrix is built but kept aside to render as
   // Appendix E — keeping the main body readable instead of embedding the wide
   // matrix awkwardly between numbered narrative sections.

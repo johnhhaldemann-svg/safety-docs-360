@@ -287,7 +287,7 @@ describe("legacy CSEP DOCX export", () => {
         monitoringSources: ["NOAA", "NWS"],
         communicationMethods: ["Radio", "Site PA"],
         highWindThresholdText: "Suspend roofing and sheeting work at 20-25 mph sustained winds.",
-        lightningRadiusMiles: 10,
+        lightningRadiusMiles: 20,
         lightningAllClearMinutes: 30,
         heatTriggerText: "Apply heat controls above 80F or heat index above 85F.",
         coldTriggerText: "Escalate cold controls at 32F and below.",
@@ -331,7 +331,7 @@ describe("legacy CSEP DOCX export", () => {
     const sharedIndex = documentXml.indexOf("Project leadership will monitor weather conditions");
     const projectOverlayIndex = documentXml.indexOf("Monitoring sources: NOAA, NWS.");
     const contractorIndex = documentXml.indexOf(
-      "Contractors shall monitor weather daily, adjust work plans accordingly"
+      "Contractors shall monitor weather and field conditions daily, adjust work plans for heat, cold, wind, and lightning"
     );
     const contractorNoteIndex = documentXml.indexOf(
       "Foreman reviews changing conditions during the morning huddle."

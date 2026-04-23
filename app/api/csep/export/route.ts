@@ -1013,16 +1013,16 @@ async function buildDoc(form: CSEPInput) {
     children.push(
       heading1(`${sectionNumber}. ${section?.title ?? "Activity Hazard Analysis Matrix"}`)
     );
-    if (tradeItems.length) {
-      children.push(...buildRiskTable(String(sectionNumber), tradeItems));
-    } else {
-      children.push(
-        body(
-          section?.paragraphs[0] ??
-            `No trade activity matrix was provided. Select a trade, sub-trade, tasks, and hazards on the ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} page to load activities, hazards, controls, and permit triggers.`
-        )
-      );
-    }
+    const matrixBodyParagraphs =
+      section?.paragraphs?.length
+        ? section.paragraphs
+        : [
+            "See Appendix E – Task-Hazard-Control Matrix for the task-specific hazard, control, PPE, permit, and competency breakdown. The full matrix is not repeated in the body.",
+            "If no matrix appears in the appendix, add a trade, sub-trade, tasks, and hazards on the CSEP page so the plan can generate it.",
+          ];
+    matrixBodyParagraphs.forEach((paragraph) => {
+      children.push(body(paragraph));
+    });
     sectionNumber++;
   }
 
