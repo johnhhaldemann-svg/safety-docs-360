@@ -672,6 +672,7 @@ const GENERIC_SUBSECTION_TITLES = new Set(
     "verification and handoff",
     "related interfaces",
     "applicable references",
+    "references",
     "responsibilities and training",
     "minimum required controls",
     // Per-program procedure subsections produced by buildCsepProgramSection in
