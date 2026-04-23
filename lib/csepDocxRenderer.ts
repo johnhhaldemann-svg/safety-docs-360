@@ -207,14 +207,15 @@ const FIXED_SECTION_DEFINITIONS: FixedSectionDefinition[] = [
     title: "6. Disciplinary Program",
     numberLabel: "6",
     descriptor:
-      "Enforcement, removal, unsafe-act response, and fit-for-duty expectations that apply across the project.",
+      "Unsafe-act response, correction, escalation, documentation, field verification, and restart or accountability (including site removal when required).",
   },
   {
     key: "union",
     kind: "front_matter",
     title: "7. Union",
     numberLabel: "7",
-    descriptor: "Project-specific labor and union applicability information for this site, if provided.",
+    descriptor:
+      "Project-specific craft, referral, or collective bargaining requirements when they apply; otherwise a clear not-applicable statement.",
   },
   {
     key: "security_at_site",
@@ -1283,16 +1284,194 @@ function includesAny(value: string, needles: string[]) {
   return needles.some((needle) => value.includes(needle));
 }
 
+function isEnforcementSubsectionTitleForSplit(title: string) {
+  return /\b(6\.4|enforcement\s+and\s+corrective)\b/i.test(title);
+}
+
+function isPpeReferenceSubsectionTitleForSplit(title: string) {
+  const t = title.toLowerCase();
+  if (/work\s+attire|6\.1\b/.test(t)) return false;
+  if (/\b6\.2\b/.test(t)) return true;
+  if (/personal\s+protective(\s+equipment)?/.test(t)) return true;
+  return /\bppe\b/.test(t) && /minimum|reference|6\.2|enforcement|supervision/.test(t);
+}
+
+function mergeGeneratedSafetyPlanSections(group: GeneratedSafetyPlanSection[]): GeneratedSafetyPlanSection {
+  const [first, ...rest] = group;
+  if (!first) {
+    throw new Error("mergeGeneratedSafetyPlanSections: empty group");
+  }
+  if (!rest.length) return first;
+  const allSubs = group.flatMap((s) => s.subsections ?? []);
+  const allBullets = uniqueItems(group.flatMap((s) => s.bullets ?? []));
+  const summaryParts = group.map((s) => s.summary).filter((v): v is string => Boolean(v?.trim()));
+  const bodyParts = group.map((s) => s.body).filter((v): v is string => Boolean(v?.trim()));
+  return {
+    ...first,
+    summary: summaryParts.length ? summaryParts.join("\n\n") : first.summary,
+    body: bodyParts.length ? bodyParts.join("\n\n") : first.body,
+    bullets: allBullets.length ? allBullets : first.bullets,
+    subsections: allSubs.length ? allSubs : first.subsections,
+  };
+}
+
+/**
+ * Splits the assembled `contractor_iipp` block so PPE and enforcement can land
+ * in §11 and §6 respectively (IIPP subsections 6.2 / 6.4), then merges
+ * duplicate `required_ppe` / `enforcement` sources for stable deduplication.
+ */
+function expandCsepSourceSectionsForFixedLayout(
+  sourceSections: GeneratedSafetyPlanSection[]
+): GeneratedSafetyPlanSection[] {
+  const expanded: GeneratedSafetyPlanSection[] = [];
+
+  for (const section of sourceSections) {
+    const k = normalizeToken(section.key ?? "");
+    if (k !== "contractor iipp") {
+      expanded.push(section);
+      continue;
+    }
+    const subs = section.subsections ?? [];
+    if (subs.length === 0) {
+      expanded.push(section);
+      continue;
+    }
+
+    const ppe: NonNullable<GeneratedSafetyPlanSection["subsections"]> = [];
+    const enforcement: NonNullable<GeneratedSafetyPlanSection["subsections"]> = [];
+    const iipp: NonNullable<GeneratedSafetyPlanSection["subsections"]> = [];
+    for (const sub of subs) {
+      const title = sub.title ?? "";
+      if (isEnforcementSubsectionTitleForSplit(title)) enforcement.push(sub);
+      else if (isPpeReferenceSubsectionTitleForSplit(title)) ppe.push(sub);
+      else iipp.push(sub);
+    }
+
+    if (ppe.length) {
+      expanded.push({
+        ...section,
+        key: "required_ppe",
+        title: "Personal Protective Equipment",
+        summary: undefined,
+        body: undefined,
+        bullets: undefined,
+        table: null,
+        subsections: ppe,
+      });
+    }
+    if (enforcement.length) {
+      expanded.push({
+        ...section,
+        key: "enforcement_and_corrective_action",
+        title: "Enforcement and Corrective Action",
+        summary: undefined,
+        body: undefined,
+        bullets: undefined,
+        table: null,
+        subsections: enforcement,
+      });
+    }
+    expanded.push({
+      ...section,
+      subsections: iipp.length ? iipp : undefined,
+    });
+  }
+
+  const MERGE_KEYS = new Set([
+    "required ppe",
+    "enforcement and corrective action",
+  ]);
+  const others: GeneratedSafetyPlanSection[] = [];
+  const buckets = new Map<string, GeneratedSafetyPlanSection[]>();
+  for (const s of expanded) {
+    const nk = normalizeToken(s.key ?? "");
+    if (MERGE_KEYS.has(nk)) {
+      if (!buckets.has(nk)) buckets.set(nk, []);
+      buckets.get(nk)!.push(s);
+    } else {
+      others.push(s);
+    }
+  }
+  const mergedFromBuckets = Array.from(buckets.values()).map((g) => mergeGeneratedSafetyPlanSections(g));
+  return [...others, ...mergedFromBuckets];
+}
+
 function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
   const keyTitle = normalizeToken(`${section.key} ${section.title}`);
   const combined = sourceSearchText(section);
   const keyNorm = normalizeToken(section.key ?? "");
 
-  if (keyNorm === "weather requirements and severe weather response") {
+  // --- 1) Explicit key routing (highest priority; avoids keyword bleed) ---
+  // `normalizeToken` maps underscores to spaces — keys must match that form.
+  const SCOPE_SOURCE_KEYS = new Set([
+    "project information",
+    "contractor information",
+    "trade summary",
+    "scope of work",
+    "site specific notes",
+    "project scope and trade specific activities",
+  ]);
+  if (SCOPE_SOURCE_KEYS.has(keyNorm)) {
+    return "scope";
+  }
+  if (keyNorm === "common overlapping trades") {
+    return "trade_interaction_info";
+  }
+  if (keyNorm === "security and access" || keyNorm === "security and access control") {
+    return "security_at_site";
+  }
+  if (keyNorm === "hazard communication" || keyNorm === "hazard communication program" || keyNorm === "hazcom program") {
+    return "hazcom";
+  }
+  if (keyNorm === "enforcement and corrective action") {
+    return "disciplinary_program";
+  }
+  if (keyNorm === "required ppe" || keyNorm === "personal protective equipment") {
     return "hazards_and_controls";
   }
-  if (keyNorm === "hazard communication program" || keyNorm === "hazard communication") {
-    return "hazcom";
+  if (keyNorm === "union" || keyNorm === "union requirements" || keyNorm === "labor provisions") {
+    return "union";
+  }
+  if (
+    keyNorm === "company overview" ||
+    keyNorm === "company overview and safety philosophy" ||
+    keyNorm === "message from owner" ||
+    keyNorm === "owner message"
+  ) {
+    return "message_from_owner";
+  }
+  if (
+    keyNorm === "contractor iipp" ||
+    keyNorm === "emergency procedures" ||
+    keyNorm === "emergency preparedness and response" ||
+    keyNorm === "health and wellness" ||
+    keyNorm === "incident reporting and investigation" ||
+    keyNorm === "training and instruction" ||
+    keyNorm === "drug and alcohol testing" ||
+    keyNorm === "drug and alcohol" ||
+    keyNorm === "recordkeeping" ||
+    keyNorm === "continuous improvement" ||
+    keyNorm === "roles and responsibilities" ||
+    keyNorm === "project close out" ||
+    keyNorm === "contractor monitoring audits and reporting" ||
+    keyNorm === "checklists and inspections" ||
+    keyNorm === "contractor safety meetings and engagement"
+  ) {
+    return "iipp_emergency_response";
+  }
+  if (keyNorm === "sub tier contractor management" || keyNorm === "permits and forms") {
+    return "hazards_and_controls";
+  }
+  if (
+    keyNorm === "weather requirements and severe weather response" ||
+    keyNorm === "environmental execution requirements" ||
+    keyNorm === "regulatory framework" ||
+    keyNorm === "safe work practices and trade specific procedures" ||
+    keyNorm === "hse elements and site specific hazard analysis" ||
+    keyNorm === "appendices and support library" ||
+    keyNorm === "weather"
+  ) {
+    return "hazards_and_controls";
   }
 
   if (
@@ -1345,7 +1524,7 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
   }
 
   if (
-    includesAny(combined, [
+    includesAny(keyTitle, [
       "project information",
       "contractor information",
       "project overview",
@@ -1387,63 +1566,9 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
       "handoff",
       "related interfaces",
       "coordination",
-      "subcontract",
     ])
   ) {
     return "trade_interaction_info";
-  }
-
-  if (
-    includesAny(combined, [
-      "disciplinary",
-      "discipline",
-      "enforcement",
-      "corrective action",
-      "unsafe act",
-      "removal",
-      "drug",
-      "alcohol",
-      "fit for duty",
-    ])
-  ) {
-    return "disciplinary_program";
-  }
-
-  if (includesAny(combined, ["union", "labor", "collective bargaining"])) {
-    return "union";
-  }
-
-  if (
-    includesAny(combined, [
-      "security and access",
-      "security",
-      "access control",
-      "site entry",
-      "worker access",
-      "visitor",
-      "delivery",
-      "contraband",
-      "weapon",
-      "restricted area",
-      "restricted item",
-    ])
-  ) {
-    return "security_at_site";
-  }
-
-  if (
-    includesAny(combined, [
-      "hazcom",
-      "hazard communication",
-      "sds",
-      "safety data sheet",
-      "label",
-      "chemical",
-      "portable container",
-      "outside contractor notification",
-    ])
-  ) {
-    return "hazcom";
   }
 
   if (
@@ -1459,6 +1584,9 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
       "medical response",
       "return to work",
       "health and wellness",
+      "drug",
+      "alcohol",
+      "fit for duty",
       "inspection",
       "recordkeeping",
       "continuous improvement",
@@ -1466,6 +1594,64 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
     ])
   ) {
     return "iipp_emergency_response";
+  }
+
+  if (
+    includesAny(combined, [
+      "disciplinary",
+      "discipline",
+      "enforcement program",
+      "enforcement action",
+      "unsafe act",
+      "removal from site",
+    ]) ||
+    (includesAny(combined, ["enforcement", "corrective action"]) && !includesAny(combined, ["chemical", "hazcom", "hazard communication", "sds"]))
+  ) {
+    return "disciplinary_program";
+  }
+
+  if (includesAny(combined, ["union", "collective bargaining", "cba ", "labor agreement"]) || keyTitle.includes("union")) {
+    return "union";
+  }
+
+  if (
+    includesAny(combined, [
+      "security and access",
+      "access control",
+      "site entry",
+      "worker access",
+      "visitor",
+      "visitor escort",
+      "delivery",
+      "truck route",
+      "laydown",
+      "traffic control",
+      "unloading",
+      "contraband",
+      "weapon",
+      "restricted area",
+      "restricted item",
+      "site security",
+    ])
+  ) {
+    if (!includesAny(combined, ["it security", "data security", "chemical security", "cyber security"])) {
+      return "security_at_site";
+    }
+  }
+
+  if (
+    includesAny(combined, [
+      "hazcom",
+      "hazard communication",
+      "sds",
+      "safety data sheet",
+      "portable container",
+      "ghs",
+      "nfpa",
+    ]) ||
+    (includesAny(combined, ["label", "chemical", "msds"]) && !includesAny(combined, ["price label", "package label for shipping"]))
+  ) {
+    return "hazcom";
   }
 
   return "hazards_and_controls";
@@ -1608,7 +1794,8 @@ export function buildCsepTemplateSections(
 ): CsepTemplateSection[] {
   const grouped = new Map<string, CsepTemplateSubsection[]>();
 
-  const eligibleSections = params.sourceSections.filter(
+  const preparedSources = expandCsepSourceSectionsForFixedLayout(params.sourceSections);
+  const eligibleSections = preparedSources.filter(
     (section) => section.kind !== "front_matter" && section.kind !== "appendix"
   );
 
@@ -1877,7 +2064,7 @@ function synthesizeScopeSubsections(
       ? `Project address: ${finalValueOrNA(draft.projectOverview.projectAddress)}`
       : null,
     steelErectionScope
-      ? "Structural steel and decking in this CSEP is executed under the project steel erection and rigging plan, shop and field drawings, and the hazard-and-control content in the Hazards and Controls section—this Scope section only records identity, contractor, and field logistics."
+      ? "Task-level steel erection, rigging, and decking controls are governed in §11 Hazards and Controls and the approved plans referenced there—not in this Scope section."
       : null,
   ].filter((value): value is string => Boolean(value));
 
@@ -1899,8 +2086,8 @@ function synthesizeScopeSubsections(
   const siteBody = siteBodyParts.length
     ? siteBodyParts.join(" ")
     : steelErectionScope
-      ? "Add crane swing limits, pick-and-laydown zones, deck bundle and column-line staging, vertical access, occupied-floor and elevator interfaces, and weather or wind hold points as they are confirmed. Do not restate the task list here—only true site and sequencing constraints."
-      : "Add laydown, crane access, delivery windows, occupied-area interfaces, and weather hold points as they are confirmed for this site (avoid repeating the task list here).";
+      ? "[Add site facts only—no generic scope filler.] For example: pick/staging zones and swing limits, occupied-floor tie-ins, access routes, weather/wind or lightning holds, and restricted or release-controlled areas. Do not restate the task list here."
+      : "[Add when known.] Laydown limits, delivery routes, gate rules, after-hours work, and occupied-area or sequencing constraints. Omit this block in the final issue if not applicable (avoid restating the task list).";
 
   return [
     {
@@ -1997,6 +2184,32 @@ function filterSecurityAtSiteSubsections(subsections: CsepTemplateSubsection[]):
         items: uniqueItems((sub.items ?? []).map(keepText).filter((x): x is string => Boolean(x))),
       };
     })
+    .filter((sub) => subsectionHasContent(sub));
+}
+
+const DISCIPLINARY_NON_OWNER_LINE =
+  /\b(work\s+attire|toolbox|audit|close[-\s]?out|checklist|inspection\s+sheet|contractor\s+monitor(ing)?|kpi|training\s+record|sub[-\s]?tier|ppe\s+matrix|hazard\s+module)\b/i;
+
+function filterDisciplinaryLine(text: string) {
+  const s = text.trim();
+  if (!s) return null;
+  if (DISCIPLINARY_NON_OWNER_LINE.test(s) && !/\b(escalat|correct|unsafe|remove|enforcement|violation|disciplin|stop\s*work|restart|warning)\b/i.test(s)) {
+    return null;
+  }
+  return s;
+}
+
+function filterDisciplinaryTemplateSubsections(subsections: CsepTemplateSubsection[]): CsepTemplateSubsection[] {
+  return subsections
+    .map((sub) => ({
+      ...sub,
+      paragraphs: uniqueItems(
+        (sub.paragraphs ?? []).map((p) => filterDisciplinaryLine(p)).filter((p): p is string => Boolean(p))
+      ),
+      items: uniqueItems(
+        (sub.items ?? []).map((i) => filterDisciplinaryLine(i)).filter((p): p is string => Boolean(p))
+      ),
+    }))
     .filter((sub) => subsectionHasContent(sub));
 }
 
@@ -2109,13 +2322,17 @@ function synthesizeTradeInteractionSubsections(
   ];
 }
 
-/** Omits HazCom, IIPP, disciplinary, and pure policy language from trade-coordination bullets. */
+/** Omits HazCom, IIPP, disciplinary, access/security, and recordkeeping from trade overlap bullets. */
 function filterTradeInteractionItems(values: string[]): string[] {
   const noise =
     /\b(hazard communication|hazcom|sds|safety data sheet|msds|labeling program|emergency response|iipp|injury and illness|disciplinary|enforcement policy|drug[-\s]?free|alcohol|fit[-\s]?for[-\s]?duty|code of conduct)\b/i;
+  const notTradeOwner =
+    /\b(visitor|escort|badge|gate|security\s+admin|sub[-\s]?tier|training\s+record|qualification|driver\s+remain|pedestrian\s+exclusion|spotter\s+use|check-?in\s+at\s+the\s+gate)\b/i;
   return values
     .map((v) => v.replace(/\s+/g, " ").trim())
-    .filter((v) => v.length > 0 && !noise.test(v));
+    .filter(
+      (v) => v.length > 0 && !noise.test(v) && (!notTradeOwner.test(v) || /overlap|swing|sequence|crane|trade|manlift|other\s+trade/i.test(v))
+    );
 }
 
 function filterTradeInteractionSubsections(
@@ -2132,14 +2349,14 @@ function synthesizeHazcomSubsections(): CsepTemplateSubsection[] {
     {
       title: "Hazard Communication",
       items: [
-        "SDS availability: Maintain a current SDS for every hazardous chemical on site. Printed binders, jobsite kiosks, and approved electronic access routes are identified at orientation; crews know how to obtain SDS after hours and for specialty materials.",
-        "Labeling: Original manufacturer labels remain intact. Secondary and portable containers carry product identity and hazard warnings consistent with the shipped product; do not use unmarked, household, or food-style containers for chemicals.",
-        "Secondary containers and transfer: Transfer from bulk or shop containers uses bonding/grounding and spill control where flammables are involved; only trained workers transfer product into approved containers with correct labeling.",
-        "Chemical inventory and communication: A project chemical inventory (or log) ties introduced products to SDS, owner/GC notification rules, and restricted-area postings; new products are not used until reviewed against incompatible trade activities.",
-        "Contractor notification: Subcontractors and vendors notify the GC/CM before bringing new chemicals on site; material compatibility, storage limits, and emergency contacts are updated when products change.",
-        "Employee access and awareness: Workers can access SDS in their work language where required, understand hazard pictograms and precautionary text at a use level, and know who to ask when labeling or compatibility is unclear.",
-        "Spills, releases, and follow-up: Report spills per site rules; use absorbents and PPE from the spill kit; re-label or replace compromised containers. Stormwater, waste drum, and disposal requirements live in the project environmental / waste program and appendices—HazCom still governs SDS, labels, and worker chemical awareness.",
-        "Non-routine tasks: Before non-routine work involving chemicals, supervision reviews hazards, ventilation, and emergency response in a short documented tailboard.",
+        "SDS on site: Keep an SDS for every hazardous chemical in use, in the work area and in the master project library (e.g. trailer binder, GC portal, or site app). Make SDS available to the CM and HSE (or their designee) for verification and audits on request.",
+        "Inventory and use communication: A chemical inventory (or other documented process) links introduced products to SDS before first use, including contractor-supplied and owner-supplied materials on multi-employer sites.",
+        "Primary and secondary container labeling: Do not work from or transfer into unmarked containers. Secondary and portable containers show product identity, GHS label elements (pictograms, signal word, hazard and precautionary statements) or a site-approved worker-readable equivalent, consistent with the shipped product class.",
+        "NFPA / site marking: Post or maintain NFPA 704, HMIS, or other owner-mandated markings at fixed chemical storage, fuel points, and yards where the site plan or AHJ require them; align with the SDS and local emergency response pre-plan.",
+        "Worker awareness: Train to label and SDS content at a use level and know how to get help (supervision, site safety, poison control) before non-routine or unfamiliar chemical tasks.",
+        "Contractor notification: Employers notify the host employer / GC/CM when bringing new or changed chemicals so incompatible operations, hot-work clearances, and storage limits stay valid.",
+        "Damaged, bulging, or leaking containers: Report them immediately, isolate, and manage per the SDS, spill kit, and site/owner release rules. Repackage or decommission containers that are not serviceable; relabel if the label is defaced and the product is verified.",
+        "Spill follow-through: For releases beyond a minor, controlled work-face cleanup, follow site emergency, environmental, and agency-reporting programs as applicable—HazCom still owns SDS, labels, and worker communication.",
       ],
     },
   ];
@@ -2157,7 +2374,6 @@ function synthesizeIippSubsections(): CsepTemplateSubsection[] {
         "Investigation: Supervision begins a fact-based review, identifies immediate contributing factors, and documents corrective actions; lessons learned are shared with affected crews.",
         "Corrective action and follow-up: Deficiencies are tracked to closure with responsible parties and dates; repeat findings trigger stronger controls or retraining before work continues.",
         "Restart conditions: Work resumes only when the hazard is abated, permits are re-validated, and the qualified competent person (or owner process) approves the restart in writing when required.",
-        "Inspections and site rounds: Documented inspections tie hazard ID to fixes; IIPP here covers how incidents flow through reporting and return-to-work, not the full audit KPI program (see monitoring sections for audit cadence).",
         "Severe events: Weather, fire, utility strike, or structural alert triggers muster, roll-call, and directed evacuation or shelter; return only after the incident commander or GC releases the area.",
       ],
     },
@@ -2283,6 +2499,12 @@ function buildSectionSubsections(
     subsections = filterSecurityAtSiteSubsections(subsections);
   }
 
+  if (definition.key === "disciplinary_program") {
+    subsections = filterDisciplinaryTemplateSubsections(
+      stripSharedContentAcrossSubsections(dedupeTemplateSubsections(subsections))
+    );
+  }
+
   if (definition.key === "message_from_owner" && !hasMeaningfulSubsections(subsections)) {
     const steelErection = isStructuralSteelOrDeckingScope(
       context.draft,
@@ -2361,6 +2583,17 @@ function buildSectionSubsections(
 
   if (definition.key === "iipp_emergency_response" && !hasMeaningfulSubsections(subsections)) {
     subsections = synthesizeIippSubsections();
+  }
+
+  if (definition.key === "union" && !hasMeaningfulSubsections(subsections)) {
+    subsections = [
+      {
+        title: "Union applicability",
+        paragraphs: [
+          "No craft-specific union, referral hall, or collective bargaining details were recorded for this CSEP. If a labor agreement or owner craft rule applies, add the agreement name, applicable crafts, and any site work rules in the final issued plan.",
+        ],
+      },
+    ];
   }
 
   if (definition.key === "hazards_and_controls") {

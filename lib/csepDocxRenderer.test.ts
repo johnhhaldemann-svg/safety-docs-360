@@ -312,7 +312,7 @@ describe("csepDocxRenderer", () => {
     ]);
     expect(
       sections.find((section) => section.key === "union")?.subsections[0]?.paragraphs?.[0]
-    ).toContain("Project-specific information to be completed");
+    ).toContain("No craft-specific union");
     expect(sections.find((section) => section.key === "sign_off_page")?.numberLabel).toBeNull();
     expect(sections.find((section) => section.key === "table_of_contents")?.numberLabel).toBeNull();
   });

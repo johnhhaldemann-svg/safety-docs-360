@@ -3402,7 +3402,7 @@ function buildCsepSelectedSections(params: {
       body: appendInlineOsha(
         combineParagraphs(
           [siteNotesInput],
-          "Use this section only for site-specific conditions, not the task list in Scope of Work. Typical entries: access or gate rules, parking and haul routes, laydown and storage limits, occupied-building interfaces, after-hours or weekend work rules, special weather or wind limits, emergency ingress/egress, and owner or GC special controls. If none apply, omit this block in the final issued CSEP."
+          "Enter only project-specific field constraints: laydown limits, delivery routing, gate and access rules, occupied-area or sequencing restrictions, crane or swing constraints, and weather hold points. Do not restate the task list. If no constraints are confirmed, delete this line in the final issue."
         ),
         params.inlineOshaRefs
       ),

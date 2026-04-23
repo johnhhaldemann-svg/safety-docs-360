@@ -99,8 +99,8 @@ export function hasSteelErectionScope(
 
 /** Intro body for CSEP "Common Overlapping Trades" when structural steel / steel erection is in scope. */
 export const STEEL_OVERLAP_TRADES_CSEP_INTRO =
-  "Coordinate overlapping work areas, access routes, permit ownership, protection below, and stop-work handoffs before affected crews begin work. " +
-  "The trades and interfaces below may interfere with structural steel erection, decking, hoisting, bolting, welding, access control, and protection below if work is not sequenced and communicated properly.";
+  "Coordinate overlapping work areas, workfront access, permit ownership, protection below, and stop-work handoffs before affected crews begin work. " +
+  "The trades and interfaces below may interfere with structural steel erection, decking, hoisting, bolting, welding, and protection below if work is not sequenced and communicated properly. (Site access, badging, and traffic routing are in Security at Site.)";
 
 /**
  * Default trade-interface subsections for steel erection (coordination with adjacent trades in shared areas).
