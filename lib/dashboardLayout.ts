@@ -22,6 +22,9 @@ export const DASHBOARD_BLOCK_IDS: DashboardBlockId[] = [
   "training_signal",
   "permit_followups",
   "incident_followups",
+  "graph_hazard_trends",
+  "graph_jobsite_risk",
+  "graph_observation_mix",
 ];
 
 const DASHBOARD_BLOCK_META: Record<
@@ -91,6 +94,18 @@ const DASHBOARD_BLOCK_META: Record<
   incident_followups: {
     title: "Incident follow-ups",
     description: "Open incident-related follow-up items.",
+  },
+  graph_hazard_trends: {
+    title: "Hazard trend graph",
+    description: "A bar graph of the top hazard categories in the current analytics window.",
+  },
+  graph_jobsite_risk: {
+    title: "Jobsite risk graph",
+    description: "A bar graph ranking jobsites by combined risk score.",
+  },
+  graph_observation_mix: {
+    title: "Observation mix graph",
+    description: "A bar graph of near misses, hazards, positives, inspections, and DAPs.",
   },
 };
 

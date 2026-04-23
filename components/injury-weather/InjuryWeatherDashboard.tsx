@@ -1067,7 +1067,7 @@ export function InjuryWeatherDashboard() {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-semibold text-violet-100">
                 <span className="rounded-md border border-violet-400/50 bg-violet-500/20 px-2 py-0.5 text-xs font-black uppercase tracking-wide text-violet-100">
-                  AI-adjusted forecast
+                  Smart-adjusted forecast
                 </span>
                 <span className="ml-2 text-violet-200/90">
                   Overall band, likely-injury readout, and category risk colors below may differ from the deterministic model.
@@ -1082,7 +1082,7 @@ export function InjuryWeatherDashboard() {
                   onClick={() => setModelBaselineOpen((v) => !v)}
                   className="text-left text-xs font-bold text-violet-200 underline decoration-violet-400/60 underline-offset-2 hover:text-white"
                 >
-                  {modelBaselineOpen ? "Hide model baseline" : "Show model baseline (pre-AI)"}
+                  {modelBaselineOpen ? "Hide model baseline" : "Show model baseline (pre-smart adjustment)"}
                 </button>
                 {modelBaselineOpen ? (
                   <div className="mt-3 rounded-xl border border-slate-600/80 bg-slate-950/80 p-4 text-sm text-slate-200">
@@ -1151,7 +1151,7 @@ export function InjuryWeatherDashboard() {
 
       <section className="rounded-2xl border border-sky-700/40 bg-slate-900/80 p-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-sky-200">AI Safety Advisor</h3>
+          <h3 className="text-lg font-bold text-sky-200">Smart Safety Advisor</h3>
           {aiInsights ? (
             <div className="text-right">
               <span className="rounded-full border border-sky-500/50 bg-sky-500/20 px-2.5 py-1 text-xs font-bold text-sky-200">
@@ -1236,7 +1236,7 @@ export function InjuryWeatherDashboard() {
           </>
         ) : !aiAdvisorLoading ? (
           <p className="mt-3 text-sm leading-relaxed text-slate-400">
-            AI insights did not load (network, API key, or model error). Headline metrics and trade cards use the deterministic
+            Smart insights did not load (network, configuration, or model error). Headline metrics and trade cards use the deterministic
             engine only. Use <span className="font-semibold text-slate-300">Refresh from server</span> in Forecast parameters to
             retry.
           </p>
@@ -1307,7 +1307,7 @@ export function InjuryWeatherDashboard() {
             <h3 className="text-lg font-bold">Priority themes</h3>
             <p className="mt-1 text-xs text-slate-500">
               {aiInsights?.priorityThemes?.length === 3
-                ? "Defined by the AI Safety Advisor from structured signals—not verified open items or CAPA due dates. Confirm against your SOR, CAPA, and incident system."
+                ? "Defined by the Smart Safety Advisor from structured signals—not verified open items or CAPA due dates. Confirm against your SOR, CAPA, and incident system."
                 : "Built from your top trade/category signals (deterministic). Not verified open items or CAPA due dates—confirm in your safety system."}
             </p>
             <div className="mt-3 space-y-2">
@@ -1330,7 +1330,7 @@ export function InjuryWeatherDashboard() {
           <div className="rounded-2xl border border-slate-600/70 bg-slate-900/80 p-5">
             <h3 className="text-lg font-bold">Training To Implement ({data.summary.month})</h3>
             <p className="mt-1 text-xs text-slate-500">
-              {aiInsights ? "AI-generated from current trade and category emphasis." : "Deterministic suggestions from signal mix."}
+              {aiInsights ? "Smart-generated from current trade and category emphasis." : "Deterministic suggestions from signal mix."}
             </p>
             <ul className="mt-3 space-y-2">
               {(aiInsights?.monthlyTrainingRecommendations?.length
@@ -1347,7 +1347,7 @@ export function InjuryWeatherDashboard() {
             <h3 className="text-lg font-bold">Recommended Controls / Actions</h3>
             <p className="mt-1 text-xs text-slate-500">
               {aiInsights
-                ? "AI-authored playbook lines—tie to trades/categories above and your site program; not audit findings."
+                ? "Smart-authored playbook lines—tie to trades/categories above and your site program; not audit findings."
                 : "Playbook-style suggestions from the engine; tie to trades above—not an audit finding list."}
             </p>
             <ul className="mt-3 space-y-2">
@@ -1821,7 +1821,7 @@ export function InjuryWeatherDashboard() {
             <span className="font-medium text-slate-300">Leading-indicator model:</span> Present and future risk scores use historical
             SOR, corrective actions, and incidents when the target month has sparse data in the latest snapshot. The exposure index
             blends likelihood with workforce or trend volume; the % headline maps structural risk × trade/site climate. These are
-            prioritization signals—not validated injury predictions until compared to your incident history. AI suggestions support
+            prioritization signals—not validated injury predictions until compared to your incident history. Smart suggestions support
             training and controls; they do not change the core math instantly.
           </p>
         </div>

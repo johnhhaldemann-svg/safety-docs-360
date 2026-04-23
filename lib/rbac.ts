@@ -10,6 +10,7 @@ import { serverLog } from "@/lib/serverLog";
 
 export const APP_ROLES = [
   "platform_admin",
+  "sales_demo",
   "internal_reviewer",
   "employee",
   "super_admin",
@@ -91,6 +92,7 @@ type AuthorizeOptions = {
 const DEFAULT_BOOTSTRAP_ADMIN_EMAILS = ["john.h.haldemann@gmail.com"];
 const ROLE_PERMISSIONS: Record<AppRole, readonly AppPermission[]> = {
   platform_admin: APP_PERMISSIONS,
+  sales_demo: ["can_view_dashboards", "can_view_reports"],
   internal_reviewer: [
     "can_review_documents",
     "can_approve_documents",
@@ -327,6 +329,7 @@ export function formatAppRole(role?: string | null) {
   const normalized = normalizeAppRole(role);
 
   if (normalized === "platform_admin") return "Platform Admin";
+  if (normalized === "sales_demo") return "Sales Demo";
   if (normalized === "internal_reviewer") return "Internal Reviewer";
   if (normalized === "employee") return "Employee";
   if (normalized === "super_admin") return "Super Admin";

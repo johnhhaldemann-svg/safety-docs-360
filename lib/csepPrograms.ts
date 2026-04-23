@@ -150,6 +150,7 @@ function cloneProgramDefinition(definition: CSEPProgramDefinition): CSEPProgramD
           ) as CSEPProgramDefinition["subtypeVariants"],
         }
       : {}),
+    ...(definition.compactLayout ? { compactLayout: true } : {}),
   };
 }
 
@@ -574,25 +575,22 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
     category: "hazard",
     item: "Falls from height",
     title: "Fall Protection Program",
-    summary: "This program establishes the minimum controls required when selected work exposes crews to leading edges, floor openings, roof edges, ladders, scaffolds, or elevated platforms.",
+    summary: "Controls for fall exposure at leading edges, openings, and elevated work, including access equipment compatibility and dropped-object protection below.",
     oshaRefs: ["OSHA 1926 Subpart M - Fall Protection"],
     applicableWhen: [
-      "Work is performed at height where fall exposure exists.",
-      "Ladders, scaffolds, aerial lifts, or elevated platforms are part of the selected scope.",
+      "The selected scope includes work at height or use of ladders, scaffolds, or aerial lifts where fall protection is required by rule or by site plan.",
     ],
     responsibilities: [
-      "Supervision shall verify fall protection systems are planned, inspected, and compatible with the work area.",
-      "Workers shall stop work when anchor points, access, or edge protection are not adequate for the task.",
+      "Supervision plans and inspects the fall protection system for the work area; workers stop if anchors, access, or edge protection is inadequate.",
     ],
     controls: [
-      "Use approved fall protection systems when site rules or OSHA criteria require them.",
-      "Inspect harnesses, lanyards, SRLs, anchors, and connectors before each use.",
-      "Maintain guardrails, covers, warning lines, and exclusion zones where applicable.",
-      "Control dropped-object exposure below elevated work with barricades and housekeeping.",
+      "Use guardrails, covers, personal fall arrest / restraint, warning lines, or other approved systems as required; inspect harnesses, lanyards, SRLs, and anchors before each use.",
+      "Barricade or control access below elevated work; maintain housekeeping to limit dropped objects.",
     ],
     training: [
-      "Workers shall be trained on fall protection selection, inspection, use, and rescue notification procedures.",
+      "Train workers on system selection, inspection, use, limits, and rescue / notification for the work face.",
     ],
+    compactLayout: true,
   },
   {
     category: "hazard",
@@ -666,25 +664,24 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
   {
     category: "hazard",
     item: "Ladder misuse",
-    title: "Ladder Safety Program",
-    summary: "This program establishes controls for safe ladder selection, inspection, setup, and use.",
+    title: "Ladder Use Controls",
+    summary:
+      "When ladders are in scope, keep one short control block: allowed uses, approval, inspection and setup, and alternate access when a ladder is not safe.",
     oshaRefs: ["OSHA 1926 Subpart X - Stairways and Ladders"],
     applicableWhen: [
-      "Selected work uses portable ladders for access or task execution.",
+      "Portable ladders are used for access or short tasks and site rules allow them for the location and work method.",
     ],
     responsibilities: [
-      "Supervision shall verify the correct ladder type and location before work begins.",
-      "Workers shall remove damaged ladders from service immediately.",
+      "Supervision confirms ladder use is authorized for the task and location; workers remove damaged ladders from service immediately.",
     ],
     controls: [
-      "Inspect ladders before use.",
-      "Set ladders on stable surfaces and use the proper climbing angle where applicable.",
-      "Maintain three points of contact during climbing.",
-      "Do not overreach or use the top step unless the ladder is designed for it.",
+      "Use the correct ladder type and length; inspect before use and set up on stable footing with proper angle, tie-off, or securement as required.",
+      "Respect site ladder restrictions; use an MEWP, scaffold, or stair tower when ladder conditions cannot be met safely.",
     ],
     training: [
-      "Workers shall be trained on ladder inspection, setup, and safe climbing practices.",
+      "Workers are briefed on approval rules, inspection points, and when to stop and use alternate access.",
     ],
+    compactLayout: true,
   },
   {
     category: "hazard",
@@ -816,23 +813,24 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
     category: "hazard",
     item: "Falling objects",
     title: "Falling Object and Overhead Work Safety Program",
-    summary: "This program establishes controls to protect workers from falling tools, materials, debris, and overhead work activities.",
+    summary: "This program establishes controls to protect workers from falling tools, materials, debris, and overhead work activities, including controlled access where the work creates a fixed boundary (CAZ) below steel or similar scope.",
     oshaRefs: ["OSHA 1926 Subpart M - Fall Protection"],
     applicableWhen: [
       "Selected work creates overhead exposure to crews below.",
     ],
     responsibilities: [
-      "Supervision shall maintain drop-zone controls and protect adjacent workers before overhead work starts.",
+      "Supervision shall maintain drop-zone and controlled-access (CAZ) limits and protect adjacent workers before overhead work starts.",
       "Workers shall not enter suspended-load or overhead work zones unless authorized and protected.",
     ],
     controls: [
       "Use toe boards, debris nets, tool lanyards, or overhead protection where needed.",
-      "Barricade and maintain exclusion zones below overhead work.",
+      "Where a controlled access zone (CAZ) applies, establish and mark it with barricades, signage, or lines together with the drop or exclusion area; do not treat a drop zone as the only control when the work requires a CAZ for steel erection, decking, or access below.",
+      "Barricade and maintain exclusion zones below overhead work; stop work if unauthorized workers enter a posted CAZ or uncontrolled line-of-fire path.",
       "Secure materials against displacement at edges and elevated work surfaces.",
-      "Review dropped-object exposure during pre-task planning.",
+      "Review dropped-object and CAZ / communication expectations during pre-task planning.",
     ],
     training: [
-      "Workers shall be trained on overhead hazard recognition and exclusion-zone expectations.",
+      "Workers shall be trained on overhead hazard recognition, CAZ and exclusion-zone rules, and who may enter.",
     ],
   },
   {
@@ -949,6 +947,69 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
   },
   {
     category: "permit",
+    item: "Crane Permit",
+    title: "Crane Permit Program",
+    summary: "This program establishes the site-issued authorization required before a crane is set up, repositioned, or operated on the project.",
+    oshaRefs: ["OSHA 1926 Subpart CC - Cranes and Derricks in Construction"],
+    applicableWhen: [
+      "Selected work uses a mobile, tower, or assist crane and the project or owner requires a site crane permit before setup or operation.",
+    ],
+    responsibilities: [
+      "Supervision shall obtain the crane permit, confirm operator qualification, and coordinate setup location, swing radius, and surrounding work before operations begin.",
+    ],
+    controls: [
+      "Secure the crane permit before the crane is positioned, rigged, or used for any pick.",
+      "Confirm ground conditions, outrigger pads, swing radius, overhead clearances, and exclusion zones against the permit.",
+      "Stop operations and re-permit when the crane is relocated, reconfigured, or conditions change beyond the permit terms.",
+    ],
+    training: [
+      "Operators, riggers, and signal persons shall be trained on crane-permit expectations and site-specific setup rules.",
+    ],
+  },
+  {
+    category: "permit",
+    item: "Pick Plan",
+    title: "Pick Plan Program",
+    summary: "This program establishes the written pick-plan controls for individual lifts, including rigging, load path, communications, and hold points.",
+    oshaRefs: ["OSHA 1926 Subpart CC - Cranes and Derricks in Construction"],
+    applicableWhen: [
+      "Selected work includes lifts that require a written pick plan under the crane permit, critical-lift rules, or site terminology.",
+    ],
+    responsibilities: [
+      "Supervision shall verify the pick plan is prepared, reviewed, and signed before the lift, and confirm the qualified rigger, signal person, and operator are assigned.",
+    ],
+    controls: [
+      "Complete the pick plan before the lift and keep it at the crane and on the work deck.",
+      "Control the load path and landing area so no employee works, stands, or travels beneath a suspended load.",
+      "Pause and re-review the pick plan when load weight, radius, rigging, wind, or surrounding work changes.",
+    ],
+    training: [
+      "Riggers, signal persons, and the lift crew shall be trained on pick-plan content and communication expectations.",
+    ],
+  },
+  {
+    category: "permit",
+    item: "Elevated Work Notice",
+    title: "Elevated Work Notice Program",
+    summary: "This program establishes the notice and authorization expectations for work performed at height where the site requires a heads-up to affected trades and supervision.",
+    oshaRefs: ["OSHA 1926 Subpart M - Fall Protection"],
+    applicableWhen: [
+      "Selected work is performed at height and site rules require an elevated-work notice or equivalent heads-up to the controlling contractor.",
+    ],
+    responsibilities: [
+      "Supervision shall issue the elevated-work notice, coordinate affected trades, and verify barricades, drop-zone controls, and fall protection before crews go up.",
+    ],
+    controls: [
+      "Submit the elevated-work notice before elevated work begins and keep it current as the work face moves.",
+      "Maintain drop-zone barricades, overhead protection, and access controls below the work.",
+      "Stop elevated work when the notice lapses, the drop zone is compromised, or fall protection cannot be maintained.",
+    ],
+    training: [
+      "Workers shall be trained on elevated-work notice expectations, fall protection, and drop-zone coordination.",
+    ],
+  },
+  {
+    category: "permit",
     item: "Confined Space Permit",
     title: "Confined Space Permit Program",
     summary: "This program defines the permit documentation, role assignments, atmospheric review, and rescue readiness required for confined-space entry.",
@@ -1011,23 +1072,24 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
   {
     category: "permit",
     item: "Ladder Permit",
-    title: "Ladder Authorization Program",
-    summary: "This program establishes the approval and field-use expectations when ladder work is restricted or controlled by site rules.",
+    title: "Ladder Use Controls",
+    summary:
+      "Ladder permit or pre-use authorization when site rules require it for portable ladder use in the active scope.",
     oshaRefs: ["OSHA 1926 Subpart X - Stairways and Ladders"],
     applicableWhen: [
-      "Selected work requires ladder-use authorization under project rules.",
+      "Ladder use is part of the selected scope and must be approved or restricted under site rules.",
     ],
     responsibilities: [
-      "Supervision shall confirm ladder use is allowed for the task and location before work begins.",
+      "Supervision confirms ladder use is allowed for the task and location, and verifies that the ladder type, condition, and setup match the work.",
     ],
     controls: [
-      "Verify the ladder type, condition, and setup are appropriate for the task.",
-      "Respect project-specific ladder restrictions or prohibited ladder types.",
-      "Use alternate access methods when ladder restrictions cannot be met safely.",
+      "Use the right ladder for the task, in serviceable condition, set up on stable footing and tied off or held as required.",
+      "Respect site-specific ladder restrictions or prohibited ladder types, and switch to an MEWP, scaffold, or stair tower when ladder rules cannot be met safely.",
     ],
     training: [
-      "Workers shall be trained on ladder approval expectations and safe-use requirements.",
+      "Workers are briefed on ladder approval rules, safe-use requirements, and when an alternate access method is required.",
     ],
+    compactLayout: true,
   },
   {
     category: "permit",
@@ -1138,21 +1200,22 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
     category: "permit",
     item: "Gravity Permit",
     title: "Overhead and Gravity Hazard Program",
-    summary: "This program establishes controls for gravity-driven exposure such as dropped materials, edge exposure, and protected access below work areas.",
+    summary: "This program establishes controls for gravity-driven exposure such as dropped materials, edge exposure, and protected access below work areas, including CAZ (controlled access zone) use where the site or scope requires a clear boundary, not just a generic drop zone.",
     oshaRefs: ["OSHA 1926 Subpart M - Fall Protection"],
     applicableWhen: [
       "Selected work creates overhead or gravity-driven exposure to people below or adjacent to the work area.",
     ],
     responsibilities: [
-      "Supervision shall define drop zones, barricades, and protected access before overhead work begins.",
+      "Supervision shall define drop zones, barricades, CAZ or exclusion limits, and protected access before overhead work begins, and use stop work when a posted boundary is breached or signage is not maintained.",
     ],
     controls: [
-      "Maintain drop-zone barricades and overhead protection where needed.",
+      "Maintain barricades, overhead protection, and signed exclusion limits; where a CAZ is required, align it with the same communication used for the drop or fall path so unauthorized ironworkers, laborers, and other trades stay out.",
+      "Post and enforce the CAZ with barricades, warning line, or signage; coordinate re-briefs when overhead work, picks, or swing activity change.",
       "Secure tools, materials, and debris from displacement.",
-      "Coordinate adjacent access so workers do not pass below uncontrolled overhead work.",
+      "Coordinate adjacent access so workers do not pass below uncontrolled overhead work or an inactive CAZ line.",
     ],
     training: [
-      "Workers shall be trained on drop-zone discipline and overhead hazard communication.",
+      "Workers shall be trained on drop zone and CAZ discipline, and on overhead hazard and boundary communication.",
     ],
   },
   {
@@ -1441,6 +1504,11 @@ export function normalizeCsepProgramConfig(input: unknown): CSEPProgramConfig {
               ),
             }
           : {}),
+        ...(typeof override?.compactLayout === "boolean"
+          ? { compactLayout: override.compactLayout }
+          : fallback.compactLayout
+          ? { compactLayout: true }
+          : {}),
       };
     }),
   };
@@ -1703,6 +1771,51 @@ export function buildCsepProgramSelections(params: BuildSelectionsParams) {
   };
 }
 
+function buildCompactProgramSection(
+  selection: CSEPProgramSelection,
+  definition: CSEPProgramDefinition,
+  relatedTasks: string[]
+): CSEPProgramSection {
+  const controlsParagraph = formatProgramParagraph(definition.controls);
+  const applicabilityParagraph = formatProgramParagraph(definition.applicableWhen);
+  const trainingParagraph = formatProgramParagraph(
+    dedupe([...definition.responsibilities, ...definition.training])
+  );
+  const referenceParagraph = formatProgramReferenceParagraph(definition.oshaRefs);
+  const relatedNote = relatedTasks.length
+    ? `Related tasks: ${relatedTasks.join(", ")}.`
+    : null;
+
+  const bodyParts = [
+    applicabilityParagraph,
+    controlsParagraph,
+    trainingParagraph,
+    referenceParagraph,
+    relatedNote,
+  ].filter((part): part is string => Boolean(part && part.trim()));
+
+  const body = bodyParts.join(" ");
+
+  return {
+    key: `program_${getProgramSelectionKey(selection.category, selection.item, selection.subtype)}`,
+    category: selection.category,
+    item: selection.item,
+    subtype: selection.subtype ?? null,
+    title: definition.title,
+    summary: definition.summary,
+    relatedTasks,
+    subsections: body
+      ? [
+          {
+            title: "Program Controls",
+            body,
+            bullets: [],
+          },
+        ]
+      : [],
+  };
+}
+
 export function buildCsepProgramSection(
   selection: CSEPProgramSelection,
   options?: {
@@ -1714,6 +1827,11 @@ export function buildCsepProgramSection(
   const relatedTasksBody = relatedTasks.length
     ? `These related tasks apply to this program scope: ${relatedTasks.join(", ")}.`
     : "This program was included from the current CSEP selection set.";
+
+  if (definition.compactLayout) {
+    return buildCompactProgramSection(selection, definition, relatedTasks);
+  }
+
   const subsectionDefinitions = [
     {
       title: "When It Applies",
@@ -1786,7 +1904,14 @@ export function buildCsepProgramSections(
     definitions?: CSEPProgramDefinition[];
   }
 ) {
-  return selections.map((selection) => buildCsepProgramSection(selection, options));
+  const hasLadderPermit = selections.some(
+    (s) => s.category === "permit" && s.item === "Ladder Permit"
+  );
+  const effectiveSelections = hasLadderPermit
+    ? selections.filter((s) => !(s.category === "hazard" && s.item === "Ladder misuse"))
+    : selections;
+
+  return effectiveSelections.map((selection) => buildCsepProgramSection(selection, options));
 }
 
 export function listProgramTitles(

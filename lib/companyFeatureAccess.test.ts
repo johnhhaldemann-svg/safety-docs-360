@@ -98,4 +98,19 @@ describe("companyFeatureAccess", () => {
     expect(canAccessCompanyWorkspaceHref("/submit", "field_user", noDocumentAccess)).toBe(false);
     expect(canAccessCompanyWorkspaceHref("/upload", "field_user", noDocumentAccess)).toBe(false);
   });
+
+  it("does not treat sales demo accounts as company workspace operators", () => {
+    const demoPermissions = buildPermissionMap({
+      can_view_dashboards: true,
+      can_view_reports: true,
+    });
+
+    expect(canViewCompanyTrainingMatrix("sales_demo", demoPermissions)).toBe(false);
+    expect(canManageCompanyJsa("sales_demo", demoPermissions)).toBe(false);
+    expect(canManageCompanyPermits("sales_demo", demoPermissions)).toBe(false);
+    expect(canManageCompanyIncidents("sales_demo", demoPermissions)).toBe(false);
+    expect(canAccessCompanyJobsites("sales_demo", demoPermissions)).toBe(false);
+    expect(canAccessCompanyWorkspaceHref("/jobsites", "sales_demo", demoPermissions)).toBe(false);
+    expect(canAccessCompanyWorkspaceHref("/submit", "sales_demo", demoPermissions)).toBe(false);
+  });
 });

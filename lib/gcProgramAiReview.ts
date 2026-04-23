@@ -107,8 +107,8 @@ function buildDeterministicGcProgramReview(params: {
 
   return {
     executiveSummary: hasBody
-      ? `Review for ${params.documentTitle || params.fileName} used deterministic fallback logic because no server OpenAI key is configured. The submission appears partially structured, but it still requires manual validation before approval.`
-      : `Review for ${params.documentTitle || params.fileName} could not be completed in depth because the extracted text is limited and no server OpenAI key is configured.`,
+      ? `Review for ${params.documentTitle || params.fileName} completed an automated document check. The submission appears partially structured, but it still requires manual validation before approval.`
+      : `Review for ${params.documentTitle || params.fileName} could not be completed in depth because the extracted text is limited. Re-upload a readable PDF or DOCX before relying on this review.`,
     alignmentWithGcSiteRequirements: hasBody
       ? "The document can be compared manually against GC and site requirements, but alignment should not be assumed without reviewer confirmation."
       : "There is not enough readable content to confirm alignment with GC or site requirements.",

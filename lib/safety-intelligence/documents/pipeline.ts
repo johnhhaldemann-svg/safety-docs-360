@@ -540,6 +540,11 @@ export async function runSafetyPlanDocumentPipeline(params: {
 export async function resolveGeneratedDraftById(params: {
   supabase: LiteClient;
   generatedDocumentId: string;
+  companyId: string;
 }) {
-  return loadGeneratedDocumentDraft(params.supabase, params.generatedDocumentId);
+  return loadGeneratedDocumentDraft(
+    params.supabase,
+    params.generatedDocumentId,
+    params.companyId
+  );
 }

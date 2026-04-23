@@ -87,7 +87,7 @@ describe("App Navigation Integrity", () => {
     }
   });
 
-  it("keeps the AI hub ordering centered on Command Center first", () => {
+  it("keeps the insights section ordering centered on Command Center first", () => {
     expect(companyAdminQuickLinks.slice(0, 3).map((item) => item.href)).toEqual([
       "/command-center",
       "/dashboard",
@@ -99,14 +99,14 @@ describe("App Navigation Integrity", () => {
       "/safety-intelligence",
     ]);
 
-    const adminAiSection = companyAdminSideSections.find((section) => section.title === "AI hub & reporting");
-    const managerAiSection = companyManagerSideSections.find((section) => section.title === "AI hub & reporting");
+    const adminInsightsSection = companyAdminSideSections.find((section) => section.title === "Insights & reports");
+    const managerInsightsSection = companyManagerSideSections.find((section) => section.title === "Insights & reports");
 
-    expect(adminAiSection?.items.slice(0, 2).map((item) => item.href)).toEqual([
+    expect(adminInsightsSection?.items.slice(0, 2).map((item) => item.href)).toEqual([
       "/command-center",
       "/safety-intelligence",
     ]);
-    expect(managerAiSection?.items.slice(0, 2).map((item) => item.href)).toEqual([
+    expect(managerInsightsSection?.items.slice(0, 2).map((item) => item.href)).toEqual([
       "/command-center",
       "/safety-intelligence",
     ]);

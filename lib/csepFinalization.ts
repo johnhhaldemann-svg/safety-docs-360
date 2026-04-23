@@ -39,6 +39,22 @@ const EXPORT_TEXT_REMOVALS = [
   /continuous improvement not only enhances safety outcomes[^.]*\.?/gi,
   /^\d+\.\d+\.\d+\s+required training\b[^.]*\.?/gim,
   /Required controls include Hole-cover trigger\.?/gi,
+  /The following permit requirements were selected or derived[^.]*\.?/gi,
+  /The following OSHA references? (?:were|was) (?:identified|selected)[^.]*\.?/gi,
+  /The following hazards? (?:were|was) (?:selected|identified|derived)[^.]*\.?/gi,
+  /The following overlapping trades? or affected scopes?[^.]*\.?/gi,
+  /The following PPE (?:was|were) (?:selected|identified|derived)[^.]*\.?/gi,
+  /The following controls? (?:were|was) (?:selected|identified|derived)[^.]*\.?/gi,
+  /The following related tasks? (?:were|was) (?:selected|identified|derived)[^.]*\.?/gi,
+  /The following (?:program|module|reference) (?:were|was) (?:selected|identified|derived)[^.]*\.?/gi,
+  /[^.]*\bis the work site covered by this CSEP\.?/gi,
+  /[^.]*\bis responsible for performing the work covered by this CSEP[^.]*\.?/gi,
+  /This section identifies the project,\s*location,\s*and governing-site information used for field coordination\.?/gi,
+  /(?:Project identification|Contractor contact) details were not fully provided in the current builder payload\.?/gi,
+  // Remove only the capitalized placeholder name "Test" as a contractor /
+  // subject placeholder (typical of dev seed data), not the lowercase noun
+  // "test" which may legitimately appear in user-supplied content.
+  /(?:^|\.\s+|\n)\s*Test\s+is\s+responsible for[^.]*\.?/g,
 ];
 
 const EXPORT_TEXT_REPLACEMENTS: Array<[RegExp, string]> = [
@@ -81,7 +97,43 @@ const PERMIT_DEFINITIONS = [
     label: "Elevated Work Notice",
     aliases: ["elevated work notice", "ladder permit", "ladder permits", "elevated work", "work at height notice"],
   },
-  { id: "lift_plan", label: "Lift Plan", aliases: ["lift plan", "critical lift plan", "crane lift plan"] },
+  {
+    id: "lift_plan",
+    label: "Lift Plan",
+    aliases: ["lift plan", "critical lift plan", "crane lift plan"],
+  },
+  {
+    id: "pick_plan",
+    label: "Pick Plan",
+    aliases: ["pick plan", "crane pick plan", "steel pick plan"],
+  },
+  {
+    id: "crane_permit",
+    label: "Crane Permit",
+    aliases: ["crane permit", "crane use permit", "crane operation permit", "crane setup permit"],
+  },
+  {
+    id: "awp_mewp_permit",
+    label: "AWP/MEWP Permit",
+    aliases: [
+      "awp permit",
+      "mewp permit",
+      "awp mewp permit",
+      "awp/mewp permit",
+      "aerial lift permit",
+      "aerial work platform permit",
+    ],
+  },
+  {
+    id: "gravity_permit",
+    label: "Gravity Permit",
+    aliases: ["gravity permit", "overhead work permit", "overhead hazard permit", "drop zone permit"],
+  },
+  {
+    id: "motion_permit",
+    label: "Motion Permit",
+    aliases: ["motion permit", "equipment motion permit", "traffic control permit"],
+  },
   {
     id: "energized_electrical_permit",
     label: "Energized Electrical Permit",

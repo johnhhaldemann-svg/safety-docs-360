@@ -14,6 +14,7 @@ import type {
   DashboardDocument,
   DashboardFeedItem,
   DashboardFeedSection,
+  DashboardGraphSection,
   DashboardMetric,
   DashboardSummaryItem,
   DashboardSummarySection,
@@ -106,6 +107,81 @@ function summarySection(
   empty: DashboardSummarySection["empty"]
 ): DashboardSummarySection {
   return { title, description, items, empty };
+}
+
+function graphSection(
+  title: string,
+  description: string,
+  items: DashboardGraphSection["items"],
+  empty: DashboardGraphSection["empty"],
+  valueLabel?: string
+): DashboardGraphSection {
+  return { title, description, items, empty, valueLabel };
+}
+
+function dashboardGraphs(data: DashboardDataState) {
+  const jobsiteNames = jobsites(data);
+  const breakdown = data.analyticsSummary?.observationBreakdown;
+
+  return {
+    hazardTrendGraph: graphSection(
+      "Hazard trend graph",
+      "Top hazard categories by count in the current analytics window.",
+      (data.analyticsSummary?.topHazardCategories ?? []).slice(0, 6).map((hazard) => ({
+        id: hazard.category,
+        label: hazard.category.replace(/_/g, " "),
+        value: hazard.count,
+        detail: `${hazard.count} current signal${hazard.count === 1 ? "" : "s"}`,
+        tone: hazard.count >= 5 ? "warning" : "info",
+      })),
+      {
+        title: "No hazard trend graph yet",
+        description: "Hazard graph data will appear after analytics data is available.",
+        actionHref: "/analytics",
+        actionLabel: "Open analytics",
+      },
+      "signals"
+    ),
+    jobsiteRiskGraph: graphSection(
+      "Jobsite risk graph",
+      "Highest-risk jobsites ranked by combined incident, stop-work, and overdue action score.",
+      (data.analyticsSummary?.jobsiteRiskScore ?? []).slice(0, 6).map((row) => ({
+        id: row.jobsiteId,
+        label: jobsiteNames.get(row.jobsiteId) ?? "Unassigned jobsite",
+        value: row.score,
+        detail: `${row.overdue} overdue - ${row.stopWork} stop-work - ${row.incidents} incidents`,
+        tone: row.score >= 10 ? "error" : row.score >= 5 ? "warning" : "info",
+      })),
+      {
+        title: "No jobsite risk graph yet",
+        description: "Risk graph data will appear after jobsite analytics data is available.",
+        actionHref: "/jobsites",
+        actionLabel: "Open jobsites",
+      },
+      "risk score"
+    ),
+    observationMixGraph: graphSection(
+      "Observation mix graph",
+      "Current observation mix across reports, inspections, and daily activity planning.",
+      breakdown
+        ? [
+            { id: "near-miss", label: "Near miss", value: breakdown.nearMiss, tone: "warning" as const },
+            { id: "hazard", label: "Hazard", value: breakdown.hazard, tone: "warning" as const },
+            { id: "positive", label: "Positive", value: breakdown.positive, tone: "success" as const },
+            { id: "other", label: "Other", value: breakdown.other, tone: "neutral" as const },
+            { id: "inspections", label: "Inspections", value: breakdown.inspections, tone: "info" as const },
+            { id: "daps", label: "DAPs", value: breakdown.daps, tone: "info" as const },
+          ].filter((item) => item.value > 0)
+        : [],
+      {
+        title: "No observation mix graph yet",
+        description: "Observation mix data will appear after report analytics are available.",
+        actionHref: "/analytics",
+        actionLabel: "Open analytics",
+      },
+      "records"
+    ),
+  };
 }
 
 function recentDocumentsItems(data: DashboardDataState) {
@@ -370,8 +446,43 @@ function buildBlocks(params: {
   trainingSignal: DashboardSummarySection;
   permitFollowups: DashboardFeedSection;
   incidentFollowups: DashboardFeedSection;
+  graphs?: ReturnType<typeof dashboardGraphs>;
 }): Record<DashboardBlockId, DashboardBlockModel> {
   const [primary, secondary, tertiary, quaternary] = params.metrics;
+  const graphs =
+    params.graphs ??
+    {
+      hazardTrendGraph: graphSection(
+        "Hazard trend graph",
+        "Top hazard categories by count in the current analytics window.",
+        [],
+        {
+          title: "No hazard trend graph yet",
+          description: "Hazard graph data will appear after analytics data is available.",
+        },
+        "signals"
+      ),
+      jobsiteRiskGraph: graphSection(
+        "Jobsite risk graph",
+        "Highest-risk jobsites ranked by combined risk score.",
+        [],
+        {
+          title: "No jobsite risk graph yet",
+          description: "Risk graph data will appear after jobsite analytics data is available.",
+        },
+        "risk score"
+      ),
+      observationMixGraph: graphSection(
+        "Observation mix graph",
+        "Current observation mix across reports, inspections, and daily activity planning.",
+        [],
+        {
+          title: "No observation mix graph yet",
+          description: "Observation mix data will appear after report analytics are available.",
+        },
+        "records"
+      ),
+    };
 
   return {
     metric_primary: {
@@ -460,6 +571,21 @@ function buildBlocks(params: {
       kind: "feed",
       eyebrow: "Incident follow-ups",
       section: params.incidentFollowups,
+    },
+    graph_hazard_trends: {
+      kind: "graph",
+      eyebrow: "Graph",
+      section: graphs.hazardTrendGraph,
+    },
+    graph_jobsite_risk: {
+      kind: "graph",
+      eyebrow: "Graph",
+      section: graphs.jobsiteRiskGraph,
+    },
+    graph_observation_mix: {
+      kind: "graph",
+      eyebrow: "Graph",
+      section: graphs.observationMixGraph,
     },
   };
 }
@@ -561,6 +687,7 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
       },
       banner: banner(data),
       blocks: buildBlocks({
+        graphs: dashboardGraphs(data),
         metrics: [
           metric("In review", `${inReview}`, "CSEP files waiting in review.", "attention"),
           metric("Approved", `${approvedCount}`, "Completed CSEP files in the library."),
@@ -796,9 +923,9 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
     role: "company_admin",
     hero: {
       eyebrow: "Company admin dashboard",
-      title: `What needs attention across ${getCompanyName(data)}`,
+      title: "Company safety dashboard",
       description:
-        "Start with urgent approvals and overdue risk items, then move into company activity and the highest-risk jobsites.",
+        "Review urgent approvals, overdue risk items, company activity, and the highest-risk jobsites.",
       actions: [
         {
           label: "Open command center",
@@ -814,6 +941,7 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
     },
     banner: banner(data),
     blocks: buildBlocks({
+      graphs: dashboardGraphs(data),
       metrics: [
         metric(
           "Pending approvals",
@@ -1032,6 +1160,7 @@ export function getSafetyManagerDashboardModel(data: DashboardDataState): Dashbo
     },
     banner: banner(data),
     blocks: buildBlocks({
+      graphs: dashboardGraphs(data),
       metrics: [
         metric(
           "Personal work queue",
@@ -1255,6 +1384,7 @@ export function getFieldSupervisorDashboardModel(data: DashboardDataState): Dash
     },
     banner: banner(data),
     blocks: buildBlocks({
+      graphs: dashboardGraphs(data),
       metrics: [
         metric(
           "Today's site status",
@@ -1505,6 +1635,7 @@ export function getDefaultDashboardModel(data: DashboardDataState): DashboardVie
     },
     banner: banner(data),
     blocks: buildBlocks({
+      graphs: dashboardGraphs(data),
       metrics: [
         metric("Needs attention now", `${pendingCount}`, "Documents currently waiting in review.", "attention"),
         metric(

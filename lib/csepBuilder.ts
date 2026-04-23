@@ -17,7 +17,6 @@ import type { GeneratedSafetyPlanDraft, GeneratedSafetyPlanSection } from "@/typ
 import {
   cleanFinalText,
   cleanSectionForFinalIssue,
-  controlledTbd,
   isMeaningfulFinalText,
   normalizePermitList,
 } from "@/lib/csepFinalization";
@@ -487,7 +486,8 @@ const APPENDIX_DEFINITIONS: readonly CsepAppendixDefinition[] = [
     title: "Appendix B. Incident and Investigation Package",
     shortTitle: "Incident and Investigation Package",
     numberLabel: "Appendix B",
-    purpose: "Incident reporting, supervisor review, and investigation packet references.",
+    purpose:
+      "Required incident-response, investigation, corrective-action, and closeout documents for recordkeeping and follow-up.",
     aiEligible: true,
   },
   {
@@ -1517,11 +1517,19 @@ export function buildDefaultCsepDocumentControlFields(
   snapshot?: Record<string, unknown> | null
 ): CsepDocumentControlFields {
   const read = (key: string) => (typeof snapshot?.[key] === "string" ? String(snapshot[key]).trim() : "");
+  const normalizePartyList = (value: string) =>
+    value
+      .replace(/\r\n?/g, "\n")
+      .split(/\n|;/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .filter((item, index, items) => items.indexOf(item) === index)
+      .join("; ");
 
   return {
     projectSite: read("project_site") || read("project_name"),
     primeContractor: read("prime_contractor") || read("contractor_company"),
-    clientOwner: read("client_owner") || read("owner_client"),
+    clientOwner: normalizePartyList(read("client_owner") || read("owner_client")),
     documentNumber: read("document_number") || read("project_number"),
     revision: read("document_revision") || "1.0",
     issueDate: read("issue_date"),
@@ -1944,8 +1952,55 @@ function buildStaticFrontMatterSections(
   draft: GeneratedSafetyPlanDraft,
   selectedFormatSectionKeys: readonly CsepFormatSectionKey[]
 ): GeneratedSafetyPlanSection[] {
-  const builderSnapshot = asRecord(draft.builderSnapshot) ?? {};
   const aiAssemblyDecisions = draft.aiAssemblyDecisions ?? null;
+
+  const definitionsTable = {
+    columns: ["Term / Abbreviation", "Definition / Intended Use"],
+    rows: [
+      ["CBA", "Collective bargaining or labor-agreement language that may add project-specific safety expectations."],
+      ["CM/GC", "Construction manager / general contractor responsible for project-level coordination."],
+      ["Competent Person", "Qualified individual designated to identify hazards and take prompt corrective action."],
+      ["IIPP", "Injury and Illness Prevention Program requirements carried through this contractor package."],
+      ["JHA / PTP", "Job hazard analysis / pre-task planning tool used for activity-specific risk review."],
+    ],
+  };
+
+  const formatSections = selectedFormatSectionKeys
+    .map((key) => getCsepFormatDefinition(key))
+    .filter(Boolean);
+
+  return [
+    {
+      key: "table_of_contents",
+      kind: "front_matter",
+      order: 0,
+      title: "Table of Contents",
+      layoutKey: "table_of_contents",
+      bullets: formatSections.map((section) => section.title),
+    },
+    {
+      key: "plan_use_guidance",
+      kind: "front_matter",
+      order: 1,
+      title: "How to Use This Plan",
+      layoutKey: "plan_use_guidance",
+      body: cleanFinalText(aiAssemblyDecisions?.frontMatterGuidance) ?? "Use this plan as the field execution reference for the selected contractor scope and supporting attachments.",
+    },
+    {
+      key: "definitions_and_abbreviations",
+      kind: "front_matter",
+      order: 2,
+      title: "Definitions and Abbreviations",
+      layoutKey: "definitions_and_abbreviations",
+      table: definitionsTable,
+    },
+  ];
+}
+
+function buildDocumentControlRevisionEndSection(
+  draft: GeneratedSafetyPlanDraft
+): GeneratedSafetyPlanSection {
+  const builderSnapshot = asRecord(draft.builderSnapshot) ?? {};
   const documentControl = {
     ...buildDefaultCsepDocumentControlFields(builderSnapshot),
     ...(draft.documentControl ?? {}),
@@ -1968,104 +2023,43 @@ function buildStaticFrontMatterSections(
     day: "numeric",
     year: "numeric",
   }).format(new Date());
-  const documentNumberRevision =
-    uniqueNonEmpty([
-      cleanFinalText(documentControl.documentNumber),
-      cleanFinalText(documentControl.revision),
-    ]).join(" / ") || "N/A";
   const preparedByLabel =
     cleanFinalText(documentControl.preparedBy) ??
     cleanFinalText(draft.projectOverview.contractorCompany) ??
     "Authorized Contractor Representative";
+  const reviewedByLabel =
+    cleanFinalText(documentControl.reviewedBy) ?? preparedByLabel;
   const approvedByLabel =
     cleanFinalText(documentControl.approvedBy) ??
-    cleanFinalText(documentControl.reviewedBy) ??
+    reviewedByLabel ??
     cleanFinalText(draft.projectOverview.contractorCompany) ??
     preparedByLabel;
-  const preparedReviewedApproved =
-    uniqueNonEmpty([
-      preparedByLabel,
-      cleanFinalText(documentControl.reviewedBy),
-      cleanFinalText(documentControl.approvedBy) ?? approvedByLabel,
-    ]).join(" / ") || primeContractor;
 
-  const definitionsTable = {
-    columns: ["Term / Abbreviation", "Definition / Intended Use"],
-    rows: [
-      ["CBA", "Collective bargaining or labor-agreement language that may add project-specific safety expectations."],
-      ["CM/GC", "Construction manager / general contractor responsible for project-level coordination."],
-      ["Competent Person", "Qualified individual designated to identify hazards and take prompt corrective action."],
-      ["IIPP", "Injury and Illness Prevention Program requirements carried through this contractor package."],
-      ["JHA / PTP", "Job hazard analysis / pre-task planning tool used for activity-specific risk review."],
-    ],
+  return {
+    key: "document_control_and_revision_history",
+    kind: "appendix",
+    order: 39,
+    numberLabel: "15",
+    title: "15. Document Control and Revision History",
+    layoutKey: "document_control_and_revision_history",
+    body:
+      "Current issue control, revision status, and approval record for this issued CSEP package.",
+    table: {
+      columns: ["Field", "Value"],
+      rows: [
+        ["Project Name / Site", displayOrNA(projectSite)],
+        ["Prime / Contractor", displayOrNA(primeContractor)],
+        ["Client / Owner", displayOrNA(clientOwner)],
+        ["Document Number", displayOrNA(documentControl.documentNumber)],
+        ["Revision", displayOrNA(documentControl.revision || "1.0")],
+        ["Issue Date", displayOrNA(documentControl.issueDate || currentIssueLabel)],
+        ["Prepared By", displayOrNA(preparedByLabel)],
+        ["Reviewed By", displayOrNA(reviewedByLabel)],
+        ["Approved By", displayOrNA(approvedByLabel)],
+        ["Revision Summary", "Initial issuance for contractor CSEP export"],
+      ],
+    },
   };
-
-  const formatSections = selectedFormatSectionKeys
-    .map((key) => getCsepFormatDefinition(key))
-    .filter(Boolean);
-
-  return [
-    {
-      key: "document_control",
-      kind: "front_matter",
-      order: 0,
-      numberLabel: "0.0",
-      title: "0.0 Document Control",
-      layoutKey: "document_control",
-      table: {
-        columns: ["Field", "Value"],
-        rows: [
-          ["Project Name / Site", displayOrNA(projectSite)],
-          ["Prime / Contractor", displayOrNA(primeContractor)],
-          ["Client / Owner", displayOrNA(clientOwner)],
-          ["Document Number / Revision", displayOrNA(documentNumberRevision)],
-          ["Prepared By / Reviewed By / Approved By", displayOrNA(preparedReviewedApproved)],
-        ],
-      },
-    },
-    {
-      key: "revision_history",
-      kind: "front_matter",
-      order: 1,
-      numberLabel: "0.1",
-      title: "0.1 Revision History",
-      layoutKey: "revision_history",
-      table: {
-        columns: ["Rev.", "Date", "Description of Revision", "Prepared", "Approved"],
-        rows: [[
-          cleanFinalText(documentControl.revision) || "1.0",
-          cleanFinalText(documentControl.issueDate) || currentIssueLabel,
-          "Initial issuance for contractor CSEP export",
-          preparedByLabel,
-          approvedByLabel,
-        ]],
-      },
-    },
-    {
-      key: "table_of_contents",
-      kind: "front_matter",
-      order: 2,
-      title: "Table of Contents",
-      layoutKey: "table_of_contents",
-      bullets: formatSections.map((section) => section.title),
-    },
-    {
-      key: "plan_use_guidance",
-      kind: "front_matter",
-      order: 3,
-      title: "How to Use This Plan",
-      layoutKey: "plan_use_guidance",
-      body: cleanFinalText(aiAssemblyDecisions?.frontMatterGuidance) ?? "Use this plan as the field execution reference for the selected contractor scope and supporting attachments.",
-    },
-    {
-      key: "definitions_and_abbreviations",
-      kind: "front_matter",
-      order: 4,
-      title: "Definitions and Abbreviations",
-      layoutKey: "definitions_and_abbreviations",
-      table: definitionsTable,
-    },
-  ];
 }
 
 function buildOperationalQuickReferenceSubsections(): NonNullable<GeneratedSafetyPlanSection["subsections"]> {
@@ -2120,12 +2114,88 @@ function buildOperationalQuickReferenceSubsections(): NonNullable<GeneratedSafet
   ];
 }
 
+function hasLaydownAreaNeed(
+  draft: GeneratedSafetyPlanDraft,
+  builderSnapshot: Record<string, unknown>
+) {
+  const scopeSignals = [
+    draft.projectOverview.contractorCompany,
+    draft.projectOverview.ownerClient,
+    draft.projectOverview.gcCm,
+    typeof builderSnapshot.scope_of_work === "string" ? String(builderSnapshot.scope_of_work) : "",
+    typeof builderSnapshot.site_specific_notes === "string" ? String(builderSnapshot.site_specific_notes) : "",
+    typeof builderSnapshot.trade === "string" ? String(builderSnapshot.trade) : "",
+    typeof builderSnapshot.subTrade === "string" ? String(builderSnapshot.subTrade) : "",
+    ...draft.operations.flatMap((operation) => [
+      operation.tradeLabel ?? "",
+      operation.subTradeLabel ?? "",
+      operation.taskTitle ?? "",
+      ...(operation.equipmentUsed ?? []),
+      ...(operation.workConditions ?? []),
+    ]),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return /material delivery|delivery|unloading|storage|staging|laydown|crane pick|crane|rigging|prefabricated|prefab|assembly|steel|decking|piping|duct|scaffold|scaffolds|pallet|waste staging|material area|receiving|offload|hoist|erection/.test(
+    scopeSignals
+  );
+}
+
+function buildSecurityLogisticsSubsections(
+  draft: GeneratedSafetyPlanDraft,
+  builderSnapshot: Record<string, unknown>
+): NonNullable<GeneratedSafetyPlanSection["subsections"]> {
+  if (!hasLaydownAreaNeed(draft, builderSnapshot)) {
+    return [];
+  }
+
+  return [
+    {
+      title: "Site Access",
+      body:
+        "This project-wide logistics section establishes how site-access paths are set, maintained, adjusted, and released as deliveries and field conditions change.",
+      bullets: [
+        "Control delivery entry, worker access points, pedestrian routes, and equipment approach paths so unloading, staging, and retrieval activities do not conflict with active work fronts or emergency access.",
+      ],
+    },
+    {
+      title: "Laydown Area Management",
+      body:
+        "This project-wide logistics section defines how laydown areas are established, organized, isolated, maintained, inspected, and released.",
+      bullets: [
+        "Laydown areas shall be established only in approved locations.",
+        "The area shall support the planned delivery route, crane reach, erection sequence, and safe pedestrian separation.",
+        "Ground or slab conditions shall be verified before material is staged.",
+        "Materials shall be stored in a stable, organized manner that prevents rolling, shifting, collapse, or unplanned movement.",
+        "Laydown areas shall be kept within defined boundaries using barricades, markings, cones, fencing, or other project-approved controls as needed.",
+        "Access to the laydown area shall be limited to authorized personnel involved in unloading, staging, inspection, or material retrieval.",
+        "Pedestrian routes, emergency access routes, fire protection equipment, drains, exits, and active work paths shall not be blocked by stored material.",
+        "Material stacks shall be organized by type, sequence, size, or installation order to reduce double handling and congestion.",
+        "Damaged, rejected, or suspect materials shall be segregated from accepted material.",
+        "Housekeeping shall be maintained at all times; dunnage, banding, debris, and scrap shall be removed or contained.",
+        "The laydown area shall be reviewed when weather, ground conditions, delivery volume, or adjacent operations change.",
+        "Where overhead work, crane activity, or moving equipment creates exposure, the laydown area shall include exclusion controls and spotter support as required.",
+        "Flammable, chemical, or specialty materials shall be stored in accordance with project and manufacturer requirements and not mixed into general laydown without approval.",
+        "End-of-shift controls shall ensure materials, tools, and access points are left in a stable and secure condition.",
+      ],
+    },
+    {
+      title: "Traffic Control",
+      body:
+        "This project-wide logistics section establishes how internal traffic control is maintained around delivery, unloading, staging, and retrieval operations.",
+      bullets: [
+        "Use project-approved route controls, spotters, unloading plans, and boundary protection whenever moving equipment, delivery vehicles, crane support equipment, or retrieval traffic can affect workers, pedestrians, or adjacent operations.",
+      ],
+    },
+  ];
+}
+
 function buildAppendixLibrarySections(
   draft: GeneratedSafetyPlanDraft
 ): GeneratedSafetyPlanSection[] {
   const hazardTitles = uniqueNonEmpty(draft.sectionMap.map((section) => section.title).filter((title) => /hazard|program/i.test(title)));
-
-  return APPENDIX_DEFINITIONS.map((definition) => {
+  const attachmentSections: GeneratedSafetyPlanSection[] = APPENDIX_DEFINITIONS.map((definition) => {
     const appendixRows =
       definition.key === "appendix_a_forms_and_permit_library"
         ? [
@@ -2136,10 +2206,38 @@ function buildAppendixLibrarySections(
           ]
         : definition.key === "appendix_b_incident_and_investigation_package"
           ? [
-              ["Initial Notification", "Escalation path, contact ladder, and event-trigger checklist."],
-              ["Supervisor Review", "Supervisor fact gathering, witness capture, and immediate controls."],
-              ["Investigation Tools", "Root cause, corrective action, and closeout packet inserts."],
-              ["Event Support Inserts", "Photos, sketches, clinic routing, and follow-up attachments."],
+              [
+                "Appendix B.1 Immediate Notification and Scene Control",
+                "Initial notification, emergency contacts, scene stabilization, responder access, and immediate escalation steps.",
+              ],
+              [
+                "Appendix B.2 Initial Incident Report",
+                "First report of injury, illness, property damage, near miss, or significant safety event.",
+              ],
+              [
+                "Appendix B.3 Supervisor Investigation Report",
+                "Supervisor fact gathering, event timeline, site conditions, witness capture, and immediate control actions.",
+              ],
+              [
+                "Appendix B.4 Witness Statements",
+                "Written witness accounts, involved-person statements, and supporting narrative documentation.",
+              ],
+              [
+                "Appendix B.5 Photo, Sketch, and Evidence Log",
+                "Scene photos, sketches, equipment identification, location records, and preserved evidence tracking.",
+              ],
+              [
+                "Appendix B.6 Root Cause and Corrective Action Tracking",
+                "Root-cause analysis, corrective actions, assigned ownership, due dates, and closure verification.",
+              ],
+              [
+                "Appendix B.7 Medical Treatment / Clinic Routing",
+                "Clinic directions, treatment authorization, post-incident medical routing, and work-status documentation.",
+              ],
+              [
+                "Appendix B.8 Post-Incident Review and Closeout",
+                "Management review, lessons learned, retraining needs, communication to crews, and formal closeout approval.",
+              ],
             ]
           : definition.key === "appendix_c_checklists_and_inspection_sheets"
             ? [
@@ -2157,7 +2255,7 @@ function buildAppendixLibrarySections(
 
     return {
       key: definition.key,
-      kind: "appendix",
+      kind: "appendix" as const,
       order: definition.order,
       title: definition.title,
       numberLabel: definition.numberLabel,
@@ -2171,6 +2269,8 @@ function buildAppendixLibrarySections(
       },
     };
   });
+
+  return [buildDocumentControlRevisionEndSection(draft), ...attachmentSections];
 }
 
 function applyAiAssemblyDecisionsToStructuredSections(
@@ -2292,6 +2392,10 @@ export function buildStructuredCsepSectionMap(
 
   const frontMatterSections = buildStaticFrontMatterSections(draft, selectedFormatSectionKeys);
   const mainSections: Array<GeneratedSafetyPlanSection | null> = selectedFormatSectionKeys.map((sectionKey) => {
+    if (options?.finalIssueMode && sectionKey === "appendices_and_support_library") {
+      return null;
+    }
+
     const definition = getCsepFormatDefinition(sectionKey);
     const sourceSections = grouped.get(sectionKey) ?? [];
     const programSourceSections = sourceSections.filter((section) => isCatalogProgramSection(section));
@@ -2349,6 +2453,10 @@ export function buildStructuredCsepSectionMap(
       sectionKey === "emergency_preparedness_and_response"
         ? buildOperationalQuickReferenceSubsections()
         : [];
+    const securityLogisticsSubsections =
+      sectionKey === "security_and_access_control"
+        ? buildSecurityLogisticsSubsections(draft, builderSnapshot)
+        : [];
 
     const nextSection = {
       key: sectionKey,
@@ -2370,11 +2478,13 @@ export function buildStructuredCsepSectionMap(
         projectScopeSummarySubsections.length ||
         combinedSubsections.length ||
         emergencyQuickReferenceSubsections.length ||
+        securityLogisticsSubsections.length ||
         (relatedFindings.length && !options?.finalIssueMode)
           ? [
               ...projectScopeSummarySubsections,
               ...combinedSubsections,
               ...emergencyQuickReferenceSubsections,
+              ...securityLogisticsSubsections,
               ...(!options?.finalIssueMode && relatedFindings.length
                 ? [
                     {

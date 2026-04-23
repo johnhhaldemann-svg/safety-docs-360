@@ -24,7 +24,7 @@ export function MonthlyFocusPanel({ data }: { data: InjuryWeatherDashboardData }
       <h3 className="mt-1 text-lg font-bold text-white">Deterministic priorities</h3>
       <p className="mt-2 text-xs leading-relaxed text-slate-400">
         Ranked from your safety-system signals (SOR, corrective actions, incidents), industry benchmark context, and static sector
-        hazard themes. The AI Safety Advisor is prompted to align with these rows—not replace them with invented site facts.
+        hazard themes. The Smart Safety Advisor is prompted to align with these rows—not replace them with invented site facts.
       </p>
       <ol className="mt-4 space-y-3">
         {items.map((row) => (
@@ -90,7 +90,7 @@ export function InjuryWeatherDiagnosticsPanel({ data }: { data: InjuryWeatherDas
           <span className="font-semibold text-slate-300">Record window:</span> {p.recordWindowLabel}
         </p>
         <p className="text-slate-500">
-          Sparse signals: the AI Safety Advisor can run a{" "}
+          Sparse signals: the Smart Safety Advisor can run a{" "}
           <span className="text-slate-400">web search</span> pass for cited public guidance. Set{" "}
           <code className="rounded bg-slate-800 px-1">INJURY_WEATHER_SPARSE_WEB_RESEARCH=0</code> to disable (saves an extra API
           call).

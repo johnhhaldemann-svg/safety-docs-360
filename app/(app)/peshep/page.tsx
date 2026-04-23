@@ -608,7 +608,7 @@ export default function PESHEPUniversalPage() {
       } = await supabase.auth.getSession();
 
       if (!session?.access_token) {
-        throw new Error("Sign in to use AI drafting.");
+        throw new Error("Sign in to use smart drafting.");
       }
 
       const prompt = [
@@ -638,20 +638,20 @@ export default function PESHEPUniversalPage() {
         | null;
 
       if (!response.ok) {
-        throw new Error(data?.error || "AI drafting failed.");
+        throw new Error(data?.error || "Smart drafting failed.");
       }
 
       const draft = data?.text?.trim();
       if (!draft) {
-        throw new Error("The AI did not return draft text for this field.");
+        throw new Error("The smart drafting tool did not return draft text for this field.");
       }
 
       updateField(field, draft as Answers[typeof field]);
       setMessageTone("success");
-      setMessage(`AI drafted ${label.toLowerCase()} in the form.`);
+      setMessage(`Smart drafting updated ${label.toLowerCase()} in the form.`);
     } catch (error) {
       setMessageTone("error");
-      setMessage(error instanceof Error ? error.message : "AI drafting failed.");
+      setMessage(error instanceof Error ? error.message : "Smart drafting failed.");
     } finally {
       setAiDraftField(null);
     }
@@ -1519,7 +1519,7 @@ function TextArea({
             disabled={aiLoading}
             className="rounded-xl border border-sky-500/35 bg-sky-500/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-sky-200 transition hover:bg-sky-500/15 disabled:opacity-50"
           >
-            {aiLoading ? "Drafting..." : "AI Draft"}
+            {aiLoading ? "Drafting..." : "Smart Draft"}
           </button>
         ) : null}
       </div>

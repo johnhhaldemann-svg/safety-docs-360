@@ -12,7 +12,6 @@ import {
 import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
 import { serverLog } from "@/lib/serverLog";
 import type {
-  ConflictSeverity,
   GeneratedSafetyPlanDraft,
   GeneratedSafetyPlanSection,
   RiskBand,

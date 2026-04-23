@@ -35,7 +35,7 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-bold text-[var(--app-text-strong)]">Where data lives</h2>
             <p className="mt-3">
               Production deployments use Supabase (database and authentication) and hosting on Vercel. Optional
-              features may call other providers (for example OpenAI for AI-assisted insights, email delivery for
+              features may call other providers (for example intelligence-assisted insights, email delivery for
               invites, or Stripe for billing) when those integrations are enabled in your environment.
             </p>
           </section>

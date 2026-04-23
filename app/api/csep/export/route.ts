@@ -35,6 +35,7 @@ import { buildLegacyCsepRenderModel } from "@/lib/csepLegacyDocx";
 import { renderCsepRenderModel, renderGeneratedCsepDocx } from "@/lib/csepDocxRenderer";
 import { DOCUMENT_DISCLAIMER_LINES } from "@/lib/legal";
 import { authorizeRequest } from "@/lib/rbac";
+import { getCompanyScope } from "@/lib/companyScope";
 import {
   CONTRACTOR_SAFETY_BLUEPRINT_TITLE,
   getSafetyBlueprintDraftFilename,
@@ -51,14 +52,6 @@ type GeneratedCsepDocxRequest = {
 };
 
 type GeneratedDocumentDraftLoaderClient = Parameters<typeof loadGeneratedDocumentDraft>[0];
-
-type HazardProgram = {
-  title: string;
-  triggerHazards: string[];
-  oshaRefs: string[];
-  purpose: string;
-  controls: string[];
-};
 
 type IncludedContent = {
   project_information?: boolean;
@@ -364,24 +357,6 @@ function buildTrainingBullets(
   return bullets;
 }
 
-function hasUtilityScope(form: CSEPInput) {
-  const textSeed = [
-    form.trade,
-    form.subTrade,
-    ...(Array.isArray(form.tasks) ? form.tasks : []),
-    ...(Array.isArray(form.selected_hazards) ? form.selected_hazards : []),
-    form.scope_of_work,
-    form.site_specific_notes,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  return /\butility\b|locator wire|manhole|vault|duct bank|catch basin|storm structure|site drainage|pipe laying|install pipe/.test(
-    textSeed
-  );
-}
-
 function buildWeatherProjectOverlayItems(weather: CsepWeatherSectionInput | undefined) {
   if (!weather) {
     return [];
@@ -570,229 +545,6 @@ function normalizeIncludedContent(form: CSEPInput): Required<IncludedContent> {
   };
 }
 
-const HAZARD_PROGRAM_LIBRARY: HazardProgram[] = [
-  {
-    title: "Fall Protection Program",
-    triggerHazards: ["Falls from height"],
-    oshaRefs: ["OSHA 1926 Subpart M – Fall Protection"],
-    purpose:
-      "This program establishes the minimum controls required to protect workers exposed to falls from height, leading edges, roof edges, floor openings, and elevated work platforms.",
-    controls: [
-      "A fall protection plan shall be reviewed before elevated work begins.",
-      "Approved fall protection systems shall be used when required by site rules or OSHA criteria.",
-      "Workers shall inspect harnesses, lanyards, SRLs, anchors, and connectors before each use.",
-      "Guardrails, covers, warning lines, and controlled access zones shall be maintained where applicable.",
-      "Damaged fall protection equipment shall be removed from service immediately.",
-      "Only trained personnel shall use personal fall arrest systems.",
-      "Dropped object exposure below elevated work shall be controlled with barricades and exclusion zones.",
-    ],
-  },
-  {
-    title: "Electrical Safety Program",
-    triggerHazards: ["Electrical shock"],
-    oshaRefs: ["OSHA 1926 Subpart K – Electrical"],
-    purpose:
-      "This program defines the controls required to prevent shock, arc, burn, and energized equipment exposure during construction activities.",
-    controls: [
-      "All temporary power systems shall be installed and maintained in a safe condition.",
-      "GFCI protection shall be used where required.",
-      "Damaged cords, tools, and electrical equipment shall be removed from service.",
-      "Only qualified personnel shall perform electrical tie-ins, troubleshooting, or energized system work.",
-      "LOTO procedures shall be followed before servicing equipment where hazardous energy is present.",
-      "Extension cords shall be protected from damage, water, pinch points, and vehicle traffic.",
-      "Panels and disconnects shall remain accessible and properly identified.",
-    ],
-  },
-  {
-    title: "Hot Work Program",
-    triggerHazards: ["Hot work / fire"],
-    oshaRefs: ["OSHA 1926 Subpart J – Fire Protection and Prevention"],
-    purpose:
-      "This program establishes fire prevention and hot work controls for welding, cutting, torch work, grinding, soldering, brazing, and spark-producing tasks.",
-    controls: [
-      "Hot work shall not begin until required permits are obtained.",
-      "Combustible materials shall be removed or protected before hot work starts.",
-      "Fire extinguishers shall be available in the immediate work area.",
-      "A fire watch shall be assigned when required by permit or site rules.",
-      "Workers shall inspect hoses, regulators, torches, leads, and equipment before use.",
-      "Hot work shall stop immediately if unsafe conditions develop.",
-      "Post-work fire watch requirements shall be followed.",
-    ],
-  },
-  {
-    title: "Excavation and Trenching Safety Program",
-    triggerHazards: ["Excavation collapse"],
-    oshaRefs: ["OSHA 1926 Subpart P – Excavations"],
-    purpose:
-      "This program provides minimum controls for trenching, excavation support activities, underground utility work, and changing soil conditions.",
-    controls: [
-      "Excavations shall be inspected by a competent person as required.",
-      "Protective systems shall be used where required by depth, soil, and field conditions.",
-      "Spoil piles and materials shall be kept back from excavation edges.",
-      "Safe access and egress shall be maintained.",
-      "Workers shall stay clear of suspended loads and equipment swing areas near trenches.",
-      "Underground utilities shall be identified before excavation begins.",
-      "Water accumulation, surcharge loading, and changing ground conditions shall be addressed before work continues.",
-    ],
-  },
-  {
-    title: "Struck-By and Equipment Safety Program",
-    triggerHazards: ["Struck by equipment"],
-    oshaRefs: [
-      "OSHA 1926 Subpart O – Motor Vehicles, Mechanized Equipment, and Marine Operations",
-    ],
-    purpose:
-      "This program establishes controls for equipment interaction, backing hazards, haul routes, blind spots, and worker exposure around moving equipment.",
-    controls: [
-      "Workers shall remain clear of moving equipment unless directly involved in the operation.",
-      "Spotters shall be used where visibility is restricted or site rules require them.",
-      "Equipment routes, swing radiuses, and exclusion zones shall be identified and maintained.",
-      "Operators shall inspect equipment before use.",
-      "Workers shall wear high visibility garments where equipment traffic is present.",
-      "No employee shall position themselves between fixed objects and moving equipment.",
-      "Loads shall be secured and transported safely.",
-    ],
-  },
-  {
-    title: "Ladder Safety Program",
-    triggerHazards: ["Ladder misuse"],
-    oshaRefs: ["OSHA 1926 Subpart X – Stairways and Ladders"],
-    purpose:
-      "This program establishes controls for safe ladder selection, inspection, setup, and use.",
-    controls: [
-      "Ladders shall be inspected before use.",
-      "Damaged ladders shall be removed from service immediately.",
-      "Ladders shall be set on stable surfaces and used at the proper angle where applicable.",
-      "Three points of contact shall be maintained during climbing.",
-      "Workers shall not overreach or use the top step unless the ladder is designed for it.",
-      "Ladders shall be secured where required.",
-      "Only the proper ladder type shall be used for the task.",
-    ],
-  },
-  {
-    title: "Confined Space Safety Program",
-    triggerHazards: ["Confined spaces"],
-    oshaRefs: ["OSHA 1926 Subpart AA – Confined Spaces in Construction"],
-    purpose:
-      "This program establishes controls for confined spaces, limited-entry work areas, and spaces requiring atmospheric evaluation or permit controls.",
-    controls: [
-      "Confined spaces shall be identified before work begins.",
-      "Permit requirements shall be followed when applicable.",
-      "Atmospheric testing shall be completed when required.",
-      "Rescue procedures and communication methods shall be established before entry.",
-      "Unauthorized entry shall be prevented.",
-      "Entrants, attendants, and supervisors shall understand their responsibilities.",
-      "Conditions shall be reevaluated whenever the work or atmosphere changes.",
-    ],
-  },
-  {
-    title: "Hazard Communication and Chemical Safety Program",
-    triggerHazards: ["Chemical exposure"],
-    oshaRefs: ["OSHA 1926.59 / Hazard Communication"],
-    purpose:
-      "This program establishes minimum requirements for chemical review, SDS access, labeling, handling, storage, and worker protection.",
-    controls: [
-      "Safety Data Sheets shall be available for chemicals used on site.",
-      "Containers shall be properly labeled.",
-      "Workers shall review hazards before using chemical products.",
-      "Required PPE shall be worn when handling hazardous materials.",
-      "Chemical storage areas shall be maintained in a safe condition.",
-      "Spill response materials shall be available when required.",
-      "Incompatible chemicals shall not be stored together.",
-    ],
-  },
-  {
-    title: "Falling Object and Overhead Work Safety Program",
-    triggerHazards: ["Falling objects"],
-    oshaRefs: ["OSHA 1926 Subpart M – Fall Protection"],
-    purpose:
-      "This program establishes controls to protect workers from falling tools, materials, debris, and overhead work activities.",
-    controls: [
-      "Toe boards, debris nets, tool lanyards, or overhead protection shall be used where needed.",
-      "Barricades and exclusion zones shall be established below overhead work.",
-      "Materials shall be secured against displacement.",
-      "Workers shall not enter suspended load zones unless authorized and protected.",
-      "Staging at edges and elevated surfaces shall be controlled.",
-      "Dropped object risks shall be reviewed during pre-task planning.",
-      "Hard hats shall be worn where overhead hazards exist.",
-    ],
-  },
-  {
-    title: "Crane, Rigging, and Lift Safety Program",
-    triggerHazards: ["Crane lift hazards"],
-    oshaRefs: ["OSHA 1926 Subpart CC – Cranes and Derricks in Construction"],
-    purpose:
-      "This program defines controls for crane activity, rigging, lifting operations, material picks, and suspended load exposure.",
-    controls: [
-      "Lift plans shall be used when required by site rules or lift complexity.",
-      "Only trained and authorized personnel shall rig or direct crane lifts.",
-      "Rigging shall be inspected before use.",
-      "Workers shall remain clear of suspended loads.",
-      "Tag lines shall be used when appropriate.",
-      "Communication methods between operators and signal persons shall be clearly established.",
-      "Crane setup, ground conditions, and swing areas shall be evaluated before lifting.",
-    ],
-  },
-  {
-    title: "Housekeeping and Slip, Trip, Fall Prevention Program",
-    triggerHazards: ["Slips trips falls"],
-    oshaRefs: ["OSHA 1926 Subpart C – General Safety and Health Provisions"],
-    purpose:
-      "This program establishes housekeeping expectations to reduce same-level fall hazards, blocked access, and material clutter.",
-    controls: [
-      "Walkways, access points, and work areas shall be kept clear.",
-      "Debris shall be removed routinely.",
-      "Cords, hoses, and materials shall be managed to prevent trip hazards.",
-      "Wet, muddy, icy, or uneven surfaces shall be addressed promptly.",
-      "Lighting shall be adequate for safe travel and work.",
-      "Storage areas shall be organized and maintained.",
-      "Workers shall report and correct slip, trip, and housekeeping hazards immediately.",
-    ],
-  },
-];
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function getTriggeredPrograms(selectedHazards: string[], form: CSEPInput) {
-  const utilityScope = hasUtilityScope(form);
-  return HAZARD_PROGRAM_LIBRARY
-    .filter((program) =>
-      program.triggerHazards.some((hazard) => selectedHazards.includes(hazard))
-    )
-    .map((program) => {
-      if (program.title !== "Excavation and Trenching Safety Program" || utilityScope) {
-        return program;
-      }
-
-      return {
-        ...program,
-        purpose:
-          "This program provides minimum controls for trenching, excavation support activities, and changing soil conditions.",
-        controls: program.controls.filter(
-          (control) => control !== "Underground utilities shall be identified before excavation begins."
-        ),
-      };
-    });
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function addProgramSection(
-  children: Paragraph[],
-  sectionNumber: number,
-  program: HazardProgram
-) {
-  children.push(heading1(`${sectionNumber}. ${program.title}`));
-  children.push(body(program.purpose));
-
-  if (program.oshaRefs.length) {
-    children.push(heading2(`${sectionNumber}.1 Applicable References`));
-    appendNumberedItems(children, `${sectionNumber}.1`, program.oshaRefs);
-  }
-
-  const controlsPrefix = program.oshaRefs.length ? `${sectionNumber}.2` : `${sectionNumber}.1`;
-  children.push(heading2(`${controlsPrefix} Minimum Required Controls`));
-  appendNumberedItems(children, controlsPrefix, program.controls);
-}
-
 function resolveProgramSelections(
   form: CSEPInput,
   selectedHazards: string[],
@@ -813,21 +565,6 @@ function resolveProgramSelections(
     selectedTasks,
     subtypeSelections: form.program_subtype_selections,
   }).selections;
-}
-
-function addCatalogProgramSection(
-  children: Paragraph[],
-  sectionNumber: number,
-  program: CSEPProgramSection
-) {
-  children.push(heading1(`${sectionNumber}. ${program.title}`));
-  children.push(body(program.summary));
-
-  program.subsections.forEach((subsection, subsectionIndex) => {
-    const subsectionPrefix = `${sectionNumber}.${subsectionIndex + 1}`;
-    children.push(heading2(`${subsectionPrefix} ${subsection.title}`));
-    appendNumberedItems(children, subsectionPrefix, subsection.bullets);
-  });
 }
 
 const CATALOG_PROGRAM_GROUPS: Array<{
@@ -1562,16 +1299,25 @@ function hasGeneratedDocumentReference(value: unknown): value is { generatedDocu
 
 export async function generateCsepDocx(
   form: CSEPInput | GeneratedCsepDocxRequest,
-  options?: { supabase?: GeneratedDocumentDraftLoaderClient }
+  options?: {
+    supabase?: GeneratedDocumentDraftLoaderClient;
+    companyId?: string | null;
+  }
 ) {
   let rendered: { body: Uint8Array; filename: string } | null = null;
 
   if (hasGeneratedDraftPayload(form)) {
     rendered = await renderGeneratedCsepDocx(form.draft);
   } else if (hasGeneratedDocumentReference(form) && options?.supabase) {
+    if (!options.companyId) {
+      // Do not leak row existence across tenants: mirror the generic error
+      // thrown when the row is not found for the caller's company.
+      throw new Error("Generated document not found.");
+    }
     const draft = await loadGeneratedDocumentDraft(
       options.supabase,
-      form.generatedDocumentId
+      form.generatedDocumentId,
+      options.companyId
     );
     rendered = await renderGeneratedCsepDocx(draft);
   }
@@ -1654,7 +1400,9 @@ export async function generateCsepDocx(
 
 export async function POST(req: Request) {
   try {
-    const auth = await authorizeRequest(req);
+    const auth = await authorizeRequest(req, {
+      requireAnyPermission: ["can_create_documents", "can_view_all_company_data"],
+    });
 
     if ("error" in auth) {
       return auth.error;
@@ -1664,18 +1412,51 @@ export async function POST(req: Request) {
       generatedDocumentId?: string | null;
       draft?: GeneratedSafetyPlanDraft | null;
     };
-    return await generateCsepDocx(form, { supabase: auth.supabase });
+
+    // Only resolve the company scope when we actually need to load a stored
+    // draft by id; the legacy form path and the inline-draft path do not read
+    // `company_generated_documents`.
+    let companyId: string | null = null;
+    if (hasGeneratedDocumentReference(form) && !hasGeneratedDraftPayload(form)) {
+      const companyScope = await getCompanyScope({
+        supabase: auth.supabase as unknown as { from: (table: string) => unknown },
+        userId: auth.user.id,
+        fallbackTeam: auth.team,
+        authUser: auth.user,
+      });
+
+      if (!companyScope.companyId) {
+        return new NextResponse(
+          JSON.stringify({ error: "Generated document not found." }),
+          { status: 404, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      companyId = companyScope.companyId;
+    }
+
+    return await generateCsepDocx(form, {
+      supabase: auth.supabase,
+      companyId,
+    });
   } catch (error) {
     console.error(`${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} export error:`, error);
 
     const message =
       error instanceof Error ? error.message : `Failed to generate ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} document.`;
 
+    // `loadGeneratedDocumentDraft` throws "Generated document not found." for
+    // both "row missing" and "row belongs to another tenant" cases. Map that
+    // to a 404 instead of a 500 so the response is honest about scope without
+    // leaking existence.
+    const status = message === "Generated document not found." ? 404 : 500;
+
     return new NextResponse(JSON.stringify({ error: message }), {
-      status: 500,
+      status,
       headers: {
         "Content-Type": "application/json",
       },
     });
   }
 }
+

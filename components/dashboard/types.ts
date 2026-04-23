@@ -230,6 +230,22 @@ export type DashboardSummarySection = {
   empty: DashboardSectionEmpty;
 };
 
+export type DashboardGraphItem = {
+  id: string;
+  label: string;
+  value: number;
+  detail?: string;
+  tone?: "neutral" | "success" | "warning" | "error" | "info";
+};
+
+export type DashboardGraphSection = {
+  title: string;
+  description: string;
+  items: DashboardGraphItem[];
+  empty: DashboardSectionEmpty;
+  valueLabel?: string;
+};
+
 export type DashboardBlockId =
   | "metric_primary"
   | "metric_secondary"
@@ -246,7 +262,10 @@ export type DashboardBlockId =
   | "company_access"
   | "training_signal"
   | "permit_followups"
-  | "incident_followups";
+  | "incident_followups"
+  | "graph_hazard_trends"
+  | "graph_jobsite_risk"
+  | "graph_observation_mix";
 
 export type DashboardAvailableBlock = {
   id: DashboardBlockId;
@@ -279,11 +298,18 @@ export type DashboardSummaryBlock = {
   eyebrow?: string;
 };
 
+export type DashboardGraphBlock = {
+  kind: "graph";
+  section: DashboardGraphSection;
+  eyebrow?: string;
+};
+
 export type DashboardBlockModel =
   | DashboardMetricBlock
   | DashboardFeedBlock
   | DashboardActionBlock
-  | DashboardSummaryBlock;
+  | DashboardSummaryBlock
+  | DashboardGraphBlock;
 
 export type DashboardViewModel = {
   role: DashboardRole;

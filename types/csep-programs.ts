@@ -56,6 +56,13 @@ export type CSEPProgramDefinition = CSEPProgramDefinitionContent & {
   subtypeVariants?: Partial<
     Record<CSEPProgramSubtypeValue, Partial<CSEPProgramDefinitionContent>>
   >;
+  /**
+   * When true, the program is rendered with a single consolidated subsection
+   * rather than the full When-It-Applies / References / Responsibilities /
+   * Controls / Related-Tasks breakdown. Use for short or secondary programs
+   * where a full program layout creates heading clutter.
+   */
+  compactLayout?: boolean;
 };
 
 export type CSEPProgramConfig = {

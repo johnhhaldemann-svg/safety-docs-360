@@ -1214,8 +1214,8 @@ function buildDeterministicBuilderProgramReview(params: {
     {
       reviewMode: params.reviewMode ?? "builder_review",
       executiveSummary: hasBody
-        ? `${params.programLabel} draft for ${params.projectName || "the project"} was reviewed using deterministic fallback logic because no server OpenAI key is configured. The document appears to include some structured safety content, but it still needs human confirmation before approval.`
-        : `${params.programLabel} draft for ${params.projectName || "the project"} could not be deeply reviewed because the extracted text is too limited and no server OpenAI key is configured.`,
+        ? `${params.programLabel} draft for ${params.projectName || "the project"} received an automated completeness review. The document appears to include some structured safety content, but it still needs human confirmation before approval.`
+        : `${params.programLabel} draft for ${params.projectName || "the project"} could not be deeply reviewed because the extracted text is too limited. Re-upload a readable PDF or DOCX before relying on this review.`,
       scopeTradeAndHazardCoverage: hasBody
         ? "The draft includes enough readable content to flag likely strengths and gaps, but trade scope, task hazards, controls, PPE, permits, and site-specific restrictions still need reviewer confirmation."
         : "The draft text is too limited to confirm trade scope, hazards, controls, and permit coverage with confidence.",

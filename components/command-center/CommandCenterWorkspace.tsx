@@ -192,7 +192,7 @@ export function CommandCenterWorkspace() {
     <div className="space-y-6">
       <PageHero
         eyebrow="Command Center"
-        title="AI operating hub for safety managers"
+        title="Intelligence operating hub for safety managers"
         description="Monitor current risk, decide what needs attention, and launch directly into the workflows that move work forward. Everything on this page stays scoped to your company."
         actions={
           <>
@@ -398,7 +398,7 @@ export function CommandCenterWorkspace() {
             <LaunchCard
               href="/settings/risk-memory"
               title="Tune Risk Memory setup"
-              description="Adjust taxonomy and configuration without leaving the AI operating model."
+              description="Adjust taxonomy and configuration without leaving the intelligence operating model."
               label="Configure"
             />
           </div>
@@ -408,7 +408,7 @@ export function CommandCenterWorkspace() {
       <SectionCard
         eyebrow="Work Area"
         title="Open Work"
-        description="Use the current workload picture to decide where human follow-up is needed before or after AI-generated outputs."
+        description="Use the current workload picture to decide where human follow-up is needed before or after smart-generated outputs."
       >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatTile
@@ -433,7 +433,7 @@ export function CommandCenterWorkspace() {
       >
         {recommendationEmptyMessage ? (
           <EmptyState
-            title="No AI recommendations yet"
+            title="No smart recommendations yet"
             description={recommendationEmptyMessage}
             actionHref="/analytics"
             actionLabel="Open Risk Memory analytics"
@@ -472,7 +472,7 @@ export function CommandCenterWorkspace() {
             <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--app-text)]">
               <li>Company procedures and recurring site rules</li>
               <li>Lessons learned worth reusing across jobsites</li>
-              <li>Uploaded references that AI workflows should retrieve later</li>
+              <li>Uploaded references that intelligence workflows should retrieve later</li>
             </ul>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link

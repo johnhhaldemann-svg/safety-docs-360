@@ -80,8 +80,7 @@ export function getStateRequirementSupplement(stateCode: string | null | undefin
   }
 
   const stateName = state.stateName;
-  const { building_code, stormwater, wetlands, other_key_permits, official_resources, notes } =
-    state.entry;
+  const { building_code, stormwater, wetlands, other_key_permits } = state.entry;
   const body = joinSentences([
     `${stateName} state-specific building, environmental, and permit requirements may apply to this project`,
   ]);

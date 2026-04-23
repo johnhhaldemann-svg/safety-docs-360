@@ -243,7 +243,7 @@ export function SafetyIntelligenceWorkflow({
       <PageHero
         eyebrow="Safety Intelligence"
         title={jobsiteId ? "Jobsite execution workflow" : "Guided company workflow"}
-        description="Run intake, deterministic rules, conflict checks, and document generation as one staged workflow. AI stays behind the rules engine so the product remains auditable and polished."
+        description="Run intake, deterministic rules, conflict checks, and document generation as one staged workflow. Intelligence drafting stays behind the rules engine so the product remains auditable and polished."
         actions={
           <>
             {!fixedJobsiteId ? (
@@ -289,7 +289,7 @@ export function SafetyIntelligenceWorkflow({
 
       <SectionCard
         title="Intake"
-        description="Capture the work package in a normalized format before the platform evaluates rules or lets AI generate anything."
+        description="Capture the work package in a normalized format before the platform evaluates rules or lets smart drafting generate anything."
         aside={<StatusBadge label={latestDraft ? "Captured" : "Waiting for input"} tone={latestDraft ? "success" : "neutral"} />}
       >
         <TradeTaskIntakeForm trades={dashboard?.trades ?? []} onSubmit={handleIntake} initialJobsiteId={scopedJobsiteId} />
@@ -297,7 +297,7 @@ export function SafetyIntelligenceWorkflow({
 
       <SectionCard
         title="Rules & conflicts"
-        description="This is the deterministic stage. Permit triggers, hazards, controls, training, and simultaneous-operation risks are evaluated before the AI layer can draft outputs."
+        description="This is the deterministic stage. Permit triggers, hazards, controls, training, and simultaneous-operation risks are evaluated before the intelligence layer can draft outputs."
         aside={
           <StatusBadge
             label={

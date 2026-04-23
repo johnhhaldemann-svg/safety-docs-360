@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
@@ -174,7 +174,7 @@ const workflowDefinition = [
     detail: "Pick the exact work tasks that drive hazards and controls.",
   },
   {
-    title: "AI enrichment",
+    title: "Intelligence enrichment",
     detail: "Review hazards, PPE, permits, pricing, OSHA references, and program outputs tied to the selected tasks.",
   },
   {
@@ -306,6 +306,8 @@ export default function CSEPPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [previewState, setPreviewState] = useState<CsepPreviewState | null>(null);
   const [previewApproved, setPreviewApproved] = useState(false);
+  const [companyLogoPreviewUrl, setCompanyLogoPreviewUrl] = useState<string | null>(null);
+  const [companyLogoFileName, setCompanyLogoFileName] = useState<string | null>(null);
   const [agreedToSubmissionTerms, setAgreedToSubmissionTerms] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "warning" | "error">("success");
@@ -511,6 +513,8 @@ export default function CSEPPage() {
   const submissionFormData = useMemo(
     () => ({
       ...form,
+      company_logo_data_url: companyLogoPreviewUrl,
+      company_logo_file_name: companyLogoFileName,
       governing_state: form.governing_state,
       jurisdiction_code: jurisdictionProfile.jurisdictionCode,
       jurisdiction_plan_type: jurisdictionProfile.jurisdictionPlanType,
@@ -613,9 +617,9 @@ export default function CSEPPage() {
           : form.tasks.length === 0
             ? `Pick at least one task to unlock task-driven sections in Step ${taskDrivenStepNumber}.`
             : form.selected_hazards.length === 0
-              ? "Review hazards in AI enrichment so the draft can include the right matrix and controls."
+              ? "Review hazards in intelligence enrichment so the draft can include the right matrix and controls."
               : missingProgramSubtypeGroups.length > 0
-                ? "Finish the required program classifications in AI enrichment."
+                ? "Finish the required program classifications in intelligence enrichment."
                 : !previewState
                   ? `Generate the draft in Step ${reviewStepNumber}.`
                   : !previewIsCurrent
@@ -686,9 +690,26 @@ export default function CSEPPage() {
     if (form.tasks.length === 0) return;
     setMessageTone("success");
     setMessage(
-      `Tasks selected. Finish AI enrichment next, then complete the task-driven sections in Step ${taskDrivenStepNumber}.`
+      `Tasks selected. Finish intelligence enrichment next, then complete the task-driven sections in Step ${taskDrivenStepNumber}.`
     );
   }, [form.tasks.length, step, taskDrivenStepNumber]);
+
+  function handleCompanyLogoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCompanyLogoPreviewUrl(typeof reader.result === "string" ? reader.result : null);
+      setCompanyLogoFileName(file.name);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearCompanyLogo() {
+    setCompanyLogoPreviewUrl(null);
+    setCompanyLogoFileName(null);
+  }
 
   function updateField<K extends keyof CSEPForm>(field: K, value: CSEPForm[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -785,6 +806,7 @@ export default function CSEPPage() {
     setStep(0);
     setPreviewState(null);
     setPreviewApproved(false);
+    clearCompanyLogo();
     setAgreedToSubmissionTerms(false);
     setMessage("");
     setSectionAiState({});
@@ -842,11 +864,11 @@ export default function CSEPPage() {
           >
             {aiState.loading
               ? `Drafting ${config.title.toLowerCase()}...`
-              : idleLabel ?? `AI draft ${config.title.toLowerCase()}`}
+              : idleLabel ?? `Smart draft ${config.title.toLowerCase()}`}
           </button>
           {!form.tasks.length ? (
             <span className="text-xs text-[var(--app-text)]">
-              Select at least one task to unlock AI drafting for this section in Step {taskDrivenStepNumber}.
+              Select at least one task to unlock smart drafting for this section in Step {taskDrivenStepNumber}.
             </span>
           ) : null}
         </div>
@@ -874,7 +896,7 @@ export default function CSEPPage() {
       }
 
       if (form.tasks.length === 0) {
-        const warningMessage = `Select at least one task before using AI drafting in Step ${taskDrivenStepNumber}.`;
+        const warningMessage = `Select at least one task before using smart drafting in Step ${taskDrivenStepNumber}.`;
         setMessageTone("warning");
         setMessage(warningMessage);
         setBuilderAiSectionState(sectionId, {
@@ -890,7 +912,7 @@ export default function CSEPPage() {
       } = await supabase.auth.getSession();
 
       if (!session?.access_token) {
-        throw new Error("Sign in to use AI drafting.");
+        throw new Error("Sign in to use smart drafting.");
       }
 
       const currentValue =
@@ -948,7 +970,7 @@ export default function CSEPPage() {
         | null;
 
       if (!response.ok) {
-        throw new Error(payload?.error || "AI drafting failed.");
+        throw new Error(payload?.error || "Smart drafting failed.");
       }
 
       if (config.kind === "weather") {
@@ -956,12 +978,12 @@ export default function CSEPPage() {
 
         if (!parsed) {
           throw new Error(
-            "The AI returned text, but it was not in a usable weather-section format. Please try again."
+            "The smart drafting tool returned text, but it was not in a usable weather-section format. Please try again."
           );
         }
 
         if (Object.keys(parsed).length === 0) {
-          throw new Error("The AI response did not include usable weather-section content.");
+          throw new Error("The smart drafting response did not include usable weather-section content.");
         }
 
         setForm((prev) => ({
@@ -974,7 +996,7 @@ export default function CSEPPage() {
       } else {
         const parsed = parseCsepAiTextResponse(payload?.text ?? "", config.title);
         if (!parsed) {
-          throw new Error(`The AI response did not include usable ${config.title.toLowerCase()} content.`);
+          throw new Error(`The smart drafting response did not include usable ${config.title.toLowerCase()} content.`);
         }
 
         setForm((prev) => ({
@@ -984,7 +1006,7 @@ export default function CSEPPage() {
       }
 
       setMessageTone("success");
-      setMessage(`AI updated the ${config.title.toLowerCase()} section.`);
+      setMessage(`Smart drafting updated the ${config.title.toLowerCase()} section.`);
       setBuilderAiSectionState(sectionId, {
         loading: false,
         message: `${config.title} was updated.`,
@@ -992,7 +1014,7 @@ export default function CSEPPage() {
       });
     } catch (error) {
       setMessageTone("error");
-      const errorMessage = error instanceof Error ? error.message : "AI drafting failed.";
+      const errorMessage = error instanceof Error ? error.message : "Smart drafting failed.";
       setMessage(errorMessage);
       setBuilderAiSectionState(sectionId, {
         loading: false,
@@ -1062,11 +1084,11 @@ export default function CSEPPage() {
         | null;
 
       if (!response.ok) {
-        throw new Error(payload?.error || `Failed to generate ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} AI draft.`);
+        throw new Error(payload?.error || `Failed to generate ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} smart draft.`);
       }
 
       if (!payload?.generated_document_id || !payload.builder_input_hash || !payload.draft) {
-        throw new Error("AI draft response was incomplete. Please try again.");
+        throw new Error("Smart draft response was incomplete. Please try again.");
       }
 
       setPreviewState({
@@ -1077,14 +1099,14 @@ export default function CSEPPage() {
       });
       setPreviewApproved(false);
       setMessageTone("success");
-      setMessage("AI draft generated. Review the selected sections, then approve the current version.");
+      setMessage("Smart draft generated. Review the selected sections, then approve the current version.");
     } catch (error) {
       setPreviewApproved(false);
       setMessageTone("error");
       setMessage(
         error instanceof Error
           ? error.message
-          : `Failed to generate ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} AI draft.`
+          : `Failed to generate ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} smart draft.`
       );
     } finally {
       setPreviewLoading(false);
@@ -1117,7 +1139,7 @@ export default function CSEPPage() {
 
       if (!previewState || !previewIsCurrent || !previewApproved) {
         setMessageTone("warning");
-        setMessage("Generate, review, and approve a current AI draft before submitting this CSEP.");
+        setMessage("Generate, review, and approve a current smart draft before submitting this CSEP.");
         return;
       }
 
@@ -1172,7 +1194,7 @@ export default function CSEPPage() {
     { label: "Hazards selected", done: form.selected_hazards.length > 0 },
     { label: "Program classifications complete", done: missingProgramSubtypeGroups.length === 0 },
     { label: "Task-driven sections unlocked", done: form.tasks.length > 0 && unlockedTaskDrivenSections.length > 0 },
-    { label: "AI draft approved", done: previewReadyForSubmit },
+    { label: "Smart draft approved", done: previewReadyForSubmit },
   ];
 
   const workflowSteps = workflowDefinition.map((item, index) => ({
@@ -1218,7 +1240,7 @@ export default function CSEPPage() {
       <PageHero
         eyebrow="Builder Workspace"
         title={CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL}
-        description="Use the forward-only CSEP workflow: trade selection, sub-trade, selected sections, selectable tasks, AI enrichment, task-driven sections, draft review, then submission."
+        description="Use the forward-only CSEP workflow: trade selection, sub-trade, selected sections, selectable tasks, intelligence enrichment, task-driven sections, draft review, then submission."
         actions={
           <div className="flex flex-wrap gap-2">
             <StatusBadge label={form.trade || "Trade not set"} tone={form.trade ? "info" : "warning"} />
@@ -1584,14 +1606,14 @@ export default function CSEPPage() {
               {step === 5 ? (
                 <div className="space-y-5">
                   <InlineMessage>
-                    These fields unlock after task selection so AI drafting stays anchored to the actual work instead of forcing you back to earlier steps.
+                    These fields unlock after task selection so smart drafting stays anchored to the actual work instead of forcing you back to earlier steps.
                   </InlineMessage>
                   <div className="grid gap-4 md:grid-cols-2">
                     <InputField label="Project name" value={form.project_name} onChange={(value) => updateField("project_name", value)} />
                     <InputField label="Project number" value={form.project_number} onChange={(value) => updateField("project_number", value)} />
                     <InputField label="Project address" value={form.project_address} onChange={(value) => updateField("project_address", value)} />
-                    <InputField label="Owner / Client" value={form.owner_client} onChange={(value) => updateField("owner_client", value)} />
-                    <InputField label="GC / CM" value={form.gc_cm} onChange={(value) => updateField("gc_cm", value)} />
+                    <TextAreaField label="Owners / Clients" value={form.owner_client} onChange={(value) => updateField("owner_client", value)} />
+                    <TextAreaField label="GCs / CMs" value={form.gc_cm} onChange={(value) => updateField("gc_cm", value)} />
                     <InputField label="Contractor company" value={form.contractor_company} onChange={(value) => updateField("contractor_company", value)} />
                     <InputField label="Contractor contact" value={form.contractor_contact} onChange={(value) => updateField("contractor_contact", value)} />
                     <InputField label="Contractor phone" value={form.contractor_phone} onChange={(value) => updateField("contractor_phone", value)} />
@@ -1599,7 +1621,7 @@ export default function CSEPPage() {
                   </div>
                   <SectionCard
                     title="Document control"
-                    description="These fields populate the front-matter document-control and revision pages in the formatted CSEP package."
+                    description="These fields populate the standalone Document Control and Revision History section at the end of the formatted CSEP package."
                   >
                     <div className="grid gap-4 md:grid-cols-2">
                       <InputField label="Document number" value={form.document_number} onChange={(value) => updateField("document_number", value)} />
@@ -1610,6 +1632,17 @@ export default function CSEPPage() {
                       <InputField label="Approved by" value={form.approved_by} onChange={(value) => updateField("approved_by", value)} />
                     </div>
                   </SectionCard>
+                  <SectionCard
+                    title="Cover logo"
+                    description="Upload the contractor or company logo you want shown on the cover and carried into the issued CSEP export."
+                  >
+                    <LogoInsertField
+                      fileName={companyLogoFileName}
+                      hasLogo={Boolean(companyLogoPreviewUrl)}
+                      onChange={handleCompanyLogoChange}
+                      onClear={clearCompanyLogo}
+                    />
+                  </SectionCard>
                   {form.selected_format_sections.includes(
                     "weather_requirements_and_severe_weather_response"
                   ) ? (
@@ -1617,7 +1650,7 @@ export default function CSEPPage() {
                       title="Weather overlay"
                       description="These inputs feed the dedicated weather section in the CSEP. Shared project baseline language stays first, then these project-specific thresholds and contractor notes are layered in."
                     >
-                      <div className="mb-4">{renderBuilderAiAction("weather", "AI fill weather section")}</div>
+                      <div className="mb-4">{renderBuilderAiAction("weather", "Smart fill weather section")}</div>
                       <div className="grid gap-4 md:grid-cols-2">
                         <InputField
                           label="Monitoring sources"
@@ -1966,10 +1999,10 @@ export default function CSEPPage() {
                         className="rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)] disabled:opacity-60"
                       >
                         {previewLoading
-                          ? "Generating AI draft..."
+                          ? "Generating smart draft..."
                           : previewState
-                            ? "Regenerate AI draft"
-                            : "Generate AI draft"}
+                            ? "Regenerate smart draft"
+                            : "Generate smart draft"}
                       </button>
                       <button
                         type="button"
@@ -1997,7 +2030,7 @@ export default function CSEPPage() {
                     <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-sm font-semibold text-[var(--app-text-strong)]">AI draft preview</div>
+                          <div className="text-sm font-semibold text-[var(--app-text-strong)]">Smart draft preview</div>
                           <div className="mt-1 text-sm text-[var(--app-text)]">
                             Review the generated sections for the current live CSEP selection.
                           </div>
@@ -2069,13 +2102,31 @@ export default function CSEPPage() {
                             Preview styled to match the clean steel-erection document format
                           </div>
                         </div>
-                        <div className="mt-6 rounded-2xl border-2 border-dashed border-[#4F81BD]/35 bg-slate-50 px-6 py-8 text-center">
-                          <div className="csep-doc-heading text-xs font-semibold uppercase tracking-[0.18em]">
-                            Company Logo Placement
-                          </div>
-                          <div className="mt-2 text-sm text-slate-500">
-                            Insert contractor logo or approved company letterhead on the final CSEP cover.
-                          </div>
+                        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-6 py-6">
+                          {companyLogoPreviewUrl ? (
+                            <div className="flex flex-col items-center gap-4 text-center">
+                              <div className="csep-doc-heading text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Company Logo
+                              </div>
+                              <img
+                                src={companyLogoPreviewUrl}
+                                alt="Company logo preview"
+                                className="max-h-28 w-auto max-w-full object-contain"
+                              />
+                              <div className="text-xs text-slate-500">
+                                {companyLogoFileName ?? "Uploaded company logo"}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <div className="csep-doc-heading text-xs font-semibold uppercase tracking-[0.18em]">
+                                Add Company Logo
+                              </div>
+                              <div className="mt-2 text-sm text-slate-500">
+                                Upload a contractor or company logo in the Cover logo block so the cover preview shows a real branded insert.
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="mt-6 space-y-6">
                           {previewState.draft.sectionMap.map((section) => (
@@ -2246,6 +2297,43 @@ function TextAreaField({
         className="w-full rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-3 text-sm text-[var(--app-text-strong)] outline-none transition focus:border-[var(--app-accent-primary)]"
       />
     </label>
+  );
+}
+
+function LogoInsertField({
+  fileName,
+  hasLogo,
+  onChange,
+  onClear,
+}: {
+  fileName: string | null;
+  hasLogo: boolean;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="inline-flex cursor-pointer items-center rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]">
+          Upload logo
+          <input type="file" accept="image/*" className="hidden" onChange={onChange} />
+        </label>
+        {hasLogo ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-2 text-sm font-semibold text-[var(--app-text)] transition hover:bg-white"
+          >
+            Clear logo
+          </button>
+        ) : null}
+      </div>
+      <div className="mt-3 text-sm text-[var(--app-text)]">
+        {fileName
+          ? `Current logo: ${fileName}`
+          : "Use a PNG or JPG logo file to place a branded image on the CSEP cover and export."}
+      </div>
+    </div>
   );
 }
 

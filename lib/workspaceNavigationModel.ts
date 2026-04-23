@@ -32,13 +32,13 @@ const SECTION_META: Record<
     audience: "operator",
   },
   jobsites: {
-    title: "Jobsites",
+    title: "Job Sites",
     description: "Open live jobsites and jump into project-scoped workspaces.",
     audience: "operator",
   },
   admin: {
-    title: "Admin",
-    description: "Manage team access, reporting, setup, and account controls.",
+    title: "Account & reports",
+    description: "Open billing, team access, reports, and account settings.",
     audience: "leadership",
   },
 };
@@ -58,7 +58,7 @@ const ITEM_META: Array<{
   {
     matcher: (href) => href === "/dashboard",
     group: "operations",
-    description: "Executive snapshot of urgent work, progress, and next actions.",
+    description: "Start here for urgent work, progress, and next actions.",
     primaryActionLabel: "Review today",
   },
   {
@@ -70,26 +70,26 @@ const ITEM_META: Array<{
   {
     matcher: (href) => href === "/safety-intelligence",
     group: "operations",
-    description: "Run intake, conflicts, and AI-powered safety document workflows.",
+    description: "Run intake, conflicts, and intelligence-powered safety document workflows.",
     primaryActionLabel: "Start workflow",
   },
   {
     matcher: (href) => href === "/field-id-exchange",
     group: "operations",
-    description: "Review issues, corrective actions, and field escalations.",
-    primaryActionLabel: "Open issues",
+    description: "Review field issues, corrective actions, and escalations.",
+    primaryActionLabel: "Open issue log",
   },
   {
     matcher: (href) => href === "/jsa",
     group: "operations",
     description: "Create, review, and manage job safety analyses.",
-    primaryActionLabel: "Create JSA",
+    primaryActionLabel: "Open JSA builder",
   },
   {
     matcher: (href) => href === "/permits",
     group: "operations",
     description: "Open permit workflows, active stop-work status, and approvals.",
-    primaryActionLabel: "Start permit",
+    primaryActionLabel: "Open permits",
   },
   {
     matcher: (href) => href === "/incidents",
@@ -124,13 +124,13 @@ const ITEM_META: Array<{
   {
     matcher: (href) => href === "/purchases",
     group: "documents",
-    description: "Open previously unlocked records and purchase history.",
+    description: "Open purchases, credits, and previously unlocked records.",
     primaryActionLabel: "Review history",
   },
   {
     matcher: (href) => href === "/marketplace-preview-approvals",
     group: "documents",
-    description: "Review pending marketplace previews and approval decisions.",
+    description: "Review marketplace preview requests and approval decisions.",
     primaryActionLabel: "Review previews",
   },
   {

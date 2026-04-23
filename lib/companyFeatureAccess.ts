@@ -103,6 +103,14 @@ const JOBSITE_WORKSPACE_ROLES = new Set([
   "read_only",
 ]);
 
+const NON_COMPANY_INTERNAL_ROLES = new Set([
+  "sales_demo",
+  "internal_reviewer",
+  "employee",
+  "editor",
+  "viewer",
+]);
+
 export function canViewCompanyTrainingMatrix(
   role: RoleInput,
   permissionMap?: PermissionMap | null
@@ -111,6 +119,7 @@ export function canViewCompanyTrainingMatrix(
   if (isAdminLikeRole(role)) return true;
 
   const normalized = normalizeRole(role);
+  if (NON_COMPANY_INTERNAL_ROLES.has(normalized)) return false;
   if (TRAINING_MATRIX_COMPANY_ROLES.has(normalized)) return true;
 
   return Boolean(
@@ -129,6 +138,7 @@ export function canMutateCompanyTrainingRequirements(
   if (isAdminLikeRole(role)) return true;
 
   const normalized = normalizeRole(role);
+  if (NON_COMPANY_INTERNAL_ROLES.has(normalized)) return false;
   if (
     normalized === "company_admin" ||
     normalized === "manager" ||
@@ -148,11 +158,10 @@ export function canManageCompanyJsa(
 ) {
   if (!role) return false;
   if (isAdminLikeRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
+  const normalized = normalizeRole(role);
+  if (NON_COMPANY_INTERNAL_ROLES.has(normalized)) return false;
 
-  return (
-    JSA_WORKSPACE_ROLES.has(normalizeRole(role)) &&
-    hasDocumentWorkspaceCapability(permissionMap)
-  );
+  return JSA_WORKSPACE_ROLES.has(normalized) && hasDocumentWorkspaceCapability(permissionMap);
 }
 
 export function canManageCompanyPermits(
@@ -161,9 +170,11 @@ export function canManageCompanyPermits(
 ) {
   if (!role) return false;
   if (isAdminLikeRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
+  const normalized = normalizeRole(role);
+  if (NON_COMPANY_INTERNAL_ROLES.has(normalized)) return false;
 
   return (
-    PERMIT_WORKSPACE_ROLES.has(normalizeRole(role)) &&
+    PERMIT_WORKSPACE_ROLES.has(normalized) &&
     hasDocumentWorkspaceCapability(permissionMap)
   );
 }
@@ -174,9 +185,11 @@ export function canManageCompanyIncidents(
 ) {
   if (!role) return false;
   if (isAdminLikeRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
+  const normalized = normalizeRole(role);
+  if (NON_COMPANY_INTERNAL_ROLES.has(normalized)) return false;
 
   return (
-    INCIDENT_WORKSPACE_ROLES.has(normalizeRole(role)) &&
+    INCIDENT_WORKSPACE_ROLES.has(normalized) &&
     hasDocumentWorkspaceCapability(permissionMap)
   );
 }
@@ -187,9 +200,11 @@ export function canAccessCompanyJobsites(
 ) {
   if (!role) return false;
   if (isAdminLikeRole(role)) return true;
+  const normalized = normalizeRole(role);
+  if (NON_COMPANY_INTERNAL_ROLES.has(normalized)) return false;
 
   return (
-    JOBSITE_WORKSPACE_ROLES.has(normalizeRole(role)) ||
+    JOBSITE_WORKSPACE_ROLES.has(normalized) ||
     Boolean(permissionMap?.can_view_dashboards || permissionMap?.can_view_all_company_data)
   );
 }

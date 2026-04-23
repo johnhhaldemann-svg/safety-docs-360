@@ -184,12 +184,6 @@ function findingBlock(finding: BuilderProgramAiReview["detailedFindings"][number
   ];
 }
 
-function buildHumanFindingParagraph(finding: BuilderProgramAiReview["detailedFindings"][number]) {
-  return getCsepFindingNoteFields(finding)
-    .map((field) => `${field.label}: ${field.value}`)
-    .join(" ");
-}
-
 export async function renderCsepCompletenessReviewNotesDocx(params: {
   sourceFileName: string;
   review: BuilderProgramAiReview;

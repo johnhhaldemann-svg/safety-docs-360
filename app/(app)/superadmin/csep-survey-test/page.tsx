@@ -28,9 +28,9 @@ const steps = [
   { title: "Trade selection", detail: "Lock the workflow to the survey / layout trade." },
   { title: "Sub-trade", detail: "Choose the active survey sub-trade for this test build." },
   { title: "Select sections", detail: "Choose which survey layout sections belong in the DOCX." },
-  { title: "Selectable tasks", detail: "Pick the work tasks that drive the AI enrichment." },
-  { title: "AI enrichment", detail: "Review OSHA, SOR, injury, permits, training, hazards, and PPE outputs." },
-  { title: "AI review", detail: "Run the review summary before you finish the document." },
+  { title: "Selectable tasks", detail: "Pick the work tasks that drive the intelligence enrichment." },
+  { title: "Intelligence enrichment", detail: "Review OSHA, SOR, injury, permits, training, hazards, and PPE outputs." },
+  { title: "Intelligence review", detail: "Run the review summary before you finish the document." },
   { title: "Finish document", detail: "Capture project metadata and download the survey test CSEP." },
 ];
 
@@ -168,15 +168,15 @@ export default function SuperadminCsepSurveyTestPage() {
         | null;
 
       if (!response.ok || !data?.review) {
-        throw new Error(data?.error || "Failed to generate AI review.");
+        throw new Error(data?.error || "Failed to generate intelligence review.");
       }
 
       setReview(data.review);
       setReviewDisclaimer(data.disclaimer ?? "");
-      setFeedbackMessage("AI review is ready for the final download step.", "success");
+      setFeedbackMessage("Intelligence review is ready for the final download step.", "success");
     } catch (error) {
       setFeedbackMessage(
-        error instanceof Error ? error.message : "Failed to generate AI review.",
+        error instanceof Error ? error.message : "Failed to generate intelligence review.",
         "error"
       );
     } finally {
@@ -255,7 +255,7 @@ export default function SuperadminCsepSurveyTestPage() {
           description="This test builder is only available to the Super Admin role."
         />
         <InlineMessage tone="warning">
-          Super Admin access is required to use the survey test builder, run the AI review, and export the DOCX.
+          Super Admin access is required to use the survey test builder, run the intelligence review, and export the DOCX.
         </InlineMessage>
       </div>
     );
@@ -266,7 +266,7 @@ export default function SuperadminCsepSurveyTestPage() {
       <PageHero
         eyebrow="Superadmin / Survey test"
         title="Survey Test CSEP"
-        description="Use the hand-drawn process as the workflow: trade selection, sub-trade, sections, tasks, AI enrichment, AI review, then finish the survey-layout document without touching the live CSEP flow."
+        description="Use the hand-drawn process as the workflow: trade selection, sub-trade, sections, tasks, intelligence enrichment, intelligence review, then finish the survey-layout document without touching the live CSEP flow."
         actions={
           <div className="flex flex-wrap gap-2">
             <StatusBadge label={form.trade} tone="info" />
@@ -337,7 +337,7 @@ export default function SuperadminCsepSurveyTestPage() {
                   </select>
                 </label>
                 <InlineMessage>
-                  Pick the survey sub-trade first so the selectable task list and AI enrichment stay tied to the correct taxonomy.
+                  Pick the survey sub-trade first so the selectable task list and intelligence enrichment stay tied to the correct taxonomy.
                 </InlineMessage>
               </div>
             ) : null}
@@ -437,7 +437,7 @@ export default function SuperadminCsepSurveyTestPage() {
                   disabled={reviewLoading || !enrichment.selectedTasks.length || !form.subTrade}
                   className="rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {reviewLoading ? "Running AI review..." : "Run AI review"}
+                  {reviewLoading ? "Running intelligence review..." : "Run intelligence review"}
                 </button>
                 {review ? (
                   <div className="space-y-4">

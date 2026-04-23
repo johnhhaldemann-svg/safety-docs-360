@@ -72,6 +72,17 @@ import { asStringArray, ensureJsonObject, ensureOptionalString, isRecord } from 
 
 type CSEPRiskItemLike = Pick<CSEPRiskItem, "activity" | "hazard" | "controls" | "permit">;
 
+function normalizePartyList(value: unknown) {
+  const raw = typeof value === "string" ? value : "";
+  const parts = raw
+    .replace(/\r\n?/g, "\n")
+    .split(/\n|;/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return parts.length ? Array.from(new Set(parts)).join("; ") : null;
+}
+
 function slugify(value: string, fallback: string) {
   const next = value
     .trim()
@@ -348,7 +359,7 @@ function buildCsepBuilderInstructions(params: {
   const documentControl = {
     projectSite: ensureOptionalString(params.formData.project_name),
     primeContractor: ensureOptionalString(params.formData.contractor_company),
-    clientOwner: ensureOptionalString(params.formData.owner_client),
+    clientOwner: normalizePartyList(params.formData.owner_client),
     documentNumber: ensureOptionalString(params.formData.document_number),
     revision: ensureOptionalString(params.formData.document_revision),
     issueDate: ensureOptionalString(params.formData.issue_date),
@@ -360,8 +371,8 @@ function buildCsepBuilderInstructions(params: {
     ["Project Name", String(params.formData.project_name ?? "").trim()],
     ["Project Number", ensureOptionalString(params.formData.project_number)],
     ["Project Address", ensureOptionalString(params.formData.project_address)],
-    ["Owner / Client", ensureOptionalString(params.formData.owner_client)],
-    ["GC / CM", ensureOptionalString(params.formData.gc_cm)],
+    ["Owner / Client", normalizePartyList(params.formData.owner_client)],
+    ["GC / CM", normalizePartyList(params.formData.gc_cm)],
     ["Governing State", ensureOptionalString(params.formData.governing_state)],
   ]
     .filter(([, value]) => value)
@@ -814,8 +825,8 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
       projectName: String(formData.project_name ?? "").trim(),
       projectNumber: ensureOptionalString(formData.project_number),
       projectAddress: ensureOptionalString(formData.project_address),
-      ownerClient: ensureOptionalString(formData.owner_client),
-      gcCm: ensureOptionalString(formData.gc_cm),
+      ownerClient: normalizePartyList(formData.owner_client),
+      gcCm: normalizePartyList(formData.gc_cm),
       contractorCompany: ensureOptionalString(formData.contractor_company),
       contractorContact: ensureOptionalString(formData.contractor_contact),
       contractorPhone: ensureOptionalString(formData.contractor_phone),
@@ -1043,8 +1054,8 @@ export function buildPshsepGenerationContext(formData: Record<string, unknown>):
       projectName: String(normalizedFormData.project_name ?? "").trim(),
       projectNumber: ensureOptionalString(normalizedFormData.project_number),
       projectAddress: location || null,
-      ownerClient: ensureOptionalString(normalizedFormData.owner_client),
-      gcCm: ensureOptionalString(normalizedFormData.gc_cm),
+      ownerClient: normalizePartyList(normalizedFormData.owner_client),
+      gcCm: normalizePartyList(normalizedFormData.gc_cm),
       contractorCompany: ensureOptionalString(normalizedFormData.company_name),
       contractorContact: null,
       contractorPhone: null,
@@ -1216,8 +1227,8 @@ function normalizeGenerationContext(
       projectName: String(project.projectName ?? project.project_name ?? "").trim(),
       projectNumber: ensureOptionalString(project.projectNumber ?? project.project_number),
       projectAddress: ensureOptionalString(project.projectAddress ?? project.project_address),
-      ownerClient: ensureOptionalString(project.ownerClient ?? project.owner_client),
-      gcCm: ensureOptionalString(project.gcCm ?? project.gc_cm),
+      ownerClient: normalizePartyList(project.ownerClient ?? project.owner_client),
+      gcCm: normalizePartyList(project.gcCm ?? project.gc_cm),
       contractorCompany: ensureOptionalString(project.contractorCompany ?? project.contractor_company),
       contractorContact: ensureOptionalString(project.contractorContact ?? project.contractor_contact),
       contractorPhone: ensureOptionalString(project.contractorPhone ?? project.contractor_phone),

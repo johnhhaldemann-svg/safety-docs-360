@@ -283,8 +283,8 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: "Related Tasks",
-          body: "These related tasks apply to this program scope: Install rooftop unit.",
+          title: "Program Controls",
+          body: expect.stringMatching(/fall protection|guardrails|harness|Subpart M/i),
           bullets: [],
         }),
       ])
@@ -322,6 +322,111 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         "Elevated Work Notice",
       ])
     );
+  });
+
+  it("adds a steel erection note and crane / pick / lift roll-up for additional permits when steel is in scope", () => {
+    const draft = buildGeneratedSafetyPlanDraft({
+      generationContext: {
+        project: {
+          projectName: "Test Steel",
+          projectAddress: "1 Main St",
+          contractorCompany: "Sub",
+        },
+        scope: {
+          trades: ["Steel Erection"],
+          subTrades: ["Decking"],
+          tasks: ["Deck placement"],
+          equipment: ["Crane"],
+          location: "Level 4",
+        },
+        operations: [
+          {
+            operationId: "op-steel-permits-1",
+            tradeCode: "steel",
+            tradeLabel: "Steel Erection",
+            subTradeCode: "decking",
+            subTradeLabel: "Decking",
+            taskTitle: "Deck placement",
+            equipmentUsed: ["Crane"],
+            workConditions: ["Exterior"],
+            workAreaLabel: "Level 4",
+            locationLabel: "Level 4",
+            hazardHints: ["fall"],
+            requiredControlHints: ["controlled_decking_zone"],
+            permitHints: ["lift_plan"],
+            ppeHints: ["Hard Hat"],
+            metadata: {},
+          },
+        ],
+        siteContext: {
+          location: "Level 4",
+          workConditions: ["Exterior"],
+          siteRestrictions: [],
+          simultaneousOperations: [],
+        },
+        programSelections: [],
+        builderInstructions: {
+          selectedBlockKeys: ["additional_permits"],
+          blockInputs: {},
+          builderInputHash: "hash-steel-additional-permits",
+        },
+        documentProfile: {
+          documentType: "csep",
+          projectDeliveryType: "ground_up",
+          source: "builder_submit",
+          governingState: "WI",
+          jurisdictionCode: "federal",
+          jurisdictionLabel: "Federal OSHA",
+          jurisdictionPlanType: "federal_osha",
+          jurisdictionStandardsApplied: [],
+        },
+        legacyFormSnapshot: {},
+      },
+      reviewContext: {
+        companyId: "company-1",
+        jobsiteId: "jobsite-1",
+        documentType: "csep",
+        buckets: [],
+        rulesEvaluations: [
+          {
+            bucketKey: "bucket-s",
+            operationId: "op-steel-permits-1",
+            findings: [],
+            permitTriggers: ["lift_plan"],
+            hazardFamilies: ["fall"],
+            hazardCategories: ["Fall"],
+            ppeRequirements: ["Hard Hat"],
+            equipmentChecks: [],
+            weatherRestrictions: [],
+            requiredControls: ["Controlled decking zone"],
+            siteRestrictions: [],
+            prohibitedEquipment: [],
+            trainingRequirements: ["Qualified Rigger / Signal person"],
+            score: 10,
+            band: "moderate",
+            evaluationVersion: "v2",
+          },
+        ],
+        conflictEvaluations: [],
+        riskMemorySummary: null,
+      },
+      conflictMatrix: {
+        items: [],
+        score: 0,
+        band: "low" as const,
+        intraDocumentConflictCount: 0,
+        externalConflictCount: 0,
+      },
+    });
+    const permSection = draft.sectionMap.find((s) => s.key === "additional_permits");
+    expect(permSection?.body).toMatch(/Steel erection|structural steel/i);
+    expect(permSection?.body).toMatch(/Crane Permit|Pick Plan/i);
+    expect(permSection?.bullets).toEqual(
+      expect.arrayContaining(["Crane Permit", "Pick Plan", "Lift Plan"])
+    );
+    const permitCell = permSection?.table?.rows?.[0]?.[3] ?? "";
+    expect(permitCell).toMatch(/Crane Permit/);
+    expect(permitCell).toMatch(/Pick Plan/);
   });
 
   it("renders builder-driven responsibility, procedure, and oversight sections into the CSEP draft", () => {
@@ -537,7 +642,19 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         }),
         expect.objectContaining({
           title: "Restricted areas",
-          body: expect.stringContaining("Minimum Requirement: Barricade, sign, and control permit-required or high-hazard areas."),
+          body: expect.stringContaining(
+            "trade-specific access-control subsections below"
+          ),
+        }),
+        expect.objectContaining({
+          title: "Steel Erection Access Control",
+          body: expect.stringContaining("No employee shall work, stand, or travel under a suspended load"),
+        }),
+        expect.objectContaining({
+          title: "Controlled access below erection",
+          body: expect.stringContaining(
+            "No unauthorized access below active steel erection"
+          ),
         }),
       ]),
       table: null,
@@ -545,16 +662,67 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     expect(
       structuredDraft.sectionMap.find((section) => section.key === "contractor_iipp")
     ).toMatchObject({
-      body:
-        "The contractor shall maintain an active injury and illness prevention workflow covering fit-for-duty expectations, incident response, testing where required, corrective action, and worker accountability.",
+      body: expect.stringMatching(
+        /The contractor shall maintain an active injury and illness prevention workflow[\s\S]*fall from height is a major ongoing project risk/i
+      ),
       subsections: expect.arrayContaining([
         expect.objectContaining({
-          title: "Health and Wellness Expectations",
-          body: "Provide hydration, rest breaks, and prompt reporting of fatigue or heat stress concerns.",
+          title: "5.6 Health and Wellness Expectations",
+          body: expect.stringContaining("Project- or site-specific notes:"),
         }),
         expect.objectContaining({
-          title: "Incident Reporting and Investigation",
-          body: "Notify supervision immediately, preserve the scene, and track corrective actions to closure.",
+          title: "5.6.1 Fit for duty",
+          body: expect.stringMatching(/Minimum Requirement:/i),
+        }),
+        expect.objectContaining({
+          title: "5.6.2 Hydration",
+          body: expect.stringMatching(/Minimum Requirement:.*[Ww]ater/s),
+        }),
+        expect.objectContaining({
+          title: "5.6.3 Fatigue management",
+          body: expect.stringMatching(/Minimum Requirement:/i),
+        }),
+        expect.objectContaining({
+          title: "5.6.4 Sanitation and hygiene",
+          body: expect.stringMatching(/Minimum Requirement:.*[Rr]estroom/s),
+        }),
+        expect.objectContaining({
+          title: "5.6.5 Exposure management",
+          body: expect.stringMatching(/Minimum Requirement:/i),
+        }),
+        expect.objectContaining({
+          title: "5.6.6 Worker wellness / reporting concerns",
+          body: expect.stringMatching(/Minimum Requirement:/i),
+        }),
+        expect.objectContaining({
+          title: "5.7 Incident Reporting and Investigation",
+          body: expect.stringMatching(
+            /Incident reporting and investigation are required[\s\S]*For this trade, fall from height is one of the most significant exposures/i
+          ),
+        }),
+        expect.objectContaining({
+          title: "5.7.1 Immediate reporting",
+          body: expect.stringMatching(/Minimum Requirement:/i),
+        }),
+        expect.objectContaining({
+          title: "5.7.2 Scene protection and access control",
+          body: expect.stringMatching(/Minimum Requirement:.*[Ss]cene/i),
+        }),
+        expect.objectContaining({
+          title: "5.7.3 Supervisor responsibilities",
+          body: expect.stringMatching(/Minimum Requirement:.*[Ss]upervision/i),
+        }),
+        expect.objectContaining({
+          title: "5.7.4 Investigation and documentation",
+          body: expect.stringMatching(/Minimum Requirement:.*[Ii]nvestigat/i),
+        }),
+        expect.objectContaining({
+          title: "5.7.5 Corrective actions and follow-up",
+          body: expect.stringMatching(/Minimum Requirement:.*[Cc]orrective/i),
+        }),
+        expect.objectContaining({
+          title: "5.7.6 Near-miss reporting",
+          body: expect.stringMatching(/Minimum Requirement:.*[Nn]ear.miss/s),
         }),
       ]),
     });
@@ -622,21 +790,12 @@ describe("buildGeneratedSafetyPlanDraft", () => {
             subTradeLabel: "Decking",
             taskTitle: "Install decking",
             locationLabel: "Level 4",
-            hazardCategories: ["Fall exposure"],
-            permitTriggers: ["lift_plan"],
-            ppeRequirements: ["Hard Hat", "Harness"],
-            requiredControls: ["Controlled decking zone"],
-            trainingRequirements: [],
             equipmentUsed: ["Crane"],
             workConditions: ["Exterior"],
-            siteRestrictions: ["Maintain decking exclusion zone."],
-            prohibitedEquipment: [],
-            hazardFamilies: ["fall"],
-            payload: {},
-            source: {
-              module: "manual",
-              id: null,
-            },
+            hazardHints: ["fall"],
+            requiredControlHints: ["controlled_decking_zone"],
+            permitHints: ["lift_plan"],
+            ppeHints: ["Hard Hat", "Harness"],
           },
         ],
         siteContext: {
@@ -644,7 +803,6 @@ describe("buildGeneratedSafetyPlanDraft", () => {
           workConditions: ["Exterior"],
           siteRestrictions: ["Maintain decking exclusion zone."],
           simultaneousOperations: ["Electrical rough-in below"],
-          weather: null,
         },
         programSelections: [],
         builderInstructions: {
@@ -1024,7 +1182,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     expect(taskModulesSection?.bullets).toBeUndefined();
     expect(taskModulesSection?.subsections?.length).toBeGreaterThan(0);
     expect(jurisdictionProfile?.body).toContain(
-      "Wisconsin building and environmental requirements supplement active"
+      "Wisconsin state-specific building, environmental, and permit requirements may apply"
     );
     expect(jurisdictionProfile?.bullets).toEqual(
       expect.arrayContaining([
@@ -2459,12 +2617,15 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         body: "Steel task fallback summary.",
         title: "Fallback Steel Task Module",
         bullets: expect.arrayContaining([
-          expect.stringContaining("Task scope and sequence: Steel task fallback summary."),
+          expect.stringContaining("Task description: Steel task fallback summary."),
+          expect.stringContaining("Safety exposure"),
           expect.stringContaining("Pre-start verification:"),
-          expect.stringContaining("Required controls:"),
-          expect.stringContaining("Permits and PPE:"),
-          expect.stringContaining("Stop-work triggers:"),
-          expect.stringContaining("Verification and handoff:"),
+          expect.stringContaining("Required controls (before and during work):"),
+          expect.stringContaining("Access restrictions:"),
+          expect.stringContaining("PPE expectations:"),
+          expect.stringContaining("Permits and hold points:"),
+          expect.stringContaining("Stop-work and reassessment triggers:"),
+          expect.stringContaining("Handoff and closeout:"),
           expect.stringContaining("Related interfaces: Coordinate with the steel-erection sequence"),
         ]),
       }),
@@ -2477,13 +2638,16 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         body: "Steel hazard fallback summary.",
         title: "Fallback Steel Hazard Module",
         bullets: expect.arrayContaining([
-          expect.stringContaining("Hazard overview: Steel hazard fallback summary."),
+          expect.stringContaining("Hazard focus: Steel hazard fallback summary."),
+          expect.stringContaining("Safety exposure"),
           expect.stringContaining("Pre-start verification:"),
-          expect.stringContaining("Required controls:"),
-          expect.stringContaining("Permits and PPE:"),
-          expect.stringContaining("Stop-work triggers:"),
-          expect.stringContaining("Verification and handoff:"),
-          expect.stringContaining("Related interfaces:"),
+          expect.stringContaining("Required controls (before and during work):"),
+          expect.stringContaining("Access restrictions:"),
+          expect.stringContaining("PPE expectations:"),
+          expect.stringContaining("Permits and hold points:"),
+          expect.stringContaining("Stop-work and reassessment triggers:"),
+          expect.stringContaining("Handoff and closeout:"),
+          expect.stringContaining("Related interfaces: Coordinate with"),
         ]),
       }),
     ]);
@@ -2627,11 +2791,11 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       );
 
     const requiredControlsBullet = steelTaskSubsection?.bullets.find((bullet) =>
-      bullet.startsWith("Required controls:")
+      bullet.startsWith("Required controls (before and during work):")
     );
 
     expect(requiredControlsBullet).toBe(
-      "Required controls: Establish the work zone, maintain the sequence, control access, protect workers below, and keep the task stable for the next step before release."
+      "Required controls (before and during work): Establish the controlled work zone, maintain the approved sequence, keep the frame stable at every stage, protect workers below, and correct drift immediately when field conditions change. Controls remain in place until the task is complete and formally released."
     );
     expect(steelTaskSubsection?.bullets).not.toEqual(
       expect.arrayContaining([expect.stringContaining("Trigger / reference:")])

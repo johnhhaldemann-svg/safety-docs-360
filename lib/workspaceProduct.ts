@@ -39,16 +39,16 @@ export const csepOnlyCompanySideSections: NavSectionLike[] = [
   {
     title: "Workspace",
     items: [
-      { href: "/dashboard", label: "Dashboard", short: "HM" },
+      { href: "/dashboard", label: "Home Dashboard", short: "HM" },
       { href: "/csep", label: CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL, short: "DC" },
-      { href: "/library", label: "Completed documents", short: "LB" },
-      { href: "/search", label: "Search documents", short: "SR" },
+      { href: "/library", label: "Completed Documents", short: "LB" },
+      { href: "/search", label: "Search Documents", short: "SR" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
     ],
   },
   {
     title: "Account",
-    items: [{ href: "/profile", label: "Construction profile", short: "CP" }],
+    items: [{ href: "/profile", label: "My Profile", short: "CP" }],
   },
 ];
 
@@ -56,15 +56,15 @@ const csepReadOnlySideSections: NavSectionLike[] = [
   {
     title: "Workspace",
     items: [
-      { href: "/dashboard", label: "Dashboard", short: "HM" },
-      { href: "/library", label: "Completed documents", short: "LB" },
-      { href: "/search", label: "Search documents", short: "SR" },
+      { href: "/dashboard", label: "Home Dashboard", short: "HM" },
+      { href: "/library", label: "Completed Documents", short: "LB" },
+      { href: "/search", label: "Search Documents", short: "SR" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
     ],
   },
   {
     title: "Account",
-    items: [{ href: "/profile", label: "Construction profile", short: "CP" }],
+    items: [{ href: "/profile", label: "My Profile", short: "CP" }],
   },
 ];
 

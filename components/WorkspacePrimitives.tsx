@@ -368,3 +368,53 @@ export function ActionTile({
     </Link>
   );
 }
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
+export function WorkspaceScopedNav({
+  eyebrow,
+  title,
+  tabs,
+  sticky = false,
+}: {
+  eyebrow: string;
+  title: string;
+  tabs: Array<{ href: string; label: string }>;
+  sticky?: boolean;
+}) {
+  return (
+    <div
+      className={cx(
+        "rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_#f7fbff_0%,_#edf4ff_55%,_#e7f0fb_100%)] p-4 shadow-[var(--app-shadow-soft)]",
+        sticky && "sticky top-0 z-20 backdrop-blur-md"
+      )}
+    >
+      <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
+        {eyebrow}
+      </div>
+      <div className="mt-2 text-xl font-semibold tracking-tight text-[var(--app-text-strong)]">
+        {title}
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <div className="inline-flex min-w-max gap-2">
+          {tabs.map((tab) => {
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className={cx(
+                  "flex items-center rounded-2xl border px-4 py-3 text-sm font-semibold whitespace-nowrap transition",
+                  "border-transparent bg-white/72 text-[var(--app-text)] hover:bg-white/90 hover:text-[var(--app-text-strong)]"
+                )}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}

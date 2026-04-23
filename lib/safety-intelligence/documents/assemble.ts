@@ -29,6 +29,8 @@ import {
 import {
   buildSteelErectionOverlaySections,
   buildSteelErectionPlan,
+  hasSteelErectionScope,
+  isSteelErectionPackage,
 } from "@/lib/steelErectionPlan";
 import { getSteelErectionHazardModules } from "@/lib/steelErectionHazardModules";
 import { getSteelErectionProgramModules } from "@/lib/steelErectionProgramModules";
@@ -592,9 +594,12 @@ function suppressRedundantCsepNarrative(section: GeneratedSafetyPlanSection) {
   const nextSummary = isNarrativeRedundant(section.summary, structuredSnippets)
     ? undefined
     : section.summary;
-  const nextBody = isNarrativeRedundant(section.body, structuredSnippets)
-    ? undefined
-    : section.body;
+  const nextBody =
+    section.key === "additional_permits"
+      ? section.body
+      : isNarrativeRedundant(section.body, structuredSnippets)
+        ? undefined
+        : section.body;
 
   if (CSEP_REFERENCE_PACK_KEYS.has(section.key)) {
     return {
@@ -699,7 +704,8 @@ function normalizeCsepSections(sections: GeneratedSafetyPlanSection[]) {
 
 function buildDefinitionsSection(
   generationContext: SafetyPlanGenerationContext,
-  inlineOshaRefs: string[]
+  inlineOshaRefs: string[],
+  operations: GeneratedSafetyPlanDraft["operations"]
 ): GeneratedSafetyPlanSection {
   if (generationContext.documentProfile.documentType === "pshsep") {
     const structured = getPshsepStructuredInputs(generationContext);
@@ -714,19 +720,37 @@ function buildDefinitionsSection(
     };
   }
 
+  const baseDefinitions = [
+    "Competent Person: An individual capable of identifying existing and predictable hazards in the surroundings or working conditions and authorized to take prompt corrective measures.",
+    "Qualified Person: An individual who, by recognized training, certification, or experience, has successfully demonstrated the ability to resolve problems related to the assigned work.",
+    "Controlling Contractor: The employer that has overall responsibility for construction of the project, typically the GC or CM overseeing trade coordination and access control.",
+    "Permit-Required Work: Work that cannot start without a documented permit, verification, or owner / site authorization (hot work, confined space, excavation, elevated work, etc.).",
+    "Simultaneous Operations: Two or more trades, crews, or activities working in overlapping areas or time windows that can affect one another\u2019s risk profile.",
+    "Stop-Work Authority: The responsibility and authority of any worker or supervisor to pause work when conditions become unsafe or controls are not in place.",
+    "Exclusion Zone: A defined area around a hazard (suspended load, hot work, drop zone, swing radius, etc.) where entry is restricted to authorized personnel only.",
+    "Laydown Area: A controlled area designated for material delivery, staging, and inspection, separated from active work fronts and pedestrian routes.",
+  ];
+
+  const steelDefinitions = [
+    "Qualified Rigger: A rigger who meets the qualified-person criteria and is specifically competent to select, inspect, and use rigging for the lift being performed.",
+    "Signal Person: A qualified individual who directs crane and hoist movements using standard hand or radio signals and is in clear communication with the operator.",
+    "Leading Edge: The unprotected edge of a floor, roof, deck, or formwork surface that changes location as additional sections, panels, or plates are added.",
+    "Controlled Access Zone (CAZ): A clearly defined and restricted work area where access is limited to authorized personnel engaged in specific operations such as leading-edge work, decking, connecting, or other controlled steel-erection activities. The CAZ boundary shall be established, marked, and maintained to prevent entry by employees not involved in the operation.",
+    "Connector: An employee who, working aloft, connects structural members and components as they are placed, bolted, or welded in position.",
+    "Suspended Load: Any load lifted by a crane, hoist, rigging, or derrick that is not landed and secured; personnel must remain clear of the load path and drop zone.",
+    "Critical Lift: A lift that exceeds normal rigging complexity, load rating, or risk thresholds (tandem picks, blind picks, over 75 percent of chart, picks over occupied areas) and requires a written plan.",
+  ];
+
+  const definitions = hasSteelErectionScope(generationContext, operations)
+    ? [...baseDefinitions, ...steelDefinitions]
+    : baseDefinitions;
+
   return {
     key: "definitions",
     title: "Definitions",
     body:
-      "These definitions establish the baseline field language used throughout this CSEP.",
-    bullets: [
-      "Competent person: An individual capable of identifying existing and predictable hazards and authorized to take prompt corrective measures.",
-      "Qualified person: An individual with recognized training, knowledge, or experience related to the assigned work scope.",
-      "High-risk work: Work activities with elevated exposure potential requiring added review, controls, coordination, or authorization before execution.",
-      "Permit-required work: Work that requires documented authorization, verification, or owner / site approval before starting.",
-      "Simultaneous operations: Multiple trades, crews, or activities working in overlapping areas or time windows that can affect one another's risk profile.",
-      "Stop-work authority: The responsibility and authority of any worker or supervisor to pause work when conditions become unsafe or controls are not adequate.",
-    ],
+      "These definitions establish the field language used throughout this CSEP for the active scope. Only terms relevant to the selected trade and tasks are included.",
+    bullets: definitions,
   };
 }
 
@@ -734,7 +758,6 @@ function buildReferencesSection(oshaReferences: string[]): GeneratedSafetyPlanSe
   return {
     key: "references",
     title: "References",
-    body: "The following OSHA references were identified from selected scopes, permits, and generated program content. Inline section citations use the numbered reference tags shown below.",
     bullets: oshaReferences.length
       ? oshaReferences.map((reference, index) => `R${index + 1} ${reference}`)
       : ["No OSHA references were identified from the current plan inputs."],
@@ -805,53 +828,6 @@ type ParsedReferencePackDoc = {
     text: string;
   }>;
 };
-
-function referencePackKeySections(sectionHeadings: string[]) {
-  return sentenceList(sectionHeadings.slice(0, 3), "module scope, main exposures, and critical controls");
-}
-
-function referencePackInterfacesWith(taskNames: string[], fallback: string) {
-  const interfaces = sentenceList(taskNames, fallback);
-  return `Interfaces to coordinate: ${interfaces}. Use this module to align sequence, access, and handoffs with that work.`;
-}
-
-function referencePackReviewFocus(sectionHeadings: string[]) {
-  return `Review these sections first: ${referencePackKeySections(sectionHeadings)}.`;
-}
-
-function humanizeReferencePackReason(reason: string) {
-  const match = reason.match(/^([^:]+):\s*(.+)$/);
-  if (!match) return reason;
-
-  const [, rawLabel, rawValue] = match;
-  const label = rawLabel.trim().toLowerCase();
-  const value = rawValue.trim();
-
-  switch (label) {
-    case "hazard":
-      return `the hazard ${value}`;
-    case "permit":
-      return `the ${value}`;
-    case "task keyword":
-      return `tasks involving ${value}`;
-    case "trade keyword":
-      return `the ${value} trade scope`;
-    case "sub-trade keyword":
-      return `the ${value} sub-trade scope`;
-    case "program selection":
-      return `the selected program ${value}`;
-    default:
-      return value;
-  }
-}
-
-function referencePackInclusionReason(matchedReasons: string[], fallback: string) {
-  const reasons = matchedReasons.length
-    ? matchedReasons.map(humanizeReferencePackReason)
-    : [fallback];
-
-  return `Included for this scope based on ${sentenceList(reasons, fallback)}.`;
-}
 
 function buildModuleLookup<T extends { moduleKey: string }>(items: T[]) {
   return new Map(items.map((item) => [item.moduleKey, item]));
@@ -1042,18 +1018,6 @@ function cleanupReferencePackChildItems(
   });
 }
 
-function findReferencePackSectionText(
-  parsed: ParsedReferencePackDoc,
-  keywords: string[]
-) {
-  const normalizedKeywords = keywords.map((keyword) => normalizeToken(keyword));
-  const matched = parsed.sections.find((section) =>
-    normalizedKeywords.some((keyword) => normalizeToken(section.heading).includes(keyword))
-  );
-
-  return matched?.text ?? null;
-}
-
 function directiveSnippet(value: string | null | undefined, maxLength = 220) {
   const compacted = compactText(value, maxLength);
   if (!compacted) return null;
@@ -1067,13 +1031,6 @@ function directiveSnippet(value: string | null | undefined, maxLength = 220) {
 
 function summaryWithoutTrailingPeriod(value: string) {
   return value.replace(/[.:\s]+$/g, "").trim();
-}
-
-function referencePackTriggerLine(
-  detail: string,
-  sectionHeadings: string[]
-) {
-  return `Trigger / reference: ${detail} Review these sections first: ${referencePackKeySections(sectionHeadings)}.`;
 }
 
 function buildModuleBody(summary: string, parsed: ParsedReferencePackDoc) {
@@ -1185,9 +1142,97 @@ function buildControlModuleSubsection(item: TaskModuleContextRow): GeneratedSafe
   };
 }
 
+const SUSPENDED_LOAD_MODULE_KEYS = new Set([
+  // Hazard module
+  "steel_hoisting_and_rigging",
+  // Task modules
+  "steel_hoisting_and_rigging_multiple_lift",
+  "steel_setting_columns_and_base_lines",
+  "steel_receiving_unloading_inspecting_and_staging",
+  "steel_erecting_beams_and_girders_initial_connections",
+  // Program modules
+  "steel_hoisting_and_rigging_program",
+  "steel_multiple_lift_rigging_program",
+  "steel_falling_objects_and_drop_zone_control_program",
+  "steel_column_anchorage_and_initial_connection_program",
+]);
+
+const SUSPENDED_LOAD_KEYWORD_PATTERN =
+  /(suspended load|hoisting|crane pick|crane lift|multiple lift|rigging|landing zone|landing area|drop zone|lift zone|swing radius|load path|setting column)/i;
+
+function requiresSuspendedLoadControls(item: {
+  moduleKey?: string;
+  title?: string;
+  plainText?: string;
+}): boolean {
+  if (item.moduleKey && SUSPENDED_LOAD_MODULE_KEYS.has(item.moduleKey)) {
+    return true;
+  }
+  const haystack = `${item.title ?? ""} ${item.plainText ?? ""}`;
+  return SUSPENDED_LOAD_KEYWORD_PATTERN.test(haystack);
+}
+
+const SUSPENDED_LOAD_CONTROL_BULLETS: readonly string[] = [
+  "Suspended-load exclusion: No employee shall work, stand, or travel beneath a suspended load. The hoisting path and landing area shall be controlled to prevent unauthorized entry before and during the lift.",
+  "Lift-zone access limit: Only personnel directly involved in the lift are permitted inside the controlled lifting zone. Barricades, spotters, signage, and exclusion-zone controls shall be used as needed to keep workers out of the fall zone and load path.",
+];
+
+// Replaces wording that reads like personal fall restraint with precise
+// structural-stability language for steel-erection modules. The steel
+// hazard/task/program modules use "temporary restraint" to describe keeping a
+// partially erected frame stable — that is bracing, not worker restraint.
+// Personal fall-protection wording ("personal fall arrest or restraint",
+// "fall restraint equipment") is preserved because it uses the "fall" qualifier.
+function applySteelErectionTextFixes(value: string): string {
+  if (!value) return value;
+  return (
+    value
+      .replace(/\btemporary restraint\b/gi, "temporary bracing")
+      .replace(/\bearly frame restraint\b/gi, "early frame bracing")
+      .replace(/\bframe restraint\b/gi, "frame bracing")
+      .replace(/([.!?])(\s+)([A-Z])/g, "$1$2$3")
+      .replace(/\s{3,}/g, "  ")
+  );
+}
+
+function fixSteelReferenceList(values: string[]): string[] {
+  return values.map((entry) => applySteelErectionTextFixes(entry));
+}
+
+function sanitizeSteelModuleRow<
+  T extends {
+    title: string;
+    summary: string;
+    plainText: string;
+    sectionHeadings: string[];
+  },
+>(row: T): T {
+  return {
+    ...row,
+    title: applySteelErectionTextFixes(row.title),
+    summary: applySteelErectionTextFixes(row.summary),
+    plainText: applySteelErectionTextFixes(row.plainText),
+    sectionHeadings: fixSteelReferenceList(row.sectionHeadings),
+  };
+}
+
+function extractReferencePackParagraphs(
+  item: { sectionHeadings?: string[]; plainText: string },
+  matchers: RegExp[]
+): string[] {
+  return numberedReferencePackLines(item.sectionHeadings ?? [], item.plainText)
+    .filter((line) => matchers.some((m) => m.test(stripReferencePackNumberPrefix(line))))
+    .map((line) => parseReferencePackChildItem(line))
+    .filter((parsed) => parsed.body)
+    .map((parsed) =>
+      parsed.title
+        ? `${parsed.title}: ${parsed.body}`
+        : parsed.body
+    );
+}
+
 function buildHazardModuleSubsection(
-  item: HazardModuleContextRow | SteelHazardModuleContextRow,
-  scopeFallback: string
+  item: HazardModuleContextRow | SteelHazardModuleContextRow
 ): GeneratedSafetyPlanSubsection {
   const parsed = parseReferencePackPlainText(item.plainText);
   const planningItems = cleanupReferencePackChildItems(
@@ -1230,6 +1275,10 @@ function buildHazardModuleSubsection(
     ])
   );
 
+  const suspendedLoadBullets = requiresSuspendedLoadControls(item)
+    ? SUSPENDED_LOAD_CONTROL_BULLETS
+    : [];
+
   return {
     title: item.title,
     body: buildModuleBody(item.summary, parsed),
@@ -1238,6 +1287,7 @@ function buildHazardModuleSubsection(
       "Pre-start verification: Inspect the hazard area, confirm the exposure is correctly identified, verify the control method, and confirm who owns the stop-work decision before exposure begins.",
       ...planningItems,
       "Required controls: Establish the hazard boundary, maintain the selected controls, keep non-essential personnel out of the exposure zone, and correct drift immediately when field conditions change.",
+      ...suspendedLoadBullets,
       ...controlsItems,
       "Permits and PPE: Confirm whether this exposure triggers a permit, engineered approval, rescue plan, or owner authorization before work starts. Inspect required PPE before use and do not proceed if the permit or PPE is missing, incompatible, or damaged.",
       ...permitsItems,
@@ -1263,17 +1313,25 @@ function buildSteelTaskModuleSubsection(item: SteelTaskModuleContextRow): Genera
   const controlsItems = cleanupReferencePackChildItems(
     item.summary,
     selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /primary controls/i,
+      /core controls/i,
+      /required controls/i,
       /equipment/i,
-      /access/i,
-      /hazards?/i,
-      /controls?/i,
+      /hazards? & controls?/i,
       /stability/i,
+    ])
+  );
+  const accessItems = cleanupReferencePackChildItems(
+    item.summary,
+    selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /access and support/i,
       /load and access limits/i,
     ])
   );
   const permitsItems = cleanupReferencePackChildItems(
     item.summary,
     selectReferencePackChildItems(item.sectionHeadings, item.plainText, [
+      /typical approvals/i,
       /permit/i,
       /approval/i,
       /deviation/i,
@@ -1293,19 +1351,44 @@ function buildSteelTaskModuleSubsection(item: SteelTaskModuleContextRow): Genera
     ])
   );
 
+  const exposureParagraphs = extractReferencePackParagraphs(item, [
+    /main exposure profile/i,
+    /main hazards?/i,
+    /primary exposure/i,
+  ]);
+  const exposureBullets = exposureParagraphs.length
+    ? exposureParagraphs.map((text) => `Safety exposure — ${text}`)
+    : [
+        "Safety exposure: This task exposes workers to active steel-erection hazards including suspended loads, pinch points at landing and connection, fall from height at leading edges and openings, struck-by from moving steel or tools, and loss of structural stability before bracing and bolting are complete.",
+      ];
+
+  const suspendedLoadBullets = requiresSuspendedLoadControls(item)
+    ? SUSPENDED_LOAD_CONTROL_BULLETS
+    : [];
+
+  const accessBullets = accessItems.length
+    ? accessItems
+    : [
+        "Access restrictions: Entry into the active work zone is limited to trained crew assigned to the task. Non-essential personnel stay outside the barricaded area, the crane swing radius, the lift and drop zones, and any leading-edge or controlled decking boundary until the area is released by the competent person.",
+      ];
+
   return {
     title: item.title,
     body: buildModuleBody(item.summary, parsed),
     bullets: [
-      `Task scope and sequence: ${summaryWithoutTrailingPeriod(item.summary)}. Review the sequence, access point, and handoff condition before the first crew member starts the task.`,
-      "Pre-start verification: Verify the sequence, support steel, access point, material staging, equipment, communications, and rescue path before work starts.",
+      `Task description: ${summaryWithoutTrailingPeriod(item.summary)}. Review the sequence, access point, and handoff condition before the first crew member starts the task.`,
+      ...exposureBullets,
+      "Pre-start verification: Verify the sequence, support steel, access point, material staging, equipment, communications, fall protection, and rescue path before work starts. The foreman or competent person confirms the crew briefing, PPE inspection, and stop-work ownership before exposure begins.",
       ...planningItems,
-      "Required controls: Establish the work zone, maintain the sequence, control access, protect workers below, and keep the task stable for the next step before release.",
+      "Required controls (before and during work): Establish the controlled work zone, maintain the approved sequence, keep the frame stable at every stage, protect workers below, and correct drift immediately when field conditions change. Controls remain in place until the task is complete and formally released.",
+      ...suspendedLoadBullets,
       ...controlsItems,
-      "Permits and PPE: Confirm whether this task requires lift planning, hot-work approval, leading-edge release, engineered review, or owner authorization before work starts. Inspect task-specific PPE before use and do not proceed if required PPE is missing or damaged.",
+      ...accessBullets,
+      "PPE expectations: Hard hat, safety glasses, high-visibility outerwear, cut-resistant gloves sized for the task, and ANSI-rated safety-toe boots are required. Personal fall-arrest or fall-restraint equipment is required whenever the employee is exposed to a fall hazard that cannot be eliminated; arrest or restraint equipment shall be inspected before each use, anchored to a compliant anchorage, and removed from service if damaged.",
+      "Permits and hold points: Confirm site terminology for this pick (lift plan, pick plan, crane permit, and critical-lift plan as required), plus hot-work, leading-edge / controlled-decking release, anchor-rod change notices, and GC/CM authorization. Do not start until the active permit package, hold points, and rescue capability are in hand.",
       ...permitsItems,
-      "Stop-work triggers: Stop work if the sequence changes without review, if support steel or access is not ready, if communications are lost, if required controls or permits are missing, or if the crew cannot maintain the planned stable condition. Restart only after the foreman or competent person re-verifies the work face and releases the next step.",
-      "Verification and handoff: Document the pre-task brief, inspections, permits, deviations, corrective actions, and handoff status for this task.",
+      "Stop-work and reassessment triggers: Stop work and reassess if the sequence changes without review, if support steel or access is not ready, if communications or signals are lost, if the crew cannot maintain the planned stable condition, if weather or wind exceeds the plan, if unauthorized personnel enter the controlled zone, or if required controls, PPE, or permits are missing. Restart only after the foreman or competent person re-verifies the work face and releases the next step.",
+      "Handoff and closeout: Document the pre-task brief, inspections, permits, deviations, corrective actions, and the field condition at handoff. The next crew shall not assume a safe starting condition unless the release is signed off in the daily pre-task record.",
       ...closeoutItems,
       `Related interfaces: Coordinate with ${sentenceList(item.taskNames, "the steel-erection sequence")}, the crane crew, riggers, connectors, deck crews, and any follow-on trade affected by the handoff condition created by this task.`,
     ],
@@ -1339,6 +1422,10 @@ function buildSteelProgramModuleSubsection(item: SteelProgramModuleContextRow): 
     ])
   );
 
+  const suspendedLoadBullets = requiresSuspendedLoadControls(item)
+    ? SUSPENDED_LOAD_CONTROL_BULLETS
+    : [];
+
   return {
     title: item.title,
     body: buildModuleBody(item.summary, parsed),
@@ -1347,7 +1434,8 @@ function buildSteelProgramModuleSubsection(item: SteelProgramModuleContextRow): 
       "Pre-start verification: Verify responsible roles, communications, rescue or response path, equipment staging, permits, and the exact work face covered by the program before the shift starts.",
       ...planningItems,
       "Required controls: Establish the program boundary, maintain the assigned sequence, keep unauthorized personnel out of the area, and enforce the daily field procedure exactly as briefed.",
-      "Permits and PPE: Confirm whether this program requires a rescue plan, lift plan, hot-work permit, engineered approval, owner authorization, or specialty PPE before work starts. Inspect required PPE before use and do not proceed if permits, rescue capability, or PPE are missing or damaged.",
+      ...suspendedLoadBullets,
+      "Permits and PPE: Confirm rescue plan, site crane and pick authorizations (lift plan / pick plan / crane permit as the site names them), hot-work, engineered approvals, owner authorization, and specialty PPE before work starts. Inspect PPE before use; do not proceed if permits, rescue, or PPE are missing or damaged.",
       "Stop-work triggers: Stop work if the responsible roles are not staffed, if rescue or communication capability is unavailable, if access control fails, if the exposed condition changes without review, or if the program approvals are not active. Restart only after project leadership re-verifies the program and reauthorizes the work.",
       "Verification and handoff: Document the daily brief, inspections, permit package, drill or rescue readiness, deviations, corrective actions, and release status for this program.",
       ...documentationItems,
@@ -1446,7 +1534,7 @@ function buildHazardModulesReferenceSection(
     title: "Hazard Modules Reference Pack",
     body: appendInlineOsha("Reference hazard modules supporting the selected hazards and permits.", inlineOshaRefs),
     subsections: hazardModules.map((item) =>
-      buildHazardModuleSubsection(item, "the current CSEP scope")
+      buildHazardModuleSubsection(item)
     ),
   };
 }
@@ -1479,7 +1567,8 @@ function getSteelTaskModulesFromGenerationContext(
         fullModules.get(textOrNull(item.moduleKey) ?? "")
       )
     )
-    .filter((item) => item.title && item.summary);
+    .filter((item) => item.title && item.summary)
+    .map((item) => sanitizeSteelModuleRow(item));
 }
 
 function buildSteelTaskModulesReferenceSection(
@@ -1523,7 +1612,33 @@ function getSteelHazardModulesFromGenerationContext(
         fullModules.get(textOrNull(item.moduleKey) ?? "")
       )
     )
-    .filter((item) => item.title && item.summary);
+    .filter((item) => item.title && item.summary)
+    .map((item) => sanitizeSteelModuleRow(item));
+}
+
+function buildSteelErectionHazardModuleSubsection(
+  item: SteelHazardModuleContextRow
+): GeneratedSafetyPlanSubsection {
+  const asTask: SteelTaskModuleContextRow = {
+    title: item.title,
+    moduleKey: item.moduleKey,
+    trade: null,
+    subTrade: null,
+    taskNames:
+      item.matchedReasons.length > 0
+        ? item.matchedReasons
+        : ["Steel erection / structural steel / decking exposure for the active scope"],
+    summary: item.summary,
+    sectionHeadings: item.sectionHeadings,
+    plainText: item.plainText,
+    sourceFilename: item.sourceFilename,
+  };
+  const base = buildSteelTaskModuleSubsection(asTask);
+  return {
+    title: item.title,
+    body: base.body,
+    bullets: base.bullets.map((line) => line.replace(/^Task description:/, "Hazard focus:")),
+  };
 }
 
 function buildSteelHazardModulesReferenceSection(
@@ -1537,9 +1652,7 @@ function buildSteelHazardModulesReferenceSection(
     key: "steel_hazard_modules_reference",
     title: "Steel Erection Hazard Modules Reference Pack",
     body: appendInlineOsha("Reference steel-erection hazard modules supporting the active exposures.", inlineOshaRefs),
-    subsections: hazardModules.map((item) =>
-      buildHazardModuleSubsection(item, "the current steel-erection scope")
-    ),
+    subsections: hazardModules.map((item) => buildSteelErectionHazardModuleSubsection(item)),
   };
 }
 
@@ -1569,7 +1682,8 @@ function getSteelProgramModulesFromGenerationContext(
         fullModules.get(textOrNull(item.moduleKey) ?? "")
       )
     )
-    .filter((item) => item.title && item.summary);
+    .filter((item) => item.title && item.summary)
+    .map((item) => sanitizeSteelModuleRow(item));
 }
 
 function buildSteelProgramModulesReferenceSection(
@@ -1629,45 +1743,6 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function splitBuilderTextToBullets(value: string | null | undefined) {
-  if (!value?.trim()) return [];
-
-  const lines = value
-    .replace(/\r\n?/g, "\n")
-    .split("\n")
-    .map((item) =>
-      item
-        .replace(/\*\*(.+?)\*\*/g, "$1")
-        .replace(/__(.+?)__/g, "$1")
-        .trim()
-    )
-    .filter(Boolean);
-
-  const bulletLines = lines
-    .filter((item) => /^[-*\u2022]\s+/.test(item))
-    .map((item) => item.replace(/^[-*\u2022]\s+/, "").trim())
-    .filter(Boolean);
-
-  if (bulletLines.length > 0) {
-    const hasNarrativeOrHeadings = lines.some((item) => !/^[-*\u2022]\s+/.test(item));
-    return hasNarrativeOrHeadings ? [] : dedupe(bulletLines);
-  }
-
-  if (lines.length === 1 && lines[0].includes(";")) {
-    const segments = lines[0]
-      .split(";")
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    const looksLikeSimpleList =
-      segments.length > 1 && segments.every((item) => item.length <= 160 && !/[.!?]\s+[A-Z]/.test(item));
-
-    return looksLikeSimpleList ? dedupe(segments) : [];
-  }
-
-  return [];
-}
-
 function stripStandaloneHeadingPrefix(value: string, title: string) {
   const cleanTitle = cleanFinalText(title);
   if (!cleanTitle) return value.trim();
@@ -1678,6 +1753,123 @@ function stripStandaloneHeadingPrefix(value: string, title: string) {
       ""
     )
     .trim();
+}
+
+/**
+ * IIPP health block: scannable 5.6.x controls (not one dense paragraph).
+ * Optional `healthInput` is appended to 5.6 as project/site notes from the builder.
+ */
+function buildHealthAndWellnessExpectationsSubsections(
+  healthInput: string | null | undefined
+): GeneratedSafetyPlanSubsection[] {
+  const notes = healthInput?.replace(/\r\n?/g, "\n").trim();
+  const intro = [
+    "Field controls for fit-for-duty, heat and fatigue, hygiene, and exposure reporting. The subsections below are the minimum expectations for daily execution.",
+    notes ? `Project- or site-specific notes: ${notes}` : null,
+  ]
+    .filter((p): p is string => Boolean(p?.trim()))
+    .join("\n\n");
+
+  return [
+    {
+      title: "5.6 Health and Wellness Expectations",
+      body: intro,
+      bullets: [],
+    },
+    {
+      title: "5.6.1 Fit for duty",
+      body: "Minimum Requirement: Workers must be fit for assigned tasks. Do not work when illness, injury, or fatigue would make the job unsafe. Supervision shall reassign or stand down workers who are not fit for exposed, safety-sensitive, or at-height work.",
+      bullets: [],
+    },
+    {
+      title: "5.6.2 Hydration",
+      body: "Minimum Requirement: Provide access to clean drinking water at all times. Increase water availability and break frequency during hot weather, high-exertion work, or extended steel erection or outdoor activity.",
+      bullets: [],
+    },
+    {
+      title: "5.6.3 Fatigue management",
+      body: "Minimum Requirement: Schedule breaks that match the work and weather. Watch for heat stress, exhaustion, or loss of focus. Stop or re-plan work when fatigue would reduce safe performance.",
+      bullets: [],
+    },
+    {
+      title: "5.6.4 Sanitation and hygiene",
+      body: "Minimum Requirement: Maintain clean restroom and handwashing access for all workers. Service facilities on a regular schedule and keep them reachable throughout the shift.",
+      bullets: [],
+    },
+    {
+      title: "5.6.5 Exposure management",
+      body: "Minimum Requirement: When chemical, noise, dust, or similar site exposures apply, use the project controls in place (PPE, engineering, work rotation, decontamination). Report symptoms, suspected overexposures, or control failures to supervision or the site safety lead.",
+      bullets: [],
+    },
+    {
+      title: "5.6.6 Worker wellness / reporting concerns",
+      body: "Minimum Requirement: Report injuries, near misses, and unsafe conditions promptly. Workers may raise health and safety concerns to supervision or site safety. Support first-aid access and follow-up with medical or occupational guidance when required, without fear of reprisal for good-faith reporting.",
+      bullets: [],
+    },
+  ];
+}
+
+/**
+ * IIPP incident block: 5.7.x controls (scannable, not one narrative blob).
+ * `incidentInput` is appended to 5.7 as builder/project notes. Steel/ironworker fall emphasis when scope applies.
+ */
+function buildIncidentReportingInvestigationSubsections(
+  incidentInput: string | null | undefined,
+  steelErectionInScope: boolean
+): GeneratedSafetyPlanSubsection[] {
+  const notes = incidentInput?.replace(/\r\n?/g, "\n").trim();
+  const opening =
+    "Incident reporting and investigation are required to ensure injuries, near misses, property damage, fall exposures, and other safety events are reported promptly, investigated thoroughly, and corrected to prevent recurrence.";
+
+  const steelFallNote = steelErectionInScope
+    ? "For this trade, fall from height is one of the most significant exposures and shall be treated as a primary reporting and investigation trigger whenever a fall, fall arrest, leading-edge event, decking exposure, or dropped-object incident occurs."
+    : "Fall from height, struck-by, and other high-energy exposures in the active scope are treated as high-priority report and review triggers when they occur.";
+
+  const section57Body = [
+    opening,
+    steelFallNote,
+    notes ? `Builder or project-specific requirements: ${notes}` : null,
+  ]
+    .filter((p): p is string => Boolean(p?.trim()))
+    .join("\n\n");
+
+  return [
+    {
+      title: "5.7 Incident Reporting and Investigation",
+      body: section57Body,
+      bullets: [],
+    },
+    {
+      title: "5.7.1 Immediate reporting",
+      body: "Minimum Requirement: Report work-related injuries, serious illnesses, and dangerous occurrences to supervision and the employer as soon as the scene is safe, and within any site or contract time limit. Escalate to site safety and the owner or GC/CM when program rules, law, or contract require. Treat hospitalization, emergency medical response, or potential recordable and fatality events with same-shift notification. Do not wait for a full write-up before starting the report chain.",
+      bullets: [],
+    },
+    {
+      title: "5.7.2 Scene protection and access control",
+      body: "Minimum Requirement: Stabilize the situation, stop additional exposure, and protect the scene. Mark or barricade the area, control access, and keep lines of fire clear for EMS. Do not move equipment or materials or alter the scene for convenience until the competent investigation lead releases the scene, except to prevent further injury, unstable loads, or life safety risk.",
+      bullets: [],
+    },
+    {
+      title: "5.7.3 Supervisor responsibilities",
+      body: "Minimum Requirement: Supervision shall confirm that reporting is in progress, that affected workers get medical or first aid as needed, and that witnesses and involved crew are identified. Supervision shall assign an investigator, preserve evidence, and keep restart or demobilization under their approval until the initial facts are recorded.",
+      bullets: [],
+    },
+    {
+      title: "5.7.4 Investigation and documentation",
+      body: "Minimum Requirement: Perform a fact-based review: who, what, when, where, training and permits, equipment, and environmental factors. Use interviews, photos or sketches, and JHA, permit, and equipment records as needed. File the investigation record per employer and site rules, including regulatory and owner notifications when required. Focus on system causes, not blame alone.",
+      bullets: [],
+    },
+    {
+      title: "5.7.5 Corrective actions and follow-up",
+      body: "Minimum Requirement: Document corrective and preventive actions with owners and dates. Close items only after the fix is in place and verified. Re-brief the crew and update the JHA, tools, or training if the event shows a weak control. Track repeat events for trend review.",
+      bullets: [],
+    },
+    {
+      title: "5.7.6 Near-miss reporting",
+      body: "Minimum Requirement: Report near misses that could have caused serious injury, especially unplanned release of energy, line-of-fire events, and fall or dropped-load scenarios. Use the same reporting path as for injuries when the site requires; record near misses for lessons learned and trend review whether or not someone was hurt.",
+      bullets: [],
+    },
+  ];
 }
 
 function buildStandaloneSubsectionContent(params: {
@@ -2479,6 +2671,149 @@ function overlapCoordinationNarrative(
   return "Review overlapping work areas, access routes, permit ownership, and stop-work handoffs before affected crews begin work.";
 }
 
+type TradeAccessProfile = {
+  label: string;
+  intro: string;
+  rows: string[][];
+};
+
+function tradeAccessHaystack(
+  generationContext: SafetyPlanGenerationContext,
+  operations: GeneratedSafetyPlanDraft["operations"]
+) {
+  return [
+    ...generationContext.scope.trades,
+    ...generationContext.scope.subTrades,
+    ...generationContext.scope.tasks,
+    ...operations.map((operation) => operation.tradeLabel ?? operation.tradeCode ?? null),
+    ...operations.map((operation) => operation.subTradeLabel ?? operation.subTradeCode ?? null),
+    ...operations.map((operation) => operation.taskTitle),
+  ]
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .map((value) => value.toLowerCase())
+    .join(" | ");
+}
+
+function buildTradeAccessProfiles(
+  generationContext: SafetyPlanGenerationContext,
+  operations: GeneratedSafetyPlanDraft["operations"]
+): TradeAccessProfile[] {
+  const haystack = tradeAccessHaystack(generationContext, operations);
+  const profiles: TradeAccessProfile[] = [];
+
+  if (/\b(steel|structural steel|ironwork|ironworker|metal deck|decking|connector|rigging|erection)\b/.test(haystack)) {
+    profiles.push({
+      label: "Steel Erection Access Control",
+      intro:
+        "For steel erection and decking, use a Controlled Access Zone (CAZ) when the work needs a clear boundary for leading-edge, decking, connecting, or overhead activity, or to control who is below exposed work. Only authorized ironworkers and direct support enter; supervision or the competent person establishes, marks, and maintains the CAZ (barricades, lines, signage) and re-briefs the crew when picks, swing, or the boundary change. No employee shall work, stand, or travel under a suspended load. Keep lift path, drop zone, and CAZ lines coordinated; release criteria for new steel, decks, and laydowns are in the subsections below.",
+      rows: [
+        [
+          "Controlled Access Zone (CAZ)",
+          "Use a CAZ for steel erection and decking when the work requires a defined boundary for leading-edge, decking, connecting, or overhead steel activity, or to restrict access under exposed work. Only workers involved in the operation may enter. Supervision or the competent person identifies and maintains the CAZ before and during the shift, aligned with site barricades, warning line, or signage, and with stop-work if unauthorized workers breach the line or the control boundary is not intact.",
+          "Competent Person / Foreman",
+        ],
+        ["Controlled access below erection", "No unauthorized access below active steel erection, bolting, welding, or decking work. Barricade or hard-line the area below and post warning signage before work begins.", "Superintendent / Competent Person"],
+        [
+          "Suspended load, CAZ, and drop zone",
+          "Do not rely on drop zone wording alone: where the work creates a controlled access boundary, the CAZ is established, communicated, and kept clear of unauthorized personnel, together with barricades, signage, and exclusion limits. No employee shall work, stand, or travel beneath a suspended load. Remain clear of the load path, swing radius, and fall or drop area for every pick; do not enter until the load is landed, unrigged, and released by the signal person. Use spotters and stop-work as needed if anyone enters the CAZ, swing path, or uncontrolled area below active steel.",
+          "Signal Person / Crane Lead",
+        ],
+        ["Connector and decking access limit", "Only authorized connectors and decking crew enter leading-edge or newly placed decking until fall protection is complete and the controlled decking zone is released.", "Foreman / Competent Person"],
+        ["Leading-edge boundary", "Leading-edge work zones are marked with warning line, control line, or physical barrier; only crew directly performing leading-edge work may cross the boundary.", "Competent Person"],
+        ["Controlled decking zone (where used)", "Controlled decking zones (CDZs) are clearly marked, limited to trained deckers, and do not exceed allowable dimensions; general access is prohibited until the CDZ is released.", "Competent Person / Foreman"],
+        ["Hoisting path and crane landing zone", "The hoisting path and landing area shall be kept clear before and during every lift. Hoist paths, landing zones, and pick-pad areas are barricaded for the duration of the pick, and only the signal person, riggers, and the receiving crew directly involved in the lift may enter.", "Signal Person / Crane Lead"],
+        ["Crane swing radius", "The crane swing radius and counterweight path are barricaded; no worker enters the swing zone while the machine is energized.", "Crane Lead / Foreman"],
+        ["Laydown, shakeout, and unloading", "Access to laydown, shakeout, and unloading zones is restricted to riggers, receiving crew, and the spotter; stored steel and decking bundles are staged so they cannot shift into work or travel paths.", "Receiving Lead / Foreman"],
+        ["Newly erected / partial steel release", "Do not enter newly erected or partially completed steel until bolting, welding, bracing, and fall protection have been verified and the area is released by supervision.", "Superintendent / Competent Person"],
+        ["Temporary perimeter and opening protection", "Perimeter cables, stair rails, floor-opening covers, and leading-edge protection are installed and inspected before general access is allowed onto newly placed deck or floor.", "Competent Person"],
+        ["Controlling-contractor coordination", "Coordinate with the controlling contractor and affected trades before any shared-area access is released; document the release, time, and conditions in the daily sign-in / JHA.", "Superintendent"],
+      ],
+    });
+  }
+
+  if (/\b(concrete|rebar|reinforcing|formwork|shoring|pour|placement|slab|column pour|foundation|caisson|post.tension)\b/.test(haystack)) {
+    profiles.push({
+      label: "Concrete Placement Access Control",
+      intro:
+        "Access to active concrete placement, formwork, rebar, and post-tensioning areas shall be limited to authorized crew directly involved in the pour, form setting, rebar placement, finishing, or inspection. All other personnel stay clear of forms, pump lines, embed zones, and tensioning end-zones until the area is released.",
+      rows: [
+        ["Active pour zone exclusion", "Only the placement crew, pump operator, finishers, and inspectors access the active pour area during the pour; all non-essential personnel stay back of the placement line.", "Superintendent / Foreman"],
+        ["Pump line and boom pressure zone", "Pump lines, boom swing path, and end-hose whip zone are barricaded or flagged; workers never straddle or stand in line with a pressurized hose.", "Pump Operator / Foreman"],
+        ["Formwork and shoring access", "Access onto formwork decks, shoring towers, and re-shore levels is limited to the form crew and inspectors until tie-off, guardrail, and load verification are complete.", "Competent Person"],
+        ["Embed, dowel, and rebar cap zones", "Rebar caps, dowels, and embed plates are installed and maintained; impalement and trip-hazard zones are restricted until controls are verified.", "Foreman"],
+        ["Post-tensioning end-zone exclusion", "Stressing ends, strand tails, and jack paths are barricaded during tensioning and de-tensioning; only the qualified PT crew may enter until the strand is trimmed and grouted.", "PT Foreman / Competent Person"],
+        ["Vertical placement drop zone", "During column or wall pours, the drop zone below the placement and any suspended-bucket path is restricted to authorized crew with overhead protection.", "Superintendent / Foreman"],
+        ["Release before re-entry", "Do not enter the placement area for follow-on trades until finishing, curing protection, and embed verification are complete and the area is released by supervision.", "Superintendent"],
+      ],
+    });
+  }
+
+  if (/\b(masonry|mason|cmu|brick|block|mortar|grout pour|scaffold masonry)\b/.test(haystack)) {
+    profiles.push({
+      label: "Masonry Access Control",
+      intro:
+        "Access to active masonry walls, scaffold platforms, mortar delivery zones, and saw-cut areas shall be limited to the masonry crew, tenders, and inspectors. All other personnel stay outside the wall-height fall zone and below-scaffold exclusion area until the wall is braced and released.",
+      rows: [
+        ["Wall-height fall zone (limited access)", "Establish a limited-access zone equal to the wall height plus four feet on the unscaffolded side of any masonry wall being constructed; only the masonry crew enters.", "Competent Person"],
+        ["Below-scaffold exclusion", "Barricade the area directly below masonry scaffold loading and hoisting paths; general trades stay clear during material hoisting, stocking, and cleanup.", "Foreman"],
+        ["Mortar, grout, and silo zone", "Mortar mixing stations, grout pumps, and silo discharge areas are restricted to the tender crew; pedestrians use posted alternate routes.", "Foreman / Tender Lead"],
+        ["Wet-saw and cutting exclusion", "Masonry saw and chop-station cutting zones are flagged for dust, noise, and silica exposure; only authorized operators and helpers enter the active cutting radius.", "Competent Person"],
+        ["Unbraced wall exclusion", "Newly constructed walls that are not yet braced remain barricaded with posted height, wind limit, and release criteria; general access is prohibited until bracing is verified.", "Superintendent / Competent Person"],
+        ["Hoist and forklift path", "Masonry hoist, fork, and pallet staging paths are controlled; pedestrians and other trades stay clear during material movement and stocking.", "Foreman"],
+      ],
+    });
+  }
+
+  if (/\b(mechanical|hvac|ductwork|duct|piping|pipefitting|pipe fitter|plumbing|process pipe|refrigerant|boiler|steam|pressurized)\b/.test(haystack)) {
+    profiles.push({
+      label: "Mechanical Installation Access Control",
+      intro:
+        "Access to active mechanical installation zones \u2014 overhead piping, ductwork, equipment setting, and pressurized-system work \u2014 shall be limited to the mechanical crew, riggers, and inspectors. All other personnel stay out of lift zones, overhead work exclusion areas, and energized / pressurized system boundaries until the area is released.",
+      rows: [
+        ["Overhead work exclusion", "When ductwork, piping, or equipment is being installed overhead, the floor area directly below is barricaded; general trades stay out until the installation is secured and released.", "Competent Person / Foreman"],
+        ["Equipment setting / rigging zone", "Rooftop and mechanical-room equipment setting operations have a defined rigging and landing zone; only riggers, signal persons, and the receiving crew enter during the lift.", "Rigger / Signal Person"],
+        ["Pressure-test exclusion", "Pressure-test areas (hydrostatic or pneumatic) are barricaded with posted test pressure and restricted to the test crew until the test is complete and the system is bled down.", "Foreman / Qualified Person"],
+        ["Energized-system LOTO zone", "Any work on energized mechanical, steam, refrigerant, or hydraulic systems follows LOTO; the isolated equipment zone is restricted to authorized LOTO employees.", "Qualified Person / Foreman"],
+        ["Hot-work and cutting exclusion", "Hot-work areas for welding, brazing, and cutting are flagged with fire watch, spark-containment, and pedestrian exclusion boundaries.", "Fire Watch / Foreman"],
+        ["Pipe stand and trapeze staging", "Pipe stands, trapeze assemblies, and staged spools are stored so they cannot shift into travel paths; access is limited to the install crew.", "Foreman"],
+        ["Release before adjacent trades", "Do not release overhead mechanical areas to ceiling, drywall, or finish trades until supports, seismic restraints, and leak / pressure verification are complete.", "Superintendent"],
+      ],
+    });
+  }
+
+  return profiles;
+}
+
+/**
+ * When structural steel / steel erection is in scope, require site-typical crane and lift
+ * documentation by name: **Crane Permit**, **Pick Plan**, and **Lift Plan** (or the owner/GC’s
+ * equivalent titles—see the steel note on the Additional Permits block). Do not rely on a
+ * generic “lift plan” line item alone when picks and crane authorization are tracked separately.
+ */
+export function augmentPermitsForSteelErection(
+  permits: string[],
+  generationContext: SafetyPlanGenerationContext,
+  operations: GeneratedSafetyPlanDraft["operations"]
+) {
+  const base = normalizePermitList(permits);
+  if (!hasSteelErectionScope(generationContext, operations)) {
+    return base;
+  }
+  return normalizePermitList([...base, "Crane Permit", "Pick Plan", "Lift Plan"]);
+}
+
+function permitsForTradePackageRow(
+  pkg: GroupedTradePackage,
+  generationContext: SafetyPlanGenerationContext,
+  operations: GeneratedSafetyPlanDraft["operations"]
+) {
+  const base = normalizePermitList(pkg.permitTriggers);
+  if (!isSteelErectionPackage(pkg)) {
+    return base;
+  }
+  return augmentPermitsForSteelErection(base, generationContext, operations);
+}
+
 export function buildFallbackNarratives(params: DraftParams) {
   const trades = dedupe(
     params.generationContext.operations.map(
@@ -2492,9 +2827,16 @@ export function buildFallbackNarratives(params: DraftParams) {
   const siteRestrictions = dedupe(
     params.reviewContext.rulesEvaluations.flatMap((row) => row.siteRestrictions)
   );
+  const steelErectionForNarrative = hasSteelErectionScope(
+    params.generationContext,
+    params.generationContext.operations as unknown as GeneratedSafetyPlanDraft["operations"]
+  );
+  const tradeSummarySteelNote = steelErectionForNarrative
+    ? " Fall from height is a primary, ongoing risk for ironworkers and steel erection; the plan’s fall protection, access controls, and incident reporting and investigation sections address this as a major active hazard for the current scope."
+    : "";
 
   return {
-    tradeBreakdownSummary: `Active work covers ${trades.join(", ")} with controls aligned to the current scope, equipment, and site conditions.`,
+    tradeBreakdownSummary: `Active work covers ${trades.join(", ")} with controls aligned to the current scope, equipment, and site conditions.${tradeSummarySteelNote}`,
     riskPrioritySummary: `The highest priorities are enforcing ${sentenceList(
       controls.slice(0, 5),
       "required controls"
@@ -2528,6 +2870,24 @@ function buildCsepSelectedSections(params: {
   const instructions = getCsepBuilderInstructions(params.generationContext);
   const selectedSectionOrder = instructions?.selectedBlockKeys ?? [];
   const groupedTradePackages = groupOperationsByTradePackage(params.operations);
+  const permitListFromRules = normalizePermitList([
+    ...params.ruleSummary.permitTriggers,
+    ...groupedTradePackages.flatMap((pkg) => pkg.permitTriggers),
+  ]);
+  const permitInput = normalizePermitList(
+    asTextList(getCsepBlockInput(instructions, "additional_permits"))
+  );
+  const resolvedPermitBullets = augmentPermitsForSteelErection(
+    permitInput.length > 0 ? permitInput : permitListFromRules,
+    params.generationContext,
+    params.operations
+  );
+  const steelPermitScopeNote = hasSteelErectionScope(
+    params.generationContext,
+    params.operations
+  )
+    ? "Steel erection / structural steel is in the current scope. Match submittals and field paperwork to the owner or GC permit register. This plan lists Crane Permit, Pick Plan (per planned pick), and Lift Plan or site-equivalent critical-lift documentation; substitute the project’s exact titles where they differ, and confirm requirements before crane mobilization."
+    : null;
   const project = params.generationContext.project;
   const scope = params.generationContext.scope;
   const splitScope = splitScopeTasksAndInterfaces([
@@ -2549,9 +2909,6 @@ function buildCsepSelectedSections(params: {
     getCsepBlockInput(instructions, "weather_requirements_and_severe_weather_response")
   );
   const ppeInput = normalizePpeList(asTextList(getCsepBlockInput(instructions, "required_ppe")));
-  const permitInput = normalizePermitList(
-    asTextList(getCsepBlockInput(instructions, "additional_permits"))
-  );
   const overlapInput = normalizeTaskList(
     asTextList(getCsepBlockInput(instructions, "common_overlapping_trades"))
   );
@@ -2604,7 +2961,8 @@ function buildCsepSelectedSections(params: {
   const hasPermitSectionContent =
     permitInput.length > 0 ||
     params.ruleSummary.permitTriggers.length > 0 ||
-    groupedTradePackages.some((pkg) => pkg.permitTriggers.length > 0);
+    groupedTradePackages.some((pkg) => pkg.permitTriggers.length > 0) ||
+    hasSteelErectionScope(params.generationContext, params.operations);
   const hasOverlapSectionContent =
     overlapInput.length > 0 ||
     interfaceTrades.length > 0 ||
@@ -2621,18 +2979,6 @@ function buildCsepSelectedSections(params: {
     project_information: {
       key: "project_information",
       title: CSEP_BUILDER_BLOCK_TITLES.project_information,
-      body: appendInlineOsha(
-        combineParagraphs(
-          [
-            project.projectName || project.projectAddress
-              ? `${project.projectName || "This project"}${project.projectAddress ? ` at ${project.projectAddress}` : ""} is the work site covered by this CSEP.`
-              : null,
-            "This section identifies the project, location, and governing-site information used for field coordination.",
-          ],
-          "Project identification details were not fully provided in the current builder payload."
-        ),
-        params.inlineOshaRefs
-      ),
       table: {
         columns: ["Field", "Value"],
         rows: [
@@ -2648,17 +2994,6 @@ function buildCsepSelectedSections(params: {
     contractor_information: {
       key: "contractor_information",
       title: CSEP_BUILDER_BLOCK_TITLES.contractor_information,
-      body: combineParagraphs(
-        [
-          project.contractorCompany
-            ? `${project.contractorCompany} is responsible for performing the work covered by this CSEP in accordance with project requirements.`
-            : null,
-          project.contractorContact
-            ? `Primary coordination contact: ${project.contractorContact}${project.contractorPhone ? `, ${project.contractorPhone}` : ""}${project.contractorEmail ? `, ${project.contractorEmail}` : ""}.`
-            : null,
-        ],
-        "Contractor contact details were not fully provided in the current builder payload."
-      ),
       table: {
         columns: ["Field", "Value"],
         rows: [
@@ -2685,30 +3020,40 @@ function buildCsepSelectedSections(params: {
       ),
       table: null,
     },
-    scope_of_work: {
-      key: "scope_of_work",
-      title: CSEP_BUILDER_BLOCK_TITLES.scope_of_work,
-      body: appendInlineOsha(
-        combineParagraphs(
-          [
-            scopeOfWorkInput,
-            !scopeOfWorkInput && activeScopeTasks.length
-              ? `Planned work includes ${activeScopeTasks.join(", ")}.`
-              : null,
-          ],
-          "Scope of work details were not entered in the current builder payload."
+    scope_of_work: (() => {
+      // Keep the displayed task list consistent with the trade-summary sentence
+      // (which combines grouped trade-package task titles with activeScopeTasks),
+      // so items like "Touch-up painting" that come from the trade package
+      // appear in both the summary sentence and the numbered list below.
+      const displayTaskList = dedupe([
+        ...groupedTradePackages.flatMap((pkg) => pkg.taskTitles),
+        ...activeScopeTasks,
+      ]);
+      return {
+        key: "scope_of_work",
+        title: CSEP_BUILDER_BLOCK_TITLES.scope_of_work,
+        body: appendInlineOsha(
+          combineParagraphs(
+            [
+              scopeOfWorkInput,
+              !scopeOfWorkInput && displayTaskList.length
+                ? `Planned work includes ${displayTaskList.join(", ")}.`
+                : null,
+            ],
+            "Scope of work details were not entered in the current builder payload."
+          ),
+          params.inlineOshaRefs
         ),
-        params.inlineOshaRefs
-      ),
-      bullets: activeScopeTasks.length ? activeScopeTasks : undefined,
-    },
+        bullets: displayTaskList.length ? displayTaskList : undefined,
+      };
+    })(),
     site_specific_notes: {
       key: "site_specific_notes",
       title: CSEP_BUILDER_BLOCK_TITLES.site_specific_notes,
       body: appendInlineOsha(
         combineParagraphs(
           [siteNotesInput],
-          "No additional site-specific notes were supplied."
+          "Use this section only for site-specific conditions, not the task list in Scope of Work. Typical entries: access or gate rules, parking and haul routes, laydown and storage limits, occupied-building interfaces, after-hours or weekend work rules, special weather or wind limits, emergency ingress/egress, and owner or GC special controls. If none apply, omit this block in the final issued CSEP."
         ),
         params.inlineOshaRefs
       ),
@@ -2748,11 +3093,10 @@ function buildCsepSelectedSections(params: {
       ? {
           key: "additional_permits",
           title: CSEP_BUILDER_BLOCK_TITLES.additional_permits,
-          body: appendInlineOsha(
-            "The following permit requirements were selected or derived for this CSEP scope and must stay aligned across the plan, checklists, and field forms.",
-            params.inlineOshaRefs
-          ),
-          bullets: permitInput.length ? permitInput : undefined,
+          body: steelPermitScopeNote
+            ? appendInlineOsha(steelPermitScopeNote, params.inlineOshaRefs)
+            : undefined,
+          bullets: resolvedPermitBullets.length ? resolvedPermitBullets : undefined,
           table: {
             columns: ["Trade / Subtrade", "Areas", "Tasks", "Permits", "Site Restrictions"],
             rows: groupedTradePackages.length
@@ -2760,7 +3104,14 @@ function buildCsepSelectedSections(params: {
                   pkg.label,
                   sentenceList(pkg.locationLabels, "N/A"),
                   sentenceList(pkg.taskTitles, "N/A"),
-                  sentenceList(normalizePermitList(pkg.permitTriggers), "None"),
+                  sentenceList(
+                    permitsForTradePackageRow(
+                      pkg,
+                      params.generationContext,
+                      params.operations
+                    ),
+                    "None"
+                  ),
                   sentenceList(pkg.siteRestrictions, "None"),
                 ])
               : [[
@@ -2770,7 +3121,7 @@ function buildCsepSelectedSections(params: {
                     "N/A"
                   ),
                   sentenceList(activeScopeTasks, "N/A"),
-                  sentenceList(normalizePermitList(params.ruleSummary.permitTriggers), "None"),
+                  sentenceList(resolvedPermitBullets, "None"),
                   sentenceList(params.ruleSummary.siteRestrictions, "None"),
                 ]],
           },
@@ -2784,11 +3135,10 @@ function buildCsepSelectedSections(params: {
             overlapCoordinationNarrative(params.conflictMatrix.items.length, interfaceTrades),
             params.inlineOshaRefs
           ),
-          bullets: overlapInput.length
-            ? overlapInput
-            : interfaceTrades.length
-              ? interfaceTrades
-              : undefined,
+          bullets: (() => {
+            const merged = dedupe([...interfaceTrades, ...overlapInput]);
+            return merged.length ? merged : undefined;
+          })(),
           table: null,
         }
       : undefined,
@@ -2796,7 +3146,6 @@ function buildCsepSelectedSections(params: {
       ? {
           key: "osha_references",
           title: CSEP_BUILDER_BLOCK_TITLES.osha_references,
-          body: "The following OSHA references were identified from the selected trade scope, builder inputs, and generated program content.",
           bullets: oshaInput.length ? oshaInput : params.oshaReferences,
         }
       : undefined,
@@ -2849,9 +3198,13 @@ function buildCsepSelectedSections(params: {
   const derivedFormatSections: GeneratedSafetyPlanSection[] = [];
 
   if (selectedFormatSections.has("roles_and_responsibilities")) {
+    const superintendentContact = cleanFinalText(project.contractorContact);
+    const superintendentRole = superintendentContact
+      ? `${superintendentContact} / Superintendent`
+      : "Superintendent";
     const rolesRows = [
       [
-        project.contractorContact ? `${project.contractorContact} / Superintendent` : "Superintendent",
+        superintendentRole,
         "Own implementation of this CSEP, staffing, sequencing, permit readiness, and coordination with the GC/CM and affected trades.",
         "Authorize work start, stop work when controls fail, and approve restart after corrective action.",
       ],
@@ -2877,6 +3230,7 @@ function buildCsepSelectedSections(params: {
       title: "Roles and Responsibilities",
       body: combineParagraphs(
         [
+          "The responsibilities below establish the minimum expectations for each role. Additional duties may apply based on scope, permits, and site conditions.",
           rolesInput,
           project.contractorCompany
             ? `${project.contractorCompany} must assign accountable supervision and a competent person for the selected work scope before work starts.`
@@ -2885,57 +3239,86 @@ function buildCsepSelectedSections(params: {
         "Accountable supervision, competent-person oversight, and worker stop-work authority apply to the active contractor scope."
       ),
       subsections: buildStructuredRowSubsections(
-        ["Role", "Minimum Responsibilities", "Authority / Hold Point"],
+        ["Role", "Core Responsibilities", "Authority / Hold Point"],
         rolesRows
       ),
     });
   }
 
   if (selectedFormatSections.has("security_and_access_control")) {
+    const tradeAccessProfiles = buildTradeAccessProfiles(
+      params.generationContext,
+      params.operations
+    );
+
+    const generalRestrictedAreaDescription = tradeAccessProfiles.length
+      ? "Restricted areas: See the trade-specific access-control subsections below for the restricted-area definitions that apply to the active scope. General site restricted areas (permits, energized equipment, fall-risk edges) remain controlled by barricades, signage, and permit ownership."
+      : "Restricted areas: Permit-required and high-hazard areas are barricaded, signed, and released only after controls are verified by the competent person responsible for that area.";
+
     const securityRows = [
       ["Worker access", "Verify orientation, badging, and daily work assignment before entry.", "Superintendent / Foreman"],
-      ["Visitors and deliveries", "Escort non-crew personnel and control delivery routes, staging, and unloading areas.", "Foreman / Receiving Lead"],
-      ["Restricted areas", "Barricade, sign, and control permit-required or high-hazard areas.", "Competent Person"],
+      ["Visitor escort", "Escort non-crew personnel and confirm site-specific orientation before entry into active work areas.", "Foreman / Receiving Lead"],
+      ["Restricted areas", generalRestrictedAreaDescription, "Competent Person"],
       ["End-of-shift security", "Secure tools, materials, permits, and access points before turnover.", "Crew Lead"],
     ] satisfies string[][];
+
+    const deliveryRows = [
+      ["Check-in and staging", "All delivery vehicles check in at the designated gate or staging area before entering the site and wait for dispatch to the assigned unloading zone.", "Receiving Lead / Foreman"],
+      ["Approved truck route", "Drivers follow the project-approved truck route only \u2014 no shortcuts through active work fronts, pedestrian paths, or unapproved surfaces.", "Superintendent / Foreman"],
+      ["Protected unloading area", "Unloading occurs in a designated, barricaded area clear of overhead work, suspended loads, and adjacent crews.", "Competent Person / Receiving Lead"],
+      ["Spotter use", "A dedicated spotter directs backing, positioning, and unloading whenever vision is restricted, pedestrians are nearby, or the driver cannot see the full path of travel.", "Foreman / Spotter"],
+      ["Pedestrian exclusion", "Pedestrian access through the unloading area is restricted while the truck is maneuvering, being loaded, or being unloaded; rigging-path and swing-zone boundaries are marked.", "Foreman / Competent Person"],
+      ["Driver remain-in-vehicle rule", "Drivers stay in the cab during unloading unless directed otherwise by the Receiving Lead or Foreman; cab windows remain closed where debris, dust, or overhead work is present.", "Receiving Lead / Foreman"],
+      ["Driver PPE if exiting vehicle", "If the driver must exit the cab, they wear hard hat, safety glasses, high-visibility vest, and task-appropriate footwear, and they stay within the designated walk path.", "Receiving Lead / Foreman"],
+      ["Laydown and crane coordination", "Unloading is sequenced with the laydown plan and any active crane, hoist, or rigging operations; loads are not released until the landing area is controlled and signal communication is confirmed.", "Superintendent / Crane Lead"],
+    ] satisfies string[][];
+
+    const tradeAccessSubsections: GeneratedSafetyPlanSubsection[] = tradeAccessProfiles.flatMap(
+      (profile) => [
+        {
+          title: profile.label,
+          body: profile.intro,
+          bullets: [],
+        },
+        ...buildStructuredRowSubsections(
+          ["Restricted Zone", "Minimum Requirement", "Responsible Party"],
+          profile.rows
+        ),
+      ]
+    );
+
+    const generalBody = tradeAccessProfiles.length
+      ? "Access to active work areas is restricted to authorized personnel who have completed required orientation, badging, and task-specific review. The general controls below apply to all trades. Trade-specific restricted-area controls for the active scope follow."
+      : "Access to active work areas is restricted to authorized personnel who have completed required orientation, badging, and task-specific review. The controls below apply to both site access and delivery vehicle and driver management.";
 
     derivedFormatSections.push({
       key: "security_and_access_control",
       title: "Security and Access Control",
-      body: combineParagraphs(
-        [securityInput],
-        "Access to active work areas is restricted to authorized personnel who have completed required orientation, badging, and task-specific review."
-      ),
-      subsections: buildStructuredRowSubsections(
-        ["Access Topic", "Minimum Requirement", "Responsible Party"],
-        securityRows
-      ),
+      body: combineParagraphs([securityInput], generalBody),
+      subsections: [
+        ...buildStructuredRowSubsections(
+          ["Access Topic", "Minimum Requirement", "Responsible Party"],
+          securityRows
+        ),
+        ...buildStructuredRowSubsections(
+          ["Delivery Vehicle and Driver Control", "Minimum Requirement", "Responsible Party"],
+          deliveryRows
+        ),
+        ...tradeAccessSubsections,
+      ],
     });
   }
 
   if (selectedFormatSections.has("contractor_iipp")) {
-    const healthWellness = buildStandaloneSubsectionContent({
-      title: "Health and Wellness Expectations",
-      value: healthInput,
-      fallbackBody:
-        "Maintain fit-for-duty expectations, sanitation, hydration, first-aid access, and prompt reporting of symptoms, exposures, and restricted-work concerns.",
-      fallbackBullets: [
-        "Confirm workers are fit for duty before starting work.",
-        "Provide access to water, sanitation, and recovery measures appropriate to conditions.",
-        "Report symptoms, exposures, and medical restrictions immediately.",
-      ],
-    });
-    const incidentReporting = buildStandaloneSubsectionContent({
-      title: "Incident Reporting and Investigation",
-      value: incidentInput,
-      fallbackBody:
-        "All incidents, near misses, injuries, property damage, environmental releases, and permit breaches must be reported immediately and investigated to closure.",
-      fallbackBullets: [
-        "Stop work, stabilize the scene, and notify supervision immediately.",
-        "Preserve evidence, collect statements, and document contributing factors.",
-        "Track corrective actions to completion before restart where required.",
-      ],
-    });
+    const steelErectionInScope = hasSteelErectionScope(
+      params.generationContext,
+      params.operations
+    );
+    const iippBodyLead =
+      "The contractor shall maintain an active injury and illness prevention workflow covering fit-for-duty expectations, incident response, testing where required, corrective action, and worker accountability.";
+    const iippSteelRisk = steelErectionInScope
+      ? " For the active structural steel or steel erection trade scope, fall from height is a major ongoing project risk. Incident and investigation requirements in subsections 5.7.1 through 5.7.6 apply in full, with fall-related and fall-arrest events treated as primary report and review triggers when they occur on site."
+      : "";
     const drugAlcohol = buildStandaloneSubsectionContent({
       title: "Drug, Alcohol, and Fit-for-Duty Controls",
       value: drugAlcoholInput,
@@ -2962,19 +3345,10 @@ function buildCsepSelectedSections(params: {
     derivedFormatSections.push({
       key: "contractor_iipp",
       title: "Contractor Injury & Illness Prevention Program",
-      body:
-        "The contractor shall maintain an active injury and illness prevention workflow covering fit-for-duty expectations, incident response, testing where required, corrective action, and worker accountability.",
+      body: `${iippBodyLead.trim()}${iippSteelRisk}`,
       subsections: [
-        {
-          title: "Health and Wellness Expectations",
-          body: healthWellness.body,
-          bullets: healthWellness.bullets,
-        },
-        {
-          title: "Incident Reporting and Investigation",
-          body: incidentReporting.body,
-          bullets: incidentReporting.bullets,
-        },
+        ...buildHealthAndWellnessExpectationsSubsections(healthInput),
+        ...buildIncidentReportingInvestigationSubsections(incidentInput, steelErectionInScope),
         {
           title: "Drug, Alcohol, and Fit-for-Duty Controls",
           body: drugAlcohol.body,
@@ -3047,15 +3421,14 @@ function buildCsepSelectedSections(params: {
       title: "Environmental Execution Requirements",
       body: combineParagraphs(
         [
-          siteNotesInput,
           prefixedInstructionBullets(weatherInput, "Environmental control:").length
-            ? `Environmental controls include ${prefixedInstructionBullets(
+            ? `Environmental controls for this project include ${prefixedInstructionBullets(
                 weatherInput,
                 "Environmental control:"
               ).join(", ")}.`
             : null,
         ],
-        "Maintain housekeeping, protect drains and adjacent property, and control waste, spills, dust, and other environmental impacts during execution."
+        "Control dust, noise, and debris; protect storm drains and soil; store and handle fuels and chemicals to prevent releases; and dispose of waste through approved means. Spills are reported and cleaned per site and regulatory requirements."
       ),
       table: {
         columns: ["Environmental Topic", "Minimum Control", "Responsible Party"],
@@ -3380,7 +3753,8 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
 
   const definitionsSection = buildDefinitionsSection(
     params.generationContext,
-    inlineOshaRefs
+    inlineOshaRefs,
+    operations
   );
   const referencesSection = buildReferencesSection(oshaReferences);
   const tradeConflictCoordinationSection = buildTradeConflictCoordinationSection(

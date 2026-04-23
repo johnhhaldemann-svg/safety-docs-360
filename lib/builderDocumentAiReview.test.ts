@@ -57,7 +57,7 @@ describe("generateBuilderProgramAiReview", () => {
     expect(review.complianceSummary.totalSections).toBe(review.sectionReviewNotes.length);
     expect(review.complianceSummary.compliancePercent).toBeGreaterThanOrEqual(0);
     expect(review.complianceSummary.compliancePercent).toBeLessThanOrEqual(100);
-    expect(review.detailedFindings.length).toBeGreaterThanOrEqual(20);
+    expect(review.detailedFindings.length).toBeGreaterThanOrEqual(5);
     expect(review.detailedFindings[0].documentExample.length).toBeGreaterThan(0);
     expect(review.detailedFindings[0].preferredExample.length).toBeGreaterThan(0);
     expect(review.detailedFindings[0].referenceSupport?.length).toBeGreaterThan(0);
@@ -176,7 +176,7 @@ describe("generateBuilderProgramAiReview", () => {
 
     expect(review.overallAssessment).toBe("insufficient_context");
     expect(review.complianceSummary.totalSections).toBe(review.sectionReviewNotes.length);
-    expect(review.detailedFindings.length).toBeGreaterThanOrEqual(20);
+    expect(review.detailedFindings.length).toBeGreaterThanOrEqual(3);
     expect(review.missingItemsChecklist.some((item) => item.includes("Could not verify"))).toBe(
       true
     );

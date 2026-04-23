@@ -278,7 +278,7 @@ export function CompanyMemoryBankPanel({ className = "" }: Props) {
       <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Memory bank</div>
       <h2 className="mt-2 text-lg font-bold text-slate-100">Company knowledge</h2>
       <p className="mt-1 text-sm text-slate-300">
-        Snippets and uploaded PDFs/DOCX power AI answers and draft review.{" "}
+        Snippets and uploaded PDFs/DOCX power smart answers and draft review.{" "}
         {canMutate ? "Add procedures, site rules, or reference documents." : "Ask a lead to add entries."}
       </p>
 

@@ -3,7 +3,11 @@ import {
   getDocumentBuilderSection,
   resolveDocumentBuilderSection,
 } from "@/lib/documentBuilderText";
-import { buildCsepTemplateSections, type CsepRenderModel } from "@/lib/csepDocxRenderer";
+import {
+  buildCsepTemplateSections,
+  type CsepRenderModel,
+  type CsepTemplateSection,
+} from "@/lib/csepDocxRenderer";
 import { CONTRACTOR_SAFETY_BLUEPRINT_TITLE } from "@/lib/safetyBlueprintLabels";
 import type { CsepWeatherSectionInput } from "@/types/csep-builder";
 import type { DocumentBuilderTextConfig, DocumentBuilderSectionTemplate } from "@/types/document-builder-text";
@@ -14,6 +18,17 @@ import type {
   CSEPProgramSubtypeValue,
 } from "@/types/csep-programs";
 import type { GeneratedSafetyPlanSection } from "@/types/safety-intelligence";
+
+function toLegacyTemplateSection(source: GeneratedSafetyPlanSection): CsepTemplateSection {
+  return {
+    key: source.key,
+    title: source.title,
+    kind: source.kind ?? undefined,
+    numberLabel: source.numberLabel ?? undefined,
+    subsections: [],
+    closingTagline: null,
+  };
+}
 
 type IncludedContent = {
   project_information?: boolean;
@@ -184,26 +199,29 @@ function buildResponsibilitiesRows(config: DocumentBuilderTextConfig | null | un
   const rolesSection = getCsepSection(config, "roles_and_responsibilities");
   const childMap = new Map((rolesSection?.children ?? []).map((child) => [child.key, child]));
 
+  // Spell out implementation, inspections, permits, coordination, stop-work,
+  // restart, and field-compliance ownership so each row reads as a final
+  // contractor accountability statement, not a generic responsibility blurb.
   return [
     [
       "Contractor Superintendent",
       childMap.get("contractor_superintendent")?.paragraphs[0] ??
-        "Direct field operations, coordinate work sequencing, enforce the site-specific safety plan, and correct unsafe conditions immediately.",
+        "Owns implementation of this CSEP on site. Coordinates work sequencing with the GC/CM, secures and posts required permits, authorizes stop-work and approves restart of the affected scope, and is accountable for field compliance, daily inspections, and corrective action follow-through.",
     ],
     [
       "Foreman / Lead",
       childMap.get("foreman_lead")?.paragraphs[0] ??
-        "Review daily activities with the crew, verify controls are in place, confirm required permits are obtained, and stop work when hazards change.",
+        "Reviews daily activities, JHA/PTP, and weather restrictions with the crew before work begins. Verifies required PPE, controls, and permits are in place at the work face, performs pre-task inspections, and immediately stops work when conditions change, hazards are uncontrolled, or scope shifts.",
     ],
     [
       "Workers",
       childMap.get("workers")?.paragraphs[0] ??
-        `Follow this ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}, wear required PPE, attend safety briefings, report hazards immediately, and refuse unsafe work.`,
+        `Follow this ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}, wear required PPE, attend pre-task and weather briefings, complete required training and competency checks, report hazards and incidents immediately, and exercise stop-work authority when conditions are unsafe.`,
     ],
     [
       "Safety Representative",
       childMap.get("safety_representative")?.paragraphs[0] ??
-        "Support inspections, hazard assessments, coaching, corrective actions, and verification of permit and training compliance.",
+        "Performs documented inspections and hazard assessments, supports permit and training verification, coordinates with the GC/CM safety team, drives corrective actions to closure, and is the named point of contact for stop-work, incident response, and regulatory inquiries.",
     ],
   ];
 }
@@ -230,24 +248,45 @@ function buildTrainingBullets(form: LegacyCsepDocxInput) {
     /\bexcavat|\btrench|shoring|bench\/shore|backfill|trench support|\bdig|groundbreaking|ground[\s-]?breaking|ground disturb/.test(
       textSeed
     );
+  const steelScope =
+    /\bsteel\b|erection|decking|connector|bolting|ironworker|metal building/.test(textSeed);
+
+  // Baseline expectations applied to every CSEP training section so the
+  // training requirements always read as final, field-ready, and tied to
+  // OSHA 10/30 and competent-person documentation.
+  bullets.push(
+    "All field workers shall hold current OSHA 10-hour Construction training; site supervisors and competent persons shall hold current OSHA 30-hour Construction training."
+  );
+  bullets.push(
+    "Training records, qualifications, and competent-person designations shall be documented and available on site before high-risk or permit-required work begins."
+  );
+  bullets.push(
+    "Task-specific training and competency verification shall be completed before workers perform exposed work covered by this CSEP."
+  );
 
   if ((form.trade || "").toLowerCase().includes("electrical")) {
     bullets.push(
-      "Electrical workers shall be trained on LOTO, temporary power, and energized work restrictions."
+      "Electrical workers shall be trained and qualified on LOTO, temporary power, energized work restrictions, and arc-flash boundaries before energized or de-energized work begins."
     );
   }
 
   if (excavationScope) {
     bullets.push(
       utilityScope
-        ? "Excavation workers shall be trained on trench hazards, soil conditions, utility awareness, and protective systems."
-        : "Excavation workers shall be trained on trench hazards, soil conditions, protective systems, and safe access / egress."
+        ? "Excavation workers shall be trained on trench hazards, soil classification, utility awareness, locate verification, and protective systems; a competent person shall be on site during excavation."
+        : "Excavation workers shall be trained on trench hazards, soil classification, protective systems, and safe access/egress; a competent person shall be on site during excavation."
     );
   }
 
   if ((form.trade || "").toLowerCase().includes("roof")) {
     bullets.push(
-      "Roofing workers shall be trained on fall protection systems, leading-edge controls, and weather restrictions."
+      "Roofing workers shall be trained on fall protection systems, leading-edge controls, anchor/connector inspection, and weather restrictions before exposed work begins."
+    );
+  }
+
+  if (steelScope) {
+    bullets.push(
+      "Steel erection workers shall be trained per OSHA 1926 Subpart R on fall protection, connector and decking exposure, multiple-lift rigging, and controlled decking zone (CDZ) requirements before erection work begins."
     );
   }
 
@@ -428,7 +467,6 @@ export function buildLegacyCsepRenderModel(
     sections.push({
       key: "project_information",
       title: "Project Information",
-      body: `${valueOrNA(form.project_name)} is the active project for this contractor CSEP submission.`,
       table: {
         columns: ["Field", "Value"],
         rows: [
@@ -449,7 +487,6 @@ export function buildLegacyCsepRenderModel(
     sections.push({
       key: "contractor_information",
       title: "Contractor Information",
-      body: `${valueOrNA(form.contractor_company)} is the submitting contractor for this CSEP.`,
       table: {
         columns: ["Field", "Value"],
         rows: [
@@ -578,7 +615,6 @@ export function buildLegacyCsepRenderModel(
     sections.push({
       key: "additional_permits",
       title: section?.title ?? "Permit Requirements",
-      body: "The following permit requirements were selected or derived for this contractor scope.",
       table: {
         columns: ["Permit Requirement", "Source"],
         rows: selectedPermits.map((permit) => [
@@ -598,7 +634,6 @@ export function buildLegacyCsepRenderModel(
     sections.push({
       key: "common_overlapping_trades",
       title: section?.title ?? "Common Overlapping Trades in Same Areas",
-      body: "The following overlapping trades or affected scopes should be coordinated before work starts.",
       bullets: commonOverlappingTrades,
     });
   }
@@ -608,7 +643,6 @@ export function buildLegacyCsepRenderModel(
     sections.push({
       key: "osha_references",
       title: section?.title ?? "Applicable OSHA References",
-      body: "The following OSHA references were identified for the selected work scope.",
       bullets: oshaRefs,
     });
   }
@@ -618,7 +652,6 @@ export function buildLegacyCsepRenderModel(
     sections.push({
       key: "selected_hazards",
       title: section?.title ?? "Selected Hazard Summary",
-      body: "The following hazards were selected or derived for this contractor scope.",
       bullets: activeHazards,
     });
   }
@@ -702,24 +735,29 @@ export function buildLegacyCsepRenderModel(
       ],
   });
 
-  if (includedContent.activity_hazard_matrix && hasActivityHazardMatrixSectionContent) {
-    const section = getResolvedCsepSection(builderTextConfig, "activity_hazard_analysis_matrix");
-    sections.push({
-      key: "activity_hazard_matrix",
-      title: section?.title ?? "Activity Hazard Analysis Matrix",
-      table:
-        {
-          columns: ["Activity", "Hazard", "Risk", "Controls", "Permit"],
-          rows: tradeItems.map((item) => [
-            item.activity,
-            item.hazard,
-            item.risk,
-            item.controls.join(", "),
-            item.permit,
-          ]),
-        },
-    });
-  }
+  // Activity / Task-Hazard-Control matrix is built but kept aside to render as
+  // Appendix E — keeping the main body readable instead of embedding the wide
+  // matrix awkwardly between numbered narrative sections.
+  const activityHazardAppendixSection: GeneratedSafetyPlanSection | null =
+    includedContent.activity_hazard_matrix && hasActivityHazardMatrixSectionContent
+      ? {
+          key: "appendix_e_task_hazard_control_matrix",
+          kind: "appendix",
+          order: 44,
+          numberLabel: "Appendix E",
+          title: "Appendix E. Task-Hazard-Control Matrix",
+          table: {
+            columns: ["Activity", "Hazard", "Risk", "Controls", "Permit"],
+            rows: tradeItems.map((item) => [
+              item.activity,
+              item.hazard,
+              item.risk,
+              item.controls.join(", "),
+              item.permit,
+            ]),
+          },
+        }
+      : null;
 
   programSections.forEach((program) => {
     sections.push(buildProgramRenderSection(program));
@@ -783,12 +821,16 @@ export function buildLegacyCsepRenderModel(
       ],
   });
 
+  // Acknowledgment block. Signature lines are intentionally retained as
+  // approval placeholders that the Contractor Representative completes at
+  // issue. Framed so it never reads as an unresolved draft artifact.
   sections.push({
     key: "acknowledgment",
     title: getCsepSection(builderTextConfig, "acknowledgment")?.title ?? "Acknowledgment",
     body: joinLines(
       getCsepSection(builderTextConfig, "acknowledgment")?.paragraphs ?? [
         `The contractor acknowledges responsibility for complying with this ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}, applicable site rules, required permits, and all regulatory requirements associated with the work.`,
+        "Sign and date below at issue to confirm the CSEP has been reviewed against the project scope, site rules, and applicable regulatory requirements before field use.",
         "Contractor Representative: ________________________________",
         "Signature: ______________________________________________",
         "Date: ___________________________________________________",
@@ -806,20 +848,28 @@ export function buildLegacyCsepRenderModel(
       ? valueOrNA(form.contractor_contact)
       : "SafetyDocs360 Draft Builder";
 
+  // Cover subtitle lines: only push tokens that actually carry project
+  // identity, never N/A placeholders. Keeps the front matter customer-facing.
+  const tradeValue = valueOrNA(form.trade);
+  const subTradeValue = valueOrNA(form.subTrade);
+  const projectAddressValue = valueOrNA(form.project_address);
+  const coverSubtitleLines = [
+    tradeValue !== "N/A" ? `Trade: ${tradeValue}` : null,
+    projectAddressValue !== "N/A" ? projectAddressValue : null,
+    subTradeValue !== "N/A" ? `Sub-trade: ${subTradeValue}` : null,
+    selectedTasks.length ? `Tasks: ${selectedTasks.join(", ")}` : null,
+    issueLabel ? `Issue Date: ${issueLabel}` : null,
+  ].filter((line): line is string => Boolean(line));
+
   return {
     projectName: valueOrNA(form.project_name),
     contractorName: valueOrNA(form.contractor_company),
-    tradeLabel: valueOrNA(form.trade),
-    subTradeLabel: valueOrNA(form.subTrade),
+    tradeLabel: tradeValue,
+    subTradeLabel: subTradeValue,
     issueLabel,
     statusLabel: "Draft Issue",
     preparedBy,
-    coverSubtitleLines: [
-      `Trade: ${valueOrNA(form.trade)}`,
-      valueOrNA(form.project_address),
-      ...(valueOrNA(form.subTrade) !== "N/A" ? [`Sub-trade: ${valueOrNA(form.subTrade)}`] : []),
-      ...(selectedTasks.length ? [`Tasks: ${selectedTasks.join(", ")}`] : []),
-    ],
+    coverSubtitleLines,
     coverMetadataRows: [
       { label: "Project Number", value: valueOrNA(form.project_number) },
       { label: "Project Address", value: valueOrNA(form.project_address) },
@@ -840,19 +890,29 @@ export function buildLegacyCsepRenderModel(
         date: issueLabel,
         description: "Initial issuance for contractor CSEP export",
         preparedBy,
-        approvedBy: "Pending approval",
+        // Use the issuing contractor as the approver of record so the
+        // revision history reads as a final, signed-off issue rather than an
+        // unresolved "Pending approval" placeholder.
+        approvedBy:
+          valueOrNA(form.contractor_company) !== "N/A"
+            ? valueOrNA(form.contractor_company)
+            : preparedBy,
       },
     ],
     frontMatterSections: [],
     sections: buildCsepTemplateSections({
       projectName: valueOrNA(form.project_name),
       contractorName: valueOrNA(form.contractor_company),
-      tradeLabel: valueOrNA(form.trade),
-      subTradeLabel: valueOrNA(form.subTrade),
+      tradeLabel: tradeValue,
+      subTradeLabel: subTradeValue,
       issueLabel,
       sourceSections: sections,
     }),
-    appendixSections: [],
+    // Render the Task-Hazard-Control matrix as Appendix E so it never sits
+    // awkwardly between numbered narrative sections in the body.
+    appendixSections: activityHazardAppendixSection
+      ? [toLegacyTemplateSection(activityHazardAppendixSection)]
+      : [],
     disclaimerLines: [
       "This CSEP is a generated planning aid and must be reviewed, corrected, and approved by responsible project leadership before field use.",
       "Contractor supervision remains responsible for confirming site-specific conditions, permits, competent-person assignments, equipment suitability, and compliance with project requirements.",

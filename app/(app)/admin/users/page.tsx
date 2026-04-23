@@ -50,6 +50,7 @@ const roleOptions = [
   "All Roles",
   "Super Admin",
   "Admin",
+  "Sales Demo",
   "Company Admin",
   "Operations Manager",
   "Company User",
@@ -63,11 +64,12 @@ const roleOptions = [
   "Viewer",
 ];
 
-const inviteRoleOptions = ["Super Admin", "Admin", "Editor", "Viewer"];
+const inviteRoleOptions = ["Super Admin", "Admin", "Sales Demo", "Editor", "Viewer"];
 
 const internalRoles = new Set([
   "Super Admin",
   "Admin",
+  "Sales Demo",
   "Editor",
   "Viewer",
 ]);
@@ -94,6 +96,7 @@ function statusClasses(status: string) {
 function roleClasses(role: string) {
   if (role === "Super Admin") return "app-badge-danger";
   if (role === "Admin") return "app-badge-info";
+  if (role === "Sales Demo") return "app-badge-accent";
   if (role === "Operations Manager") return "app-badge-accent";
   if (role === "Company Admin") return "app-badge-indigo";
   if (role === "Safety Manager") return "app-badge-success";

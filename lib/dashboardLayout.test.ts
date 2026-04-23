@@ -107,4 +107,12 @@ describe("dashboardLayout", () => {
     expect(optionIds).toContain(layout[0]);
     expect(optionIds).not.toContain(layout[1]);
   });
+
+  it("makes graph blocks available for dashboard customization", () => {
+    const availableBlockIds = getAvailableDashboardBlockIds({ role: "company_admin" });
+
+    expect(availableBlockIds).toContain("graph_hazard_trends");
+    expect(availableBlockIds).toContain("graph_jobsite_risk");
+    expect(availableBlockIds).toContain("graph_observation_mix");
+  });
 });

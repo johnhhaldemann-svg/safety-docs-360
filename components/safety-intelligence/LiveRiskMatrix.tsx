@@ -16,7 +16,7 @@ export function LiveRiskMatrix({
 }) {
   const tiles = [
     { label: "Bucket runs", value: summary?.totals.bucketRuns ?? 0 },
-    { label: "AI reviews", value: summary?.totals.aiReviews ?? 0 },
+    { label: "Intelligence reviews", value: summary?.totals.aiReviews ?? 0 },
     { label: "Open conflicts", value: summary?.totals.openConflicts ?? 0 },
     { label: "Generated docs", value: summary?.totals.generatedDocuments ?? 0 },
   ];
@@ -61,4 +61,3 @@ export function LiveRiskMatrix({
     </div>
   );
 }
-

@@ -29,7 +29,7 @@ const supabase = getSupabaseBrowserClient();
 const steps = [
   {
     title: "Upload completed CSEP",
-    detail: "Add the completed PDF or DOCX you want the AI to review for missing content.",
+    detail: "Add the completed PDF or DOCX you want the intelligence reviewer to check for missing content.",
   },
   {
     title: "Add context",
@@ -85,7 +85,7 @@ export default function SuperadminCsepCompletenessReviewPage() {
       },
       {
         label: review
-          ? "AI completeness review is ready."
+          ? "Intelligence completeness review is ready."
           : "Run the review to generate the missing-items checklist.",
         done: Boolean(review),
       },
@@ -379,7 +379,7 @@ export default function SuperadminCsepCompletenessReviewPage() {
       <PageHero
         eyebrow="Superadmin / CSEP review"
         title="Completed CSEP Missing-Items Review"
-        description="Upload a completed external CSEP, optionally attach site/GC requirements, and have AI call out what appears missing, incomplete, or unclear relative to the current CSEP process."
+        description="Upload a completed external CSEP, optionally attach site/GC requirements, and have the intelligence reviewer call out what appears missing, incomplete, or unclear relative to the current CSEP process."
         actions={
           <div className="flex flex-wrap gap-2">
             <StatusBadge
@@ -458,7 +458,7 @@ export default function SuperadminCsepCompletenessReviewPage() {
                     Site / GC reference documents
                   </label>
                   <p className="mt-1 text-xs text-[var(--app-text)]">
-                    Optional PDF or DOCX files. The AI will compare the completed CSEP against all uploaded references as well as baseline CSEP expectations.
+                    Optional PDF or DOCX files. The intelligence reviewer will compare the completed CSEP against all uploaded references as well as baseline CSEP expectations.
                   </p>
                   <input
                     type="file"
@@ -654,7 +654,7 @@ export default function SuperadminCsepCompletenessReviewPage() {
 
           <SectionCard
             title="Review focus"
-            description="What the AI prioritizes in this mode."
+            description="What the intelligence review prioritizes in this mode."
           >
             <Bucket
               title="Primary checks"

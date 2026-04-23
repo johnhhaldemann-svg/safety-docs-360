@@ -185,8 +185,7 @@ function composeCommentText(target: ReviewCommentTarget, _index: number) {
 
 function findBestParagraphIndex(
   paragraphTexts: string[],
-  target: ReviewCommentTarget,
-  usedParagraphIndexes: Set<number>
+  target: ReviewCommentTarget
 ) {
   let bestIndex = -1;
   let bestScore = 0;
@@ -324,7 +323,7 @@ export async function annotateCsepReviewDocx(params: {
   const commentPlacements: Array<{ paragraphIndex: number; target: ReviewCommentTarget }> = [];
   const usedParagraphIndexes = new Set<number>();
   for (const target of commentTargets) {
-    const bestIndex = findBestParagraphIndex(paragraphTexts, target, usedParagraphIndexes);
+    const bestIndex = findBestParagraphIndex(paragraphTexts, target);
     if (bestIndex < 0) continue;
     usedParagraphIndexes.add(bestIndex);
     commentPlacements.push({ paragraphIndex: bestIndex, target });

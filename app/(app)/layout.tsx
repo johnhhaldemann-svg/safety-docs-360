@@ -115,8 +115,16 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function isAllowedSalesDemoRoute(pathname: string) {
+  const salesDemoRoutes = ["/dashboard", "/library", "/search", "/profile"];
+  return salesDemoRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
 function formatRole(role: string) {
   const normalized = role.trim().toLowerCase().replace(/\s+/g, "_");
+  if (normalized === "sales_demo") {
+    return "Sales Demo";
+  }
   if (normalized === "manager" || normalized === "operations_manager") {
     return "Operations Manager";
   }
@@ -272,6 +280,7 @@ export default function AppLayout({
     isAdminArea || (isSuperadminRoute && userRole === "super_admin");
   const isCompanyAdminUser = userRole === "company_admin";
   const isCompanyManagerUser = userRole === "manager" || userRole === "safety_manager";
+  const isSalesDemoUser = userRole === "sales_demo";
   const isCompanyUser =
     userRole === "company_user" ||
     userRole === "project_manager" ||
@@ -282,7 +291,8 @@ export default function AppLayout({
   const isCompanyLeadershipUser = isCompanyAdminUser || isCompanyManagerUser;
   const isCompanyScopedUser = isCompanyLeadershipUser || isCompanyUser;
   const canAccessInternalAdmin = Boolean(permissionMap?.can_access_internal_admin);
-  const needsProfileSetup = !canAccessInternalAdmin && !profileComplete;
+  const needsProfileSetup =
+    !canAccessInternalAdmin && !isSalesDemoUser && !profileComplete;
   const inCompanySetupFlow =
     pathname === "/company-setup" || pathname.startsWith("/company-setup/");
   const needsCompanySetup =
@@ -342,12 +352,15 @@ export default function AppLayout({
       presentedSideSections
         .map((section) => ({
           ...section,
-          items: section.items.filter((item) =>
-            canAccessCompanyWorkspaceHref(item.href, userRole, permissionMap)
-          ),
+          items: section.items.filter((item) => {
+            if (isSalesDemoUser) {
+              return isAllowedSalesDemoRoute(item.href.split("#")[0] ?? item.href);
+            }
+            return canAccessCompanyWorkspaceHref(item.href, userRole, permissionMap);
+          }),
         }))
         .filter((section) => section.items.length > 0),
-    [permissionMap, presentedSideSections, userRole]
+    [isSalesDemoUser, permissionMap, presentedSideSections, userRole]
   );
 
   const keyedSideSections = useMemo(
@@ -597,6 +610,13 @@ export default function AppLayout({
       return;
     }
 
+    if (isSalesDemoUser) {
+      if (!isAllowedSalesDemoRoute(pathname)) {
+        router.replace("/dashboard");
+      }
+      return;
+    }
+
     if (isCompanyScopedUser) {
       if (userRole === "read_only") {
         if (workspaceProduct === "csep") {
@@ -748,6 +768,7 @@ export default function AppLayout({
     companyId,
     isAdminArea,
     isCompanyScopedUser,
+    isSalesDemoUser,
     isSuperadminRoute,
     loading,
     needsCompanySetup,
@@ -1020,11 +1041,11 @@ export default function AppLayout({
 
         <aside
           className={cx(
-            "fixed inset-y-0 left-0 z-50 w-[280px] max-w-[84vw] border-r border-[var(--app-border)] bg-[linear-gradient(180deg,_#f7fbff_0%,_#edf4ff_55%,_#e7f0fb_100%)] text-[var(--app-text-strong)] transition-transform duration-200 lg:static lg:w-[248px] lg:max-w-none lg:translate-x-0",
+            "fixed inset-y-0 left-0 z-50 h-dvh w-[280px] max-w-[84vw] border-r border-[var(--app-border)] bg-[linear-gradient(180deg,_#f7fbff_0%,_#edf4ff_55%,_#e7f0fb_100%)] text-[var(--app-text-strong)] transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:w-[248px] lg:max-w-none lg:translate-x-0",
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
-          <div className="flex h-full flex-col">
+          <div className="flex h-full min-h-0 flex-col">
             <div className="p-4 pb-1">
               <div className="relative h-[5.8rem] w-full">
                 <Image
@@ -1038,7 +1059,7 @@ export default function AppLayout({
               </div>
             </div>
 
-            <nav className="flex-1 overflow-y-auto px-3 py-3">
+            <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
               <div className="px-3 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
                 Menu
               </div>
@@ -1136,7 +1157,7 @@ export default function AppLayout({
               </div>
             </nav>
 
-            <div className="border-t border-white/10 p-3">
+            <div className="shrink-0 border-t border-white/10 bg-[rgba(237,244,255,0.92)] p-3 backdrop-blur">
               <div className="rounded-[1.6rem] border border-[var(--app-border)] bg-white/80 p-4">
                 <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
                   Signed In

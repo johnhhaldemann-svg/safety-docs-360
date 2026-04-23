@@ -16,7 +16,7 @@ type Props = {
 export function CompanyAiAssistPanel({
   surface,
   structuredContext,
-  title = "Company AI assistant",
+  title = "Company Intelligence assistant",
   className = "",
 }: Props) {
   const [message, setMessage] = useState("");
@@ -77,7 +77,7 @@ export function CompanyAiAssistPanel({
     <div
       className={`rounded-[1.4rem] border border-slate-700/80 bg-slate-950/50 p-5 shadow-sm ${className}`}
     >
-      <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">AI + memory</div>
+      <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Intelligence + memory</div>
       <h2 className="mt-2 text-lg font-bold text-slate-100">{title}</h2>
       <p className="mt-1 text-sm text-slate-300">
         Answers use your company memory bank when available. Not legal advice.

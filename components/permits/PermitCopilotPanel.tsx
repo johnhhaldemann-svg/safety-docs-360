@@ -354,7 +354,7 @@ export function PermitCopilotPanel({
             <p className="text-xs text-slate-400">Memory retrieval: {retrieval}</p>
           ) : null}
           {fallbackUsed ? (
-            <p className="text-xs text-amber-200">Using a fallback draft because the AI response needed normalization.</p>
+            <p className="text-xs text-amber-200">Using a fallback draft because the smart response needed normalization.</p>
           ) : null}
 
           {suggestion ? (
@@ -449,7 +449,7 @@ export function PermitCopilotPanel({
               </div>
             </div>
             <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 p-3 text-xs leading-5 text-sky-100">
-              The copilot stays inside the permit form so the JSA step, AI suggestions, and final permit live in one workflow.
+              The copilot stays inside the permit form so the JSA step, smart suggestions, and final permit live in one workflow.
             </div>
           </div>
           {disclaimer ? <p className="mt-3 text-xs leading-5 text-slate-400">{disclaimer}</p> : null}

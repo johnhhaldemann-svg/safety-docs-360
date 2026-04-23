@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCsepProgramSection,
+  buildCsepProgramSections,
   buildCsepProgramSelections,
   findMissingProgramSubtypeGroups,
   getDefaultProgramDefinitions,
@@ -171,6 +172,7 @@ describe("csepPrograms", () => {
     fallProtection.summary = "Custom summary for review.";
     fallProtection.preTaskProcedures = ["Custom pre-task procedure"];
     fallProtection.controls = ["Custom control 1", "Custom control 2"];
+    fallProtection.compactLayout = false;
 
     const section = buildCsepProgramSection(
       {
@@ -203,17 +205,7 @@ describe("csepPrograms", () => {
       source: "selected",
     });
 
-    expect(section.subsections.map((subsection) => subsection.title)).toEqual([
-      "When It Applies",
-      "Applicable References",
-      "Responsibilities and Training",
-      "Pre-Task Setup",
-      "Work Execution",
-      "Stop-Work / Escalation",
-      "Post-Task / Closeout",
-      "Minimum Required Controls",
-      "Related Tasks",
-    ]);
+    expect(section.subsections.map((subsection) => subsection.title)).toEqual(["Program Controls"]);
   });
 
   it("renders related tasks as one paragraph instead of bullet items", () => {
@@ -224,12 +216,9 @@ describe("csepPrograms", () => {
       source: "selected",
     });
 
-    expect(section.subsections.find((subsection) => subsection.title === "Related Tasks")).toEqual(
-      expect.objectContaining({
-        body: "These related tasks apply to this program scope: Unload steel, Sort members, Rigging.",
-        bullets: [],
-      })
-    );
+    expect(
+      section.subsections.find((subsection) => subsection.title === "Program Controls")?.body
+    ).toContain("Related tasks: Unload steel, Sort members, Rigging.");
   });
 
   it("renders program metadata subsections as paragraph bodies across the CSEP", () => {
@@ -249,31 +238,10 @@ describe("csepPrograms", () => {
     expect(hazardSection.subsections).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: "When It Applies",
-          body:
-            "Work is performed at height where fall exposure exists. Ladders, scaffolds, aerial lifts, or elevated platforms are part of the selected scope.",
-          bullets: [],
-        }),
-        expect.objectContaining({
-          title: "Applicable References",
-          body: expect.stringContaining("R1 OSHA 1926 Subpart M - Fall Protection."),
-          bullets: [],
-        }),
-        expect.objectContaining({
-          title: "Responsibilities and Training",
-          body:
-            "Supervision shall verify fall protection systems are planned, inspected, and compatible with the work area. Workers shall stop work when anchor points, access, or edge protection are not adequate for the task. Workers shall be trained on fall protection selection, inspection, use, and rescue notification procedures.",
-          bullets: [],
-        }),
-        expect.objectContaining({
-          title: "Minimum Required Controls",
-          body:
-            "Use approved fall protection systems when site rules or OSHA criteria require them. Inspect harnesses, lanyards, SRLs, anchors, and connectors before each use. Maintain guardrails, covers, warning lines, and exclusion zones where applicable. Control dropped-object exposure below elevated work with barricades and housekeeping.",
-          bullets: [],
-        }),
-        expect.objectContaining({
-          title: "Related Tasks",
-          body: "These related tasks apply to this program scope: Unload steel, Sort members, Rigging.",
+          title: "Program Controls",
+          body: expect.stringMatching(
+            /selected scope|fall protection|guardrails|Subpart M|Related tasks: Unload steel/i
+          ),
           bullets: [],
         }),
       ])
@@ -311,6 +279,39 @@ describe("csepPrograms", () => {
         }),
       ])
     );
+  });
+
+  it("omits the ladder-hazard program when a Ladder Permit program is also selected", () => {
+    const withBoth = buildCsepProgramSections([
+      {
+        category: "hazard",
+        item: "Ladder misuse",
+        relatedTasks: ["Touch-up at height"],
+        source: "selected",
+      },
+      {
+        category: "permit",
+        item: "Ladder Permit",
+        relatedTasks: ["Touch-up at height"],
+        source: "selected",
+      },
+    ]);
+    expect(withBoth).toHaveLength(1);
+    expect(withBoth[0]?.item).toBe("Ladder Permit");
+    expect(withBoth[0]?.title).toBe("Ladder Use Controls");
+  });
+
+  it("keeps a compact ladder-hazard program when no ladder permit is selected", () => {
+    const onlyHazard = buildCsepProgramSections([
+      {
+        category: "hazard",
+        item: "Ladder misuse",
+        relatedTasks: ["Short task"],
+        source: "selected",
+      },
+    ]);
+    expect(onlyHazard).toHaveLength(1);
+    expect(onlyHazard[0]?.subsections.map((s) => s.title)).toEqual(["Program Controls"]);
   });
 
   it("fills missing procedure arrays from the default catalog when normalizing older configs", () => {

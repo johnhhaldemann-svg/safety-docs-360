@@ -552,6 +552,8 @@ export type SteelErectionPlan = {
     primaryRescueMethod?: string;
     secondaryRescueMethod?: string;
     rescueEquipment?: string[];
+    /** PPE for authorized rescuers during fall rescue (separate from general task PPE). */
+    rescuePpe?: string[];
     ladderStaged?: boolean;
     targetRescueTime?: string;
     suspensionTraumaRelief?: boolean;

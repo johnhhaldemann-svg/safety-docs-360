@@ -7,7 +7,7 @@ import {
   getFieldSupervisorDashboardModel,
   getSafetyManagerDashboardModel,
 } from "@/components/dashboard/dashboard-mappers";
-import type { DashboardDataState } from "@/components/dashboard/types";
+import type { DashboardBlockId, DashboardDataState } from "@/components/dashboard/types";
 import { getAvailableDashboardBlocks, getDashboardRoleDefaultLayout } from "@/lib/dashboardLayout";
 
 vi.mock("@/components/dashboard/use-dashboard-layout", () => ({
@@ -152,16 +152,20 @@ const baseData: DashboardDataState = {
   reload: async () => {},
 };
 
-function mockLayout(role: "company_admin" | "safety_manager" | "field_supervisor" | "default") {
+function mockLayout(
+  role: "company_admin" | "safety_manager" | "field_supervisor" | "default",
+  layoutOverride?: DashboardBlockId[]
+) {
   const defaultLayout = getDashboardRoleDefaultLayout(role);
+  const effectiveLayout = layoutOverride ?? defaultLayout;
   vi.mocked(useDashboardLayout).mockReturnValue({
     loading: false,
     saving: false,
     editing: false,
     savedLayout: null,
     defaultLayout,
-    effectiveLayout: defaultLayout,
-    draftLayout: defaultLayout,
+    effectiveLayout,
+    draftLayout: effectiveLayout,
     availableBlocks: getAvailableDashboardBlocks({ role }),
     message: null,
     hasUnsavedChanges: false,
@@ -224,5 +228,42 @@ describe("DashboardView", () => {
     );
 
     expect((html.match(/data-dashboard-block=/g) ?? []).length).toBe(10);
+  });
+
+  it("renders graph blocks from customized layouts", () => {
+    mockLayout("company_admin", [
+      "metric_primary",
+      "metric_secondary",
+      "metric_tertiary",
+      "metric_quaternary",
+      "graph_hazard_trends",
+      "graph_jobsite_risk",
+      "graph_observation_mix",
+      "priority_queue",
+      "next_actions",
+      "recent_activity",
+    ]);
+    const html = renderToStaticMarkup(
+      <DashboardView
+        model={getCompanyAdminDashboardModel({
+          ...baseData,
+          analyticsSummary: {
+            ...baseData.analyticsSummary,
+            observationBreakdown: {
+              nearMiss: 2,
+              hazard: 4,
+              positive: 1,
+              other: 0,
+              inspections: 3,
+              daps: 2,
+            },
+          },
+        })}
+      />
+    );
+
+    expect(html).toContain("Hazard trend graph");
+    expect(html).toContain("Jobsite risk graph");
+    expect(html).toContain("Observation mix graph");
   });
 });

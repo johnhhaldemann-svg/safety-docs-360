@@ -179,22 +179,20 @@ describe("legacy CSEP DOCX export", () => {
     const { documentXml, stylesXml, headerXml, footerXml } = await unzipDocx(body);
 
     expect(documentXml).toContain("CONTRACTOR SAFETY &amp; ENVIRONMENTAL PLAN (CSEP)");
-    expect(documentXml).toContain(
-      "Project-specific safety, environmental, and permit requirements for field execution"
-    );
-    expect(documentXml).toContain("Revision History");
+    expect(documentXml).toContain("Project-Specific Contractor Safety &amp; Environmental Plan");
     expect(documentXml).toContain("Table of Contents");
     expect(documentXml).toContain("Kitchen Renovation");
     expect(documentXml).toContain("Trade: Millwork");
-    expect(documentXml).toContain("1. Contractor Safety Policy Statement");
-    expect(documentXml).toContain("2. Project &amp; Site Information");
+    expect(documentXml).toContain("2. Message from Owner");
+    expect(documentXml).toContain("5. Scope");
+    expect(documentXml).toContain("13. Hazards and Controls");
     expect(documentXml).toContain('w:pgMar w:top="1440" w:right="1440" w:bottom="1080" w:left="1440"');
     expect(documentXml).not.toContain("<w:tbl>");
     expect(documentXml).toContain("Project Name");
-    expect(documentXml).toContain("Contractor Company");
+    expect(documentXml).toContain("Contractor");
     expect(documentXml).toContain("Hard Hat");
     expect(documentXml).toContain("Install kitchen hood supports");
-    expect(documentXml).toContain("Activity Hazard Analysis Matrix");
+    expect(documentXml).toContain("Appendix E. Task-Hazard-Control Matrix");
     expect(documentXml).toContain("Disclaimer");
 
     expect(stylesXml).toContain('w:styleId="CsepSectionHeading"');
@@ -265,7 +263,7 @@ describe("legacy CSEP DOCX export", () => {
     expect(documentXml).toContain("Custom scope fallback from super admin.");
     expect(documentXml).toContain("Custom training requirement from super admin.");
     expect(documentXml).toContain("Table of Contents");
-    expect(documentXml).toContain("6. Site-Specific Controls &amp; Safe Work Procedures");
+    expect(documentXml).toContain("12. IIPP / Emergency Response");
   });
 
   it("renders weather content in shared baseline, project overlay, then contractor order", async () => {
@@ -388,10 +386,8 @@ describe("legacy CSEP DOCX export", () => {
     const body = new Uint8Array(await response.arrayBuffer());
     const { documentXml } = await unzipDocx(body);
 
-    expect(documentXml).toContain("8. Personal Protective Equipment (PPE) Matrix");
-    expect(documentXml).toContain("Required PPE shall be identified for each work activity");
-    expect(documentXml).toContain("15. Subcontractor Management");
-    expect(documentXml).toContain("Security and Access");
+    expect(documentXml).toContain("10. Security at Site");
+    expect(documentXml).toContain("13. Hazards and Controls");
     expect(documentXml).toContain("Contractors shall control worker access");
   });
 
@@ -423,8 +419,8 @@ describe("legacy CSEP DOCX export", () => {
     const { documentXml } = await unzipDocx(body);
 
     expect(documentXml).toContain("Legacy Build");
-    expect(documentXml).toContain("Revision History");
-    expect(documentXml).toContain("Weather Requirements and Severe Weather Response");
+    expect(documentXml).toContain("3. Table of Contents");
+    expect(documentXml).toContain("12. IIPP / Emergency Response");
   });
 
   it("renders generated draft exports through the shared CSEP renderer", async () => {
@@ -437,14 +433,112 @@ describe("legacy CSEP DOCX export", () => {
     const { documentXml, headerXml, footerXml } = await unzipDocx(body);
 
     expect(documentXml).toContain("Table of Contents");
-    expect(documentXml).toContain("0.0 Document Control");
-    expect(documentXml).toContain("How to Use This Plan");
-    expect(documentXml).toContain("2.0 Project Scope and Trade-Specific Activities");
-    expect(documentXml).toContain("6.0 Emergency Preparedness and Response");
+    expect(documentXml).toContain("2. Message from Owner");
+    expect(documentXml).toContain("5. Scope");
+    expect(documentXml).toContain("11. HazCom");
+    expect(documentXml).toContain("12. IIPP / Emergency Response");
+    expect(documentXml).toContain("13. Hazards and Controls");
     expect(documentXml).toContain("Appendix A. Forms and Permit Library");
     expect(documentXml).not.toContain("Blueprint");
     expect(documentXml).toContain("Disclaimer");
     expect(headerXml).toBe("");
     expect(footerXml).toContain("PAGE");
+  });
+});
+
+/**
+ * Fake Supabase client that returns a single stored draft row only when the
+ * caller passes the matching company id. Simulates the RLS-equivalent tenant
+ * filter enforced by `loadGeneratedDocumentDraft`.
+ */
+function createTenantScopedSupabase(
+  storedDraft: GeneratedSafetyPlanDraft,
+  storedCompanyId: string,
+  storedDocumentId: string
+) {
+  const state = { idFilter: "", companyFilter: "" };
+
+  const builder: {
+    select: (columns: string) => typeof builder;
+    eq: (column: string, value: string) => typeof builder;
+    maybeSingle: () => Promise<{ data: unknown; error: null }>;
+  } = {
+    select: () => builder,
+    eq: (column: string, value: string) => {
+      if (column === "id") state.idFilter = value;
+      if (column === "company_id") state.companyFilter = value;
+      return builder;
+    },
+    maybeSingle: async () => {
+      const matches =
+        state.idFilter === storedDocumentId &&
+        state.companyFilter === storedCompanyId;
+
+      return {
+        data: matches
+          ? {
+              id: storedDocumentId,
+              document_type: "csep",
+              title: storedDraft.title ?? null,
+              draft_json: storedDraft,
+              company_id: storedCompanyId,
+            }
+          : null,
+        error: null,
+      };
+    },
+  };
+
+  return {
+    from: () => builder,
+  } as unknown as Parameters<typeof generateCsepDocx>[1] extends undefined
+    ? never
+    : NonNullable<Parameters<typeof generateCsepDocx>[1]>["supabase"];
+}
+
+describe("CSEP export tenant scoping for stored drafts", () => {
+  beforeEach(() => {
+    vi.mocked(getDocumentBuilderTextConfig).mockResolvedValue(
+      DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG as never
+    );
+  });
+
+  it("loads a stored draft when the caller's companyId matches the row", async () => {
+    const draft = createGeneratedDraft();
+    const supabase = createTenantScopedSupabase(draft, "tenant-a", "doc-1");
+
+    const response = await generateCsepDocx(
+      { generatedDocumentId: "doc-1" },
+      { supabase: supabase as never, companyId: "tenant-a" }
+    );
+
+    expect(response.status).toBe(200);
+    const body = new Uint8Array(await response.arrayBuffer());
+    const { documentXml } = await unzipDocx(body);
+    expect(documentXml).toContain("Table of Contents");
+  });
+
+  it("throws a generic not-found error when the caller belongs to a different tenant", async () => {
+    const draft = createGeneratedDraft();
+    const supabase = createTenantScopedSupabase(draft, "tenant-a", "doc-1");
+
+    await expect(
+      generateCsepDocx(
+        { generatedDocumentId: "doc-1" },
+        { supabase: supabase as never, companyId: "tenant-b" }
+      )
+    ).rejects.toThrow("Generated document not found.");
+  });
+
+  it("refuses to load a stored draft when companyId is missing, even if supabase is provided", async () => {
+    const draft = createGeneratedDraft();
+    const supabase = createTenantScopedSupabase(draft, "tenant-a", "doc-1");
+
+    await expect(
+      generateCsepDocx(
+        { generatedDocumentId: "doc-1" },
+        { supabase: supabase as never, companyId: null }
+      )
+    ).rejects.toThrow("Generated document not found.");
   });
 });

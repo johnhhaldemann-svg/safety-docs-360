@@ -342,7 +342,7 @@ export function buildConflictMatrix(params: {
 
 export function detectConflicts(
   primary: BucketedWorkItem,
-  primaryRules: RulesEvaluation,
+  _primaryRules: RulesEvaluation,
   allBuckets: BucketedWorkItem[],
   allRules: RulesEvaluation[]
 ): ConflictEvaluation {

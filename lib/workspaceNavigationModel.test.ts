@@ -69,8 +69,8 @@ describe("workspaceNavigationModel", () => {
     expect(grouped.map((section) => `${section.title}:${section.description}`)).toEqual([
       "Operations:Run daily safety work, triage risk, and keep approvals moving.",
       "Documents:Open records, search the library, and move submissions forward.",
-      "Jobsites:Open live jobsites and jump into project-scoped workspaces.",
-      "Admin:Manage team access, reporting, setup, and account controls.",
+      "Job Sites:Open live jobsites and jump into project-scoped workspaces.",
+      "Account & reports:Open billing, team access, reports, and account settings.",
     ]);
     expect(grouped[0]?.items[0]).toMatchObject({
       href: "/command-center",

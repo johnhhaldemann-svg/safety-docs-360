@@ -15,6 +15,7 @@ import {
 import type {
   DashboardActionBlock,
   DashboardFeedBlock,
+  DashboardGraphBlock,
   DashboardSummaryBlock,
   DashboardViewModel,
 } from "@/components/dashboard/types";
@@ -154,6 +155,72 @@ function renderSummaryBlock(block: DashboardSummaryBlock) {
   );
 }
 
+function graphToneClassName(tone: DashboardGraphBlock["section"]["items"][number]["tone"]) {
+  switch (tone) {
+    case "success":
+      return "bg-emerald-500";
+    case "warning":
+      return "bg-amber-500";
+    case "error":
+      return "bg-rose-500";
+    case "info":
+      return "bg-sky-500";
+    default:
+      return "bg-[var(--app-accent-primary)]";
+  }
+}
+
+function renderGraphBlock(block: DashboardGraphBlock) {
+  const maxValue = Math.max(...block.section.items.map((item) => item.value), 0);
+
+  return (
+    <SectionCard
+      eyebrow={block.eyebrow}
+      title={block.section.title}
+      description={block.section.description}
+      tone="elevated"
+    >
+      {block.section.items.length === 0 || maxValue <= 0 ? (
+        <EmptyState
+          title={block.section.empty.title}
+          description={block.section.empty.description}
+          actionHref={block.section.empty.actionHref}
+          actionLabel={block.section.empty.actionLabel}
+        />
+      ) : (
+        <div className="grid gap-4">
+          {block.section.items.map((item) => {
+            const width = Math.max(8, Math.round((item.value / maxValue) * 100));
+            const valueText = `${item.value}${block.section.valueLabel ? ` ${block.section.valueLabel}` : ""}`;
+
+            return (
+              <div key={item.id} className="grid gap-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="truncate text-sm font-semibold capitalize text-[var(--app-text-strong)]">
+                    {item.label}
+                  </p>
+                  <p className="shrink-0 text-sm font-bold text-[var(--app-text-strong)]">
+                    {valueText}
+                  </p>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-[var(--app-panel)]">
+                  <div
+                    className={`h-full rounded-full ${graphToneClassName(item.tone)}`}
+                    style={{ width: `${width}%` }}
+                  />
+                </div>
+                {item.detail ? (
+                  <p className="text-xs leading-5 text-[var(--app-muted)]">{item.detail}</p>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 export function DashboardView({ model }: { model: DashboardViewModel }) {
   const layout = useDashboardLayout({ role: model.role });
   const displayedLayout = layout.editing ? layout.draftLayout : layout.effectiveLayout;
@@ -187,54 +254,41 @@ export function DashboardView({ model }: { model: DashboardViewModel }) {
 
       {layout.message ? <InlineMessage tone={layout.message.tone}>{layout.message.text}</InlineMessage> : null}
 
-      <SectionCard
-        eyebrow="Dashboard layout"
-        title="Customize your 10 dashboard blocks"
-        description="Choose which full widgets appear in each slot. Your layout is saved to your account and follows your role defaults when access changes."
-        aside={
-          <div className="flex flex-wrap gap-3">
-            {layout.editing ? (
-              <>
-                <button
-                  type="button"
-                  className={appButtonPrimaryClassName}
-                  disabled={!layout.hasUnsavedChanges || layout.saving}
-                  onClick={() => void layout.save()}
-                >
-                  {layout.saving ? "Saving..." : "Save layout"}
-                </button>
-                <button
-                  type="button"
-                  className={appButtonSecondaryClassName}
-                  disabled={layout.saving}
-                  onClick={layout.cancelEditing}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className={appButtonQuietClassName}
-                  disabled={layout.saving}
-                  onClick={() => void layout.reset()}
-                >
-                  Reset to default
-                </button>
-              </>
-            ) : (
+      {layout.editing ? (
+        <SectionCard
+          eyebrow="Dashboard layout"
+          title="Customize your 10 dashboard blocks"
+          description="Choose which full widgets appear in each slot. Your layout is saved to your account and follows your role defaults when access changes."
+          aside={
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                className={appButtonPrimaryClassName}
+                disabled={!layout.hasUnsavedChanges || layout.saving}
+                onClick={() => void layout.save()}
+              >
+                {layout.saving ? "Saving..." : "Save layout"}
+              </button>
+              <button
+                type="button"
+                className={appButtonSecondaryClassName}
+                disabled={layout.saving}
+                onClick={layout.cancelEditing}
+              >
+                Cancel
+              </button>
               <button
                 type="button"
                 className={appButtonQuietClassName}
-                disabled={layout.loading}
-                onClick={layout.startEditing}
+                disabled={layout.saving}
+                onClick={() => void layout.reset()}
               >
-                Customize dashboard
+                Reset to default
               </button>
-            )}
-          </div>
-        }
-        tone="attention"
-      >
-        {layout.editing ? (
+            </div>
+          }
+          tone="attention"
+        >
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             {layout.draftLayout.map((selectedId, index) => {
               const optionIds = getDashboardSlotOptionIds({
@@ -275,23 +329,19 @@ export function DashboardView({ model }: { model: DashboardViewModel }) {
               );
             })}
           </div>
-        ) : (
-          <div className="flex flex-wrap gap-3 text-sm text-[var(--app-text)]">
-            <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2">
-              10 fixed slots
-            </span>
-            <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2">
-              Per-user saved layout
-            </span>
-            <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2">
-              {layout.savedLayout ? "Custom layout saved" : "Using role default layout"}
-            </span>
-            <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2">
-              Role default size: {layout.defaultLayout.length} blocks
-            </span>
-          </div>
-        )}
-      </SectionCard>
+        </SectionCard>
+      ) : (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            className={appButtonQuietClassName}
+            disabled={layout.loading}
+            onClick={layout.startEditing}
+          >
+            Customize dashboard
+          </button>
+        </div>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-2">
         {displayedLayout.map((blockId, index) => {
@@ -317,6 +367,8 @@ export function DashboardView({ model }: { model: DashboardViewModel }) {
                 renderFeedBlock(block)
               ) : block.kind === "action" ? (
                 renderActionBlock(block)
+              ) : block.kind === "graph" ? (
+                renderGraphBlock(block)
               ) : (
                 renderSummaryBlock(block)
               )}

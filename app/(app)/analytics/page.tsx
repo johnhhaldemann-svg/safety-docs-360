@@ -1070,10 +1070,10 @@ export default function AnalyticsPage() {
                 type="button"
                 disabled={riskRecWorking || loading}
                 onClick={() => void refreshRiskRecommendations("both")}
-                title="Uses OpenAI when OPENAI_API_KEY is set; merges with rule-based and dedupes titles."
+                title="Uses smart recommendations when configured; merges with rule-based recommendations and dedupes titles."
                 className="rounded-lg border border-sky-400 bg-sky-600 px-3 py-2 text-xs font-semibold text-white shadow-[0_10px_22px_rgba(2,132,199,0.28)] transition hover:bg-sky-500 disabled:opacity-50"
               >
-                {riskRecWorking ? "Generating…" : "AI + rules"}
+                {riskRecWorking ? "Generating…" : "Smart + rules"}
               </button>
               <button
                 type="button"

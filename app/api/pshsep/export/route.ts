@@ -27,6 +27,7 @@ import {
 } from "@/lib/pshsepCatalog";
 import type { PshsepExportProgramId } from "@/lib/pshsepCatalog";
 import { authorizeRequest } from "@/lib/rbac";
+import { getCompanyScope } from "@/lib/companyScope";
 import { createSafetyPlanDocument } from "@/lib/safetyPlanDocxTheme";
 import {
   SITE_SAFETY_BLUEPRINT_TITLE,
@@ -4213,7 +4214,7 @@ function isGeneratedDraft(value: unknown): value is GeneratedSafetyPlanDraft {
 
 export async function generatePshsepDocx(
   form: PSHSEPInput | { generatedDocumentId?: string | null; draft?: GeneratedSafetyPlanDraft | null },
-  options?: { supabase?: any }
+  options?: { supabase?: any; companyId?: string | null }
 ) {
   if (form && typeof form === "object" && isGeneratedDraft((form as { draft?: unknown }).draft)) {
     return renderSafetyPlanDocx((form as { draft: GeneratedSafetyPlanDraft }).draft);
@@ -4225,9 +4226,16 @@ export async function generatePshsepDocx(
     typeof (form as { generatedDocumentId?: unknown }).generatedDocumentId === "string" &&
     options?.supabase
   ) {
+    if (!options.companyId) {
+      // Match the tenant-scoped "not found" behavior in
+      // loadGeneratedDocumentDraft so callers cannot bypass the filter by
+      // omitting companyId.
+      throw new Error("Generated document not found.");
+    }
     const draft = await loadGeneratedDocumentDraft(
       options.supabase,
-      (form as { generatedDocumentId: string }).generatedDocumentId
+      (form as { generatedDocumentId: string }).generatedDocumentId,
+      options.companyId
     );
     return renderSafetyPlanDocx(draft);
   }
@@ -4250,7 +4258,9 @@ export async function generatePshsepDocx(
 
 export async function POST(req: Request) {
   try {
-    const auth = await authorizeRequest(req);
+    const auth = await authorizeRequest(req, {
+      requireAnyPermission: ["can_create_documents", "can_view_all_company_data"],
+    });
 
     if ("error" in auth) {
       return auth.error;
@@ -4260,7 +4270,36 @@ export async function POST(req: Request) {
       generatedDocumentId?: string | null;
       draft?: GeneratedSafetyPlanDraft | null;
     };
-    const { body, filename } = await generatePshsepDocx(form, { supabase: auth.supabase });
+
+    const referencesStoredDraft =
+      form &&
+      typeof form === "object" &&
+      typeof (form as { generatedDocumentId?: unknown }).generatedDocumentId === "string" &&
+      !isGeneratedDraft((form as { draft?: unknown }).draft);
+
+    let companyId: string | null = null;
+    if (referencesStoredDraft) {
+      const companyScope = await getCompanyScope({
+        supabase: auth.supabase as unknown as { from: (table: string) => unknown },
+        userId: auth.user.id,
+        fallbackTeam: auth.team,
+        authUser: auth.user,
+      });
+
+      if (!companyScope.companyId) {
+        return NextResponse.json(
+          { error: "Generated document not found." },
+          { status: 404 }
+        );
+      }
+
+      companyId = companyScope.companyId;
+    }
+
+    const { body, filename } = await generatePshsepDocx(form, {
+      supabase: auth.supabase,
+      companyId,
+    });
 
     return new NextResponse(body, {
       status: 200,
@@ -4273,6 +4312,11 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     console.error(`${SITE_SAFETY_BLUEPRINT_TITLE} DOCX export failed:`, err);
 
+    const message = err instanceof Error ? err.message : null;
+    if (message === "Generated document not found.") {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
+
     return NextResponse.json(
       { error: `Failed to generate ${SITE_SAFETY_BLUEPRINT_TITLE} DOCX.` },
       { status: 500 }
@@ -4283,21 +4327,3 @@ export async function POST(req: Request) {
 /* OPTIONAL: KEEP EXTRA PROGRAMS WITHOUT LINT NOISE */
 /* ------------------------------------------------ */
 
-/**
- * If you have a large library of program_* functions that you don't always
- * include in buildPrograms() yet, register them here. This keeps lint clean.
- *
- * Add any program functions you have but aren't using yet into this object.
- * It "uses" them so eslint won't warn, but doesn't change output.
- */
-const _unusedProgramRegistry = {
-  // Example placeholders (uncomment when those functions exist in your file):
-  // program_IncidentInvestigation,
-  // program_Inspections,
-  // program_Housekeeping,
-  // program_PPE,
-  // program_SafetyOrientation,
-} as const;
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _ignoreUnused = _unusedProgramRegistry;

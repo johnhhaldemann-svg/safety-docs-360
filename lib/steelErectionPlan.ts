@@ -71,6 +71,97 @@ export function hasSteelErectionScope(
   );
 }
 
+/** True when a trade-package row is steel / structural / decking / rigging–related for permit roll-up. */
+export function isSteelErectionPackage(pkg: {
+  tradeLabel: string;
+  subTradeLabel: string | null;
+  taskTitles: string[];
+}): boolean {
+  return hasSteelKeyword([pkg.tradeLabel, pkg.subTradeLabel, ...pkg.taskTitles]);
+}
+
+function buildSteelErectionFallRescueSubsections(
+  fr: NonNullable<SteelErectionPlan["fallRescue"]>
+): NonNullable<GeneratedSafetyPlanSection["subsections"]> {
+  const notify =
+    fr.notifyRoles?.length && fr.notifyRoles.length > 0
+      ? fr.notifyRoles.join(", ")
+      : "superintendent, foreman, competent person, and site safety leadership";
+
+  const call911 =
+    fr.emergencyCallText?.trim() ||
+    "Call 911 immediately. Identify the project as an active steel erection site, give the project address, access gate, level, and rescue or victim location, and describe a fall, suspension, or serious injury at height.";
+
+  const immediateBody = [
+    "This subsection applies to emergency response after a fall at height, a fall arrest (including worker suspension), or a serious injury during steel erection or decking. The immediate priority is 911, scene control, and proper notification—not improvised rescue by untrained workers.",
+    "Take these steps in order:",
+    "1) Stop work in the affected area and secure the scene: control who enters, prevent additional fall or struck-by exposure, and stop overhead picks, swing, or other activity that could worsen the situation until the scene is under control.",
+    `2) ${call911}`,
+    `3) After 911, notify or radio site leadership without delay: ${notify}. Do not wait to finish paperwork before making these notifications.`,
+    "4) On-site extrication, lowering, or winch rescue may begin only for personnel who are trained, equipped, and authorized under this plan. If the event exceeds on-site capability, keep the area secure and hand off technical rescue to arriving fire/EMS.",
+    fr.siteAccessInstructions?.trim()
+      ? `Fire and EMS access: ${fr.siteAccessInstructions.trim()}`
+      : null,
+  ]
+    .filter((p): p is string => Boolean(p?.trim()))
+    .join("\n\n");
+
+  const immediateBullets = normalizeTaskList([
+    fr.targetRescueTime,
+    fr.dailyReviewRequired
+      ? "At the start of each shift, review who leads rescue communication, where equipment is staged, and how responders reach the level or area."
+      : null,
+  ]);
+
+  const methodBullets = normalizeTaskList([
+    fr.primaryRescueMethod
+      ? `Primary rescue method: ${fr.primaryRescueMethod}`
+      : null,
+    fr.secondaryRescueMethod
+      ? `Backup or alternate: ${fr.secondaryRescueMethod}`
+      : null,
+    "Assisted rescue or pick-off from the work level or an adjacent protected level, when the plan and training support it.",
+    "Ladder-assisted access from a protected level, only when the method is pre-approved, competent-person directed, and does not create new fall exposure.",
+    "Fire department or outside technical rescue and EMS when the situation exceeds on-site means or requires rope rescue, litter operations, or advanced medical support.",
+  ]);
+
+  const equipmentBullets = normalizeTaskList([
+    ...(fr.rescueEquipment ?? []),
+    fr.ladderStaged
+      ? "Rescue or extension ladder staged and ready to deploy from a protected position, per the site plan."
+      : null,
+    fr.suspensionTraumaRelief
+      ? "Suspension-trauma relief (trauma straps or equivalent) and monitoring for effects after any fall arrest in harness."
+      : null,
+    "Radios or equivalent communication for the rescue team and the crane/spotter, if any.",
+  ]);
+
+  const ppeBullets = normalizePpeList(fr.rescuePpe ?? []);
+
+  return [
+    {
+      title: "5.1 Emergency Notifications and Immediate Response",
+      body: immediateBody,
+      bullets: immediateBullets.length > 0 ? immediateBullets : [],
+    },
+    {
+      title: "5.2 Rescue Methods",
+      body: "Use only methods the crew is trained and authorized to perform. Match the method to the victim’s location, anchor and rigging options, and conditions.",
+      bullets: methodBullets,
+    },
+    {
+      title: "5.3 Rescue Equipment",
+      body: "Keep the following available, inspected, and serviceable for fall-related rescue. Remove damaged or expired equipment from service.",
+      bullets: equipmentBullets,
+    },
+    {
+      title: "5.4 Required Personal Protective Equipment",
+      body: "Authorized rescuers use the following, plus any task-specific fall protection system required to perform the authorized rescue (for example, an approved rescuer line or attachment).",
+      bullets: ppeBullets,
+    },
+  ];
+}
+
 export function buildSteelErectionPlan(params: {
   generationContext: SafetyPlanGenerationContext;
   operations: GeneratedSafetyPlanDraft["operations"];
@@ -111,6 +202,10 @@ export function buildSteelErectionPlan(params: {
     ...params.ruleSummary.permitTriggers,
     ...params.operations.flatMap((operation) => operation.permitTriggers),
   ]);
+
+  const triggersLiftControls = permits.some((item) =>
+    /^(lift plan|pick plan|crane permit)$/i.test(item)
+  );
 
   const plan: SteelErectionPlan = {
     onSiteTeam: onSiteTeam.length ? onSiteTeam : undefined,
@@ -165,6 +260,16 @@ export function buildSteelErectionPlan(params: {
       rescueEquipment: listFromUnknown(steel.rescueEquipment).length
         ? normalizeTaskList(listFromUnknown(steel.rescueEquipment))
         : ["Rescue kit", "Extension ladder", "Trauma-relief straps", "Radio communication"],
+      rescuePpe: listFromUnknown(steel.rescuePpe).length
+        ? normalizePpeList(listFromUnknown(steel.rescuePpe))
+        : [
+            "Hard hat",
+            "High-visibility vest",
+            "Gloves suitable for rescue handling",
+            "Eye protection",
+            "Work boots",
+            "Fall protection for rescuers only when trained, authorized, and tied to the approved rescue plan",
+          ],
       ladderStaged: boolFromUnknown(steel.ladderStaged) ?? true,
       targetRescueTime: cleanFinalText(String(steel.targetRescueTime ?? "")) ?? "Prompt rescue without delay after a fall arrest event.",
       suspensionTraumaRelief: boolFromUnknown(steel.suspensionTraumaRelief) ?? true,
@@ -197,7 +302,7 @@ export function buildSteelErectionPlan(params: {
       permits,
       competency: [
         "Competent person oversight",
-        ...(permits.some((item) => item === "Lift Plan") ? ["Qualified rigger / signal person"] : []),
+        ...(triggersLiftControls ? ["Qualified rigger / signal person"] : []),
       ],
     })),
     trainingAndCompetency: {
@@ -210,7 +315,7 @@ export function buildSteelErectionPlan(params: {
         "Orientation",
         "OSHA 10/30 as role appropriate",
         "Subpart R steel erection requirements",
-        ...(permits.some((item) => item === "Lift Plan") ? ["Qualified rigger / signal person"] : []),
+        ...(triggersLiftControls ? ["Qualified rigger / signal person"] : []),
         ...(tasks.some((task) => /lift|boom|aerial/i.test(task)) ? ["Aerial lift training"] : []),
         ...(tasks.some((task) => /weld/i.test(task)) ? ["Welding qualifications"] : []),
       ]),
@@ -388,28 +493,8 @@ export function buildSteelErectionOverlaySections(plan: SteelErectionPlan): Gene
     sections.push({
       key: "emergency_procedures",
       title: "Steel Erection Fall Rescue",
-      body: plan.fallRescue.emergencyCallText,
-      subsections: [
-        {
-          title: "Site Access and Notifications",
-          body: plan.fallRescue.siteAccessInstructions,
-          bullets: normalizeTaskList([
-            ...(plan.fallRescue.notifyRoles ?? []).map((item) => `Notify ${item}.`),
-            plan.fallRescue.targetRescueTime,
-            plan.fallRescue.dailyReviewRequired ? "Review rescue responsibilities and access at the start of each shift." : null,
-          ]),
-        },
-        {
-          title: "Rescue Methods and Equipment",
-          bullets: normalizeTaskList([
-            plan.fallRescue.primaryRescueMethod ? `Primary rescue method: ${plan.fallRescue.primaryRescueMethod}` : null,
-            plan.fallRescue.secondaryRescueMethod ? `Backup rescue method: ${plan.fallRescue.secondaryRescueMethod}` : null,
-            ...(plan.fallRescue.rescueEquipment ?? []),
-            plan.fallRescue.ladderStaged ? "Stage rescue ladder access where it can be deployed without delay." : null,
-            plan.fallRescue.suspensionTraumaRelief ? "Provide suspension-trauma relief support after any fall arrest." : null,
-          ]),
-        },
-      ],
+      body: "This plan covers fall-at-height and fall-arrest emergency response (including post-arrest rescue) and serious injury on steel erection and decking. Call 911, secure the scene, and notify site leadership in the order in subsection 5.1. Trained, authorized rescuers use subsections 5.2 through 5.4 for methods, equipment, and PPE; untrained workers do not perform improvised technical rescue.",
+      subsections: buildSteelErectionFallRescueSubsections(plan.fallRescue),
     });
   }
 

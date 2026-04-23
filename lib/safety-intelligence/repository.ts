@@ -290,18 +290,39 @@ export async function persistSafetyPlanRun(params: {
   return bucketRunId;
 }
 
+/**
+ * Load the `draft_json` for a generated document row, scoped to the caller's
+ * company. `companyId` is REQUIRED: this function runs through a service-role
+ * client in most routes, which bypasses RLS, so the tenant filter is the only
+ * thing preventing a cross-tenant draft leak when a caller guesses another
+ * tenant's `generatedDocumentId`.
+ *
+ * The returned error is intentionally generic ("Generated document not found.")
+ * for both "row does not exist" and "row belongs to another tenant" cases so we
+ * do not leak row existence across tenants.
+ */
 export async function loadGeneratedDocumentDraft(
   supabase: LiteClient,
-  generatedDocumentId: string
+  generatedDocumentId: string,
+  companyId: string
 ) {
+  if (!companyId) {
+    throw new Error("Generated document not found.");
+  }
+
   const result = await supabase
     .from("company_generated_documents")
-    .select("id, document_type, title, draft_json")
+    .select("id, document_type, title, draft_json, company_id")
     .eq("id", generatedDocumentId)
-    .single();
+    .eq("company_id", companyId)
+    .maybeSingle();
 
-  if (result.error || !result.data) {
-    throw new Error(result.error?.message || "Generated document not found.");
+  if (result.error) {
+    throw new Error(result.error.message || "Generated document not found.");
+  }
+
+  if (!result.data) {
+    throw new Error("Generated document not found.");
   }
 
   return result.data.draft_json as GeneratedSafetyPlanDraft;

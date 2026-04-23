@@ -70,7 +70,7 @@ export function SafetyIntelligenceAnalyticsClient() {
 
       <SectionCard
         title="Leading vs lagging indicators"
-        description="Conflict activity and bucket volume operate as leading indicators; generated documents and AI review counts show adoption and review throughput."
+        description="Conflict activity and bucket volume operate as leading indicators; generated documents and intelligence review counts show adoption and review throughput."
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
@@ -78,7 +78,7 @@ export function SafetyIntelligenceAnalyticsClient() {
             <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{summary?.totals.bucketRuns ?? 0}</p>
           </div>
           <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">AI reviews</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Intelligence reviews</p>
             <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{summary?.totals.aiReviews ?? 0}</p>
           </div>
           <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
