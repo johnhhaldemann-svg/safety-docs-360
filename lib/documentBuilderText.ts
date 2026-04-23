@@ -241,15 +241,18 @@ export const DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG: DocumentBuilderTextConfig = {
         ),
         section(
           "drug_and_alcohol_testing",
-          "Drug and Alcohol Testing",
-          "Drug and Alcohol Testing",
+          "Drug, Alcohol, and Fit-for-Duty Controls",
+          "Drug, Alcohol, and Fit-for-Duty Controls",
           {
             paragraphs: [
-              "Contractors shall comply with applicable owner, CM/GC, and collective-bargaining requirements related to drug and alcohol testing, confidentiality, transportation, and return-to-work expectations.",
+              "Before first site access or the start of work, workers complete required site orientation and acknowledge applicable employer, owner, and GC/CM fit-for-duty and substance-use policy requirements, including any program acknowledgments and testing triggers that apply on day one.",
+              "Drug and alcohol compliance shall be maintained in accordance with applicable union requirements, reciprocal testing and referral obligations, and project or site rules, together with employer policy and law.",
+              "Alcohol, illegal drugs, and unauthorized controlled substances may not be stored or kept in personal vehicles while those vehicles are parked on the construction site or on client property.",
             ],
             bullets: [
-              "Follow project-specific testing triggers and CBA limitations for pre-employment, post-incident, reasonable-suspicion, or random testing.",
-              "Coordinate scheduling, transportation, confidential handling, and worker-assistance or return-to-work pathways when testing is required.",
+              "Workers report suspected alcohol- or drug-related impairment. Supervision removes affected workers from exposed work, at-height tasks, and equipment operation until the situation is handled under project and employer procedures.",
+              "Post-incident, reasonable-suspicion, return-to-work, and other program testing triggers are followed. Work does not continue when impairment or noncompliance creates an unacceptable risk until required steps are met.",
+              "Restart of work stopped for suspected impairment, or of covered tasks after a related program action, follows site and employer rules, including documented supervisor (or other designated) approval when required.",
             ],
           }
         ),
@@ -259,12 +262,12 @@ export const DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG: DocumentBuilderTextConfig = {
           "Enforcement and Corrective Action",
           {
             paragraphs: [
-              "Supervision shall correct unsafe behavior and conditions promptly, document violations when required, and align disciplinary actions with contractor policy, project rules, and applicable labor obligations.",
+              "This content addresses correction, escalation, documentation, field verification, and approved restart after CSEP or site-rule violations. Substance, testing, and fit-for-duty program requirements are in Drug, Alcohol, and Fit-for-Duty Controls.",
             ],
             bullets: [
-              "Use stop-work authority and immediate field correction when hazards are uncontrolled.",
-              "Document repeated or serious violations, communication to the CM/GC, and reinstatement steps when removal from site is required.",
-              "Coordinate with union leadership when corrective action involves represented workers and CBA requirements apply.",
+              "Correct the deficiency or stop the work: give clear, task-specific direction on what must change before crews or equipment re-engage.",
+              "Escalate by risk: foreman to superintendent to company safety; involve owner/GC and union leadership when program rules, labor agreements, or contract terms require it.",
+              "Document findings, actions, responsible parties, follow-up dates, and any disciplinary, progressive, or site-removal steps. Verify fixes in the field before closing the loop.",
             ],
           }
         ),

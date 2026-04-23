@@ -663,7 +663,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       structuredDraft.sectionMap.find((section) => section.key === "contractor_iipp")
     ).toMatchObject({
       body: expect.stringMatching(
-        /The contractor shall maintain an active injury and illness prevention workflow[\s\S]*fall from height is a major ongoing project risk/i
+        /The contractor shall maintain an active injury and illness prevention workflow[\s\S]*incident response[\s\S]*fall from height is a major ongoing project risk/i
       ),
       subsections: expect.arrayContaining([
         expect.objectContaining({
@@ -870,15 +870,17 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       draft.sectionMap.find((section) => section.key === "site_specific_notes")?.body
     ).not.toContain("identified conflict point");
 
-    expect(draft.sectionMap.find((section) => section.key === "common_overlapping_trades")).toMatchObject({
-      body:
-        "Coordinate overlapping work areas, access routes, permit ownership, protection below, and stop-work handoffs before affected crews begin work.",
+    const overlapSection = draft.sectionMap.find((section) => section.key === "common_overlapping_trades");
+    expect(overlapSection).toMatchObject({
       bullets: expect.arrayContaining(["Facade access coordination"]),
       table: null,
     });
-    expect(
-      draft.sectionMap.find((section) => section.key === "common_overlapping_trades")?.body
-    ).not.toContain("The conflict engine identified");
+    expect(overlapSection?.body).toContain(
+      "Coordinate overlapping work areas, access routes, permit ownership, protection below, and stop-work handoffs before affected crews begin work."
+    );
+    expect(overlapSection?.body).toContain("structural steel erection");
+    expect(overlapSection?.subsections?.length).toBe(16);
+    expect(overlapSection?.body).not.toContain("The conflict engine identified");
   });
 
   it("renders sub-tier contractor management as structured oversight rows without a duplicate intro paragraph", () => {
@@ -3876,11 +3878,14 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     expect(
       draft.sectionMap.find((section) => section.key === "scope_of_work")?.bullets
     ).not.toEqual(expect.arrayContaining(["HVAC / Mechanical rough-in"]));
-    expect(
-      draft.sectionMap.find((section) => section.key === "common_overlapping_trades")?.bullets
-    ).toEqual(
+    const overlap = draft.sectionMap.find((section) => section.key === "common_overlapping_trades");
+    expect(overlap?.bullets).toEqual(
       expect.arrayContaining(["HVAC / Mechanical trim-out", "Painting / Coatings touch-up"])
     );
+    expect(overlap?.body).toContain("structural steel erection");
+    expect(overlap?.subsections?.length).toBe(16);
+    expect(overlap?.subsections?.[0]?.title).toBe("Concrete / Foundations");
+    expect(overlap?.subsections?.[15]?.title).toBe("Overlap Response Requirement");
     expect(draft.sectionMap.map((section) => section.key)).toEqual(
       expect.arrayContaining([
         "steel_fall_protection",

@@ -133,8 +133,8 @@ const BLOCK_OPTION_DEFINITIONS: Array<{
   },
   {
     key: "drug_and_alcohol_testing",
-    label: "Drug and Alcohol Testing",
-    title: "Drug and Alcohol Testing",
+    label: "Drug, Alcohol, and Fit-for-Duty Controls",
+    title: "Drug, Alcohol, and Fit-for-Duty Controls",
   },
   {
     key: "enforcement_and_corrective_action",
@@ -660,11 +660,11 @@ const CSEP_BUILDER_AI_SECTION_DEFINITIONS: readonly CsepBuilderAiSectionConfig[]
   {
     id: "drug_and_alcohol_testing_text",
     kind: "text",
-    title: "Drug and Alcohol Testing",
+    title: "Drug, Alcohol, and Fit-for-Duty Controls",
     fieldKey: "drug_and_alcohol_testing_text",
-    includedSectionLabel: "Drug and Alcohol Testing",
+    includedSectionLabel: "Drug, Alcohol, and Fit-for-Duty Controls",
     draftingFocus:
-      "Summarize the project and company testing expectations that apply to the selected tasks without drifting into unrelated policy language.",
+      "Cover pre-access orientation and acknowledgments, union and reciprocal testing obligations, the personal-vehicle prohibition on site, reporting of suspected impairment, removal from exposed work, testing triggers, and restart rules—without repeating enforcement or corrective-action content.",
   },
   {
     id: "enforcement_and_corrective_action_text",
@@ -673,7 +673,7 @@ const CSEP_BUILDER_AI_SECTION_DEFINITIONS: readonly CsepBuilderAiSectionConfig[]
     fieldKey: "enforcement_and_corrective_action_text",
     includedSectionLabel: "Enforcement and Corrective Action",
     draftingFocus:
-      "Explain how unsafe conditions during the selected tasks are corrected, escalated, documented, and verified before work continues.",
+      "Focus on correction, escalation, documentation, field verification, restart approval, and disciplinary or site-removal outcomes. Do not repeat fit-for-duty or testing program language from Drug, Alcohol, and Fit-for-Duty Controls.",
   },
   {
     id: "recordkeeping_text",

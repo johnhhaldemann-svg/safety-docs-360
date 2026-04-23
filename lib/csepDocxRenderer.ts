@@ -139,104 +139,104 @@ const FIXED_SECTION_DEFINITIONS: FixedSectionDefinition[] = [
   {
     key: "sign_off_page",
     kind: "front_matter",
-    title: "2. Sign-Off Page",
-    numberLabel: "2",
+    title: "Sign-Off Page",
+    numberLabel: null,
     descriptor:
       "Pre-issue review and signature confirmations required before this CSEP is released for field use.",
   },
   {
     key: "table_of_contents",
     kind: "front_matter",
-    title: "3. Table of Contents",
-    numberLabel: "3",
+    title: "Table of Contents",
+    numberLabel: null,
     descriptor: "Document navigation for the issued CSEP package.",
   },
   {
     key: "message_from_owner",
     kind: "front_matter",
-    title: "4. Message from Owner",
-    numberLabel: "4",
+    title: "1. Message from Owner",
+    numberLabel: "1",
     descriptor:
       "Executive leadership commitment and project-wide safety expectations for this CSEP issue.",
   },
   {
     key: "purpose",
     kind: "front_matter",
-    title: "5. Purpose",
-    numberLabel: "5",
+    title: "2. Purpose",
+    numberLabel: "2",
     descriptor:
       "High-level reason the CSEP exists and how it governs work on this project.",
   },
   {
     key: "scope",
     kind: "front_matter",
-    title: "6. Scope",
-    numberLabel: "6",
+    title: "3. Scope",
+    numberLabel: "3",
     descriptor:
-      "Work scope, personnel, trades, and site conditions covered by this project-specific plan.",
+      "Project identity, covered trades, and field constraints only—other program requirements are in their dedicated sections.",
   },
   {
     key: "top_10_risks",
     kind: "front_matter",
-    title: "7. Top 10 Risks",
-    numberLabel: "7",
+    title: "4. Top 10 Risks",
+    numberLabel: "4",
     descriptor:
-      "Project-level summary of the highest exposures that require attention before and during execution.",
+      "Project-level summary of the highest structural steel and decking exposures that require attention before and during execution.",
   },
   {
     key: "trade_interaction_info",
     kind: "front_matter",
-    title: "8. Trade Interaction Info",
-    numberLabel: "8",
+    title: "5. Trade Interaction Info",
+    numberLabel: "5",
     descriptor:
       "Coordination expectations for overlapping work, shared areas, access, sequencing, and handoffs.",
   },
   {
     key: "disciplinary_program",
     kind: "front_matter",
-    title: "9. Disciplinary Program",
-    numberLabel: "9",
+    title: "6. Disciplinary Program",
+    numberLabel: "6",
     descriptor:
       "Enforcement, removal, unsafe-act response, and fit-for-duty expectations that apply across the project.",
   },
   {
     key: "union",
     kind: "front_matter",
-    title: "10. Union",
-    numberLabel: "10",
+    title: "7. Union",
+    numberLabel: "7",
     descriptor: "Project-specific labor and union applicability information for this site, if provided.",
   },
   {
     key: "security_at_site",
     kind: "front_matter",
-    title: "11. Security at Site",
-    numberLabel: "11",
+    title: "8. Security at Site",
+    numberLabel: "8",
     descriptor:
-      "Site-entry, restricted-item, access-control, and security expectations that apply to all personnel.",
+      "Site entry, access, deliveries, laydown, traffic control, and restricted-area controls only.",
   },
   {
     key: "hazcom",
     kind: "front_matter",
-    title: "12. HazCom",
-    numberLabel: "12",
+    title: "9. HazCom",
+    numberLabel: "9",
     descriptor:
-      "Project-wide Hazard Communication requirements for chemicals, labels, SDS access, containers, and contractor notification.",
+      "Project-wide Hazard Communication: SDS access, labeling, chemical inventory, secondary containers, and contractor / employee notification.",
   },
   {
     key: "iipp_emergency_response",
     kind: "front_matter",
-    title: "13. IIPP / Emergency Response",
-    numberLabel: "13",
+    title: "10. IIPP / Emergency Response",
+    numberLabel: "10",
     descriptor:
-      "Global incident reporting, hazard reporting, inspections, medical escalation, and emergency-response expectations.",
+      "Program-level reporting, emergency actions, medical response, investigation workflow, and corrective / restart expectations.",
   },
   {
     key: "hazards_and_controls",
     kind: "main",
-    title: "14. Hazards and Controls",
-    numberLabel: "14",
+    title: "11. Hazards and Controls",
+    numberLabel: "11",
     descriptor:
-      "Hazard-specific modules limited to exposure summaries, controls, PPE, permits, restrictions, inspections, and trade-specific execution requirements.",
+      "Hazard-specific modules: exposures, required controls, access, PPE, permits, and trade execution (not IIPP, HazCom, or site-wide security policy).",
   },
 ];
 
@@ -882,10 +882,24 @@ function validateSectionOrdering(sections: CsepTemplateSection[]) {
   });
 }
 
+function resolveSectionNumberLabelForValidation(
+  section: CsepTemplateSection,
+  index: number
+): string | null {
+  if (section.numberLabel === null) {
+    return null;
+  }
+  const trimmed = section.numberLabel?.trim() ?? "";
+  if (trimmed) {
+    return trimmed;
+  }
+  return String(index + 1);
+}
+
 function validateCsepRenderModel(model: CsepRenderModel) {
   const numberedSections = model.sections.map((section, index) => ({
     ...section,
-    numberLabel: section.numberLabel?.trim() || String(index + 1),
+    numberLabel: resolveSectionNumberLabelForValidation(section, index),
   }));
   const seenNumbers = new Set<string>();
   const invalidExactTokens = new Set([
@@ -904,10 +918,13 @@ function validateCsepRenderModel(model: CsepRenderModel) {
 
   numberedSections.forEach((section) => {
     const numberLabel = section.numberLabel?.trim() ?? "";
-    if (seenNumbers.has(numberLabel)) {
+    if (!numberLabel) {
+      // Unnumbered front matter (e.g. Sign-Off, TOC) in legacy full-body layout.
+    } else if (seenNumbers.has(numberLabel)) {
       throw new Error(`CSEP export validation failed: duplicate section number ${numberLabel}.`);
+    } else {
+      seenNumbers.add(numberLabel);
     }
-    seenNumbers.add(numberLabel);
 
     const seenTitles = new Set<string>();
     section.subsections.forEach((subsection) => {
@@ -1556,7 +1573,10 @@ export function buildCsepTemplateSections(
     title: definition.title,
     descriptor: definition.descriptor,
     kind: definition.kind,
-    numberLabel: definition.numberLabel ?? undefined,
+    // Preserve explicit null for unnumbered front matter (Sign-Off, TOC). Using
+    // `?? undefined` would drop null to undefined and validation would
+    // incorrectly assign index-based numbers.
+    numberLabel: definition.numberLabel === null ? null : definition.numberLabel,
     subsections: buildSectionSubsections(definition, grouped, {
       draft: params.draft ?? createEmptyDraftContext(),
       projectName: params.projectName,
@@ -1692,16 +1712,21 @@ function placeholderParagraphForSection(sectionKey: string) {
 
 function synthesizeOwnerMessageSubsections(
   projectName: string,
-  contractorName: string
+  contractorName: string,
+  options?: { steelErection?: boolean }
 ): CsepTemplateSubsection[] {
   const ownerLabel = contractorName !== "N/A" ? contractorName : "Project leadership";
   const projectLabel = projectName !== "N/A" ? projectName : "this project";
+  const baseSecond =
+    "Every supervisor and worker is expected to stop work when conditions change, communicate hazards early, and follow this CSEP before proceeding.";
+  const steelSecond =
+    "For structural steel and decking, do not advance picks, landings, or connection releases when fit-up, temporary bracing, or fall protection no longer match the approved erection and rigging plan; reset controls before the next load moves.";
   return [
     {
       title: "Owner Message",
       paragraphs: [
         `${ownerLabel} expects all work on ${projectLabel} to be planned, coordinated, and executed without injury, property damage, or uncontrolled environmental impact.`,
-        "Every supervisor and worker is expected to stop work when conditions change, communicate hazards early, and follow this CSEP before proceeding.",
+        options?.steelErection ? `${baseSecond} ${steelSecond}` : baseSecond,
       ],
     },
   ];
@@ -1719,17 +1744,40 @@ function synthesizeSignOffSubsections(): CsepTemplateSubsection[] {
   ];
 }
 
-function synthesizePurposeSubsections(projectName: string): CsepTemplateSubsection[] {
+function synthesizePurposeSubsections(
+  projectName: string,
+  options?: { steelErection?: boolean }
+): CsepTemplateSubsection[] {
   const projectLabel = projectName !== "N/A" ? projectName : "this project";
+  const second = options?.steelErection
+    ? "It aligns field execution, coordination, and hazard controls so crews can perform assigned work in a consistent and reviewable manner, with structural steel and decking tied to pre-planned picks, connection sequencing, and verified stability before workers rely on the frame or deck for support."
+    : "It aligns field execution, coordination, and hazard controls so crews can perform assigned work in a consistent and reviewable manner.";
   return [
     {
       title: "Purpose",
       paragraphs: [
         `This CSEP establishes the project-specific safety and environmental requirements that govern work on ${projectLabel}.`,
-        "It aligns field execution, coordination, and hazard controls so crews can perform assigned work in a consistent and reviewable manner.",
+        second,
       ],
     },
   ];
+}
+
+function isStructuralSteelOrDeckingScope(
+  draft: GeneratedSafetyPlanDraft,
+  tradeLabel: string,
+  subTradeLabel: string
+) {
+  const hay = [
+    tradeLabel,
+    subTradeLabel,
+    ...draft.operations.map((o) => `${o.tradeLabel ?? ""} ${o.subTradeLabel ?? ""} ${o.taskTitle}`),
+  ]
+    .join(" ")
+    .toLowerCase();
+  return /(steel|structural|ironwork|ironworker|deck|metal deck|joist|girder|erection|connector)/.test(
+    hay
+  );
 }
 
 function synthesizeScopeSubsections(
@@ -1738,31 +1786,122 @@ function synthesizeScopeSubsections(
   contractorName: string,
   tradeLabel: string,
   subTradeLabel: string,
-  taskTitles: string[]
+  _taskTitles: string[]
 ): CsepTemplateSubsection[] {
+  const steelErectionScope = isStructuralSteelOrDeckingScope(draft, tradeLabel, subTradeLabel);
   const tradeSummary = [tradeLabel, subTradeLabel].filter((value) => value && value !== "N/A").join(" / ");
-  const scopeParts = [
+  const scopeSummaryParts = [
     projectName !== "N/A" ? `Project: ${projectName}` : null,
     contractorName !== "N/A" ? `Contractor: ${contractorName}` : null,
-    tradeSummary ? `Trade package: ${tradeSummary}` : null,
-    taskTitles.length ? `Primary tasks: ${taskTitles.join(", ")}` : null,
+    tradeSummary ? `Covered trade / discipline: ${tradeSummary}` : null,
     finalValueOrNA(draft.projectOverview.projectAddress) !== "N/A"
       ? `Project address: ${finalValueOrNA(draft.projectOverview.projectAddress)}`
       : null,
+    steelErectionScope
+      ? "Structural steel and decking in this CSEP is executed under the project steel erection and rigging plan, shop and field drawings, and the hazard-and-control content in the Hazards and Controls section—this Scope section only records identity, contractor, and field logistics."
+      : null,
   ].filter((value): value is string => Boolean(value));
+
+  const siteRestrictionLines = uniqueItems([
+    ...draft.ruleSummary.siteRestrictions,
+    ...draft.ruleSummary.weatherRestrictions,
+    ...draft.operations.flatMap((o) => o.siteRestrictions ?? []),
+  ]);
+  const permitSequencing = uniqueItems(draft.ruleSummary.permitTriggers).filter(
+    (p) => /lift|crane|hot work|permit|flag|barricad|traffic|oversize|concrete/i.test(p)
+  );
+  const siteBodyParts: string[] = [];
+  if (siteRestrictionLines.length) {
+    siteBodyParts.push(`Field restrictions and interfaces: ${siteRestrictionLines.join("; ")}.`);
+  }
+  if (permitSequencing.length) {
+    siteBodyParts.push(`Permit / coordination triggers called out in planning: ${permitSequencing.join(", ")}.`);
+  }
+  const siteBody = siteBodyParts.length
+    ? siteBodyParts.join(" ")
+    : steelErectionScope
+      ? "Add crane swing limits, pick-and-laydown zones, deck bundle and column-line staging, vertical access, occupied-floor and elevator interfaces, and weather or wind hold points as they are confirmed. Do not restate the task list here—only true site and sequencing constraints."
+      : "Add laydown, crane access, delivery windows, occupied-area interfaces, and weather hold points as they are confirmed for this site (avoid repeating the task list here).";
 
   return [
     {
-      title: "Scope",
-      paragraphs: scopeParts.length
-        ? [scopeParts.join(". ") + "."]
-        : ["Project-specific information to be completed."],
+      title: "Scope summary",
+      paragraphs: [
+        scopeSummaryParts.length
+          ? scopeSummaryParts.join(". ") + "."
+          : "Project-specific information to be completed.",
+      ],
+    },
+    {
+      title: "Site-specific field conditions",
+      paragraphs: [siteBody],
     },
   ];
 }
 
 function riskDedupeKey(value: string) {
   return normalizeCompareToken(value);
+}
+
+const SCOPE_NARRATIVE_EXCLUSION =
+  /\b(iipp\b|injury\s+and\s+illness|illness prevention|health and wellness|wellness program|incident report|incident reporting|incident investigation|drug[-\s]?|alcohol testing|substance|fit[-\s]?for[-\s]?duty|enforcement program|corrective action accountability)\b/i;
+
+const SECURITY_NON_OWNER =
+  /(\b(?:final|torque|bolt[-\s]?up|weld|shear connector|steel execution|erection release|ncr|shop drawing)\b)/i;
+
+const STRUCTURAL_STEEL_DECKING_TOP_10: string[] = [
+  "Falls while decking, leading-edge work, or acting as a connector; incomplete guardrails, CDZ boundaries, or fall-arrest/positioning that is not rigged to an approved plan.",
+  "Struck-by or caught-in in the load path, swing radius, or tag-line zone; shifting bundles; rigging that slips, rolls, or releases before a stable landing.",
+  "Crane, hoist, and rigging overload or control failure; multiple-lift rigging, capacity limits, or critical lifts performed without a reviewed lift or rigging plan.",
+  "Loss of stability from missing or out-of-sequence bracing, guy lines, or temporary supports; members landed before anchor bolts, templates, and bearing surfaces are plumb, level, and fit-up verified.",
+  "Collapse, crush, or deck punch-through from shoring or deck that is overloaded, uninspected, or not walked before loads; unguarded floor openings, shaft jumps, and incomplete barriers.",
+  "Ignition, burn, fume, and slag exposure from field welding, cutting, grinding, and hot work on steel and deck (fire watch, line clearance, combustibles below the arc).",
+  "Dropped hand tools, bolts, and deck bundles through openings or at elevation; poor housekeeping at deck edges and column lines.",
+  "Electrical contact, trip hazards from welding leads, and arc flash when temporary power, stingers, or equipment tie-ins are on active steel or deck.",
+  "Lightning, high wind, or icing that changes crane and hoist limits, plumb, fall protection, and unsecured deck or bundle exposure.",
+  "Congested picks and landings where steel interfaces with other trades, deliveries, and mobile equipment; unclear radio communication, spotter blind spots, or ad hoc staging.",
+];
+
+function filterScopeNarrativeParagraph(text: string | null | undefined) {
+  const t = (text ?? "").trim();
+  if (!t) return null;
+  if (SCOPE_NARRATIVE_EXCLUSION.test(t)) return null;
+  if (/\bprimary tasks?:/i.test(t)) return null;
+  return t;
+}
+
+function filterScopeTemplateSubsections(subsections: CsepTemplateSubsection[]): CsepTemplateSubsection[] {
+  return subsections
+    .map((sub) => ({
+      ...sub,
+      paragraphs: uniqueItems(
+        (sub.paragraphs ?? []).map((p) => filterScopeNarrativeParagraph(p)).filter((p): p is string => Boolean(p))
+      ),
+      items: uniqueItems(
+        (sub.items ?? []).map((i) => filterScopeNarrativeParagraph(i)).filter((p): p is string => Boolean(p))
+      ),
+    }))
+    .filter((sub) => subsectionHasContent(sub));
+}
+
+function filterSecurityAtSiteSubsections(subsections: CsepTemplateSubsection[]): CsepTemplateSubsection[] {
+  return subsections
+    .map((sub) => {
+      const keepText = (t: string) => {
+        const s = t.trim();
+        if (!s) return null;
+        if (SECURITY_NON_OWNER.test(s) && !/\b(access|gate|badge|entry|deliver|haul|laydown|traffic|exclusion|vehicle)\b/i.test(s)) {
+          return null;
+        }
+        return s;
+      };
+      return {
+        ...sub,
+        paragraphs: uniqueItems((sub.paragraphs ?? []).map(keepText).filter((x): x is string => Boolean(x))),
+        items: uniqueItems((sub.items ?? []).map(keepText).filter((x): x is string => Boolean(x))),
+      };
+    })
+    .filter((sub) => subsectionHasContent(sub));
 }
 
 /**
@@ -1807,15 +1946,25 @@ function flattenTopRiskCandidateStrings(
   return [...fromSub, ...fromDraft];
 }
 
-function synthesizeTopRiskSubsections(draft: GeneratedSafetyPlanDraft): CsepTemplateSubsection[] {
-  const items = dedupeRiskLabelsPreservingOrder(
-    [
-      ...(draft.riskSummary?.priorities ?? []),
-      ...(draft.ruleSummary?.hazardCategories ?? []),
-      ...draft.operations.flatMap((operation) => operation.hazardCategories ?? []),
-    ],
-    10
-  );
+function synthesizeTopRiskSubsections(
+  draft: GeneratedSafetyPlanDraft,
+  tradeLabel: string,
+  subTradeLabel: string
+): CsepTemplateSubsection[] {
+  const useSteel = isStructuralSteelOrDeckingScope(draft, tradeLabel, subTradeLabel);
+  const baseFromDraft = useSteel
+    ? [
+        ...STRUCTURAL_STEEL_DECKING_TOP_10,
+        ...(draft.riskSummary?.priorities ?? []),
+        ...(draft.ruleSummary?.hazardCategories ?? []),
+        ...draft.operations.flatMap((operation) => operation.hazardCategories ?? []),
+      ]
+    : [
+        ...(draft.riskSummary?.priorities ?? []),
+        ...(draft.ruleSummary?.hazardCategories ?? []),
+        ...draft.operations.flatMap((operation) => operation.hazardCategories ?? []),
+      ];
+  const items = dedupeRiskLabelsPreservingOrder(baseFromDraft, 10);
 
   return [
     {
@@ -1825,9 +1974,19 @@ function synthesizeTopRiskSubsections(draft: GeneratedSafetyPlanDraft): CsepTemp
   ];
 }
 
+const STEEL_TRADE_INTERACTION_DEFAULTS: string[] = [
+  "Sequence crane time and swing so steel erection, decking, and bundle landings are not in the same airspace and ground zone as other trades' picks, man-lifts, or façade access without a written overlap plan and radioed holds.",
+  "Agree on column-line and floor-edge handoffs: who owns deck bundle drops, when openings are left for MEP, and how plumb, bolt-up, and welding tie-ins with other systems are accepted before the area is released.",
+  "Coordinate delivery and laydown with hoisting: truck routes, outrigger and crane pad access, and traffic control so other crews are not under live picks or in blind rigging pull paths.",
+  "Share shift-level changes (weather, out-of-tolerance field conditions, resequenced steel) with GC, crane, and adjacent trade leads before restarting picks or leading-edge work.",
+];
+
 function synthesizeTradeInteractionSubsections(
-  draft: GeneratedSafetyPlanDraft
+  draft: GeneratedSafetyPlanDraft,
+  options?: { tradeLabel?: string; subTradeLabel?: string }
 ): CsepTemplateSubsection[] {
+  const tradeLabel = options?.tradeLabel ?? "";
+  const subTradeLabel = options?.subTradeLabel ?? "";
   const overlaps = uniqueItems([
     ...draft.operations.flatMap((operation) => operation.conflicts ?? []),
     ...draft.conflictSummary.items.flatMap((item) => [
@@ -1836,13 +1995,19 @@ function synthesizeTradeInteractionSubsections(
       item.resequencingSuggestion ?? "",
     ]),
   ]);
+  const filtered = overlaps.length ? filterTradeInteractionItems(overlaps) : [];
+  const useSteelDefaults =
+    !filtered.length &&
+    isStructuralSteelOrDeckingScope(draft, tradeLabel, subTradeLabel);
 
   return [
     {
       title: "Trade Interaction Info",
-      items: overlaps.length
-        ? filterTradeInteractionItems(overlaps)
-        : [placeholderParagraphForSection("trade_interaction_info")],
+      items: filtered.length
+        ? filtered
+        : useSteelDefaults
+          ? STEEL_TRADE_INTERACTION_DEFAULTS
+          : [placeholderParagraphForSection("trade_interaction_info")],
     },
   ];
 }
@@ -1870,11 +2035,14 @@ function synthesizeHazcomSubsections(): CsepTemplateSubsection[] {
     {
       title: "Hazard Communication",
       items: [
-        "SDS availability: Maintain current Safety Data Sheets for every hazardous chemical on site before use. Crews shall know where printed and electronic SDS are posted (field office, trailer, or GC/CM portal) and obtain trade-specific SDS for materials they bring on site.",
-        "Labeling: Do not remove or deface manufacturer labels. Secondary containers are labeled with product identity and hazard information; unmarked or improvised containers are not used.",
-        "Contractor notification: Subcontractors and vendors provide SDS and notice before introducing new chemicals; incompatible or unapproved products are not used until reviewed.",
-        "Worker information: Workers are informed of chemical hazards, protective measures, and the written HazCom program location before exposure begins.",
-        "Non-routine tasks: Before non-routine tasks involving chemicals, supervision reviews hazards, controls, and emergency response with the crew.",
+        "SDS availability: Maintain a current SDS for every hazardous chemical on site. Printed binders, jobsite kiosks, and approved electronic access routes are identified at orientation; crews know how to obtain SDS after hours and for specialty materials.",
+        "Labeling: Original manufacturer labels remain intact. Secondary and portable containers carry product identity and hazard warnings consistent with the shipped product; do not use unmarked, household, or food-style containers for chemicals.",
+        "Secondary containers and transfer: Transfer from bulk or shop containers uses bonding/grounding and spill control where flammables are involved; only trained workers transfer product into approved containers with correct labeling.",
+        "Chemical inventory and communication: A project chemical inventory (or log) ties introduced products to SDS, owner/GC notification rules, and restricted-area postings; new products are not used until reviewed against incompatible trade activities.",
+        "Contractor notification: Subcontractors and vendors notify the GC/CM before bringing new chemicals on site; material compatibility, storage limits, and emergency contacts are updated when products change.",
+        "Employee access and awareness: Workers can access SDS in their work language where required, understand hazard pictograms and precautionary text at a use level, and know who to ask when labeling or compatibility is unclear.",
+        "Spills, releases, and follow-up: Report spills per site rules; use absorbents and PPE from the spill kit; re-label or replace compromised containers. Stormwater, waste drum, and disposal requirements live in the project environmental / waste program and appendices—HazCom still governs SDS, labels, and worker chemical awareness.",
+        "Non-routine tasks: Before non-routine work involving chemicals, supervision reviews hazards, ventilation, and emergency response in a short documented tailboard.",
       ],
     },
   ];
@@ -1885,12 +2053,15 @@ function synthesizeIippSubsections(): CsepTemplateSubsection[] {
     {
       title: "IIPP / Emergency Response",
       items: [
-        "Reporting: All injuries, illnesses, near misses, property damage, environmental releases, and security events are reported immediately to site supervision; recordable cases follow employer and owner notification rules.",
-        "Medical response: First aid is provided or arranged without delay; serious cases trigger 911 (or site medic) and scene control per the site medical plan.",
-        "Emergency notification: Alarms, muster points, and escalation contacts are communicated at orientation; crews know how to reach supervision, the GC/CM, and emergency services from the work area.",
-        "Incident handling: The scene is stabilized, energy sources are isolated when needed, and evidence is preserved for investigation; work does not resume until release from the competent person or incident lead.",
-        "Inspections: Site and activity inspections document hazards, corrective actions, and permit conditions; findings are tracked to closure.",
-        "Response expectations: Severe weather, utility damage, fire, structural instability, or utility contact triggers stop-work, evacuation or shelter as directed, and formal restart only after re-evaluation.",
+        "Immediate reporting: Injuries, illnesses, near misses, property or environmental loss, and security-related events are reported to site supervision without delay; recordable and owner/GC notification rules are followed for each case type.",
+        "Scene control: Stop the unsafe condition, secure energy sources when applicable, keep unnecessary personnel out, preserve the area for photos and witness names, and hand off to medical or fire/EMS per the event.",
+        "Medical response: Provide or arrange first aid; obtain professional care for serious injury; for suspension or fall arrest, do not perform improvised rescue outside trained procedures and the site plan.",
+        "Emergency notification: Workers know how to place a 911 or site-medic call from the work face, the project address, and access gate; after-hours escalation paths are defined for key contacts.",
+        "Investigation: Supervision begins a fact-based review, identifies immediate contributing factors, and documents corrective actions; lessons learned are shared with affected crews.",
+        "Corrective action and follow-up: Deficiencies are tracked to closure with responsible parties and dates; repeat findings trigger stronger controls or retraining before work continues.",
+        "Restart conditions: Work resumes only when the hazard is abated, permits are re-validated, and the qualified competent person (or owner process) approves the restart in writing when required.",
+        "Inspections and site rounds: Documented inspections tie hazard ID to fixes; IIPP here covers how incidents flow through reporting and return-to-work, not the full audit KPI program (see monitoring sections for audit cadence).",
+        "Severe events: Weather, fire, utility strike, or structural alert triggers muster, roll-call, and directed evacuation or shelter; return only after the incident commander or GC releases the area.",
       ],
     },
   ];
@@ -2008,8 +2179,22 @@ function buildSectionSubsections(
     dedupeTemplateSubsections(grouped.get(definition.key) ?? [])
   );
 
+  if (definition.key === "scope") {
+    subsections = filterScopeTemplateSubsections(subsections);
+  }
+  if (definition.key === "security_at_site") {
+    subsections = filterSecurityAtSiteSubsections(subsections);
+  }
+
   if (definition.key === "message_from_owner" && !hasMeaningfulSubsections(subsections)) {
-    subsections = synthesizeOwnerMessageSubsections(context.projectName, context.contractorName);
+    const steelErection = isStructuralSteelOrDeckingScope(
+      context.draft,
+      context.tradeLabel,
+      context.subTradeLabel
+    );
+    subsections = synthesizeOwnerMessageSubsections(context.projectName, context.contractorName, {
+      steelErection,
+    });
   }
 
   if (definition.key === "sign_off_page" && !hasMeaningfulSubsections(subsections)) {
@@ -2017,7 +2202,13 @@ function buildSectionSubsections(
   }
 
   if (definition.key === "purpose" && !hasMeaningfulSubsections(subsections)) {
-    subsections = synthesizePurposeSubsections(context.projectName);
+    subsections = synthesizePurposeSubsections(context.projectName, {
+      steelErection: isStructuralSteelOrDeckingScope(
+        context.draft,
+        context.tradeLabel,
+        context.subTradeLabel
+      ),
+    });
   }
 
   if (definition.key === "scope" && !hasMeaningfulSubsections(subsections)) {
@@ -2032,7 +2223,11 @@ function buildSectionSubsections(
   }
 
   if (definition.key === "top_10_risks") {
-    const synthesized = synthesizeTopRiskSubsections(context.draft);
+    const synthesized = synthesizeTopRiskSubsections(
+      context.draft,
+      context.tradeLabel,
+      context.subTradeLabel
+    );
     const seed = hasMeaningfulSubsections(subsections)
       ? stripSharedContentAcrossSubsections(dedupeTemplateSubsections([...synthesized, ...subsections]))
       : synthesized;
@@ -2049,14 +2244,15 @@ function buildSectionSubsections(
   }
 
   if (definition.key === "trade_interaction_info") {
+    const tradeCtx = { tradeLabel: context.tradeLabel, subTradeLabel: context.subTradeLabel };
     if (!hasMeaningfulSubsections(subsections)) {
-      subsections = synthesizeTradeInteractionSubsections(context.draft);
+      subsections = synthesizeTradeInteractionSubsections(context.draft, tradeCtx);
     } else {
       subsections = filterTradeInteractionSubsections(
         stripSharedContentAcrossSubsections(dedupeTemplateSubsections(subsections))
       );
       if (!hasMeaningfulSubsections(subsections)) {
-        subsections = synthesizeTradeInteractionSubsections(context.draft);
+        subsections = synthesizeTradeInteractionSubsections(context.draft, tradeCtx);
       }
     }
   }

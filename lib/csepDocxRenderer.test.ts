@@ -170,12 +170,13 @@ function createGeneratedDraft(): GeneratedSafetyPlanDraft {
 }
 
 describe("csepDocxRenderer", () => {
-  it("builds the CSEP in the required front-matter order before Section 13 hazards", () => {
+  it("builds the CSEP in the required front-matter order before Section 11 hazards", () => {
     const model = buildCsepRenderModelFromGeneratedDraft(createGeneratedDraft());
 
     expect(model.frontMatterSections.map((section) => section.key)).toEqual([
-      "message_from_owner",
+      "sign_off_page",
       "table_of_contents",
+      "message_from_owner",
       "purpose",
       "scope",
       "top_10_risks",
@@ -187,7 +188,7 @@ describe("csepDocxRenderer", () => {
       "iipp_emergency_response",
     ]);
     expect(model.sections.map((section) => section.key)).toEqual(["hazards_and_controls"]);
-    expect(model.sections[0]?.numberLabel).toBe("13");
+    expect(model.sections[0]?.numberLabel).toBe("11");
   });
 
   it("keeps one instance of each required section and supplies placeholders where needed", () => {
@@ -203,8 +204,9 @@ describe("csepDocxRenderer", () => {
     });
 
     expect(sections.map((section) => section.key)).toEqual([
-      "message_from_owner",
+      "sign_off_page",
       "table_of_contents",
+      "message_from_owner",
       "purpose",
       "scope",
       "top_10_risks",
@@ -219,6 +221,8 @@ describe("csepDocxRenderer", () => {
     expect(
       sections.find((section) => section.key === "union")?.subsections[0]?.paragraphs?.[0]
     ).toContain("Project-specific information to be completed");
+    expect(sections.find((section) => section.key === "sign_off_page")?.numberLabel).toBeNull();
+    expect(sections.find((section) => section.key === "table_of_contents")?.numberLabel).toBeNull();
   });
 
   it("replaces repeated policy text inside hazard modules with short cross-references", () => {
@@ -230,32 +234,35 @@ describe("csepDocxRenderer", () => {
     ]);
     const hazardText = flattened.join(" ");
 
-    expect(hazardText).toContain("Follow the project Hazard Communication requirements defined in Section 11.");
-    expect(hazardText).toContain("Follow the project IIPP / Emergency Response requirements defined in Section 12.");
+    expect(hazardText).toContain("Follow the project Hazard Communication requirements defined in the HazCom section.");
+    expect(hazardText).toContain("Follow the project IIPP / Emergency Response requirements defined in the IIPP / Emergency Response section.");
     expect(hazardText).not.toContain("Follow the project Hazard Communication requirements for sealants.");
     expect(hazardText).not.toContain("Follow the project emergency response policy when a rescue is needed.");
   });
 
-  it("renders one table of contents and no standalone revision-history section", async () => {
+  it("renders one table of contents and no duplicate revision-history block", async () => {
     const rendered = await renderGeneratedCsepDocx(createGeneratedDraft());
     const { documentXml, headerXml, footerXml } = await unzipDocx(rendered.body);
 
     expect(documentXml.match(/Table of Contents/g)?.length ?? 0).toBe(1);
-    expect(documentXml).not.toContain("Revision History");
+    // Legacy builder used "0.1 Revision History" as a free-standing section; the
+    // export may still mention "Revision History" inside combined appendix titles.
+    expect(documentXml).not.toContain("0.1 Revision History");
 
     const orderedHeadings = [
-      "2. Message from Owner",
-      "3. Table of Contents",
-      "4. Purpose",
-      "5. Scope",
-      "6. Top 10 Risks",
-      "7. Trade Interaction Info",
-      "8. Disciplinary Program",
-      "9. Union",
-      "10. Security at Site",
-      "11. HazCom",
-      "12. IIPP / Emergency Response",
-      "13. Hazards and Controls",
+      "Sign-Off Page",
+      "Table of Contents",
+      "1. Message from Owner",
+      "2. Purpose",
+      "3. Scope",
+      "4. Top 10 Risks",
+      "5. Trade Interaction Info",
+      "6. Disciplinary Program",
+      "7. Union",
+      "8. Security at Site",
+      "9. HazCom",
+      "10. IIPP / Emergency Response",
+      "11. Hazards and Controls",
     ];
 
     let lastIndex = -1;

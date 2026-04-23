@@ -27,10 +27,12 @@ import {
   splitScopeTasksAndInterfaces,
 } from "@/lib/csepFinalization";
 import {
+  buildSteelCommonOverlappingTradesSubsections,
   buildSteelErectionOverlaySections,
   buildSteelErectionPlan,
   hasSteelErectionScope,
   isSteelErectionPackage,
+  STEEL_OVERLAP_TRADES_CSEP_INTRO,
 } from "@/lib/steelErectionPlan";
 import { getSteelErectionHazardModules } from "@/lib/steelErectionHazardModules";
 import { getSteelErectionProgramModules } from "@/lib/steelErectionProgramModules";
@@ -595,7 +597,9 @@ function suppressRedundantCsepNarrative(section: GeneratedSafetyPlanSection) {
     ? undefined
     : section.summary;
   const nextBody =
-    section.key === "additional_permits"
+    section.key === "additional_permits" ||
+    section.key === "contractor_iipp" ||
+    section.key === "common_overlapping_trades"
       ? section.body
       : isNarrativeRedundant(section.body, structuredSnippets)
         ? undefined
@@ -1284,7 +1288,7 @@ function buildHazardModuleSubsection(
     body: buildModuleBody(item.summary, parsed),
     bullets: [
       `Hazard overview: ${summaryWithoutTrailingPeriod(item.summary)}. Review the exposure, control method, and affected interface before the crew enters the area.`,
-      "Pre-start verification: Inspect the hazard area, confirm the exposure is correctly identified, verify the control method, and confirm who owns the stop-work decision before exposure begins.",
+      "Pre-start verification: Inspect the hazard area, confirm the exposure is correctly identified, verify the control method, and confirm who has authority to release the work for start once permits, PPE, access, rescue provisions, and hazard controls are verified.",
       ...planningItems,
       "Required controls: Establish the hazard boundary, maintain the selected controls, keep non-essential personnel out of the exposure zone, and correct drift immediately when field conditions change.",
       ...suspendedLoadBullets,
@@ -1378,7 +1382,7 @@ function buildSteelTaskModuleSubsection(item: SteelTaskModuleContextRow): Genera
     bullets: [
       `Task description: ${summaryWithoutTrailingPeriod(item.summary)}. Review the sequence, access point, and handoff condition before the first crew member starts the task.`,
       ...exposureBullets,
-      "Pre-start verification: Verify the sequence, support steel, access point, material staging, equipment, communications, fall protection, and rescue path before work starts. The foreman or competent person confirms the crew briefing, PPE inspection, and stop-work ownership before exposure begins.",
+      "Pre-start verification: Verify the sequence, support steel, access point, material staging, equipment, communications, fall protection, and rescue path before work starts. The foreman or competent person confirms the crew briefing, PPE inspection, and who has work-start or release authority to authorize proceeding once permits, PPE, access, rescue provisions, and required hazard controls are verified.",
       ...planningItems,
       "Required controls (before and during work): Establish the controlled work zone, maintain the approved sequence, keep the frame stable at every stage, protect workers below, and correct drift immediately when field conditions change. Controls remain in place until the task is complete and formally released.",
       ...suspendedLoadBullets,
@@ -2963,10 +2967,15 @@ function buildCsepSelectedSections(params: {
     params.ruleSummary.permitTriggers.length > 0 ||
     groupedTradePackages.some((pkg) => pkg.permitTriggers.length > 0) ||
     hasSteelErectionScope(params.generationContext, params.operations);
+  const steelErectionInScopeForOverlap = hasSteelErectionScope(
+    params.generationContext,
+    params.operations
+  );
   const hasOverlapSectionContent =
     overlapInput.length > 0 ||
     interfaceTrades.length > 0 ||
-    params.conflictMatrix.items.length > 0;
+    params.conflictMatrix.items.length > 0 ||
+    steelErectionInScopeForOverlap;
   const hasOshaSectionContent =
     oshaInput.length > 0 || params.oshaReferences.length > 0;
   const hasSelectedHazardsSectionContent =
@@ -3132,9 +3141,17 @@ function buildCsepSelectedSections(params: {
           key: "common_overlapping_trades",
           title: CSEP_BUILDER_BLOCK_TITLES.common_overlapping_trades,
           body: appendInlineOsha(
-            overlapCoordinationNarrative(params.conflictMatrix.items.length, interfaceTrades),
+            steelErectionInScopeForOverlap
+              ? STEEL_OVERLAP_TRADES_CSEP_INTRO
+              : overlapCoordinationNarrative(
+                  params.conflictMatrix.items.length,
+                  interfaceTrades
+                ),
             params.inlineOshaRefs
           ),
+          subsections: steelErectionInScopeForOverlap
+            ? buildSteelCommonOverlappingTradesSubsections()
+            : undefined,
           bullets: (() => {
             const merged = dedupe([...interfaceTrades, ...overlapInput]);
             return merged.length ? merged : undefined;
@@ -3315,30 +3332,35 @@ function buildCsepSelectedSections(params: {
       params.operations
     );
     const iippBodyLead =
-      "The contractor shall maintain an active injury and illness prevention workflow covering fit-for-duty expectations, incident response, testing where required, corrective action, and worker accountability.";
+      "The contractor shall maintain an active injury and illness prevention workflow covering incident response, corrective action, and worker accountability. Fit-for-duty, substance, and site-access expectations are in the subsections below so they are not repeated between Drug, Alcohol, and Fit-for-Duty Controls and Enforcement and Corrective Action.";
     const iippSteelRisk = steelErectionInScope
       ? " For the active structural steel or steel erection trade scope, fall from height is a major ongoing project risk. Incident and investigation requirements in subsections 5.7.1 through 5.7.6 apply in full, with fall-related and fall-arrest events treated as primary report and review triggers when they occur on site."
       : "";
     const drugAlcohol = buildStandaloneSubsectionContent({
       title: "Drug, Alcohol, and Fit-for-Duty Controls",
       value: drugAlcoholInput,
-      fallbackBody:
-        "Workers must report fit-for-duty concerns and comply with owner, GC/CM, employer, and post-incident testing requirements where applicable.",
+      fallbackBody: [
+        "Before first site access or the start of work, workers complete required site orientation and acknowledge applicable employer, owner, and GC/CM fit-for-duty and substance-use policy requirements, including any program enrollment, acknowledgments, and testing triggers that apply on day one.",
+        "Drug and alcohol compliance shall be maintained in accordance with applicable union agreements, reciprocal testing and referral obligations, and project or site rules, together with employer policy and law.",
+        "Alcohol, illegal drugs, and unauthorized controlled substances may not be stored or kept in personal vehicles while those vehicles are parked on the construction site or on client property.",
+      ].join("\n\n"),
       fallbackBullets: [
-        "Do not report to work impaired or unfit for duty.",
-        "Follow site and employer testing triggers, including post-incident requirements where applicable.",
-        "Remove workers from the task when impairment or unsafe behavior is suspected.",
+        "Workers shall report suspected alcohol- or drug-related impairment; supervision shall remove affected workers from exposed work, at-height tasks, and equipment operation until the situation is handled under project and employer procedures.",
+        "Post-incident, reasonable-suspicion, return-to-work, and other program testing triggers shall be followed. When impairment or noncompliance creates an unacceptable risk, that work does not continue until the risk is abated and required steps are met.",
+        "Restart of work stopped for suspected impairment, or for covered tasks after a related program action, shall follow site and employer rules, including documented supervisor (or other designated) approval when the program or owner/GC direction requires it.",
       ],
     });
     const enforcement = buildStandaloneSubsectionContent({
       title: "Enforcement and Corrective Action",
       value: enforcementInput,
       fallbackBody:
-        "Noncompliance with plan requirements requires immediate correction, supervisory intervention, and documented follow-up proportional to the risk.",
+        "This subsection governs correction, escalation, documentation, field verification, and approved restart after CSEP or site-rule violations. It does not restate the substance, testing, and fit-for-duty program (see Drug, Alcohol, and Fit-for-Duty Controls).",
       fallbackBullets: [
-        "Correct unsafe conditions immediately when feasible.",
-        "Escalate repeated or high-risk violations to supervision and safety leadership.",
-        "Document corrective actions, retraining, and restart conditions.",
+        "Correct the deficiency at once or stop the work: issue clear, task-specific direction on what must change before the crew or equipment re-engages.",
+        "Escalate in proportion to risk: foreman to superintendent to company safety; involve owner/GC and union stewards when program rules, labor agreements, or contract terms require it.",
+        "Document findings, immediate actions, responsible parties, follow-up due dates, and any disciplinary, progressive, or site-removal steps taken. Track repeat issues for trend review.",
+        "Verify corrective measures in the field (including permits, re-briefs, and equipment or access fixes) before closing an item. Restart after stop-work requires documented release when the site or program requires it.",
+        "Disciplinary and contract consequences, including removal from site, follow employer policy, labor obligations, and owner/GC direction; communicate outcomes as those rules require.",
       ],
     });
 

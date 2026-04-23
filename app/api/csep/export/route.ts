@@ -1036,7 +1036,7 @@ async function buildDoc(form: CSEPInput) {
       children,
       sectionNumber,
       section: getResolvedCsepSection(builderTextConfig, "drug_and_alcohol_testing"),
-      fallbackTitle: "Drug and Alcohol Testing",
+      fallbackTitle: "Drug, Alcohol, and Fit-for-Duty Controls",
       extraText: form.drug_and_alcohol_testing_text,
     });
     sectionNumber++;

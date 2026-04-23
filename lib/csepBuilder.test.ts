@@ -343,7 +343,7 @@ Use this draft weather overlay:
       },
     });
 
-    expect(structured.sectionMap[0]?.title).toBe("0.0 Document Control");
+    expect(structured.sectionMap[0]?.key).toBe("table_of_contents");
     expect(
       structured.sectionMap.find(
         (section) => section.key === "plan_use_guidance"

@@ -71,6 +71,101 @@ export function hasSteelErectionScope(
   );
 }
 
+/** Intro body for CSEP "Common Overlapping Trades" when structural steel / steel erection is in scope. */
+export const STEEL_OVERLAP_TRADES_CSEP_INTRO =
+  "Coordinate overlapping work areas, access routes, permit ownership, protection below, and stop-work handoffs before affected crews begin work. " +
+  "The trades and interfaces below may interfere with structural steel erection, decking, hoisting, bolting, welding, access control, and protection below if work is not sequenced and communicated properly.";
+
+/**
+ * Default trade-interface subsections for steel erection (coordination with adjacent trades in shared areas).
+ */
+export function buildSteelCommonOverlappingTradesSubsections(): NonNullable<
+  GeneratedSafetyPlanSection["subsections"]
+> {
+  return [
+    {
+      title: "Concrete / Foundations",
+      body: "Concrete and foundation work may interfere with steel erection through anchor rod access, footing locations, slab-placement timing, curing restrictions, crane setup limits, and access around base plates or column lines. Coordination is required so column erection, anchor rod verification, and release of steel do not conflict with concrete placement, finishing, or restricted-access areas.",
+      bullets: [],
+    },
+    {
+      title: "Survey / Layout",
+      body: "Survey and layout personnel may need access to column lines, embeds, control points, and deck areas during active erection. Coordination is required so layout work is not performed inside lift zones, suspended-load paths, or incomplete steel areas without access control and communication with supervision.",
+      bullets: [],
+    },
+    {
+      title: "Crane / Hoisting Operations",
+      body: "Crane and hoisting operations may interfere with all adjacent trades through swing radius, load path, pick zones, landing areas, and restricted access below overhead work. Coordination is required so other crews do not enter lift zones, travel beneath loads, or occupy the landing area while steel is being hoisted, landed, connected, or released.",
+      bullets: [],
+    },
+    {
+      title: "Electrical / Temporary Power",
+      body: "Electrical work may interfere through temporary power runs, energized equipment, lighting installation, conduit routing, and access around active steel or decking areas. Coordination is required so temporary cords, panels, and energized systems do not create trip hazards, contact hazards, or access conflicts with hoisting, welding, or elevated work.",
+      bullets: [],
+    },
+    {
+      title: "HVAC / Mechanical",
+      body: "HVAC or mechanical work may interfere through shared lift access, overhead installation, material staging, duct or equipment placement, and congestion near support steel or decking. Coordination is required when mechanical crews work below active steel erection, inside access-controlled zones, or near incomplete steel, overhead picks, or hot work areas.",
+      bullets: [],
+    },
+    {
+      title: "Plumbing / Process Piping",
+      body: "Plumbing or piping work may interfere through pipe staging, rack supports, below-deck work, embeds, penetrations, and access under active erection areas. Coordination is required so piping crews are protected from overhead work, drop zones, and incomplete deck or steel conditions before access is released.",
+      bullets: [],
+    },
+    {
+      title: "Fire Protection",
+      body: "Fire protection work may interfere with steel erection through overhead piping installation, lift access, shared work platforms, and access below active steel or decking operations. Coordination is required when fire protection crews work below erection activities or in areas affected by hot work, overhead protection, barricades, or restricted access.",
+      bullets: [],
+    },
+    {
+      title: "Roofing / Waterproofing",
+      body: "Roofing and waterproofing work may interfere with decking completion, leading-edge protection, material staging, weather-sensitive sequencing, and roof-level access restrictions. Coordination is required so roof crews do not enter incomplete deck areas, controlled decking zones, or fall-protection boundaries before release.",
+      bullets: [],
+    },
+    {
+      title: "Glazing / Curtainwall / Exterior Envelope",
+      body: "Glazing or exterior-envelope work may interfere through shared perimeter access, swing-stage or lift locations, material staging, and work near exposed edges or temporary perimeter protection. Coordination is required so façade crews are not exposed to falling objects, incomplete perimeter protection, or overhead steel/detailing work.",
+      bullets: [],
+    },
+    {
+      title: "Equipment Installation / Millwright / Conveyor",
+      body: "Equipment installation may interfere through heavy picks, access to set locations, floor loading concerns, shared rigging space, and conflicts with incomplete structural support or decking. Coordination is required so equipment crews do not work in areas where steel stability, release, or hoisting paths are still active.",
+      bullets: [],
+    },
+    {
+      title: "General Conditions / Site Management",
+      body: "General conditions activities may interfere through fencing, temporary facilities, site logistics, housekeeping, dumpsters, pedestrian routing, sanitation access, and temporary barricades. Coordination is required so site-management activities do not block crane routes, laydown areas, unloading zones, or protected access paths needed for steel operations.",
+      bullets: [],
+    },
+    {
+      title: "Painting / Coatings / Fireproofing",
+      body: "Painting, coatings, or fireproofing may interfere by creating flammable atmospheres, overspray, cure-time restrictions, visibility issues, and access limitations around steel or deck areas. Coordination is required before welding, cutting, or other hot work begins near coating operations or where members must remain accessible for bolting, detailing, or inspection.",
+      bullets: [],
+    },
+    {
+      title: "Site Utilities / Earthwork / Excavation",
+      body: "Site utilities, excavation, or earthwork may interfere through underground conditions, haul routes, unstable ground, crane setup limitations, trenching, and access near staging or laydown zones. Coordination is required so crane bearing surfaces, delivery routes, and material-storage areas remain stable and protected from excavation-related changes.",
+      bullets: [],
+    },
+    {
+      title: "Scaffold / Access Equipment / AWP-MEWP Operations",
+      body: "Scaffold, ladder, or AWP/MEWP activity may interfere through shared access routes, congestion, swing clearance, overlapping elevated work, and competing use of protected work zones. Coordination is required so access equipment is not positioned in crane swing radius, suspended-load paths, or drop zones and does not block emergency or material access.",
+      bullets: [],
+    },
+    {
+      title: "Inspection / Testing / QA-QC",
+      body: "Inspection and QA/QC personnel may require access to connections, welds, bolts, decking, and release points during active work phases. Coordination is required so inspections do not occur inside uncontrolled lift zones, exposed leading-edge areas, or incomplete steel without proper access control and communication with supervision.",
+      bullets: [],
+    },
+    {
+      title: "Overlap Response Requirement",
+      body: "When overlapping work creates conflicting access, overhead exposure, permit overlap, incompatible sequencing, or unsafe shared-area conditions, affected crews shall stop, coordinate with supervision, and re-establish the work sequence and protection measures before proceeding.",
+      bullets: [],
+    },
+  ];
+}
+
 /** True when a trade-package row is steel / structural / decking / rigging–related for permit roll-up. */
 export function isSteelErectionPackage(pkg: {
   tradeLabel: string;

@@ -13,6 +13,7 @@ import {
   appNativeSelectClassName,
 } from "@/components/WorkspacePrimitives";
 import {
+  CSEP_BUILDER_BLOCK_LABELS,
   CSEP_BUILDER_BLOCK_OPTIONS,
   CSEP_FORMAT_SECTION_OPTIONS,
   buildLegacyIncludedSectionLabelsFromFormatSections,
@@ -220,11 +221,19 @@ const TASK_DRIVEN_SECTION_LABELS = new Set([
   "Health and Wellness",
   "Incident Reporting and Investigation",
   "Training and Instruction",
+  CSEP_BUILDER_BLOCK_LABELS.drug_and_alcohol_testing,
   "Drug and Alcohol Testing",
   "Enforcement and Corrective Action",
   "Recordkeeping",
   "Continuous Improvement",
 ]);
+
+function formIncludesDrugAlcoholSection(includedSections: readonly string[]) {
+  return (
+    includedSections.includes(CSEP_BUILDER_BLOCK_LABELS.drug_and_alcohol_testing) ||
+    includedSections.includes("Drug and Alcohol Testing")
+  );
+}
 
 const ENRICHMENT_DRIVEN_SECTION_LABELS = new Set([
   "Required PPE",
@@ -572,7 +581,7 @@ export default function CSEPPage() {
           "Incident Reporting and Investigation"
         ),
         training_and_instruction: form.included_sections.includes("Training and Instruction"),
-        drug_and_alcohol_testing: form.included_sections.includes("Drug and Alcohol Testing"),
+        drug_and_alcohol_testing: formIncludesDrugAlcoholSection(form.included_sections),
         enforcement_and_corrective_action: form.included_sections.includes(
           "Enforcement and Corrective Action"
         ),
@@ -1927,11 +1936,11 @@ export default function CSEPPage() {
                       />
                     </div>
                   ) : null}
-                  {form.included_sections.includes("Drug and Alcohol Testing") ? (
+                  {formIncludesDrugAlcoholSection(form.included_sections) ? (
                     <div className="space-y-3">
                       {renderBuilderAiAction("drug_and_alcohol_testing_text")}
                       <TextAreaField
-                        label="Drug and alcohol testing notes"
+                        label="Drug, alcohol, and fit-for-duty notes"
                         value={form.drug_and_alcohol_testing_text}
                         onChange={(value) => updateField("drug_and_alcohol_testing_text", value)}
                       />

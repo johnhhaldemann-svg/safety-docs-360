@@ -767,7 +767,7 @@ export function buildLegacyCsepRenderModel(
     sections.push(
       buildNarrativeSection({
         key: "drug_and_alcohol_testing",
-        title: "Drug and Alcohol Testing",
+        title: "Drug, Alcohol, and Fit-for-Duty Controls",
         section: getResolvedCsepSection(builderTextConfig, "drug_and_alcohol_testing"),
         extraText: form.drug_and_alcohol_testing_text,
       })

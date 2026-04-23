@@ -581,14 +581,13 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
       "The selected scope includes work at height or use of ladders, scaffolds, or aerial lifts where fall protection is required by rule or by site plan.",
     ],
     responsibilities: [
-      "Supervision plans and inspects the fall protection system for the work area; workers stop if anchors, access, or edge protection is inadequate.",
+      "Supervision plans fall protection and stops work if anchors, access, or edge protection is inadequate.",
     ],
     controls: [
-      "Use guardrails, covers, personal fall arrest / restraint, warning lines, or other approved systems as required; inspect harnesses, lanyards, SRLs, and anchors before each use.",
-      "Barricade or control access below elevated work; maintain housekeeping to limit dropped objects.",
+      "Use approved guardrails, covers, PFAS / restraint, or warning lines as required; barricade below elevated work; inspect harnesses, lanyards, SRLs, and anchors before use and maintain housekeeping to limit dropped objects.",
     ],
     training: [
-      "Train workers on system selection, inspection, use, limits, and rescue / notification for the work face.",
+      "Workers are trained on system selection, inspection, limits, and rescue or escalation for the work face (see site orientation and IIPP for general reporting).",
     ],
     compactLayout: true,
   },

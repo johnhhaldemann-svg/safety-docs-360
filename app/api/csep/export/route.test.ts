@@ -183,9 +183,9 @@ describe("legacy CSEP DOCX export", () => {
     expect(documentXml).toContain("Table of Contents");
     expect(documentXml).toContain("Kitchen Renovation");
     expect(documentXml).toContain("Trade: Millwork");
-    expect(documentXml).toContain("2. Message from Owner");
-    expect(documentXml).toContain("5. Scope");
-    expect(documentXml).toContain("13. Hazards and Controls");
+    expect(documentXml).toContain("1. Message from Owner");
+    expect(documentXml).toContain("3. Scope");
+    expect(documentXml).toContain("11. Hazards and Controls");
     expect(documentXml).toContain('w:pgMar w:top="1440" w:right="1440" w:bottom="1080" w:left="1440"');
     expect(documentXml).not.toContain("<w:tbl>");
     expect(documentXml).toContain("Project Name");
@@ -263,7 +263,7 @@ describe("legacy CSEP DOCX export", () => {
     expect(documentXml).toContain("Custom scope fallback from super admin.");
     expect(documentXml).toContain("Custom training requirement from super admin.");
     expect(documentXml).toContain("Table of Contents");
-    expect(documentXml).toContain("12. IIPP / Emergency Response");
+    expect(documentXml).toContain("10. IIPP / Emergency Response");
   });
 
   it("renders weather content in shared baseline, project overlay, then contractor order", async () => {
@@ -386,8 +386,8 @@ describe("legacy CSEP DOCX export", () => {
     const body = new Uint8Array(await response.arrayBuffer());
     const { documentXml } = await unzipDocx(body);
 
-    expect(documentXml).toContain("10. Security at Site");
-    expect(documentXml).toContain("13. Hazards and Controls");
+    expect(documentXml).toContain("8. Security at Site");
+    expect(documentXml).toContain("11. Hazards and Controls");
     expect(documentXml).toContain("Contractors shall control worker access");
   });
 
@@ -419,8 +419,8 @@ describe("legacy CSEP DOCX export", () => {
     const { documentXml } = await unzipDocx(body);
 
     expect(documentXml).toContain("Legacy Build");
-    expect(documentXml).toContain("3. Table of Contents");
-    expect(documentXml).toContain("12. IIPP / Emergency Response");
+    expect(documentXml).toContain("Table of Contents");
+    expect(documentXml).toContain("10. IIPP / Emergency Response");
   });
 
   it("renders generated draft exports through the shared CSEP renderer", async () => {
@@ -433,11 +433,11 @@ describe("legacy CSEP DOCX export", () => {
     const { documentXml, headerXml, footerXml } = await unzipDocx(body);
 
     expect(documentXml).toContain("Table of Contents");
-    expect(documentXml).toContain("2. Message from Owner");
-    expect(documentXml).toContain("5. Scope");
-    expect(documentXml).toContain("11. HazCom");
-    expect(documentXml).toContain("12. IIPP / Emergency Response");
-    expect(documentXml).toContain("13. Hazards and Controls");
+    expect(documentXml).toContain("1. Message from Owner");
+    expect(documentXml).toContain("3. Scope");
+    expect(documentXml).toContain("9. HazCom");
+    expect(documentXml).toContain("10. IIPP / Emergency Response");
+    expect(documentXml).toContain("11. Hazards and Controls");
     expect(documentXml).toContain("Appendix A. Forms and Permit Library");
     expect(documentXml).not.toContain("Blueprint");
     expect(documentXml).toContain("Disclaimer");
