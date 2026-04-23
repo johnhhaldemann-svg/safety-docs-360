@@ -205,7 +205,9 @@ describe("csepPrograms", () => {
       source: "selected",
     });
 
-    expect(section.subsections.map((subsection) => subsection.title)).toEqual(["Program Controls"]);
+    expect(section.subsections.map((subsection) => subsection.title)).toEqual([
+      "Program controls — Fall Protection Program",
+    ]);
   });
 
   it("renders related tasks as one paragraph instead of bullet items", () => {
@@ -217,7 +219,7 @@ describe("csepPrograms", () => {
     });
 
     expect(
-      section.subsections.find((subsection) => subsection.title === "Program Controls")?.body
+      section.subsections.find((subsection) => subsection.title.startsWith("Program controls —"))?.body
     ).toContain("Related tasks: Unload steel, Sort members, Rigging.");
   });
 
@@ -238,7 +240,7 @@ describe("csepPrograms", () => {
     expect(hazardSection.subsections).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: "Program Controls",
+          title: "Program controls — Fall Protection Program",
           body: expect.stringMatching(
             /selected scope|fall protection|guardrails|Subpart M|Related tasks: Unload steel/i
           ),
@@ -311,7 +313,9 @@ describe("csepPrograms", () => {
       },
     ]);
     expect(onlyHazard).toHaveLength(1);
-    expect(onlyHazard[0]?.subsections.map((s) => s.title)).toEqual(["Program Controls"]);
+    expect(onlyHazard[0]?.subsections.map((s) => s.title)).toEqual([
+      "Program controls — Ladder Use Controls",
+    ]);
   });
 
   it("fills missing procedure arrays from the default catalog when normalizing older configs", () => {

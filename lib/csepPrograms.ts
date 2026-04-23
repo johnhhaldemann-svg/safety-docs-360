@@ -1807,7 +1807,8 @@ function buildCompactProgramSection(
     subsections: body
       ? [
           {
-            title: "Program Controls",
+            // Include program title so merged sections (e.g. "14. Hazards and Controls") never repeat the same heading.
+            title: `Program controls — ${definition.title}`,
             body,
             bullets: [],
           },

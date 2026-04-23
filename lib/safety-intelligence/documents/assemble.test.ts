@@ -283,7 +283,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: "Program Controls",
+          title: "Program controls — Fall Protection Program",
           body: expect.stringMatching(/fall protection|guardrails|harness|Subpart M/i),
           bullets: [],
         }),

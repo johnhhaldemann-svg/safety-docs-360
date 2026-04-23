@@ -1084,7 +1084,18 @@ export default function CSEPPage() {
         | null;
 
       if (!response.ok) {
-        throw new Error(payload?.error || `Failed to generate ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} smart draft.`);
+        const detail =
+          payload?.error ||
+          `Failed to generate ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} smart draft (${response.status}).`;
+        if (response.status === 409) {
+          console.warn(
+            "[CSEP preview] Export validation failed — open the message below in the banner, fix the issue, then regenerate.",
+            detail
+          );
+        } else {
+          console.warn("[CSEP preview] Request failed", { status: response.status, detail });
+        }
+        throw new Error(detail);
       }
 
       if (!payload?.generated_document_id || !payload.builder_input_hash || !payload.draft) {
