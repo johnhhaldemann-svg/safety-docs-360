@@ -626,7 +626,8 @@ const CSEP_BUILDER_AI_SECTION_DEFINITIONS: readonly CsepBuilderAiSectionConfig[]
     id: "weather",
     kind: "weather",
     title: "Emergency, Weather, Fire Prevention & Housekeeping",
-    includedSectionLabel: "Emergency, Weather, Fire Prevention & Housekeeping",
+    /** Must match `CSEP_BUILDER_BLOCK_OPTIONS` label for `weather_requirements_and_severe_weather_response` (form `included_sections`). */
+    includedSectionLabel: "Weather Requirements and Severe Weather Response",
     draftingFocus:
       "Cover field coordination for heat, cold, wind, and lightning, fire prevention and housekeeping, monitoring and comm (grouped, not one-line repeated prefixes), and stop-work. Cross-reference the dedicated Emergency and HazCom sections instead of restating them.",
   },
