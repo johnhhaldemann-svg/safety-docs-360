@@ -213,7 +213,10 @@ function buildSummaryFields(draft: GeneratedSafetyPlanDraft): SummaryField[] {
     { label: "Project Number", value: valueOrNA(draft.projectOverview.projectNumber) },
     { label: "Project Address", value: valueOrNA(draft.projectOverview.projectAddress) },
     { label: "Owner / Client", value: valueOrNA(draft.projectOverview.ownerClient) },
-    { label: "GC / CM", value: valueOrNA(draft.projectOverview.gcCm) },
+    {
+      label: "GC / CM / program partners (list all with site safety or logistics authority)",
+      value: valueOrNA(draft.projectOverview.gcCm),
+    },
     { label: "Location", value: valueOrNA(draft.projectOverview.location) },
     { label: "Contractor", value: valueOrNA(draft.projectOverview.contractorCompany) },
     { label: "Delivery Type", value: projectDeliveryTypeLabel(projectDeliveryType) },

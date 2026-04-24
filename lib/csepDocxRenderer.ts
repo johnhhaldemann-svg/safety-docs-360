@@ -16,7 +16,10 @@ import {
   CONTRACTOR_SAFETY_BLUEPRINT_TITLE,
   getSafetyBlueprintDraftFilename,
 } from "@/lib/safetyBlueprintLabels";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { buildStructuredCsepDraft } from "@/lib/csepBuilder";
+import { getSiteSpecificNotesNarrativeBody } from "@/lib/csepSiteSpecificNotes";
 import {
   cleanFinalText,
   normalizeFinalExportText,
@@ -69,6 +72,8 @@ export type CsepTemplateSection = {
 export type CsepRenderModel = {
   projectName: string;
   contractorName: string;
+  /** Product/issuer line in the page footer (e.g. Safety360Docs). */
+  footerProductName: string;
   tradeLabel?: string | null;
   subTradeLabel?: string | null;
   issueLabel: string;
@@ -147,6 +152,14 @@ const INDENTS = {
 
 const FIXED_SECTION_DEFINITIONS: FixedSectionDefinition[] = [
   {
+    key: "message_from_owner",
+    kind: "front_matter",
+    title: "1. Message from Owner",
+    numberLabel: "1",
+    descriptor:
+      "Executive leadership commitment and project-wide safety expectations for this CSEP issue.",
+  },
+  {
     key: "sign_off_page",
     kind: "front_matter",
     title: "Sign-Off Page",
@@ -160,14 +173,6 @@ const FIXED_SECTION_DEFINITIONS: FixedSectionDefinition[] = [
     title: "Table of Contents",
     numberLabel: null,
     descriptor: "Document navigation for the issued CSEP package.",
-  },
-  {
-    key: "message_from_owner",
-    kind: "front_matter",
-    title: "1. Message from Owner",
-    numberLabel: "1",
-    descriptor:
-      "Executive leadership commitment and project-wide safety expectations for this CSEP issue.",
   },
   {
     key: "purpose",
@@ -718,6 +723,7 @@ function normalizeTemplateSection(section: CsepTemplateSection): CsepTemplateSec
 function normalizeRenderModel(model: CsepRenderModel): CsepRenderModel {
   return {
     ...model,
+    footerProductName: model.footerProductName?.trim() || "Safety360Docs",
     frontMatterSections: model.frontMatterSections.map((section) => normalizeTemplateSection(section)),
     sections: model.sections.map((section) => normalizeTemplateSection(section)),
     appendixSections: model.appendixSections.map((section) => normalizeTemplateSection(section)),
@@ -1873,6 +1879,20 @@ function hasMeaningfulSubsections(subsections: CsepTemplateSubsection[]) {
   return subsections.some((subsection) => subsectionHasContent(subsection));
 }
 
+const DEFAULT_CSEP_COVER_LOGO_RELATIVE = ["public", "brand", "safety360docs-logo-crop.png"] as const;
+
+function readDefaultCoverLogoFile(): CsepRenderModel["coverLogo"] {
+  try {
+    const abs = join(process.cwd(), ...DEFAULT_CSEP_COVER_LOGO_RELATIVE);
+    if (!existsSync(abs)) {
+      return null;
+    }
+    return { data: readFileSync(abs), type: "png" };
+  } catch {
+    return null;
+  }
+}
+
 function getOptionalCoverLogo(
   draft: GeneratedSafetyPlanDraft
 ): CsepRenderModel["coverLogo"] {
@@ -1886,12 +1906,12 @@ function getOptionalCoverLogo(
       : "";
 
   if (!rawDataUrl.startsWith("data:image/")) {
-    return null;
+    return readDefaultCoverLogoFile();
   }
 
   const match = rawDataUrl.match(/^data:image\/([a-z0-9.+-]+);base64,(.+)$/i);
   if (!match) {
-    return null;
+    return readDefaultCoverLogoFile();
   }
 
   const mimeSubtype = match[1].toLowerCase();
@@ -1904,7 +1924,7 @@ function getOptionalCoverLogo(
         : null;
 
   if (!type) {
-    return null;
+    return readDefaultCoverLogoFile();
   }
 
   try {
@@ -1913,7 +1933,7 @@ function getOptionalCoverLogo(
       type,
     };
   } catch {
-    return null;
+    return readDefaultCoverLogoFile();
   }
 }
 
@@ -2095,9 +2115,10 @@ function synthesizeScopeSubsections(
   }
   const siteBody = siteBodyParts.length
     ? siteBodyParts.join(" ")
-      : steelErectionScope
-      ? "[Add field-verified site facts; no task-list filler.] E.g. crane pad/swing, laydown and closed roads, max wind/lightning for picks, column-line or deck-edge holds, hoisting with occupied floors below, muck or mat limits. Tie to the lift and steel plan in §11."
-      : "[Add when known.] Laydown limits, delivery routes, gate rules, after-hours work, and occupied-area or sequencing constraints. Omit in the final issue if N/A (do not restate the task list).";
+    : getSiteSpecificNotesNarrativeBody({
+        userText: null,
+        steelErectionInScope: steelErectionScope,
+      });
 
   return [
     {
@@ -2673,7 +2694,10 @@ export function buildCsepRenderModelFromGeneratedDraft(
     { label: "Project Number", value: finalValueOrNA(draft.projectOverview.projectNumber) },
     { label: "Project Address", value: projectAddress },
     { label: "Owner / Client", value: finalPartyValueOrNA(draft.projectOverview.ownerClient) },
-    { label: "GC / CM", value: finalPartyValueOrNA(draft.projectOverview.gcCm) },
+    {
+      label: "GC / CM / program partners (list all with site safety or logistics authority)",
+      value: finalPartyValueOrNA(draft.projectOverview.gcCm),
+    },
     { label: "Contractor", value: contractorName },
     { label: "Prepared By", value: preparedBy },
     { label: "Date", value: issueLabel },
@@ -2711,6 +2735,7 @@ export function buildCsepRenderModelFromGeneratedDraft(
   return {
     projectName,
     contractorName,
+    footerProductName: "Safety360Docs",
     tradeLabel: joinDisplayValues(tradeLabels, "N/A"),
     subTradeLabel: joinDisplayValues(subTradeLabels, "N/A"),
     issueLabel,
@@ -2893,13 +2918,13 @@ function termDefinitionParagraph(term: string, definition: string) {
   );
 }
 
-function createRunningFooter(contractorName: string) {
+function createRunningFooter(footerProductName: string, contractorName: string) {
   return new Footer({
     children: [
       makeParagraph(
         [
           new TextRun({
-            text: `${contractorName}  |  `,
+            text: `${footerProductName}  |  ${contractorName}  |  `,
             font: "Calibri",
             size: 18,
             color: COLORS.gray,
@@ -3914,7 +3939,7 @@ export async function createCsepDocument(model: CsepRenderModel) {
           },
         },
         footers: {
-          default: createRunningFooter(model.contractorName),
+          default: createRunningFooter(model.footerProductName, model.contractorName),
         },
         children,
       },

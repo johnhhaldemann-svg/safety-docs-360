@@ -474,7 +474,10 @@ export function buildLegacyCsepRenderModel(
           ["Project Number", valueOrNA(form.project_number)],
           ["Project Address", valueOrNA(form.project_address)],
           ["Owner / Client", valueOrNA(form.owner_client)],
-          ["GC / CM", valueOrNA(form.gc_cm)],
+          [
+            "GC / CM / program partners (list all with site safety or logistics authority)",
+            valueOrNA(form.gc_cm),
+          ],
           ["Trade", valueOrNA(form.trade)],
           ["Sub-trade", valueOrNA(form.subTrade)],
           ["Selected Tasks", selectedTasks.length ? selectedTasks.join(", ") : "N/A"],
@@ -873,6 +876,7 @@ export function buildLegacyCsepRenderModel(
   return {
     projectName: valueOrNA(form.project_name),
     contractorName: valueOrNA(form.contractor_company),
+    footerProductName: "Safety360Docs",
     tradeLabel: tradeValue,
     subTradeLabel: subTradeValue,
     issueLabel,
@@ -883,7 +887,10 @@ export function buildLegacyCsepRenderModel(
       { label: "Project Number", value: valueOrNA(form.project_number) },
       { label: "Project Address", value: valueOrNA(form.project_address) },
       { label: "Owner / Client", value: valueOrNA(form.owner_client) },
-      { label: "GC / CM", value: valueOrNA(form.gc_cm) },
+      {
+        label: "GC / CM / program partners (list all with site safety or logistics authority)",
+        value: valueOrNA(form.gc_cm),
+      },
       { label: "Contractor", value: valueOrNA(form.contractor_company) },
       { label: "Prepared By", value: preparedBy },
       { label: "Date", value: issueLabel },

@@ -663,14 +663,18 @@ describe("buildGeneratedSafetyPlanDraft", () => {
           ),
         }),
         expect.objectContaining({
-          title: "Steel Erection Access Control",
-          body: expect.stringContaining("No employee shall work, stand, or travel under a suspended load"),
+          title: "Steel Erection Access Control (Subpart R / ironworker zones)",
+          body: expect.stringMatching(/suspended load/i),
         }),
         expect.objectContaining({
           title: "Controlled access below erection",
           body: expect.stringContaining(
             "No unauthorized access below active steel erection"
           ),
+        }),
+        expect.objectContaining({
+          title: "Designated laydown only",
+          body: expect.stringMatching(/logistics|crane plan/i),
         }),
       ]),
       table: null,
@@ -679,7 +683,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       structuredDraft.sectionMap.find((section) => section.key === "contractor_iipp")
     ).toMatchObject({
       body: expect.stringMatching(
-        /The contractor shall maintain an active injury and illness prevention workflow[\s\S]*structural steel in scope[\s\S]*high-priority report and investigation triggers/i
+        /Active IIPP: reporting, training records, monitoring, incident response, and corrective follow-up\.[\s\S]*structural steel in scope/i
       ),
       subsections: expect.arrayContaining([
         expect.objectContaining({
@@ -720,9 +724,11 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         }),
         expect.objectContaining({
           title: "5.7 Incident Reporting and Investigation",
-          body: expect.stringMatching(
-            /Incident reporting and investigation are required[\s\S]*For this trade, fall from height is one of the most significant exposures/i
-          ),
+          body: null,
+          bullets: expect.arrayContaining([
+            expect.stringMatching(/Report injuries, near misses/i),
+            expect.stringMatching(/primary reporting and investigation trigger/i),
+          ]),
         }),
         expect.objectContaining({
           title: "5.7.1 Immediate reporting",
@@ -3897,9 +3903,8 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       draft.sectionMap.find((section) => section.key === "scope_of_work")?.bullets
     ).not.toEqual(expect.arrayContaining(["HVAC / Mechanical rough-in"]));
     const overlap = draft.sectionMap.find((section) => section.key === "common_overlapping_trades");
-    expect(overlap?.bullets).toEqual(
-      expect.arrayContaining(["HVAC / Mechanical trim-out", "Painting / Coatings touch-up"])
-    );
+    // Steel erection path: trade lists are explained in steel interface subsections; do not duplicate as raw bullets.
+    expect(overlap?.bullets).toBeUndefined();
     expect(overlap?.body).toContain("structural steel erection");
     expect(overlap?.subsections?.length).toBe(16);
     expect(overlap?.subsections?.[0]?.title).toBe("Concrete / Foundations");

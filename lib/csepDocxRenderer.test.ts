@@ -174,9 +174,9 @@ describe("csepDocxRenderer", () => {
     const model = buildCsepRenderModelFromGeneratedDraft(createGeneratedDraft());
 
     expect(model.frontMatterSections.map((section) => section.key)).toEqual([
+      "message_from_owner",
       "sign_off_page",
       "table_of_contents",
-      "message_from_owner",
       "purpose",
       "scope",
       "top_10_risks",
@@ -296,9 +296,9 @@ describe("csepDocxRenderer", () => {
     });
 
     expect(sections.map((section) => section.key)).toEqual([
+      "message_from_owner",
       "sign_off_page",
       "table_of_contents",
-      "message_from_owner",
       "purpose",
       "scope",
       "top_10_risks",
@@ -342,9 +342,9 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).not.toContain("0.1 Revision History");
 
     const orderedHeadings = [
+      "1. Message from Owner",
       "Sign-Off Page",
       "Table of Contents",
-      "1. Message from Owner",
       "2. Purpose",
       "3. Scope",
       "4. Top 10 Risks",
@@ -365,6 +365,7 @@ describe("csepDocxRenderer", () => {
     }
 
     expect(headerXml).toBe("");
+    expect(footerXml).toContain("Safety360Docs");
     expect(footerXml).toContain("ABC Steel");
     expect(footerXml).toContain("PAGE");
   });

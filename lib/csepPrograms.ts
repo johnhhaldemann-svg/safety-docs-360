@@ -24,6 +24,31 @@ type BuildSelectionsParams = {
   subtypeSelections?: Partial<Record<CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue>>;
 };
 
+/** Used for both the hazard program and the Ladder Permit program so the export shows one set of controls, not two divergent template blocks. */
+const LADDER_USE_PROGRAM_SUMMARY =
+  "Portable-ladder and step-ladder work under 29 CFR 1926 Subpart X: pick the right ladder class and length for the job, pre-use inspection, correct setup, and height/reach limits. Use a scaffold, lift, or stair when subpart- or site-rules cannot be met. Site ladder permits, if required, are part of the same control set, not a second program block.";
+
+const LADDER_USE_CONTROLS = [
+  "Use the correct type for the work (e.g., extension for height, step ladder only where its design and rating allow) and a duty rating that matches the load, including materials and tool belts, per the manufacturer and Subpart X.",
+  "When electrical exposure is possible, use ladders with non-conductive side rails or other project-approved non-conductive access per site and utility rules for the work area.",
+  "Follow project limits on use height, horizontal reach, and duration: portable ladders are for access and short work; do not overreach, stand on the top cap or a rung not designed for foot placement, or use a portable ladder as a work platform for sustained or heavy work—shift to a scaffold, stair tower, or lift as approved.",
+  "Pre-use and periodical inspection: check rails, feet, locks, spreaders, rungs, ropes, and labels; remove damaged, bent, or unlabeled equipment from service and tag/segment it so it is not re-used until repaired or scrapped.",
+  "Setup: place on a stable, level base; set pitch per Subpart X (e.g., proper horizontal offset for extension ladders) and base securement; extend extension ladders at least 3 feet above a landing (unless an equivalent grab/transition is provided per plan) and tie, block, or hold to prevent movement.",
+  "Use: maintain three points of contact; keep one person on a single ladder unless the equipment is designed for more; do not use side load or the ladder in a way the manufacturer or site plan forbids. Obey site prohibitions (e.g., specific ladder types or areas).",
+] as const;
+
+const LADDER_USE_RESPONSIBILITIES = [
+  "Supervision confirms the ladder is authorized for the task and area, the correct type and length are selected, and a ladder permit or pre-use check is on file if the site or GC requires it. Workers and foremen remove bad ladders from service on first find.",
+] as const;
+
+const LADDER_USE_TRAINING = [
+  "Workers are briefed on pre-use inspection, setup, tie-off or holding, and when to stop and use alternate access. Where a union, collective bargaining, or project-specific ladder rule applies, follow that rule first when it is stricter than this summary.",
+] as const;
+
+const LADDER_USE_APPLICABLE_WHEN = [
+  "Portable or job-made ladders (where allowed) are used for access, short work, or a task the site or GC has approved for ladder work.",
+] as const;
+
 const CONFINED_SPACE_SUBTYPE_CONFIG: CSEPProgramSubtypeConfig = {
   group: "confined_space_classification",
   label: "Confined space classification",
@@ -295,24 +320,22 @@ const HAZARD_PROCEDURE_CONTENT: Record<string, ProgramProcedureFields> = {
   }),
   "Ladder misuse": createProcedureFields({
     preTaskProcedures: [
-      "Select the correct ladder type, height, and duty rating for the task before work begins.",
-      "Inspect rails, feet, locks, rungs, and labels, and remove damaged ladders from service before they enter the work area.",
-      "Set the ladder on a stable surface, verify the climbing angle, and confirm the location keeps doors, traffic, and adjacent hazards controlled.",
+      "Select ladder type (e.g., extension, single, step), duty class, and length so the work stays within the manufacturer rating and 1926.1053 limits for the set-up; verify site electrical-minimums for non-conductive rails if exposure exists.",
+      "Pre-use: inspect stiles, feet, rungs, locks, spreader bars, and labels; reject missing or out-of-service equipment before it is carried to the work area.",
+      "Set up on firm, level footing; verify pitch and base/ top securement, landing extension (e.g., 3 feet past the top support where required), and control for doors, traffic, and overhead power lines or equipment.",
     ],
     workProcedures: [
-      "Face the ladder, maintain three points of contact, and keep the body centered between the rails while climbing and working.",
-      "Move the ladder instead of overreaching, and keep only one worker on the ladder unless the equipment is specifically designed otherwise.",
-      "Use alternate access equipment when the task requires side loading, extended duration, heavy material handling, or both hands away from safe support.",
+      "Climb and work with the body between the rails, three points of contact, and no overreach; do not straddle, side-load, or use the top step/cap in violation of the manufacturer or site rule.",
+      "If the work changes (longer reach, longer duration, heavier tool load, or both hands for material), move to a scaffold, lift, or stair that supports the new condition.",
+      "One worker on the portable ladder except where the design allows two, per manufacturer. Keep non-essential people clear of the bight and the drop zone for tools.",
     ],
     stopWorkProcedures: [
-      "Stop work if the ladder shifts, becomes unstable, is found damaged, or no longer provides safe access for the task.",
-      "Stop work when surrounding traffic, door movement, weather, or housekeeping conditions create uncontrolled ladder exposure.",
-      "Do not resume until the ladder is reset, replaced, or the access method is changed.",
+      "Stop if the ladder shifts, slips, fails inspection mid-shift, is struck, or is no longer supported as first placed; stop in wind, weather, or traffic that the plan does not allow.",
+      "Do not resume until the same ladder is re-set or a compliant alternate is in use and a competent person re-briefs the crew as needed.",
     ],
     closeoutProcedures: [
-      "Remove ladders from active travel paths when the task ends and store them to prevent unauthorized or damaged use.",
-      "Tag and segregate any ladder found defective during the work.",
-      "Leave the access area clear of cords, materials, and temporary obstructions created during ladder use.",
+      "At task end, remove the ladder from travel paths, store or flag it so it is not used damaged, and clear debris, cords, and material from the access area.",
+      "Log or close any ladder permit or site sign-off the shift required, and hand off to the next shift if the work continues.",
     ],
   }),
   "Confined spaces": createProcedureFields({
@@ -621,22 +644,12 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
     category: "hazard",
     item: "Ladder misuse",
     title: "Ladder Use Controls",
-    summary:
-      "When ladders are in scope, keep one short control block: allowed uses, approval, inspection and setup, and alternate access when a ladder is not safe.",
+    summary: LADDER_USE_PROGRAM_SUMMARY,
     oshaRefs: ["OSHA 1926 Subpart X - Stairways and Ladders"],
-    applicableWhen: [
-      "Portable ladders are used for access or short tasks and site rules allow them for the location and work method.",
-    ],
-    responsibilities: [
-      "Supervision confirms ladder use is authorized for the task and location; workers remove damaged ladders from service immediately.",
-    ],
-    controls: [
-      "Use the correct ladder type and length; inspect before use and set up on stable footing with proper angle, tie-off, or securement as required.",
-      "Respect site ladder restrictions; use an MEWP, scaffold, or stair tower when ladder conditions cannot be met safely.",
-    ],
-    training: [
-      "Workers are briefed on approval rules, inspection points, and when to stop and use alternate access.",
-    ],
+    applicableWhen: [...LADDER_USE_APPLICABLE_WHEN],
+    responsibilities: [...LADDER_USE_RESPONSIBILITIES],
+    controls: [...LADDER_USE_CONTROLS],
+    training: [...LADDER_USE_TRAINING],
     compactLayout: true,
   },
   {
@@ -1029,22 +1042,14 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
     category: "permit",
     item: "Ladder Permit",
     title: "Ladder Use Controls",
-    summary:
-      "Ladder permit or pre-use authorization when site rules require it for portable ladder use in the active scope.",
+    summary: LADDER_USE_PROGRAM_SUMMARY,
     oshaRefs: ["OSHA 1926 Subpart X - Stairways and Ladders"],
     applicableWhen: [
-      "Ladder use is part of the selected scope and must be approved or restricted under site rules.",
+      "The project requires a signed ladder permit, GC tag, or pre-use authorization in addition to field rules for a given area or work package.",
     ],
-    responsibilities: [
-      "Supervision confirms ladder use is allowed for the task and location, and verifies that the ladder type, condition, and setup match the work.",
-    ],
-    controls: [
-      "Use the right ladder for the task, in serviceable condition, set up on stable footing and tied off or held as required.",
-      "Respect site-specific ladder restrictions or prohibited ladder types, and switch to an MEWP, scaffold, or stair tower when ladder rules cannot be met safely.",
-    ],
-    training: [
-      "Workers are briefed on ladder approval rules, safe-use requirements, and when an alternate access method is required.",
-    ],
+    responsibilities: [...LADDER_USE_RESPONSIBILITIES],
+    controls: [...LADDER_USE_CONTROLS],
+    training: [...LADDER_USE_TRAINING],
     compactLayout: true,
   },
   {

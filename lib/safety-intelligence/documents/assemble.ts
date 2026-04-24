@@ -39,6 +39,7 @@ import {
   isSteelErectionPackage,
   STEEL_OVERLAP_TRADES_CSEP_INTRO,
 } from "@/lib/steelErectionPlan";
+import { getSiteSpecificNotesNarrativeBody } from "@/lib/csepSiteSpecificNotes";
 import { getSteelErectionHazardModules } from "@/lib/steelErectionHazardModules";
 import { getSteelErectionProgramModules } from "@/lib/steelErectionProgramModules";
 import { getSteelErectionTaskModules } from "@/lib/steelErectionTaskModules";
@@ -1991,7 +1992,7 @@ function buildSteelProgramModulesReferenceSection(
     key: "steel_program_modules_reference",
     title: "Steel Erection High-Risk Programs Reference Pack",
     body: appendInlineOsha(
-      "The subsections in this pack are the high-risk program modules (leading edge, CDZ, multi-lift, etc.) selected for steel erection. See Section 10 IIPP / Emergency Response; Section 11 Hazards and Controls for the program blocks and steel subsections; and Appendix E. Task-Hazard-Control Matrix when program controls are line-listed there. See 29 CFR 1926 Subpart R, including 29 CFR 1926.760 (fall protection during steel erection), as cited in the program text and this CSEP's steel plan.",
+      "High-risk program modules (leading edge, CDZ, multi-lift, and similar) selected for steel erection. Execute each as written below; do not duplicate the same program narrative in the hazards section. Cross-read Section 10 IIPP / Emergency Response, Section 11 Hazards and Controls, and Appendix E where controls are line-listed. Anchors: 29 CFR 1926 Subpart R; 29 CFR 1926.760 where cited.",
       inlineOshaRefs
     ),
     subsections: programModules.map((item) => buildSteelProgramModuleSubsection(item)),
@@ -2061,7 +2062,7 @@ function buildHealthAndWellnessExpectationsSubsections(
 ): GeneratedSafetyPlanSubsection[] {
   const notes = healthInput?.replace(/\r\n?/g, "\n").trim();
   const intro = [
-    "Field controls for fit-for-duty, heat and fatigue, hygiene, and exposure reporting. The subsections below are the minimum expectations for daily execution.",
+    "Fit-for-duty, heat, hydration, fatigue, hygiene, and exposure concerns are managed through the 5.6 subsections below and task-level planning.",
     notes ? `Project- or site-specific notes: ${notes}` : null,
   ]
     .filter((p): p is string => Boolean(p?.trim()))
@@ -2115,26 +2116,19 @@ function buildIncidentReportingInvestigationSubsections(
   steelErectionInScope: boolean
 ): GeneratedSafetyPlanSubsection[] {
   const notes = incidentInput?.replace(/\r\n?/g, "\n").trim();
-  const opening =
-    "Incident reporting and investigation are required to ensure injuries, near misses, property damage, fall exposures, and other safety events are reported promptly, investigated thoroughly, and corrected to prevent recurrence.";
-
   const steelFallNote = steelErectionInScope
-    ? "For this trade, fall from height is one of the most significant exposures and shall be treated as a primary reporting and investigation trigger whenever a fall, fall arrest, leading-edge event, decking exposure, or dropped-object incident occurs."
-    : "Fall from height, struck-by, and other high-energy exposures in the active scope are treated as high-priority report and review triggers when they occur.";
-
-  const section57Body = [
-    opening,
-    steelFallNote,
-    notes ? `Builder or project-specific requirements: ${notes}` : null,
-  ]
-    .filter((p): p is string => Boolean(p?.trim()))
-    .join("\n\n");
+    ? "Fall from height is a primary reporting and investigation trigger (falls, fall arrest, leading edges, decking, dropped objects) for this scope."
+    : "Fall from height, struck-by, and other high-energy exposures in the active scope are high-priority report and review triggers when they occur.";
 
   return [
     {
       title: "5.7 Incident Reporting and Investigation",
-      body: section57Body,
-      bullets: [],
+      body: null,
+      bullets: [
+        "Report injuries, near misses, and serious exposures promptly; investigate for system causes, not blame alone. Correct and track actions to prevent recurrence.",
+        steelFallNote,
+        ...(notes ? [`Builder or project-specific requirements: ${notes}`] : []),
+      ],
     },
     {
       title: "5.7.1 Immediate reporting",
@@ -3075,10 +3069,15 @@ function buildTradeAccessProfiles(
 
   if (/\b(steel|structural steel|ironwork|ironworker|metal deck|decking|connector|rigging|erection)\b/.test(haystack)) {
     profiles.push({
-      label: "Steel Erection Access Control",
+      label: "Steel Erection Access Control (Subpart R / ironworker zones)",
       intro:
-        "For steel erection and decking, use a Controlled Access Zone (CAZ) when the work needs a clear boundary for leading-edge, decking, connecting, or overhead activity, or to control who is below exposed work. Only authorized ironworkers and direct support enter; supervision or the competent person establishes, marks, and maintains the CAZ (barricades, lines, signage) and re-briefs the crew when picks, swing, or the boundary change. No employee shall work, stand, or travel under a suspended load. Keep lift path, drop zone, and CAZ lines coordinated; release criteria for new steel, decks, and laydowns are in the subsections below.",
+        "Field access follows 29 CFR 1926 Subpart R (steel erection) and project fall-protection and hoisting programs. For steel erection and decking, the competent person and supervision establish a Controlled Access Zone (CAZ) or other Subpart R style boundary whenever work needs a clear limit for leading-edge, decking, connecting, or overhead activity, or to control who is under exposed work. Ironworkers, connectors, decking crews, and direct trade support (e.g., tag line, small tools) are the only personnel authorized in ironworker work zones, CAZs, and controlled decking zones (CDZ) unless the site adds other named roles. No employee may work, stand, or pass under a suspended load. The competent person re-briefs the crew when picks, swing, CDZ, or the boundary change. Coordinated lift path, drop zone, CAZ, and laydown rules apply to every shift.",
       rows: [
+        [
+          "Ironworker and connector / decking zones",
+          "Leading-edge, connector, decking, and bolting in fall-exposed structural steel is limited to authorized ironworker-class trades and direct support in the work zone, each with a defined role, fall protection, and work authorization. Other trades and visitors stay outside the barricade or line until the competent person or supervision releases a shared work face.",
+          "Competent Person / Foreman",
+        ],
         [
           "Controlled Access Zone (CAZ)",
           "Use a CAZ for steel erection and decking when the work requires a defined boundary for leading-edge, decking, connecting, or overhead steel activity, or to restrict access under exposed work. Only workers involved in the operation may enter. Supervision or the competent person identifies and maintains the CAZ before and during the shift, aligned with site barricades, warning line, or signage, and with stop-work if unauthorized workers breach the line or the control boundary is not intact.",
@@ -3204,7 +3203,7 @@ export function buildFallbackNarratives(params: DraftParams) {
     params.generationContext.operations as unknown as GeneratedSafetyPlanDraft["operations"]
   );
   const tradeSummarySteelNote = steelErectionForNarrative
-    ? " Fall from height is a primary, ongoing risk for ironworkers and steel erection; the plan’s fall protection, access controls, and incident reporting and investigation sections address this as a major active hazard for the current scope."
+    ? " Fall from height is a primary, ongoing risk for ironworkers and steel erection; the plan's fall protection, access controls, and incident reporting and investigation sections address this as a major active hazard for the current scope."
     : "";
 
   return {
@@ -3254,8 +3253,9 @@ function buildCsepSelectedSections(params: {
   const permitInput = normalizePermitList(
     asTextList(getCsepBlockInput(instructions, "additional_permits"))
   );
+  const permitListMerged = normalizePermitList([...permitInput, ...permitListFromRules]);
   const resolvedPermitBullets = augmentPermitsForSteelErection(
-    permitInput.length > 0 ? permitInput : permitListFromRules,
+    permitListMerged,
     params.generationContext,
     params.operations
   );
@@ -3263,7 +3263,7 @@ function buildCsepSelectedSections(params: {
     params.generationContext,
     params.operations
   )
-    ? "Steel erection / structural steel is in the current scope. Match submittals and field paperwork to the owner or GC permit register. This plan lists Crane Permit, Pick Plan (per planned pick), and Lift Plan or site-equivalent critical-lift documentation; substitute the project’s exact titles where they differ, and confirm requirements before crane mobilization."
+    ? "Steel erection / structural steel is in the current scope. Align every listed permit with the active tasks, lift plan, and the owner or GC permit register. Crane Permit (or the site’s crane mobilization/authorization by that name) and a Pick Plan for each pick are required when hoisting governs the work, together with a Lift Plan or site equivalent for critical/major lifts. Use the project’s exact form titles (e.g., hot-work, CDZ) and do not start picks until the matching permit package and competent-person release are in hand."
     : null;
   const project = params.generationContext.project;
   const scope = params.generationContext.scope;
@@ -3308,9 +3308,6 @@ function buildCsepSelectedSections(params: {
     getCsepBlockInput(instructions, "enforcement_and_corrective_action")
   );
   const recordkeepingInput = asTextValue(getCsepBlockInput(instructions, "recordkeeping"));
-  const continuousImprovementInput = asTextValue(
-    getCsepBlockInput(instructions, "continuous_improvement")
-  );
   const selectedFormatSections = new Set<CsepFormatSectionKey>(
     instructions?.selectedFormatSectionKeys ?? []
   );
@@ -3369,7 +3366,10 @@ function buildCsepSelectedSections(params: {
           ["Project Number", project.projectNumber ?? "N/A"],
           ["Project Address", project.projectAddress ?? "N/A"],
           ["Owner / Client", project.ownerClient ?? "N/A"],
-          ["GC / CM", project.gcCm ?? "N/A"],
+          [
+            "GC / CM / program partners (all with site safety or logistics authority; list each)",
+            project.gcCm ?? "N/A",
+          ],
           ["Governing State", params.generationContext.documentProfile.governingState ?? "N/A"],
         ],
       },
@@ -3434,10 +3434,10 @@ function buildCsepSelectedSections(params: {
       key: "site_specific_notes",
       title: CSEP_BUILDER_BLOCK_TITLES.site_specific_notes,
       body: appendInlineOsha(
-        combineParagraphs(
-          [siteNotesInput],
-          "Enter only project-specific field constraints: laydown limits, delivery routing, gate and access rules, occupied-area or sequencing restrictions, crane or swing constraints, and weather hold points. Do not restate the task list. If no constraints are confirmed, delete this line in the final issue."
-        ),
+        getSiteSpecificNotesNarrativeBody({
+          userText: siteNotesInput,
+          steelErectionInScope: hasSteelErectionScope(params.generationContext, params.operations),
+        }),
         params.inlineOshaRefs
       ),
       bullets: params.ruleSummary.siteRestrictions.length
@@ -3524,7 +3524,9 @@ function buildCsepSelectedSections(params: {
             ? buildSteelCommonOverlappingTradesSubsections()
             : undefined,
           bullets: (() => {
-            const merged = dedupe([...interfaceTrades, ...overlapInput]);
+            const merged = steelErectionInScopeForOverlap
+              ? dedupe(overlapInput)
+              : dedupe([...interfaceTrades, ...overlapInput]);
             return merged.length ? merged : undefined;
           })(),
           table: null,
@@ -3655,6 +3657,39 @@ function buildCsepSelectedSections(params: {
       ["Laydown and crane coordination", "Unloading is sequenced with the laydown plan and any active crane, hoist, or rigging operations; loads are not released until the landing area is controlled and signal communication is confirmed.", "Superintendent / Crane Lead"],
     ] satisfies string[][];
 
+    const laydownRows = [
+      [
+        "Designated laydown only",
+        "Use the laydown or staging area on the site logistics / crane plan; do not grow staging into travel lanes, pedestrian paths, or crane radii without GC/CM approval.",
+        "Superintendent / Foreman",
+      ],
+      [
+        "Isolation from pedestrian and active work routes",
+        "Barricade or separate staging from foot traffic and from crews not handling that material; keep exit paths and emergency access clear.",
+        "Competent Person / Foreman",
+      ],
+      [
+        "Erection sequence",
+        "Stack and stage in planned erection or rigging sequence; keep the next-pick area clear and tagged so connectors and crane crews do not re-handle stock.",
+        "Foreman / Crane Lead",
+      ],
+      [
+        "Access control",
+        "Limit access to materials to assigned crews; unbadged or unbriefed workers do not enter the laydown or rigging path.",
+        "Foreman / Site Gate",
+      ],
+      [
+        "Stability and shift prevention",
+        "Block, chock, band, or otherwise secure stock from rolling, sliding, or tipping; re-check after weather, impact, or fork-truck activity.",
+        "Crew Lead",
+      ],
+      [
+        "Crane swing and unload conflicts",
+        "Do not place or work material under a suspended load or in the swing or rigging path; coordinate all laydown moves with the active lift plan and signal person.",
+        "Crane Lead / Foreman",
+      ],
+    ] satisfies string[][];
+
     const tradeAccessSubsections: GeneratedSafetyPlanSubsection[] = tradeAccessProfiles.flatMap(
       (profile) => [
         {
@@ -3686,6 +3721,10 @@ function buildCsepSelectedSections(params: {
           ["Delivery Vehicle and Driver Control", "Minimum Requirement", "Responsible Party"],
           deliveryRows
         ),
+        ...buildStructuredRowSubsections(
+          ["Laydown and staging", "Minimum Requirement", "Responsible Party"],
+          laydownRows
+        ),
         ...tradeAccessSubsections,
       ],
     });
@@ -3697,22 +3736,23 @@ function buildCsepSelectedSections(params: {
       params.operations
     );
     const iippBodyLead =
-      "The contractor shall maintain an active injury and illness prevention workflow: reporting, training and records, monitoring, incident response, and corrective follow-up. Fit-for-duty, substance, and work-attire expectations are in the subsections below; enforcement and accountability are in the Disciplinary Program section when that block is included separately.";
+      "Active IIPP: reporting, training records, monitoring, incident response, and corrective follow-up. Health, fit-for-duty, and enforcement subsections are below; use the stand-alone Disciplinary Program block for correction and removal when that section is in this issue.";
     const iippSteelRisk = steelErectionInScope
       ? " For structural steel in scope, treat falls, struck-by in the load path, and fall-arrest / rescue events as high-priority report and investigation triggers in the IIPP flow below (see also Hazards and Controls for task controls)."
       : "";
     const drugAlcohol = buildStandaloneSubsectionContent({
       title: "Drug, Alcohol, and Fit-for-Duty Controls",
       value: drugAlcoholInput,
-      fallbackBody: [
-        "Before first site access or the start of work, workers complete required site orientation and acknowledge applicable employer, owner, and GC/CM fit-for-duty and substance-use policy requirements, including any program enrollment, acknowledgments, and testing triggers that apply on day one.",
-        "Drug and alcohol compliance shall be maintained in accordance with applicable union agreements, reciprocal testing and referral obligations, and project or site rules, together with employer policy and law.",
-        "Alcohol, illegal drugs, and unauthorized controlled substances may not be stored or kept in personal vehicles while those vehicles are parked on the construction site or on client property.",
-      ].join("\n\n"),
+      fallbackBody:
+        "The bulleted items below are mandatory for all project personnel in this CSEP contract scope, including lower-tier and subcontracted employees.",
       fallbackBullets: [
-        "Workers shall report suspected alcohol- or drug-related impairment; supervision shall remove affected workers from exposed work, at-height tasks, and equipment operation until the situation is handled under project and employer procedures.",
-        "Post-incident, reasonable-suspicion, return-to-work, and other program testing triggers shall be followed. When impairment or noncompliance creates an unacceptable risk, that work does not continue until the risk is abated and required steps are met.",
-        "Restart of work stopped for suspected impairment, or for covered tasks after a related program action, shall follow site and employer rules, including documented supervisor (or other designated) approval when the program or owner/GC direction requires it.",
+        "Required: Before first work activity on the project (and after a major scope, employer, or site-rule change that affects the policy), each worker must complete project and employer orientation and must acknowledge the applicable drug-, alcohol-, and fit-for-duty rules; supervision retains evidence per site rules.",
+        "Comply with employer, union, and reciprocal-body substance programs that apply to the craft or project (e.g., referral, random, post-accident, and reasonable-cause testing under the collective bargaining agreement, union trust, or inter-local reciprocal agreements when they govern this work).",
+        "Alcohol, illegal drugs, and unauthorized controlled substances are not present in an impaired or prohibited state during work, and are not used or stored in a way that violates the program required for the assigned task, site, union, and law.",
+        "Do not keep, use, or store alcohol, illegal drugs, or unauthorized personal-use controlled substances in personal vehicles while those vehicles are parked on the construction site, owner staging or parking, or on other project-controlled client property. Lawfully prescribed medicine remains subject to the site’s medical, privacy, and fit-for-duty rules.",
+        "Report suspected alcohol- or drug-related impairment: supervision removes affected workers from exposed, at-height, and equipment work until the situation is managed under program rules.",
+        "Post-incident, reasonable-suspicion, return-to-work, and other testing triggers the program lists must be followed; if impairment or noncompliance creates an unacceptable risk, the work does not continue until the risk is abated and required steps are met.",
+        "Restart of work after stop for impairment, or for covered tasks after a related program action, follows site and employer rules, including documented supervisor (or other designated) approval when required.",
       ],
     });
     const enforcement = buildStandaloneSubsectionContent({
@@ -4059,12 +4099,12 @@ function buildCsepSelectedSections(params: {
     ];
     const trainingForScopeSubsection = {
       title: "Required training, qualifications, and equipment roles (active scope)",
-      body: "Tie every listed requirement to the tasks, equipment, and permit triggers in this CSEP. Add owner-, GC-, or trade-specific program requirements when the site directs.",
+      body: "Map each line to tasks, equipment, and permit triggers in this CSEP; add owner or GC/CM program lines when the site adds them.",
       bullets: dedupe([...equipmentAndRoleTraining, ...ruleDerivedTraining]),
     };
     const trainingRecordsSubsection = {
       title: "Training records, certifications, and qualifications",
-      body: "Training records, certifications, and qualification documents shall be maintained current and made available to CM / HSE, site supervision, and owner representatives for verification upon request and before personnel perform work requiring that qualification.",
+      body: "Keep credentials current; produce them for CM / HSE, supervision, or owner verification on request and before work that requires a given qualification.",
       bullets: [
         "Maintain current records for the active scope, including training records; trade, task, and equipment certifications; operator qualifications; welder or procedure qualifications when welding or cutting applies; qualified rigger and qualified signal person credentials when hoisting applies; and OSHA training cards or other site-required credentials.",
         "Provide these records for verification before or during site access when the project requires it, and before work starts that depends on the qualification.",
@@ -4077,7 +4117,7 @@ function buildCsepSelectedSections(params: {
       title: "Contractor Safety Meetings and Engagement",
       body: combineParagraphs(
         [trainingInput],
-        "Daily field communication, toolbox meetings, coordination huddles, and worker engagement are required to keep the CSEP active and current."
+        "Field briefings, toolbox meetings, and coordination huddles keep the CSEP current with trade and site conditions."
       ),
       table: {
         columns: ["Meeting / Engagement Activity", "Minimum Cadence", "Led By", "Required Output"],
@@ -4120,11 +4160,8 @@ function buildCsepSelectedSections(params: {
 
   if (selectedFormatSections.has("project_close_out")) {
     const closeOutIntro =
-      "Close-out actions shall be completed before final turnover of the work area, records, and remaining responsibilities.";
-    const closeOutOpenInput = continuousImprovementInput?.trim() ?? null;
-    const closeOutBody = closeOutOpenInput
-      ? `${closeOutIntro} ${closeOutOpenInput}`
-      : closeOutIntro;
+      "Complete the subsections below before final turnover of the work area, permits, and records.";
+    const closeOutBody = closeOutIntro;
     const closeOutAction = (minimum: string, party: string) => ({
       bullets: [
         `Minimum Requirement: ${minimum}`,
@@ -4419,7 +4456,10 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
           ["Project Number", params.generationContext.project.projectNumber ?? "N/A"],
           ["Location", params.generationContext.project.projectAddress ?? "N/A"],
           ["Owner / Client", params.generationContext.project.ownerClient ?? "N/A"],
-          ["GC / CM", params.generationContext.project.gcCm ?? "N/A"],
+          [
+            "GC / CM / program partners (all with site safety or logistics authority; list each)",
+            params.generationContext.project.gcCm ?? "N/A",
+          ],
           ["Contractor", params.generationContext.project.contractorCompany ?? "N/A"],
         ],
       },
