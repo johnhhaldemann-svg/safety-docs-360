@@ -103,6 +103,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Jobsite access denied for this observation." }, { status: 403 });
   }
 
+  const assignedUserIdRaw = String(body?.assignedUserId ?? "").trim();
+  const assigned_user_id = assignedUserIdRaw || null;
+
   const result = await auth.supabase
     .from("company_corrective_actions")
     .insert({
@@ -114,6 +117,7 @@ export async function POST(request: Request) {
       severity: String(body?.severity ?? "").trim().toLowerCase() || "medium",
       category: String(body?.category ?? "").trim().toLowerCase() || "hazard",
       due_at: String(body?.dueAt ?? "").trim() || null,
+      assigned_user_id,
       created_by: auth.user.id,
       updated_by: auth.user.id,
       observation_type: String(body?.observationType ?? "").trim().toLowerCase() || "negative",

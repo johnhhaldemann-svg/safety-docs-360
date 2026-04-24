@@ -26,6 +26,12 @@ import {
   buildRiskMemoryApiObject,
   type RiskMemoryFormInput,
 } from "@/lib/riskMemory/form";
+import {
+  buildFieldIssueImportTemplateXlsx,
+  parseFieldIssueExcelBuffer,
+  type FieldIssueImportRowErr,
+  type FieldIssueImportRowOk,
+} from "@/lib/fieldIssues/excelImport";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -321,6 +327,16 @@ export default function FieldIdExchangePage() {
   const [dapActivities, setDapActivities] = useState<DapActivityOption[]>([]);
   const [contractors, setContractors] = useState<Array<{ id: string; name: string }>>([]);
   const [crews, setCrews] = useState<Array<{ id: string; name: string }>>([]);
+  const [importParse, setImportParse] = useState<{
+    fileName: string;
+    ok: FieldIssueImportRowOk[];
+    errors: FieldIssueImportRowErr[];
+  } | null>(null);
+  const [importRunning, setImportRunning] = useState(false);
+  const [importRunSummary, setImportRunSummary] = useState<{
+    created: number;
+    apiFailures: { sheetRow: number; message: string }[];
+  } | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -442,6 +458,14 @@ export default function FieldIdExchangePage() {
     const next = new Map<string, string>();
     for (const user of companyUsers) {
       next.set(user.id, user.name || user.email);
+    }
+    return next;
+  }, [companyUsers]);
+
+  const fieldIssueEmailToUserId = useMemo(() => {
+    const next = new Map<string, string>();
+    for (const user of companyUsers) {
+      next.set(user.email.trim().toLowerCase(), user.id);
     }
     return next;
   }, [companyUsers]);
@@ -861,6 +885,134 @@ export default function FieldIdExchangePage() {
     }
   }
 
+  function downloadFieldIssueImportTemplate() {
+    const bytes = buildFieldIssueImportTemplateXlsx();
+    const copy = new Uint8Array(bytes.byteLength);
+    copy.set(bytes);
+    const blob = new Blob([copy], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "field-issue-import-template.xlsx";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function onFieldIssueImportFileSelected(fileList: FileList | null) {
+    const file = fileList?.[0] ?? null;
+    setImportRunSummary(null);
+    if (!file) {
+      setImportParse(null);
+      return;
+    }
+    try {
+      const buffer = await file.arrayBuffer();
+      const { ok, errors } = parseFieldIssueExcelBuffer(
+        buffer,
+        jobsites.map((j) => ({ id: j.id, name: j.name })),
+        { emailToUserId: fieldIssueEmailToUserId }
+      );
+      setImportParse({ fileName: file.name, ok, errors });
+      if (errors.length && !ok.length) {
+        toast.error(
+          `Import file has ${errors.length} row error(s). Fix the sheet or download a fresh template.`
+        );
+      } else if (errors.length) {
+        toast.warning(`${ok.length} row(s) ready; ${errors.length} row(s) skipped due to errors.`);
+      } else if (ok.length) {
+        toast.success(`${ok.length} row(s) ready to import.`);
+      } else {
+        toast.info("No data rows found in that file.");
+      }
+    } catch (error) {
+      console.error("Field issue import parse failed:", error);
+      setImportParse(null);
+      toast.error("Could not read that Excel file.");
+    }
+  }
+
+  async function runFieldIssueExcelImport() {
+    if (!importParse?.ok.length) {
+      toast.error("No valid rows to import.");
+      return;
+    }
+    setImportRunning(true);
+    setImportRunSummary(null);
+    const apiFailures: { sheetRow: number; message: string }[] = [];
+    let created = 0;
+    try {
+      const headers = await getAuthHeaders();
+      for (const row of importParse.ok) {
+        const p = row.payload;
+        try {
+          const response = await fetchWithTimeout(
+            "/api/company/observations",
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                title: p.title,
+                description: p.description ?? "",
+                severity: p.severity,
+                jobsiteId: p.jobsiteId ?? "",
+                assignedUserId: p.assignedUserId ?? "",
+                dueAt: p.dueAt ?? "",
+                dapActivityId: p.dapActivityId ?? "",
+                status: p.status,
+                observationType: p.observationType,
+                sifPotential:
+                  p.observationType === "negative" ? p.sifPotential : undefined,
+                sifCategory:
+                  p.observationType === "negative" && p.sifPotential
+                    ? p.sifCategory
+                    : undefined,
+              }),
+            },
+            15000
+          );
+          const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+          if (!response.ok) {
+            if (response.status === 429) {
+              apiFailures.push({
+                sheetRow: row.sheetRow,
+                message: "Rate limited. Wait and re-import remaining rows.",
+              });
+              break;
+            }
+            apiFailures.push({
+              sheetRow: row.sheetRow,
+              message: payload?.error || `Request failed (${response.status}).`,
+            });
+          } else {
+            created += 1;
+          }
+        } catch (error) {
+          apiFailures.push({
+            sheetRow: row.sheetRow,
+            message:
+              error instanceof Error && error.name === "AbortError"
+                ? "Request timed out."
+                : "Network error.",
+          });
+        }
+      }
+      setImportRunSummary({ created, apiFailures });
+      if (apiFailures.length === 0) {
+        toast.success(`Imported ${created} observation(s).`);
+      } else {
+        toast.warning(`Created ${created}; ${apiFailures.length} row(s) failed.`);
+      }
+      setImportParse(null);
+      await reloadActions();
+    } finally {
+      setImportRunning(false);
+    }
+  }
+
   async function updateStatus(
     action: CorrectiveActionRow,
     nextStatus: "open" | "assigned" | "in_progress" | "corrected" | "escalated" | "stop_work"
@@ -1233,6 +1385,7 @@ export default function FieldIdExchangePage() {
           </section>
 
           <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="flex flex-col gap-6">
         <SectionCard
           title="Create Observation"
           description="Create an observation, assign owner, set due date, and track closure proof."
@@ -1503,6 +1656,110 @@ export default function FieldIdExchangePage() {
             </button>
           </div>
         </SectionCard>
+
+        <SectionCard
+          title="Import from Excel"
+          description="Bulk-create observations from a spreadsheet. Row 1 must be headers; data starts on row 2."
+        >
+          <p className="text-sm leading-6 text-slate-400">
+            Use{" "}
+            <span className="font-mono text-slate-300">
+              jobsite_id
+            </span>{" "}
+            (UUID) or{" "}
+            <span className="font-mono text-slate-300">jobsite_name</span> (exact match to a workspace
+            jobsite).{" "}
+            <span className="font-mono text-slate-300">severity</span>: low, medium, high, critical.{" "}
+            <span className="font-mono text-slate-300">status</span>: open, assigned, in_progress,
+            corrected, verified_closed, escalated, stop_work.{" "}
+            <span className="font-mono text-slate-300">observation_type</span>: positive, negative,
+            near_miss. For negative rows, set{" "}
+            <span className="font-mono text-slate-300">sif_potential</span> (yes/no) and{" "}
+            <span className="font-mono text-slate-300">sif_category</span> when potential is yes.{" "}
+            <span className="font-mono text-slate-300">assigned_user_email</span> must match a company
+            member.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={downloadFieldIssueImportTemplate}
+              className="min-h-11 rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+            >
+              Download template
+            </button>
+            <label className="inline-flex min-h-11 cursor-pointer items-center rounded-xl bg-slate-800 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-800/80">
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className="sr-only"
+                onChange={(event) => {
+                  void onFieldIssueImportFileSelected(event.target.files);
+                  event.target.value = "";
+                }}
+              />
+              Choose Excel file
+            </label>
+            <button
+              type="button"
+              onClick={() => void runFieldIssueExcelImport()}
+              disabled={importRunning || !importParse?.ok.length}
+              className="min-h-11 rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-600"
+            >
+              {importRunning ? "Importing…" : "Import valid rows"}
+            </button>
+          </div>
+          {importParse ? (
+            <div className="mt-4 rounded-xl border border-slate-700/80 bg-slate-950/40 px-4 py-3 text-sm text-slate-300">
+              <div className="font-semibold text-slate-200">{importParse.fileName}</div>
+              <div className="mt-2 text-slate-400">
+                {importParse.ok.length} row(s) ready
+                {importParse.errors.length
+                  ? ` · ${importParse.errors.length} row(s) failed validation`
+                  : ""}
+              </div>
+              {importParse.errors.length ? (
+                <details className="mt-3 rounded-lg border border-slate-700/60 bg-slate-900/50 p-3">
+                  <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                    Validation errors ({importParse.errors.length})
+                  </summary>
+                  <ul className="mt-2 max-h-40 list-inside list-disc space-y-1 overflow-y-auto text-xs text-rose-200">
+                    {importParse.errors.map((err) => (
+                      <li key={`${err.sheetRow}-${err.message}`}>
+                        Row {err.sheetRow}: {err.message}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+            </div>
+          ) : null}
+          {importRunSummary ? (
+            <div className="mt-4 rounded-xl border border-slate-700/80 bg-slate-950/40 px-4 py-3 text-sm">
+              <div className="font-semibold text-slate-200">Last import</div>
+              <div className="mt-2 text-slate-300">
+                Created: {importRunSummary.created}
+                {importRunSummary.apiFailures.length
+                  ? ` · Failed: ${importRunSummary.apiFailures.length}`
+                  : ""}
+              </div>
+              {importRunSummary.apiFailures.length ? (
+                <details className="mt-3 rounded-lg border border-slate-700/60 bg-slate-900/50 p-3">
+                  <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                    API errors ({importRunSummary.apiFailures.length})
+                  </summary>
+                  <ul className="mt-2 max-h-40 list-inside list-disc space-y-1 overflow-y-auto text-xs text-rose-200">
+                    {importRunSummary.apiFailures.map((err) => (
+                      <li key={`${err.sheetRow}-${err.message}`}>
+                        Row {err.sheetRow}: {err.message}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+            </div>
+          ) : null}
+        </SectionCard>
+        </div>
 
         <SectionCard
           title="Observation Queue"
