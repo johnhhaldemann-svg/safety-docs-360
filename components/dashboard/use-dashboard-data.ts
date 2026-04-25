@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { fetchWithTimeout, fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
+import { buildSalesDemoDashboardData } from "@/lib/demoWorkspace";
+import { emptyOnboardingState, type OnboardingState } from "@/lib/onboardingState";
 import { getPermissionMap, type PermissionMap } from "@/lib/rbac";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import type { WorkspaceProduct } from "@/lib/workspaceProduct";
@@ -82,6 +84,7 @@ export function useDashboardData(): DashboardDataState {
   const [companyWorkspaceLoading, setCompanyWorkspaceLoading] = useState(false);
   const [companyWorkspaceError, setCompanyWorkspaceError] = useState<string | null>(null);
   const [analyticsSummaryIssue, setAnalyticsSummaryIssue] = useState<DashboardBanner>(null);
+  const [onboardingState, setOnboardingState] = useState<OnboardingState>(emptyOnboardingState());
 
   const refreshCompanyWorkspace = useCallback(async () => {
     const session = await supabase.auth.getSession();
@@ -96,6 +99,7 @@ export function useDashboardData(): DashboardDataState {
       setCompanyWorkspaceLoading(false);
       setCompanyWorkspaceError(null);
       setAnalyticsSummaryIssue(null);
+      setOnboardingState(emptyOnboardingState());
       return;
     }
 
@@ -191,6 +195,7 @@ export function useDashboardData(): DashboardDataState {
       setCompanyWorkspaceLoading(false);
       setCompanyWorkspaceError(null);
       setAnalyticsSummaryIssue(null);
+      setOnboardingState(emptyOnboardingState());
       return;
     }
 
@@ -227,6 +232,30 @@ export function useDashboardData(): DashboardDataState {
       const nextWorkspaceProduct: WorkspaceProduct =
         meData?.user?.workspaceProduct === "csep" ? "csep" : "full";
 
+      if (nextRole === "sales_demo") {
+        const demoData = buildSalesDemoDashboardData({
+          refreshCompanyWorkspace,
+          reload: async () => {},
+        });
+        setUserRole(demoData.userRole);
+        setUserTeam(demoData.userTeam);
+        setPermissionMap(demoData.permissionMap);
+        setCompanyProfile(demoData.companyProfile);
+        setWorkspaceProduct(demoData.workspaceProduct);
+        setDocuments(demoData.documents);
+        setCreditBalance(demoData.creditBalance);
+        setCompanyUsers(demoData.companyUsers);
+        setCompanyInvites(demoData.companyInvites);
+        setWorkspaceSummary(demoData.workspaceSummary);
+        setAnalyticsSummary(demoData.analyticsSummary);
+        setCompanyWorkspaceLoaded(true);
+        setCompanyWorkspaceLoading(false);
+        setCompanyWorkspaceError(null);
+        setAnalyticsSummaryIssue(null);
+        setOnboardingState(demoData.onboardingState);
+        return;
+      }
+
       setUserRole(nextRole);
       setUserTeam(meData?.user?.team ?? "General");
       setPermissionMap(nextPermissions);
@@ -234,6 +263,16 @@ export function useDashboardData(): DashboardDataState {
       setWorkspaceProduct(nextWorkspaceProduct);
       setDocuments(documentsResponse.ok ? documentsData?.documents ?? [] : []);
       setCreditBalance(creditResponse.ok ? Number(creditData?.creditBalance ?? 0) : null);
+      const onboardingResponse = await fetchWithTimeoutSafe(
+        "/api/onboarding/state",
+        { headers },
+        10000,
+        "Onboarding state"
+      );
+      const onboardingData = (await onboardingResponse.json().catch(() => null)) as
+        | OnboardingState
+        | null;
+      setOnboardingState(onboardingResponse.ok && onboardingData ? onboardingData : emptyOnboardingState());
 
       const canLoadCompanyWorkspace =
         nextWorkspaceProduct !== "csep" &&
@@ -256,6 +295,7 @@ export function useDashboardData(): DashboardDataState {
         setCompanyWorkspaceLoading(false);
         setCompanyWorkspaceError(null);
         setAnalyticsSummaryIssue(null);
+        setOnboardingState(emptyOnboardingState());
       }
     } finally {
       setLoading(false);
@@ -283,6 +323,7 @@ export function useDashboardData(): DashboardDataState {
     companyWorkspaceLoading,
     companyWorkspaceError,
     analyticsSummaryIssue,
+    onboardingState,
     refreshCompanyWorkspace,
     reload,
   };

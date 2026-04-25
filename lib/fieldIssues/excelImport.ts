@@ -369,6 +369,6 @@ export function buildFieldIssueImportTemplateXlsx(): Uint8Array {
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Issues");
-  const out = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
-  return out;
+  const out = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+  return new Uint8Array(out);
 }

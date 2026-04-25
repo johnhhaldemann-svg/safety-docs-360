@@ -61,6 +61,7 @@ export type SharedTaskDefinition = {
 export type SharedSubTradeDefinition = {
   code: string;
   label: string;
+  description: string;
   tasks: SharedTaskDefinition[];
   selectableTasks: SharedTaskDefinition[];
   referenceTasks: SharedTaskDefinition[];
@@ -198,11 +199,27 @@ function buildTaskDefinitions(labels: readonly string[]): SharedTaskDefinition[]
   return tasks;
 }
 
+function buildSubTradeDescription(label: string, tasks: readonly SharedTaskDefinition[]): string {
+  const taskPreview = tasks
+    .slice(0, 4)
+    .map((task) => task.label.toLowerCase())
+    .join(", ");
+
+  if (!taskPreview) {
+    return `${label} work includes the primary installation, coordination, and closeout activities required for this scope.`;
+  }
+
+  const remainingCount = tasks.length - Math.min(tasks.length, 4);
+  const suffix = remainingCount > 0 ? ", and related trade-specific activities" : "";
+  return `${label} work typically includes ${taskPreview}${suffix}.`;
+}
+
 function buildSubTrade(seed: RawSubTradeSeed): SharedSubTradeDefinition {
   const tasks = buildTaskDefinitions(seed.tasks);
   return {
     code: slugify(seed.label),
     label: seed.label,
+    description: buildSubTradeDescription(seed.label, tasks),
     tasks,
     selectableTasks: tasks.filter((task) => task.selectable),
     referenceTasks: tasks.filter((task) => !task.selectable),

@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { describe, expect, it } from "vitest";
 import {
+  FIELD_ISSUE_IMPORT_TEMPLATE_HEADERS,
   buildFieldIssueImportTemplateXlsx,
   excelSerialToDate,
   parseFieldIssueExcelBuffer,
@@ -20,13 +21,22 @@ function workbookBuffer(rows: unknown[][]): ArrayBuffer {
   return writeXlsxToArrayBuffer(wb);
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  return copy;
+}
+
 describe("excelImport", () => {
   it("builds a non-empty xlsx template", () => {
     const bytes = buildFieldIssueImportTemplateXlsx();
     expect(bytes.byteLength).toBeGreaterThan(64);
-    const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as unknown as number[]);
-    const ab = new ArrayBuffer(u8.byteLength);
-    new Uint8Array(ab).set(u8);
+    const workbook = XLSX.read(bytes, { type: "array" });
+    expect(workbook.SheetNames).toContain("Issues");
+    const sheet = workbook.Sheets.Issues;
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" }) as unknown[][];
+    expect(rows[0]).toEqual([...FIELD_ISSUE_IMPORT_TEMPLATE_HEADERS]);
+    const ab = toArrayBuffer(bytes);
     const parsed = parseFieldIssueExcelBuffer(ab, [], null);
     expect(parsed.ok.length).toBeGreaterThanOrEqual(1);
     expect(parsed.ok[0]?.payload.title).toContain("Example");

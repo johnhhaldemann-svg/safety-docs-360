@@ -91,12 +91,12 @@ export const companyAdminQuickLinks: NavItem[] = [
     primaryActionLabel: "Review today",
     audience: "leadership",
   },
-  { href: "/safety-intelligence", label: "Smart Safety Workflows", short: "SI" },
+  { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
   { href: "/jobsites", label: "Job Sites", short: "JS" },
   { href: "/library", label: "Document Library", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
   { href: "/customer/billing", label: "Billing", short: "BL" },
-  { href: "/company-users", label: "Team Members", short: "TM" },
+  { href: "/company-users", label: "Team & Access", short: "TM" },
   { href: "/training-matrix", label: "Training Tracker", short: "TR" },
   { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
   { href: "/analytics/safety-intelligence", label: "Safety Insights", short: "SA" },
@@ -121,7 +121,7 @@ export const companyManagerQuickLinks: NavItem[] = [
     primaryActionLabel: "Review today",
     audience: "leadership",
   },
-  { href: "/safety-intelligence", label: "Smart Safety Workflows", short: "SI" },
+  { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
   { href: "/jobsites", label: "Job Sites", short: "JS" },
   { href: "/library", label: "Document Library", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
@@ -237,7 +237,7 @@ export const adminSideSections: NavSection[] = [
 
 export const companyAdminSideSections: NavSection[] = [
   {
-    title: "Home",
+    title: "Start here",
     items: [
       { href: "/dashboard", label: "Home Dashboard", short: "HM" },
       { href: "/library", label: "Document Library", short: "DC" },
@@ -258,9 +258,9 @@ export const companyAdminSideSections: NavSection[] = [
     ],
   },
   {
-    title: "Team & profile",
+    title: "Team & access",
     items: [
-      { href: "/company-users", label: "Team Members", short: "US" },
+      { href: "/company-users", label: "Team & Access", short: "US" },
       { href: "/training-matrix", label: "Training Tracker", short: "TM" },
       { href: "/profile", label: "My Profile", short: "CP" },
     ],
@@ -268,7 +268,7 @@ export const companyAdminSideSections: NavSection[] = [
   {
     title: "Field work",
     items: [
-      { href: "/safety-intelligence", label: "Smart Safety Workflows", short: "SI" },
+      { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
       { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
       { href: "/permits", label: "Permit Center", short: "PM" },
@@ -279,7 +279,7 @@ export const companyAdminSideSections: NavSection[] = [
     title: "Insights & reports",
     items: [
       { href: "/command-center", label: "Command Center", short: "CC" },
-      { href: "/safety-intelligence", label: "Smart Safety Workflows", short: "SI" },
+      { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
       { href: "/analytics", label: "Risk Trends", short: "AN" },
       { href: "/analytics/safety-intelligence", label: "Safety Insights", short: "SA" },
       { href: "/settings/risk-memory", label: "Risk Settings", short: "RM" },
@@ -299,7 +299,7 @@ export const companyAdminSideSections: NavSection[] = [
 
 export const companyManagerSideSections: NavSection[] = [
   {
-    title: "Home",
+    title: "Start here",
     items: [
       { href: "/dashboard", label: "Home Dashboard", short: "HM" },
       { href: "/library", label: "Document Library", short: "DC" },
@@ -323,7 +323,7 @@ export const companyManagerSideSections: NavSection[] = [
   {
     title: "Field work",
     items: [
-      { href: "/safety-intelligence", label: "Smart Safety Workflows", short: "SI" },
+      { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
       { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
       { href: "/permits", label: "Permit Center", short: "PM" },
@@ -334,7 +334,7 @@ export const companyManagerSideSections: NavSection[] = [
     title: "Insights & reports",
     items: [
       { href: "/command-center", label: "Command Center", short: "CC" },
-      { href: "/safety-intelligence", label: "Smart Safety Workflows", short: "SI" },
+      { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
       { href: "/analytics", label: "Risk Trends", short: "AN" },
       { href: "/analytics/safety-intelligence", label: "Safety Insights", short: "SA" },
       { href: "/settings/risk-memory", label: "Risk Settings", short: "RM" },

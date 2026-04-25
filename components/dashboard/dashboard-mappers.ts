@@ -5,6 +5,7 @@ import {
 } from "@/lib/documentStatus";
 import type { DashboardRole } from "@/lib/dashboardRole";
 import { CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL } from "@/lib/safetyBlueprintLabels";
+import { buildAdoptionChecklist } from "@/components/dashboard/onboardingChecklist";
 import type {
   DashboardActionSection,
   DashboardBanner,
@@ -117,6 +118,43 @@ function graphSection(
   valueLabel?: string
 ): DashboardGraphSection {
   return { title, description, items, empty, valueLabel };
+}
+
+function onboardingChecklistSection(
+  data: DashboardDataState,
+  commandCenterViewed = false
+): DashboardSummarySection {
+  const checklist = buildAdoptionChecklist({
+    companyProfile: data.companyProfile,
+    companyUsers: data.companyUsers,
+    companyInvites: data.companyInvites,
+    jobsites: data.workspaceSummary.jobsites,
+    documents: data.documents,
+    commandCenterViewed:
+      commandCenterViewed ||
+      data.onboardingState.completedSteps.includes("command_center") ||
+      Boolean(data.onboardingState.lastSeenCommandCenterAt),
+  });
+  const nextLabel = checklist.nextItem ? checklist.nextItem.label : "Workspace launch complete";
+
+  return summarySection(
+    "Workspace launch checklist",
+    `${checklist.completedCount} of ${checklist.totalCount} first-run milestones complete. Next: ${nextLabel}.`,
+    checklist.items.map((item) => ({
+      id: item.id,
+      label: item.label,
+      value: item.complete ? "Done" : "Next",
+      note: item.note,
+      href: item.href,
+      tone: item.complete ? ("success" as const) : ("warning" as const),
+    })),
+    {
+      title: "Workspace launch checklist",
+      description: "First-run setup milestones will appear after workspace data loads.",
+      actionHref: checklist.nextItem?.href ?? "/command-center",
+      actionLabel: checklist.nextItem ? "Continue setup" : "Open Command Center",
+    }
+  );
 }
 
 function dashboardGraphs(data: DashboardDataState) {
@@ -442,6 +480,7 @@ function buildBlocks(params: {
   riskRanking: DashboardSummarySection;
   hazardTrends: DashboardSummarySection;
   supportSignals: DashboardSummarySection;
+  onboardingChecklist?: DashboardSummarySection;
   companyAccess: DashboardSummarySection;
   trainingSignal: DashboardSummarySection;
   permitFollowups: DashboardFeedSection;
@@ -551,6 +590,21 @@ function buildBlocks(params: {
       kind: "summary",
       eyebrow: "Support signals",
       section: params.supportSignals,
+    },
+    onboarding_checklist: {
+      kind: "summary",
+      eyebrow: "Start here",
+      section:
+        params.onboardingChecklist ??
+        summarySection(
+          "Workspace launch checklist",
+          "First-run setup milestones will appear after workspace data loads.",
+          [],
+          {
+            title: "Workspace launch checklist",
+            description: "First-run setup milestones will appear after workspace data loads.",
+          }
+        ),
     },
     company_access: {
       kind: "summary",
@@ -688,6 +742,7 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
       banner: banner(data),
       blocks: buildBlocks({
         graphs: dashboardGraphs(data),
+        onboardingChecklist: onboardingChecklistSection(data),
         metrics: [
           metric("In review", `${inReview}`, "CSEP files waiting in review.", "attention"),
           metric("Approved", `${approvedCount}`, "Completed CSEP files in the library."),
@@ -923,17 +978,17 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
     role: "company_admin",
     hero: {
       eyebrow: "Company admin dashboard",
-      title: "Company safety dashboard",
+      title: "Start in Command Center, then move the work",
       description:
-        "Review urgent approvals, overdue risk items, company activity, and the highest-risk jobsites.",
+        "Use the Command Center as the daily operating hub for risk, open work, recommendations, and the setup steps that get a company to value.",
       actions: [
         {
-          label: "Open command center",
+          label: "Open Command Center",
           href: "/command-center",
           variant: "primary",
         },
         {
-          label: "Manage company users",
+          label: "Invite team",
           href: "/company-users",
           variant: "secondary",
         },
@@ -942,6 +997,7 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
     banner: banner(data),
     blocks: buildBlocks({
       graphs: dashboardGraphs(data),
+      onboardingChecklist: onboardingChecklistSection(data),
       metrics: [
         metric(
           "Pending approvals",
@@ -978,14 +1034,20 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
       ),
       nextActions: actionSection(
         "What should this user do next",
-        "The fastest ways to keep company-wide work moving without extra dashboard clutter.",
+        "Start with the adoption path, then move into the highest-value daily operating workflows.",
         [
+          {
+            title: "Open Command Center",
+            description: "Use the hub for current risk, open work, recommendations, and company memory.",
+            href: "/command-center",
+            actionLabel: "Start here",
+            tone: "attention",
+          },
           {
             title: "Review pending approvals",
             description: "Confirm access and unblock the workforce.",
             href: "/company-users",
             actionLabel: "Open company users",
-            tone: "attention",
           },
           {
             title: "Check overdue site risk",
@@ -1150,17 +1212,18 @@ export function getSafetyManagerDashboardModel(data: DashboardDataState): Dashbo
     role: "safety_manager",
     hero: {
       eyebrow: "Safety manager dashboard",
-      title: "Your review queue and follow-up workload",
+      title: "Start with Command Center, then clear the queue",
       description:
-        "This dashboard stays centered on what needs review now, what looks overdue or risky, and the next safety workflow to clear.",
+        "The safety manager path now starts with the operating hub, then moves into permits, incidents, documents, and training gaps.",
       actions: [
-        { label: "Open permits", href: "/permits", variant: "primary" },
-        { label: "Review incidents", href: "/incidents", variant: "secondary" },
+        { label: "Open Command Center", href: "/command-center", variant: "primary" },
+        { label: "Open permits", href: "/permits", variant: "secondary" },
       ],
     },
     banner: banner(data),
     blocks: buildBlocks({
       graphs: dashboardGraphs(data),
+      onboardingChecklist: onboardingChecklistSection(data),
       metrics: [
         metric(
           "Personal work queue",
@@ -1192,11 +1255,17 @@ export function getSafetyManagerDashboardModel(data: DashboardDataState): Dashbo
         "Start with the queue that clears the most risk and then move into recurring review work.",
         [
           {
+            title: "Open Command Center",
+            description: "Start with the single hub for current risk, open work, and recommended actions.",
+            href: "/command-center",
+            actionLabel: "Start here",
+            tone: "attention",
+          },
+          {
             title: "Review documents in queue",
             description: "Open in-review files and keep approvals moving for the field.",
             href: "/library",
             actionLabel: "Open library",
-            tone: "attention",
           },
           {
             title: "Work permit review items",

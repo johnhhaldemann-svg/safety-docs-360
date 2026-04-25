@@ -83,6 +83,7 @@ type CSEPInput = {
   project_number: string;
   project_address: string;
   owner_client: string;
+  owner_message_text?: string;
   gc_cm: string;
 
   contractor_company: string;
@@ -722,6 +723,13 @@ async function buildDoc(form: CSEPInput) {
   }
 
   let sectionNumber = 1;
+  const ownerMessageText = normalizeOptionalText(form.owner_message_text);
+
+  if (ownerMessageText) {
+    children.push(heading1(`${sectionNumber}. Leadership Commitment`));
+    children.push(body(ownerMessageText));
+    sectionNumber++;
+  }
 
   if (includedContent.scope_of_work) {
     const section = getResolvedCsepSection(builderTextConfig, "scope_of_work");
@@ -1459,4 +1467,3 @@ export async function POST(req: Request) {
     });
   }
 }
-

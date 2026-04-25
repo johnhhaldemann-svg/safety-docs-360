@@ -2232,16 +2232,6 @@ function buildStructuredRowSubsections(
     .filter((subsection) => Boolean(subsection.title));
 }
 
-function prefixedInstructionBullets(values: string[], prefix: string) {
-  const normalizedPrefix = prefix.toLowerCase();
-  return dedupe(
-    values
-      .filter((item) => item.toLowerCase().startsWith(normalizedPrefix))
-      .map((item) => item.slice(prefix.length).trim())
-      .filter(Boolean)
-  );
-}
-
 /** Split builder weather lines; "Environmental control:" lines belong in Environmental Controls (Section 11.0), not here. */
 function partitionCsepWeatherInput(values: string[]) {
   const monitoring: string[] = [];
@@ -4271,9 +4261,19 @@ function buildCsepSelectedSections(params: {
 
       return true;
     });
+  const legacySnapshot = params.generationContext.legacyFormSnapshot as Record<string, unknown>;
+  const ownerMessageText = textOrNull(legacySnapshot.owner_message_text);
+  const ownerMessageSection: GeneratedSafetyPlanSection | null = ownerMessageText
+    ? {
+        key: "owner_message",
+        title: "Leadership Commitment",
+        body: ownerMessageText,
+      }
+    : null;
 
   if (selectedSections.length > 0) {
     return [
+      ownerMessageSection,
       ...selectedSections,
       ...derivedFormatSections,
       taskModulesSection,
@@ -4285,6 +4285,7 @@ function buildCsepSelectedSections(params: {
   }
 
   return [
+    ownerMessageSection,
     sectionsByKey.scope_of_work,
     sectionsByKey.selected_hazards,
     sectionsByKey.activity_hazard_matrix,
@@ -4820,4 +4821,3 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
     },
   };
 }
-

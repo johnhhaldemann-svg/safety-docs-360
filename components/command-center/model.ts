@@ -1,6 +1,7 @@
 export type WorkspaceRow = Record<string, unknown>;
 
 export type WorkspaceSummary = {
+  jobsites?: WorkspaceRow[];
   observations?: WorkspaceRow[];
   daps?: WorkspaceRow[];
   permits?: WorkspaceRow[];

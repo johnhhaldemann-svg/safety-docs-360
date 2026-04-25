@@ -20,6 +20,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
 **Command center (end users):** after sign-in, open **Insights → Command center** for Risk Memory, open-work shortcuts, recommendations, and the company memory bank. Step-by-step usage: [`docs/command-center.md`](docs/command-center.md).
 
+**Adoption / demo:** the first-run checklist and Command Center adoption path are covered in [`docs/release-readiness.md`](docs/release-readiness.md). Sales walkthrough setup is in [`docs/demo-mode.md`](docs/demo-mode.md).
+
 Moving to a new Windows laptop? Use [`docs/new-laptop-setup.md`](docs/new-laptop-setup.md) and run `powershell -ExecutionPolicy Bypass -File .\scripts\setup-new-laptop.ps1`.
 
 ## Supabase + Vercel deploy (“push”)
@@ -68,6 +70,7 @@ See [`docs/dev-setup.md`](docs/dev-setup.md) for Supabase workflow, cron, and su
 | `npm run lint` | ESLint |
 | `npm run test` | Vitest (`lib/**/*.test.ts`) |
 | `npm run test:navigation` | Navigation integrity tests |
+| `npm run verify:release` | Release gate: lint, Vitest, navigation tests, and adoption Playwright spec |
 | `npm run test:links` | Broken link checker |
 | `npm run test:e2e` | Playwright (see [`playwright.config.ts`](playwright.config.ts)) |
 | `npx playwright test tests/a11y.spec.ts` | Accessibility (axe) on `/`, `/login`, `/privacy`, `/submit` |

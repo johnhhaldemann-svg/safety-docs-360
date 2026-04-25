@@ -44,6 +44,9 @@ describe("sharedTradeTaxonomy", () => {
       getSharedSubTradeDefinition("electrical", powerDistributionCode)?.label
     ).toBe("Power distribution / feeders / branch power");
     expect(
+      getSharedSubTradeDefinition("electrical", powerDistributionCode)?.description
+    ).toContain("Power distribution / feeders / branch power work typically includes");
+    expect(
       resolveSharedSubTradeCode(
         "plumbing",
         "Power distribution / feeders / branch power"

@@ -22,6 +22,7 @@ export type CSEPTradeSelection = {
   tradeCode: string;
   subTradeLabel: string | null;
   subTradeCode: string | null;
+  subTradeDescription: string | null;
   sectionTitle: string;
   summary: string;
   oshaRefs: string[];
@@ -525,7 +526,7 @@ export function buildCsepTradeSelection(
   });
   const additionalOshaRefs = deriveAdditionalOshaRefs(items);
   const summaryParts = [csepSummaryForKind(trade.csepKind)];
-  if (subTrade) summaryParts.push(`${subTrade.label} scope is active for this builder selection.`);
+  if (subTrade) summaryParts.push(subTrade.description);
   if (activeTaskLabels.length > 0) {
     summaryParts.push(`Selected tasks include ${activeTaskLabels.slice(0, 5).join(", ")}.`);
     const derivedSummary = buildDerivedSummary(items);
@@ -541,6 +542,7 @@ export function buildCsepTradeSelection(
     tradeCode: trade.code,
     subTradeLabel: subTrade?.label ?? null,
     subTradeCode: subTrade?.code ?? null,
+    subTradeDescription: subTrade?.description ?? null,
     sectionTitle: `Site-Specific Safety Requirements - ${trade.label}`,
     summary: summaryParts.join(" "),
     oshaRefs: uniq([...csepOshaRefsForKind(trade.csepKind), ...additionalOshaRefs]),

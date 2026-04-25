@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowRight, Check, Minus } from "lucide-react";
 
 /**
  * Use on native `<select>` elements in the authenticated app so the closed control and
@@ -14,13 +15,13 @@ export const workspaceSectionEyebrowClassName =
   "text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--app-muted)]";
 
 export const appButtonPrimaryClassName =
-  "inline-flex items-center justify-center rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(37,99,235,0.22)] transition hover:bg-[var(--app-accent-primary-hover)] active:bg-[var(--app-accent-primary-active)]";
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(37,99,235,0.22)] transition hover:-translate-y-0.5 hover:bg-[var(--app-accent-primary-hover)] active:translate-y-0 active:bg-[var(--app-accent-primary-active)]";
 
 export const appButtonSecondaryClassName =
-  "inline-flex items-center justify-center rounded-xl border border-[var(--app-border-strong)] bg-white/92 px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] shadow-[0_10px_18px_rgba(76,108,161,0.06)] transition hover:bg-[var(--app-accent-primary-soft)]";
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--app-border-strong)] bg-white/92 px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] shadow-[0_10px_18px_rgba(76,108,161,0.06)] transition hover:-translate-y-0.5 hover:bg-[var(--app-accent-primary-soft)] active:translate-y-0";
 
 export const appButtonQuietClassName =
-  "inline-flex items-center justify-center rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-2.5 text-sm font-semibold text-[var(--app-accent-primary)] transition hover:border-[rgba(37,99,235,0.24)] hover:bg-[var(--app-accent-primary-soft)]";
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-2.5 text-sm font-semibold text-[var(--app-accent-primary)] transition hover:-translate-y-0.5 hover:border-[rgba(37,99,235,0.24)] hover:bg-[var(--app-accent-primary-soft)] active:translate-y-0";
 
 function getSurfaceToneClassName(tone: "panel" | "elevated" | "attention") {
   if (tone === "elevated") {
@@ -44,11 +45,12 @@ export function PageHero({
   actions?: React.ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-[rgba(121,151,196,0.42)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.99)_0%,_rgba(239,246,255,0.98)_55%,_rgba(229,239,255,0.98)_100%)] p-6 shadow-[var(--app-shadow)] sm:p-8">
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+    <section className="relative overflow-hidden rounded-3xl border border-[rgba(121,151,196,0.42)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.99)_0%,_rgba(239,246,255,0.98)_58%,_rgba(232,247,239,0.86)_100%)] p-6 shadow-[var(--app-shadow)] sm:p-8">
+      <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,_var(--app-accent-primary)_0%,_var(--semantic-success)_54%,_var(--semantic-warning)_100%)]" />
+      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
           <p className={workspaceEyebrowClassName}>{eyebrow}</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
+          <h1 className="mt-2 max-w-4xl text-3xl font-bold tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
             {title}
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-[1.7] text-[var(--app-text)]">{description}</p>
@@ -82,9 +84,10 @@ export function SectionCard({
 }) {
   return (
     <section
-      className={`rounded-2xl p-6 ${getSurfaceToneClassName(tone)} ${className}`.trim()}
+      className={`relative overflow-hidden rounded-2xl p-6 ${getSurfaceToneClassName(tone)} ${className}`.trim()}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,_transparent,_rgba(79,125,243,0.35),_transparent)]" />
+      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
           <h2 className="text-xl font-bold text-[var(--app-text-strong)]">{title}</h2>
@@ -95,7 +98,7 @@ export function SectionCard({
           {actions}
         </div>
       </div>
-      <div className={`mt-6 space-y-5 ${contentClassName}`.trim()}>{children}</div>
+      <div className={`relative mt-6 space-y-5 ${contentClassName}`.trim()}>{children}</div>
     </section>
   );
 }
@@ -151,12 +154,16 @@ export function EmptyState({
 }) {
   return (
     <div className="rounded-2xl border border-dashed border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(241,247,255,0.9)_100%)] p-8 text-center shadow-[var(--app-shadow-soft)]">
+      <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-[rgba(79,125,243,0.18)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]">
+        <Minus aria-hidden="true" className="h-5 w-5" />
+      </div>
       {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
       <p className="text-base font-semibold text-[var(--app-text-strong)]">{title}</p>
       <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
       {actionHref && actionLabel ? (
         <Link href={actionHref} className={`mt-4 ${appButtonPrimaryClassName}`}>
           {actionLabel}
+          <ArrowRight aria-hidden="true" className="h-4 w-4" />
         </Link>
       ) : null}
     </div>
@@ -186,7 +193,11 @@ export function StartChecklist({
                   : "bg-[var(--semantic-neutral-bg)] text-[var(--semantic-neutral)]"
               }`}
             >
-              {item.done ? "OK" : "-"}
+              {item.done ? (
+                <Check aria-hidden="true" className="h-4 w-4" />
+              ) : (
+                <Minus aria-hidden="true" className="h-4 w-4" />
+              )}
             </span>
             <span className="text-sm font-medium text-[var(--app-text)]">{item.label}</span>
           </div>
@@ -248,8 +259,9 @@ export function ActivityFeed({
         {items.map((item) => (
           <div
             key={item.id}
-            className="rounded-xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-4.5"
+            className="relative overflow-hidden rounded-xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.72)_0%,_var(--app-panel)_100%)] px-4 py-4.5 shadow-[0_8px_18px_rgba(76,108,161,0.05)]"
           >
+            <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-[var(--app-accent-primary)] opacity-55" />
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-[var(--app-text-strong)]">{item.title}</p>
@@ -335,10 +347,11 @@ export function MetricTile({
   tone?: "panel" | "elevated" | "attention";
 }) {
   return (
-    <div className={`rounded-2xl p-4 ${getSurfaceToneClassName(tone)}`}>
+    <div className={`relative overflow-hidden rounded-2xl p-4 ${getSurfaceToneClassName(tone)}`}>
+      <span className="absolute right-4 top-4 h-10 w-10 rounded-2xl border border-[rgba(79,125,243,0.14)] bg-[var(--app-accent-primary-soft)]" aria-hidden="true" />
       {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
       <p className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{title}</p>
-      <p className="mt-3 text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</p>
+      <p className="mt-3 max-w-[80%] text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</p>
       <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{detail}</p>
     </div>
   );
@@ -360,9 +373,15 @@ export function ActionTile({
   tone?: "panel" | "elevated" | "attention";
 }) {
   return (
-    <Link href={href} className={`group block rounded-2xl p-4 transition hover:-translate-y-0.5 ${getSurfaceToneClassName(tone)}`}>
+    <Link href={href} className={`group relative block overflow-hidden rounded-2xl p-4 transition hover:-translate-y-0.5 ${getSurfaceToneClassName(tone)}`}>
+      <span className="absolute inset-y-4 left-0 w-1 rounded-r-full bg-[var(--app-accent-primary)] opacity-65" />
       {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
-      <p className="mt-1 text-base font-semibold text-[var(--app-text-strong)]">{title}</p>
+      <div className="mt-1 flex items-start justify-between gap-3">
+        <p className="text-base font-semibold text-[var(--app-text-strong)]">{title}</p>
+        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--app-border)] bg-white/80 text-[var(--app-accent-primary)] transition group-hover:translate-x-0.5">
+          <ArrowRight aria-hidden="true" className="h-4 w-4" />
+        </span>
+      </div>
       <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
       <p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-[var(--app-accent-primary)]">{actionLabel}</p>
     </Link>

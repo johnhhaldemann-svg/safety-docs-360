@@ -27,6 +27,7 @@ import {
   SITE_SAFETY_BLUEPRINT_BUILDER_LABEL,
   SITE_SAFETY_BLUEPRINT_TITLE,
 } from "@/lib/safetyBlueprintLabels";
+import { OWNER_MESSAGE_PRESETS, getOwnerMessagePreset } from "@/lib/ownerMessagePresets";
 import type { ChecklistEvaluationResponse } from "@/lib/compliance/evaluation";
 import { buildPshsepGenerationContext } from "@/lib/safety-intelligence/documentIntake";
 
@@ -279,6 +280,7 @@ export default function PESHEPUniversalPage() {
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "warning" | "error">("success");
   const [aiDraftField, setAiDraftField] = useState<DraftableAnswerField | null>(null);
+  const [ownerLetterPresetId, setOwnerLetterPresetId] = useState("");
   const [checklistEvaluation, setChecklistEvaluation] = useState<ChecklistEvaluationResponse | null>(
     null
   );
@@ -587,12 +589,21 @@ export default function PESHEPUniversalPage() {
     setNearestHospital("");
     setEmergencyContact("");
     setAgreedToSubmissionTerms(false);
+    setOwnerLetterPresetId("");
     setMessage("");
     setStep(0);
   }
 
   function updateField<K extends keyof Answers>(field: K, value: Answers[K]) {
     setAnswers((current) => ({ ...current, [field]: value }));
+  }
+
+  function handleOwnerLetterPresetChange(value: string) {
+    setOwnerLetterPresetId(value);
+    const preset = getOwnerMessagePreset(value);
+    if (preset) {
+      updateField("owner_letter_text", preset.message);
+    }
   }
 
   async function handleAiDraft(field: DraftableAnswerField, label: string) {
@@ -1333,6 +1344,18 @@ export default function PESHEPUniversalPage() {
                       void handleAiDraft("disciplinary_policy_text", "Disciplinary Policy")
                     }
                     aiLoading={aiDraftField === "disciplinary_policy_text"}
+                  />
+                  <Select
+                    label="Owner Message Template"
+                    value={ownerLetterPresetId}
+                    options={[
+                      { value: "", label: "Choose owner message" },
+                      ...OWNER_MESSAGE_PRESETS.map((preset) => ({
+                        value: preset.id,
+                        label: preset.title,
+                      })),
+                    ]}
+                    onChange={handleOwnerLetterPresetChange}
                   />
                   <TextArea
                     label="Letter from Owner"

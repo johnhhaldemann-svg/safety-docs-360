@@ -156,12 +156,12 @@ export default function CompanySignupPage() {
               Company Workspace
             </p>
             <h1 className="mt-4 text-4xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-5xl">
-              Create the company account, then wait for approval.
+              Request a new company workspace.
             </h1>
             <p className="mt-6 max-w-xl text-base leading-8 text-[var(--app-text)]">
-              This is the single owner onboarding flow. The company owner creates one
-              account, submits the company request, waits for approval, and then signs back
-              in with the same email to open the company workspace.
+              Use this path when your company is not active in Safety360Docs yet. The owner creates one account,
+              submits the company request, waits for approval, and then returns to the same account to launch the
+              workspace checklist.
             </p>
 
             <div className="mt-8 space-y-4">
@@ -169,7 +169,7 @@ export default function CompanySignupPage() {
                 {
                   step: "01",
                   title: "Create the owner account",
-                  body: "Use the future company owner email once. That same account is linked during approval.",
+                  body: "Use the future company owner email once. That same account becomes the workspace owner after approval.",
                 },
                 {
                   step: "02",
@@ -178,13 +178,13 @@ export default function CompanySignupPage() {
                 },
                 {
                   step: "03",
-                  title: "Sign in with the same email",
-                  body: "After approval, the owner signs in with that same account. No second sign-up is needed.",
+                  title: "Launch from Command Center",
+                  body: "After approval, sign in with the same email and start from the dashboard checklist and Command Center.",
                 },
                 {
                   step: "04",
-                  title: "Set up billing and credits",
-                  body: "Once the workspace is active, company admins can review invoices, buy marketplace credits, and manage subscription and seat pricing from the company workspace.",
+                  title: "Invite, add jobsites, and create documents",
+                  body: "Use the first-run checklist to invite the team, add the first jobsite, and create the first document record.",
                 },
               ].map((item) => (
                 <div
@@ -205,10 +205,8 @@ export default function CompanySignupPage() {
             </div>
 
             <div className="app-warning-panel mt-8 rounded-3xl border-amber-300/70 bg-amber-50 p-5 text-sm leading-7 text-[var(--app-text-strong)]">
-              One email can only be used for one real account. If the company request is still
-              pending, the app will tell you to wait instead of creating duplicate company
-              sign-up requests. After approval, billing, credits, and subscriptions are managed
-              from the company workspace rather than by creating a second account.
+              Already have a personal account? Sign in and use Set up company instead. This public form is for new
+              company owners who need a workspace request created from scratch.
             </div>
 
             <div className="mt-8 flex flex-wrap gap-3">

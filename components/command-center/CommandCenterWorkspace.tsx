@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
+import { buildAdoptionChecklist } from "@/components/dashboard/onboardingChecklist";
+import { emptyOnboardingState, type OnboardingState } from "@/lib/onboardingState";
 import {
   ActionTile,
   EmptyState,
@@ -54,6 +56,22 @@ type AnalyticsSummaryPayload = {
   };
   warning?: string;
   error?: string;
+};
+
+type CommandCenterAdoptionPayload = {
+  companyProfile?: {
+    name?: string | null;
+    industry?: string | null;
+    phone?: string | null;
+    address_line_1?: string | null;
+    city?: string | null;
+    state_region?: string | null;
+    country?: string | null;
+  } | null;
+  companyUsers: Array<{ status?: string | null }>;
+  companyInvites: Array<{ status?: string | null }>;
+  documents: Array<{ status?: string | null; final_file_path?: string | null; draft_file_path?: string | null }>;
+  onboardingState: OnboardingState;
 };
 
 function LaunchCard({
@@ -118,6 +136,13 @@ export function CommandCenterWorkspace() {
   const [analyticsErr, setAnalyticsErr] = useState("");
   const [workspaceErr, setWorkspaceErr] = useState("");
   const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
+  const [adoption, setAdoption] = useState<CommandCenterAdoptionPayload>({
+    companyProfile: null,
+    companyUsers: [],
+    companyInvites: [],
+    documents: [],
+    onboardingState: emptyOnboardingState(),
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -136,13 +161,46 @@ export function CommandCenterWorkspace() {
       }
 
       const headers = { Authorization: `Bearer ${token}` };
-      const [analyticsResponse, workspaceResponse] = await Promise.all([
+      const [
+        analyticsResponse,
+        workspaceResponse,
+        meResponse,
+        usersResponse,
+        documentsResponse,
+        onboardingResponse,
+      ] = await Promise.all([
         fetchWithTimeoutSafe(`/api/company/analytics/summary?days=${days}`, { headers }, 20000, "Analytics"),
         fetchWithTimeoutSafe("/api/company/workspace/summary", { headers }, 20000, "Workspace"),
+        fetchWithTimeoutSafe("/api/auth/me", { headers }, 15000, "Current user"),
+        fetchWithTimeoutSafe("/api/company/users", { headers }, 15000, "Company users"),
+        fetchWithTimeoutSafe("/api/workspace/documents", { headers }, 15000, "Workspace documents"),
+        fetchWithTimeoutSafe(
+          "/api/onboarding/state",
+          {
+            method: "PATCH",
+            headers: { ...headers, "Content-Type": "application/json" },
+            body: JSON.stringify({ markCommandCenterViewed: true }),
+          },
+          15000,
+          "Onboarding state"
+        ),
       ]);
 
       const analyticsJson = (await analyticsResponse.json().catch(() => null)) as AnalyticsSummaryPayload | null;
       const workspaceJson = (await workspaceResponse.json().catch(() => null)) as WorkspaceSummary | null;
+      const meJson = (await meResponse.json().catch(() => null)) as
+        | { user?: { companyProfile?: CommandCenterAdoptionPayload["companyProfile"] } }
+        | null;
+      const usersJson = (await usersResponse.json().catch(() => null)) as
+        | {
+            users?: CommandCenterAdoptionPayload["companyUsers"];
+            invites?: CommandCenterAdoptionPayload["companyInvites"];
+          }
+        | null;
+      const documentsJson = (await documentsResponse.json().catch(() => null)) as
+        | { documents?: CommandCenterAdoptionPayload["documents"] }
+        | null;
+      const onboardingJson = (await onboardingResponse.json().catch(() => null)) as OnboardingState | null;
 
       if (!analyticsResponse.ok) {
         setAnalyticsErr(analyticsJson?.error || "Could not load analytics summary.");
@@ -157,6 +215,15 @@ export function CommandCenterWorkspace() {
       } else {
         setWorkspace(workspaceJson);
       }
+
+      setAdoption({
+        companyProfile: meResponse.ok ? meJson?.user?.companyProfile ?? null : null,
+        companyUsers: usersResponse.ok ? usersJson?.users ?? [] : [],
+        companyInvites: usersResponse.ok ? usersJson?.invites ?? [] : [],
+        documents: documentsResponse.ok ? documentsJson?.documents ?? [] : [],
+        onboardingState:
+          onboardingResponse.ok && onboardingJson ? onboardingJson : emptyOnboardingState(),
+      });
 
       setLastLoadedAt(new Date());
     } catch (error) {
@@ -187,6 +254,20 @@ export function CommandCenterWorkspace() {
   const band = risk?.aggregatedWithBaseline?.band ?? risk?.aggregated?.band ?? "-";
   const score = risk?.aggregatedWithBaseline?.score ?? risk?.aggregated?.score ?? null;
   const recommendationEmptyMessage = getRecommendationsEmptyMessage(recommendations.length);
+  const adoptionChecklist = useMemo(
+    () =>
+      buildAdoptionChecklist({
+        companyProfile: adoption.companyProfile,
+        companyUsers: adoption.companyUsers,
+        companyInvites: adoption.companyInvites,
+        jobsites: (workspace?.jobsites ?? []) as Array<{ status?: string | null }>,
+        documents: adoption.documents,
+        commandCenterViewed:
+          adoption.onboardingState.completedSteps.includes("command_center") ||
+          Boolean(adoption.onboardingState.lastSeenCommandCenterAt),
+      }),
+    [adoption, workspace?.jobsites]
+  );
 
   return (
     <div className="space-y-6">
@@ -237,6 +318,33 @@ export function CommandCenterWorkspace() {
           Memory reflects the selected window.
         </p>
       ) : null}
+
+      <SectionCard
+        eyebrow="Start Here"
+        title="Workspace launch checklist"
+        description={`${adoptionChecklist.completedCount} of ${adoptionChecklist.totalCount} adoption milestones complete. Use this path to turn an approved workspace into an active operating system.`}
+        aside={
+          <StatusBadge
+            label={adoptionChecklist.nextItem ? `Next: ${adoptionChecklist.nextItem.label}` : "Launch complete"}
+            tone={adoptionChecklist.nextItem ? "warning" : "success"}
+          />
+        }
+        tone="attention"
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {adoptionChecklist.items.map((item) => (
+            <Link
+              key={item.id}
+              href={item.href}
+              className="rounded-2xl border border-[var(--app-border)] bg-white/90 px-4 py-4 shadow-[var(--app-shadow-soft)] transition hover:border-[rgba(79,125,243,0.28)]"
+            >
+              <StatusBadge label={item.complete ? "Done" : "Next"} tone={item.complete ? "success" : "warning"} />
+              <p className="mt-3 text-sm font-semibold text-[var(--app-text-strong)]">{item.label}</p>
+              <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{item.note}</p>
+            </Link>
+          ))}
+        </div>
+      </SectionCard>
 
       <SectionCard
         eyebrow="Today / Attention"

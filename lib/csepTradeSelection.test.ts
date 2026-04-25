@@ -45,6 +45,9 @@ describe("csepTradeSelection", () => {
       "Conduit install",
       "Megger testing",
     ]);
+    expect(selection?.subTradeDescription).toContain(
+      "Power distribution / feeders / branch power work typically includes"
+    );
     expect(selection?.derivedHazards).toEqual(["Electrical shock"]);
     expect(selection?.derivedPermits).toEqual(["LOTO Permit"]);
   });

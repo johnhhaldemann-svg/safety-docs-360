@@ -52,8 +52,9 @@ function renderFeedBlock(block: DashboardFeedBlock) {
         {block.section.items.map((item) => (
           <div
             key={item.id}
-            className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-4"
+            className={`relative overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.74)_0%,_var(--app-panel)_100%)] px-4 py-4 shadow-[0_8px_18px_rgba(76,108,161,0.05)] ${toneAccentClassName(item.tone)}`}
           >
+            <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-current opacity-70" />
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-[var(--app-text-strong)]">{item.title}</p>
@@ -89,9 +90,15 @@ function renderActionBlock(block: DashboardActionBlock) {
             <Link
               key={`${item.href}-${item.title}`}
               href={item.href}
-              className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-4 transition hover:border-[rgba(79,125,243,0.22)] hover:shadow-sm"
+              className={`group relative overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.78)_0%,_var(--app-panel)_100%)] px-4 py-4 shadow-[0_8px_18px_rgba(76,108,161,0.05)] transition hover:-translate-y-0.5 hover:border-[rgba(79,125,243,0.28)] hover:shadow-[0_14px_28px_rgba(76,108,161,0.1)] ${toneAccentClassName(item.tone)}`}
             >
-              <p className="text-sm font-semibold text-[var(--app-text-strong)]">{item.title}</p>
+              <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-current opacity-70" />
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm font-semibold text-[var(--app-text-strong)]">{item.title}</p>
+                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--app-border)] bg-white/80 text-[var(--app-accent-primary)] transition group-hover:translate-x-0.5">
+                  <span aria-hidden="true">-&gt;</span>
+                </span>
+              </div>
               <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{item.description}</p>
               <p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-[var(--app-accent-primary)]">
                 {item.actionLabel}
@@ -123,17 +130,18 @@ function renderSummaryBlock(block: DashboardSummaryBlock) {
         <div className="grid gap-3">
           {block.section.items.map((item) => {
             const content = (
-              <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-4">
+              <div className={`relative overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.74)_0%,_var(--app-panel)_100%)] px-4 py-4 shadow-[0_8px_18px_rgba(76,108,161,0.05)] transition ${item.href ? "hover:-translate-y-0.5 hover:border-[rgba(79,125,243,0.28)] hover:shadow-[0_14px_28px_rgba(76,108,161,0.1)]" : ""} ${toneAccentClassName(item.tone)}`}>
+                <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-current opacity-70" />
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-[var(--app-text-strong)]">{item.label}</p>
                     <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{item.note}</p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <span className="text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="rounded-2xl border border-current/15 bg-white/72 px-3.5 py-2 text-2xl font-bold tracking-tight text-[var(--app-text-strong)] shadow-sm">
                       {item.value}
                     </span>
-                    <StatusBadge label={item.value} tone={item.tone ?? "info"} />
+                    <span className={`h-2.5 w-2.5 rounded-full ${toneDotClassName(item.tone)}`} aria-hidden="true" />
                   </div>
                 </div>
               </div>
@@ -153,6 +161,37 @@ function renderSummaryBlock(block: DashboardSummaryBlock) {
       )}
     </SectionCard>
   );
+}
+
+function toneAccentClassName(tone?: "neutral" | "success" | "warning" | "error" | "info" | "panel" | "elevated" | "attention") {
+  switch (tone) {
+    case "success":
+      return "text-[var(--semantic-success)]";
+    case "warning":
+    case "attention":
+      return "text-[var(--semantic-warning)]";
+    case "error":
+      return "text-[var(--semantic-danger)]";
+    case "info":
+      return "text-[var(--semantic-info)]";
+    default:
+      return "text-[var(--semantic-neutral)]";
+  }
+}
+
+function toneDotClassName(tone?: "neutral" | "success" | "warning" | "error" | "info") {
+  switch (tone) {
+    case "success":
+      return "bg-[var(--semantic-success)]";
+    case "warning":
+      return "bg-[var(--semantic-warning)]";
+    case "error":
+      return "bg-[var(--semantic-danger)]";
+    case "info":
+      return "bg-[var(--semantic-info)]";
+    default:
+      return "bg-[var(--semantic-neutral)]";
+  }
 }
 
 function graphToneClassName(tone: DashboardGraphBlock["section"]["items"][number]["tone"]) {
@@ -188,7 +227,7 @@ function renderGraphBlock(block: DashboardGraphBlock) {
           actionLabel={block.section.empty.actionLabel}
         />
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-4 rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.7)_0%,_rgba(234,241,255,0.52)_100%)] p-4">
           {block.section.items.map((item) => {
             const width = Math.max(8, Math.round((item.value / maxValue) * 100));
             const valueText = `${item.value}${block.section.valueLabel ? ` ${block.section.valueLabel}` : ""}`;
@@ -203,9 +242,9 @@ function renderGraphBlock(block: DashboardGraphBlock) {
                     {valueText}
                   </p>
                 </div>
-                <div className="h-3 overflow-hidden rounded-full bg-[var(--app-panel)]">
+                <div className="h-3 overflow-hidden rounded-full border border-[var(--app-border-subtle)] bg-white/80 shadow-inner">
                   <div
-                    className={`h-full rounded-full ${graphToneClassName(item.tone)}`}
+                    className={`h-full rounded-full ${graphToneClassName(item.tone)} shadow-[0_0_0_1px_rgba(255,255,255,0.35)_inset]`}
                     style={{ width: `${width}%` }}
                   />
                 </div>
@@ -356,11 +395,13 @@ export function DashboardView({ model }: { model: DashboardViewModel }) {
                   description={block.detail}
                   tone={block.tone ?? "elevated"}
                 >
-                  <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] px-5 py-6">
-                    <p className="text-4xl font-bold tracking-tight text-[var(--app-text-strong)]">
+                  <div className={`relative overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.88)_0%,_var(--app-panel)_100%)] px-5 py-6 shadow-[0_10px_22px_rgba(76,108,161,0.06)] ${toneAccentClassName(block.tone)}`}>
+                    <span className="absolute right-5 top-5 h-12 w-12 rounded-2xl border border-current/15 bg-current/10" aria-hidden="true" />
+                    <span className="absolute inset-y-4 left-0 w-1.5 rounded-r-full bg-current opacity-75" aria-hidden="true" />
+                    <p className="max-w-[78%] text-4xl font-bold tracking-tight text-[var(--app-text-strong)]">
                       {block.value}
                     </p>
-                    <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">{block.detail}</p>
+                    <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--app-text)]">{block.detail}</p>
                   </div>
                 </SectionCard>
               ) : block.kind === "feed" ? (

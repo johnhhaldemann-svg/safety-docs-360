@@ -60,6 +60,7 @@ export type LegacyCsepDocxInput = {
   project_number: string;
   project_address: string;
   owner_client: string;
+  owner_message_text?: string;
   gc_cm: string;
   contractor_company: string;
   contractor_contact: string;
@@ -499,6 +500,15 @@ export function buildLegacyCsepRenderModel(
           ["Contractor Email", valueOrNA(form.contractor_email)],
         ],
       },
+    });
+  }
+
+  const ownerMessageText = normalizeOptionalText(form.owner_message_text);
+  if (ownerMessageText) {
+    sections.push({
+      key: "owner_message",
+      title: "Leadership Commitment",
+      body: ownerMessageText,
     });
   }
 

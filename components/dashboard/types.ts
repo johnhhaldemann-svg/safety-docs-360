@@ -1,6 +1,7 @@
 import type { PermissionMap } from "@/lib/rbac";
 import type { WorkspaceProduct } from "@/lib/workspaceProduct";
 import type { DashboardRole } from "@/lib/dashboardRole";
+import type { OnboardingState } from "@/lib/onboardingState";
 
 export type DashboardDocument = {
   id: string;
@@ -259,6 +260,7 @@ export type DashboardBlockId =
   | "risk_ranking"
   | "hazard_trends"
   | "support_signals"
+  | "onboarding_checklist"
   | "company_access"
   | "training_signal"
   | "permit_followups"
@@ -335,6 +337,7 @@ export type DashboardDataState = {
   companyWorkspaceLoading: boolean;
   companyWorkspaceError: string | null;
   analyticsSummaryIssue: DashboardBanner;
+  onboardingState: OnboardingState;
   refreshCompanyWorkspace: () => Promise<void>;
   reload: () => Promise<void>;
 };

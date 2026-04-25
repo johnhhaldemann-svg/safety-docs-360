@@ -200,8 +200,8 @@ export default function CompanySetupPage() {
     <div className="space-y-8">
       <PageHero
         eyebrow="Company Workspace"
-        title="Set up your company"
-        description="Your field talent profile is in place. Use this step to submit the company workspace request that will be reviewed and activated by your internal admin."
+        title="Attach a company workspace to this account"
+        description="Use this path only when you already have a signed-in account. New company owners without an account should use the public company workspace request instead."
       />
 
       <section className="grid gap-4 lg:grid-cols-3">
@@ -209,7 +209,7 @@ export default function CompanySetupPage() {
           {
             step: "01",
             title: "Create the workspace",
-            body: "Your personal account is already in place. This step submits the company workspace request under that same owner account.",
+            body: "Your personal account is already in place. This step attaches the workspace request to the signed-in owner account.",
           },
           {
             step: "02",
@@ -218,13 +218,13 @@ export default function CompanySetupPage() {
           },
           {
             step: "03",
-            title: "Invite and approve employees",
-            body: "After approval, sign back in with this same email and start inviting employees from the company workspace.",
+            title: "Start from Command Center",
+            body: "After approval, sign back in with this same email and use the dashboard checklist and Command Center as the launch path.",
           },
           {
             step: "04",
-            title: "Manage billing and credits",
-            body: "Once the company workspace is live, company admins can open Billing to review invoices and purchase marketplace credits for completed documents.",
+            title: "Invite, add jobsites, and create documents",
+            body: "Use the first-run checklist to invite the team, add a jobsite, and create the first document record.",
           },
         ].map((item) => (
           <div
@@ -246,7 +246,7 @@ export default function CompanySetupPage() {
 
       <SectionCard
         title="Set Up Company Workspace"
-        description="Fill in the company details once, choose the plan, and submit the company workspace request your team will use after approval."
+        description="Fill in the company details once, choose the plan, and submit the workspace request attached to this signed-in account."
       >
         <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-4">
@@ -400,7 +400,7 @@ export default function CompanySetupPage() {
                   <p>1. Your company setup request is now waiting for internal approval.</p>
                   <p>2. Your personal account stays on file under this same email.</p>
                   <p>3. After approval, sign back in with this same email and the company workspace will attach automatically.</p>
-                  <p>4. Once active, company admins can buy marketplace credits and review billing from the company workspace.</p>
+                  <p>4. Start with the dashboard launch checklist, then use Command Center as the daily operating hub.</p>
                 </div>
               </div>
             ) : null}

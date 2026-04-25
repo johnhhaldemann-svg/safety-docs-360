@@ -32,6 +32,11 @@ import {
   type FieldIssueImportRowErr,
   type FieldIssueImportRowOk,
 } from "@/lib/fieldIssues/excelImport";
+import {
+  buildFieldIssueAnalytics,
+  type AnalyticsStatusKey,
+  type TrendGranularity,
+} from "@/lib/fieldIssueAnalytics";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -171,16 +176,6 @@ const EMPTY_EVIDENCE_COMPOSER: EvidenceComposerState = {
   file: null,
 };
 
-const STATUS_CHART_ORDER: CorrectiveActionRow["status"][] = [
-  "open",
-  "assigned",
-  "in_progress",
-  "corrected",
-  "verified_closed",
-  "escalated",
-  "stop_work",
-];
-
 function getSeverityTone(severity: CorrectiveActionRow["severity"]) {
   if (severity === "critical" || severity === "high") return "error" as const;
   if (severity === "medium") return "warning" as const;
@@ -288,6 +283,260 @@ async function fetchWithTimeout(
   }
 }
 
+function formatDateInput(timestamp: number) {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function subtractDays(timestamp: number, days: number) {
+  const date = new Date(timestamp);
+  date.setDate(date.getDate() - days);
+  return date.getTime();
+}
+
+function formatPercentage(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
+
+function getAnalyticsStatusLabel(status: AnalyticsStatusKey) {
+  if (status === "overdue") return "Overdue";
+  return getStatusLabel(status);
+}
+
+function getAnalyticsStatusChartClasses(status: AnalyticsStatusKey) {
+  if (status === "overdue") {
+    return {
+      bar: "bg-orange-400 shadow-[0_0_0_1px_rgba(251,146,60,0.18)]",
+      chip: "border-orange-400/30 bg-orange-950/40 text-orange-200",
+    };
+  }
+  return getStatusChartClasses(status);
+}
+
+function getSeverityChartClasses(severity: CorrectiveActionRow["severity"]) {
+  if (severity === "critical") {
+    return "bg-rose-400 shadow-[0_0_0_1px_rgba(251,113,133,0.18)]";
+  }
+  if (severity === "high") {
+    return "bg-orange-400 shadow-[0_0_0_1px_rgba(251,146,60,0.18)]";
+  }
+  if (severity === "medium") {
+    return "bg-amber-300 shadow-[0_0_0_1px_rgba(252,211,77,0.18)]";
+  }
+  return "bg-sky-400 shadow-[0_0_0_1px_rgba(56,189,248,0.18)]";
+}
+
+function getOverdueAgingLabel(bucket: "1_3" | "4_7" | "8_14" | "15_plus") {
+  if (bucket === "1_3") return "1-3 days";
+  if (bucket === "4_7") return "4-7 days";
+  if (bucket === "8_14") return "8-14 days";
+  return "15+ days";
+}
+
+function AnalyticsMetricCard({
+  title,
+  value,
+  note,
+}: {
+  title: string;
+  value: string;
+  note: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
+      <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">{title}</div>
+      <div className="mt-3 text-4xl font-black tracking-tight text-white">{value}</div>
+      <div className="mt-2 text-sm leading-6 text-slate-500">{note}</div>
+    </div>
+  );
+}
+
+function VerticalBarChart({
+  rows,
+  maxValue,
+}: {
+  rows: Array<{ key: string; label: string; count: number; barClassName: string }>;
+  maxValue?: number;
+}) {
+  const resolvedMaxValue = maxValue ?? Math.max(1, ...rows.map((row) => row.count));
+
+  return (
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+      <div className="flex items-end gap-3 overflow-x-auto pb-1">
+        {rows.map((row) => (
+          <div key={row.key} className="flex min-w-[88px] flex-1 flex-col items-center gap-3">
+            <div className="text-sm font-black text-white">{row.count}</div>
+            <div className="flex h-52 w-full items-end rounded-2xl bg-slate-900/90 px-3 py-3">
+              <div
+                className={`w-full rounded-xl transition-[height] duration-300 ${row.barClassName}`}
+                style={{
+                  height: `${Math.max((row.count / resolvedMaxValue) * 100, row.count > 0 ? 12 : 2)}%`,
+                }}
+              />
+            </div>
+            <div className="text-center text-[11px] font-semibold leading-4 text-slate-400">{row.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RankedBarList({
+  rows,
+  emptyLabel,
+}: {
+  rows: Array<{ key: string; label: string; count: number }>;
+  emptyLabel: string;
+}) {
+  const maxValue = Math.max(1, ...rows.map((row) => row.count));
+
+  if (rows.length < 1) {
+    return <div className="rounded-2xl border border-dashed border-slate-700/80 px-4 py-6 text-sm text-slate-500">{emptyLabel}</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {rows.map((row) => (
+        <div key={row.key} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-semibold text-slate-100">{row.label}</div>
+            <div className="text-sm font-black text-white">{row.count}</div>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
+            <div
+              className="h-full rounded-full bg-sky-400 transition-[width] duration-300"
+              style={{ width: `${(row.count / maxValue) * 100}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TrendLineChart({
+  points,
+}: {
+  points: Array<{ key: string; label: string; created: number; closed: number; openBacklog: number }>;
+}) {
+  const width = 720;
+  const height = 240;
+  const leftPad = 28;
+  const bottomPad = 26;
+  const topPad = 12;
+  const rightPad = 12;
+  const data = points.length > 0 ? points : [{ key: "0", label: "No data", created: 0, closed: 0, openBacklog: 0 }];
+  const maxValue = Math.max(1, ...data.flatMap((point) => [point.created, point.closed, point.openBacklog]));
+  const step = (width - leftPad - rightPad) / Math.max(1, data.length - 1);
+  const makePath = (accessor: (point: (typeof data)[number]) => number) =>
+    data
+      .map((point, index) => {
+        const x = leftPad + index * step;
+        const y =
+          height - bottomPad - (accessor(point) / maxValue) * (height - topPad - bottomPad);
+        return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+      })
+      .join(" ");
+
+  const lines = [
+    { label: "Created", color: "#38bdf8", path: makePath((point) => point.created) },
+    { label: "Closed", color: "#34d399", path: makePath((point) => point.closed) },
+    { label: "Open Backlog", color: "#f59e0b", path: makePath((point) => point.openBacklog) },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+      <div className="flex flex-wrap gap-2">
+        {lines.map((line) => (
+          <div
+            key={line.label}
+            className="inline-flex items-center gap-2 rounded-full border border-slate-700/80 bg-slate-900/90 px-3 py-1 text-[11px] font-semibold text-slate-300"
+          >
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: line.color }} />
+            {line.label}
+          </div>
+        ))}
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="mt-4 h-64 w-full" preserveAspectRatio="none">
+        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+          const y = height - bottomPad - ratio * (height - topPad - bottomPad);
+          return (
+            <line
+              key={ratio}
+              x1={leftPad}
+              x2={width - rightPad}
+              y1={y}
+              y2={y}
+              stroke="rgba(148, 163, 184, 0.18)"
+              strokeWidth="1"
+            />
+          );
+        })}
+        {lines.map((line) => (
+          <path
+            key={line.label}
+            d={line.path}
+            fill="none"
+            stroke={line.color}
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
+        {data.map((point, index) => {
+          const x = leftPad + index * step;
+          return (
+            <text
+              key={point.key}
+              x={x}
+              y={height - 6}
+              fill="rgb(148 163 184)"
+              fontSize="11"
+              textAnchor={index === 0 ? "start" : index === data.length - 1 ? "end" : "middle"}
+            >
+              {point.label}
+            </text>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function RepeatIssueList({
+  title,
+  rows,
+  emptyLabel,
+}: {
+  title: string;
+  rows: Array<{ key: string; label: string; count: number }>;
+  emptyLabel: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+      <div className="text-sm font-semibold text-slate-100">{title}</div>
+      <div className="mt-3 space-y-2">
+        {rows.length < 1 ? (
+          <div className="rounded-xl border border-dashed border-slate-700/80 px-3 py-4 text-sm text-slate-500">
+            {emptyLabel}
+          </div>
+        ) : (
+          rows.map((row) => (
+            <div key={row.key} className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/80 bg-slate-900/90 px-3 py-3">
+              <div className="text-sm text-slate-200">{row.label}</div>
+              <div className="text-sm font-black text-white">{row.count}</div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function FieldIdExchangePage() {
   const searchParams = useSearchParams();
   const {
@@ -305,6 +554,11 @@ export default function FieldIdExchangePage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [analyticsStartDate, setAnalyticsStartDate] = useState(() =>
+    formatDateInput(subtractDays(Date.now(), 89))
+  );
+  const [analyticsEndDate, setAnalyticsEndDate] = useState(() => formatDateInput(Date.now()));
+  const [trendGranularity, setTrendGranularity] = useState<TrendGranularity>("week");
   const [composer, setComposer] = useState<CreateActionState>(EMPTY_CREATE_ACTION);
   const [showAdvancedComposer, setShowAdvancedComposer] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -561,50 +815,6 @@ export default function FieldIdExchangePage() {
     }));
   }, [filteredItems]);
 
-  const statusChartData = useMemo(() => {
-    return STATUS_CHART_ORDER.map((status) => {
-      const count = filteredItems.filter((item) => item.status === status).length;
-      return {
-        status,
-        label: getStatusLabel(status),
-        count,
-        share: filteredItems.length > 0 ? count / filteredItems.length : 0,
-        ...getStatusChartClasses(status),
-      };
-    });
-  }, [filteredItems]);
-
-  const verifiedClosedCount = useMemo(
-    () => filteredItems.filter((item) => item.status === "verified_closed").length,
-    [filteredItems]
-  );
-
-  const actionStatusSummary = useMemo(
-    () => [
-      {
-        title: "Filtered Actions",
-        value: String(filteredItems.length),
-        note: "Every card and chart in this view follows your current filters.",
-      },
-      {
-        title: "Open Backlog",
-        value: String(openCount),
-        note: "Open and assigned work that still needs ownership or execution.",
-      },
-      {
-        title: "Overdue",
-        value: String(overdueCount),
-        note: "Open or active issues currently past their due date.",
-      },
-      {
-        title: "Verified Closed",
-        value: String(verifiedClosedCount),
-        note: "Items already closed and verified in the current filtered view.",
-      },
-    ],
-    [filteredItems.length, openCount, overdueCount, verifiedClosedCount]
-  );
-
   function renderSharedFilters() {
     return (
       <div className="grid gap-3 lg:grid-cols-4">
@@ -658,6 +868,51 @@ export default function FieldIdExchangePage() {
     );
   }
 
+  function renderMetricsFilters() {
+    return (
+      <div className="space-y-3">
+        {renderSharedFilters()}
+        <div className="grid gap-3 lg:grid-cols-3">
+          <label className="space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              Start date
+            </span>
+            <input
+              type="date"
+              value={analyticsStartDate}
+              onChange={(event) => setAnalyticsStartDate(event.target.value)}
+              className="min-h-11 rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              End date
+            </span>
+            <input
+              type="date"
+              value={analyticsEndDate}
+              onChange={(event) => setAnalyticsEndDate(event.target.value)}
+              className="min-h-11 rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              Trend granularity
+            </span>
+            <select
+              value={trendGranularity}
+              onChange={(event) => setTrendGranularity(event.target.value as TrendGranularity)}
+              className="min-h-11 rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
+            >
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    );
+  }
+
   const activeMatrix = useMemo(() => {
     const categories: CorrectiveActionRow["category"][] = [
       "hazard",
@@ -688,6 +943,29 @@ export default function FieldIdExchangePage() {
       total: filteredItems.filter((item) => item.category === category).length,
     }));
   }, [filteredItems]);
+
+  const metricsAnalytics = useMemo(
+    () =>
+      buildFieldIssueAnalytics({
+        items: filteredItems,
+        sourceItems: filteredItems,
+        jobsiteNameById,
+        companyLabel: companyName || "Company Workspace",
+        referenceTime,
+        startDate: analyticsStartDate,
+        endDate: analyticsEndDate,
+        trendGranularity,
+      }),
+    [
+      analyticsEndDate,
+      analyticsStartDate,
+      companyName,
+      filteredItems,
+      jobsiteNameById,
+      referenceTime,
+      trendGranularity,
+    ]
+  );
 
   async function reloadActions() {
     setHasLoaded(true);
@@ -887,9 +1165,11 @@ export default function FieldIdExchangePage() {
 
   function downloadFieldIssueImportTemplate() {
     const bytes = buildFieldIssueImportTemplateXlsx();
-    const copy = new Uint8Array(bytes.byteLength);
-    copy.set(bytes);
-    const blob = new Blob([copy], {
+    const arrayBuffer = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength
+    ) as ArrayBuffer;
+    const blob = new Blob([arrayBuffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
     const url = URL.createObjectURL(blob);
@@ -2181,120 +2461,250 @@ export default function FieldIdExchangePage() {
         <Tabs.Content value="metrics" className="space-y-6 outline-none">
           <SectionCard
             title="Metrics Filters"
-            description="Refine the dataset shown in the status chart and supporting corrective-action metrics."
+            description="Refine the analytics window and trend granularity for the corrective-action dashboard."
           >
-            {renderSharedFilters()}
+            {renderMetricsFilters()}
           </SectionCard>
 
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {actionStatusSummary.map((card) => (
-              <div key={card.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
-                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
-                  {card.title}
-                </div>
-                <div className="mt-3 text-4xl font-black tracking-tight text-white">
-                  {card.value}
-                </div>
-                <div className="mt-2 text-sm leading-6 text-slate-500">{card.note}</div>
-              </div>
-            ))}
-          </section>
+          {!hasLoaded ? (
+            <EmptyState
+              title="Load metrics"
+              description="Click Refresh Board to pull the latest corrective actions before opening analytics."
+            />
+          ) : loadingActions ? (
+            <EmptyState title="Refreshing analytics" description="Please wait..." />
+          ) : metricsAnalytics.metricsItems.length === 0 ? (
+            <EmptyState
+              title="No issues in the selected analytics window"
+              description="Adjust the filters or date range to populate the analytics dashboard."
+            />
+          ) : (
+            <>
+              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {metricsAnalytics.kpis.map((card) => (
+                  <AnalyticsMetricCard key={card.title} title={card.title} value={card.value} note={card.note} />
+                ))}
+              </section>
 
-          <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-            <SectionCard
-              title="Corrective Action Status"
-              description="Live status mix for the current filtered corrective-action view."
-            >
-              {!hasLoaded ? (
-                <EmptyState
-                  title="Load metrics"
-                  description="Click Refresh Board to pull the latest corrective actions before opening metrics."
-                />
-              ) : loadingActions ? (
-                <EmptyState title="Refreshing metrics" description="Please wait..." />
-              ) : filteredItems.length === 0 ? (
-                <EmptyState
-                  title="No filtered actions to chart"
-                  description="Adjust the filters or create an observation to populate the metrics tab."
-                />
-              ) : (
-                <div className="space-y-5">
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {statusChartData.map((statusRow) => (
-                      <div
-                        key={statusRow.status}
-                        className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span
-                            className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${statusRow.chip}`}
-                          >
-                            {statusRow.label}
-                          </span>
-                          <span className="text-lg font-black text-white">{statusRow.count}</span>
-                        </div>
-                        <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-800">
+              <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+                <SectionCard
+                  title="Corrective Action Status"
+                  description="Status distribution across the selected analytics window, including a derived overdue bucket."
+                >
+                  <div className="space-y-5">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      {metricsAnalytics.statusCounts.map((statusRow) => {
+                        const classes = getAnalyticsStatusChartClasses(statusRow.key);
+                        const share =
+                          metricsAnalytics.totalIssues > 0 ? statusRow.count / metricsAnalytics.totalIssues : 0;
+                        return (
                           <div
-                            className={`h-full rounded-full transition-[width] duration-300 ${statusRow.bar}`}
-                            style={{ width: `${Math.max(statusRow.share * 100, statusRow.count > 0 ? 8 : 0)}%` }}
-                          />
-                        </div>
-                        <div className="mt-2 text-xs text-slate-500">
-                          {filteredItems.length > 0
-                            ? `${Math.round(statusRow.share * 100)}% of the current view`
-                            : "0% of the current view"}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                            key={statusRow.key}
+                            className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span
+                                className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${classes.chip}`}
+                              >
+                                {getAnalyticsStatusLabel(statusRow.key)}
+                              </span>
+                              <span className="text-lg font-black text-white">{statusRow.count}</span>
+                            </div>
+                            <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-800">
+                              <div
+                                className={`h-full rounded-full transition-[width] duration-300 ${classes.bar}`}
+                                style={{ width: `${Math.max(share * 100, statusRow.count > 0 ? 8 : 0)}%` }}
+                              />
+                            </div>
+                            <div className="mt-2 text-xs text-slate-500">
+                              {statusRow.key === "overdue"
+                                ? "Derived from due date and active status."
+                                : `${formatPercentage(share)} of the selected view`}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
 
-                  <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                    <div className="flex items-end gap-3 overflow-x-auto pb-1">
-                      {statusChartData.map((statusRow) => (
-                        <div
-                          key={`chart-${statusRow.status}`}
-                          className="flex min-w-[88px] flex-1 flex-col items-center gap-3"
-                        >
-                          <div className="text-sm font-black text-white">{statusRow.count}</div>
-                          <div className="flex h-52 w-full items-end rounded-2xl bg-slate-900/90 px-3 py-3">
+                    <VerticalBarChart
+                      rows={metricsAnalytics.statusCounts.map((statusRow) => {
+                        const classes = getAnalyticsStatusChartClasses(statusRow.key);
+                        return {
+                          key: statusRow.key,
+                          label: getAnalyticsStatusLabel(statusRow.key),
+                          count: statusRow.count,
+                          barClassName: classes.bar,
+                        };
+                      })}
+                    />
+                  </div>
+                </SectionCard>
+
+                <SectionCard
+                  title="Issues by Category"
+                  description="Ranked view of which safety categories are generating the most issues."
+                >
+                  <RankedBarList
+                    rows={metricsAnalytics.categoryCounts.map((row) => ({
+                      key: row.key,
+                      label: getCategoryLabel(row.key),
+                      count: row.count,
+                    }))}
+                    emptyLabel="No category activity in this range."
+                  />
+                </SectionCard>
+              </section>
+
+              <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+                <SectionCard
+                  title="Open vs. Closed Trend"
+                  description={`Created, verified closed, and open backlog trend by ${trendGranularity}.`}
+                >
+                  <TrendLineChart points={metricsAnalytics.trendPoints} />
+                </SectionCard>
+
+                <SectionCard
+                  title="Severity Breakdown"
+                  description="Low, medium, high, and critical issue volume in the selected range."
+                >
+                  <div className="space-y-5">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {metricsAnalytics.severityCounts.map((row) => (
+                        <div key={row.key} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-semibold text-slate-100">{getSeverityLabel(row.key)}</span>
+                            <span className="text-lg font-black text-white">{row.count}</span>
+                          </div>
+                          <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-800">
                             <div
-                              className={`w-full rounded-xl transition-[height] duration-300 ${statusRow.bar}`}
+                              className={`h-full rounded-full transition-[width] duration-300 ${getSeverityChartClasses(row.key)}`}
                               style={{
-                                height: `${Math.max(statusRow.share * 100, statusRow.count > 0 ? 12 : 2)}%`,
+                                width: `${Math.max(
+                                  metricsAnalytics.totalIssues > 0
+                                    ? (row.count / metricsAnalytics.totalIssues) * 100
+                                    : 0,
+                                  row.count > 0 ? 8 : 0
+                                )}%`,
                               }}
                             />
-                          </div>
-                          <div className="text-center text-[11px] font-semibold leading-4 text-slate-400">
-                            {statusRow.label}
                           </div>
                         </div>
                       ))}
                     </div>
+
+                    <VerticalBarChart
+                      rows={metricsAnalytics.severityCounts.map((row) => ({
+                        key: row.key,
+                        label: getSeverityLabel(row.key),
+                        count: row.count,
+                        barClassName: getSeverityChartClasses(row.key),
+                      }))}
+                    />
                   </div>
-                </div>
-              )}
-            </SectionCard>
+                </SectionCard>
+              </section>
 
-            <div className="space-y-6">
-              <SectionCard
-                title="Issue Categories"
-                description="Track volume by issue category after admin review decisions."
-              >
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {categoryCounts.map((category) => (
-                    <div key={category.label} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
-                      <div className="text-sm font-semibold text-slate-100">{category.label}</div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {category.count} active issue{category.count === 1 ? "" : "s"}
+              <section className="grid gap-6 xl:grid-cols-3">
+                <SectionCard
+                  title="Overdue Aging"
+                  description="How long overdue issues have been sitting inside the selected range."
+                >
+                  <VerticalBarChart
+                    rows={metricsAnalytics.overdueAgingCounts.map((row) => ({
+                      key: row.key,
+                      label: getOverdueAgingLabel(row.key),
+                      count: row.count,
+                      barClassName: "bg-orange-400 shadow-[0_0_0_1px_rgba(251,146,60,0.18)]",
+                    }))}
+                  />
+                </SectionCard>
+
+                <SectionCard
+                  title="Issues by Location"
+                  description="Where issues are occurring most often across the filtered jobsite view."
+                >
+                  <RankedBarList
+                    rows={metricsAnalytics.locationCounts.map((row) => ({
+                      key: row.label,
+                      label: row.label,
+                      count: row.count,
+                    }))}
+                    emptyLabel="No location-based issues in this range."
+                  />
+                </SectionCard>
+
+                <SectionCard
+                  title="Issues by Responsible Company"
+                  description="v1 ownership analytics grouped at the current company workspace level."
+                >
+                  <div className="space-y-3">
+                    {metricsAnalytics.companyRows.map((row) => (
+                      <div key={row.label} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                        <div className="text-sm font-semibold text-slate-100">{row.label}</div>
+                        <div className="mt-4 grid grid-cols-2 gap-3">
+                          <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-3 py-3">
+                            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Total</div>
+                            <div className="mt-1 text-2xl font-black text-white">{row.total}</div>
+                          </div>
+                          <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-3 py-3">
+                            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Open Backlog</div>
+                            <div className="mt-1 text-2xl font-black text-white">{row.openBacklog}</div>
+                          </div>
+                          <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-3 py-3">
+                            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Overdue</div>
+                            <div className="mt-1 text-2xl font-black text-white">{row.overdue}</div>
+                          </div>
+                          <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-3 py-3">
+                            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Verified Closed</div>
+                            <div className="mt-1 text-2xl font-black text-white">{row.verifiedClosed}</div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </SectionCard>
+                    ))}
+                  </div>
+                </SectionCard>
+              </section>
+
+              <section className="grid gap-6 xl:grid-cols-3">
+                <SectionCard
+                  title="Repeat Issue Analysis"
+                  description="Repeat patterns based on the same category paired with the same location or company inside the selected time period."
+                >
+                  <div className="grid gap-4 xl:grid-cols-3">
+                    <RepeatIssueList
+                      title="Repeated Categories"
+                      rows={metricsAnalytics.repeatSummary.repeatedCategories.map((row) => ({
+                        key: row.key,
+                        label: getCategoryLabel(row.key),
+                        count: row.count,
+                      }))}
+                      emptyLabel="No repeated categories in this range."
+                    />
+                    <RepeatIssueList
+                      title="Repeated Locations"
+                      rows={metricsAnalytics.repeatSummary.repeatedLocations.map((row) => ({
+                        key: row.label,
+                        label: row.label,
+                        count: row.count,
+                      }))}
+                      emptyLabel="No repeated locations in this range."
+                    />
+                    <RepeatIssueList
+                      title="Repeated Companies"
+                      rows={metricsAnalytics.repeatSummary.repeatedCompanies.map((row) => ({
+                        key: row.label,
+                        label: row.label,
+                        count: row.count,
+                      }))}
+                      emptyLabel="No repeated company ownership patterns in this range."
+                    />
+                  </div>
+                </SectionCard>
+              </section>
 
               <SectionCard
-                title="Active Matrix"
-                description="Live matrix of issue categories by status."
+                title="Analytics Matrix"
+                description="Category-by-status matrix for the selected filters, including a derived overdue column and totals row."
               >
                 <div className="overflow-x-auto">
                   <table className="min-w-full border-separate border-spacing-y-2">
@@ -2307,10 +2717,25 @@ export default function FieldIdExchangePage() {
                           Open
                         </th>
                         <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Assigned
+                        </th>
+                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                           In Progress
                         </th>
                         <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                          Closed
+                          Corrected
+                        </th>
+                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Verified Closed
+                        </th>
+                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Overdue
+                        </th>
+                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Escalated
+                        </th>
+                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          Stop Work
                         </th>
                         <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                           Total
@@ -2318,31 +2743,42 @@ export default function FieldIdExchangePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {activeMatrix.map((row) => (
+                      {metricsAnalytics.matrixRows.map((row) => (
                         <tr key={row.category}>
                           <td className="rounded-l-xl border-y border-l border-slate-700/80 bg-slate-950/50 px-3 py-2 text-xs font-semibold text-slate-100">
                             {getCategoryLabel(row.category)}
                           </td>
-                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">
-                            {row.open}
-                          </td>
-                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">
-                            {row.inProgress}
-                          </td>
-                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">
-                            {row.closed}
-                          </td>
-                          <td className="rounded-r-xl border-y border-r border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs font-semibold text-slate-100">
-                            {row.total}
-                          </td>
+                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.open}</td>
+                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.assigned}</td>
+                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.inProgress}</td>
+                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.corrected}</td>
+                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.verifiedClosed}</td>
+                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-orange-200">{row.overdue}</td>
+                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.escalated}</td>
+                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.stopWork}</td>
+                          <td className="rounded-r-xl border-y border-r border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs font-semibold text-slate-100">{row.total}</td>
                         </tr>
                       ))}
+                      <tr>
+                        <td className="rounded-l-xl border-y border-l border-slate-700/80 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-white">
+                          Total
+                        </td>
+                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.open}</td>
+                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.assigned}</td>
+                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.inProgress}</td>
+                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.corrected}</td>
+                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.verifiedClosed}</td>
+                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-orange-200">{metricsAnalytics.matrixTotals.overdue}</td>
+                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.escalated}</td>
+                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.stopWork}</td>
+                        <td className="rounded-r-xl border-y border-r border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-black text-white">{metricsAnalytics.matrixTotals.total}</td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
               </SectionCard>
-            </div>
-          </section>
+            </>
+          )}
         </Tabs.Content>
       </Tabs.Root>
     </div>

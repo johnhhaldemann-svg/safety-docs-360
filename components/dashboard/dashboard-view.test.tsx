@@ -9,6 +9,7 @@ import {
 } from "@/components/dashboard/dashboard-mappers";
 import type { DashboardBlockId, DashboardDataState } from "@/components/dashboard/types";
 import { getAvailableDashboardBlocks, getDashboardRoleDefaultLayout } from "@/lib/dashboardLayout";
+import { emptyOnboardingState } from "@/lib/onboardingState";
 
 vi.mock("@/components/dashboard/use-dashboard-layout", () => ({
   useDashboardLayout: vi.fn(),
@@ -148,6 +149,7 @@ const baseData: DashboardDataState = {
   companyWorkspaceLoading: false,
   companyWorkspaceError: null,
   analyticsSummaryIssue: null,
+  onboardingState: emptyOnboardingState(),
   refreshCompanyWorkspace: async () => {},
   reload: async () => {},
 };

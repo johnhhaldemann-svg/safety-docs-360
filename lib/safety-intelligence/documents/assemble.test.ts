@@ -704,7 +704,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         }),
         expect.objectContaining({
           title: "5.6.2 Hydration",
-          body: expect.stringMatching(/Minimum Requirement:.*[Ww]ater/s),
+          body: expect.stringMatching(/Minimum Requirement:[\s\S]*[Ww]ater/),
         }),
         expect.objectContaining({
           title: "5.6.3 Fatigue management",
@@ -712,7 +712,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         }),
         expect.objectContaining({
           title: "5.6.4 Sanitation and hygiene",
-          body: expect.stringMatching(/Minimum Requirement:.*[Rr]estroom/s),
+          body: expect.stringMatching(/Minimum Requirement:[\s\S]*[Rr]estroom/),
         }),
         expect.objectContaining({
           title: "5.6.5 Exposure management",
@@ -752,7 +752,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         }),
         expect.objectContaining({
           title: "5.7.6 Near-miss reporting",
-          body: expect.stringMatching(/Minimum Requirement:.*[Nn]ear.miss/s),
+          body: expect.stringMatching(/Minimum Requirement:[\s\S]*[Nn]ear.miss/),
         }),
       ]),
     });

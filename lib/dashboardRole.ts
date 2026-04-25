@@ -19,6 +19,9 @@ export function resolveDashboardRole(role?: string | null): DashboardRole {
   if (normalized === "company_admin") {
     return "company_admin";
   }
+  if (normalized === "sales_demo") {
+    return "company_admin";
+  }
   if (normalized === "safety_manager") {
     return "safety_manager";
   }

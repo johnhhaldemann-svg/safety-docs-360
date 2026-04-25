@@ -18,6 +18,7 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report playwright-report",
     "test:e2e:ci": "npm run build && playwright test",
+    "verify:release": "npm run lint && npm run test && npm run test:navigation && npx playwright test tests/adoption.spec.ts --project=chromium",
     "stress:platform": "node scripts/stress-platform.mjs",
     "seed:csep-test": "node ./scripts/seed-csep-test-user.mjs",
     "build:bls-rates": "node ./scripts/build-bls-state-construction-rates.mjs",

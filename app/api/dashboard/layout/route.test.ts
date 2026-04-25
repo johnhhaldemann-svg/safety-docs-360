@@ -67,7 +67,7 @@ describe("/api/dashboard/layout", () => {
     expect(payload.savedLayout).toBeNull();
     expect(payload.defaultLayout).toEqual(getDashboardRoleDefaultLayout("company_admin"));
     expect(payload.effectiveLayout).toHaveLength(10);
-    expect(payload.availableBlocks).toHaveLength(19);
+    expect(payload.availableBlocks).toHaveLength(20);
   });
 
   it("rejects malformed patch payloads", async () => {

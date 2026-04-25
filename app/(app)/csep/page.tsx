@@ -41,6 +41,7 @@ import {
   CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL,
   CONTRACTOR_SAFETY_BLUEPRINT_TITLE,
 } from "@/lib/safetyBlueprintLabels";
+import { OWNER_MESSAGE_PRESETS, getOwnerMessagePreset } from "@/lib/ownerMessagePresets";
 import { buildCsepGenerationContext } from "@/lib/safety-intelligence/documentIntake";
 import type { CsepFormatSectionKey, CsepWeatherSectionInput } from "@/types/csep-builder";
 import type { CSEPPricedItemCatalogEntry } from "@/types/csep-priced-items";
@@ -54,6 +55,7 @@ type CSEPForm = {
   governing_state: string;
   project_delivery_type: string;
   owner_client: string;
+  owner_message_text: string;
   gc_cm: string;
   contractor_company: string;
   contractor_contact: string;
@@ -251,6 +253,7 @@ const initialForm: CSEPForm = {
   governing_state: "",
   project_delivery_type: "",
   owner_client: "",
+  owner_message_text: "",
   gc_cm: "",
   contractor_company: "",
   contractor_contact: "",
@@ -317,6 +320,7 @@ export default function CSEPPage() {
   const [previewApproved, setPreviewApproved] = useState(false);
   const [companyLogoPreviewUrl, setCompanyLogoPreviewUrl] = useState<string | null>(null);
   const [companyLogoFileName, setCompanyLogoFileName] = useState<string | null>(null);
+  const [ownerMessagePresetId, setOwnerMessagePresetId] = useState("");
   const [agreedToSubmissionTerms, setAgreedToSubmissionTerms] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "warning" | "error">("success");
@@ -549,6 +553,7 @@ export default function CSEPPage() {
       prepared_by: form.prepared_by,
       reviewed_by: form.reviewed_by,
       approved_by: form.approved_by,
+      owner_message_text: form.owner_message_text,
       roles_and_responsibilities_text: form.roles_and_responsibilities_text,
       security_and_access_text: form.security_and_access_text,
       health_and_wellness_text: form.health_and_wellness_text,
@@ -591,6 +596,8 @@ export default function CSEPPage() {
     }),
     [
       commonOverlappingTrades,
+      companyLogoFileName,
+      companyLogoPreviewUrl,
       derivedHazards,
       derivedPermits,
       displayedTradeItems,
@@ -648,6 +655,7 @@ export default function CSEPPage() {
       governing_state: form.governing_state,
       project_delivery_type: form.project_delivery_type,
       owner_client: form.owner_client,
+      owner_message_text: form.owner_message_text,
       gc_cm: form.gc_cm,
       contractor_company: form.contractor_company,
       contractor_contact: form.contractor_contact,
@@ -671,6 +679,7 @@ export default function CSEPPage() {
       form.gc_cm,
       form.governing_state,
       form.owner_client,
+      form.owner_message_text,
       form.project_address,
       form.project_delivery_type,
       form.project_name,
@@ -722,6 +731,14 @@ export default function CSEPPage() {
 
   function updateField<K extends keyof CSEPForm>(field: K, value: CSEPForm[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function handleOwnerMessagePresetChange(value: string) {
+    setOwnerMessagePresetId(value);
+    const preset = getOwnerMessagePreset(value);
+    if (preset) {
+      updateField("owner_message_text", preset.message);
+    }
   }
 
   function updateWeatherField<K extends keyof CsepWeatherSectionInput>(
@@ -816,6 +833,7 @@ export default function CSEPPage() {
     setPreviewState(null);
     setPreviewApproved(false);
     clearCompanyLogo();
+    setOwnerMessagePresetId("");
     setAgreedToSubmissionTerms(false);
     setMessage("");
     setSectionAiState({});
@@ -1408,7 +1426,13 @@ export default function CSEPPage() {
                     disabled={!form.trade}
                   />
                   {selectedTrade ? (
-                    <InfoCard label="Trade summary" value={selectedTrade.summary} />
+                    <InfoCard
+                      label="Sub-trade summary"
+                      value={
+                        selectedTrade.subTradeDescription ??
+                        "Choose a sub-trade to show the scope description for this selection."
+                      }
+                    />
                   ) : (
                     <InlineMessage tone="warning">
                       Choose a trade first so the live sub-trade list can be loaded.
@@ -1633,6 +1657,21 @@ export default function CSEPPage() {
                     <InputField label="Project number" value={form.project_number} onChange={(value) => updateField("project_number", value)} />
                     <InputField label="Project address" value={form.project_address} onChange={(value) => updateField("project_address", value)} />
                     <TextAreaField label="Owners / Clients" value={form.owner_client} onChange={(value) => updateField("owner_client", value)} />
+                    <SelectField
+                      label="Owner Message Template"
+                      value={ownerMessagePresetId}
+                      onChange={handleOwnerMessagePresetChange}
+                      options={OWNER_MESSAGE_PRESETS.map((preset) => ({
+                        value: preset.id,
+                        label: preset.title,
+                      }))}
+                      placeholder="Choose owner message"
+                    />
+                    <TextAreaField
+                      label="Owner Message"
+                      value={form.owner_message_text}
+                      onChange={(value) => updateField("owner_message_text", value)}
+                    />
                     <TextAreaField label="GCs / CMs" value={form.gc_cm} onChange={(value) => updateField("gc_cm", value)} />
                     <InputField label="Contractor company" value={form.contractor_company} onChange={(value) => updateField("contractor_company", value)} />
                     <InputField label="Contractor contact" value={form.contractor_contact} onChange={(value) => updateField("contractor_contact", value)} />
@@ -2128,6 +2167,7 @@ export default function CSEPPage() {
                               <div className="csep-doc-heading text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                                 Company Logo
                               </div>
+                              {/* eslint-disable-next-line @next/next/no-img-element -- Local object URL preview; Next Image cannot optimize it. */}
                               <img
                                 src={companyLogoPreviewUrl}
                                 alt="Company logo preview"
