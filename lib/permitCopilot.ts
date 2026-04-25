@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractResponsesApiOutputText } from "@/lib/ai/responses";
+import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
 import { retrieveMemoryForQuery } from "@/lib/companyMemory/repository";
 import { COMPANY_AI_ASSIST_DISCLAIMER, buildSurfaceSystemPrompt } from "@/lib/companyMemory/assist";
 import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
@@ -408,7 +409,7 @@ export async function runPermitCopilotAssist(
   }
 
   const model = resolveOpenAiCompatibleModelId(
-    process.env.COMPANY_AI_MODEL?.trim() || "gpt-4.1"
+    process.env.COMPANY_AI_MODEL?.trim() || resolveCompanyAiDefaultModel("gpt-4.1")
   );
 
   const res = await fetch(`${getOpenAiApiBaseUrl()}/responses`, {

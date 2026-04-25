@@ -1,0 +1,17 @@
+{
+  "name": "hazard-summary-json-shape",
+  "surface": "responses-api.json",
+  "notes": "Generic Responses-API JSON probe. Verifies the helper still parses well-formed JSON output, captures the model name, and does NOT silently fall back. Mirrors the call shape used by safety-intelligence.document.draft and risk surfaces.",
+  "input": {
+    "system": "You are a construction safety summarizer. Given the input JSON, return a strict JSON object with keys 'topHazard' (string) and 'recommendedControls' (array of 2-4 strings). Do not include markdown.",
+    "user": "{\"observedHazards\":[\"unprotected leading edge\",\"missing guardrail\"],\"location\":\"Tower B Roof\"}",
+    "fallbackModel": "gpt-4o-mini",
+    "fallback": { "topHazard": "fallback", "recommendedControls": ["fallback-control"] },
+    "surface": "ai-eval.responses-api.hazard-summary"
+  },
+  "assertions": {
+    "mustContain": ["fall"],
+    "mustNotContain": ["fallback-control"],
+    "schemaShape": ["parsed.topHazard", "parsed.recommendedControls[]", "model"]
+  }
+}

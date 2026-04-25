@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
+import { InlineMessage, PageHero, ProvenanceBadge, SectionCard } from "@/components/WorkspacePrimitives";
 import type { SafetyDashboardPayload } from "@/components/safety-intelligence/types";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -78,15 +78,24 @@ export function SafetyIntelligenceAnalyticsClient() {
             <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{summary?.totals.bucketRuns ?? 0}</p>
           </div>
           <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Intelligence reviews</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Intelligence reviews</p>
+              <ProvenanceBadge kind="ai" />
+            </div>
             <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{summary?.totals.aiReviews ?? 0}</p>
           </div>
           <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Open conflicts</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Open conflicts</p>
+              <ProvenanceBadge kind="rules" />
+            </div>
             <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{summary?.totals.openConflicts ?? 0}</p>
           </div>
           <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Generated docs</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Generated docs</p>
+              <ProvenanceBadge kind="hybrid" />
+            </div>
             <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{summary?.totals.generatedDocuments ?? 0}</p>
           </div>
         </div>
@@ -118,6 +127,7 @@ export function SafetyIntelligenceAnalyticsClient() {
       <SectionCard
         title="Conflict drill-down"
         description="Open conflict findings from the deterministic engine are the core early-warning signal for the platform."
+        aside={<ProvenanceBadge kind="rules" />}
       >
         <div className="grid gap-3">
           {(summary?.openConflictItems ?? []).map((conflict) => (

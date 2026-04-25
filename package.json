@@ -13,6 +13,7 @@
     "test": "vitest run --configLoader native --pool=threads",
     "test:navigation": "vitest run --configLoader native --pool=threads lib/appNavigationIntegrity.test.ts",
     "test:links": "vitest run --configLoader native --pool=threads lib/brokenLinkChecker.test.ts",
+    "test:ai-eval": "vitest run --configLoader native --pool=threads --config vitest.config.ai-eval.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",

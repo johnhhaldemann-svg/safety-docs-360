@@ -7,11 +7,9 @@ import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
-import {
-  FieldMetricBarChart,
-  FieldMetricRankedList,
-  FieldMetricTrendChart,
-} from "@/components/metrics";
+import { FieldMetricBarChart } from "@/components/metrics/FieldMetricBarChart";
+import { FieldMetricRankedList } from "@/components/metrics/FieldMetricRankedList";
+import { FieldMetricTrendChart } from "@/components/metrics/FieldMetricTrendChart";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import {

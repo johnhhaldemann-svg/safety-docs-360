@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractResponsesApiOutputText } from "@/lib/companyMemory/openaiResponses";
 import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
+import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
 import {
   listCompanyMemoryItems,
   retrieveMemoryForQuery,
@@ -358,7 +359,7 @@ export async function runCompanyAiAssist(
   }
 
   const model = resolveOpenAiCompatibleModelId(
-    process.env.COMPANY_AI_MODEL?.trim() || "gpt-4o-mini"
+    process.env.COMPANY_AI_MODEL?.trim() || resolveCompanyAiDefaultModel("gpt-4o-mini")
   );
 
   const res = await fetch(`${getOpenAiApiBaseUrl()}/responses`, {

@@ -75,6 +75,43 @@ function isMissingSafetyIntelligenceSchemaError(error: unknown) {
   );
 }
 
+function documentSubmitUserFacingError(error: unknown) {
+  const m = extractErrorMessage(error);
+  const lower = m.toLowerCase();
+  if (!m.trim()) {
+    return "Unexpected server error.";
+  }
+
+  if (isMissingSafetyIntelligenceSchemaError(error)) {
+    return "The safety plan pipeline could not run because required database objects are missing. An administrator may need to apply the latest database migrations, then try again.";
+  }
+
+  if (isRecoverableSafetyPlanPipelineError(error)) {
+    return "The safety plan service hit a configuration or permissions issue while building your file. Please try again in a few minutes, or contact support if it persists.";
+  }
+
+  if (lower.includes("out of memory") || lower.includes("heap")) {
+    return "The document was too large to process. Try reducing scope or optional attachments, then submit again.";
+  }
+
+  if ((lower.includes("packer") || lower.includes("docx")) && lower.includes("error")) {
+    return "The Word document could not be generated from your project data. Review required fields, then try again.";
+  }
+
+  if (lower.includes("storage") && (lower.includes("denied") || lower.includes("policy") || lower.includes("row-level") || lower.includes("forbidden") || lower.includes("unauthorized"))) {
+    return "The draft file could not be saved to project storage. Check storage settings for this environment, then try again.";
+  }
+
+  if (
+    lower.includes("failed to create document row") ||
+    (lower.includes("documents") && lower.includes("violates") && lower.includes("constraint"))
+  ) {
+    return "The submission could not be recorded. Confirm you are on the latest app version and your account is linked to a company workspace.";
+  }
+
+  return "Unexpected server error.";
+}
+
 function isRecoverableSafetyPlanPipelineError(error: unknown) {
   if (isMissingSafetyIntelligenceSchemaError(error)) {
     return true;
@@ -505,13 +542,20 @@ export async function POST(request: Request) {
         { status: error.status }
       );
     }
+    const fullMessage = extractErrorMessage(error);
     serverLog("error", "document_submit_unexpected_error", {
       errorKind: error instanceof Error ? error.name : "unknown",
-      message: extractErrorMessage(error).slice(0, 200),
+      message: fullMessage.slice(0, 500),
     });
 
+    const exposeInternal =
+      process.env.NODE_ENV === "development" || process.env.DOCUMENT_SUBMIT_DEBUG === "1";
     return NextResponse.json(
-      { error: "Unexpected server error." },
+      {
+        error: exposeInternal
+          ? fullMessage || "Unexpected server error."
+          : documentSubmitUserFacingError(error),
+      },
       { status: 500 }
     );
   }

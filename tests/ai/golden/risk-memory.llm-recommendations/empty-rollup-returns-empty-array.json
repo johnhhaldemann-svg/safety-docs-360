@@ -1,0 +1,22 @@
+{
+  "name": "empty-rollup-returns-empty-array",
+  "surface": "risk-memory.llm-recommendations",
+  "notes": "Per the system prompt: facetCount=0 must produce an empty drafts array (the model should not invent risks).",
+  "input": {
+    "engine": "Safety360 Risk Memory Engine",
+    "windowDays": 90,
+    "facetCount": 0,
+    "topScopes": [],
+    "topHazards": [],
+    "topLocationGrids": [],
+    "topLocationAreas": [],
+    "openCorrectiveFacetHints": { "openStyleStatuses": 0 },
+    "aggregated": { "score": 0, "band": "low", "sampleSize": 0, "baselineContribution": 0 },
+    "baselineHints": [],
+    "aggregatedWithBaseline": { "score": 0, "band": "low" },
+    "derivedRollupConfidence": 0
+  },
+  "assertions": {
+    "schemaShape": ["drafts"]
+  }
+}

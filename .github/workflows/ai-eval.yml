@@ -1,0 +1,44 @@
+name: AI eval (non-blocking)
+
+# This workflow exercises our golden-file AI fixtures against real OpenAI.
+# Intentionally non-blocking on purpose:
+#   - manual-trigger only at first (workflow_dispatch)
+#   - scheduled nightly so drift is caught within a day
+#   - skipped silently when `OPENAI_API_KEY` is not configured
+#
+# Promote to a required check (and add `pull_request` trigger) once the
+# harness has been stable for ~1 week. See `tests/ai/golden/README.md`.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 09:17 UTC daily — off-peak vs the rest of CI.
+    - cron: "17 9 * * *"
+
+jobs:
+  ai-eval:
+    runs-on: ubuntu-latest
+    # `continue-on-error` keeps overall workflow status green even if the eval
+    # fails — the eval surfaces information, it does not gate merges.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.19"
+          cache: npm
+      - run: npm ci
+      - name: Skip notice when OPENAI_API_KEY is missing
+        if: ${{ secrets.OPENAI_API_KEY == '' }}
+        run: |
+          echo "::warning::OPENAI_API_KEY is not configured for this repo; AI eval fixtures will be skipped."
+      - name: Run AI eval harness
+        run: npm run test:ai-eval
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Optional knobs the underlying production codepaths read. Omit for
+          # defaults; surface them here so ops can tune the eval model without
+          # editing app code.
+          COMPANY_AI_MODEL: ${{ secrets.AI_EVAL_COMPANY_AI_MODEL }}
+          RISK_MEMORY_LLM_MODEL: ${{ secrets.AI_EVAL_RISK_MEMORY_LLM_MODEL }}
+          SAFETY_INTELLIGENCE_DOCUMENT_MODEL: ${{ secrets.AI_EVAL_SI_DOCUMENT_MODEL }}

@@ -1,0 +1,26 @@
+{
+  "name": "hot-work-with-site-reference",
+  "surface": "gc-program.review",
+  "notes": "Submission references hot work; site reference adds permit + fire watch requirements. Should detect alignment gap and recommend follow-ups.",
+  "input": {
+    "documentText": "Hot Work Program. Welders perform structural welding on steel members. Use leather gloves and welding hood. Maintain a clear work area.",
+    "documentTitle": "Hot Work Program",
+    "fileName": "hot-work.pdf",
+    "companyName": "Steel Erectors LLC",
+    "additionalGcContext": "Site requires daily hot work permits, dedicated fire watch, and 35-foot clearance.",
+    "siteReferenceFileName": "site-rules.pdf",
+    "siteReferenceText": "Site rules: Hot work requires a written permit signed by the GC superintendent prior to the task. A fire watch must be assigned and remain on site for 30 minutes after the last spark. Combustibles must be removed within 35 feet."
+  },
+  "assertions": {
+    "mustContain": ["permit", "fire"],
+    "mustNotContain": ["29 cfr 1926.1431", "as an ai"],
+    "schemaShape": [
+      "review.executiveSummary",
+      "review.alignmentWithGcSiteRequirements",
+      "review.oshaRelatedStrengths[]",
+      "review.oshaRelatedGapsOrRisks[]",
+      "review.recommendedFollowUps[]",
+      "review.overallAssessment"
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "high-band-roofing-rollup",
+  "surface": "risk-memory.llm-recommendations",
+  "notes": "Synthetic Risk Memory rollup heavy on roofing + fall hazards. Drafts should mention fall protection / roofing emphasis and respect the 3-6 item count.",
+  "input": {
+    "engine": "Safety360 Risk Memory Engine",
+    "windowDays": 90,
+    "facetCount": 32,
+    "topScopes": [
+      { "code": "roofing", "count": 14 },
+      { "code": "steel_erection", "count": 8 },
+      { "code": "concrete_work", "count": 4 }
+    ],
+    "topHazards": [
+      { "code": "fall_to_lower_level", "count": 12 },
+      { "code": "struck_by", "count": 6 },
+      { "code": "caught_in_between", "count": 3 }
+    ],
+    "topLocationGrids": [
+      { "label": "Tower B - Roof", "count": 8 },
+      { "label": "Tower A - Floor 12", "count": 4 }
+    ],
+    "topLocationAreas": [
+      { "label": "leading edge", "count": 9 },
+      { "label": "skylight openings", "count": 3 }
+    ],
+    "openCorrectiveFacetHints": { "openStyleStatuses": 7 },
+    "aggregated": { "score": 11.6, "band": "high", "sampleSize": 32, "baselineContribution": 1.5 },
+    "baselineHints": [
+      { "scope_code": "roofing", "hazard_code": "fall_to_lower_level", "signals": { "weatherSensitive": true } }
+    ],
+    "aggregatedWithBaseline": { "score": 13.1, "band": "high" },
+    "derivedRollupConfidence": 0.78
+  },
+  "assertions": {
+    "mustContain": ["fall"],
+    "mustNotContain": ["i'm sorry", "as an ai"],
+    "schemaShape": ["drafts[]"]
+  }
+}

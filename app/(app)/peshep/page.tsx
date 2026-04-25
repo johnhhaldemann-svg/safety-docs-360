@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
@@ -13,10 +13,7 @@ import {
 } from "@/components/company-workspace/useCompanyWorkspaceData";
 import {
   InlineMessage,
-  PageHero,
-  SectionCard,
   StatusBadge,
-  WorkflowPath,
 } from "@/components/WorkspacePrimitives";
 import type { PermissionMap } from "@/lib/rbac";
 import {
@@ -121,18 +118,269 @@ const LS_KEY = "pshsep_universal_v3";
 const supabase = getSupabaseBrowserClient();
 const jurisdictionStateOptions = getJurisdictionStateOptions();
 
-const steps = [
-  { title: "Project Setup", detail: "Core project, owner, and job-specific context." },
-  { title: "Roles & Definitions", detail: "Capture definitions, oversight, and competent-person expectations." },
-  { title: "Training & Access", detail: "Set workforce qualifications and access requirements." },
-  { title: "Scope & High-Risk Work", detail: `Choose the work and high-risk sections the ${SITE_SAFETY_BLUEPRINT_TITLE} must cover.` },
+type BuilderStep = {
+  title: string;
+  detail: string;
+  requiredInputs: string[];
+  documentSections: string[];
+  generatedOutputs: string[];
+  referenceIds: string[];
+};
+
+const steps: BuilderStep[] = [
+  {
+    title: "Project Setup",
+    detail: "Core project, owner, and job-specific context.",
+    requiredInputs: [
+      "Company / brand name",
+      "Project name and project number",
+      "Project address and governing state",
+      "Jurisdiction profile",
+      "Project delivery type",
+      "Owner / client information",
+      "GC / CM information",
+      "Project description and boundaries",
+      "Owner / project-specific requirements",
+      "Uploaded owner standards or safety manual files",
+    ],
+    documentSections: [
+      "Title Page Data",
+      "Project Description",
+      "Governing Requirements",
+      "Owner / Project-Specific Requirements",
+      "Document Control Setup",
+    ],
+    generatedOutputs: [
+      "Cover page",
+      "Project description paragraph",
+      "Governing requirements summary",
+      "Owner-specific requirements section",
+      "Document control / revision shell",
+    ],
+    referenceIds: ["R1", "R2", "R3", "R4", "R5", "R6"],
+  },
+  {
+    title: "Roles & Definitions",
+    detail: "Capture definitions, oversight, and competent-person expectations.",
+    requiredInputs: [
+      "Definitions text field",
+      "Owner roles and responsibilities",
+      "GC / CM roles and responsibilities",
+      "Subcontractor responsibilities",
+      "Competent person requirements",
+      "Qualified person requirements",
+      "Staffing / headcount expectations",
+      "Safety coverage expectations",
+    ],
+    documentSections: [
+      "Definitions",
+      "Owner / Client Responsibilities",
+      "GC / Construction Manager Responsibilities",
+      "Safety Manager Responsibilities",
+      "Superintendent / Foreman Responsibilities",
+      "Subcontractor Responsibilities",
+      "Worker Responsibilities",
+      "Competent / Qualified Person Matrix",
+    ],
+    generatedOutputs: [
+      "Definitions section",
+      "Responsibility matrix",
+      "Competent person requirement list",
+      "Staffing / safety coverage requirements",
+    ],
+    referenceIds: ["R1", "R7", "R8", "R9", "R10", "R11"],
+  },
+  {
+    title: "Training & Access",
+    detail: "Set workforce qualifications and access requirements.",
+    requiredInputs: [
+      "OSHA 10 requirement",
+      "OSHA 30 PM / superintendent requirement",
+      "On-site OSHA 30 supervisor requirement",
+      "Drug card / CCS compliance requirement",
+      "Codex / owner approval for site access",
+      "Background check requirement",
+      "Orientation requirement and passing score",
+      "Trade-specific training requirements",
+      "Certification / qualification requirements",
+    ],
+    documentSections: [
+      "Orientation Requirements",
+      "Access Control Requirements",
+      "Background Check / Screening",
+      "Training Matrix Rules",
+      "Certifications and Qualifications",
+      "Project Training Requirements",
+    ],
+    generatedOutputs: [
+      "Training and access section",
+      "Orientation requirements",
+      "Training matrix logic",
+      "Credential tracking requirements",
+      "Worker readiness status",
+    ],
+    referenceIds: ["R9", "R12", "R13", "R14", "R15", "R16", "R17"],
+  },
+  {
+    title: "Scope & High-Risk Work",
+    detail: `Choose the work and high-risk sections the ${SITE_SAFETY_BLUEPRINT_TITLE} must cover.`,
+    requiredInputs: [
+      "Scope of work selections",
+      "High-risk focus area selections",
+      "Task / trade activities",
+      "Work area conditions",
+      "Expected equipment use",
+      "Known work restrictions",
+      "Top 10 risk inputs",
+    ],
+    documentSections: [
+      "Scope of Work Library",
+      "High-Risk Focus Areas",
+      "Top 10 Risk Generator",
+      "Hazard Control Module Triggers",
+      "Work Area Condition Logic",
+    ],
+    generatedOutputs: [
+      "Scope of work section",
+      "Top 10 project risks",
+      "High-risk work summary",
+      "Triggered hazard control modules",
+      "Missing-control checklist",
+    ],
+    referenceIds: ["R1", "R13", "R14", "R15", "R18", "R19", "R20", "R21", "R22", "R23", "R24"],
+  },
   {
     title: "Coordination & Permits",
     detail: "Coordinate assumed trades, ancillary contractors, and permit-driven controls.",
+    requiredInputs: [
+      "Required permit selections",
+      "Assumed trade selections",
+      "Ancillary contractor selections",
+      "Contractor coordination expectations",
+      "Ancillary contractor notes",
+      "Trade overlap conditions",
+      "Permit approval authority",
+      "Permit posting / closeout requirements",
+    ],
+    documentSections: [
+      "Required Permit Library",
+      "Permit Trigger Logic",
+      "Assumed Trades",
+      "Ancillary Contractors",
+      "Trade Interaction Controls",
+    ],
+    generatedOutputs: [
+      "Permit matrix",
+      "Trade interaction section",
+      "Ancillary contractor controls",
+      "Permit checklist",
+      "Coordination expectations section",
+    ],
+    referenceIds: ["R13", "R14", "R15", "R18", "R22", "R23", "R25", "R26", "R27"],
   },
-  { title: "Emergency Response", detail: "Document response, clinic, posting, and injury-management details." },
-  { title: "Inspections & Environment", detail: "Capture recurring events, weather, PPE, and environmental controls." },
-  { title: "Submit", detail: "Review readiness and send to admin review." },
+  {
+    title: "Emergency Response",
+    detail: "Document response, clinic, posting, and injury-management details.",
+    requiredInputs: [
+      "Clinic / occupational health provider",
+      "Clinic hours and directions",
+      "AED and first aid kit locations",
+      "Muster point",
+      "Nearest hospital",
+      "Emergency contact numbers",
+      "Posted emergency contacts",
+      "Incident reporting and investigation expectations",
+      "Emergency map upload",
+    ],
+    documentSections: [
+      "Emergency Contact and Posting",
+      "Incident Command",
+      "Medical Response",
+      "Fire / EMT Coordination",
+      "Weather Emergency Response",
+      "Rescue Plan Triggers",
+      "Incident Reporting and Investigation",
+    ],
+    generatedOutputs: [
+      "Emergency response section",
+      "Medical response plan",
+      "Incident reporting section",
+      "Emergency map / posting checklist",
+      "Rescue plan triggers",
+    ],
+    referenceIds: ["R13", "R15", "R25", "R28", "R29", "R30", "R31"],
+  },
+  {
+    title: "Inspections & Environment",
+    detail: "Capture recurring events, weather, PPE, and environmental controls.",
+    requiredInputs: [
+      "Recurring event calendar items",
+      "Inspection process and criteria",
+      "Weather SOP",
+      "Environmental controls",
+      "PPE specifics",
+      "Equipment and spotter controls",
+      "Hazardous materials / chemical storage controls",
+      "Disciplinary policy",
+      "Owner message template and letter",
+      "Special conditions / variations",
+    ],
+    documentSections: [
+      "Recurring Event Calendar",
+      "Inspection Program",
+      "Weather SOP",
+      "Environmental Controls",
+      "PPE Specifics",
+      "Equipment and Spotter Controls",
+      "Hazardous Materials / Chemical Storage",
+      "Disciplinary Policy",
+      "Owner Message and Leadership Commitment",
+      "Special Conditions / Variations",
+    ],
+    generatedOutputs: [
+      "Inspection calendar",
+      "Inspection and audit criteria",
+      "Weather SOP",
+      "Environmental controls section",
+      "PPE section",
+      "Equipment / spotter controls",
+      "Hazardous materials section",
+      "Disciplinary policy",
+      "Owner letter / message",
+      "Special conditions / variations section",
+    ],
+    referenceIds: ["R12", "R16", "R24", "R32", "R33", "R34", "R35", "R36", "R37"],
+  },
+  {
+    title: "Submit / Admin Review",
+    detail: "Review readiness and send to admin review.",
+    requiredInputs: [
+      "Readiness checklist status",
+      "Plan snapshot",
+      "Generated PSHEP draft",
+      "Missing inputs",
+      "Manual review items",
+      "Uploaded supporting documents",
+      "Submission agreement",
+      "Admin reviewer notes",
+    ],
+    documentSections: [
+      "Readiness Checklist",
+      "Plan Snapshot",
+      "Checklist Coverage Advisor",
+      "Admin Handoff Package",
+      "Document Export Requirements",
+    ],
+    generatedOutputs: [
+      "Submission package",
+      "Admin readiness review",
+      "Generated PSHEP draft",
+      "Reviewer checklist",
+      "Reference register",
+      "Revision history",
+    ],
+    referenceIds: ["R1-R37", "R38", "R39", "R40", "R41"],
+  },
 ];
 
 const permitOptions = getPshsepCatalogOptions("permits_selected");
@@ -482,6 +730,85 @@ export default function PESHEPUniversalPage() {
     },
     { label: "Submission agreement accepted", done: agreedToSubmissionTerms },
   ];
+  const sectionProgress = [
+    {
+      complete: [
+        answers.project_name,
+        answers.project_number,
+        answers.project_address,
+        answers.project_delivery_type,
+        answers.owner_client,
+        answers.gc_cm,
+        answers.project_description,
+        answers.owner_specific_requirements_text,
+      ].filter(Boolean).length,
+      total: 8,
+    },
+    {
+      complete: [
+        answers.definitions_text,
+        answers.oversight_roles_text,
+        answers.competent_person_requirements_text,
+        answers.staffing_requirements_text,
+      ].filter(Boolean).length,
+      total: 4,
+    },
+    {
+      complete: [
+        answers.requires_osha10,
+        answers.requires_osha30_pm_super_within_5yrs,
+        answers.requires_osha30_supervisor_on_site,
+        answers.orientation_required,
+        answers.trade_training_requirements_text,
+        answers.certification_requirements_text,
+      ].filter(Boolean).length,
+      total: 6,
+    },
+    {
+      complete:
+        (answers.scope_of_work_selected.length > 0 ? 1 : 0) +
+        (answers.high_risk_focus_areas.length > 0 ? 1 : 0),
+      total: 2,
+    },
+    {
+      complete: [
+        answers.permits_selected.length > 0,
+        answers.assumed_trades_index.length > 0,
+        answers.ancillary_contractors.length > 0,
+        answers.contractor_coordination_text,
+        answers.ancillary_contractors_notes,
+      ].filter(Boolean).length,
+      total: 5,
+    },
+    {
+      complete: [
+        answers.clinic_name,
+        answers.clinic_address,
+        aedLocation,
+        assemblyPoint,
+        answers.posted_emergency_contacts_text,
+        answers.incident_reporting_process_text,
+        answers.incident_investigation_text,
+      ].filter(Boolean).length,
+      total: 7,
+    },
+    {
+      complete: [
+        answers.event_calendar_items.length > 0,
+        answers.inspection_process_text,
+        answers.weather_sop_text,
+        answers.environmental_controls_text,
+        answers.disciplinary_policy_text,
+        answers.owner_letter_text,
+        answers.special_conditions_permit_text,
+      ].filter(Boolean).length,
+      total: 7,
+    },
+    {
+      complete: [agreedToSubmissionTerms].filter(Boolean).length,
+      total: 1,
+    },
+  ];
   const canUseBuilder = Boolean(
     permissionMap?.can_create_documents && permissionMap?.can_edit_documents
   );
@@ -809,115 +1136,106 @@ export default function PESHEPUniversalPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <PageHero
-        eyebrow="Builder Workspace"
-        title={SITE_SAFETY_BLUEPRINT_BUILDER_LABEL}
-        description="Use this for the full sitewide or master project plan. Create the PSHSEP with a cleaner step flow, better mobile controls, and a clearer review handoff."
-        actions={
-          <>
+    <div className="space-y-4 text-[13px] text-slate-300">
+      <div className="rounded-2xl border border-slate-700/70 bg-slate-950/70 px-4 py-3 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-sky-300">
+              Builder Workspace
+            </div>
+            <h1 className="mt-1 text-xl font-black leading-tight text-slate-50 md:text-2xl">
+              {SITE_SAFETY_BLUEPRINT_BUILDER_LABEL}
+            </h1>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-400">
+              Compact workbench for the sitewide master plan. Build each section, check coverage, and submit for review without changing the export payload.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={resetDraft}
-              className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+              className="rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Reset Draft
             </button>
             <button
               type="button"
               onClick={() => setStep(7)}
-              className="app-btn-gradient-primary px-4 py-3 text-sm"
+              className="app-btn-gradient-primary px-3 py-2 text-xs"
             >
-              Jump to Submit
+              Submit Section
             </button>
-          </>
-        }
-      />
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <CompanyAiAssistPanel
-          surface="peshep"
-          structuredContext={JSON.stringify({
-            project_name: answers.project_name,
-            company_name: answers.company_name,
-            step: steps[step]?.title,
-            checklistEvaluationSummary: checklistEvaluation?.summary ?? null,
-            checklistNeedsUserInput:
-              checklistEvaluation?.rows
-                .filter((row) => row.coverage === "needs_user_input")
-                .slice(0, 10)
-                .map((row) => ({
-                  item: row.item,
-                  missingFields: row.missingFields,
-                })) ?? [],
-          })}
-        />
-        <CompanyMemoryBankPanel />
+          </div>
+        </div>
       </div>
 
-      <ChecklistCoveragePanel
-        title={`Checklist Coverage (${SITE_SAFETY_BLUEPRINT_TITLE})`}
-        loading={checklistLoading}
-        error={checklistError}
-        data={checklistEvaluation}
-        onRefresh={() => {
-          void refreshChecklistEvaluation();
-        }}
-      />
+      <details className="rounded-2xl border border-slate-700/70 bg-slate-950/55 p-3">
+        <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+          AI and knowledge helpers
+        </summary>
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <CompanyAiAssistPanel
+            surface="peshep"
+            structuredContext={JSON.stringify({
+              project_name: answers.project_name,
+              company_name: answers.company_name,
+              step: steps[step]?.title,
+              checklistEvaluationSummary: checklistEvaluation?.summary ?? null,
+              checklistNeedsUserInput:
+                checklistEvaluation?.rows
+                  .filter((row) => row.coverage === "needs_user_input")
+                  .slice(0, 10)
+                  .map((row) => ({
+                    item: row.item,
+                    missingFields: row.missingFields,
+                  })) ?? [],
+            })}
+          />
+          <CompanyMemoryBankPanel />
+        </div>
+      </details>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_340px]">
-        <div className="space-y-5">
-          <SectionCard
-            title={`Step ${step + 1}: ${steps[step].title}`}
+      <div className="grid gap-4 xl:grid-cols-[230px_minmax(0,1fr)_310px]">
+        <BuilderSectionNav
+          steps={steps}
+          progress={sectionProgress}
+          activeStep={step}
+          onSelect={setStep}
+        />
+
+        <div className="min-w-0 space-y-4">
+          <CompactPanel
+            eyebrow={`Section ${step + 1} of ${steps.length}`}
+            title={steps[step].title}
             description={steps[step].detail}
-            aside={
-              <StatusBadge
-                label={`${readyCount}/20 ready`}
-                tone={readyCount >= 16 ? "success" : "info"}
-              />
-            }
+            aside={`${sectionProgress[step].complete}/${sectionProgress[step].total}`}
           >
             {!authLoading && !canUseBuilder ? (
-              <div className="mb-4">
+              <div className="mb-3">
                 <InlineMessage tone="warning">
                   Your current role can view builder progress, but it cannot create or edit {SITE_SAFETY_BLUEPRINT_TITLE} drafts.
                 </InlineMessage>
               </div>
             ) : null}
-            <div className="mb-4">
+            <div className="mb-3">
               <InlineMessage tone="success">
                 This blueprint is the sitewide master plan that covers the full project.
               </InlineMessage>
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {steps.map((item, index) => (
-                <button
-                  key={item.title}
-                  type="button"
-                  onClick={() => setStep(index)}
-                  className={`min-w-[156px] rounded-2xl border px-4 py-3 text-left transition ${
-                    index === step
-                      ? "border-sky-500/35 bg-sky-950/35 text-white shadow-sm"
-                      : "border-slate-700/80 bg-slate-900/90 text-slate-400 hover:bg-slate-950/50"
-                  }`}
-                >
-                  <div className="text-[11px] font-bold uppercase tracking-[0.2em]">
-                    Step {index + 1}
-                  </div>
-                  <div className="mt-1 text-sm font-semibold">{item.title}</div>
-                </button>
-              ))}
-            </div>
+            <DocumentSectionPreview
+              stepNumber={step + 1}
+              step={steps[step]}
+            />
 
             {message ? (
-              <div className="mt-4">
+              <div className="mt-3">
                 <InlineMessage tone={messageTone}>{message}</InlineMessage>
               </div>
             ) : null}
 
             <fieldset
               disabled={authLoading || !canUseBuilder}
-              className="mt-6 space-y-5 disabled:opacity-60"
+              className="mt-4 space-y-4 disabled:opacity-60"
             >
               {step === 0 ? (
                 <>
@@ -1458,14 +1776,14 @@ export default function PESHEPUniversalPage() {
                 </div>
               ) : null}
             </fieldset>
-          </SectionCard>
+          </CompactPanel>
 
           <div className="sticky bottom-4 z-10">
-            <div className="app-sticky-dark-bar p-4">
+            <div className="app-sticky-dark-bar p-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="text-sm font-semibold text-slate-100">{steps[step].title}</div>
-                  <div className="mt-1 text-sm text-slate-500">
+                  <div className="text-xs font-semibold text-slate-100">{steps[step].title}</div>
+                  <div className="mt-0.5 text-xs text-slate-500">
                     {step === 7 ? "Final review and submission controls." : "Continue to the next builder section when you are ready."}
                   </div>
                 </div>
@@ -1474,7 +1792,7 @@ export default function PESHEPUniversalPage() {
                     type="button"
                     onClick={() => setStep((current) => Math.max(0, current - 1))}
                     disabled={step === 0}
-                    className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:opacity-50"
+                    className="rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:opacity-50"
                   >
                     Back
                   </button>
@@ -1483,16 +1801,16 @@ export default function PESHEPUniversalPage() {
                       type="button"
                       onClick={() => setStep((current) => Math.min(7, current + 1))}
                       disabled={authLoading || !canUseBuilder}
-                      className="app-btn-gradient-primary px-4 py-3 text-sm disabled:opacity-50"
+                      className="app-btn-gradient-primary px-3 py-2 text-xs disabled:opacity-50"
                     >
-                      Next Step
+                      Next
                     </button>
                   ) : (
                     <button
                       type="button"
                       onClick={handleSubmitForReview}
                       disabled={submitLoading || !agreedToSubmissionTerms || authLoading || !canSubmitDocuments}
-                      className="app-btn-gradient-submit px-4 py-3 text-sm disabled:opacity-50"
+                      className="app-btn-gradient-submit px-3 py-2 text-xs disabled:opacity-50"
                     >
                       {submitLoading ? "Submitting..." : "Submit for Review"}
                     </button>
@@ -1503,87 +1821,320 @@ export default function PESHEPUniversalPage() {
           </div>
         </div>
 
-        <div className="space-y-5">
-          <WorkflowPath
-            title="Builder Progress"
-            description="Move from project setup to review with a clear handoff path."
-            steps={steps.map((item, index) => ({
-              label: item.title,
-              detail: item.detail,
-              active: index === step,
-              complete: index < step,
-            }))}
-          />
+        <BuilderSidePanel
+          steps={steps}
+          activeStep={step}
+          onSelectStep={setStep}
+          readyCount={readyCount}
+          readinessItems={readinessItems}
+          checklistLoading={checklistLoading}
+          checklistError={checklistError}
+          checklistEvaluation={checklistEvaluation}
+          onRefreshChecklist={refreshChecklistEvaluation}
+        >
+          <div className="grid gap-2">
+            <SummaryRow label="Project" value={answers.project_name || "Not set"} />
+            <SummaryRow label="Jurisdiction" value={jurisdictionProfile.jurisdictionLabel} />
+            <SummaryRow label="Definitions" value={answers.definitions_text ? "Drafted" : "Missing"} />
+            <SummaryRow label="Work" value={answers.scope_of_work_selected.length ? `${answers.scope_of_work_selected.length} selected` : "None"} />
+            <SummaryRow label="High Risk" value={answers.high_risk_focus_areas.length ? `${answers.high_risk_focus_areas.length} selected` : "None"} />
+            <SummaryRow label="Permits" value={answers.permits_selected.length ? `${answers.permits_selected.length} selected` : "None"} />
+            <SummaryRow label="Trades" value={answers.assumed_trades_index.length ? `${answers.assumed_trades_index.length} selected` : "None"} />
+            <SummaryRow label="Events" value={answers.event_calendar_items.length ? `${answers.event_calendar_items.length} selected` : "None"} />
+            <SummaryRow label="Orientation" value={answers.orientation_required ? `${answers.orientation_pass_score}%` : "No"} />
+            <SummaryRow label="Clinic" value={answers.clinic_name || "Missing"} />
+            <SummaryRow label="Map" value={siteMap ? "Uploaded" : "Missing"} />
+          </div>
+        </BuilderSidePanel>
+      </div>
+    </div>
+  );
+}
 
-          <SectionCard title="Plan Snapshot" description="Quick visibility into the current draft.">
-            <div className="grid gap-3">
-              <SummaryRow label="Project" value={answers.project_name || "Not set yet"} />
-              <SummaryRow label="Jurisdiction" value={jurisdictionProfile.jurisdictionLabel} />
-              <SummaryRow
-                label="Definitions"
-                value={answers.definitions_text ? "Drafted" : "Not drafted"}
-              />
-              <SummaryRow label="Work Activities" value={answers.scope_of_work_selected.length ? `${answers.scope_of_work_selected.length} selected` : "None selected"} />
-              <SummaryRow
-                label="High-Risk Focus"
-                value={
-                  answers.high_risk_focus_areas.length
-                    ? `${answers.high_risk_focus_areas.length} selected`
-                    : "None selected"
-                }
-              />
-              <SummaryRow label="Permits" value={answers.permits_selected.length ? `${answers.permits_selected.length} selected` : "None selected"} />
-              <SummaryRow
-                label="Assumed Trades Index"
-                value={
-                  answers.assumed_trades_index.length
-                    ? `${answers.assumed_trades_index.length} selected`
-                    : "None selected"
-                }
-              />
-              <SummaryRow
-                label="Recurring Events"
-                value={
-                  answers.event_calendar_items.length
-                    ? `${answers.event_calendar_items.length} selected`
-                    : "None selected"
-                }
-              />
-              <SummaryRow label="Orientation" value={answers.orientation_required ? `${answers.orientation_pass_score}% pass score` : "Not required"} />
-              <SummaryRow
-                label="Clinic"
-                value={answers.clinic_name || "Not entered"}
-              />
-              <SummaryRow label="Emergency Map" value={siteMap ? "Uploaded" : "Not uploaded"} />
+function CompactPanel({
+  eyebrow,
+  title,
+  description,
+  aside,
+  children,
+}: {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  aside?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-700/70 bg-slate-950/65 p-4 shadow-sm">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          {eyebrow ? (
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+              {eyebrow}
             </div>
-          </SectionCard>
+          ) : null}
+          <h2 className="mt-0.5 text-base font-black leading-tight text-slate-50">
+            {title}
+          </h2>
+          {description ? (
+            <p className="mt-1 text-xs leading-5 text-slate-400">{description}</p>
+          ) : null}
+        </div>
+        {aside ? (
+          <span className="shrink-0 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-[11px] font-bold text-sky-200">
+            {aside}
+          </span>
+        ) : null}
+      </div>
+      {children}
+    </section>
+  );
+}
 
-          <SectionCard title="Readiness Checklist" description="These items make the admin handoff much smoother.">
-            <div className="space-y-3">
-              {readinessItems.map((item) => (
-                <div key={item.label} className="flex items-center gap-3 rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
-                  <StatusBadge label={item.done ? "Ready" : "Pending"} tone={item.done ? "success" : "warning"} />
-                  <div className="text-sm text-slate-300">{item.label}</div>
-                </div>
-              ))}
+function BuilderSectionNav({
+  steps,
+  progress,
+  activeStep,
+  onSelect,
+}: {
+  steps: BuilderStep[];
+  progress: Array<{ complete: number; total: number }>;
+  activeStep: number;
+  onSelect: (step: number) => void;
+}) {
+  return (
+    <nav className="sticky top-4 h-max rounded-2xl border border-slate-700/70 bg-slate-950/65 p-2 shadow-sm">
+      <div className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+        PSHEP Map
+      </div>
+      <div className="space-y-1">
+        {steps.map((item, index) => {
+          const current = progress[index];
+          const isComplete = current.complete >= current.total;
+          const isActive = index === activeStep;
+          return (
+            <button
+              key={item.title}
+              type="button"
+              onClick={() => onSelect(index)}
+              className={`w-full rounded-xl border px-2.5 py-2 text-left transition ${
+                isActive
+                  ? "border-sky-500/40 bg-sky-950/35 text-white"
+                  : "border-transparent text-slate-400 hover:border-slate-700 hover:bg-slate-900/70"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.16em]">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    isComplete ? "bg-emerald-400" : isActive ? "bg-sky-300" : "bg-amber-300"
+                  }`}
+                />
+              </div>
+              <div className="mt-1 text-xs font-bold leading-4">{item.title}</div>
+              <div className="mt-0.5 text-[11px] text-slate-500">
+                {current.complete}/{current.total} complete · {item.documentSections.length} doc sections
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+function DocumentSectionPreview({
+  stepNumber,
+  step,
+}: {
+  stepNumber: number;
+  step: BuilderStep;
+}) {
+  return (
+    <div className="space-y-3 rounded-xl border border-slate-700/70 bg-slate-950/45 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+          Platform map preview
+        </div>
+        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-bold text-slate-400">
+          Section {stepNumber}
+        </span>
+      </div>
+      <CompactMapGroup title="Required Inputs" items={step.requiredInputs} />
+      <div>
+        <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+          Document Subsections
+        </div>
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {step.documentSections.map((section, index) => (
+            <div
+              key={section}
+              className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/70 px-2.5 py-1.5"
+            >
+              <span className="shrink-0 text-[10px] font-black text-sky-300">
+                {stepNumber}.{index + 1}
+              </span>
+              <span className="text-xs font-semibold leading-4 text-slate-200">
+                {section}
+              </span>
             </div>
-          </SectionCard>
+          ))}
+        </div>
+      </div>
+      <CompactMapGroup title="Generated Outputs" items={step.generatedOutputs} />
+      <div>
+        <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+          Applicable References
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {step.referenceIds.map((referenceId) => (
+            <span
+              key={referenceId}
+              className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold text-sky-200"
+            >
+              {referenceId}
+            </span>
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function CompactMapGroup({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div>
+      <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+        {title}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {items.map((item) => (
+          <span
+            key={item}
+            className="rounded-full border border-slate-800 bg-slate-900/70 px-2 py-0.5 text-[10px] font-semibold leading-4 text-slate-300"
+          >
+            {item}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BuilderSidePanel({
+  steps,
+  activeStep,
+  onSelectStep,
+  readyCount,
+  readinessItems,
+  checklistLoading,
+  checklistError,
+  checklistEvaluation,
+  onRefreshChecklist,
+  children,
+}: {
+  steps: BuilderStep[];
+  activeStep: number;
+  onSelectStep: (step: number) => void;
+  readyCount: number;
+  readinessItems: Array<{ label: string; done: boolean }>;
+  checklistLoading: boolean;
+  checklistError: string;
+  checklistEvaluation: ChecklistEvaluationResponse | null;
+  onRefreshChecklist: () => Promise<void>;
+  children: ReactNode;
+}) {
+  return (
+    <aside className="space-y-3 xl:sticky xl:top-4 xl:h-max">
+      <CompactPanel title="Plan Snapshot" description={`${readyCount}/20 readiness points`}>
+        {children}
+      </CompactPanel>
+
+      <CompactPanel title="Document TOC Preview" description="Sections that will appear in the plan">
+        <div className="space-y-2">
+          {steps.map((step, stepIndex) => (
+            <button
+              key={step.title}
+              type="button"
+              onClick={() => onSelectStep(stepIndex)}
+              className={`w-full rounded-xl border px-2.5 py-2 text-left transition ${
+                activeStep === stepIndex
+                  ? "border-sky-500/35 bg-sky-950/35"
+                  : "border-slate-700/70 bg-slate-950/45 hover:bg-slate-900/70"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-black text-slate-100">
+                  {stepIndex + 1}. {step.title}
+                </span>
+                <span className="text-[10px] font-bold text-slate-500">
+                  {step.documentSections.length} sections
+                </span>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {step.documentSections.slice(0, 3).map((section, index) => (
+                  <span
+                    key={section}
+                    className="rounded-full bg-slate-800/90 px-2 py-0.5 text-[10px] font-semibold text-slate-400"
+                  >
+                    {stepIndex + 1}.{index + 1} {section}
+                  </span>
+                ))}
+                {step.documentSections.length > 3 ? (
+                  <span className="rounded-full bg-slate-800/90 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                    +{step.documentSections.length - 3}
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-1 text-[10px] font-semibold text-slate-500">
+                {step.requiredInputs.length} inputs / {step.generatedOutputs.length} outputs / {step.referenceIds.join(", ")}
+              </div>
+            </button>
+          ))}
+        </div>
+      </CompactPanel>
+
+      <CompactPanel title="Readiness" description="Admin handoff checks">
+        <div className="space-y-1.5">
+          {readinessItems.map((item) => (
+            <div
+              key={item.label}
+              className="flex items-center gap-2 rounded-xl border border-slate-700/70 bg-slate-950/45 px-2.5 py-2"
+            >
+              <StatusBadge label={item.done ? "Ready" : "Open"} tone={item.done ? "success" : "warning"} />
+              <div className="text-xs leading-4 text-slate-300">{item.label}</div>
+            </div>
+          ))}
+        </div>
+      </CompactPanel>
+
+      <div className="[&_*]:text-sm [&_h2]:text-base">
+        <ChecklistCoveragePanel
+          title={`Checklist Coverage (${SITE_SAFETY_BLUEPRINT_TITLE})`}
+          loading={checklistLoading}
+          error={checklistError}
+          data={checklistEvaluation}
+          onRefresh={() => {
+            void onRefreshChecklist();
+          }}
+        />
+      </div>
+    </aside>
+  );
+}
+
+function CompactField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <label className="block">
-      <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className="app-dark-input h-12 font-semibold" />
+      <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</div>
+      <input value={value} onChange={(e) => onChange(e.target.value)} className="app-dark-input h-10 text-sm font-medium" />
     </label>
   );
 }
 
-function TextArea({
+function CompactTextArea({
   label,
   value,
   onChange,
@@ -1598,36 +2149,36 @@ function TextArea({
 }) {
   return (
     <label className="block">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
+      <div className="mb-1.5 flex items-center justify-between gap-3">
+        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</div>
         {onAiDraft ? (
           <button
             type="button"
             onClick={onAiDraft}
             disabled={aiLoading}
-            className="rounded-xl border border-sky-500/35 bg-sky-500/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-sky-200 transition hover:bg-sky-500/15 disabled:opacity-50"
+            className="rounded-lg border border-sky-500/35 bg-sky-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-sky-200 transition hover:bg-sky-500/15 disabled:opacity-50"
           >
             {aiLoading ? "Drafting..." : "Smart Draft"}
           </button>
         ) : null}
       </div>
-      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={5} className="app-dark-input font-semibold" />
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={4} className="app-dark-input text-sm font-medium leading-5" />
     </label>
   );
 }
 
-function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+function CompactToggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="text-sm font-semibold text-slate-100">{label}</div>
-      <button type="button" onClick={() => onChange(!value)} className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition sm:min-w-[96px] ${value ? "border-sky-600 bg-sky-600 text-white" : "border-slate-600 bg-slate-900/90 text-slate-300 hover:bg-slate-950/50"}`}>
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/70 bg-slate-900/80 px-3 py-2">
+      <div className="text-xs font-semibold leading-4 text-slate-100">{label}</div>
+      <button type="button" onClick={() => onChange(!value)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition sm:min-w-[64px] ${value ? "border-sky-600 bg-sky-600 text-white" : "border-slate-600 bg-slate-900/90 text-slate-300 hover:bg-slate-950/50"}`}>
         {value ? "Yes" : "No"}
       </button>
     </div>
   );
 }
 
-function Select({
+function CompactSelect({
   label,
   value,
   options,
@@ -1640,8 +2191,8 @@ function Select({
 }) {
   return (
     <label className="block">
-      <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="app-dark-input h-12 font-semibold">
+      <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</div>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="app-dark-input h-10 text-sm font-medium">
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -1652,7 +2203,7 @@ function Select({
   );
 }
 
-function SelectionGrid({
+function CompactSelectionList({
   values,
   options,
   onToggle,
@@ -1662,7 +2213,7 @@ function SelectionGrid({
   onToggle: (item: string) => void;
 }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid gap-1.5 md:grid-cols-2">
       {options.map((option) => {
         const checked = values.includes(option);
         return (
@@ -1670,10 +2221,12 @@ function SelectionGrid({
             key={option}
             type="button"
             onClick={() => onToggle(option)}
-            className={`flex items-center justify-between rounded-2xl border px-4 py-4 text-left transition ${checked ? "border-sky-500/35 bg-sky-950/35 text-white" : "border-slate-700/80 bg-slate-900/90 text-slate-300 hover:bg-slate-950/50"}`}
+            className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${checked ? "border-sky-500/35 bg-sky-950/35 text-white" : "border-slate-700/70 bg-slate-900/80 text-slate-300 hover:bg-slate-950/50"}`}
           >
-            <div className="text-sm font-semibold">{option}</div>
-            <StatusBadge label={checked ? "Selected" : "Add"} tone={checked ? "success" : "neutral"} />
+            <div className="text-xs font-semibold leading-4">{option}</div>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${checked ? "bg-emerald-500/15 text-emerald-200" : "bg-slate-800 text-slate-500"}`}>
+              {checked ? "On" : "Add"}
+            </span>
           </button>
         );
       })}
@@ -1683,9 +2236,15 @@ function SelectionGrid({
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
-      <span className="text-sm text-slate-500">{label}</span>
-      <span className="text-sm font-semibold text-slate-100">{value}</span>
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/70 bg-slate-950/45 px-2.5 py-2">
+      <span className="text-xs text-slate-500">{label}</span>
+      <span className="truncate text-right text-xs font-semibold text-slate-100">{value}</span>
     </div>
   );
 }
+
+const Field = CompactField;
+const TextArea = CompactTextArea;
+const Toggle = CompactToggle;
+const Select = CompactSelect;
+const SelectionGrid = CompactSelectionList;

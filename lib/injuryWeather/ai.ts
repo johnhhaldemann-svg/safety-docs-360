@@ -791,6 +791,7 @@ export async function generateInjuryWeatherAiInsights(
       apiKey,
       model: "gpt-4.1",
       input: prompt,
+      surface: "injury-weather.insights",
       body: {
         text: {
           format: {

@@ -6,6 +6,7 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
 import { isForecasterSyntheticIncident } from "@/lib/injuryWeather/excludeForecasterIncidents";
 import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
+import { loadCompanyRiskScoreTrend, summarizeTrendDelta } from "@/lib/riskMemory/scoresRepo";
 import { buildSalesDemoAnalyticsSummaryResponse } from "@/lib/demoWorkspace";
 
 export const runtime = "nodejs";
@@ -396,7 +397,7 @@ export async function GET(request: Request) {
     low: actions.filter((item) => String(item.severity ?? "").toLowerCase() === "low").length,
   };
 
-  const [riskMemoryRollup, riskRecRes] = await Promise.all([
+  const [riskMemoryRollup, riskRecRes, riskScoreTrendPoints] = await Promise.all([
     buildRiskMemoryStructuredContext(auth.supabase, companyScope.companyId, {
       days: Math.max(1, days),
     }),
@@ -407,7 +408,29 @@ export async function GET(request: Request) {
       .eq("dismissed", false)
       .order("created_at", { ascending: false })
       .limit(8),
+    loadCompanyRiskScoreTrend({
+      supabase: auth.supabase,
+      companyId: companyScope.companyId,
+      days: 30,
+    }),
   ]);
+  const riskScoreTrendSummary = summarizeTrendDelta(riskScoreTrendPoints);
+  const riskMemoryTrend = {
+    points: riskScoreTrendPoints.map((point) => ({
+      date: point.scoreDate,
+      score: point.score,
+      band: point.band,
+      windowDays: point.windowDays,
+    })),
+    latest: riskScoreTrendSummary.latest
+      ? { date: riskScoreTrendSummary.latest.scoreDate, score: riskScoreTrendSummary.latest.score, band: riskScoreTrendSummary.latest.band }
+      : null,
+    earliest: riskScoreTrendSummary.earliest
+      ? { date: riskScoreTrendSummary.earliest.scoreDate, score: riskScoreTrendSummary.earliest.score, band: riskScoreTrendSummary.earliest.band }
+      : null,
+    deltaScore: riskScoreTrendSummary.deltaScore,
+    direction: riskScoreTrendSummary.direction,
+  };
 
   let riskMemoryRecommendations: Array<{
     id: string;
@@ -469,6 +492,7 @@ export async function GET(request: Request) {
       benchmarking,
       injuryAnalytics,
       riskMemory: riskMemoryRollup,
+      riskMemoryTrend,
       riskMemoryRecommendations,
       safetyLeadership: {
         trendOfObservationsByWeek: Array.from(weeklyObservations.entries())

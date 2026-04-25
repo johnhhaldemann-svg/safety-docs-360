@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { getFieldAuditSectionsForTrade } from "@/lib/jobsiteAudits/fieldAuditTradeScope";
 import { fieldItemKey } from "@/lib/jobsiteAudits/oshaFieldAuditTemplate";
 
@@ -85,51 +85,162 @@ function LineTrendChart({
   points: number[];
   labels: string[];
 }) {
+  const areaGradId = useId().replace(/:/g, "");
+  const descId = useId().replace(/:/g, "");
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const [focusIdx, setFocusIdx] = useState(0);
+
   const w = 320;
   const h = 120;
   const pad = 8;
+
+  const n = points.length;
+  const setNearest = useCallback(
+    (clientX: number) => {
+      if (n < 1) return;
+      const el = wrapRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const t = (clientX - rect.left) / rect.width;
+      const i = Math.max(0, Math.min(n - 1, Math.round(t * (n - 1))));
+      setHover(i);
+      setFocusIdx(i);
+    },
+    [n],
+  );
+
+  if (n === 0) {
+    return (
+      <div
+        className="flex h-36 w-full max-w-md items-center justify-center rounded-lg border border-dashed border-slate-600/50 bg-slate-900/30 text-xs text-slate-500"
+        role="img"
+        aria-label="No audit score trend data"
+      >
+        Save at least one monthly snapshot to see the trend.
+      </div>
+    );
+  }
+
   const max = Math.max(25, ...points, 1);
   const min = Math.min(0, ...points) * 0.95;
   const span = max - min || 1;
-  const coords = points.map((p, i) => {
-    const x = pad + (i / Math.max(1, points.length - 1)) * (w - pad * 2);
-    const y = h - pad - ((p - min) / span) * (h - pad * 2);
-    return `${x},${y}`;
-  });
+  const xAt = (i: number) => pad + (i / Math.max(1, points.length - 1)) * (w - pad * 2);
+  const yAt = (p: number) => h - pad - ((p - min) / span) * (h - pad * 2);
+  const coords = points.map((p, i) => `${xAt(i)},${yAt(p)}`);
   const polyline = coords.join(" ");
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      setFocusIdx((i) => Math.max(0, i - 1));
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      setFocusIdx((i) => Math.min(points.length - 1, i + 1));
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setFocusIdx(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setFocusIdx(points.length - 1);
+    }
+  };
+
+  const active = hover !== null ? hover : focusIdx;
+  const labelFor = (i: number) => labels[i] ?? `Point ${i + 1}`;
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-36 w-full max-w-md">
-      <defs>
-        <linearGradient id="auditLineFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgb(5 150 105)" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="rgb(5 150 105)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polyline
-        fill="none"
-        stroke="rgb(5 150 105)"
-        strokeWidth="2.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        points={polyline}
-      />
-      <polygon fill="url(#auditLineFill)" points={`${pad},${h - pad} ${polyline} ${w - pad},${h - pad}`} />
-      {points.map((p, i) => {
-        const x = pad + (i / Math.max(1, points.length - 1)) * (w - pad * 2);
-        const y = h - pad - ((p - min) / span) * (h - pad * 2);
-        return <circle key={i} cx={x} cy={y} r="3.5" fill="white" stroke="rgb(5 150 105)" strokeWidth="2" />;
-      })}
-      <g className="fill-slate-200" style={{ fontSize: "11px" }}>
-        {labels.map((lab, i) => {
-          const x = pad + (i / Math.max(1, labels.length - 1)) * (w - pad * 2);
-          return (
-            <text key={lab} x={x} y={h - 1} textAnchor="middle">
-              {lab}
-            </text>
-          );
-        })}
-      </g>
-    </svg>
+    <div
+      ref={wrapRef}
+      className="relative w-full max-w-md"
+      onMouseMove={(e) => setNearest(e.clientX)}
+      onMouseLeave={() => setHover(null)}
+    >
+      <p id={descId} className="sr-only">
+        Compliance score by saved month. Scores {Math.round(min)} to {Math.round(max)}. Use arrow keys to move
+        between months.
+        {` Focus: ${labelFor(active)}, score ${Math.round(points[active]!)}.`}
+      </p>
+      <div
+        className="relative outline-none"
+        role="img"
+        tabIndex={0}
+        aria-label="Audit compliance score trend by month"
+        aria-describedby={descId}
+        onKeyDown={onKeyDown}
+      >
+        <svg viewBox={`0 0 ${w} ${h}`} className="h-36 w-full" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id={areaGradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgb(5 150 105)" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="rgb(5 150 105)" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <polyline
+            fill="none"
+            stroke="rgb(5 150 105)"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            points={polyline}
+          />
+          <polygon fill={`url(#${areaGradId})`} points={`${pad},${h - pad} ${polyline} ${w - pad},${h - pad}`} />
+          {points.length > 1 ? (
+            <line
+              x1={xAt(active)}
+              x2={xAt(active)}
+              y1={pad}
+              y2={h - pad}
+              stroke="rgba(16, 185, 129, 0.4)"
+              strokeWidth="1.2"
+            />
+          ) : null}
+          {points.map((p, i) => {
+            const isActive = i === active;
+            return (
+              <circle
+                key={i}
+                cx={xAt(i)}
+                cy={yAt(p)}
+                r={isActive ? 5 : 3.5}
+                fill="white"
+                stroke="rgb(5 150 105)"
+                strokeWidth={isActive ? 2.5 : 2}
+                opacity={isActive ? 1 : 0.85}
+              />
+            );
+          })}
+          <g className="fill-slate-200" style={{ fontSize: "11px" }}>
+            {points.map((_, i) => {
+              const x = xAt(i);
+              const lab = labelFor(i);
+              return (
+                <text
+                  key={i}
+                  x={x}
+                  y={h - 1}
+                  textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
+                >
+                  {lab}
+                </text>
+              );
+            })}
+          </g>
+        </svg>
+        <div
+          className="pointer-events-none absolute top-0 -translate-x-1/2 rounded-md border border-emerald-500/30 bg-slate-950/95 px-2 py-1 text-left text-[10px] text-emerald-100 shadow-md"
+          style={{
+            minWidth: "4.5rem",
+            left: `${points.length <= 1 ? 50 : (active / (points.length - 1)) * 100}%`,
+          }}
+        >
+          <div className="font-semibold text-white">{labelFor(active)}</div>
+          <div className="font-mono font-bold tabular-nums text-emerald-200">
+            {Math.round(points[active]!)} score
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -1,6 +1,7 @@
 import type { RiskIntelligenceRequest, RiskOutputRecord } from "@/types/safety-intelligence";
 import { assertAiReviewContextReady } from "@/lib/safety-intelligence/validation/ai";
 import { runStructuredAiJson } from "@/lib/safety-intelligence/ai/utils";
+import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
 
 function fallbackRiskOutputs(request: RiskIntelligenceRequest): RiskOutputRecord {
   const rules = request.reviewContext.rulesEvaluations;
@@ -37,10 +38,11 @@ export async function generateRiskIntelligence(request: RiskIntelligenceRequest)
   const user = JSON.stringify(request);
   const result = await runStructuredAiJson<RiskOutputRecord>({
     modelEnv: process.env.SAFETY_INTELLIGENCE_RISK_MODEL,
-    fallbackModel: "gpt-4o-mini",
+    fallbackModel: resolveCompanyAiDefaultModel("gpt-4o-mini"),
     system,
     user,
     fallback,
+    surface: "safety-intelligence.risk",
   });
 
   return {

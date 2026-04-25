@@ -133,6 +133,13 @@ export async function generateGcProgramAiReview(params: {
   /** Optional uploaded site/GC reference (PDF/DOCX text) to compare against the submission */
   siteReferenceText?: string | null;
   siteReferenceFileName?: string | null;
+  /**
+   * Pre-formatted excerpts pulled from `public.company_memory_items` for this
+   * company. Optional. When present, give the model company-specific grounding
+   * (past programs, internal SOPs) so admin reviews match the customer-facing
+   * `ai-assist` route's quality. Trimmed to keep the prompt bounded.
+   */
+  companyMemoryExcerpts?: string | null;
 }): Promise<{ review: GcProgramAiReview; disclaimer: string }> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
@@ -158,6 +165,14 @@ export async function generateGcProgramAiReview(params: {
     )
     .join("\n");
 
+  const memoryExcerpts = params.companyMemoryExcerpts?.trim() ?? "";
+  const hasMemoryExcerpts = memoryExcerpts.length > 0;
+  const memoryBlockText = hasMemoryExcerpts
+    ? memoryExcerpts.length > 16000
+      ? `${memoryExcerpts.slice(0, 16000)}\n…`
+      : memoryExcerpts
+    : "";
+
   const contextBlock = [
     `File name: ${params.fileName}`,
     `Title / label: ${params.documentTitle || "(none)"}`,
@@ -166,6 +181,9 @@ export async function generateGcProgramAiReview(params: {
     annotationText ? `Embedded reviewer notes from DOCX comments:\n${annotationText}` : null,
     params.additionalGcContext?.trim()
       ? `Additional GC / site requirements (admin-provided): ${params.additionalGcContext.trim()}`
+      : null,
+    hasMemoryExcerpts
+      ? `--- Company memory excerpts (prior programs / SOPs for this customer; treat as background context only, not authoritative requirements) ---\n${memoryBlockText}`
       : null,
     siteName
       ? hasSiteRef

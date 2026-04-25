@@ -1,4 +1,5 @@
 import { requestAiResponsesText, type AiExecutionMeta } from "@/lib/ai/responses";
+import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
 import type { RiskRecommendationDraft } from "@/lib/riskMemory/recommendations";
 import type { RiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
 import { serverLog } from "@/lib/serverLog";
@@ -65,7 +66,7 @@ export async function buildLlmRiskRecommendations(
   const model =
     process.env.RISK_MEMORY_LLM_MODEL?.trim() ||
     process.env.COMPANY_AI_MODEL?.trim() ||
-    "gpt-4o-mini";
+    resolveCompanyAiDefaultModel("gpt-4o-mini");
 
   const summary = {
     facetCount: ctx.facetCount,
@@ -97,6 +98,7 @@ export async function buildLlmRiskRecommendations(
       apiKey,
       model,
       input: `${system}\n\n---\n\n${user}`,
+      surface: "risk-memory.llm-recommendations",
     });
 
     if (!response.text) {

@@ -7,6 +7,10 @@ import {
   generateBuilderProgramAiReview,
 } from "@/lib/builderDocumentAiReview";
 import type { GcSiteReferenceExtractionMeta } from "@/lib/runGcProgramAiReview";
+import {
+  gatherCompanyMemoryExcerptsForReview,
+  isCompanyMemoryForReviewsEnabled,
+} from "@/lib/companyMemory/reviewMemory";
 
 const BUILDER_TYPES = new Set(["CSEP", "PSHSEP", "PESHEP", "PESHEPS"]);
 
@@ -137,6 +141,39 @@ export async function runBuilderProgramDocumentAiReview(
     let siteReferenceText: string | null = null;
     let siteReferenceFileName: string | null = null;
 
+    /**
+     * If the caller (e.g. the company-scoped ai-assist route) already pulled
+     * memory excerpts, respect them. Otherwise, when the feature flag is on,
+     * fetch them here so admin / superadmin runs of the same review get the
+     * same company-specific grounding the customer-facing route gets.
+     */
+    let companyMemoryExcerpts = options?.companyMemoryExcerpts?.trim() || null;
+    if (!companyMemoryExcerpts && isCompanyMemoryForReviewsEnabled() && doc.company_id) {
+      const memoryQuery = [
+        doc.document_title ?? "",
+        doc.project_name ?? "",
+        programLabel,
+        additionalReviewerContext,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .slice(0, 2000);
+      const retrieved = await gatherCompanyMemoryExcerptsForReview({
+        supabase: admin,
+        companyId: doc.company_id,
+        query: memoryQuery,
+      });
+      if (retrieved.excerpts) {
+        companyMemoryExcerpts = retrieved.excerpts;
+        serverLog("info", "builder_program_ai_review_memory_injected", {
+          documentId: doc.id,
+          companyId: doc.company_id,
+          method: retrieved.method,
+          chunkCount: retrieved.chunkCount,
+        });
+      }
+    }
+
     if (siteReference?.buffer?.length) {
       const refName = siteReference.fileName?.trim() || "site-reference.pdf";
       const siteExtracted = await extractBuilderReviewDocumentText(siteReference.buffer, refName);
@@ -169,7 +206,7 @@ export async function runBuilderProgramDocumentAiReview(
       annotations: extracted.ok ? extracted.annotations : [],
       siteReferenceText,
       siteReferenceFileName,
-      companyMemoryExcerpts: options?.companyMemoryExcerpts?.trim() || null,
+      companyMemoryExcerpts,
     });
 
     return {

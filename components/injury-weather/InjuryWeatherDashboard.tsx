@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useRouter } from "next/navigation";
 import { InjuryWeatherDiagnosticsPanel, MonthlyFocusPanel } from "@/components/injury-weather/MonthlyFocusPanel";
@@ -15,6 +23,7 @@ import { fallbackDashboardBlocksFromData } from "@/lib/injuryWeather/ai";
 import { injuryWeatherJobsiteSorScopeBanner } from "@/lib/injuryWeather/scopeMessaging";
 import { buildHeadlineMetricsReasoning } from "@/lib/injuryWeather/headlineMetricsReasoning";
 import { INJURY_WEATHER_ASSUMPTIONS } from "@/lib/injuryWeather/types";
+import { METRIC_CHART_PANEL } from "@/components/metrics/metricChartSurfaces";
 import type {
   InjuryWeatherAiForecastMeta,
   InjuryWeatherAiInsights,
@@ -273,13 +282,17 @@ function ExternalHistoricalSourcesPanel({
 
 function TrendChart({ points }: { points: TrendPoint[] }) {
   const [hover, setHover] = useState<number | null>(null);
+  const [focusIdx, setFocusIdx] = useState(0);
   const chartUid = useId().replace(/:/g, "");
+  const descId = useId().replace(/:/g, "");
+  const chartRef = useRef<SVGSVGElement | null>(null);
   const w = 760;
   const h = 268;
   const padL = 48;
   const padR = 20;
   const padT = 28;
   const padB = 44;
+  const plotW = w - padL - padR;
 
   const layout = useMemo(() => {
     const chartW = w - padL - padR;
@@ -333,6 +346,57 @@ function TrendChart({ points }: { points: TrendPoint[] }) {
 
   const onLeave = useCallback(() => setHover(null), []);
 
+  const peak = useMemo(() => {
+    if (points.length === 0) return null;
+    let bestI = 0;
+    for (let i = 1; i < points.length; i += 1) {
+      if (points[i]!.value > points[bestI]!.value) bestI = i;
+    }
+    return { month: points[bestI]!.month, value: points[bestI]!.value };
+  }, [points]);
+
+  const setNearest = useCallback(
+    (clientX: number) => {
+      if (points.length < 1) return;
+      const el = chartRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const t = (clientX - rect.left) / rect.width;
+      const xSvg = t * w;
+      const frac = Math.max(0, Math.min(1, (xSvg - padL) / plotW));
+      const i = Math.max(0, Math.min(points.length - 1, Math.round(frac * (points.length - 1))));
+      setHover(i);
+      setFocusIdx(i);
+    },
+    [padL, plotW, points.length, w],
+  );
+
+  const onChartKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>) => {
+      if (points.length < 1) return;
+      const n = points.length;
+      const clamp = (f: number) => Math.max(0, Math.min(f, n - 1));
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setFocusIdx((f) => Math.max(0, clamp(f) - 1));
+        setHover(null);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setFocusIdx((f) => Math.min(n - 1, clamp(f) + 1));
+        setHover(null);
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        setFocusIdx(0);
+        setHover(null);
+      } else if (e.key === "End") {
+        e.preventDefault();
+        setFocusIdx(n - 1);
+        setHover(null);
+      }
+    },
+    [points.length],
+  );
+
   if (points.length === 0) {
     return (
       <div className="flex h-52 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-950/40 text-sm text-slate-500">
@@ -341,16 +405,53 @@ function TrendChart({ points }: { points: TrendPoint[] }) {
     );
   }
 
-  const hi = hover != null ? coords[hover] : null;
+  const activeI = Math.max(0, Math.min(coords.length - 1, hover != null ? hover : focusIdx));
+  const activePoint = coords[activeI]!;
 
   return (
     <div className="relative" onMouseLeave={onLeave}>
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        className="h-[min(20rem,55vw)] w-full max-w-full"
-        role="img"
-        aria-label="Risk trend line chart: relative signal index over months"
+      <p id={descId} className="sr-only">
+        Relative safety activity index by month, Y range {yMin} to {yMax}. Use left and right arrows to move
+        between months.{" "}
+        {`Focused: ${activePoint.month}, index ${activePoint.value}${activePoint.highRisk ? ", elevated band" : ""}.`}
+        {peak
+          ? ` ${
+              points.length > 1
+                ? `Series peak: ${peak.month} at index ${peak.value}.`
+                : `Single month: ${peak.month} at index ${peak.value}.`
+            }`
+          : ""}
+      </p>
+      {peak ? (
+        <p className="mb-3 text-[11px] text-slate-500">
+          {points.length > 1 ? (
+            <>
+              Peak in this window: <span className="font-semibold text-slate-300">{peak.month}</span> · index{" "}
+              <span className="font-mono text-slate-200">{peak.value}</span> (highest in the series)
+            </>
+          ) : (
+            <>
+              In view: <span className="font-semibold text-slate-300">{peak.month}</span> · index{" "}
+              <span className="font-mono text-slate-200">{peak.value}</span>
+            </>
+          )}
+        </p>
+      ) : null}
+      <div
+        className="outline-none"
+        role="group"
+        tabIndex={0}
+        aria-label="Risk trend: relative signal index by month"
+        aria-describedby={descId}
+        onKeyDown={onChartKeyDown}
       >
+        <svg
+          ref={chartRef}
+          viewBox={`0 0 ${w} ${h}`}
+          className="h-[min(20rem,55vw)] w-full max-w-full"
+          aria-hidden
+          onMouseMove={(e) => setNearest(e.clientX)}
+        >
         <defs>
           <linearGradient id={`iwTrendArea-${chartUid}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="rgb(248 113 113)" stopOpacity="0.35" />
@@ -397,13 +498,26 @@ function TrendChart({ points }: { points: TrendPoint[] }) {
           );
         })}
 
+        {coords.length > 1 ? (
+          <line
+            x1={activePoint.x}
+            x2={activePoint.x}
+            y1={padT}
+            y2={padT + chartH}
+            stroke="rgb(56 189 248)"
+            strokeOpacity={0.45}
+            strokeWidth={1.2}
+            pointerEvents="none"
+          />
+        ) : null}
+
         <rect
           x={padL}
           y={padT}
           width={chartW}
           height={chartH}
           fill="transparent"
-          className="pointer-events-none"
+          className="cursor-crosshair"
         />
 
         {areaPath ? <path d={areaPath} fill={`url(#iwTrendArea-${chartUid})`} /> : null}
@@ -422,17 +536,21 @@ function TrendChart({ points }: { points: TrendPoint[] }) {
 
         {coords.map((c, i) => {
           const stroke = c.highRisk ? "rgb(239 68 68)" : strokeForRiskIndex(c.value);
+          const isActive = i === activeI;
           return (
             <g key={`${c.month}-${i}`}>
               <circle
                 cx={c.x}
                 cy={c.y}
-                r={hover === i ? 9 : 6}
+                r={isActive ? 9 : 6}
                 fill="rgb(15 23 42)"
                 stroke={stroke}
-                strokeWidth={hover === i ? 3 : 2}
+                strokeWidth={isActive ? 3 : 2}
                 className="cursor-crosshair"
-                onMouseEnter={() => setHover(i)}
+                onMouseEnter={() => {
+                  setHover(i);
+                  setFocusIdx(i);
+                }}
               />
               <text
                 x={c.x}
@@ -447,22 +565,13 @@ function TrendChart({ points }: { points: TrendPoint[] }) {
           );
         })}
       </svg>
+      </div>
 
-      <div
-        className={`mt-2 rounded-lg border px-3 py-2 text-center text-xs transition-colors ${
-          hi ? "border-sky-500/30 bg-slate-950/90 text-slate-200" : "border-transparent bg-transparent text-slate-400"
-        }`}
-      >
-        {hi ? (
-          <>
-            <span className="font-semibold text-white">{hi.month}</span>
-            {" · "}
-            Index <span className="font-mono text-sky-300">{hi.value}</span>
-            {hi.highRisk ? <span className="text-rose-300"> · Elevated band</span> : null}
-          </>
-        ) : (
-          "Hover a point for month and index"
-        )}
+      <div className="mt-2 rounded-lg border border-sky-500/30 bg-slate-950/90 px-3 py-2 text-center text-xs text-slate-200" aria-hidden>
+        <span className="font-semibold text-white">{activePoint.month}</span>
+        {" · "}
+        Index <span className="font-mono text-sky-300">{activePoint.value}</span>
+        {activePoint.highRisk ? <span className="text-rose-300"> · Elevated band</span> : null}
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-4 text-[10px] text-slate-500">
@@ -525,7 +634,7 @@ export function InjuryWeatherDashboard() {
   const [appliedScopeJobsiteId, setAppliedScopeJobsiteId] = useState("");
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape") {
         setControlsOpen(null);
         setNumberBreakdownOpen(null);
@@ -1365,7 +1474,7 @@ export function InjuryWeatherDashboard() {
             Relative signal-strength index over recent months, extended with momentum (not a replay of raw history). Higher values
             reflect more weighted safety activity in-window—compare to your incident program separately.
           </p>
-          <div className="mt-4">
+          <div className={`mt-4 ${METRIC_CHART_PANEL}`}>
             <TrendChart points={data.trend} />
           </div>
         </div>

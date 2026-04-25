@@ -7,6 +7,10 @@ import {
   extractGcProgramDocumentText,
   generateGcProgramAiReview,
 } from "@/lib/gcProgramAiReview";
+import {
+  gatherCompanyMemoryExcerptsForReview,
+  isCompanyMemoryForReviewsEnabled,
+} from "@/lib/companyMemory/reviewMemory";
 
 export type GcSiteReferenceExtractionMeta =
   | null
@@ -27,7 +31,8 @@ export async function runGcProgramDocumentAiReview(
   admin: SupabaseClient,
   documentId: string,
   additionalGcContext: string,
-  siteReference?: { buffer: Buffer; fileName: string } | null
+  siteReference?: { buffer: Buffer; fileName: string } | null,
+  options?: { companyMemoryExcerpts?: string | null }
 ): Promise<
   | {
       ok: true;
@@ -115,6 +120,38 @@ export async function runGcProgramDocumentAiReview(
     let siteReferenceText: string | null = null;
     let siteReferenceFileName: string | null = null;
 
+    /**
+     * If a caller already pulled memory excerpts (none today, but symmetric
+     * with `runBuilderProgramDocumentAiReview`), respect them. Otherwise, when
+     * `COMPANY_AI_MEMORY_FOR_REVIEWS=1`, fetch them so admin reviews get the
+     * same company-specific grounding the company-scoped flow does.
+     */
+    let companyMemoryExcerpts = options?.companyMemoryExcerpts?.trim() || null;
+    if (!companyMemoryExcerpts && isCompanyMemoryForReviewsEnabled() && doc.company_id) {
+      const memoryQuery = [
+        doc.document_title ?? "",
+        GC_REQUIRED_PROGRAM_DOCUMENT_TYPE,
+        additionalGcContext,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .slice(0, 2000);
+      const retrieved = await gatherCompanyMemoryExcerptsForReview({
+        supabase: admin,
+        companyId: doc.company_id,
+        query: memoryQuery,
+      });
+      if (retrieved.excerpts) {
+        companyMemoryExcerpts = retrieved.excerpts;
+        serverLog("info", "gc_program_ai_review_memory_injected", {
+          documentId: doc.id,
+          companyId: doc.company_id,
+          method: retrieved.method,
+          chunkCount: retrieved.chunkCount,
+        });
+      }
+    }
+
     if (siteReference?.buffer?.length) {
       const refName = siteReference.fileName?.trim() || "site-reference.pdf";
       const siteExtracted = await extractGcProgramDocumentText(siteReference.buffer, refName);
@@ -146,6 +183,7 @@ export async function runGcProgramDocumentAiReview(
       annotations: extracted.ok ? extracted.annotations : [],
       siteReferenceText,
       siteReferenceFileName,
+      companyMemoryExcerpts,
     });
 
     return {

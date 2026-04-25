@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { InlineMessage } from "@/components/WorkspacePrimitives";
 import { userVisibleInjuryModelMessage } from "@/lib/analytics/injuryModelMessage";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
+import { HeatmapGrid } from "@/components/metrics/HeatmapGrid";
+import { Sparkline } from "@/components/metrics/Sparkline";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -129,6 +131,14 @@ type AnalyticsSummary = {
     confidence: number;
     created_at: string;
   }>;
+  /** Daily company-scope rollup score (`public.company_risk_scores`) for the last 30 days. */
+  riskMemoryTrend?: {
+    points: Array<{ date: string; score: number; band: string; windowDays: number }>;
+    latest: { date: string; score: number; band: string } | null;
+    earliest: { date: string; score: number; band: string } | null;
+    deltaScore: number | null;
+    direction: "up" | "down" | "flat" | null;
+  };
 };
 
 type LikelyInjuryInsightPayload = {
@@ -154,49 +164,6 @@ async function getAuthHeaders() {
   return { Authorization: `Bearer ${session.access_token}` };
 }
 
-function TrendSparkline({ points }: { points: Array<{ date: string; count: number }> }) {
-  const w = 320;
-  const h = 88;
-  const data = points.length > 0 ? points : [
-    { date: "a", count: 0 },
-    { date: "b", count: 0 },
-  ];
-  const maxY = Math.max(1, ...data.map((d) => d.count));
-  const step = w / Math.max(1, data.length - 1);
-  const dPath = data
-    .map((row, i) => {
-      const x = i * step;
-      const y = h - (row.count / maxY) * (h - 12) - 6;
-      return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
-    })
-    .join(" ");
-
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-24 w-full text-cyan-400" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgb(34 211 238)" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="rgb(34 211 238)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path
-        d={`${dPath} L ${w} ${h} L 0 ${h} Z`}
-        fill="url(#trendFill)"
-        className="text-cyan-500/20"
-      />
-      <path d={dPath} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function heatColor(t: number) {
-  if (t >= 0.75) return "border border-[rgba(209,98,98,0.24)] bg-[rgba(255,232,232,0.96)]";
-  if (t >= 0.5) return "border border-[rgba(217,164,65,0.26)] bg-[rgba(255,242,218,0.96)]";
-  if (t >= 0.25) return "border border-[var(--app-accent-border-22)] bg-[rgba(232,240,255,0.98)]";
-  if (t > 0) return "border border-[rgba(46,158,91,0.22)] bg-[rgba(232,247,237,0.96)]";
-  return "border border-[rgba(198,212,236,0.85)] bg-[rgba(246,249,255,0.96)]";
-}
-
 type FocusTabId = Exclude<TabId, "overview">;
 
 function AnalyticsFocusedTab({
@@ -212,6 +179,7 @@ function AnalyticsFocusedTab({
   tagChip,
   sif,
   leadership,
+  windowDays,
 }: {
   tab: FocusTabId;
   loading: boolean;
@@ -225,6 +193,7 @@ function AnalyticsFocusedTab({
   tagChip: (tag: string) => string;
   sif: AnalyticsSummary["sifDashboard"];
   leadership: AnalyticsSummary["safetyLeadership"];
+  windowDays: number;
 }) {
   const rows = loading ? [] : filteredRecent.length > 0 ? filteredRecent : recent;
   const title =
@@ -292,7 +261,12 @@ function AnalyticsFocusedTab({
         <div className="analytics-dark-panel p-5 shadow-inner">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Observation trend</p>
           <div className="analytics-dark-panel-soft mt-4 px-3 py-2">
-            <TrendSparkline points={trends} />
+            <Sparkline
+              points={trends}
+              windowDays={windowDays}
+              loading={loading}
+              variant="compact"
+            />
           </div>
         </div>
         <div className="analytics-dark-panel p-5">
@@ -569,6 +543,7 @@ export default function AnalyticsPage() {
   const bands = dash?.observationPriorityBands;
   const riskMemory = summary?.riskMemory;
   const riskMemoryRecommendations = summary?.riskMemoryRecommendations ?? [];
+  const riskMemoryTrend = summary?.riskMemoryTrend;
 
   const totalObs = totals.correctiveActions ?? 0;
   const openIssues = dash?.totalOpenObservations ?? 0;
@@ -780,6 +755,69 @@ export default function AnalyticsPage() {
               <code className="rounded bg-black/30 px-1 py-0.5 text-[10px]">PATCH /api/company/benchmarking</code>
               .
             </p>
+            {summary.benchmarking.incidentRate != null &&
+            summary.benchmarking.industryBenchmarkRates?.recordableCasesPer200kHours != null ? (
+              <div
+                className="mt-3 rounded-lg border border-emerald-800/40 bg-emerald-950/25 px-3 py-2"
+                role="group"
+                aria-label="Incident rate comparison chart"
+              >
+                <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-200/90">
+                  Rates per 200k hours (illustrative)
+                </p>
+                <p className="mt-0.5 text-[9px] text-emerald-200/60">
+                  {
+                    "Compares this workspace's computed rate to the NSC/NAICS recordable reference for the same 200k-hour basis — not a substitute for a formal BLS/recordability review."
+                  }
+                </p>
+                {(() => {
+                  const a = summary.benchmarking?.incidentRate;
+                  const b = summary.benchmarking?.industryBenchmarkRates?.recordableCasesPer200kHours;
+                  if (a == null || b == null) return null;
+                  const cap = Math.max(a, b, 0.01) * 1.15;
+                  return (
+                    <div className="mt-2 space-y-2.5">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 text-[10px] text-emerald-100/95">
+                          <span className="min-w-0">This workspace</span>
+                          <span className="shrink-0 font-mono font-semibold text-white">
+                            {a.toFixed(2)}
+                          </span>
+                        </div>
+                        <div
+                          className="mt-1 h-2.5 w-full overflow-hidden rounded-full bg-black/30"
+                          role="img"
+                          aria-label={`This workspace ${a.toFixed(2)} per 200,000 hours`}
+                        >
+                          <div
+                            className="h-full rounded-full bg-cyan-400/90"
+                            style={{ width: `${Math.min(100, (a / cap) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between gap-2 text-[10px] text-emerald-100/95">
+                          <span className="min-w-0">NSC/NAICS ref. (recordable)</span>
+                          <span className="shrink-0 font-mono font-semibold text-white">
+                            {b.toFixed(2)}
+                          </span>
+                        </div>
+                        <div
+                          className="mt-1 h-2.5 w-full overflow-hidden rounded-full bg-black/30"
+                          role="img"
+                          aria-label={`Reference ${b.toFixed(2)} per 200,000 hours`}
+                        >
+                          <div
+                            className="h-full rounded-full bg-emerald-500/80"
+                            style={{ width: `${Math.min(100, (b / cap) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : null}
             {summary.benchmarking.industryBenchmarkRates ? (
               <div className="mt-2 space-y-2 text-[11px] text-emerald-200/80">
                 <p>
@@ -887,11 +925,12 @@ export default function AnalyticsPage() {
               <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Trend
               </p>
-              <TrendSparkline points={trends} />
-              <div className="flex justify-between px-1 pb-1 text-[10px] text-slate-400">
-                <span>Earlier</span>
-                <span>Recent</span>
-              </div>
+              <Sparkline
+                points={trends}
+                windowDays={days}
+                loading={loading}
+                rangeCaption={`Selected window: last ${days} days of observation activity`}
+              />
             </div>
           </div>
 
@@ -981,6 +1020,59 @@ export default function AnalyticsPage() {
                     how many facet rows sit in this window (not a medical forecast).
                   </div>
                 ) : null}
+                {riskMemoryTrend && riskMemoryTrend.points.length > 0 ? (
+                  <div className="analytics-dark-panel-soft mt-4 px-3 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-violet-200/90">
+                          30-day company risk score
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-slate-500">
+                          Persisted nightly to <code className="rounded bg-black/30 px-1 py-0.5 text-[9px]">company_risk_scores</code>{" "}
+                          by the Risk Memory cron.
+                        </p>
+                      </div>
+                      {riskMemoryTrend.latest ? (
+                        <div className="flex items-baseline gap-2 text-right">
+                          <span className="text-2xl font-black text-white">
+                            {riskMemoryTrend.latest.score.toFixed(1)}
+                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-violet-200/90">
+                            {riskMemoryTrend.latest.band}
+                          </span>
+                          {riskMemoryTrend.deltaScore != null ? (
+                            <span
+                              className={[
+                                "ml-2 rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+                                riskMemoryTrend.direction === "up"
+                                  ? "border-rose-500/40 bg-rose-500/10 text-rose-200"
+                                  : riskMemoryTrend.direction === "down"
+                                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                                    : "border-slate-500/30 bg-slate-500/10 text-slate-300",
+                              ].join(" ")}
+                            >
+                              {riskMemoryTrend.deltaScore > 0 ? "+" : ""}
+                              {riskMemoryTrend.deltaScore.toFixed(1)} pts vs {riskMemoryTrend.points.length}d
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="mt-2">
+                      <Sparkline
+                        points={riskMemoryTrend.points.map((p) => ({ date: p.date, count: p.score }))}
+                        windowDays={30}
+                        loading={false}
+                        variant="compact"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="analytics-dark-panel-soft mt-4 px-3 py-2 text-[11px] text-slate-500">
+                    30-day risk score trend is not available yet — the daily Risk Memory cron will populate it after
+                    the next scheduled run.
+                  </div>
+                )}
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <div>
                     <p className="text-[10px] font-bold uppercase text-slate-500">Top scopes</p>
@@ -1236,48 +1328,15 @@ export default function AnalyticsPage() {
               </div>
             </div>
             <div className="analytics-dark-panel mt-5 p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Risk heatmap
-              </p>
-              <p className="mt-1 text-[10px] text-slate-400">
-                Severity × priority (corrective actions in window)
-              </p>
-              <div className="mt-3 overflow-x-auto">
-                <div className="inline-block min-w-full">
-                  <div className="grid gap-1" style={{ gridTemplateColumns: `80px repeat(4,1fr)` }}>
-                    <div />
-                    {(heatmap?.colLabels ?? ["H", "M", "L", "—"]).map((c) => (
-                      <div
-                        key={c}
-                        className="text-center text-[9px] font-bold uppercase tracking-wider text-slate-500"
-                      >
-                        {c}
-                      </div>
-                    ))}
-                    {(heatmap?.rowLabels ?? ["C", "H", "M", "L"]).map((rowLabel, ri) => (
-                      <div key={rowLabel} className="contents">
-                        <div className="flex items-center text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                          {rowLabel}
-                        </div>
-                        {(heatmap?.cells[ri] ?? [0, 0, 0, 0]).map((cell, ci) => {
-                          const t = (heatmap?.max ? cell / heatmap.max : 0) || 0;
-                          return (
-                            <div
-                              key={`${ri}-${ci}`}
-                              className={[
-                                "flex h-11 items-center justify-center rounded-lg text-xs font-bold text-white/90",
-                                heatColor(t),
-                              ].join(" ")}
-                            >
-                              {cell > 0 ? cell : ""}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <HeatmapGrid
+                title="Risk heatmap"
+                description="Severity × priority (corrective actions in window)"
+                rowLabels={heatmap?.rowLabels ?? ["C", "H", "M", "L"]}
+                colLabels={heatmap?.colLabels ?? ["H", "M", "L", "—"]}
+                cells={heatmap?.cells ?? []}
+                max={heatmap?.max ?? 0}
+                loading={loading}
+              />
             </div>
           </div>
 
@@ -1365,6 +1424,7 @@ export default function AnalyticsPage() {
             tagChip={tagChip}
             sif={sif}
             leadership={leadership}
+            windowDays={days}
           />
         )}
 

@@ -35,7 +35,7 @@ export function TradeTaskIntakeForm({
 
   return (
     <form
-      className="grid gap-4 md:grid-cols-2"
+      className="grid gap-3 md:grid-cols-2"
       onSubmit={async (event) => {
         event.preventDefault();
         setWorking(true);
@@ -46,7 +46,7 @@ export function TradeTaskIntakeForm({
         }
       }}
     >
-      <label className="grid gap-2 text-sm font-medium text-[var(--app-text-strong)]">
+      <label className="grid gap-1.5 text-xs font-semibold text-[var(--app-text-strong)]">
         Trade
         <select
           value={draft.tradeCode}
@@ -60,65 +60,65 @@ export function TradeTaskIntakeForm({
           ))}
         </select>
       </label>
-      <label className="grid gap-2 text-sm font-medium text-[var(--app-text-strong)]">
+      <label className="grid gap-1.5 text-xs font-semibold text-[var(--app-text-strong)]">
         Task
         <input
           value={draft.taskTitle}
           onChange={(event) => setDraft((current) => ({ ...current, taskTitle: event.target.value }))}
-          className="rounded-xl border border-[var(--app-border-strong)] px-4 py-2.5 text-sm"
+          className="h-10 rounded-lg border border-[var(--app-border-strong)] px-3 text-sm"
           placeholder="Welding and hot work"
         />
       </label>
-      <label className="grid gap-2 text-sm font-medium text-[var(--app-text-strong)] md:col-span-2">
+      <label className="grid gap-1.5 text-xs font-semibold text-[var(--app-text-strong)] md:col-span-2">
         Field detail
         <textarea
           value={draft.description}
           onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
-          className="min-h-28 rounded-xl border border-[var(--app-border-strong)] px-4 py-3 text-sm"
+          className="min-h-24 rounded-lg border border-[var(--app-border-strong)] px-3 py-2 text-sm"
           placeholder="Describe work conditions, nearby crews, equipment, and anything unusual."
         />
       </label>
-      <label className="grid gap-2 text-sm font-medium text-[var(--app-text-strong)]">
+      <label className="grid gap-1.5 text-xs font-semibold text-[var(--app-text-strong)]">
         Work area
         <input
           value={draft.workAreaLabel}
           onChange={(event) => setDraft((current) => ({ ...current, workAreaLabel: event.target.value }))}
-          className="rounded-xl border border-[var(--app-border-strong)] px-4 py-2.5 text-sm"
+          className="h-10 rounded-lg border border-[var(--app-border-strong)] px-3 text-sm"
           placeholder="Area B"
         />
       </label>
-      <label className="grid gap-2 text-sm font-medium text-[var(--app-text-strong)]">
+      <label className="grid gap-1.5 text-xs font-semibold text-[var(--app-text-strong)]">
         Weather
         <input
           value={draft.weatherConditionCode}
           onChange={(event) => setDraft((current) => ({ ...current, weatherConditionCode: event.target.value }))}
-          className="rounded-xl border border-[var(--app-border-strong)] px-4 py-2.5 text-sm"
+          className="h-10 rounded-lg border border-[var(--app-border-strong)] px-3 text-sm"
           placeholder="clear, wind, rain, storm"
         />
       </label>
-      <label className="grid gap-2 text-sm font-medium text-[var(--app-text-strong)]">
+      <label className="grid gap-1.5 text-xs font-semibold text-[var(--app-text-strong)]">
         Start
         <input
           type="datetime-local"
           value={draft.startsAt}
           onChange={(event) => setDraft((current) => ({ ...current, startsAt: event.target.value }))}
-          className="rounded-xl border border-[var(--app-border-strong)] px-4 py-2.5 text-sm"
+          className="h-10 rounded-lg border border-[var(--app-border-strong)] px-3 text-sm"
         />
       </label>
-      <label className="grid gap-2 text-sm font-medium text-[var(--app-text-strong)]">
+      <label className="grid gap-1.5 text-xs font-semibold text-[var(--app-text-strong)]">
         End
         <input
           type="datetime-local"
           value={draft.endsAt}
           onChange={(event) => setDraft((current) => ({ ...current, endsAt: event.target.value }))}
-          className="rounded-xl border border-[var(--app-border-strong)] px-4 py-2.5 text-sm"
+          className="h-10 rounded-lg border border-[var(--app-border-strong)] px-3 text-sm"
         />
       </label>
       <div className="md:col-span-2">
         <button
           type="submit"
           disabled={working || !draft.taskTitle.trim()}
-          className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[var(--app-shadow-primary-button)] disabled:opacity-50"
+          className="rounded-lg bg-[var(--app-accent-primary)] px-3 py-2 text-xs font-semibold text-white shadow-[var(--app-shadow-primary-button)] disabled:opacity-50"
         >
           {working ? "Processing pipeline..." : "Bucket + evaluate"}
         </button>
@@ -126,4 +126,3 @@ export function TradeTaskIntakeForm({
     </form>
   );
 }
-

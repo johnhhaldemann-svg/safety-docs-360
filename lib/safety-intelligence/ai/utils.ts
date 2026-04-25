@@ -6,6 +6,8 @@ export async function runStructuredAiJson<T>(params: {
   system: string;
   user: string;
   fallback: T;
+  /** Logical AI surface (e.g. "safety-intelligence.document") for telemetry. */
+  surface?: string;
 }): Promise<{ parsed: T; model: string | null; promptHash: string | null; fallbackUsed: boolean }> {
   const result = await runStructuredAiJsonTask<T>(params);
   return {

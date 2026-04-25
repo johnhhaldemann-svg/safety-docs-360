@@ -10,6 +10,7 @@ import { getCustomerFacingDocumentLayoutGuidance } from "@/lib/documentLayoutGui
 import { assertAiReviewContextReady } from "@/lib/safety-intelligence/validation/ai";
 import { runStructuredAiJson } from "@/lib/safety-intelligence/ai/utils";
 import { buildFallbackNarratives } from "@/lib/safety-intelligence/documents/assemble";
+import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
 
 function fallbackDocument(request: DocumentGenerationRequest): GeneratedDocumentRecord {
   const exposures = request.reviewContext.rulesEvaluations.flatMap((row) => row.hazardFamilies);
@@ -71,10 +72,11 @@ export async function generateDocumentDraft(request: DocumentGenerationRequest):
   const user = JSON.stringify(request);
   const result = await runStructuredAiJson<GeneratedDocumentRecord>({
     modelEnv: process.env.SAFETY_INTELLIGENCE_DOCUMENT_MODEL,
-    fallbackModel: "gpt-4o-mini",
+    fallbackModel: resolveCompanyAiDefaultModel("gpt-4o-mini"),
     system,
     user,
     fallback,
+    surface: "safety-intelligence.document.draft",
   });
 
   return {
@@ -208,10 +210,11 @@ export async function generateSafetyPlanNarratives(params: {
 
   const result = await runStructuredAiJson<NarrativeOutput>({
     modelEnv: process.env.SAFETY_INTELLIGENCE_DOCUMENT_MODEL,
-    fallbackModel: "gpt-4o-mini",
+    fallbackModel: resolveCompanyAiDefaultModel("gpt-4o-mini"),
     system,
     user,
     fallback,
+    surface: "safety-intelligence.document.narratives",
   });
   const { aiAssemblyDecisions: parsedAiAssemblyDecisions, ...parsedSections } = result.parsed;
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import * as Tabs from "@radix-ui/react-tabs";
-import { EmptyState, InlineMessage, StatusBadge } from "@/components/WorkspacePrimitives";
+import { EmptyState, InlineMessage, ProvenanceBadge, StatusBadge } from "@/components/WorkspacePrimitives";
 import type { SafetyReviewGap, SafetyReviewPayload, SafetyReviewRow } from "@/types/safety-intelligence";
 
 type ReviewTab = "all" | "permit" | "training" | "ppe";
@@ -60,16 +60,16 @@ function DomainStatus({
   gap?: SafetyReviewGap;
 }) {
   return (
-    <div className="rounded-xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.92)] p-4">
+    <div className="rounded-lg border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.92)] p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--app-text)]">{label}</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-text)]">{label}</p>
           {gap ? (
-            <p className="mt-2 text-sm leading-6 text-[var(--semantic-danger)]">{gap.detail}</p>
+            <p className="mt-1.5 text-xs leading-5 text-[var(--semantic-danger)]">{gap.detail}</p>
           ) : currentValues.length ? (
-            <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">Coverage is currently mapped for this domain.</p>
+            <p className="mt-1.5 text-xs leading-5 text-[var(--app-text)]">Coverage is currently mapped for this domain.</p>
           ) : (
-            <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">No requirement applies for the current scope.</p>
+            <p className="mt-1.5 text-xs leading-5 text-[var(--app-text)]">No requirement applies for the current scope.</p>
           )}
         </div>
         <StatusBadge
@@ -77,39 +77,39 @@ function DomainStatus({
           tone={toneForGap(gap)}
         />
       </div>
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="mt-3 grid gap-2 lg:grid-cols-2">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Current output</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-text)]">Current output</p>
           {currentValues.length ? (
-            <ul className="mt-2 flex flex-wrap gap-2">
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
               {currentValues.map((value) => (
                 <li
                   key={value}
-                  className="rounded-full bg-[var(--app-accent-surface-12)] px-3 py-1.5 text-xs font-semibold text-[var(--app-accent-primary)]"
+                  className="rounded-full bg-[var(--app-accent-surface-12)] px-2 py-1 text-[10px] font-semibold text-[var(--app-accent-primary)]"
                 >
                   {humanizeCode(value)}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-sm text-[var(--app-text)]">No mapped output.</p>
+            <p className="mt-1.5 text-xs text-[var(--app-text)]">No mapped output.</p>
           )}
         </div>
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Expected context</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-text)]">Expected context</p>
           {expectedValues.length ? (
-            <ul className="mt-2 flex flex-wrap gap-2">
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
               {expectedValues.map((value) => (
                 <li
                   key={value}
-                  className="rounded-full bg-[rgba(217,164,65,0.14)] px-3 py-1.5 text-xs font-semibold text-[var(--semantic-warning)]"
+                  className="rounded-full bg-[rgba(217,164,65,0.14)] px-2 py-1 text-[10px] font-semibold text-[var(--semantic-warning)]"
                 >
                   {humanizeCode(value)}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-sm text-[var(--app-text)]">No explicit expectation recorded.</p>
+            <p className="mt-1.5 text-xs text-[var(--app-text)]">No explicit expectation recorded.</p>
           )}
         </div>
       </div>
@@ -123,16 +123,16 @@ function ReviewRowCard({ row }: { row: SafetyReviewRow }) {
   const ppeGap = row.gaps.find((gap) => gap.domain === "ppe");
 
   return (
-    <article className="rounded-2xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[var(--app-shadow-soft)]">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+    <article className="rounded-xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.94)] p-3 shadow-[var(--app-shadow-soft)]">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge label={humanizeCode(row.source)} tone={row.source === "live" ? "info" : "neutral"} />
             {row.tradeCode ? <StatusBadge label={humanizeCode(row.tradeCode)} tone="info" /> : null}
             {row.subTradeCode ? <StatusBadge label={humanizeCode(row.subTradeCode)} tone="neutral" /> : null}
           </div>
-          <h4 className="mt-3 text-lg font-semibold text-[var(--app-text-strong)]">{row.taskTitle}</h4>
-          <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">
+          <h4 className="mt-2 truncate text-sm font-semibold text-[var(--app-text-strong)]">{row.taskTitle}</h4>
+          <p className="mt-0.5 text-xs leading-5 text-[var(--app-text)]">
             {row.sourceLabel}
             {row.taskCode ? ` · ${humanizeCode(row.taskCode)}` : ""}
             {row.workAreaLabel ? ` · ${row.workAreaLabel}` : ""}
@@ -144,34 +144,39 @@ function ReviewRowCard({ row }: { row: SafetyReviewRow }) {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-3">
-        <DomainStatus
-          label="Permit matrix"
-          currentValues={row.permitTriggers}
-          expectedValues={row.expectedPermitTriggers}
-          gap={permitGap}
-        />
-        <DomainStatus
-          label="Training review"
-          currentValues={row.trainingRequirements}
-          expectedValues={row.expectedTrainingRequirements}
-          gap={trainingGap}
-        />
-        <DomainStatus
-          label="PPE review"
-          currentValues={row.ppeRequirements}
-          expectedValues={row.expectedPpeRequirements}
-          gap={ppeGap}
-        />
-      </div>
+      <details className="mt-3">
+        <summary className="cursor-pointer rounded-lg border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2 text-xs font-semibold text-[var(--app-text-strong)]">
+          Inspect permit, training, and PPE coverage
+        </summary>
+        <div className="mt-3 grid gap-3 xl:grid-cols-3">
+          <DomainStatus
+            label="Permit matrix"
+            currentValues={row.permitTriggers}
+            expectedValues={row.expectedPermitTriggers}
+            gap={permitGap}
+          />
+          <DomainStatus
+            label="Training review"
+            currentValues={row.trainingRequirements}
+            expectedValues={row.expectedTrainingRequirements}
+            gap={trainingGap}
+          />
+          <DomainStatus
+            label="PPE review"
+            currentValues={row.ppeRequirements}
+            expectedValues={row.expectedPpeRequirements}
+            gap={ppeGap}
+          />
+        </div>
+      </details>
 
       {row.actions.length ? (
-        <div className="mt-5 flex flex-wrap gap-3">
+        <div className="mt-3 flex flex-wrap gap-2">
           {row.actions.map((action) => (
             <Link
               key={`${row.id}:${action.domain}`}
               href={action.href}
-              className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2 text-sm font-semibold text-[var(--app-text-strong)] shadow-[0_10px_18px_rgba(76,108,161,0.06)] transition hover:bg-[var(--app-panel)]"
+              className="rounded-lg border border-[var(--app-border-strong)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--app-text-strong)] shadow-[0_10px_18px_rgba(76,108,161,0.06)] transition hover:bg-[var(--app-panel)]"
             >
               {action.label}
             </Link>
@@ -216,31 +221,40 @@ export function SafetyReviewPanel({
   }
 
   return (
-    <div id="safety-review" className="space-y-5">
+    <div id="safety-review" className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--app-text)]">
+          Permit · Training · PPE coverage
+        </p>
+        <ProvenanceBadge
+          kind="rules"
+          title="Coverage gaps come from deterministic rules + conflict checks (rules/evaluate, conflicts/scan). No AI involved."
+        />
+      </div>
       {review.warning ? <InlineMessage tone="warning">{review.warning}</InlineMessage> : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         {tabs.map((tab) => (
           <div
             key={tab.value}
-            className={`rounded-2xl border px-4 py-4 shadow-[var(--app-shadow-soft)] ${summaryCardTone(tab.value)}`}
+            className={`rounded-xl border px-3 py-2.5 shadow-[var(--app-shadow-soft)] ${summaryCardTone(tab.value)}`}
           >
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">{tab.label}</p>
-            <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{tab.count}</p>
-            <p className="mt-1 text-xs text-[var(--app-text)]">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-text)]">{tab.label}</p>
+            <p className="mt-1 text-xl font-bold text-[var(--app-text-strong)]">{tab.count}</p>
+            <p className="mt-0.5 text-[10px] text-[var(--app-text)]">
               {tab.value === "all" ? `${review.rowCount} scoped row${review.rowCount === 1 ? "" : "s"}` : "Coverage gaps in this domain"}
             </p>
           </div>
         ))}
       </div>
 
-      <Tabs.Root defaultValue="all" className="space-y-4">
-        <Tabs.List className="flex flex-wrap gap-2 rounded-2xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.8)] p-2">
+      <Tabs.Root defaultValue="all" className="space-y-3">
+        <Tabs.List className="flex flex-wrap gap-1.5 rounded-xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.8)] p-1.5">
           {tabs.map((tab) => (
             <Tabs.Trigger
               key={tab.value}
               value={tab.value}
-              className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--app-text)] transition data-[state=active]:bg-[var(--app-accent-primary)] data-[state=active]:text-white"
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--app-text)] transition data-[state=active]:bg-[var(--app-accent-primary)] data-[state=active]:text-white"
             >
               {tab.label}
             </Tabs.Trigger>
@@ -249,13 +263,20 @@ export function SafetyReviewPanel({
 
         {tabs.map((tab) => {
           const rows = review.rows.filter((row) => rowMatchesTab(row, tab.value));
+          const visibleRows = rows.slice(0, 4);
+          const hiddenCount = Math.max(0, rows.length - visibleRows.length);
           return (
             <Tabs.Content key={tab.value} value={tab.value} className="outline-none">
               {rows.length ? (
-                <div className="space-y-4">
-                  {rows.map((row) => (
+                <div className="space-y-2">
+                  {visibleRows.map((row) => (
                     <ReviewRowCard key={row.id} row={row} />
                   ))}
+                  {hiddenCount ? (
+                    <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2 text-xs font-semibold text-[var(--app-text)]">
+                      {hiddenCount} more row{hiddenCount === 1 ? "" : "s"} hidden. Use the filters or jobsite scope to narrow the review.
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <EmptyState
