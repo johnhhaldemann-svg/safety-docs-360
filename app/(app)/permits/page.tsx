@@ -363,27 +363,6 @@ export default function PermitsPage() {
       <SectionCard title="Create Permit" description="Capture the jobsite, controls, and risk context so the permit appears in the right board.">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
           <div className="space-y-4">
-            <PermitCopilotPanel
-              key={selectedActivity?.id ?? "no-jsa"}
-              selectedActivity={selectedActivity}
-              selectedJobsiteName={selectedJobsite?.name ?? null}
-              currentDraft={{
-                title: form.title,
-                permitType: form.permitType,
-                severity: form.severity,
-                category: form.category,
-                escalationLevel: form.escalationLevel,
-                escalationReason: form.escalationReason,
-                stopWorkStatus: form.stopWorkStatus,
-                stopWorkReason: form.stopWorkReason,
-                dueAt: form.dueAt,
-                ownerUserId: form.ownerUserId,
-                jsaActivityId: form.jsaActivityId,
-                observationId: form.observationId,
-              }}
-              onApply={(patch) => setForm((current) => ({ ...current, ...patch }))}
-            />
-
             <div className="grid gap-3 md:grid-cols-2">
               <div>
                 <label
@@ -397,7 +376,7 @@ export default function PermitsPage() {
                   value={form.title}
                   onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
                   placeholder="Permit title"
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                  className="app-form-input"
                 />
               </div>
               <div>
@@ -405,7 +384,7 @@ export default function PermitsPage() {
                 <select
                   value={form.jsaActivityId}
                   onChange={(event) => setForm((prev) => ({ ...prev, jsaActivityId: event.target.value }))}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                  className="app-form-input"
                 >
                   <option value="">Choose the JSA step that needs a permit</option>
                   {jsaActivities.map((activity) => {
@@ -429,7 +408,7 @@ export default function PermitsPage() {
                   value={form.permitType}
                   onChange={(event) => setForm((prev) => ({ ...prev, permitType: event.target.value }))}
                   disabled={Boolean(selectedActivity?.permit_type)}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                  className="app-form-input disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                 >
                   {PERMIT_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
@@ -444,7 +423,7 @@ export default function PermitsPage() {
                 <select
                   value={form.severity}
                   onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                  className="app-form-input"
                 >
                   {SEVERITY_OPTIONS.map((value) => <option key={value} value={value}>{labelize(value)}</option>)}
                 </select>
@@ -454,7 +433,7 @@ export default function PermitsPage() {
                 <select
                   value={form.category}
                   onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                  className="app-form-input"
                 >
                   {CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
@@ -471,7 +450,7 @@ export default function PermitsPage() {
                   type="datetime-local"
                   value={form.dueAt}
                   onChange={(event) => setForm((prev) => ({ ...prev, dueAt: event.target.value }))}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                  className="app-form-input"
                 />
               </div>
               <div>
@@ -486,7 +465,7 @@ export default function PermitsPage() {
                   value={form.ownerUserId}
                   onChange={(event) => setForm((prev) => ({ ...prev, ownerUserId: event.target.value }))}
                   placeholder="Optional owner user id"
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                  className="app-form-input"
                 />
               </div>
             </div>
@@ -497,7 +476,7 @@ export default function PermitsPage() {
                 <select
                   value={form.escalationLevel}
                   onChange={(event) => setForm((prev) => ({ ...prev, escalationLevel: event.target.value }))}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                  className="app-form-input"
                 >
                   {ESCALATION_OPTIONS.map((value) => <option key={value} value={value}>{labelize(value)}</option>)}
                 </select>
@@ -507,7 +486,7 @@ export default function PermitsPage() {
                 <select
                   value={form.stopWorkStatus}
                   onChange={(event) => setForm((prev) => ({ ...prev, stopWorkStatus: event.target.value }))}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                  className="app-form-input"
                 >
                   {STOP_WORK_OPTIONS.map((value) => <option key={value} value={value}>{labelize(value)}</option>)}
                 </select>
@@ -521,7 +500,7 @@ export default function PermitsPage() {
                   value={form.escalationReason}
                   onChange={(event) => setForm((prev) => ({ ...prev, escalationReason: event.target.value }))}
                   placeholder="Why this permit should escalate, if needed"
-                  className="min-h-28 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                  className="app-form-input min-h-28"
                 />
               </div>
               <div>
@@ -530,7 +509,7 @@ export default function PermitsPage() {
                   value={form.stopWorkReason}
                   onChange={(event) => setForm((prev) => ({ ...prev, stopWorkReason: event.target.value }))}
                   placeholder="Why this permit should stop work, if needed"
-                  className="min-h-28 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                  className="app-form-input min-h-28"
                 />
               </div>
             </div>
@@ -538,18 +517,18 @@ export default function PermitsPage() {
             <div className="grid gap-3 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">JSA link</label>
-                <div className="rounded-xl border border-slate-700/80 bg-slate-950/60 p-3">
-                  <div className="text-sm font-semibold text-slate-100">
+                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] p-3">
+                  <div className="text-sm font-semibold text-[var(--app-text-strong)]">
                     {selectedActivity ? selectedActivity.activity_name : "No JSA step selected"}
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">
+                  <div className="mt-1 text-xs text-[var(--app-muted)]">
                     {selectedActivity
                       ? `${labelize(selectedActivity.permit_type)}${selectedActivity.trade ? ` · ${selectedActivity.trade}` : ""}${
                           selectedActivity.area ? ` · ${selectedActivity.area}` : ""
                         }`
                       : "Pick the JSA step that requires the permit."}
                   </div>
-                  <div className="mt-2 text-xs text-slate-500">
+                  <div className="mt-2 text-xs text-[var(--app-muted)]">
                     {selectedActivity
                       ? `Jobsite: ${
                           selectedActivity.jobsite_id
@@ -572,59 +551,80 @@ export default function PermitsPage() {
                   value={form.observationId}
                   onChange={(event) => setForm((prev) => ({ ...prev, observationId: event.target.value }))}
                   placeholder="Observation id (optional)"
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]"
+                  className="app-form-input"
                 />
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <label className="inline-flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-950/60 px-3 py-2 text-sm text-slate-200">
-                <input type="checkbox" checked={form.sifFlag} onChange={(event) => setForm((prev) => ({ ...prev, sifFlag: event.target.checked }))} className="h-4 w-4 rounded border-slate-500 bg-slate-950 text-sky-500" />
+              <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--app-border)] bg-white px-3 py-2 text-sm text-[var(--app-text)]">
+                <input type="checkbox" checked={form.sifFlag} onChange={(event) => setForm((prev) => ({ ...prev, sifFlag: event.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-[var(--app-accent-primary)]" />
                 SIF flag
               </label>
-              <button type="button" onClick={() => void createPermit()} disabled={saving || !form.title.trim() || !form.jsaActivityId.trim()} className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+              <button type="button" onClick={() => void createPermit()} disabled={saving || !form.title.trim() || !form.jsaActivityId.trim()} className="app-btn-primary rounded-xl px-4 py-2.5 text-sm disabled:opacity-60">
                 {saving ? "Creating..." : "Create Permit"}
               </button>
             </div>
+
+            <PermitCopilotPanel
+              key={selectedActivity?.id ?? "no-jsa"}
+              selectedActivity={selectedActivity}
+              selectedJobsiteName={selectedJobsite?.name ?? null}
+              currentDraft={{
+                title: form.title,
+                permitType: form.permitType,
+                severity: form.severity,
+                category: form.category,
+                escalationLevel: form.escalationLevel,
+                escalationReason: form.escalationReason,
+                stopWorkStatus: form.stopWorkStatus,
+                stopWorkReason: form.stopWorkReason,
+                dueAt: form.dueAt,
+                ownerUserId: form.ownerUserId,
+                jsaActivityId: form.jsaActivityId,
+                observationId: form.observationId,
+              }}
+              onApply={(patch) => setForm((current) => ({ ...current, ...patch }))}
+            />
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/60 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Permit snapshot</div>
+            <div className="rounded-2xl border border-[var(--app-border)] bg-white p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--app-muted)]">Permit snapshot</div>
               <div className="mt-3 space-y-3">
                 <div>
-                  <div className="text-xs text-slate-500">Jobsite</div>
-                  <div className="mt-1 text-sm font-semibold text-slate-100">
+                  <div className="text-xs text-[var(--app-muted)]">Jobsite</div>
+                  <div className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">
                     {selectedJobsite ? selectedJobsite.name : form.jobsiteId ? "Selected jobsite" : "Company-wide / unassigned"}
                   </div>
                   {selectedJobsite ? (
-                    <div className="mt-1 text-xs text-slate-500">
+                    <div className="mt-1 text-xs text-[var(--app-muted)]">
                       {selectedJobsite.project_number ? `${selectedJobsite.project_number} · ` : ""}
                       {selectedJobsite.location ?? "No location listed"}
                     </div>
                   ) : null}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-                    <div className="text-xs text-slate-500">Type</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-100">{PERMIT_TYPES.find(([value]) => value === form.permitType)?.[1] ?? form.permitType}</div>
+                  <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] p-3">
+                    <div className="text-xs text-[var(--app-muted)]">Type</div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{PERMIT_TYPES.find(([value]) => value === form.permitType)?.[1] ?? form.permitType}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-                    <div className="text-xs text-slate-500">Severity</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-100">{labelize(form.severity)}</div>
+                  <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] p-3">
+                    <div className="text-xs text-[var(--app-muted)]">Severity</div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{labelize(form.severity)}</div>
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-                    <div className="text-xs text-slate-500">Escalation</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-100">{labelize(form.escalationLevel)}</div>
+                  <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] p-3">
+                    <div className="text-xs text-[var(--app-muted)]">Escalation</div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{labelize(form.escalationLevel)}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-                    <div className="text-xs text-slate-500">Stop work</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-100">{labelize(form.stopWorkStatus)}</div>
+                  <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] p-3">
+                    <div className="text-xs text-[var(--app-muted)]">Stop work</div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{labelize(form.stopWorkStatus)}</div>
                   </div>
                 </div>
-                <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3 text-sm text-slate-200">
+                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] p-3 text-sm text-[var(--app-text)]">
                   <div>JSA activity: {selectedActivity?.activity_name ?? "Not linked"}</div>
                   <div className="mt-1">Observation: {form.observationId.trim() || "Not linked"}</div>
                 </div>
