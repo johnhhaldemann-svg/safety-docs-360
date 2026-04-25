@@ -2,11 +2,16 @@
 
 import * as Tabs from "@radix-ui/react-tabs";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
+import {
+  FieldMetricBarChart,
+  FieldMetricRankedList,
+  FieldMetricTrendChart,
+} from "@/components/metrics";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import {
@@ -42,6 +47,16 @@ import { useTableDensity } from "@/hooks/useTableDensity";
 import { fieldIdMatrixTableLayout } from "@/lib/tableDensityLayout";
 
 const supabase = getSupabaseBrowserClient();
+
+type FieldIssueLogTab = "board" | "analytics";
+
+function fieldIssueLogTabFromSearchParams(searchParams: URLSearchParams): FieldIssueLogTab {
+  const raw = (searchParams.get("tab") ?? "").trim().toLowerCase();
+  if (raw === "analytics" || raw === "metrics") {
+    return "analytics";
+  }
+  return "board";
+}
 
 type CorrectiveActionRow = {
   id: string;
@@ -357,159 +372,6 @@ function AnalyticsMetricCard({
   );
 }
 
-function VerticalBarChart({
-  rows,
-  maxValue,
-}: {
-  rows: Array<{ key: string; label: string; count: number; barClassName: string }>;
-  maxValue?: number;
-}) {
-  const resolvedMaxValue = maxValue ?? Math.max(1, ...rows.map((row) => row.count));
-
-  return (
-    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-      <div className="flex items-end gap-3 overflow-x-auto pb-1">
-        {rows.map((row) => (
-          <div key={row.key} className="flex min-w-[88px] flex-1 flex-col items-center gap-3">
-            <div className="text-sm font-black text-white">{row.count}</div>
-            <div className="flex h-52 w-full items-end rounded-2xl bg-slate-900/90 px-3 py-3">
-              <div
-                className={`w-full rounded-xl transition-[height] duration-300 ${row.barClassName}`}
-                style={{
-                  height: `${Math.max((row.count / resolvedMaxValue) * 100, row.count > 0 ? 12 : 2)}%`,
-                }}
-              />
-            </div>
-            <div className="text-center text-[11px] font-semibold leading-4 text-slate-400">{row.label}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RankedBarList({
-  rows,
-  emptyLabel,
-}: {
-  rows: Array<{ key: string; label: string; count: number }>;
-  emptyLabel: string;
-}) {
-  const maxValue = Math.max(1, ...rows.map((row) => row.count));
-
-  if (rows.length < 1) {
-    return <div className="rounded-2xl border border-dashed border-slate-700/80 px-4 py-6 text-sm text-slate-500">{emptyLabel}</div>;
-  }
-
-  return (
-    <div className="space-y-3">
-      {rows.map((row) => (
-        <div key={row.key} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-semibold text-slate-100">{row.label}</div>
-            <div className="text-sm font-black text-white">{row.count}</div>
-          </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
-            <div
-              className="h-full rounded-full bg-sky-400 transition-[width] duration-300"
-              style={{ width: `${(row.count / maxValue) * 100}%` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function TrendLineChart({
-  points,
-}: {
-  points: Array<{ key: string; label: string; created: number; closed: number; openBacklog: number }>;
-}) {
-  const width = 720;
-  const height = 240;
-  const leftPad = 28;
-  const bottomPad = 26;
-  const topPad = 12;
-  const rightPad = 12;
-  const data = points.length > 0 ? points : [{ key: "0", label: "No data", created: 0, closed: 0, openBacklog: 0 }];
-  const maxValue = Math.max(1, ...data.flatMap((point) => [point.created, point.closed, point.openBacklog]));
-  const step = (width - leftPad - rightPad) / Math.max(1, data.length - 1);
-  const makePath = (accessor: (point: (typeof data)[number]) => number) =>
-    data
-      .map((point, index) => {
-        const x = leftPad + index * step;
-        const y =
-          height - bottomPad - (accessor(point) / maxValue) * (height - topPad - bottomPad);
-        return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
-      })
-      .join(" ");
-
-  const lines = [
-    { label: "Created", color: "#38bdf8", path: makePath((point) => point.created) },
-    { label: "Closed", color: "#34d399", path: makePath((point) => point.closed) },
-    { label: "Open Backlog", color: "#f59e0b", path: makePath((point) => point.openBacklog) },
-  ];
-
-  return (
-    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-      <div className="flex flex-wrap gap-2">
-        {lines.map((line) => (
-          <div
-            key={line.label}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-700/80 bg-slate-900/90 px-3 py-1 text-[11px] font-semibold text-slate-300"
-          >
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: line.color }} />
-            {line.label}
-          </div>
-        ))}
-      </div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="mt-4 h-64 w-full" preserveAspectRatio="none">
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-          const y = height - bottomPad - ratio * (height - topPad - bottomPad);
-          return (
-            <line
-              key={ratio}
-              x1={leftPad}
-              x2={width - rightPad}
-              y1={y}
-              y2={y}
-              stroke="rgba(148, 163, 184, 0.18)"
-              strokeWidth="1"
-            />
-          );
-        })}
-        {lines.map((line) => (
-          <path
-            key={line.label}
-            d={line.path}
-            fill="none"
-            stroke={line.color}
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        ))}
-        {data.map((point, index) => {
-          const x = leftPad + index * step;
-          return (
-            <text
-              key={point.key}
-              x={x}
-              y={height - 6}
-              fill="rgb(148 163 184)"
-              fontSize="11"
-              textAnchor={index === 0 ? "start" : index === data.length - 1 ? "end" : "middle"}
-            >
-              {point.label}
-            </text>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
 function RepeatIssueList({
   title,
   rows,
@@ -520,18 +382,23 @@ function RepeatIssueList({
   emptyLabel: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+    <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
       <div className="text-sm font-semibold text-slate-100">{title}</div>
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 space-y-3">
         {rows.length < 1 ? (
           <div className="rounded-xl border border-dashed border-slate-700/80 px-3 py-4 text-sm text-slate-500">
             {emptyLabel}
           </div>
         ) : (
           rows.map((row) => (
-            <div key={row.key} className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/80 bg-slate-900/90 px-3 py-3">
-              <div className="text-sm text-slate-200">{row.label}</div>
-              <div className="text-sm font-black text-white">{row.count}</div>
+            <div
+              key={row.key}
+              className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-700/80 bg-slate-900/90 px-3 py-3"
+            >
+              <div className="min-w-0 flex-1 truncate text-sm text-slate-200" title={row.label}>
+                {row.label}
+              </div>
+              <div className="shrink-0 text-sm font-black tabular-nums text-white">{row.count}</div>
             </div>
           ))
         )}
@@ -542,6 +409,24 @@ function RepeatIssueList({
 
 export default function FieldIdExchangePage() {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const fieldIssueLogTab = useMemo(() => fieldIssueLogTabFromSearchParams(searchParams), [searchParams]);
+
+  const commitFieldIssueLogTab = useCallback(
+    (next: FieldIssueLogTab) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === "board") {
+        params.delete("tab");
+      } else {
+        params.set("tab", "analytics");
+      }
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
   const {
     companyName,
     companyLocation,
@@ -1567,6 +1452,18 @@ export default function FieldIdExchangePage() {
   const { density, setDensity, isCompact } = useTableDensity();
   const matrixLayout = useMemo(() => fieldIdMatrixTableLayout(isCompact), [isCompact]);
 
+  const showFieldAnalyticsCharts =
+    hasLoaded && !loadingActions && metricsAnalytics.metricsItems.length > 0;
+
+  const fieldAnalyticsJumpLinks: Array<{ href: string; label: string }> = [
+    { href: "#fiel-analytics-kpis", label: "Overview" },
+    { href: "#fiel-analytics-status", label: "Status" },
+    { href: "#fiel-analytics-trends", label: "Trends" },
+    { href: "#fiel-analytics-location", label: "Location & aging" },
+    { href: "#fiel-analytics-repeat", label: "Repeat patterns" },
+    { href: "#fiel-analytics-matrix", label: "Matrix" },
+  ];
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -1619,21 +1516,35 @@ export default function FieldIdExchangePage() {
         the cards and filters below to review or update corrective actions.
       </InlineMessage>
 
-      <Tabs.Root defaultValue="board" className="space-y-6">
-        <Tabs.List className="flex flex-wrap gap-2 rounded-2xl border border-slate-700/80 bg-slate-900/90 p-2">
-          <Tabs.Trigger
-            value="board"
-            className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-300 transition-colors hover:text-white data-[state=active]:bg-sky-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=inactive]:bg-transparent"
-          >
-            Board
-          </Tabs.Trigger>
-          <Tabs.Trigger
-            value="metrics"
-            className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-300 transition-colors hover:text-white data-[state=active]:bg-sky-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=inactive]:bg-transparent"
-          >
-            Metrics
-          </Tabs.Trigger>
-        </Tabs.List>
+      <Tabs.Root
+        value={fieldIssueLogTab}
+        onValueChange={(value) => commitFieldIssueLogTab(value as FieldIssueLogTab)}
+        className="space-y-6"
+      >
+        <div className="space-y-2">
+          <Tabs.List className="flex flex-wrap gap-2 rounded-2xl border border-slate-700/80 bg-slate-900/90 p-2">
+            <Tabs.Trigger
+              value="board"
+              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-300 transition-colors hover:text-white data-[state=active]:bg-sky-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=inactive]:bg-transparent"
+            >
+              Board
+            </Tabs.Trigger>
+            <Tabs.Trigger
+              value="analytics"
+              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-300 transition-colors hover:text-white data-[state=active]:bg-sky-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=inactive]:bg-transparent"
+            >
+              {"Analytics & trends"}
+            </Tabs.Trigger>
+          </Tabs.List>
+          <p className="text-sm leading-relaxed text-slate-500">
+            Use <span className="font-semibold text-slate-400">Board</span> to triage and update
+            observations. Use{" "}
+            <span className="font-semibold text-slate-400">{"Analytics & trends"}</span> for charts,
+            repeat patterns, and the analytics matrix (shareable via the{" "}
+            <code className="rounded bg-slate-900/90 px-1.5 py-0.5 text-xs text-slate-400">tab</code> query
+            in the URL).
+          </p>
+        </div>
 
         <Tabs.Content value="board" className="space-y-6 outline-none">
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -2465,35 +2376,69 @@ export default function FieldIdExchangePage() {
           </section>
         </Tabs.Content>
 
-        <Tabs.Content value="metrics" className="space-y-6 outline-none">
-          <SectionCard
-            title="Metrics Filters"
-            description="Refine the analytics window and trend granularity for the corrective-action dashboard."
-          >
+        <Tabs.Content value="analytics" className="space-y-6 outline-none">
+          <div className="sticky top-2 z-20 space-y-4 rounded-2xl border border-slate-700/80 bg-slate-950/95 p-4 shadow-lg shadow-black/20 backdrop-blur-md supports-[backdrop-filter]:bg-slate-950/85">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-slate-100">Analytics filters</div>
+                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">
+                  Refine jobsite, status, category, date range, and trend granularity. These controls apply to
+                  every chart in this tab.
+                </p>
+              </div>
+              <Link
+                href="/analytics"
+                className="inline-flex shrink-0 items-center justify-center rounded-xl border border-sky-500/35 bg-sky-950/35 px-4 py-2.5 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/50"
+              >
+                Company-wide risk trends
+              </Link>
+            </div>
+            {showFieldAnalyticsCharts ? (
+              <nav
+                className="flex flex-wrap gap-2 border-t border-slate-700/50 pt-3"
+                aria-label="Jump to analytics sections"
+              >
+                {fieldAnalyticsJumpLinks.map((link) => (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    className="rounded-lg border border-slate-700/80 bg-slate-900/60 px-2.5 py-1 text-xs font-semibold text-slate-300 hover:border-sky-500/40 hover:text-white"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </nav>
+            ) : null}
             {renderMetricsFilters()}
-          </SectionCard>
+          </div>
 
           {!hasLoaded ? (
             <EmptyState
-              title="Load metrics"
+              title="Load analytics"
               description="Click Refresh Board to pull the latest corrective actions before opening analytics."
             />
           ) : loadingActions ? (
             <EmptyState title="Refreshing analytics" description="Please wait..." />
           ) : metricsAnalytics.metricsItems.length === 0 ? (
             <EmptyState
-              title="No issues in the selected analytics window"
-              description="Adjust the filters or date range to populate the analytics dashboard."
+              title="No issues match this analytics view"
+              description='Try widening the date range, choosing "All jobsites", or clearing status or category filters. If you recently added work, click Refresh Board so new observations are included.'
             />
           ) : (
             <>
-              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <section
+                id="fiel-analytics-kpis"
+                className="scroll-mt-28 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+              >
                 {metricsAnalytics.kpis.map((card) => (
                   <AnalyticsMetricCard key={card.title} title={card.title} value={card.value} note={card.note} />
                 ))}
               </section>
 
-              <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+              <section
+                id="fiel-analytics-status"
+                className="scroll-mt-28 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]"
+              >
                 <SectionCard
                   title="Corrective Action Status"
                   description="Status distribution across the selected analytics window, including a derived overdue bucket."
@@ -2533,7 +2478,7 @@ export default function FieldIdExchangePage() {
                       })}
                     </div>
 
-                    <VerticalBarChart
+                    <FieldMetricBarChart
                       rows={metricsAnalytics.statusCounts.map((statusRow) => {
                         const classes = getAnalyticsStatusChartClasses(statusRow.key);
                         return {
@@ -2551,7 +2496,7 @@ export default function FieldIdExchangePage() {
                   title="Issues by Category"
                   description="Ranked view of which safety categories are generating the most issues."
                 >
-                  <RankedBarList
+                  <FieldMetricRankedList
                     rows={metricsAnalytics.categoryCounts.map((row) => ({
                       key: row.key,
                       label: getCategoryLabel(row.key),
@@ -2562,12 +2507,15 @@ export default function FieldIdExchangePage() {
                 </SectionCard>
               </section>
 
-              <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+              <section
+                id="fiel-analytics-trends"
+                className="scroll-mt-28 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]"
+              >
                 <SectionCard
                   title="Open vs. Closed Trend"
                   description={`Created, verified closed, and open backlog trend by ${trendGranularity}.`}
                 >
-                  <TrendLineChart points={metricsAnalytics.trendPoints} />
+                  <FieldMetricTrendChart points={metricsAnalytics.trendPoints} />
                 </SectionCard>
 
                 <SectionCard
@@ -2599,7 +2547,7 @@ export default function FieldIdExchangePage() {
                       ))}
                     </div>
 
-                    <VerticalBarChart
+                    <FieldMetricBarChart
                       rows={metricsAnalytics.severityCounts.map((row) => ({
                         key: row.key,
                         label: getSeverityLabel(row.key),
@@ -2611,12 +2559,15 @@ export default function FieldIdExchangePage() {
                 </SectionCard>
               </section>
 
-              <section className="grid gap-6 xl:grid-cols-3">
+              <section
+                id="fiel-analytics-location"
+                className="scroll-mt-28 grid gap-6 xl:grid-cols-3"
+              >
                 <SectionCard
                   title="Overdue Aging"
                   description="How long overdue issues have been sitting inside the selected range."
                 >
-                  <VerticalBarChart
+                  <FieldMetricBarChart
                     rows={metricsAnalytics.overdueAgingCounts.map((row) => ({
                       key: row.key,
                       label: getOverdueAgingLabel(row.key),
@@ -2630,7 +2581,7 @@ export default function FieldIdExchangePage() {
                   title="Issues by Location"
                   description="Where issues are occurring most often across the filtered jobsite view."
                 >
-                  <RankedBarList
+                  <FieldMetricRankedList
                     rows={metricsAnalytics.locationCounts.map((row) => ({
                       key: row.label,
                       label: row.label,
@@ -2672,12 +2623,15 @@ export default function FieldIdExchangePage() {
                 </SectionCard>
               </section>
 
-              <section className="grid gap-6 xl:grid-cols-3">
+              <section
+                id="fiel-analytics-repeat"
+                className="scroll-mt-28 grid gap-6 xl:grid-cols-3"
+              >
                 <SectionCard
                   title="Repeat Issue Analysis"
                   description="Repeat patterns based on the same category paired with the same location or company inside the selected time period."
                 >
-                  <div className="grid gap-4 xl:grid-cols-3">
+                  <div className="grid min-w-0 gap-4 xl:grid-cols-3">
                     <RepeatIssueList
                       title="Repeated Categories"
                       rows={metricsAnalytics.repeatSummary.repeatedCategories.map((row) => ({
@@ -2709,48 +2663,49 @@ export default function FieldIdExchangePage() {
                 </SectionCard>
               </section>
 
-              <SectionCard
-                title="Analytics Matrix"
-                description="Category-by-status matrix for the selected filters, including a derived overdue column and totals row."
-              >
-                <div className="overflow-x-auto">
-                  <table className={matrixLayout.table}>
-                    <thead>
-                      <tr>
-                        <th className={matrixLayout.thFirst}>
-                          Category
-                        </th>
-                        <th className={matrixLayout.thNum}>
-                          Open
-                        </th>
-                        <th className={matrixLayout.thNum}>
-                          Assigned
-                        </th>
-                        <th className={matrixLayout.thNum}>
-                          In Progress
-                        </th>
-                        <th className={matrixLayout.thNum}>
-                          Corrected
-                        </th>
-                        <th className={matrixLayout.thNum}>
-                          Verified Closed
-                        </th>
-                        <th className={matrixLayout.thNum}>
-                          Overdue
-                        </th>
-                        <th className={matrixLayout.thNum}>
-                          Escalated
-                        </th>
-                        <th className={matrixLayout.thNum}>
-                          Stop Work
-                        </th>
-                        <th className={matrixLayout.thNum}>
-                          Total
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {metricsAnalytics.matrixRows.map((row) => (
+              <div id="fiel-analytics-matrix" className="scroll-mt-28">
+                <SectionCard
+                  title="Analytics Matrix"
+                  description="Category-by-status matrix for the selected filters, including a derived overdue column and totals row."
+                >
+                  <div className="overflow-x-auto">
+                    <table className={matrixLayout.table}>
+                      <thead>
+                        <tr>
+                          <th className={matrixLayout.thFirst}>
+                            Category
+                          </th>
+                          <th className={matrixLayout.thNum}>
+                            Open
+                          </th>
+                          <th className={matrixLayout.thNum}>
+                            Assigned
+                          </th>
+                          <th className={matrixLayout.thNum}>
+                            In Progress
+                          </th>
+                          <th className={matrixLayout.thNum}>
+                            Corrected
+                          </th>
+                          <th className={matrixLayout.thNum}>
+                            Verified Closed
+                          </th>
+                          <th className={matrixLayout.thNum}>
+                            Overdue
+                          </th>
+                          <th className={matrixLayout.thNum}>
+                            Escalated
+                          </th>
+                          <th className={matrixLayout.thNum}>
+                            Stop Work
+                          </th>
+                          <th className={matrixLayout.thNum}>
+                            Total
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {metricsAnalytics.matrixRows.map((row) => (
                         <tr key={row.category}>
                           <td className={matrixLayout.tdCategory}>
                             {getCategoryLabel(row.category)}
@@ -2784,6 +2739,7 @@ export default function FieldIdExchangePage() {
                   </table>
                 </div>
               </SectionCard>
+              </div>
             </>
           )}
         </Tabs.Content>

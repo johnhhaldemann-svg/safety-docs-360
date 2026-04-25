@@ -1,6 +1,6 @@
 import type { NavItem, NavSection } from "@/lib/appNavigation";
 
-export type WorkspaceNavGroup = "operations" | "documents" | "jobsites" | "admin";
+export type WorkspaceNavGroup = "operations" | "insights" | "documents" | "jobsites" | "admin";
 
 export type WorkspaceNavItem = NavItem & {
   group: WorkspaceNavGroup;
@@ -15,7 +15,7 @@ export type WorkspaceNavSection = NavSection & {
   items: WorkspaceNavItem[];
 };
 
-const GROUP_ORDER: WorkspaceNavGroup[] = ["operations", "documents", "jobsites", "admin"];
+const GROUP_ORDER: WorkspaceNavGroup[] = ["operations", "insights", "documents", "jobsites", "admin"];
 
 const SECTION_META: Record<
   WorkspaceNavGroup,
@@ -25,6 +25,11 @@ const SECTION_META: Record<
     title: "Operations",
     description: "Run daily safety work, triage risk, and keep approvals moving.",
     audience: "operator",
+  },
+  insights: {
+    title: "Insights & intelligence",
+    description: "Safety Intelligence, portfolio analytics, and risk-memory context.",
+    audience: "leadership",
   },
   documents: {
     title: "Documents",
@@ -69,7 +74,7 @@ const ITEM_META: Array<{
   },
   {
     matcher: (href) => href === "/safety-intelligence",
-    group: "operations",
+    group: "insights",
     description: "Run intake, conflicts, and intelligence-powered safety document workflows.",
     primaryActionLabel: "Start workflow",
   },
@@ -165,19 +170,19 @@ const ITEM_META: Array<{
   },
   {
     matcher: (href) => href === "/analytics",
-    group: "admin",
+    group: "insights",
     description: "Review risk-memory trends, learned patterns, and portfolio-level performance signals.",
     primaryActionLabel: "Open analytics",
   },
   {
     matcher: (href) => href === "/analytics/safety-intelligence",
-    group: "admin",
+    group: "insights",
     description: "Track safety-intelligence activity, document pipeline trends, and workflow throughput.",
     primaryActionLabel: "Open analytics",
   },
   {
     matcher: (href) => href === "/settings/risk-memory",
-    group: "admin",
+    group: "insights",
     description: "Tune Risk Memory rules, recommendations, and company knowledge settings.",
     primaryActionLabel: "Open settings",
   },

@@ -25,6 +25,7 @@ describe("workspaceNavigationModel", () => {
       "jobsites",
       "admin",
     ]);
+    expect(grouped.some((s) => s.group === "insights")).toBe(false);
     expect(grouped[0]?.items.map((item) => item.href)).toEqual([
       "/dashboard",
       "/command-center",
@@ -114,9 +115,41 @@ describe("workspaceNavigationModel", () => {
         short: "RM",
       })
     ).toMatchObject({
-      group: "admin",
+      group: "insights",
       description: "Tune Risk Memory rules, recommendations, and company knowledge settings.",
       primaryActionLabel: "Open settings",
     });
+  });
+
+  it("places safety intelligence and portfolio analytics into the insights rail group", () => {
+    expect(
+      getWorkspaceNavItemMeta({ href: "/safety-intelligence", label: "SI", short: "SI" })
+    ).toMatchObject({ group: "insights" });
+    expect(getWorkspaceNavItemMeta({ href: "/analytics", label: "RT", short: "AN" })).toMatchObject({
+      group: "insights",
+    });
+    expect(
+      getWorkspaceNavItemMeta({
+        href: "/analytics/safety-intelligence",
+        label: "SA",
+        short: "SA",
+      })
+    ).toMatchObject({ group: "insights" });
+
+    const grouped = groupCompanyWorkspaceSections([
+      {
+        title: "Insights",
+        items: [
+          { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
+          { href: "/analytics", label: "Risk Trends", short: "AN" },
+          { href: "/dashboard", label: "Home", short: "HM" },
+        ],
+      },
+    ]);
+
+    expect(grouped.map((s) => s.group)).toEqual(["operations", "insights"]);
+    const insights = grouped.find((s) => s.group === "insights");
+    expect(insights?.title).toBe("Insights & intelligence");
+    expect(insights?.items.map((i) => i.href)).toEqual(["/safety-intelligence", "/analytics"]);
   });
 });

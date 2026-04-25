@@ -91,16 +91,20 @@ describe("App Navigation Integrity", () => {
     expect(companyAdminQuickLinks.slice(0, 3).map((item) => item.href)).toEqual([
       "/command-center",
       "/dashboard",
-      "/safety-intelligence",
+      "/jobsites",
     ]);
     expect(companyManagerQuickLinks.slice(0, 3).map((item) => item.href)).toEqual([
       "/command-center",
       "/dashboard",
-      "/safety-intelligence",
+      "/jobsites",
     ]);
 
-    const adminInsightsSection = companyAdminSideSections.find((section) => section.title === "Insights & reports");
-    const managerInsightsSection = companyManagerSideSections.find((section) => section.title === "Insights & reports");
+    const adminInsightsSection = companyAdminSideSections.find(
+      (section) => section.title === "Insights & intelligence"
+    );
+    const managerInsightsSection = companyManagerSideSections.find(
+      (section) => section.title === "Insights & intelligence"
+    );
 
     expect(adminInsightsSection?.items.slice(0, 2).map((item) => item.href)).toEqual([
       "/command-center",

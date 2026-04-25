@@ -2,7 +2,7 @@
  * Single source of truth for app shell navigation (sidebar, quick links, setup flows).
  * Keep in sync with route files under app/ - see appNavigationIntegrity.test.ts.
  *
- * Sidebar groups: overview -> safety & programs -> insights -> create & submit -> account.
+ * Company workspace rail (full product): Operations, Insights & intelligence, Documents, Job Sites, Account & reports.
  */
 
 import {
@@ -23,6 +23,7 @@ export type NavSection = {
   title: string;
   group?:
     | "operations"
+    | "insights"
     | "documents"
     | "jobsites"
     | "admin"
@@ -91,7 +92,6 @@ export const companyAdminQuickLinks: NavItem[] = [
     primaryActionLabel: "Review today",
     audience: "leadership",
   },
-  { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
   { href: "/jobsites", label: "Job Sites", short: "JS" },
   { href: "/library", label: "Document Library", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
@@ -99,6 +99,7 @@ export const companyAdminQuickLinks: NavItem[] = [
   { href: "/company-users", label: "Team & Access", short: "TM" },
   { href: "/training-matrix", label: "Training Tracker", short: "TR" },
   { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
+  { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
   { href: "/analytics/safety-intelligence", label: "Safety Insights", short: "SA" },
   { href: "/analytics", label: "Risk Trends", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
@@ -121,7 +122,6 @@ export const companyManagerQuickLinks: NavItem[] = [
     primaryActionLabel: "Review today",
     audience: "leadership",
   },
-  { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
   { href: "/jobsites", label: "Job Sites", short: "JS" },
   { href: "/library", label: "Document Library", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
@@ -129,6 +129,7 @@ export const companyManagerQuickLinks: NavItem[] = [
   { href: "/purchases", label: "Purchases", short: "MP" },
   { href: "/training-matrix", label: "Training Tracker", short: "TR" },
   { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
+  { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
   { href: "/analytics/safety-intelligence", label: "Safety Insights", short: "SA" },
   { href: "/analytics", label: "Risk Trends", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
@@ -268,7 +269,6 @@ export const companyAdminSideSections: NavSection[] = [
   {
     title: "Field work",
     items: [
-      { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
       { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
       { href: "/permits", label: "Permit Center", short: "PM" },
@@ -276,7 +276,7 @@ export const companyAdminSideSections: NavSection[] = [
     ],
   },
   {
-    title: "Insights & reports",
+    title: "Insights & intelligence",
     items: [
       { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
@@ -323,7 +323,6 @@ export const companyManagerSideSections: NavSection[] = [
   {
     title: "Field work",
     items: [
-      { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
       { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
       { href: "/permits", label: "Permit Center", short: "PM" },
@@ -331,7 +330,7 @@ export const companyManagerSideSections: NavSection[] = [
     ],
   },
   {
-    title: "Insights & reports",
+    title: "Insights & intelligence",
     items: [
       { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },

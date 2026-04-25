@@ -37,34 +37,46 @@ export function isCsepWorkspaceProduct(product: WorkspaceProduct): boolean {
 /** Sidebar for CSEP-only companies (full product uses role-specific sections in appNavigation). */
 export const csepOnlyCompanySideSections: NavSectionLike[] = [
   {
-    title: "Workspace",
+    title: "Operations",
     items: [
       { href: "/dashboard", label: "Home Dashboard", short: "HM" },
       { href: "/csep", label: CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL, short: "DC" },
-      { href: "/library", label: "Completed Documents", short: "LB" },
-      { href: "/search", label: "Search Documents", short: "SR" },
-      { href: "/customer/billing", label: "Billing", short: "BL" },
     ],
   },
   {
-    title: "Account",
-    items: [{ href: "/profile", label: "My Profile", short: "CP" }],
+    title: "Documents",
+    items: [
+      { href: "/library", label: "Completed Documents", short: "LB" },
+      { href: "/search", label: "Search Documents", short: "SR" },
+    ],
+  },
+  {
+    title: "Account & reports",
+    items: [
+      { href: "/customer/billing", label: "Billing", short: "BL" },
+      { href: "/profile", label: "My Profile", short: "CP" },
+    ],
   },
 ];
 
 const csepReadOnlySideSections: NavSectionLike[] = [
   {
-    title: "Workspace",
+    title: "Operations",
+    items: [{ href: "/dashboard", label: "Home Dashboard", short: "HM" }],
+  },
+  {
+    title: "Documents",
     items: [
-      { href: "/dashboard", label: "Home Dashboard", short: "HM" },
       { href: "/library", label: "Completed Documents", short: "LB" },
       { href: "/search", label: "Search Documents", short: "SR" },
-      { href: "/customer/billing", label: "Billing", short: "BL" },
     ],
   },
   {
-    title: "Account",
-    items: [{ href: "/profile", label: "My Profile", short: "CP" }],
+    title: "Account & reports",
+    items: [
+      { href: "/customer/billing", label: "Billing", short: "BL" },
+      { href: "/profile", label: "My Profile", short: "CP" },
+    ],
   },
 ];
 
