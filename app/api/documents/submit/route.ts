@@ -472,15 +472,19 @@ export async function POST(request: Request) {
           })
           .eq("id", insertedDoc.id);
       } catch (pipelineError) {
-        if (!isRecoverableSafetyPlanPipelineError(pipelineError)) {
+        const recoverable = isRecoverableSafetyPlanPipelineError(pipelineError);
+        /** CSEP (no pre-approved draft) should only fall back on known recoverable errors. PESHEP/PSHSEP site plans can fall back to the legacy PSHSEP Word export whenever the SI pipeline fails (AI, DB, or config). */
+        const allowSitePlanLegacy = normalizedType !== "CSEP";
+        if (!recoverable && !allowSitePlanLegacy) {
           throw pipelineError;
         }
 
-        serverLog("warn", "document_submit_pipeline_schema_fallback", {
+        serverLog("warn", "document_submit_pipeline_legacy_fallback", {
           userId: user.id,
           companyId: companyScope.companyId,
           documentType: normalizedType,
-          message: extractErrorMessage(pipelineError).slice(0, 200),
+          reason: recoverable ? "recoverable_error" : "site_plan_safety_pipeline_bypass",
+          message: extractErrorMessage(pipelineError).slice(0, 300),
         });
 
         const legacyDraft = await renderLegacyDraftFile({

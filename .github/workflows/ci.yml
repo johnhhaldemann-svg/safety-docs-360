@@ -18,6 +18,10 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run test
+      - run: npm run test:navigation
+      - run: npm run test:links
+      - name: TypeScript (full project graph)
+        run: node ./node_modules/typescript/bin/tsc --noEmit
 
   playwright-a11y:
     runs-on: ubuntu-latest

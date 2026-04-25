@@ -262,7 +262,7 @@ describe("documents submit route", () => {
     expect(upload).toHaveBeenCalled();
     expect(serverLog).toHaveBeenCalledWith(
       "warn",
-      "document_submit_pipeline_schema_fallback",
+      "document_submit_pipeline_legacy_fallback",
       expect.objectContaining({
         companyId: "company-1",
         documentType: "CSEP",
@@ -364,11 +364,86 @@ describe("documents submit route", () => {
     expect(upload).toHaveBeenCalled();
     expect(serverLog).toHaveBeenCalledWith(
       "warn",
-      "document_submit_pipeline_schema_fallback",
+      "document_submit_pipeline_legacy_fallback",
       expect.objectContaining({
         companyId: "company-1",
         documentType: "CSEP",
         message: expect.stringContaining("row-level security"),
+      })
+    );
+  });
+
+  it("falls back to legacy PSHSEP export when the safety pipeline fails for a non-recoverable reason", async () => {
+    const insertSingle = vi.fn().mockResolvedValue({
+      data: { id: "doc-pshsep-legacy" },
+      error: null,
+    });
+    const insertSelect = vi.fn().mockReturnValue({ single: insertSingle });
+    const insert = vi.fn().mockReturnValue({ select: insertSelect });
+    const updateEq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+    const deleteEq = vi.fn().mockResolvedValue({ error: null });
+    const deleteTable = vi.fn().mockReturnValue({ eq: deleteEq });
+    const from = vi.fn((table: string) => {
+      if (table === "documents") {
+        return { insert, update, delete: deleteTable };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    const upload = vi.fn().mockResolvedValue({ error: null });
+    const storageFrom = vi.fn().mockReturnValue({ upload });
+    const supabase = { from, storage: { from: storageFrom } };
+
+    authorizeRequest.mockResolvedValue({
+      supabase,
+      user: { id: "user-1", user_metadata: {} },
+      team: null,
+    });
+    getUserAgreementRecord.mockResolvedValue({
+      data: { accepted_terms: true, terms_version: "v1" },
+    });
+    getAgreementConfig.mockResolvedValue({ version: "v1" });
+    getDefaultAgreementConfig.mockReturnValue({ version: "v1" });
+    getCompanyScope.mockResolvedValue({ companyId: "company-1" });
+    buildRiskMemoryStructuredContext.mockResolvedValue(null);
+    ensureSafetyPlanGenerationContext.mockReturnValue({
+      documentProfile: { documentType: "pshsep", projectDeliveryType: "ground_up" },
+      siteContext: { jobsiteId: null },
+    });
+    runSafetyPlanDocumentPipeline.mockRejectedValue(
+      new Error("upstream model timeout — not a schema/RLS recoverable class")
+    );
+    generatePshsepDocx.mockResolvedValue({
+      body: new Uint8Array([9, 9, 9]),
+      filename: "Site_Plan_Legacy.docx",
+    });
+
+    const response = await POST(
+      new Request("https://example.com/api/documents/submit", {
+        method: "POST",
+        body: JSON.stringify({
+          document_type: "PESHEP",
+          project_name: "Tower A",
+          form_data: { project_name: "Tower A" },
+        }),
+      })
+    );
+
+    if (!response) {
+      throw new Error("Expected a response.");
+    }
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ success: true, document_id: "doc-pshsep-legacy" });
+    expect(generatePshsepDocx).toHaveBeenCalled();
+    expect(generateCsepDocx).not.toHaveBeenCalled();
+    expect(serverLog).toHaveBeenCalledWith(
+      "warn",
+      "document_submit_pipeline_legacy_fallback",
+      expect.objectContaining({
+        companyId: "company-1",
+        documentType: "PESHEP",
+        reason: "site_plan_safety_pipeline_bypass",
       })
     );
   });

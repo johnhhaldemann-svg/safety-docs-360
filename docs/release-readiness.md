@@ -16,9 +16,12 @@ Expected result:
 - TypeScript passes.
 - Vitest passes.
 - Navigation integrity passes.
+- Static internal link resolution passes (`npm run test:links`).
 - Lint exits successfully.
 - Public adoption Playwright tests pass.
 - Authenticated adoption Playwright coverage may skip locally unless `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` are set.
+
+**CI:** Pull requests against `main` / `master` run the same lint, unit tests, navigation and link checks, and `tsc --noEmit` in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (`lint-and-unit` job).
 
 ## Database
 
