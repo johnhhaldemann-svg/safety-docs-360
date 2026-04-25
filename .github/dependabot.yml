@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      next-react:
+        patterns:
+          - "next"
+          - "react"
+          - "react-dom"
+          - "eslint-config-next"
+      supabase:
+        patterns:
+          - "@supabase/*"
+          - "supabase"
+      playwright:
+        patterns:
+          - "@playwright/*"
+          - "playwright"
+          - "@axe-core/playwright"

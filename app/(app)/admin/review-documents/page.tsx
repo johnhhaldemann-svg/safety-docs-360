@@ -322,7 +322,7 @@ export default function ReviewDocumentsPage() {
           <>
             <Link
               href="/admin/archive"
-              className="rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:border-[rgba(79,125,243,0.24)] hover:bg-[var(--app-accent-primary-soft)]"
+              className="rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:border-[var(--app-accent-border-24)] hover:bg-[var(--app-accent-primary-soft)]"
             >
               Open Archive
             </Link>

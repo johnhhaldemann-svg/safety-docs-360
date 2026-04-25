@@ -943,7 +943,18 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
   }
 
   const pendingApprovals = data.companyUsers.filter((user) => user.status === "Pending").length;
+  const readiness = data.revenueReadiness;
   const supportItems = [
+    readiness
+      ? {
+          id: "pilot-health",
+          label: "Pilot health",
+          value: `${readiness.score}`,
+          note: `${readiness.band} - ${readiness.counts.openWork} open work items.`,
+          href: "/command-center",
+          tone: readiness.score >= 65 ? ("success" as const) : ("warning" as const),
+        }
+      : null,
     {
       id: "pending-users",
       label: "Pending approvals",
@@ -972,7 +983,15 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
       tone: data.companyInvites.length > 0 ? ("warning" as const) : ("info" as const),
     },
     ...hazardItems(data),
-  ].slice(0, 6);
+  ].filter((item): item is DashboardSummaryItem => Boolean(item)).slice(0, 6);
+  const readinessActions =
+    readiness?.nextActions.map((action) => ({
+      title: action.label,
+      description: action.detail,
+      href: action.href,
+      actionLabel: action.priority === "high" ? "Resolve now" : "Open",
+      tone: action.priority === "high" ? ("attention" as const) : undefined,
+    })) ?? [];
 
   return {
     role: "company_admin",
@@ -1000,9 +1019,11 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
       onboardingChecklist: onboardingChecklistSection(data),
       metrics: [
         metric(
-          "Pending approvals",
-          `${pendingApprovals}`,
-          "Users and access decisions waiting now.",
+          readiness ? "Pilot health" : "Pending approvals",
+          readiness ? `${readiness.score}` : `${pendingApprovals}`,
+          readiness
+            ? `${readiness.band} across activation, operations, billing, and retention.`
+            : "Users and access decisions waiting now.",
           "attention"
         ),
         metric(
@@ -1036,6 +1057,7 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
         "What should this user do next",
         "Start with the adoption path, then move into the highest-value daily operating workflows.",
         [
+          ...readinessActions,
           {
             title: "Open Command Center",
             description: "Use the hub for current risk, open work, recommendations, and company memory.",

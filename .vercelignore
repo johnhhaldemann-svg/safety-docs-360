@@ -16,3 +16,8 @@ scripts/
 # Supabase SQL — applied with `supabase db push`, not at Vercel build time
 supabase/migrations/
 supabase/seed.sql
+
+# Local secrets — use Vercel Project Environment Variables instead
+.env
+.env.*
+!.env.example

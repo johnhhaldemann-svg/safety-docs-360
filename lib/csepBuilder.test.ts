@@ -111,6 +111,29 @@ describe("csepBuilder", () => {
     );
   });
 
+  it("keeps preceding scope context when parsing a Site Specific Notes AI response", () => {
+    expect(
+      parseCsepAiTextResponse(
+        [
+          "Scope of Work",
+          "The contractor will perform steel erection and decking activities in Area B.",
+          "",
+          "Site Specific Notes",
+          "Coordinate access with the GC before opening the work face. Maintain barricades at active hoisting and landing zones, and verify adjacent crews are clear before work begins.",
+        ].join("\n"),
+        "Site Specific Notes"
+      )
+    ).toBe(
+      [
+        "Scope of Work",
+        "The contractor will perform steel erection and decking activities in Area B.",
+        "",
+        "Site Specific Notes",
+        "Coordinate access with the GC before opening the work face. Maintain barricades at active hoisting and landing zones, and verify adjacent crews are clear before work begins.",
+      ].join("\n")
+    );
+  });
+
   it("maps selected format sections back to legacy builder blocks", () => {
     expect(
       buildLegacyIncludedSectionLabelsFromFormatSections([

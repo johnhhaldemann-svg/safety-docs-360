@@ -7,6 +7,16 @@ import {
   isSubmittedDocumentStatus,
   normalizeDocumentStatus,
 } from "@/lib/documentStatus";
+import {
+  demoCompanyInvites,
+  demoCompanyJobsiteRows,
+  demoCompanyProfile,
+  demoCompanyUsers,
+  demoDocuments,
+  demoIncidentRows,
+  demoPermitRows,
+  demoWorkspaceSummary,
+} from "@/lib/demoWorkspace";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -225,7 +235,7 @@ export function useCompanyWorkspaceData() {
       ]);
 
       const meData = (await meResponse.json().catch(() => null)) as
-        | { user?: { companyProfile?: CompanyProfile | null } }
+        | { user?: { role?: string | null; companyProfile?: CompanyProfile | null } }
         | null;
       const documentsData = (await documentsResponse.json().catch(() => null)) as
         | { documents?: DocumentRow[] }
@@ -239,6 +249,21 @@ export function useCompanyWorkspaceData() {
       const jobsitesData = (await jobsitesResponse.json().catch(() => null)) as
         | { jobsites?: CompanyJobsiteRow[] }
         | null;
+      if (meResponse.ok && meData?.user?.role === "sales_demo") {
+        setCompanyProfile(demoCompanyProfile);
+        setDocuments(demoDocuments);
+        setCreditBalance(25);
+        setCompanyUsers(demoCompanyUsers);
+        setCompanyInvites(demoCompanyInvites);
+        setJobsiteRows(demoCompanyJobsiteRows);
+        setCorrectiveActions(demoWorkspaceSummary.observations);
+        setDaps(demoWorkspaceSummary.daps);
+        setPermits(demoPermitRows);
+        setIncidents(demoIncidentRows);
+        setReports(demoWorkspaceSummary.reports);
+        setLoading(false);
+        return;
+      }
       setCompanyProfile(meResponse.ok ? meData?.user?.companyProfile ?? null : null);
       setDocuments(documentsResponse.ok ? documentsData?.documents ?? [] : []);
       setCreditBalance(

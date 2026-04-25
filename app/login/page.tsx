@@ -131,7 +131,7 @@ function LoginPageContent() {
     <main id="main-content" className="app-auth-canvas px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl items-center justify-center">
         <div className="app-auth-card app-radius-panel grid w-full overflow-hidden lg:grid-cols-[1.08fr_0.92fr]">
-          <section className="relative overflow-hidden border-b border-[rgba(111,138,177,0.2)] bg-[radial-gradient(circle_at_top_left,_rgba(79,125,243,0.12),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(235,243,255,0.92)_100%)] px-6 py-7 sm:px-8 sm:py-8 lg:min-h-[760px] lg:border-b-0 lg:border-r lg:border-r-[rgba(111,138,177,0.2)] lg:px-10 lg:py-10">
+          <section className="relative overflow-hidden border-b border-[rgba(111,138,177,0.2)] bg-[radial-gradient(circle_at_top_left,_var(--app-accent-surface-12),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(235,243,255,0.92)_100%)] px-6 py-7 sm:px-8 sm:py-8 lg:min-h-[760px] lg:border-b-0 lg:border-r lg:border-r-[rgba(111,138,177,0.2)] lg:px-10 lg:py-10">
             <div className="absolute inset-0 bg-[linear-gradient(135deg,_rgba(255,255,255,0.36)_0%,_transparent_38%),radial-gradient(circle_at_bottom,_rgba(46,158,91,0.12),_transparent_26%)]" />
             <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(111,138,177,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(111,138,177,0.08)_1px,transparent_1px)] [background-size:38px_38px]" />
 
@@ -399,7 +399,7 @@ function LoginPageContent() {
                   TLS 1.3 encrypted. Zero-knowledge architecture ready. 2FA supported.
                 </div>
 
-                <div className="app-info-panel mt-5 rounded-2xl border-[rgba(79,125,243,0.2)] bg-[rgba(234,241,255,0.92)] px-4 py-4 text-sm">
+                <div className="app-info-panel mt-5 rounded-2xl border-[var(--app-accent-border-20)] bg-[rgba(234,241,255,0.92)] px-4 py-4 text-sm">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-semibold text-[var(--app-text-strong)]">New here?</p>

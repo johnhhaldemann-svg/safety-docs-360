@@ -12,7 +12,7 @@ export function PermitTriggerPanel({ intake }: { intake: IntakePayload | null })
           {triggers.map((trigger) => (
             <li
               key={trigger}
-              className="rounded-full bg-[rgba(79,125,243,0.12)] px-3 py-1.5 text-sm font-semibold text-[var(--app-accent-primary)]"
+              className="rounded-full bg-[var(--app-accent-surface-12)] px-3 py-1.5 text-sm font-semibold text-[var(--app-accent-primary)]"
             >
               {trigger.replace(/_/g, " ")}
             </li>

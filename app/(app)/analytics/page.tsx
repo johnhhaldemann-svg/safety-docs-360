@@ -192,7 +192,7 @@ function TrendSparkline({ points }: { points: Array<{ date: string; count: numbe
 function heatColor(t: number) {
   if (t >= 0.75) return "border border-[rgba(209,98,98,0.24)] bg-[rgba(255,232,232,0.96)]";
   if (t >= 0.5) return "border border-[rgba(217,164,65,0.26)] bg-[rgba(255,242,218,0.96)]";
-  if (t >= 0.25) return "border border-[rgba(79,125,243,0.22)] bg-[rgba(232,240,255,0.98)]";
+  if (t >= 0.25) return "border border-[var(--app-accent-border-22)] bg-[rgba(232,240,255,0.98)]";
   if (t > 0) return "border border-[rgba(46,158,91,0.22)] bg-[rgba(232,247,237,0.96)]";
   return "border border-[rgba(198,212,236,0.85)] bg-[rgba(246,249,255,0.96)]";
 }
@@ -255,7 +255,7 @@ function AnalyticsFocusedTab({
 
   return (
     <div className="space-y-6" id={`analytics-tabpanel-${tab}`} role="tabpanel">
-      <div className="rounded-2xl border border-[rgba(79,125,243,0.24)] bg-gradient-to-br from-[rgba(79,125,243,0.12)] to-[rgba(234,241,255,0.92)] p-6">
+      <div className="rounded-2xl border border-[var(--app-accent-border-24)] bg-gradient-to-br from-[var(--app-accent-surface-12)] to-[rgba(234,241,255,0.92)] p-6">
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">{title}</p>
         <h2 className="mt-2 text-3xl font-black text-white sm:text-4xl">{loading ? "—" : heroStat}</h2>
         <p className="mt-1 text-sm text-slate-400">{heroLabel}</p>
@@ -608,11 +608,11 @@ export default function AnalyticsPage() {
     if (t === "HAZARD") return "border-[rgba(209,98,98,0.24)] bg-[rgba(255,238,238,0.96)] text-[#b45353]";
     if (t === "NEAR MISS") return "border-[rgba(217,164,65,0.26)] bg-[rgba(255,246,224,0.96)] text-[#9a680a]";
     if (t === "POSITIVE") return "border-[rgba(46,158,91,0.24)] bg-[rgba(232,247,237,0.96)] text-[#207251]";
-    return "border-[rgba(79,125,243,0.22)] bg-[rgba(232,240,255,0.98)] text-[#285ea8]";
+    return "border-[var(--app-accent-border-22)] bg-[rgba(232,240,255,0.98)] text-[#285ea8]";
   };
 
   return (
-    <div className="analytics-workspace-light min-h-[calc(100vh-4rem)] rounded-[1.5rem] border border-[rgba(79,125,243,0.18)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(237,244,255,0.96)_100%)] text-[var(--app-text)] shadow-[0_20px_48px_rgba(79,125,243,0.12)]">
+    <div className="analytics-workspace-light min-h-[calc(100vh-4rem)] rounded-[1.5rem] border border-[var(--app-accent-surface-18)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(237,244,255,0.96)_100%)] text-[var(--app-text)] shadow-[var(--app-shadow-primary-float)]">
       <div className="border-b border-[rgba(198,212,236,0.85)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.96)_100%)] px-5 py-6 sm:px-8">
         <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-cyan-400/90">
           Safety observation hub
@@ -707,7 +707,7 @@ export default function AnalyticsPage() {
         ) : null}
 
         {!loading && injuryLikelihood ? (
-          <div className="rounded-xl border border-[rgba(79,125,243,0.3)] bg-gradient-to-br from-[rgba(79,125,243,0.12)] via-white to-[rgba(234,241,255,0.94)] px-5 py-4 text-[var(--app-text-strong)] shadow-[0_0_40px_rgba(79,125,243,0.12)]">
+          <div className="rounded-xl border border-[var(--app-accent-border-30)] bg-gradient-to-br from-[var(--app-accent-surface-12)] via-white to-[rgba(234,241,255,0.94)] px-5 py-4 text-[var(--app-text-strong)] shadow-[var(--app-shadow-primary-glow)]">
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">
               Predicted likely injury
             </p>
@@ -1368,7 +1368,7 @@ export default function AnalyticsPage() {
           />
         )}
 
-        <div className="analytics-panel flex flex-col gap-4 px-5 py-4 shadow-[0_12px_28px_rgba(79,125,243,0.08)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="analytics-panel flex flex-col gap-4 px-5 py-4 shadow-[var(--app-shadow-primary-panel)] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-3 text-slate-500">
             <Link
               href="/dashboard"
@@ -1386,7 +1386,7 @@ export default function AnalyticsPage() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/dashboard"
-              className="rounded-xl border border-[rgba(198,212,236,0.9)] px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)] transition hover:bg-[rgba(79,125,243,0.08)]"
+              className="rounded-xl border border-[rgba(198,212,236,0.9)] px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-surface-08)]"
             >
               Open dashboard
             </Link>

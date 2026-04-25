@@ -6,7 +6,9 @@ import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
+import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
 import { ComplianceCommandCenter } from "@/components/training-matrix/ComplianceCommandCenter";
+import { useTableDensity } from "@/hooks/useTableDensity";
 import {
   InlineMessage,
   MetricTile,
@@ -707,6 +709,8 @@ export default function TrainingMatrixPage() {
   const [editApplyPositions, setEditApplyPositions] = useState<string[]>([]);
   const [editRenewalMonths, setEditRenewalMonths] = useState("");
 
+  const { density, setDensity, isCompact } = useTableDensity();
+
   useEffect(() => {
     try {
       if (
@@ -1023,6 +1027,31 @@ export default function TrainingMatrixPage() {
     [loadMatrix]
   );
 
+  const matrixTableLayout = useMemo(
+    () => ({
+      thFirst: isCompact
+        ? "training-sticky-divider sticky left-0 z-10 min-w-[200px] max-w-[260px] bg-zinc-900 px-2 py-2 text-[11px] font-semibold text-zinc-200"
+        : "training-sticky-divider sticky left-0 z-10 min-w-[260px] max-w-[320px] bg-zinc-900 px-4 py-3 font-semibold text-zinc-200",
+      thReq: isCompact
+        ? "min-w-[120px] border-l border-zinc-800 px-1.5 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-zinc-400"
+        : "min-w-[156px] border-l border-zinc-800 px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-400",
+      thCert: isCompact
+        ? "min-w-[220px] border-l border-zinc-800 px-2 py-2 text-[11px] font-semibold text-zinc-200"
+        : "min-w-[300px] border-l border-zinc-800 px-3 py-3 font-semibold text-zinc-200",
+      tdFirst: isCompact
+        ? "training-sticky-divider sticky left-0 z-10 min-w-[200px] max-w-[260px] bg-zinc-950 px-2 py-2 align-top"
+        : "training-sticky-divider sticky left-0 z-10 min-w-[260px] max-w-[320px] bg-zinc-950 px-4 py-3 align-top",
+      tdCell: isCompact
+        ? "border-l border-zinc-800/80 px-1.5 py-1.5 align-top text-center"
+        : "border-l border-zinc-800/80 px-2 py-2 align-top text-center",
+      tdCert: isCompact
+        ? "border-l border-zinc-800/80 px-2 py-2 align-top"
+        : "border-l border-zinc-800/80 px-3 py-3 align-top",
+      icon: isCompact ? "h-4 w-4 shrink-0" : "h-5 w-5 shrink-0",
+    }),
+    [isCompact]
+  );
+
   const trackerStats = useMemo(() => {
     if (!rows.length || !requirements.length) return null;
     let met = 0;
@@ -1056,7 +1085,7 @@ export default function TrainingMatrixPage() {
               attention, rules, filters, and the live matrix.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <button
               type="button"
               onClick={() => void loadMatrix()}
@@ -1075,6 +1104,12 @@ export default function TrainingMatrixPage() {
             >
               Back to dashboard
             </Link>
+            <TableDensityToggle
+              value={density}
+              onChange={setDensity}
+              disabled={loading}
+              className="sm:ml-0"
+            />
           </div>
         </div>
       </section>
@@ -1143,14 +1178,21 @@ export default function TrainingMatrixPage() {
           <button
             type="button"
             onClick={dismissDirectoryNotice}
-            className="shrink-0 self-end rounded-lg border border-[rgba(198,212,236,0.9)] bg-[rgba(255,255,255,0.96)] px-3 py-2 text-xs font-semibold text-[var(--app-text)] shadow-sm hover:bg-[rgba(79,125,243,0.08)] sm:mt-2 sm:self-start"
+            className="shrink-0 self-end rounded-lg border border-[rgba(198,212,236,0.9)] bg-[rgba(255,255,255,0.96)] px-3 py-2 text-xs font-semibold text-[var(--app-text)] shadow-sm hover:bg-[var(--app-accent-surface-08)] sm:mt-2 sm:self-start"
           >
             Dismiss
           </button>
         </div>
       ) : null}
       {warning ? <InlineMessage tone="warning">{warning}</InlineMessage> : null}
-      {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
+      {message ? (
+        <InlineMessage
+          tone={messageTone}
+          onRetry={messageTone === "error" ? () => void loadMatrix() : undefined}
+        >
+          {message}
+        </InlineMessage>
+      ) : null}
 
       <SectionCard
         eyebrow="Supporting Context"
@@ -1439,6 +1481,7 @@ export default function TrainingMatrixPage() {
         loading={loading}
         workspaceDataLoaded={workspaceDataLoaded}
         warning={warning}
+        isCompact={isCompact}
         onRefresh={() => void loadMatrix()}
         footer={
           !loading && rows.length > 0 ? (
@@ -1467,22 +1510,24 @@ export default function TrainingMatrixPage() {
         }
       >
         <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/50">
-          <table className="min-w-full border-collapse text-left text-sm">
+          <table
+            className={`min-w-full border-collapse text-left ${isCompact ? "text-xs" : "text-sm"}`}
+          >
             <thead>
               <tr className="border-b border-zinc-800 bg-zinc-900/90">
-                <th className="training-sticky-divider sticky left-0 z-10 min-w-[260px] max-w-[320px] bg-zinc-900 px-4 py-3 font-semibold text-zinc-200">
+                <th className={matrixTableLayout.thFirst}>
                   Person & field profile
                 </th>
                 {requirements.map((r) => (
                   <th
                     key={r.id}
-                    className="min-w-[156px] border-l border-zinc-800 px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-400"
+                    className={matrixTableLayout.thReq}
                     title={requirementHeaderTitle(r)}
                   >
                     <span className="line-clamp-3">{r.title}</span>
                   </th>
                 ))}
-                <th className="min-w-[300px] border-l border-zinc-800 px-3 py-3 font-semibold text-zinc-200">
+                <th className={matrixTableLayout.thCert}>
                   On-profile certs
                 </th>
               </tr>
@@ -1492,7 +1537,7 @@ export default function TrainingMatrixPage() {
                 const positionRollup = buildPositionRollup(row, requirements);
                 return (
                   <tr key={row.userId} className="border-b border-zinc-800/80 bg-zinc-950/30">
-                    <td className="training-sticky-divider sticky left-0 z-10 min-w-[260px] max-w-[320px] bg-zinc-950 px-4 py-3 align-top">
+                    <td className={matrixTableLayout.tdFirst}>
                       <div className="font-semibold text-white">{row.name}</div>
                       <div className="text-xs text-zinc-500">{row.email || row.userId}</div>
                       <dl className="mt-2 space-y-1 text-xs text-zinc-300">
@@ -1535,23 +1580,23 @@ export default function TrainingMatrixPage() {
                       return (
                         <td
                           key={r.id}
-                          className="border-l border-zinc-800/80 px-2 py-2 align-top text-center"
+                          className={matrixTableLayout.tdCell}
                           title={tip}
                         >
                           <div className="flex flex-col items-center gap-1">
                             {state === "match" ? (
                               <span className="inline-flex text-emerald-400">
-                                <Check className="h-5 w-5 shrink-0" aria-hidden />
+                                <Check className={matrixTableLayout.icon} aria-hidden />
                                 <span className="sr-only">Met</span>
                               </span>
                             ) : state === "na" ? (
                               <span className="inline-flex text-zinc-600">
-                                <Minus className="h-5 w-5 shrink-0" aria-hidden />
+                                <Minus className={matrixTableLayout.icon} aria-hidden />
                                 <span className="sr-only">Not applicable</span>
                               </span>
                             ) : (
                               <span className="inline-flex text-fuchsia-400">
-                                <X className="h-5 w-5 shrink-0" aria-hidden />
+                                <X className={matrixTableLayout.icon} aria-hidden />
                                 <span className="sr-only">Gap</span>
                               </span>
                             )}
@@ -1600,10 +1645,10 @@ export default function TrainingMatrixPage() {
                         </td>
                       );
                     })}
-                    <td className="border-l border-zinc-800/80 px-3 py-3 align-top">
-                      <div className="space-y-2">
+                    <td className={matrixTableLayout.tdCert}>
+                      <div className={isCompact ? "space-y-1" : "space-y-2"}>
                         {row.certificationInventory && row.certificationInventory.length > 0 ? (
-                          <ul className="space-y-1.5">
+                          <ul className={isCompact ? "space-y-1" : "space-y-1.5"}>
                             {row.certificationInventory.map((item) => {
                               const t = ledgerChipToneDark(item.expiryStatus);
                               return (

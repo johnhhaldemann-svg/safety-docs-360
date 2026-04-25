@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { InlineMessage } from "@/components/WorkspacePrimitives";
+import { EmptyState, InlineMessage } from "@/components/WorkspacePrimitives";
 import {
   buildComplianceDashboardModel,
   flattenCredentialLedger,
@@ -22,7 +22,7 @@ function KpiCard({
 }) {
   return (
     <div
-      className={`rounded-2xl border bg-[var(--app-surface-elevated)] p-4 shadow-[0_12px_28px_rgba(79,125,243,0.08)] ${borderAccent}`}
+      className={`rounded-2xl border bg-[var(--app-surface-elevated)] p-4 shadow-[var(--app-shadow-primary-panel)] ${borderAccent}`}
     >
       <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--app-muted)]">{label}</p>
       <p className="mt-2 font-mono text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</p>
@@ -141,6 +141,7 @@ export function ComplianceCommandCenter({
   onRefresh,
   children,
   footer,
+  isCompact = false,
 }: {
   rows: RowInput[];
   requirements: ReqInput[];
@@ -150,6 +151,8 @@ export function ComplianceCommandCenter({
   onRefresh: () => void;
   children: React.ReactNode;
   footer: React.ReactNode;
+  /** Matches training matrix “Compact” table density from the page header toggle. */
+  isCompact?: boolean;
 }) {
   const model = useMemo(
     () => buildComplianceDashboardModel(rows, requirements),
@@ -159,7 +162,7 @@ export function ComplianceCommandCenter({
   const flatCreds = useMemo(() => flattenCredentialLedger(rows), [rows]);
 
   const shell = (inner: React.ReactNode) => (
-    <div className="overflow-hidden rounded-3xl border border-[rgba(198,212,236,0.9)] bg-[var(--app-surface-panel)] text-[var(--app-text)] shadow-[0_20px_48px_rgba(79,125,243,0.12)] ring-1 ring-[rgba(198,212,236,0.55)]">
+    <div className="overflow-hidden rounded-3xl border border-[rgba(198,212,236,0.9)] bg-[var(--app-surface-panel)] text-[var(--app-text)] shadow-[var(--app-shadow-primary-float)] ring-1 ring-[rgba(198,212,236,0.55)]">
       <div className="border-b border-[rgba(198,212,236,0.9)] bg-[linear-gradient(135deg,rgba(255,255,255,0.99)_0%,rgba(236,244,255,0.96)_60%,rgba(228,239,255,0.96)_100%)] px-6 py-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -178,7 +181,7 @@ export function ComplianceCommandCenter({
             type="button"
             onClick={onRefresh}
             disabled={loading}
-            className="shrink-0 rounded-xl bg-[var(--app-accent-primary)] px-5 py-2.5 text-sm font-bold text-white shadow-[0_16px_28px_rgba(79,125,243,0.24)] transition hover:bg-[var(--app-accent-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="shrink-0 rounded-xl bg-[var(--app-accent-primary)] px-5 py-2.5 text-sm font-bold text-white shadow-[var(--app-shadow-primary-elevated)] transition hover:bg-[var(--app-accent-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading
               ? workspaceDataLoaded
@@ -194,13 +197,14 @@ export function ComplianceCommandCenter({
 
   if (!workspaceDataLoaded && !loading) {
     return shell(
-      <div className="px-6 py-16">
-        <div className="mx-auto max-w-lg rounded-2xl border border-dashed border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.94)] p-10 text-center">
-          <p className="text-lg font-semibold text-white">Compliance data not loaded</p>
-          <p className="mt-2 text-sm text-zinc-400">
-            Use <span className="font-semibold text-fuchsia-400">Refresh data</span> in the page header or
-            above — the page normally loads workspace data automatically when you open it.
-          </p>
+      <div className="px-6 py-12 sm:py-16">
+        <div className="mx-auto max-w-lg">
+          <EmptyState
+            eyebrow="Compliance"
+            title="Compliance data not loaded"
+            description="Use Refresh data in the page header to load workspace people and requirements. The page normally fetches automatically when you open it."
+            primaryAction={{ label: "Load data", onClick: onRefresh }}
+          />
         </div>
       </div>
     );
@@ -209,23 +213,23 @@ export function ComplianceCommandCenter({
   if (loading && !workspaceDataLoaded) {
     return shell(
       <div className="px-6 py-12">
-        <InlineMessage tone="neutral">
-          <span className="text-zinc-200">Loading compliance workspace…</span>
-        </InlineMessage>
+        <InlineMessage tone="neutral">Loading compliance workspace…</InlineMessage>
       </div>
     );
   }
 
   if (rows.length === 0) {
     return shell(
-      <div className="px-6 py-14">
-        <div className="mx-auto max-w-lg rounded-2xl border border-dashed border-[rgba(198,212,236,0.9)] bg-[rgba(248,251,255,0.94)] p-10 text-center">
-          <p className="text-lg font-semibold text-white">No team members to show</p>
-          <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-            {warning
-              ? "Fix the configuration warning above, or invite users to this workspace."
-              : "Invite users and ensure they complete their construction profile certifications."}
-          </p>
+      <div className="px-6 py-12 sm:py-14">
+        <div className="mx-auto max-w-lg">
+          <EmptyState
+            title="No team members to show"
+            description={
+              warning
+                ? "Fix the configuration warning above, or invite users to this workspace."
+                : "Invite users and ensure they complete their construction profile certifications."
+            }
+          />
         </div>
       </div>
     );
@@ -234,7 +238,7 @@ export function ComplianceCommandCenter({
   return shell(
     <>
       {loading && workspaceDataLoaded ? (
-        <div className="border-b border-[rgba(79,125,243,0.22)] bg-[rgba(232,240,255,0.96)] px-6 py-2 text-center text-sm text-[var(--app-accent-primary)]">
+        <div className="border-b border-[var(--app-accent-border-22)] bg-[rgba(232,240,255,0.96)] px-6 py-2 text-center text-sm text-[var(--app-accent-primary)]">
           Refreshing summaries and matrix…
         </div>
       ) : null}
@@ -323,9 +327,12 @@ export function ComplianceCommandCenter({
         </>
       ) : (
         <div className="px-6 py-8">
-          <p className="text-sm text-zinc-400">
-            Add at least one training requirement to unlock summaries. You can still review people below.
-          </p>
+          <EmptyState
+            align="left"
+            title="Summaries need at least one requirement"
+            description="Add a training rule in Required trainings below to unlock the KPIs and outcome bands. You can still use the matrix to review people."
+            className="!p-6"
+          />
         </div>
       )}
 
@@ -345,28 +352,60 @@ export function ComplianceCommandCenter({
             Every certification on file with expiry health (sortable view of profile credentials).
           </p>
           <div className="mt-4 overflow-x-auto rounded-xl border border-[rgba(198,212,236,0.9)] bg-white/70">
-            <table className="min-w-full border-collapse text-left text-sm">
+            <table
+              className={`min-w-full border-collapse text-left ${isCompact ? "text-xs" : "text-sm"}`}
+            >
               <thead>
                 <tr className="border-b border-[rgba(198,212,236,0.9)] bg-[rgba(240,246,255,0.94)]">
-                  <th className="px-4 py-3 font-semibold text-zinc-300">Person</th>
-                  <th className="px-4 py-3 font-semibold text-zinc-300">Certification</th>
-                  <th className="px-4 py-3 font-semibold text-zinc-300">Expiration</th>
-                  <th className="px-4 py-3 font-semibold text-zinc-300">Status</th>
-                  <th className="hidden px-4 py-3 font-semibold text-zinc-300 md:table-cell">Email</th>
+                  <th
+                    className={`font-semibold text-zinc-300 ${isCompact ? "px-2 py-2" : "px-4 py-3"}`}
+                  >
+                    Person
+                  </th>
+                  <th
+                    className={`font-semibold text-zinc-300 ${isCompact ? "px-2 py-2" : "px-4 py-3"}`}
+                  >
+                    Certification
+                  </th>
+                  <th
+                    className={`font-semibold text-zinc-300 ${isCompact ? "px-2 py-2" : "px-4 py-3"}`}
+                  >
+                    Expiration
+                  </th>
+                  <th
+                    className={`font-semibold text-zinc-300 ${isCompact ? "px-2 py-2" : "px-4 py-3"}`}
+                  >
+                    Status
+                  </th>
+                  <th
+                    className={`hidden font-semibold text-zinc-300 md:table-cell ${isCompact ? "px-2 py-2" : "px-4 py-3"}`}
+                  >
+                    Email
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {flatCreds.map((c, idx) => (
                   <tr
                     key={`${c.userId}-${c.cert}-${idx}`}
-                    className="border-b border-[rgba(198,212,236,0.85)] bg-[rgba(255,255,255,0.72)] hover:bg-[rgba(79,125,243,0.06)]"
+                    className="border-b border-[rgba(198,212,236,0.85)] bg-[rgba(255,255,255,0.72)] hover:bg-[var(--app-accent-surface-06)]"
                   >
-                    <td className="px-4 py-2.5 font-medium text-white">{c.person}</td>
-                    <td className="max-w-[220px] px-4 py-2.5 text-zinc-300">{c.cert}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-zinc-400">
+                    <td
+                      className={`font-medium text-white ${isCompact ? "px-2 py-1.5" : "px-4 py-2.5"}`}
+                    >
+                      {c.person}
+                    </td>
+                    <td
+                      className={`max-w-[220px] text-zinc-300 ${isCompact ? "px-2 py-1.5" : "px-4 py-2.5"}`}
+                    >
+                      {c.cert}
+                    </td>
+                    <td
+                      className={`whitespace-nowrap font-mono text-zinc-400 ${isCompact ? "px-2 py-1.5 text-[11px]" : "px-4 py-2.5 text-xs"}`}
+                    >
                       {c.expiresOn ?? "—"}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className={isCompact ? "px-2 py-1.5" : "px-4 py-2.5"}>
                       <span
                         className={
                           c.statusKey === "expired"
@@ -381,7 +420,11 @@ export function ComplianceCommandCenter({
                         {c.status}
                       </span>
                     </td>
-                    <td className="hidden max-w-[200px] truncate px-4 py-2.5 text-xs text-zinc-500 md:table-cell">
+                    <td
+                      className={`hidden max-w-[200px] truncate text-zinc-500 md:table-cell ${
+                        isCompact ? "px-2 py-1.5 text-[11px]" : "px-4 py-2.5 text-xs"
+                      }`}
+                    >
                       {c.email || "—"}
                     </td>
                   </tr>

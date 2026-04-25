@@ -90,7 +90,7 @@ function renderActionBlock(block: DashboardActionBlock) {
             <Link
               key={`${item.href}-${item.title}`}
               href={item.href}
-              className={`group relative overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.78)_0%,_var(--app-panel)_100%)] px-4 py-4 shadow-[0_8px_18px_rgba(76,108,161,0.05)] transition hover:-translate-y-0.5 hover:border-[rgba(79,125,243,0.28)] hover:shadow-[0_14px_28px_rgba(76,108,161,0.1)] ${toneAccentClassName(item.tone)}`}
+              className={`group relative overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.78)_0%,_var(--app-panel)_100%)] px-4 py-4 shadow-[0_8px_18px_rgba(76,108,161,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--app-accent-border-28)] hover:shadow-[0_14px_28px_rgba(76,108,161,0.1)] ${toneAccentClassName(item.tone)}`}
             >
               <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-current opacity-70" />
               <div className="flex items-start justify-between gap-3">
@@ -130,7 +130,7 @@ function renderSummaryBlock(block: DashboardSummaryBlock) {
         <div className="grid gap-3">
           {block.section.items.map((item) => {
             const content = (
-              <div className={`relative overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.74)_0%,_var(--app-panel)_100%)] px-4 py-4 shadow-[0_8px_18px_rgba(76,108,161,0.05)] transition ${item.href ? "hover:-translate-y-0.5 hover:border-[rgba(79,125,243,0.28)] hover:shadow-[0_14px_28px_rgba(76,108,161,0.1)]" : ""} ${toneAccentClassName(item.tone)}`}>
+              <div className={`relative overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.74)_0%,_var(--app-panel)_100%)] px-4 py-4 shadow-[0_8px_18px_rgba(76,108,161,0.05)] transition ${item.href ? "hover:-translate-y-0.5 hover:border-[var(--app-accent-border-28)] hover:shadow-[0_14px_28px_rgba(76,108,161,0.1)]" : ""} ${toneAccentClassName(item.tone)}`}>
                 <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-current opacity-70" />
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">

@@ -8,8 +8,10 @@ import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPan
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import { MarketplacePreviewModal } from "@/components/MarketplacePreviewModal";
+import { AppLoading } from "@/components/app-shell/AppLoading";
 import {
   ActivityFeed,
+  EmptyState,
   InlineMessage,
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
@@ -1002,7 +1004,7 @@ function LibraryPageContent() {
                 <Link
                   key={item.label}
                   href={item.href}
-                  className="rounded-2xl border border-slate-700/80 bg-slate-900/70 p-4 transition hover:border-[rgba(79,125,243,0.34)] hover:bg-slate-900/90"
+                  className="rounded-2xl border border-slate-700/80 bg-slate-900/70 p-4 transition hover:border-[var(--app-accent-surface-34)] hover:bg-slate-900/90"
                 >
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
                     Quick jump
@@ -1234,7 +1236,11 @@ function LibraryPageContent() {
 
         {message ? (
           <div className="mt-4">
-            <InlineMessage tone="warning">{message}</InlineMessage>
+            <InlineMessage
+              tone={/\b(error|failed)\b/i.test(message) ? "error" : "warning"}
+            >
+              {message}
+            </InlineMessage>
           </div>
         ) : null}
       </section>
@@ -1359,13 +1365,7 @@ function LibraryPageContent() {
 
 export default function LibraryPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-[40vh] items-center justify-center text-sm font-semibold text-slate-400">
-          Loading library...
-        </div>
-      }
-    >
+    <Suspense fallback={<AppLoading label="Loading library…" />}>
       <LibraryPageContent />
     </Suspense>
   );
@@ -1435,9 +1435,8 @@ function DocumentSection({
           ))}
         </div>
       ) : documents.length === 0 ? (
-        <div className="mt-6 rounded-3xl border border-dashed border-slate-600 bg-slate-950/50 p-10 text-center">
-          <p className="text-base font-semibold text-slate-100">{emptyTitle}</p>
-          <p className="mt-2 text-sm leading-6 text-slate-500">{emptyMessage}</p>
+        <div className="mt-6">
+          <EmptyState title={emptyTitle} description={emptyMessage} />
         </div>
       ) : (
         <div className="mt-6 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
@@ -1486,7 +1485,7 @@ function DocumentCard({
       className={[
         "flex h-full flex-col rounded-3xl border bg-slate-900/80 p-5 shadow-sm",
         highlighted
-          ? "border-[rgba(79,125,243,0.55)] ring-2 ring-[rgba(79,125,243,0.3)] ring-offset-2 ring-offset-slate-950"
+          ? "border-[var(--app-accent-surface-55)] ring-2 ring-[var(--app-accent-border-30)] ring-offset-2 ring-offset-slate-950"
           : "border-slate-700/80",
       ].join(" ")}
     >
@@ -1630,13 +1629,12 @@ function MarketplaceSection({
           ))}
         </div>
       ) : documents.length === 0 ? (
-        <div className="mt-6 rounded-3xl border border-dashed border-slate-600 bg-slate-950/50 p-10 text-center">
-          <p className="text-base font-semibold text-slate-100">
-            The marketplace is quiet right now
-          </p>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            When completed documents are listed for credits, they will appear here. Check back when the board has fresh unlocks.
-          </p>
+        <div className="mt-6">
+          <EmptyState
+            eyebrow="Marketplace"
+            title="The marketplace is quiet right now"
+            description="When completed documents are listed for credits, they will appear here. Check back when the board has fresh unlocks."
+          />
         </div>
       ) : (
         <div className="mt-6 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">

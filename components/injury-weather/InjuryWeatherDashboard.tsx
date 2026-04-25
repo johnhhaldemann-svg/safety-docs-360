@@ -180,7 +180,7 @@ function ExternalHistoricalSourcesPanel({
   }
 
   return (
-    <div className="rounded-lg border border-[rgba(79,125,243,0.24)] bg-[var(--semantic-info-bg)] p-4 text-sm leading-relaxed text-[var(--app-text)]">
+    <div className="rounded-lg border border-[var(--app-accent-border-24)] bg-[var(--semantic-info-bg)] p-4 text-sm leading-relaxed text-[var(--app-text)]">
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--app-accent-primary)]">
         Outside-source data (in this app)
       </p>
@@ -922,7 +922,7 @@ export function InjuryWeatherDashboard() {
               {forecastModeDisplayLabel(data.summary.forecastMode)}
             </p>
           </div>
-          <div className="rounded-xl border border-[rgba(79,125,243,0.24)] bg-[var(--semantic-info-bg)] p-3 text-center lg:text-left">
+          <div className="rounded-xl border border-[var(--app-accent-border-24)] bg-[var(--semantic-info-bg)] p-3 text-center lg:text-left">
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">Predicted likely injury</p>
             <p className="mt-0.5 text-[10px] text-slate-500">
               Blended from incidents, SOR hazard class, and corrective actions—same record window and trade filter as the headline

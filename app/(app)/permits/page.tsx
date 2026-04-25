@@ -12,6 +12,11 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
+import {
+  demoCompanyJobsiteRows,
+  demoJsaActivities,
+  demoPermitRows,
+} from "@/lib/demoWorkspace";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -124,6 +129,14 @@ async function getAuthHeaders() {
   };
 }
 
+async function isSalesDemoRequest(headers: HeadersInit) {
+  const response = await fetch("/api/auth/me", { headers });
+  const data = (await response.json().catch(() => null)) as
+    | { user?: { role?: string | null } }
+    | null;
+  return response.ok && data?.user?.role === "sales_demo";
+}
+
 function labelize(value: string | null | undefined) {
   const raw = String(value ?? "").trim();
   if (!raw) return "Not set";
@@ -151,11 +164,25 @@ export default function PermitsPage() {
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [demoMode, setDemoMode] = useState(false);
 
   async function loadData() {
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
+      const isDemo = await isSalesDemoRequest(headers);
+      setDemoMode(isDemo);
+      if (isDemo) {
+        setPermits(
+          statusFilter === "all"
+            ? demoPermitRows
+            : demoPermitRows.filter((permit) => permit.status === statusFilter)
+        );
+        setJobsites(demoCompanyJobsiteRows);
+        setJsaActivities(demoJsaActivities);
+        setLoading(false);
+        return;
+      }
       const permitsQuery = statusFilter === "all" ? "" : `?status=${encodeURIComponent(statusFilter)}`;
       const [permitsResponse, jobsitesResponse, activitiesResponse] = await Promise.all([
         fetch(`/api/company/permits${permitsQuery}`, { headers }),
@@ -286,6 +313,37 @@ export default function PermitsPage() {
     setMessage("");
     try {
       const activity = activityById.get(form.jsaActivityId.trim()) ?? null;
+      if (demoMode) {
+        const nowIso = new Date().toISOString();
+        setPermits((current) => [
+          {
+            id: `demo-permit-${Date.now()}`,
+            title: form.title,
+            permit_type: form.permitType,
+            status: "draft",
+            severity: form.severity,
+            category: form.category,
+            jobsite_id: form.jobsiteId || activity?.jobsite_id || null,
+            owner_user_id: form.ownerUserId || null,
+            due_at: form.dueAt || null,
+            sif_flag: form.sifFlag,
+            escalation_level: form.escalationLevel,
+            escalation_reason: form.escalationReason || null,
+            stop_work_status: form.stopWorkStatus,
+            stop_work_reason: form.stopWorkReason || null,
+            dap_activity_id: form.jsaActivityId || null,
+            observation_id: form.observationId || null,
+            created_at: nowIso,
+            updated_at: nowIso,
+          },
+          ...current,
+        ]);
+        setForm((current) => buildEmptyForm(current.jobsiteId));
+        setMessageTone("success");
+        setMessage("Demo permit created locally for this session.");
+        setSaving(false);
+        return;
+      }
       const headers = await getAuthHeaders();
       const response = await fetch("/api/company/permits", {
         method: "POST",
@@ -322,6 +380,18 @@ export default function PermitsPage() {
   }
 
   async function updateRiskState(permit: PermitRow, updates: Record<string, unknown>) {
+    if (demoMode) {
+      setPermits((current) =>
+        current.map((item) =>
+          item.id === permit.id
+            ? { ...item, ...updates, updated_at: new Date().toISOString() }
+            : item
+        )
+      );
+      setMessageTone("success");
+      setMessage("Demo permit updated locally for this session.");
+      return;
+    }
     try {
       const headers = await getAuthHeaders();
       const response = await fetch("/api/company/permits", {

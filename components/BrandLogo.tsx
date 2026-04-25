@@ -45,8 +45,8 @@ export function BrandLogo({
     <div
       className={`relative overflow-hidden rounded-[1.4rem] border border-[rgba(111,138,177,0.3)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.99)_0%,_rgba(242,248,255,0.97)_100%)] shadow-[0_14px_30px_rgba(32,58,102,0.12)] ${className}`}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(79,125,243,0.14),_transparent_42%),linear-gradient(135deg,_transparent_40%,_rgba(46,158,91,0.08)_100%)]" />
-      <div className="absolute inset-x-5 bottom-0 h-px bg-[linear-gradient(90deg,_transparent,_rgba(79,125,243,0.24),_transparent)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--app-accent-surface-14),_transparent_42%),linear-gradient(135deg,_transparent_40%,_rgba(46,158,91,0.08)_100%)]" />
+      <div className="absolute inset-x-5 bottom-0 h-px bg-[linear-gradient(90deg,_transparent,_var(--app-accent-border-24),_transparent)]" />
       <div className="relative flex h-full items-center justify-center px-1.5 py-1.5 sm:px-2">
         <Image
           src="/brand/safety360docs-reference-neon-tight.png"

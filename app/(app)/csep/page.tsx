@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
@@ -43,12 +43,19 @@ import {
 } from "@/lib/safetyBlueprintLabels";
 import { OWNER_MESSAGE_PRESETS, getOwnerMessagePreset } from "@/lib/ownerMessagePresets";
 import { buildCsepGenerationContext } from "@/lib/safety-intelligence/documentIntake";
+import type { ChecklistEvaluationResponse } from "@/lib/compliance/evaluation";
+import { ChecklistCoveragePanel } from "@/components/compliance/ChecklistCoveragePanel";
+import {
+  useCompanyWorkspaceData,
+  type CompanyJobsite,
+} from "@/components/company-workspace/useCompanyWorkspaceData";
 import type { CsepFormatSectionKey, CsepWeatherSectionInput } from "@/types/csep-builder";
 import type { CSEPPricedItemCatalogEntry } from "@/types/csep-priced-items";
 import type { CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue } from "@/types/csep-programs";
 import type { GeneratedSafetyPlanDraft } from "@/types/safety-intelligence";
 
 type CSEPForm = {
+  jobsite_id: string;
   project_name: string;
   project_number: string;
   project_address: string;
@@ -247,6 +254,7 @@ const ENRICHMENT_DRIVEN_SECTION_LABELS = new Set([
 ]);
 
 const initialForm: CSEPForm = {
+  jobsite_id: "",
   project_name: "",
   project_number: "",
   project_address: "",
@@ -308,7 +316,12 @@ function parseCommaSeparatedList(value: string) {
     .filter(Boolean);
 }
 
+function buildJobsiteSelectLabel(jobsite: CompanyJobsite) {
+  return [jobsite.name, jobsite.projectNumber, jobsite.location].filter(Boolean).join(" | ");
+}
+
 export default function CSEPPage() {
+  const { jobsites, loading: jobsitesLoading } = useCompanyWorkspaceData();
   const [form, setForm] = useState<CSEPForm>(initialForm);
   const [step, setStep] = useState(0);
   const [authLoading, setAuthLoading] = useState(true);
@@ -327,6 +340,13 @@ export default function CSEPPage() {
   const [sectionAiState, setSectionAiState] = useState<
     Partial<Record<CsepBuilderAiSectionId, BuilderAiSectionState>>
   >({});
+  const [checklistEvaluation, setChecklistEvaluation] = useState<ChecklistEvaluationResponse | null>(
+    null
+  );
+  const [checklistLoading, setChecklistLoading] = useState(false);
+  const [checklistError, setChecklistError] = useState("");
+  const checklistRequestRef = useRef(0);
+  const checklistAbortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     async function loadUser() {
@@ -401,6 +421,16 @@ export default function CSEPPage() {
   const selectedPermitItems = useMemo(
     () => uniq([...form.additional_permits, ...derivedPermits, ...overlapPermitHints]),
     [derivedPermits, form.additional_permits, overlapPermitHints]
+  );
+  const jobsiteOptions = useMemo(
+    () =>
+      jobsites
+        .filter((jobsite) => jobsite.source === "table")
+        .map((jobsite) => ({
+          value: jobsite.id,
+          label: buildJobsiteSelectLabel(jobsite),
+        })),
+    [jobsites]
   );
   const eligiblePricedAttachments = useMemo<CSEPPricedItemCatalogEntry[]>(
     () =>
@@ -493,6 +523,91 @@ export default function CSEPPage() {
 
   const canUseBuilder = Boolean(permissionMap?.can_create_documents && permissionMap?.can_edit_documents);
   const canSubmitDocuments = Boolean(permissionMap?.can_submit_documents);
+
+  const checklistFormData = useMemo(
+    () => ({
+      ...form,
+      governing_state: form.governing_state,
+      trade: selectedTrade?.tradeLabel ?? form.trade,
+      subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
+      tradeItems: displayedTradeItems,
+      selected_hazards: form.selected_hazards,
+      additional_permits: selectedPermitItems,
+      required_ppe: form.required_ppe,
+      overlapPermitHints,
+      common_overlapping_trades: commonOverlappingTrades,
+    }),
+    [
+      commonOverlappingTrades,
+      displayedTradeItems,
+      form,
+      overlapPermitHints,
+      selectedPermitItems,
+      selectedTrade?.subTradeLabel,
+      selectedTrade?.tradeLabel,
+    ]
+  );
+
+  const refreshChecklistEvaluation = useCallback(async () => {
+    if (authLoading || !canUseBuilder) return;
+    const requestId = checklistRequestRef.current + 1;
+    checklistRequestRef.current = requestId;
+    checklistAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    checklistAbortControllerRef.current = controller;
+    setChecklistLoading(true);
+    setChecklistError("");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("Sign in to evaluate checklist coverage.");
+      }
+      const response = await fetch("/api/company/checklist/evaluate", {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          surface: "csep",
+          formData: checklistFormData,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | ChecklistEvaluationResponse
+        | null;
+      if (!response.ok) {
+        throw new Error((payload as { error?: string } | null)?.error || "Checklist evaluation failed.");
+      }
+      if (requestId !== checklistRequestRef.current) return;
+      setChecklistEvaluation(payload as ChecklistEvaluationResponse);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        return;
+      }
+      if (requestId !== checklistRequestRef.current) return;
+      setChecklistError(error instanceof Error ? error.message : "Checklist evaluation failed.");
+    } finally {
+      if (requestId !== checklistRequestRef.current) return;
+      setChecklistLoading(false);
+    }
+  }, [authLoading, canUseBuilder, checklistFormData]);
+
+  useEffect(() => {
+    if (authLoading || !canUseBuilder) return;
+    const timeout = window.setTimeout(() => {
+      void refreshChecklistEvaluation();
+    }, 700);
+    return () => {
+      window.clearTimeout(timeout);
+      checklistAbortControllerRef.current?.abort();
+    };
+  }, [authLoading, canUseBuilder, refreshChecklistEvaluation]);
+
   const csepReady =
     Boolean(form.trade.trim()) &&
     Boolean(form.project_delivery_type) &&
@@ -668,10 +783,20 @@ export default function CSEPPage() {
       required_ppe: form.required_ppe,
       selected_permits: selectedPermitItems,
       weather_requirements: form.weather_requirements,
+      checklistEvaluationSummary: checklistEvaluation?.summary ?? null,
+      checklistNeedsUserInput:
+        checklistEvaluation?.rows
+          .filter((row) => row.coverage === "needs_user_input")
+          .slice(0, 10)
+          .map((row) => ({
+            item: row.item,
+            missingFields: row.missingFields,
+          })) ?? [],
       ai_task_first_rule:
         "Selected tasks are the primary drafting anchor. Broader trade or project content should only be used when it directly supports those tasks.",
     }),
     [
+      checklistEvaluation,
       form.contractor_company,
       form.contractor_contact,
       form.contractor_email,
@@ -731,6 +856,27 @@ export default function CSEPPage() {
 
   function updateField<K extends keyof CSEPForm>(field: K, value: CSEPForm[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function applyJobsiteToForm(jobsiteId: string) {
+    const selectedJobsite = jobsites.find((jobsite) => jobsite.id === jobsiteId);
+
+    setForm((prev) => {
+      if (!selectedJobsite) {
+        return { ...prev, jobsite_id: "" };
+      }
+
+      return {
+        ...prev,
+        jobsite_id: selectedJobsite.id,
+        project_name: selectedJobsite.name,
+        project_number: selectedJobsite.projectNumber || prev.project_number,
+        project_address: selectedJobsite.location || prev.project_address,
+        site_specific_notes: selectedJobsite.notes || prev.site_specific_notes,
+        prepared_by: selectedJobsite.projectManager || prev.prepared_by,
+        reviewed_by: selectedJobsite.safetyLead || prev.reviewed_by,
+      };
+    });
   }
 
   function handleOwnerMessagePresetChange(value: string) {
@@ -1309,6 +1455,16 @@ export default function CSEPPage() {
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 
+      <ChecklistCoveragePanel
+        title="Checklist Coverage (CSEP)"
+        loading={checklistLoading}
+        error={checklistError}
+        data={checklistEvaluation}
+        onRefresh={() => {
+          void refreshChecklistEvaluation();
+        }}
+      />
+
       <SectionCard
         title="Builder Navigation"
         description="Move through the builder by main category first, then the active subcategory."
@@ -1653,6 +1809,16 @@ export default function CSEPPage() {
                     These fields unlock after task selection so smart drafting stays anchored to the actual work instead of forcing you back to earlier steps.
                   </InlineMessage>
                   <div className="grid gap-4 md:grid-cols-2">
+                    <div className="md:col-span-2">
+                      <SelectField
+                        label="Fill from jobsite"
+                        value={form.jobsite_id}
+                        onChange={applyJobsiteToForm}
+                        options={jobsiteOptions}
+                        placeholder={jobsitesLoading ? "Loading jobsites" : "Choose a saved jobsite"}
+                        disabled={jobsitesLoading || jobsiteOptions.length === 0}
+                      />
+                    </div>
                     <InputField label="Project name" value={form.project_name} onChange={(value) => updateField("project_name", value)} />
                     <InputField label="Project number" value={form.project_number} onChange={(value) => updateField("project_number", value)} />
                     <InputField label="Project address" value={form.project_address} onChange={(value) => updateField("project_address", value)} />

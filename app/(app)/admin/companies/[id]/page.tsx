@@ -105,6 +105,36 @@ type CompanySubscriptionSummary = {
   pendingInviteCount: number;
 };
 
+type CompanyHealthSummary = {
+  score: number;
+  band: string;
+  activationPercent: number;
+  operationsPercent: number;
+  billingPercent: number;
+  retentionPercent: number;
+  signals: Array<{
+    id: string;
+    label: string;
+    value: string;
+    detail: string;
+    tone: "success" | "warning" | "error" | "info" | "neutral";
+    href?: string;
+  }>;
+  nextActions: Array<{
+    id: string;
+    label: string;
+    detail: string;
+    href: string;
+    priority: "high" | "medium" | "low";
+  }>;
+  counts: {
+    openWork: number;
+    overdueWork: number;
+    activeJobsites: number;
+    documentsStarted: number;
+  };
+};
+
 function formatCents(cents: number | null) {
   if (cents == null) {
     return "Default";
@@ -159,6 +189,7 @@ export default function AdminCompanyDetailPage({
   const [canOverrideCompanyPricing, setCanOverrideCompanyPricing] = useState(false);
   const [canManageCompanyPermissions, setCanManageCompanyPermissions] = useState(false);
   const [subscription, setSubscription] = useState<CompanySubscriptionSummary | null>(null);
+  const [companyHealth, setCompanyHealth] = useState<CompanyHealthSummary | null>(null);
   const [subStatusDraft, setSubStatusDraft] = useState("inactive");
   const [subPlanDraft, setSubPlanDraft] = useState("Pro");
   const [subMaxSeatsDraft, setSubMaxSeatsDraft] = useState("");
@@ -197,11 +228,13 @@ export default function AdminCompanyDetailPage({
         return;
       }
 
-      const res = await fetch(`/api/admin/companies/${companyId}`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      const headers = {
+        Authorization: `Bearer ${session.access_token}`,
+      };
+      const [res, healthRes] = await Promise.all([
+        fetch(`/api/admin/companies/${companyId}`, { headers }),
+        fetch(`/api/admin/companies/${companyId}/health`, { headers }),
+      ]);
 
       const data = (await res.json().catch(() => null)) as
         | {
@@ -221,6 +254,12 @@ export default function AdminCompanyDetailPage({
             activity?: CompanyActivityItem[];
           }
         | null;
+      const healthData = (await healthRes.json().catch(() => null)) as
+        | {
+            health?: CompanyHealthSummary;
+            error?: string;
+          }
+        | null;
 
       if (!res.ok) {
         setMessageTone("error");
@@ -236,6 +275,7 @@ export default function AdminCompanyDetailPage({
         setCanOverrideCompanyPricing(false);
         setCanManageCompanyPermissions(false);
         setSubscription(null);
+        setCompanyHealth(null);
         setCompanyPermissionDraft({ allow: [], deny: [] });
         setLoading(false);
         return;
@@ -273,6 +313,11 @@ export default function AdminCompanyDetailPage({
       setInvites(data?.invites ?? []);
       setDocuments(data?.documents ?? []);
       setActivity(data?.activity ?? []);
+      setCompanyHealth(healthRes.ok ? healthData?.health ?? null : null);
+      if (!healthRes.ok && healthData?.error) {
+        setMessageTone("warning");
+        setMessage(healthData.error);
+      }
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to load company workspace.");
@@ -282,6 +327,7 @@ export default function AdminCompanyDetailPage({
       setInvites([]);
       setDocuments([]);
       setActivity([]);
+      setCompanyHealth(null);
       setCanOverrideCompanyPricing(false);
       setCanManageCompanyPermissions(false);
       setCompanyPermissionDraft({ allow: [], deny: [] });
@@ -818,6 +864,99 @@ export default function AdminCompanyDetailPage({
             <div className="mt-1 text-sm text-slate-500">Marketplace credit balance tied to billing</div>
           </div>
         </section>
+      ) : null}
+
+      {companyHealth ? (
+        <SectionCard
+          title="Pilot Success & Renewal Signals"
+          description="Revenue-readiness score based on launch progress, workspace activation, open work, billing, and renewal indicators."
+          tone={companyHealth.score >= 65 ? "elevated" : "attention"}
+          aside={<StatusBadge label={companyHealth.band} tone={companyHealth.score >= 65 ? "success" : "warning"} />}
+        >
+          <div className="grid gap-4 lg:grid-cols-[0.7fr_1.3fr]">
+            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/80 p-5">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--app-muted)]">
+                Customer health
+              </div>
+              <div className="mt-3 text-5xl font-bold text-[var(--app-text-strong)]">
+                {companyHealth.score}
+              </div>
+              <div className="mt-2 text-sm text-[var(--app-text)]">
+                Open work: {companyHealth.counts.openWork} · Overdue:{" "}
+                {companyHealth.counts.overdueWork} · Active jobsites:{" "}
+                {companyHealth.counts.activeJobsites}
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                {[
+                  ["Activation", companyHealth.activationPercent],
+                  ["Operations", companyHealth.operationsPercent],
+                  ["Billing", companyHealth.billingPercent],
+                  ["Retention", companyHealth.retentionPercent],
+                ].map(([label, value]) => (
+                  <div
+                    key={String(label)}
+                    className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-3"
+                  >
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                      {label}
+                    </div>
+                    <div className="mt-1 text-lg font-bold text-[var(--app-text-strong)]">
+                      {value}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {companyHealth.signals.map((signal) => (
+                <div
+                  key={signal.id}
+                  className="rounded-2xl border border-[var(--app-border-strong)] bg-white/80 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--app-muted)]">
+                        {signal.label}
+                      </div>
+                      <div className="mt-2 text-2xl font-bold text-[var(--app-text-strong)]">
+                        {signal.value}
+                      </div>
+                    </div>
+                    <StatusBadge label={signal.tone} tone={signal.tone} />
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">{signal.detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          {companyHealth.nextActions.length > 0 ? (
+            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel-soft)] p-4">
+              <div className="text-sm font-semibold text-[var(--app-text-strong)]">
+                Next best actions
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                {companyHealth.nextActions.map((action) => (
+                  <Link
+                    key={action.id}
+                    href={action.href}
+                    className="rounded-xl border border-[var(--app-border)] bg-white/85 px-4 py-3 transition hover:border-[rgba(37,99,235,0.28)] hover:bg-white"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-semibold text-[var(--app-text-strong)]">
+                        {action.label}
+                      </span>
+                      <StatusBadge
+                        label={action.priority}
+                        tone={action.priority === "high" ? "warning" : "info"}
+                      />
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{action.detail}</p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </SectionCard>
       ) : null}
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}

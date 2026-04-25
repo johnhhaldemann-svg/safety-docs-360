@@ -12,6 +12,13 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
+import {
+  demoCompanyInvites,
+  demoCompanyJobsiteRows,
+  demoCompanyProfile,
+  demoCompanyUsers,
+  demoJobsiteAssignments,
+} from "@/lib/demoWorkspace";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -140,6 +147,28 @@ function getPulseLabel(score: number) {
   return "Building";
 }
 
+function formatDemoRole(role: string) {
+  const normalized = role.trim().toLowerCase();
+  if (normalized === "company_admin") return "Company Admin";
+  if (normalized === "safety_manager") return "Safety Manager";
+  if (normalized === "project_manager") return "Project Manager";
+  if (normalized === "field_supervisor") return "Field Supervisor";
+  if (normalized === "foreman") return "Foreman";
+  if (normalized === "field_user") return "Field User";
+  if (normalized === "read_only") return "Read Only";
+  return role;
+}
+
+async function isSalesDemoToken(token: string) {
+  const response = await fetch("/api/auth/me", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = (await response.json().catch(() => null)) as
+    | { user?: { role?: string | null } }
+    | null;
+  return response.ok && data?.user?.role === "sales_demo";
+}
+
 export default function CompanyUsersPage() {
   const [users, setUsers] = useState<CompanyUser[]>([]);
   const [invites, setInvites] = useState<CompanyInvite[]>([]);
@@ -163,6 +192,7 @@ export default function CompanyUsersPage() {
   const [assignmentMap, setAssignmentMap] = useState<Record<string, string[]>>({});
   const [editAssignments, setEditAssignments] = useState<string[]>([]);
   const [referenceTime] = useState(() => Date.now());
+  const [demoMode, setDemoMode] = useState(false);
 
   async function getAccessToken() {
     const {
@@ -183,6 +213,22 @@ export default function CompanyUsersPage() {
 
     try {
       const token = await getAccessToken();
+      const isDemo = await isSalesDemoToken(token);
+      setDemoMode(isDemo);
+      if (isDemo) {
+        setUsers(
+          demoCompanyUsers.map((user, index) => ({
+            ...user,
+            role: formatDemoRole(user.role),
+            last_sign_in_at: new Date(Date.now() - index * 9 * 60000).toISOString(),
+          }))
+        );
+        setInvites(demoCompanyInvites);
+        setScopeTeam("Demo Workspace");
+        setScopeCompanyName(demoCompanyProfile.name ?? "Summit Ridge Constructors");
+        setLoading(false);
+        return;
+      }
       const response = await fetch("/api/company/users", {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -226,6 +272,23 @@ export default function CompanyUsersPage() {
   const loadAssignmentData = useCallback(async () => {
     try {
       const token = await getAccessToken();
+      if (await isSalesDemoToken(token)) {
+        const nextMap: Record<string, string[]> = {};
+        for (const row of demoJobsiteAssignments) {
+          nextMap[row.user_id] = nextMap[row.user_id]
+            ? [...nextMap[row.user_id], row.jobsite_id]
+            : [row.jobsite_id];
+        }
+        setJobsites(
+          demoCompanyJobsiteRows.map((jobsite) => ({
+            id: jobsite.id,
+            name: jobsite.name,
+            status: jobsite.status,
+          }))
+        );
+        setAssignmentMap(nextMap);
+        return;
+      }
       const response = await fetch("/api/company/jobsite-assignments", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -389,6 +452,25 @@ export default function CompanyUsersPage() {
     setMessageTone("neutral");
 
     try {
+      if (demoMode) {
+        const nowIso = new Date().toISOString();
+        setInvites((current) => [
+          {
+            id: `demo-invite-${Date.now()}`,
+            email: inviteEmail,
+            role: inviteRole,
+            status: "pending",
+            created_at: nowIso,
+          },
+          ...current,
+        ]);
+        setInviteEmail("");
+        setInviteRole("Company User");
+        setMessageTone("success");
+        setMessage("Demo invite added locally for this session.");
+        setInviteLoading(false);
+        return;
+      }
       const token = await getAccessToken();
       const response = await fetch("/api/company/users", {
         method: "POST",
@@ -435,6 +517,24 @@ export default function CompanyUsersPage() {
     setMessageTone("neutral");
 
     try {
+      if (demoMode) {
+        setUsers((current) =>
+          current.map((user) =>
+            user.id === editingUser.id
+              ? { ...user, role: editRole, status: editStatus }
+              : user
+          )
+        );
+        setAssignmentMap((current) => ({
+          ...current,
+          [editingUser.id]: roleNeedsAssignments(editRole) ? editAssignments : [],
+        }));
+        setEditingUser(null);
+        setMessageTone("success");
+        setMessage("Demo user updated locally for this session.");
+        setSaveLoading(false);
+        return;
+      }
       const token = await getAccessToken();
       const response = await fetch(`/api/company/users/${editingUser.id}`, {
         method: "PATCH",
@@ -498,6 +598,21 @@ export default function CompanyUsersPage() {
     setMessageTone("neutral");
 
     try {
+      if (demoMode) {
+        setUsers((current) =>
+          current.map((item) =>
+            item.id === user.id ? { ...item, status: nextStatus } : item
+          )
+        );
+        setMessageTone(nextStatus === "Active" ? "success" : "warning");
+        setMessage(
+          nextStatus === "Active"
+            ? `${user.name} has been approved in demo mode.`
+            : `${user.name} has been suspended in demo mode.`
+        );
+        setSaveLoading(false);
+        return;
+      }
       const token = await getAccessToken();
       const response = await fetch(`/api/company/users/${user.id}`, {
         method: "PATCH",
@@ -548,6 +663,19 @@ export default function CompanyUsersPage() {
     setMessageTone("neutral");
 
     try {
+      if (demoMode) {
+        setUsers((current) => current.filter((user) => user.id !== editingUser.id));
+        setAssignmentMap((current) => {
+          const next = { ...current };
+          delete next[editingUser.id];
+          return next;
+        });
+        setEditingUser(null);
+        setMessageTone("success");
+        setMessage("Demo user removed locally for this session.");
+        setRemoveLoading(false);
+        return;
+      }
       const token = await getAccessToken();
       const response = await fetch(`/api/company/users/${editingUser.id}`, {
         method: "DELETE",

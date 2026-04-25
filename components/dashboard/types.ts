@@ -158,6 +158,28 @@ export type DashboardBanner = {
   tone: "warning" | "error";
 } | null;
 
+export type DashboardRevenueReadiness = {
+  score: number;
+  band: string;
+  activationPercent: number;
+  operationsPercent: number;
+  billingPercent: number;
+  retentionPercent: number;
+  nextActions: Array<{
+    id: string;
+    label: string;
+    detail: string;
+    href: string;
+    priority: "high" | "medium" | "low";
+  }>;
+  counts: {
+    openWork: number;
+    overdueWork: number;
+    activeJobsites: number;
+    documentsStarted: number;
+  };
+} | null;
+
 export type DashboardHeroAction = {
   label: string;
   href: string;
@@ -333,6 +355,7 @@ export type DashboardDataState = {
   companyInvites: DashboardCompanyInvite[];
   workspaceSummary: DashboardWorkspaceSummary;
   analyticsSummary: DashboardAnalyticsSummary;
+  revenueReadiness: DashboardRevenueReadiness;
   companyWorkspaceLoaded: boolean;
   companyWorkspaceLoading: boolean;
   companyWorkspaceError: string | null;

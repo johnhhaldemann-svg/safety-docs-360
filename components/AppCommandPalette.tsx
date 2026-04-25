@@ -98,9 +98,9 @@ export function AppCommandPalette({ open, onOpenChange, items }: AppCommandPalet
                 <Link
                   href={item.href}
                   onClick={() => onOpenChange(false)}
-                  className="group flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-[var(--app-text)] transition hover:bg-white/90 hover:shadow-[0_8px_18px_rgba(76,108,161,0.07)] active:bg-[rgba(79,125,243,0.12)]"
+                  className="group flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-[var(--app-text)] transition hover:bg-white/90 hover:shadow-[0_8px_18px_rgba(76,108,161,0.07)] active:bg-[var(--app-accent-surface-12)]"
                 >
-                  <span className="inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg bg-[rgba(79,125,243,0.14)] text-[11px] font-black text-[var(--app-accent-primary)]">
+                  <span className="inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--app-accent-surface-14)] text-[11px] font-black text-[var(--app-accent-primary)]">
                     {item.short}
                   </span>
                   <span className="min-w-0 flex-1 font-medium">{item.label}</span>

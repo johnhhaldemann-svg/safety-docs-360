@@ -304,7 +304,7 @@ export function MarketplacePreviewModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
           {isMarketplacePreview ? (
-            <section className="rounded-[1.75rem] border border-[rgba(79,125,243,0.22)] bg-[linear-gradient(135deg,_rgba(248,251,255,0.98)_0%,_rgba(231,240,255,0.96)_58%,_rgba(223,235,255,0.96)_100%)] p-5 shadow-[0_20px_48px_rgba(79,125,243,0.12)]">
+            <section className="rounded-[1.75rem] border border-[var(--app-accent-border-22)] bg-[linear-gradient(135deg,_rgba(248,251,255,0.98)_0%,_rgba(231,240,255,0.96)_58%,_rgba(223,235,255,0.96)_100%)] p-5 shadow-[var(--app-shadow-primary-float)]">
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_320px] xl:items-center">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">

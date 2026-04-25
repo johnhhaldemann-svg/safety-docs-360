@@ -271,7 +271,7 @@ export function SafetyIntelligenceWorkflow({
             </Link>
             <Link
               href={analyticsHref}
-              className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(79,125,243,0.22)]"
+              className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[var(--app-shadow-primary-button)]"
             >
               View analytics
             </Link>

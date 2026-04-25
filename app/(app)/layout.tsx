@@ -1,8 +1,6 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { Command, Search } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster } from "sonner";
@@ -30,21 +28,15 @@ import {
 import { getDefaultAgreementConfig, type AgreementConfig } from "@/lib/legal";
 import type { PermissionMap } from "@/lib/rbac";
 import { getCsepNavSectionsForRole, type WorkspaceProduct } from "@/lib/workspaceProduct";
-import {
-  getWorkspaceNavItemMeta,
-  groupCompanyWorkspaceSections,
-} from "@/lib/workspaceNavigationModel";
+import { groupCompanyWorkspaceSections } from "@/lib/workspaceNavigationModel";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { isWorkspaceNavActive } from "@/lib/workspaceNavActive";
+import { AppLoading } from "@/components/app-shell/AppLoading";
+import { AppShellHeader } from "@/components/app-shell/AppShellHeader";
+import { AppShellSidebar } from "@/components/app-shell/AppShellSidebar";
+import type { ProfileSummary } from "@/components/app-shell/ProfileAvatar";
 
 const supabase = getSupabaseBrowserClient();
-
-type ProfileSummary = {
-  fullName?: string;
-  preferredName?: string;
-  jobTitle?: string;
-  tradeSpecialty?: string;
-  photoUrl?: string;
-};
 
 async function fetchWithTimeout(
   input: RequestInfo | URL,
@@ -58,10 +50,6 @@ async function fetchWithTimeout(
   } finally {
     window.clearTimeout(timeoutId);
   }
-}
-
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
 }
 
 /** Supabase JS persists the session under localStorage keys like `sb-<ref>-auth-token`. */
@@ -112,139 +100,6 @@ function writeAcceptedTermsCache(email: string, version: string) {
   }
 }
 
-function isActivePath(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function isAllowedSalesDemoRoute(pathname: string) {
-  const salesDemoRoutes = ["/dashboard", "/library", "/search", "/profile"];
-  return salesDemoRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
-}
-
-function formatRole(role: string) {
-  const normalized = role.trim().toLowerCase().replace(/\s+/g, "_");
-  if (normalized === "sales_demo") {
-    return "Sales Demo";
-  }
-  if (normalized === "manager" || normalized === "operations_manager") {
-    return "Operations Manager";
-  }
-  if (normalized === "company_admin") {
-    return "Company Admin";
-  }
-  if (normalized === "company_user") {
-    return "Company User";
-  }
-  if (normalized === "safety_manager") {
-    return "Safety Manager";
-  }
-  if (normalized === "project_manager") {
-    return "Project Manager";
-  }
-  if (normalized === "field_supervisor") {
-    return "Field Supervisor";
-  }
-  if (normalized === "foreman") {
-    return "Foreman";
-  }
-  if (normalized === "field_user") {
-    return "Field User";
-  }
-  if (normalized === "read_only") {
-    return "Read Only";
-  }
-  if (normalized === "platform_admin") {
-    return "Platform Admin";
-  }
-  if (normalized === "super_admin") {
-    return "Super Admin";
-  }
-  return role.replace(/_/g, " ");
-}
-
-function getDisplayName(profile: ProfileSummary | null, email: string) {
-  const candidate = profile?.preferredName || profile?.fullName || email.split("@")[0] || "User";
-  return candidate.trim() || "User";
-}
-
-function getAvatarInitials(label: string) {
-  const parts = label
-    .split(/\s+/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  return (parts[0]?.[0] ?? "U") + (parts[1]?.[0] ?? "");
-}
-
-function ProfileAvatar({
-  profile,
-  email,
-  sizeClass = "h-12 w-12",
-  textClass = "text-sm",
-}: {
-  profile: ProfileSummary | null;
-  email: string;
-  sizeClass?: string;
-  textClass?: string;
-}) {
-  const displayName = getDisplayName(profile, email);
-
-  if (profile?.photoUrl) {
-    return (
-      <Image
-        src={profile.photoUrl}
-        alt={displayName}
-        width={48}
-        height={48}
-        className={`${sizeClass} rounded-2xl object-cover`}
-      />
-    );
-  }
-
-  return (
-    <span
-      className={`${sizeClass} inline-flex items-center justify-center rounded-2xl bg-[rgba(79,125,243,0.14)] font-black text-[var(--app-accent-primary)] ${textClass}`}
-    >
-      {getAvatarInitials(displayName)}
-    </span>
-  );
-}
-
-function MobileMenuIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="M4 7h16" />
-      <path d="M4 12h16" />
-      <path d="M4 17h16" />
-    </svg>
-  );
-}
-
-function ChevronDownIcon({ expanded }: { expanded: boolean }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className={cx("h-4 w-4 transition-transform duration-200", expanded && "rotate-180")}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
-}
-
 export default function AppLayout({
   children,
 }: {
@@ -282,6 +137,7 @@ export default function AppLayout({
   const isCompanyAdminUser = userRole === "company_admin";
   const isCompanyManagerUser = userRole === "manager" || userRole === "safety_manager";
   const isSalesDemoUser = userRole === "sales_demo";
+  const isCompanyAdminShellUser = isCompanyAdminUser || isSalesDemoUser;
   const isCompanyUser =
     userRole === "company_user" ||
     userRole === "project_manager" ||
@@ -289,7 +145,7 @@ export default function AppLayout({
     userRole === "foreman" ||
     userRole === "field_user" ||
     userRole === "read_only";
-  const isCompanyLeadershipUser = isCompanyAdminUser || isCompanyManagerUser;
+  const isCompanyLeadershipUser = isCompanyAdminShellUser || isCompanyManagerUser;
   const isCompanyScopedUser = isCompanyLeadershipUser || isCompanyUser;
   const canAccessInternalAdmin = Boolean(permissionMap?.can_access_internal_admin);
   const needsProfileSetup =
@@ -310,7 +166,7 @@ export default function AppLayout({
     if (!showPlatformAdminShell && isCompanyScopedUser && workspaceProduct === "csep") {
       return getCsepNavSectionsForRole(userRole);
     }
-    if (!showPlatformAdminShell && isCompanyAdminUser) {
+    if (!showPlatformAdminShell && isCompanyAdminShellUser) {
       return companyAdminSideSections;
     }
     if (!showPlatformAdminShell && isCompanyManagerUser) {
@@ -327,7 +183,7 @@ export default function AppLayout({
   }, [
     canAccessInternalAdmin,
     showPlatformAdminShell,
-    isCompanyAdminUser,
+    isCompanyAdminShellUser,
     isCompanyManagerUser,
     isCompanyScopedUser,
     isCompanyUser,
@@ -354,14 +210,11 @@ export default function AppLayout({
         .map((section) => ({
           ...section,
           items: section.items.filter((item) => {
-            if (isSalesDemoUser) {
-              return isAllowedSalesDemoRoute(item.href.split("#")[0] ?? item.href);
-            }
             return canAccessCompanyWorkspaceHref(item.href, userRole, permissionMap);
           }),
         }))
         .filter((section) => section.items.length > 0),
-    [isSalesDemoUser, permissionMap, presentedSideSections, userRole]
+    [permissionMap, presentedSideSections, userRole]
   );
 
   const keyedSideSections = useMemo(
@@ -381,7 +234,7 @@ export default function AppLayout({
   const currentNavItem = useMemo(() => {
     for (const section of keyedSideSections) {
       for (const item of section.items) {
-        if (isActivePath(pathname, item.href)) {
+        if (isWorkspaceNavActive(pathname, item.href)) {
           return item;
         }
       }
@@ -394,11 +247,9 @@ export default function AppLayout({
     };
   }, [keyedSideSections, pathname, showPlatformAdminShell]);
 
-  const currentNavMeta = useMemo(() => getWorkspaceNavItemMeta(currentNavItem), [currentNavItem]);
-
   const currentNavSection = useMemo(() => {
     return keyedSideSections.find((section) =>
-      section.items.some((item) => isActivePath(pathname, item.href))
+      section.items.some((item) => isWorkspaceNavActive(pathname, item.href))
     );
   }, [keyedSideSections, pathname]);
 
@@ -611,13 +462,6 @@ export default function AppLayout({
       return;
     }
 
-    if (isSalesDemoUser) {
-      if (!isAllowedSalesDemoRoute(pathname)) {
-        router.replace("/dashboard");
-      }
-      return;
-    }
-
     if (isCompanyScopedUser) {
       if (userRole === "read_only") {
         if (workspaceProduct === "csep") {
@@ -769,7 +613,6 @@ export default function AppLayout({
     companyId,
     isAdminArea,
     isCompanyScopedUser,
-    isSalesDemoUser,
     isSuperadminRoute,
     loading,
     needsCompanySetup,
@@ -886,10 +729,8 @@ export default function AppLayout({
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-app-canvas text-slate-300">
-        <div className="rounded-3xl border border-slate-700/80 bg-slate-900/80 px-8 py-6 text-sm font-semibold text-slate-200 shadow-lg">
-          Loading workspace...
-        </div>
+      <div className="app-shell-light min-h-screen bg-app-canvas text-[var(--app-text)]">
+        <AppLoading className="min-h-screen" label="Loading workspace…" />
       </div>
     );
   }
@@ -1040,232 +881,38 @@ export default function AppLayout({
           />
         ) : null}
 
-        <aside
-          className={cx(
-            "fixed inset-y-0 left-0 z-50 h-dvh w-[280px] max-w-[84vw] border-r border-[var(--app-border)] bg-[linear-gradient(180deg,_#f7fbff_0%,_#edf4ff_55%,_#e7f0fb_100%)] text-[var(--app-text-strong)] transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:w-[248px] lg:max-w-none lg:translate-x-0",
-            mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-          )}
-        >
-          <div className="flex h-full min-h-0 flex-col">
-            <div className="p-4 pb-1">
-              <div className="relative h-[5.8rem] w-full">
-                <Image
-                  src="/brand/safety360docs-reference-neon-tight.png"
-                  alt="Safety360Docs by Reliance EHS"
-                  fill
-                  priority
-                  sizes="248px"
-                  className="object-contain object-left"
-                />
-              </div>
-            </div>
-
-            <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-              <div className="px-3 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
-                Menu
-              </div>
-                    <div className="mt-4 space-y-0">
-                {keyedSideSections.map((section, sectionIndex) => (
-                  (() => {
-                    const sectionDescription =
-                      (section as { description?: string }).description ?? "";
-                    const isExpanded = expandedSectionKey === section.key;
-                    const sectionContentId = `nav-section-panel-${section.key}`;
-                    return (
-                  <div
-                    key={`nav-section-${sectionIndex}-${section.title}`}
-                    className={sectionIndex > 0 ? "mt-5 border-t border-[var(--app-border)] pt-5" : ""}
-                  >
-                    <button
-                      type="button"
-                      aria-expanded={isExpanded}
-                      aria-controls={sectionContentId}
-                      onClick={() =>
-                        setExpandedSectionKey((current) =>
-                          current === section.key ? null : section.key
-                        )
-                      }
-                      className={cx(
-                        "flex w-full items-start justify-between gap-3 rounded-2xl px-3 py-2 text-left transition",
-                        isExpanded
-                          ? "bg-white/75 text-[var(--app-text-strong)] shadow-sm"
-                          : "text-slate-500 hover:bg-white/60 hover:text-[var(--app-text-strong)]"
-                      )}
-                    >
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.22em]">
-                          {section.title}
-                        </div>
-                        {sectionDescription ? (
-                          <div className="mt-1 text-[11px] leading-5 text-[var(--app-muted)]">
-                            {sectionDescription}
-                          </div>
-                        ) : null}
-                      </div>
-                      <span
-                        className={cx(
-                          "mt-0.5 inline-flex shrink-0 rounded-full border border-[var(--app-border)] bg-white/90 p-1 text-[var(--app-muted)]",
-                          isExpanded && "text-[var(--app-accent-primary)]"
-                        )}
-                      >
-                        <ChevronDownIcon expanded={isExpanded} />
-                      </span>
-                    </button>
-                    <div
-                      id={sectionContentId}
-                      className={cx(
-                        "grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-200 ease-out",
-                        isExpanded ? "mt-2 grid-rows-[1fr] opacity-100" : "mt-0 grid-rows-[0fr] opacity-0"
-                      )}
-                    >
-                      <div className="min-h-0 overflow-hidden">
-                        <div className="space-y-1.5 px-1 pb-1">
-                      {section.items.map((item) => {
-                          const active = isActivePath(pathname, item.href);
-                          const navMeta = getWorkspaceNavItemMeta(item);
-                          return (
-                            <Link
-                              key={`${section.title}-${item.href}`}
-                              href={item.href}
-                              className={cx(
-                                "flex items-center rounded-2xl border px-4 py-3 transition",
-                                active
-                                  ? "border-[rgba(79,125,243,0.24)] bg-[linear-gradient(135deg,_rgba(79,125,243,0.14)_0%,_rgba(79,125,243,0.08)_100%)] text-[var(--app-text-strong)] shadow-[0_12px_24px_rgba(79,125,243,0.08)]"
-                                  : "border-transparent text-[var(--app-text)] hover:bg-white/70 hover:text-[var(--app-text-strong)]"
-                              )}
-                              onClick={() => setMobileMenuOpen(false)}
-                            >
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">
-                                  {item.label}
-                                </div>
-                                {!active ? (
-                                  <div className="mt-0.5 truncate text-[11px] text-[var(--app-muted)]">
-                                    {navMeta.description}
-                                  </div>
-                                ) : null}
-                              </div>
-                            </Link>
-                          );
-                        })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                    );
-                  })()
-                ))}
-              </div>
-            </nav>
-
-            <div className="shrink-0 border-t border-white/10 bg-[rgba(237,244,255,0.92)] p-3 backdrop-blur">
-              <div className="rounded-[1.6rem] border border-[var(--app-border)] bg-white/80 p-4">
-                <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
-                  Signed In
-                </div>
-                <div className="mt-3 flex items-center gap-3">
-                  <ProfileAvatar profile={profileSummary} email={userEmail} />
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">
-                      {getDisplayName(profileSummary, userEmail)}
-                    </div>
-                    <div className="mt-1 truncate text-xs text-[var(--app-text)]">
-                      {profileSummary?.jobTitle || formatRole(userRole)}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 text-xs uppercase tracking-[0.16em] text-[var(--app-accent-primary)]">
-                  {profileSummary?.tradeSpecialty || formatRole(userRole)}
-                </div>
-                <div className="mt-4 flex items-center justify-between rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2 text-xs text-[var(--app-text)]">
-                  <span>{workspaceLabel}</span>
-                  <span className="capitalize">{accountStatus}</span>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="app-btn-primary app-radius-card mt-4 w-full px-4 py-3 text-sm font-bold app-shadow-action transition"
-                >
-                  Log out
-                </button>
-              </div>
-            </div>
-          </div>
-        </aside>
+        <AppShellSidebar
+          pathname={pathname}
+          mobileMenuOpen={mobileMenuOpen}
+          onNavLinkActivate={() => setMobileMenuOpen(false)}
+          keyedSideSections={keyedSideSections}
+          expandedSectionKey={expandedSectionKey}
+          onToggleSection={(key) =>
+            setExpandedSectionKey((current) => (current === key ? null : key))
+          }
+          profileSummary={profileSummary}
+          userEmail={userEmail}
+          userRole={userRole}
+          workspaceLabel={workspaceLabel}
+          accountStatus={accountStatus}
+          onLogout={handleLogout}
+        />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="border-b border-[var(--app-border)] bg-[rgba(248,251,255,0.88)] backdrop-blur">
-            <div className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6 xl:px-8">
-              <div className="flex flex-col gap-5">
-                <div className="flex min-w-0 items-start gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setMobileMenuOpen(true)}
-                      aria-label="Open navigation menu"
-                      className="inline-flex h-11 min-h-11 w-11 min-w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--app-border)] bg-white text-[var(--app-text)] shadow-sm lg:hidden"
-                    >
-                      <MobileMenuIcon />
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-3 flex max-w-3xl flex-col gap-2 sm:flex-row">
-                        <form onSubmit={handleHeaderSearchSubmit} className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 rounded-2xl border border-[var(--app-border-strong)] bg-white/92 px-3 py-2.5 shadow-[0_10px_22px_rgba(76,108,161,0.06)]">
-                            <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--app-muted)]" />
-                            <input
-                              type="search"
-                              value={searchQuery}
-                              onChange={(event) => setSearchQuery(event.target.value)}
-                              placeholder="Search documents, records, projects, or pages"
-                              aria-label="Search workspace"
-                              className="w-full border-0 bg-transparent text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)]"
-                            />
-                            <button
-                              type="submit"
-                              className="app-btn-primary inline-flex shrink-0 px-3 py-2 text-xs transition"
-                            >
-                              Search
-                            </button>
-                          </div>
-                        </form>
-                        <button
-                          type="button"
-                          onClick={() => setCommandPaletteOpen(true)}
-                          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2.5 text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-accent-primary)] shadow-[0_10px_20px_rgba(76,108,161,0.05)] transition hover:-translate-y-0.5 hover:border-[rgba(37,99,235,0.24)] hover:bg-white"
-                        >
-                          <Command aria-hidden="true" className="h-4 w-4" />
-                          Menu
-                        </button>
-                      </div>
-                      <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-[var(--app-muted)]">
-                        {showPlatformAdminShell
-                          ? workspaceLabel
-                          : currentNavSection?.title || workspaceLabel}
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-3">
-                        <div>
-                          <h1 className="text-2xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-3xl">
-                            {currentNavItem.label}
-                          </h1>
-                          <p className="mt-1 text-sm text-[var(--app-text)]">
-                            {showPlatformAdminShell
-                              ? "Administrative tools and audit controls"
-                              : needsProfileSetup
-                                ? "Complete your construction profile before opening company setup or workspace tools"
-                              : needsCompanySetup
-                                ? "Create your company workspace before inviting employees or opening company tools"
-                                : isCompanyScopedUser
-                                  ? currentNavMeta.description
-                                  : "Safety document workspace and active project tools"}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="mt-2 max-w-3xl text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--app-muted)] sm:text-sm">
-                        Enterprise Safety Management Platform
-                      </p>
-                    </div>
-                </div>
-              </div>
-            </div>
-          </header>
+          <AppShellHeader
+            onOpenMobileMenu={() => setMobileMenuOpen(true)}
+            onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            onSearchSubmit={handleHeaderSearchSubmit}
+            showPlatformAdminShell={showPlatformAdminShell}
+            workspaceLabel={workspaceLabel}
+            needsProfileSetup={needsProfileSetup}
+            needsCompanySetup={needsCompanySetup}
+            isCompanyScopedUser={isCompanyScopedUser}
+            currentNavSection={currentNavSection}
+            currentNavItem={currentNavItem}
+          />
 
           <main id="main-content" className="flex-1 px-4 py-6 sm:px-6 sm:py-7 xl:px-8">
             <div className="mx-auto w-full max-w-[1600px] space-y-5">
@@ -1279,7 +926,7 @@ export default function AppLayout({
                 {children}
                 </div>
               </div>
-              <div className="app-radius-card bg-[linear-gradient(135deg,_#4f7df3_0%,_#6ea0ff_100%)] px-4 py-4 text-center text-xl font-black tracking-tight text-white shadow-[0_16px_30px_rgba(79,125,243,0.2)] sm:rounded-[1.6rem] sm:px-6 sm:py-5 sm:text-[1.85rem]">
+              <div className="app-radius-card bg-[linear-gradient(135deg,_var(--app-accent-primary)_0%,_#6ea0ff_100%)] px-4 py-4 text-center text-xl font-black tracking-tight text-white shadow-[var(--app-shadow-primary-hero)] sm:rounded-[1.6rem] sm:px-6 sm:py-5 sm:text-[1.85rem]">
                 Systems live. Secure. Document. Stay Safe.
               </div>
             </div>

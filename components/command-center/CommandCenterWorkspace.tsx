@@ -88,7 +88,7 @@ function LaunchCard({
   return (
     <Link
       href={href}
-      className="group rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-4 shadow-[var(--app-shadow-soft)] transition hover:-translate-y-0.5 hover:border-[rgba(79,125,243,0.35)]"
+      className="group rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-4 shadow-[var(--app-shadow-soft)] transition hover:-translate-y-0.5 hover:border-[var(--app-accent-surface-35)]"
     >
       <p className="text-sm font-semibold text-[var(--app-text-strong)]">{title}</p>
       <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
@@ -111,7 +111,7 @@ function StatTile({
   return (
     <Link
       href={href}
-      className="group flex flex-col rounded-2xl border border-[var(--app-border-strong)] bg-white/88 px-4 py-4 shadow-[var(--app-shadow-soft)] transition hover:border-[rgba(79,125,243,0.35)]"
+      className="group flex flex-col rounded-2xl border border-[var(--app-border-strong)] bg-white/88 px-4 py-4 shadow-[var(--app-shadow-soft)] transition hover:border-[var(--app-accent-surface-35)]"
     >
       <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">{label}</span>
       <span className="mt-2 text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</span>
@@ -286,7 +286,7 @@ export function CommandCenterWorkspace() {
                   className={[
                     "rounded-full px-3.5 py-2 text-xs font-semibold transition",
                     days === windowDays
-                      ? "bg-[var(--app-accent-primary)] text-white shadow-[0_12px_22px_rgba(79,125,243,0.22)]"
+                      ? "bg-[var(--app-accent-primary)] text-white shadow-[var(--app-shadow-primary-button)]"
                       : "border border-[var(--app-border-strong)] bg-white/80 text-[var(--app-text-strong)] hover:bg-white",
                   ].join(" ")}
                 >
@@ -336,7 +336,7 @@ export function CommandCenterWorkspace() {
             <Link
               key={item.id}
               href={item.href}
-              className="rounded-2xl border border-[var(--app-border)] bg-white/90 px-4 py-4 shadow-[var(--app-shadow-soft)] transition hover:border-[rgba(79,125,243,0.28)]"
+              className="rounded-2xl border border-[var(--app-border)] bg-white/90 px-4 py-4 shadow-[var(--app-shadow-soft)] transition hover:border-[var(--app-accent-border-28)]"
             >
               <StatusBadge label={item.complete ? "Done" : "Next"} tone={item.complete ? "success" : "warning"} />
               <p className="mt-3 text-sm font-semibold text-[var(--app-text-strong)]">{item.label}</p>

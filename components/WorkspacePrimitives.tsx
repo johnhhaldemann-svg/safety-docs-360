@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
 import { ArrowRight, Check, Minus } from "lucide-react";
 
 /**
@@ -6,7 +7,7 @@ import { ArrowRight, Check, Minus } from "lucide-react";
  * (where the OS allows) the dropdown list match the light enterprise shell.
  */
 export const appNativeSelectClassName =
-  "rounded-xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.98)] px-4 py-2.5 text-sm text-[var(--app-text-strong)] shadow-[0_8px_18px_rgba(76,108,161,0.06)] outline-none transition focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[rgba(79,125,243,0.18)]";
+  "rounded-xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.98)] px-4 py-2.5 text-sm text-[var(--app-text-strong)] shadow-[0_8px_18px_rgba(76,108,161,0.06)] outline-none transition focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]";
 
 export const workspaceEyebrowClassName =
   "text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent-primary)]";
@@ -15,20 +16,20 @@ export const workspaceSectionEyebrowClassName =
   "text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--app-muted)]";
 
 export const appButtonPrimaryClassName =
-  "inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(37,99,235,0.22)] transition hover:-translate-y-0.5 hover:bg-[var(--app-accent-primary-hover)] active:translate-y-0 active:bg-[var(--app-accent-primary-active)]";
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[var(--app-shadow-primary-button)] transition hover:-translate-y-0.5 hover:bg-[var(--app-accent-primary-hover)] active:translate-y-0 active:bg-[var(--app-accent-primary-active)]";
 
 export const appButtonSecondaryClassName =
   "inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--app-border-strong)] bg-white/92 px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] shadow-[0_10px_18px_rgba(76,108,161,0.06)] transition hover:-translate-y-0.5 hover:bg-[var(--app-accent-primary-soft)] active:translate-y-0";
 
 export const appButtonQuietClassName =
-  "inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-2.5 text-sm font-semibold text-[var(--app-accent-primary)] transition hover:-translate-y-0.5 hover:border-[rgba(37,99,235,0.24)] hover:bg-[var(--app-accent-primary-soft)] active:translate-y-0";
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-2.5 text-sm font-semibold text-[var(--app-accent-primary)] transition hover:-translate-y-0.5 hover:border-[var(--app-accent-border-24)] hover:bg-[var(--app-accent-primary-soft)] active:translate-y-0";
 
 function getSurfaceToneClassName(tone: "panel" | "elevated" | "attention") {
   if (tone === "elevated") {
     return "border-[rgba(121,151,196,0.42)] bg-[linear-gradient(180deg,_rgba(255,255,255,1)_0%,_rgba(244,249,255,0.98)_100%)] shadow-[0_18px_36px_rgba(74,106,158,0.11)]";
   }
   if (tone === "attention") {
-    return "border-[rgba(79,125,243,0.24)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.99)_0%,_rgba(234,241,255,0.98)_100%)] shadow-[0_16px_32px_rgba(79,125,243,0.1)]";
+    return "border-[var(--app-accent-border-24)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.99)_0%,_rgba(234,241,255,0.98)_100%)] shadow-[var(--app-shadow-primary-attention)]";
   }
   return "border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.97)_0%,_rgba(241,247,255,0.94)_100%)] shadow-[var(--app-shadow-soft)]";
 }
@@ -86,7 +87,7 @@ export function SectionCard({
     <section
       className={`relative overflow-hidden rounded-2xl p-6 ${getSurfaceToneClassName(tone)} ${className}`.trim()}
     >
-      <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,_transparent,_rgba(79,125,243,0.35),_transparent)]" />
+      <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,_transparent,_var(--app-accent-surface-35),_transparent)]" />
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
@@ -106,9 +107,14 @@ export function SectionCard({
 export function InlineMessage({
   tone = "neutral",
   children,
+  onRetry,
+  retryLabel = "Try again",
 }: {
   tone?: "neutral" | "success" | "warning" | "error";
   children: React.ReactNode;
+  onRetry?: () => void;
+  /** Shown when `onRetry` is set. */
+  retryLabel?: string;
 }) {
   const toneClass =
     tone === "success"
@@ -129,11 +135,21 @@ export function InlineMessage({
 
   return (
     <div className={`rounded-2xl border px-4 py-3.5 text-sm shadow-[0_8px_20px_rgba(76,108,161,0.06)] ${toneClass}`}>
-      <div className="flex items-start gap-3">
+      <div className="flex flex-wrap items-start gap-3">
         <span className="rounded-full border border-current/15 bg-white/55 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em]">
           {label}
         </span>
-        <div className="flex-1 pt-0.5">{children}</div>
+        <div className="min-w-0 flex-1 pt-0.5">{children}</div>
+        {onRetry ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="shrink-0 rounded-lg border border-current/25 bg-white/60 px-3 py-1.5 text-xs font-semibold text-[var(--app-text-strong)] transition hover:bg-white/90"
+            aria-label={retryLabel}
+          >
+            {retryLabel}
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -145,27 +161,57 @@ export function EmptyState({
   description,
   actionHref,
   actionLabel,
+  icon: Icon = Minus,
+  className = "",
+  align = "center",
+  primaryAction,
+  children,
 }: {
   eyebrow?: string;
   title: string;
   description: string;
   actionHref?: string;
   actionLabel?: string;
+  icon?: LucideIcon;
+  className?: string;
+  align?: "center" | "left";
+  primaryAction?: { label: string; onClick: () => void };
+  children?: React.ReactNode;
 }) {
+  const textAlign = align === "left" ? "text-left" : "text-center";
+  const iconBox =
+    align === "left" ? "mb-4 flex h-11 w-11" : "mx-auto mb-4 flex h-11 w-11";
   return (
-    <div className="rounded-2xl border border-dashed border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(241,247,255,0.9)_100%)] p-8 text-center shadow-[var(--app-shadow-soft)]">
-      <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-[rgba(79,125,243,0.18)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]">
-        <Minus aria-hidden="true" className="h-5 w-5" />
+    <div
+      className={`rounded-2xl border border-dashed border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(241,247,255,0.9)_100%)] p-8 shadow-[var(--app-shadow-soft)] ${textAlign} ${className}`.trim()}
+    >
+      <div
+        className={`${iconBox} items-center justify-center rounded-2xl border border-[var(--app-accent-surface-18)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]`}
+      >
+        <Icon aria-hidden="true" className="h-5 w-5" />
       </div>
       {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
       <p className="text-base font-semibold text-[var(--app-text-strong)]">{title}</p>
       <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
       {actionHref && actionLabel ? (
-        <Link href={actionHref} className={`mt-4 ${appButtonPrimaryClassName}`}>
+        <Link
+          href={actionHref}
+          className={`mt-4 inline-flex items-center justify-center ${align === "center" ? "w-full sm:w-auto" : ""} ${appButtonPrimaryClassName}`}
+        >
           {actionLabel}
           <ArrowRight aria-hidden="true" className="h-4 w-4" />
         </Link>
       ) : null}
+      {primaryAction ? (
+        <button
+          type="button"
+          onClick={primaryAction.onClick}
+          className={`mt-4 ${appButtonPrimaryClassName} w-full sm:inline-flex sm:w-auto ${align === "center" ? "justify-center" : ""}`}
+        >
+          {primaryAction.label}
+        </button>
+      ) : null}
+      {children}
     </div>
   );
 }
@@ -222,7 +268,7 @@ export function StatusBadge({
         : tone === "error"
           ? "bg-[#fad9d8] text-[#b94440] ring-1 ring-[rgba(217,83,79,0.24)]"
           : tone === "info"
-            ? "bg-[#d8e6ff] text-[#325fda] ring-1 ring-[rgba(79,125,243,0.22)]"
+            ? "bg-[#d8e6ff] text-[#325fda] ring-1 ring-[var(--app-accent-border-22)]"
             : "bg-[#e7edf5] text-[#637387] ring-1 ring-[rgba(138,150,168,0.18)]";
 
   return (
@@ -301,12 +347,12 @@ export function WorkflowPath({
           const toneClass = step.complete
             ? "border-[rgba(46,158,91,0.2)] bg-[var(--semantic-success-bg)]"
             : step.active
-              ? "border-[rgba(79,125,243,0.2)] bg-[var(--semantic-info-bg)]"
+              ? "border-[var(--app-accent-border-20)] bg-[var(--semantic-info-bg)]"
               : "border-[var(--app-border)] bg-[var(--app-panel)]";
           const badgeClass = step.complete
             ? "bg-[var(--semantic-success-bg)] text-[var(--semantic-success)] ring-1 ring-[rgba(46,158,91,0.2)]"
             : step.active
-              ? "bg-[var(--semantic-info-bg)] text-[var(--semantic-info)] ring-1 ring-[rgba(79,125,243,0.2)]"
+              ? "bg-[var(--semantic-info-bg)] text-[var(--semantic-info)] ring-1 ring-[var(--app-accent-border-20)]"
               : "bg-[var(--semantic-neutral-bg)] text-[var(--semantic-neutral)]";
 
           return (
@@ -348,7 +394,7 @@ export function MetricTile({
 }) {
   return (
     <div className={`relative overflow-hidden rounded-2xl p-4 ${getSurfaceToneClassName(tone)}`}>
-      <span className="absolute right-4 top-4 h-10 w-10 rounded-2xl border border-[rgba(79,125,243,0.14)] bg-[var(--app-accent-primary-soft)]" aria-hidden="true" />
+      <span className="absolute right-4 top-4 h-10 w-10 rounded-2xl border border-[var(--app-accent-surface-14)] bg-[var(--app-accent-primary-soft)]" aria-hidden="true" />
       {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
       <p className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{title}</p>
       <p className="mt-3 max-w-[80%] text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</p>

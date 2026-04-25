@@ -41,6 +41,11 @@ import {
   buildRiskMemoryApiObject,
   type RiskMemoryFormInput,
 } from "@/lib/riskMemory/form";
+import {
+  demoContractors,
+  demoCrews,
+  demoIncidentRows,
+} from "@/lib/demoWorkspace";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -133,6 +138,14 @@ async function getAuthHeaders() {
   };
 }
 
+async function isSalesDemoRequest(headers: HeadersInit) {
+  const response = await fetch("/api/auth/me", { headers });
+  const data = (await response.json().catch(() => null)) as
+    | { user?: { role?: string | null } }
+    | null;
+  return response.ok && data?.user?.role === "sales_demo";
+}
+
 export default function IncidentsPage() {
   const searchParams = useSearchParams();
   const [incidents, setIncidents] = useState<IncidentRow[]>([]);
@@ -145,11 +158,25 @@ export default function IncidentsPage() {
   const [memoryLessonNudge, setMemoryLessonNudge] = useState(false);
   const [contractors, setContractors] = useState<Array<{ id: string; name: string }>>([]);
   const [crews, setCrews] = useState<Array<{ id: string; name: string }>>([]);
+  const [demoMode, setDemoMode] = useState(false);
 
   async function loadIncidents() {
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
+      const isDemo = await isSalesDemoRequest(headers);
+      setDemoMode(isDemo);
+      if (isDemo) {
+        setIncidents(
+          (statusFilter === "all"
+            ? demoIncidentRows
+            : demoIncidentRows.filter((incident) => incident.status === statusFilter)) as IncidentRow[]
+        );
+        setContractors(demoContractors);
+        setCrews(demoCrews);
+        setLoading(false);
+        return;
+      }
       const query = statusFilter === "all" ? "" : `?status=${encodeURIComponent(statusFilter)}`;
       const response = await fetch(`/api/company/incidents${query}`, { headers });
       const data = (await response.json().catch(() => null)) as { incidents?: IncidentRow[]; error?: string } | null;
@@ -225,6 +252,45 @@ export default function IncidentsPage() {
     setSaving(true);
     setMessage("");
     try {
+      if (demoMode) {
+        const nowIso = new Date().toISOString();
+        setIncidents((current) => [
+          {
+            id: `demo-incident-${Date.now()}`,
+            title: form.title,
+            status: "open",
+            category: form.category,
+            severity: form.severity,
+            injury_type: form.category === "incident" ? form.injuryType || null : null,
+            body_part: form.category === "incident" ? form.bodyPart || null : null,
+            injury_source: form.source || null,
+            exposure_event_type: form.eventType || null,
+            days_away_from_work: form.daysAwayFromWork,
+            days_restricted: form.daysRestricted,
+            job_transfer: form.jobTransfer,
+            recordable: form.recordable,
+            lost_time: form.lostTime,
+            fatality: form.fatality,
+            sif_flag: form.category === "incident",
+            escalation_level: "none",
+            stop_work_status: "normal",
+            created_at: nowIso,
+            occurred_at: form.occurredAt.trim()
+              ? new Date(form.occurredAt).toISOString()
+              : nowIso,
+            injury_month: new Date(nowIso).getUTCMonth() + 1,
+            injury_season: "spring",
+            injury_day_of_week: "friday",
+            injury_time_of_day: "morning",
+          },
+          ...current,
+        ]);
+        setForm(EMPTY_FORM);
+        setMessageTone("success");
+        setMessage("Demo incident created locally for this session.");
+        setSaving(false);
+        return;
+      }
       const headers = await getAuthHeaders();
       const response = await fetch("/api/company/incidents", {
         method: "POST",
@@ -271,6 +337,19 @@ export default function IncidentsPage() {
   }
 
   async function updateIncident(item: IncidentRow, updates: Record<string, unknown>) {
+    if (demoMode) {
+      setIncidents((current) =>
+        current.map((incident) =>
+          incident.id === item.id ? { ...incident, ...updates } : incident
+        )
+      );
+      setMessageTone("success");
+      setMessage("Demo incident updated locally for this session.");
+      if (updates.status === "closed") {
+        setMemoryLessonNudge(true);
+      }
+      return;
+    }
     try {
       const headers = await getAuthHeaders();
       const response = await fetch("/api/company/incidents", {

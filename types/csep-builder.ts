@@ -55,9 +55,9 @@ export const CSEP_FORMAT_SECTION_KEYS = [
   "sub_tier_contractor_management",
   "project_close_out",
   "permits_and_forms",
+  "hse_elements_and_site_specific_hazard_analysis",
   "checklists_and_inspections",
   "regulatory_framework",
-  "hse_elements_and_site_specific_hazard_analysis",
   "appendices_and_support_library",
 ] as const;
 

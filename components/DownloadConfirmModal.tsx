@@ -90,7 +90,7 @@ export function DownloadConfirmModal({
               onConfirm();
             }}
             disabled={!checked || Boolean(loading)}
-            className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(79,125,243,0.22)] transition hover:bg-[var(--app-accent-primary-hover)] disabled:opacity-60"
+            className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-3 text-sm font-semibold text-white shadow-[var(--app-shadow-primary-button)] transition hover:bg-[var(--app-accent-primary-hover)] disabled:opacity-60"
           >
             {loading ? "Opening..." : "Download DOCX"}
           </button>

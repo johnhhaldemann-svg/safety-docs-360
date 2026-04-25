@@ -6,7 +6,7 @@ export function SorStatusBadge({ status }: { status: string }) {
         ? "bg-[var(--semantic-warning-bg)] text-[var(--semantic-warning)] ring-1 ring-[rgba(217,164,65,0.18)]"
         : status === "locked"
           ? "bg-[var(--semantic-success-bg)] text-[var(--semantic-success)] ring-1 ring-[rgba(46,158,91,0.18)]"
-          : "bg-[var(--semantic-info-bg)] text-[var(--semantic-info)] ring-1 ring-[rgba(79,125,243,0.18)]";
+          : "bg-[var(--semantic-info-bg)] text-[var(--semantic-info)] ring-1 ring-[var(--app-accent-surface-18)]";
   return (
     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>
       {status}

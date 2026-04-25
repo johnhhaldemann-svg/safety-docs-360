@@ -15,6 +15,7 @@ import type {
   DashboardCompanyUser,
   DashboardDataState,
   DashboardDocument,
+  DashboardRevenueReadiness,
   DashboardWorkspaceSummary,
 } from "@/components/dashboard/types";
 
@@ -80,6 +81,7 @@ export function useDashboardData(): DashboardDataState {
     emptyWorkspaceSummary
   );
   const [analyticsSummary, setAnalyticsSummary] = useState<DashboardAnalyticsSummary>(null);
+  const [revenueReadiness, setRevenueReadiness] = useState<DashboardRevenueReadiness>(null);
   const [companyWorkspaceLoaded, setCompanyWorkspaceLoaded] = useState(false);
   const [companyWorkspaceLoading, setCompanyWorkspaceLoading] = useState(false);
   const [companyWorkspaceError, setCompanyWorkspaceError] = useState<string | null>(null);
@@ -95,6 +97,7 @@ export function useDashboardData(): DashboardDataState {
       setCompanyInvites([]);
       setWorkspaceSummary(emptyWorkspaceSummary());
       setAnalyticsSummary(null);
+      setRevenueReadiness(null);
       setCompanyWorkspaceLoaded(true);
       setCompanyWorkspaceLoading(false);
       setCompanyWorkspaceError(null);
@@ -164,6 +167,7 @@ export function useDashboardData(): DashboardDataState {
       }
       setWorkspaceSummary(emptyWorkspaceSummary());
       setAnalyticsSummary(null);
+      setRevenueReadiness(null);
       setAnalyticsSummaryIssue({
         message: "Analytics summary could not be loaded.",
         tone: "error",
@@ -248,6 +252,29 @@ export function useDashboardData(): DashboardDataState {
         setCompanyInvites(demoData.companyInvites);
         setWorkspaceSummary(demoData.workspaceSummary);
         setAnalyticsSummary(demoData.analyticsSummary);
+        setRevenueReadiness({
+          score: 88,
+          band: "Ready to sell",
+          activationPercent: 92,
+          operationsPercent: 84,
+          billingPercent: 86,
+          retentionPercent: 89,
+          nextActions: [
+            {
+              id: "demo-high-risk-week",
+              label: "Walk through high-risk week",
+              detail: "Use Command Center to connect risk, open work, and follow-up actions.",
+              href: "/command-center",
+              priority: "medium",
+            },
+          ],
+          counts: {
+            openWork: 7,
+            overdueWork: 1,
+            activeJobsites: demoData.workspaceSummary.jobsites.length,
+            documentsStarted: demoData.documents.length,
+          },
+        });
         setCompanyWorkspaceLoaded(true);
         setCompanyWorkspaceLoading(false);
         setCompanyWorkspaceError(null);
@@ -286,11 +313,22 @@ export function useDashboardData(): DashboardDataState {
 
       if (canLoadCompanyWorkspace) {
         await refreshCompanyWorkspace();
+        const progressResponse = await fetchWithTimeoutSafe(
+          "/api/company/onboarding/progress",
+          { headers },
+          15000,
+          "Onboarding progress"
+        );
+        const progressData = (await progressResponse.json().catch(() => null)) as
+          | { progress?: DashboardRevenueReadiness }
+          | null;
+        setRevenueReadiness(progressResponse.ok ? progressData?.progress ?? null : null);
       } else {
         setCompanyUsers([]);
         setCompanyInvites([]);
         setWorkspaceSummary(emptyWorkspaceSummary());
         setAnalyticsSummary(null);
+        setRevenueReadiness(null);
         setCompanyWorkspaceLoaded(true);
         setCompanyWorkspaceLoading(false);
         setCompanyWorkspaceError(null);
@@ -319,6 +357,7 @@ export function useDashboardData(): DashboardDataState {
     companyInvites,
     workspaceSummary,
     analyticsSummary,
+    revenueReadiness,
     companyWorkspaceLoaded,
     companyWorkspaceLoading,
     companyWorkspaceError,

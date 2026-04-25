@@ -13,7 +13,7 @@ function humanizeCode(value: string) {
 
 function summaryCardTone(tab: ReviewTab) {
   if (tab === "permit") return "border-[rgba(217,83,79,0.16)] bg-[rgba(255,242,242,0.92)]";
-  if (tab === "training") return "border-[rgba(79,125,243,0.18)] bg-[rgba(239,245,255,0.95)]";
+  if (tab === "training") return "border-[var(--app-accent-surface-18)] bg-[rgba(239,245,255,0.95)]";
   if (tab === "ppe") return "border-[rgba(217,164,65,0.18)] bg-[rgba(255,248,232,0.96)]";
   return "border-[rgba(138,150,168,0.18)] bg-[rgba(248,251,255,0.96)]";
 }
@@ -85,7 +85,7 @@ function DomainStatus({
               {currentValues.map((value) => (
                 <li
                   key={value}
-                  className="rounded-full bg-[rgba(79,125,243,0.12)] px-3 py-1.5 text-xs font-semibold text-[var(--app-accent-primary)]"
+                  className="rounded-full bg-[var(--app-accent-surface-12)] px-3 py-1.5 text-xs font-semibold text-[var(--app-accent-primary)]"
                 >
                   {humanizeCode(value)}
                 </li>

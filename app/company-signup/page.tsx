@@ -148,10 +148,10 @@ export default function CompanySignupPage() {
   }
 
   return (
-    <main id="main-content" className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(79,125,243,0.14),_transparent_26%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_48%,_#e7f0fb_100%)] px-4 py-8 sm:px-6 lg:px-8">
+    <main id="main-content" className="min-h-screen bg-[radial-gradient(circle_at_top,_var(--app-accent-surface-14),_transparent_26%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_48%,_#e7f0fb_100%)] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl items-center justify-center">
         <div className="app-radius-panel grid w-full gap-6 border border-[var(--app-border)] bg-[rgba(248,251,255,0.96)] p-6 shadow-[var(--app-shadow)] lg:grid-cols-[0.9fr_1.1fr] lg:p-8">
-          <section className="app-radius-card border border-[var(--app-border)] bg-[radial-gradient(circle_at_top_left,_rgba(79,125,243,0.12),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(234,241,255,0.96)_100%)] p-6 text-[var(--app-text)]">
+          <section className="app-radius-card border border-[var(--app-border)] bg-[radial-gradient(circle_at_top_left,_var(--app-accent-surface-12),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(234,241,255,0.96)_100%)] p-6 text-[var(--app-text)]">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--app-accent-primary)]">
               Company Workspace
             </p>
@@ -363,8 +363,8 @@ export default function CompanySignupPage() {
                       className={[
                         "w-full rounded-2xl border px-4 py-4 text-left transition",
                         active
-                          ? "border-[rgba(79,125,243,0.28)] bg-[var(--app-accent-primary-soft)] shadow-sm"
-                          : "border-[var(--app-border)] bg-white hover:border-[rgba(79,125,243,0.28)] hover:bg-[var(--app-accent-primary-soft)]",
+                          ? "border-[var(--app-accent-border-28)] bg-[var(--app-accent-primary-soft)] shadow-sm"
+                          : "border-[var(--app-border)] bg-white hover:border-[var(--app-accent-border-28)] hover:bg-[var(--app-accent-primary-soft)]",
                       ].join(" ")}
                     >
                       <div className="text-sm font-semibold text-[var(--app-text-strong)]">{option.title}</div>

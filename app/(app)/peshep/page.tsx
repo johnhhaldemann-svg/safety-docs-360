@@ -8,6 +8,10 @@ import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBan
 import { ChecklistCoveragePanel } from "@/components/compliance/ChecklistCoveragePanel";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import {
+  useCompanyWorkspaceData,
+  type CompanyJobsite,
+} from "@/components/company-workspace/useCompanyWorkspaceData";
+import {
   InlineMessage,
   PageHero,
   SectionCard,
@@ -32,6 +36,7 @@ import type { ChecklistEvaluationResponse } from "@/lib/compliance/evaluation";
 import { buildPshsepGenerationContext } from "@/lib/safety-intelligence/documentIntake";
 
 type Answers = {
+  jobsite_id: string;
   company_name: string;
   project_name: string;
   project_number: string;
@@ -203,6 +208,7 @@ const textareaAiHints: Record<DraftableAnswerField, string> = {
 };
 
 const initialAnswers: Answers = {
+  jobsite_id: "",
   company_name: "SafetyDocs",
   project_name: "",
   project_number: "",
@@ -263,7 +269,21 @@ function toggleItem(values: string[], item: string) {
     : [...values, item];
 }
 
+function buildJobsiteSelectLabel(jobsite: CompanyJobsite) {
+  return [jobsite.name, jobsite.projectNumber, jobsite.location].filter(Boolean).join(" | ");
+}
+
+function buildJobsiteOversightText(jobsite: CompanyJobsite) {
+  return [
+    jobsite.projectManager ? `Project Manager: ${jobsite.projectManager}` : "",
+    jobsite.safetyLead ? `Safety Lead: ${jobsite.safetyLead}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export default function PESHEPUniversalPage() {
+  const { jobsites, loading: jobsitesLoading } = useCompanyWorkspaceData();
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Answers>(initialAnswers);
   const [siteMap, setSiteMap] = useState("");
@@ -474,6 +494,16 @@ export default function PESHEPUniversalPage() {
     () => resolveBuilderJurisdiction({ governingState: normalizedAnswers.governing_state }),
     [normalizedAnswers.governing_state]
   );
+  const jobsiteOptions = useMemo(
+    () =>
+      jobsites
+        .filter((jobsite) => jobsite.source === "table")
+        .map((jobsite) => ({
+          value: jobsite.id,
+          label: buildJobsiteSelectLabel(jobsite),
+        })),
+    [jobsites]
+  );
 
   const checklistFormData = useMemo(
     () => ({
@@ -596,6 +626,27 @@ export default function PESHEPUniversalPage() {
 
   function updateField<K extends keyof Answers>(field: K, value: Answers[K]) {
     setAnswers((current) => ({ ...current, [field]: value }));
+  }
+
+  function applyJobsiteToAnswers(jobsiteId: string) {
+    const selectedJobsite = jobsites.find((jobsite) => jobsite.id === jobsiteId);
+
+    setAnswers((current) => {
+      if (!selectedJobsite) {
+        return { ...current, jobsite_id: "" };
+      }
+
+      return {
+        ...current,
+        jobsite_id: selectedJobsite.id,
+        project_name: selectedJobsite.name,
+        project_number: selectedJobsite.projectNumber || current.project_number,
+        project_address: selectedJobsite.location || current.project_address,
+        project_description: selectedJobsite.notes || current.project_description,
+        oversight_roles_text:
+          buildJobsiteOversightText(selectedJobsite) || current.oversight_roles_text,
+      };
+    });
   }
 
   function handleOwnerLetterPresetChange(value: string) {
@@ -871,6 +922,20 @@ export default function PESHEPUniversalPage() {
               {step === 0 ? (
                 <>
                   <div className="grid gap-4 md:grid-cols-2">
+                    <div className="md:col-span-2">
+                      <Select
+                        label="Fill from Jobsite"
+                        value={answers.jobsite_id}
+                        options={[
+                          {
+                            value: "",
+                            label: jobsitesLoading ? "Loading jobsites" : "Choose a saved jobsite",
+                          },
+                          ...jobsiteOptions,
+                        ]}
+                        onChange={applyJobsiteToAnswers}
+                      />
+                    </div>
                     <Field label="Company Name (branding)" value={answers.company_name} onChange={(value) => updateField("company_name", value)} />
                     <Field label="Project Name" value={answers.project_name} onChange={(value) => updateField("project_name", value)} />
                     <Field label="Project Number" value={answers.project_number} onChange={(value) => updateField("project_number", value)} />

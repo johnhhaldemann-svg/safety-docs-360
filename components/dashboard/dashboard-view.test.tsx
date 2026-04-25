@@ -145,6 +145,7 @@ const baseData: DashboardDataState = {
       },
     ],
   },
+  revenueReadiness: null,
   companyWorkspaceLoaded: true,
   companyWorkspaceLoading: false,
   companyWorkspaceError: null,

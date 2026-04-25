@@ -51,6 +51,36 @@ html {
   --app-radius-lg: 1.5rem;
   --app-radius-xl: 1.9rem;
   --app-focus-ring: 0 0 0 4px rgba(37, 99, 235, 0.26);
+  /* Accent tints and shadows (aligned with --app-accent-primary #2563eb, rgb(37,99,235)) */
+  --app-accent-surface-06: rgba(37, 99, 235, 0.06);
+  --app-accent-surface-07: rgba(37, 99, 235, 0.07);
+  --app-accent-surface-08: rgba(37, 99, 235, 0.08);
+  --app-accent-surface-10: rgba(37, 99, 235, 0.1);
+  --app-accent-surface-12: rgba(37, 99, 235, 0.12);
+  --app-accent-surface-14: rgba(37, 99, 235, 0.14);
+  --app-accent-surface-18: rgba(37, 99, 235, 0.18);
+  --app-accent-border-20: rgba(37, 99, 235, 0.2);
+  --app-accent-border-22: rgba(37, 99, 235, 0.22);
+  --app-accent-border-24: rgba(37, 99, 235, 0.24);
+  --app-accent-border-28: rgba(37, 99, 235, 0.28);
+  --app-accent-border-30: rgba(37, 99, 235, 0.3);
+  --app-accent-border-35: rgba(37, 99, 235, 0.35);
+  --app-shadow-primary-button: 0 12px 22px rgba(37, 99, 235, 0.22);
+  --app-shadow-primary-elevated: 0 16px 28px rgba(37, 99, 235, 0.24);
+  --app-shadow-primary-panel: 0 12px 28px rgba(37, 99, 235, 0.08);
+  --app-shadow-primary-float: 0 20px 48px rgba(37, 99, 235, 0.12);
+  --app-shadow-primary-attention: 0 16px 32px rgba(37, 99, 235, 0.1);
+  --app-shadow-primary-nav: 0 12px 24px rgba(37, 99, 235, 0.08);
+  --app-shadow-primary-glow: 0 0 40px rgba(37, 99, 235, 0.12);
+  --app-shadow-primary-hero: 0 16px 30px rgba(37, 99, 235, 0.2);
+  --app-shadow-primary-skip: 0 12px 28px rgba(37, 99, 235, 0.28);
+  --app-shadow-primary-medium-float: 0 18px 40px rgba(37, 99, 235, 0.12);
+  --app-ring-focus-inner: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  --app-top-line-flair: linear-gradient(90deg, transparent, var(--app-accent-surface-35), transparent);
+  --app-accent-surface-34: rgba(37, 99, 235, 0.34);
+  --app-accent-surface-35: rgba(37, 99, 235, 0.35);
+  --app-accent-surface-55: rgba(37, 99, 235, 0.55);
+  --app-selection-bg: rgba(37, 99, 235, 0.2);
 }
 
 @theme inline {
@@ -61,8 +91,8 @@ html {
   --color-app-elevated: var(--app-elevated);
   --color-app-border: var(--app-border);
   --color-app-muted: var(--app-muted);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", "Roboto Mono", monospace;
 }
 
 * {
@@ -85,7 +115,7 @@ body {
     var(--app-canvas-glow),
     linear-gradient(180deg, #fafcff 0%, #f1f6ff 45%, #eaf2fb 100%);
   color: var(--foreground);
-  font-family: "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-inter), "Segoe UI", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -127,7 +157,7 @@ a[class] {
   color: #ffffff;
   font-weight: 600;
   border-radius: 0.75rem;
-  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.28);
+  box-shadow: var(--app-shadow-primary-skip);
   transition: top 160ms ease;
 }
 
@@ -226,11 +256,11 @@ a[class] {
 }
 
 .app-shadow-action {
-  box-shadow: 0 12px 24px rgba(79, 125, 243, 0.22);
+  box-shadow: var(--app-shadow-primary-button);
 }
 
 .app-shadow-action-strong {
-  box-shadow: 0 16px 36px rgba(79, 125, 243, 0.24);
+  box-shadow: var(--app-shadow-primary-elevated);
 }
 
 .app-shadow-brand {
@@ -258,11 +288,11 @@ a[class] {
 
 .analytics-workspace-light .analytics-action-primary {
   border-radius: 0.75rem;
-  background: linear-gradient(135deg, #4f7df3 0%, #5b92ff 100%);
+  background: linear-gradient(135deg, var(--app-accent-primary) 0%, #5b92ff 100%);
   color: #ffffff;
   font-weight: 800;
   letter-spacing: 0.02em;
-  box-shadow: 0 16px 28px rgba(79, 125, 243, 0.22);
+  box-shadow: var(--app-shadow-primary-elevated);
 }
 
 .analytics-workspace-light .analytics-action-primary:hover {
@@ -310,17 +340,17 @@ a[class] {
     rgba(236, 244, 255, 0.96) 100%
   );
   color: var(--app-text-strong);
-  box-shadow: 0 20px 42px rgba(79, 125, 243, 0.12);
+  box-shadow: var(--app-shadow-primary-float);
 }
 
 .app-photo-frame {
   border: 1px solid rgba(198, 212, 236, 0.85);
-  box-shadow: 0 10px 24px rgba(79, 125, 243, 0.08);
+  box-shadow: var(--app-shadow-primary-panel);
 }
 
 .app-photo-placeholder {
   background: rgba(232, 240, 255, 0.96);
-  box-shadow: 0 10px 24px rgba(79, 125, 243, 0.08);
+  box-shadow: var(--app-shadow-primary-panel);
 }
 
 .app-soft-field {
@@ -467,7 +497,7 @@ a[class] {
 }
 
 .app-dropdown-item:hover {
-  background: rgba(79, 125, 243, 0.08);
+  background: var(--app-accent-surface-08);
 }
 
 .app-text-input {
@@ -488,7 +518,7 @@ a[class] {
 
 .app-text-input:focus {
   border-color: var(--app-accent-primary);
-  box-shadow: 0 0 0 3px rgba(79, 125, 243, 0.15);
+  box-shadow: var(--app-ring-focus-inner);
 }
 
 .app-form-input {
@@ -509,7 +539,7 @@ a[class] {
 
 .app-form-input:focus {
   border-color: var(--app-accent-primary);
-  box-shadow: 0 0 0 3px rgba(79, 125, 243, 0.15);
+  box-shadow: var(--app-ring-focus-inner);
 }
 
 .app-dark-input {
@@ -544,7 +574,7 @@ a[class] {
 
 .app-shell-light .app-dark-input:focus {
   border-color: var(--app-accent-primary);
-  box-shadow: 0 0 0 3px rgba(79, 125, 243, 0.15);
+  box-shadow: var(--app-ring-focus-inner);
 }
 
 .app-input-shell {
@@ -561,14 +591,14 @@ a[class] {
 }
 
 .app-input-shell:focus-within {
-  border-color: rgba(79, 125, 243, 0.35);
+  border-color: var(--app-accent-surface-35);
   background: #ffffff;
 }
 
 .app-auth-canvas {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top, rgba(79, 125, 243, 0.14), transparent 24%),
+    radial-gradient(circle at top, var(--app-accent-surface-14), transparent 24%),
     linear-gradient(180deg, #f7fbff 0%, #eef5ff 48%, #e7f0fb 100%);
 }
 
@@ -652,7 +682,7 @@ textarea {
 }
 
 ::selection {
-  background: rgba(79, 125, 243, 0.2);
+  background: var(--app-selection-bg);
   color: #16324f;
 }
 
@@ -679,14 +709,14 @@ textarea {
 
 .app-shell-light {
   background:
-    radial-gradient(circle at top left, rgba(79, 125, 243, 0.08), transparent 30%),
+    radial-gradient(circle at top left, var(--app-accent-surface-08), transparent 30%),
     linear-gradient(180deg, #fbfdff 0%, #f3f7ff 42%, #edf3fb 100%);
   color: var(--app-text);
 }
 
 .app-shell-dashboard {
   background:
-    radial-gradient(circle at top left, rgba(79, 125, 243, 0.07), transparent 32%),
+    radial-gradient(circle at top left, var(--app-accent-surface-07), transparent 32%),
     linear-gradient(180deg, #fbfdff 0%, #f2f7ff 44%, #edf3fb 100%);
 }
 
@@ -705,6 +735,29 @@ textarea {
     linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(248, 251, 255, 0.98) 100%);
   box-shadow: var(--app-shadow-soft);
   backdrop-filter: blur(14px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes app-page-enter {
+    from {
+      opacity: 0.9;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .app-page-transition {
+    animation: app-page-enter 200ms ease-out both;
+  }
+
+  .workspace-frame {
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.22s ease;
+  }
 }
 
 .workspace-content {
@@ -777,8 +830,8 @@ textarea {
 
 .app-surface-attention {
   background: var(--app-surface-attention);
-  border: 1px solid rgba(79, 125, 243, 0.24);
-  box-shadow: 0 16px 32px rgba(79, 125, 243, 0.1);
+  border: 1px solid var(--app-accent-border-24);
+  box-shadow: var(--app-shadow-primary-attention);
 }
 
 .workspace-eyebrow {
@@ -890,8 +943,8 @@ textarea {
 .app-shell-light [class*="ring-teal-400"],
 .app-shell-light [class*="ring-teal-500"] {
   color: var(--app-accent-primary) !important;
-  border-color: rgba(79, 125, 243, 0.28) !important;
-  background-color: rgba(79, 125, 243, 0.1) !important;
+  border-color: var(--app-accent-border-28) !important;
+  background-color: var(--app-accent-surface-10) !important;
 }
 
 .app-shell-light [class*="bg-emerald-950"],
@@ -913,7 +966,7 @@ textarea {
 .app-shell-light [class*="bg-sky-950"],
 .app-shell-light [class*="border-sky-500"] {
   background-color: rgba(234, 241, 255, 0.96) !important;
-  border-color: rgba(79, 125, 243, 0.24) !important;
+  border-color: var(--app-accent-border-24) !important;
 }
 
 .app-shell-light [class*="text-emerald-100"],
@@ -1008,7 +1061,7 @@ textarea {
 
 .injury-weather-light [class*="bg-[radial-gradient(circle_at_top"] {
   background:
-    radial-gradient(circle at top, rgba(79, 125, 243, 0.14), transparent 34%),
+    radial-gradient(circle at top, var(--app-accent-surface-14), transparent 34%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(237, 244, 255, 0.96) 100%) !important;
 }
 
@@ -1083,7 +1136,7 @@ textarea {
 .injury-weather-light [class*="bg-sky-500/20"],
 .injury-weather-light [class*="bg-cyan-500/20"] {
   background: var(--semantic-info-bg) !important;
-  border-color: rgba(79, 125, 243, 0.22) !important;
+  border-color: var(--app-accent-border-22) !important;
 }
 
 .injury-weather-light [class*="text-amber-"],
@@ -1154,7 +1207,7 @@ textarea {
 
 .jsa-workspace-light {
   background:
-    radial-gradient(circle at top left, rgba(79, 125, 243, 0.12), transparent 24%),
+    radial-gradient(circle at top left, var(--app-accent-surface-12), transparent 24%),
     linear-gradient(180deg, #f8fbff 0%, #eef5ff 48%, #e7f0fb 100%) !important;
 }
 
@@ -1184,14 +1237,14 @@ textarea {
 .preview-modal-light [class*="bg-[linear-gradient(180deg,_rgba(14,27,46"],
 .preview-modal-light [class*="bg-[linear-gradient(135deg,_rgba(15,23,42"] {
   background: linear-gradient(135deg, rgba(248, 251, 255, 0.98) 0%, rgba(231, 240, 255, 0.96) 58%, rgba(223, 235, 255, 0.96) 100%) !important;
-  border-color: rgba(79, 125, 243, 0.22) !important;
-  box-shadow: 0 20px 48px rgba(79, 125, 243, 0.12) !important;
+  border-color: var(--app-accent-border-22) !important;
+  box-shadow: 0 20px 48px var(--app-accent-surface-12) !important;
 }
 
 .analytics-workspace-light {
   color: var(--app-text);
   background:
-    radial-gradient(circle at top left, rgba(79, 125, 243, 0.12), transparent 24%),
+    radial-gradient(circle at top left, var(--app-accent-surface-12), transparent 24%),
     linear-gradient(180deg, #f8fbff 0%, #eef5ff 48%, #e7f0fb 100%) !important;
 }
 
@@ -1236,7 +1289,7 @@ textarea {
 .analytics-workspace-light [class*="bg-cyan-500/10"],
 .analytics-workspace-light [class*="bg-cyan-500/20"] {
   background: var(--semantic-info-bg) !important;
-  border-color: rgba(79, 125, 243, 0.22) !important;
+  border-color: var(--app-accent-border-22) !important;
 }
 
 .analytics-workspace-light [class*="bg-emerald-500/10"],
@@ -1265,7 +1318,7 @@ textarea {
 
 .analytics-workspace-light [class*="bg-gradient-to-b"][class*="from-cyan-500/10"] {
   background: linear-gradient(180deg, rgba(227, 243, 255, 0.98) 0%, rgba(246, 250, 255, 0.96) 100%) !important;
-  border-color: rgba(79, 125, 243, 0.22) !important;
+  border-color: var(--app-accent-border-22) !important;
 }
 
 .analytics-workspace-light [class*="text-cyan-100"],
@@ -1297,7 +1350,7 @@ textarea {
 }
 
 .analytics-workspace-light [class*="hover:bg-white/5"]:hover {
-  background: rgba(79, 125, 243, 0.08) !important;
+  background: var(--app-accent-surface-08) !important;
 }
 
 .library-workspace-light {
@@ -1317,9 +1370,9 @@ textarea {
 
 .library-workspace-light [class*="bg-[radial-gradient(circle_at_top_left"] {
   background:
-    radial-gradient(circle at top left, rgba(79, 125, 243, 0.12), transparent 28%),
+    radial-gradient(circle at top left, var(--app-accent-surface-12), transparent 28%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(233, 241, 255, 0.95) 100%) !important;
-  border-color: rgba(79, 125, 243, 0.22) !important;
+  border-color: var(--app-accent-border-22) !important;
 }
 
 .library-workspace-light [class*="bg-[linear-gradient(180deg,_rgba(15,23,42"],
@@ -1331,7 +1384,7 @@ textarea {
 .library-workspace-light [class*="bg-[linear-gradient(180deg,_rgba(15,23,42"],
 .library-workspace-light [class*="bg-[linear-gradient(180deg,_#0f172a"] {
   background: linear-gradient(180deg, rgba(247, 250, 255, 0.98) 0%, rgba(231, 239, 252, 0.96) 100%) !important;
-  box-shadow: 0 18px 40px rgba(79, 125, 243, 0.12) !important;
+  box-shadow: 0 18px 40px var(--app-accent-surface-12) !important;
 }
 
 .library-workspace-light [class*="border-slate-700"],
@@ -1340,7 +1393,7 @@ textarea {
 .library-workspace-light [class*="ring-slate-600"],
 .library-workspace-light [class*="ring-offset-slate-950"] {
   border-color: var(--app-border) !important;
-  --tw-ring-color: rgba(79, 125, 243, 0.24) !important;
+  --tw-ring-color: var(--app-accent-border-24) !important;
   --tw-ring-offset-color: #f4f8ff !important;
 }
 
@@ -1381,7 +1434,7 @@ textarea {
 .library-workspace-light [class*="bg-sky-500/10"],
 .library-workspace-light [class*="bg-sky-950/45"] {
   background: var(--semantic-info-bg) !important;
-  border-color: rgba(79, 125, 243, 0.22) !important;
+  border-color: var(--app-accent-border-22) !important;
 }
 
 .library-workspace-light [class*="text-sky-100"],
@@ -1402,7 +1455,7 @@ textarea {
 .library-workspace-light [class*="hover:bg-slate-950/50"]:hover,
 .library-workspace-light [class*="hover:bg-slate-900/90"]:hover,
 .library-workspace-light [class*="hover:bg-slate-800/70"]:hover {
-  background: rgba(79, 125, 243, 0.08) !important;
+  background: var(--app-accent-surface-08) !important;
 }
 
 .preview-modal-light [class*="border-slate-800"],
@@ -1438,7 +1491,7 @@ textarea {
 
 .preview-modal-light [class*="bg-sky-400/15"] {
   background: rgba(234, 241, 255, 0.96) !important;
-  border-color: rgba(79, 125, 243, 0.22) !important;
+  border-color: var(--app-accent-border-22) !important;
 }
 
 .preview-modal-light [class*="bg-rose-950"],

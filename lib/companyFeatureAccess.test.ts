@@ -99,18 +99,23 @@ describe("companyFeatureAccess", () => {
     expect(canAccessCompanyWorkspaceHref("/upload", "field_user", noDocumentAccess)).toBe(false);
   });
 
-  it("does not treat sales demo accounts as company workspace operators", () => {
+  it("allows sales demo accounts to showcase company workspace operators", () => {
     const demoPermissions = buildPermissionMap({
+      can_create_documents: true,
+      can_edit_documents: true,
+      can_submit_documents: true,
+      can_manage_company_users: true,
+      can_view_all_company_data: true,
       can_view_dashboards: true,
       can_view_reports: true,
     });
 
-    expect(canViewCompanyTrainingMatrix("sales_demo", demoPermissions)).toBe(false);
-    expect(canManageCompanyJsa("sales_demo", demoPermissions)).toBe(false);
-    expect(canManageCompanyPermits("sales_demo", demoPermissions)).toBe(false);
-    expect(canManageCompanyIncidents("sales_demo", demoPermissions)).toBe(false);
-    expect(canAccessCompanyJobsites("sales_demo", demoPermissions)).toBe(false);
-    expect(canAccessCompanyWorkspaceHref("/jobsites", "sales_demo", demoPermissions)).toBe(false);
-    expect(canAccessCompanyWorkspaceHref("/submit", "sales_demo", demoPermissions)).toBe(false);
+    expect(canViewCompanyTrainingMatrix("sales_demo", demoPermissions)).toBe(true);
+    expect(canManageCompanyJsa("sales_demo", demoPermissions)).toBe(true);
+    expect(canManageCompanyPermits("sales_demo", demoPermissions)).toBe(true);
+    expect(canManageCompanyIncidents("sales_demo", demoPermissions)).toBe(true);
+    expect(canAccessCompanyJobsites("sales_demo", demoPermissions)).toBe(true);
+    expect(canAccessCompanyWorkspaceHref("/jobsites", "sales_demo", demoPermissions)).toBe(true);
+    expect(canAccessCompanyWorkspaceHref("/submit", "sales_demo", demoPermissions)).toBe(true);
   });
 });

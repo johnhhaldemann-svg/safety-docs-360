@@ -18,10 +18,16 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["lib/safety-intelligence/**/*.ts", "app/api/**/*.ts"],
+    files: ["lib/safety-intelligence/**/*.ts"],
     rules: {
       // Legacy JSON/adapter surfaces; tighten gradually without blocking CI.
       "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
+  {
+    files: ["app/api/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
     },
   },
   {

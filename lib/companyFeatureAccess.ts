@@ -104,12 +104,15 @@ const JOBSITE_WORKSPACE_ROLES = new Set([
 ]);
 
 const NON_COMPANY_INTERNAL_ROLES = new Set([
-  "sales_demo",
   "internal_reviewer",
   "employee",
   "editor",
   "viewer",
 ]);
+
+function isSalesDemoRole(role: RoleInput) {
+  return normalizeRole(role) === "sales_demo";
+}
 
 export function canViewCompanyTrainingMatrix(
   role: RoleInput,
@@ -117,6 +120,7 @@ export function canViewCompanyTrainingMatrix(
 ) {
   if (!role) return false;
   if (isAdminLikeRole(role)) return true;
+  if (isSalesDemoRole(role)) return true;
 
   const normalized = normalizeRole(role);
   if (NON_COMPANY_INTERNAL_ROLES.has(normalized)) return false;
@@ -136,6 +140,7 @@ export function canMutateCompanyTrainingRequirements(
 ) {
   if (!role) return false;
   if (isAdminLikeRole(role)) return true;
+  if (isSalesDemoRole(role)) return true;
 
   const normalized = normalizeRole(role);
   if (NON_COMPANY_INTERNAL_ROLES.has(normalized)) return false;
@@ -158,6 +163,7 @@ export function canManageCompanyJsa(
 ) {
   if (!role) return false;
   if (isAdminLikeRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
+  if (isSalesDemoRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
   const normalized = normalizeRole(role);
   if (NON_COMPANY_INTERNAL_ROLES.has(normalized)) return false;
 
@@ -170,6 +176,7 @@ export function canManageCompanyPermits(
 ) {
   if (!role) return false;
   if (isAdminLikeRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
+  if (isSalesDemoRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
   const normalized = normalizeRole(role);
   if (NON_COMPANY_INTERNAL_ROLES.has(normalized)) return false;
 
@@ -185,6 +192,7 @@ export function canManageCompanyIncidents(
 ) {
   if (!role) return false;
   if (isAdminLikeRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
+  if (isSalesDemoRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
   const normalized = normalizeRole(role);
   if (NON_COMPANY_INTERNAL_ROLES.has(normalized)) return false;
 
@@ -200,6 +208,7 @@ export function canAccessCompanyJobsites(
 ) {
   if (!role) return false;
   if (isAdminLikeRole(role)) return true;
+  if (isSalesDemoRole(role)) return true;
   const normalized = normalizeRole(role);
   if (NON_COMPANY_INTERNAL_ROLES.has(normalized)) return false;
 

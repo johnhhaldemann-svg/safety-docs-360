@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import {
   createSupabaseAdminClient,
   getSupabaseAnonKey,
@@ -92,7 +92,22 @@ type AuthorizeOptions = {
 const DEFAULT_BOOTSTRAP_ADMIN_EMAILS = ["john.h.haldemann@gmail.com"];
 const ROLE_PERMISSIONS: Record<AppRole, readonly AppPermission[]> = {
   platform_admin: APP_PERMISSIONS,
-  sales_demo: ["can_view_dashboards", "can_view_reports"],
+  sales_demo: [
+    "can_create_documents",
+    "can_edit_documents",
+    "can_submit_documents",
+    "can_manage_company_users",
+    "can_manage_billing",
+    "can_view_analytics",
+    "can_assign_roles",
+    "can_view_all_company_data",
+    "can_manage_daps",
+    "can_manage_observations",
+    "can_verify_closures",
+    "can_escalate_items",
+    "can_view_dashboards",
+    "can_view_reports",
+  ],
   internal_reviewer: [
     "can_review_documents",
     "can_approve_documents",
@@ -903,32 +918,60 @@ export async function authorizeRequest(
     ? authorization.slice(7).trim()
     : "";
 
-  if (!token) {
-    return {
-      error: NextResponse.json({ error: "Missing auth token." }, { status: 401 }),
-    };
-  }
+  let user: User;
+  let authClient: SupabaseClient;
 
-  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${token}`,
+  if (token) {
+    authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       },
-    },
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
-  const {
-    data: { user },
-    error: authError,
-  } = await authClient.auth.getUser(token);
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+    const {
+      data: { user: tokenUser },
+      error: authError,
+    } = await authClient.auth.getUser(token);
 
-  if (authError || !user) {
-    return {
-      error: NextResponse.json({ error: "Invalid auth token." }, { status: 401 }),
-    };
+    if (authError || !tokenUser) {
+      return {
+        error: NextResponse.json({ error: "Invalid auth token." }, { status: 401 }),
+      };
+    }
+    user = tokenUser;
+  } else {
+    let cookieClient: SupabaseClient | null = null;
+    try {
+      const { createSupabaseRouteHandlerClient } = await import("@/lib/supabase/server");
+      cookieClient = await createSupabaseRouteHandlerClient();
+    } catch {
+      cookieClient = null;
+    }
+
+    if (!cookieClient) {
+      return {
+        error: NextResponse.json({ error: "Missing auth token." }, { status: 401 }),
+      };
+    }
+
+    const {
+      data: { user: cookieUser },
+      error: cookieAuthError,
+    } = await cookieClient.auth.getUser();
+
+    if (cookieAuthError || !cookieUser) {
+      return {
+        error: NextResponse.json({ error: "Missing auth token." }, { status: 401 }),
+      };
+    }
+
+    authClient = cookieClient;
+    user = cookieUser;
   }
 
   if (!supabaseServiceRoleKey) {
