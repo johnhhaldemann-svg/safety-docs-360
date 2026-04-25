@@ -6,6 +6,7 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
 import { isForecasterSyntheticIncident } from "@/lib/injuryWeather/excludeForecasterIncidents";
 import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
+import { buildSalesDemoAnalyticsSummaryResponse } from "@/lib/demoWorkspace";
 
 export const runtime = "nodejs";
 
@@ -31,6 +32,11 @@ export async function GET(request: Request) {
     ],
   });
   if ("error" in auth) return auth.error;
+  const { searchParams } = new URL(request.url);
+  const days = Number(searchParams.get("days") ?? "30");
+  if (auth.role === "sales_demo") {
+    return NextResponse.json(buildSalesDemoAnalyticsSummaryResponse(days));
+  }
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) {
     return NextResponse.json({
@@ -42,8 +48,6 @@ export async function GET(request: Request) {
   if (await companyHasCsepPlanName(auth.supabase, companyScope.companyId)) {
     return csepWorkspaceForbiddenResponse();
   }
-  const { searchParams } = new URL(request.url);
-  const days = Number(searchParams.get("days") ?? "30");
   const since = new Date(Date.now() - Math.max(1, days) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const companyBenchmarkRes = await auth.supabase
     .from("companies")
@@ -503,6 +507,23 @@ export async function POST(request: Request) {
     requireAnyPermission: ["can_view_analytics", "can_view_all_company_data"],
   });
   if ("error" in auth) return auth.error;
+  if (auth.role === "sales_demo") {
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    const snapshotDate = String(body?.snapshotDate ?? "").trim() || new Date().toISOString().slice(0, 10);
+    const jobsiteId = String(body?.jobsiteId ?? "").trim() || null;
+    const metrics = typeof body?.metrics === "object" && body?.metrics !== null ? body.metrics : {};
+    return NextResponse.json({
+      success: true,
+      snapshot: {
+        id: "demo-analytics-snapshot-1",
+        company_id: "demo-company",
+        jobsite_id: jobsiteId,
+        snapshot_date: snapshotDate,
+        metrics,
+        created_by: auth.user.id,
+      },
+    });
+  }
   if (!canManage(auth.role)) {
     return NextResponse.json({ error: "Only company admins and managers can create analytics snapshots." }, { status: 403 });
   }

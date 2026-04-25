@@ -15,6 +15,7 @@ import {
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
+import { buildSalesDemoInjuryAnalyticsModel } from "@/lib/demoWorkspace";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,11 @@ export async function GET(request: Request) {
     requireAnyPermission: ["can_view_analytics", "can_view_all_company_data"],
   });
   if ("error" in auth) return auth.error;
+  const { searchParams } = new URL(request.url);
+  const days = Math.min(730, Math.max(1, Number(searchParams.get("days") ?? "365")));
+  if (auth.role === "sales_demo") {
+    return NextResponse.json(buildSalesDemoInjuryAnalyticsModel(days));
+  }
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
     userId: auth.user.id,
@@ -47,8 +53,6 @@ export async function GET(request: Request) {
     return csepWorkspaceForbiddenResponse();
   }
 
-  const { searchParams } = new URL(request.url);
-  const days = Math.min(730, Math.max(1, Number(searchParams.get("days") ?? "365")));
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   const [companyRes, incidentsRes, sorRes, capaRes] = await Promise.all([

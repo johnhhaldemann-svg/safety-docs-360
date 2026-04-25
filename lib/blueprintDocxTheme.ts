@@ -144,7 +144,7 @@ async function getOptionalCompanyLogo(draft: GeneratedSafetyPlanDraft) {
     : rawPath.startsWith("/") || rawPath.startsWith("\\")
       ? `public${rawPath}`
       : rawPath;
-  const resolvedPath = resolve(process.cwd(), normalizedPath);
+  const resolvedPath = resolve(/* turbopackIgnore: true */ process.cwd(), normalizedPath);
 
   if (cachedLogoAssets.has(resolvedPath)) {
     return cachedLogoAssets.get(resolvedPath) ?? null;
@@ -167,7 +167,9 @@ async function getTradeConflictAppendixSvg(
   if (cached) return cached;
 
   const profile = getTradeConflictProfile(normalizedProjectDeliveryType);
-  const svg = await readFile(resolve(process.cwd(), profile.appendixAssetPath));
+  const svg = await readFile(
+    resolve(/* turbopackIgnore: true */ process.cwd(), profile.appendixAssetPath)
+  );
   cachedTradeConflictAssets.set(normalizedProjectDeliveryType, svg);
   return svg;
 }

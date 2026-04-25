@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
-import { useCallback, useEffect, useState } from "react";
-import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
+import { useTableDensity } from "@/hooks/useTableDensity";
+import { wideInvoiceTableLayout } from "@/lib/tableDensityLayout";
+import { EmptyState, InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
 import {
   formatBillingPeriodLabel,
   getBillingSourceLabel,
@@ -119,6 +122,9 @@ export default function BillingInvoicesListPage() {
       !["draft", "void", "cancelled", "paid"].includes(invoice.status)
   );
 
+  const { density, setDensity, isCompact } = useTableDensity();
+  const invTable = useMemo(() => wideInvoiceTableLayout(isCompact), [isCompact]);
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -126,12 +132,15 @@ export default function BillingInvoicesListPage() {
         title="Invoices"
         description="Create, send, and track customer invoices. Recurring company pricing is labeled clearly so subscription and licensing charges are easy to audit."
         actions={
-          <Link
-            href="/billing/invoices/new"
-            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white hover:bg-sky-700"
-          >
-            New invoice
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <TableDensityToggle value={density} onChange={setDensity} disabled={loading} />
+            <Link
+              href="/billing/invoices/new"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white hover:bg-sky-700"
+            >
+              New invoice
+            </Link>
+          </div>
         }
       />
 
@@ -156,21 +165,26 @@ export default function BillingInvoicesListPage() {
         {loading ? (
           <p className="text-sm text-slate-400">Loading...</p>
         ) : invoices.length === 0 ? (
-          <p className="text-sm text-slate-400">No invoices yet.</p>
+          <EmptyState
+            title="No invoices yet"
+            description="Create a draft with New invoice, then send and track it from the detail view."
+            actionHref="/billing/invoices/new"
+            actionLabel="New invoice"
+          />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left text-sm">
+            <table className={invTable.table}>
               <thead>
                 <tr className="border-b border-slate-700 text-slate-500">
-                  <th className="py-2 pr-3">Number</th>
-                  <th className="py-2 pr-3">Customer</th>
-                  <th className="py-2 pr-3">Billing</th>
-                  <th className="py-2 pr-3">Issue</th>
-                  <th className="py-2 pr-3">Due</th>
-                  <th className="py-2 pr-3">Total</th>
-                  <th className="py-2 pr-3">Balance</th>
-                  <th className="py-2 pr-3">Status</th>
-                  <th className="py-2">Actions</th>
+                  <th className={invTable.th}>Number</th>
+                  <th className={invTable.th}>Customer</th>
+                  <th className={invTable.th}>Billing</th>
+                  <th className={invTable.th}>Issue</th>
+                  <th className={invTable.th}>Due</th>
+                  <th className={invTable.th}>Total</th>
+                  <th className={invTable.th}>Balance</th>
+                  <th className={invTable.th}>Status</th>
+                  <th className={isCompact ? "py-1.5" : "py-2"}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -182,11 +196,11 @@ export default function BillingInvoicesListPage() {
 
                   return (
                     <tr key={invoice.id} className="border-b border-slate-800/80">
-                      <td className="py-3 pr-3 font-mono text-slate-200">{invoice.invoice_number}</td>
-                      <td className="py-3 pr-3 text-slate-300">
+                      <td className={`${invTable.td} font-mono text-slate-200`}>{invoice.invoice_number}</td>
+                      <td className={`${invTable.td} text-slate-300`}>
                         {invoice.billing_customers?.company_name ?? invoice.companies?.name ?? "—"}
                       </td>
-                      <td className="py-3 pr-3">
+                      <td className={invTable.td}>
                         <div className="space-y-1">
                           <span
                             className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
@@ -206,15 +220,15 @@ export default function BillingInvoicesListPage() {
                           ) : null}
                         </div>
                       </td>
-                      <td className="py-3 pr-3 text-slate-400">{formatDate(invoice.issue_date)}</td>
-                      <td className="py-3 pr-3 text-slate-400">{formatDate(invoice.due_date)}</td>
-                      <td className="py-3 pr-3 text-slate-200">
+                      <td className={`${invTable.td} text-slate-400`}>{formatDate(invoice.issue_date)}</td>
+                      <td className={`${invTable.td} text-slate-400`}>{formatDate(invoice.due_date)}</td>
+                      <td className={`${invTable.td} text-slate-200`}>
                         {formatMoney(invoice.total_cents, invoice.currency)}
                       </td>
-                      <td className="py-3 pr-3 text-slate-200">
+                      <td className={`${invTable.td} text-slate-200`}>
                         {formatMoney(invoice.balance_due_cents, invoice.currency)}
                       </td>
-                      <td className="py-3 pr-3">
+                      <td className={invTable.td}>
                         <span
                           className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
                             getStatusTone(invoice.status) === "success"
@@ -230,7 +244,7 @@ export default function BillingInvoicesListPage() {
                           <div className="mt-2 text-xs font-semibold text-amber-200">Overdue</div>
                         ) : null}
                       </td>
-                      <td className="py-3">
+                      <td className={isCompact ? "py-2" : "py-3"}>
                         <Link
                           href={`/billing/invoices/${invoice.id}`}
                           className="font-semibold text-sky-400 hover:text-sky-300"

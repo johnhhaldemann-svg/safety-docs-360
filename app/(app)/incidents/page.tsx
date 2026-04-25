@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryLessonPrompt } from "@/components/company-ai/CompanyMemoryLessonPrompt";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
@@ -41,6 +42,8 @@ import {
   buildRiskMemoryApiObject,
   type RiskMemoryFormInput,
 } from "@/lib/riskMemory/form";
+import { useTableDensity } from "@/hooks/useTableDensity";
+import { listSectionDensity } from "@/lib/tableDensityLayout";
 import {
   demoContractors,
   demoCrews,
@@ -369,6 +372,9 @@ export default function IncidentsPage() {
     }
   }
 
+  const { density, setDensity, isCompact } = useTableDensity();
+  const listDensity = useMemo(() => listSectionDensity(isCompact), [isCompact]);
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -376,9 +382,12 @@ export default function IncidentsPage() {
         title="Incidents"
         description="Track incidents and near misses with SIF, escalation, stop-work controls, and optional Risk Memory Engine facets for learning trends."
         actions={
-          <Link href="/dashboard" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300">
-            Back to Dashboard
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <TableDensityToggle value={density} onChange={setDensity} disabled={loading} />
+            <Link href="/dashboard" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300">
+              Back to Dashboard
+            </Link>
+          </div>
         }
       />
 
@@ -641,13 +650,13 @@ export default function IncidentsPage() {
         ) : incidents.length === 0 ? (
           <EmptyState title="No incidents yet" description="Log your first incident or near miss to begin tracking." />
         ) : (
-          <div className="space-y-3">
+          <div className={listDensity.stackGap}>
             {incidents.map((item) => (
-              <div key={item.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <div key={item.id} className={listDensity.card}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-100">{item.title}</div>
-                    <div className="mt-1 text-xs text-slate-500">
+                    <div className={listDensity.cardTitle}>{item.title}</div>
+                    <div className={`mt-1 ${listDensity.cardMeta}`}>
                       {item.category} · {item.severity}
                       {item.exposure_event_type ? (
                         <> · Event: {EXPOSURE_EVENT_TYPE_LABELS[item.exposure_event_type]}</>

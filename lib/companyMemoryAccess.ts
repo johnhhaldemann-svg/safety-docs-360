@@ -6,6 +6,7 @@ export function canAccessCompanyMemoryAssist(role: string | null | undefined) {
   if (isAdminRole(role)) return true;
   const n = normalizeAppRole(role);
   return (
+    n === "sales_demo" ||
     n === "company_admin" ||
     n === "manager" ||
     n === "safety_manager" ||

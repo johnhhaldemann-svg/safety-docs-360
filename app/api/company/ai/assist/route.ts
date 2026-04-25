@@ -9,6 +9,24 @@ import { augmentStructuredContextWithRiskMemory } from "@/lib/riskMemory/structu
 
 export const runtime = "nodejs";
 
+function buildSalesDemoAssistText(surface: string, userMessage: string) {
+  const area = (surface || "workspace").trim().replace(/[_-]+/g, " ").toLowerCase();
+  const ask = userMessage.trim();
+  const focus =
+    ask.length > 0
+      ? `Focus request: "${ask.length > 180 ? `${ask.slice(0, 177)}...` : ask}".`
+      : "Focus request: general improvement guidance.";
+  return [
+    `Sales demo assist is active for ${area}.`,
+    focus,
+    "Recommended next steps:",
+    "- Confirm high-risk work scope, permit links, and stop-work triggers before drafting.",
+    "- Use plain, field-ready controls with owner and verification step for each hazard.",
+    "- Prioritize recurring themes from demo analytics: fall protection, material handling, and electrical lockout.",
+    "- End with a brief supervisor checklist for pre-task briefing and closeout verification.",
+  ].join("\n");
+}
+
 export async function POST(request: Request) {
   const auth = await authorizeRequest(request);
   if ("error" in auth) {
@@ -30,6 +48,27 @@ export async function POST(request: Request) {
     );
   }
 
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const userMessage = typeof body.message === "string" ? body.message : "";
+  const surface = typeof body.surface === "string" ? body.surface : "default";
+  const structuredContext =
+    typeof body.context === "string" ? body.context : body.context === null ? null : undefined;
+  const topK = typeof body.topK === "number" ? body.topK : undefined;
+
+  if (auth.role === "sales_demo") {
+    return NextResponse.json({
+      text: buildSalesDemoAssistText(surface, userMessage),
+      disclaimer: COMPANY_AI_ASSIST_DISCLAIMER,
+      retrieval: "none",
+    });
+  }
+
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
     userId: auth.user.id,
@@ -47,19 +86,6 @@ export async function POST(request: Request) {
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "No company context for AI assist." }, { status: 400 });
   }
-
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
-  }
-
-  const userMessage = typeof body.message === "string" ? body.message : "";
-  const surface = typeof body.surface === "string" ? body.surface : "default";
-  const structuredContext =
-    typeof body.context === "string" ? body.context : body.context === null ? null : undefined;
-  const topK = typeof body.topK === "number" ? body.topK : undefined;
 
   const mergedContext = await augmentStructuredContextWithRiskMemory(
     auth.supabase,

@@ -3,6 +3,7 @@ import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
 import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
+import { buildSalesDemoRiskSnapshotResponse } from "@/lib/demoWorkspace";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,12 @@ export async function POST(request: Request) {
     requireAnyPermission: ["can_view_analytics", "can_view_all_company_data"],
   });
   if ("error" in auth) return auth.error;
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const snapshotDate = String(body?.snapshotDate ?? "").trim() || new Date().toISOString().slice(0, 10);
+  const jobsiteId = body?.jobsiteId != null ? String(body.jobsiteId).trim() || null : null;
+  if (auth.role === "sales_demo") {
+    return NextResponse.json(buildSalesDemoRiskSnapshotResponse(snapshotDate, jobsiteId));
+  }
   if (!canManage(auth.role)) {
     return NextResponse.json({ error: "Only managers and admins can save risk memory snapshots." }, { status: 403 });
   }
@@ -36,10 +43,7 @@ export async function POST(request: Request) {
     return csepWorkspaceForbiddenResponse();
   }
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const days = Math.min(365, Math.max(1, Number(body?.days ?? 90)));
-  const jobsiteId = body?.jobsiteId != null ? String(body.jobsiteId).trim() || null : null;
-  const snapshotDate = String(body?.snapshotDate ?? "").trim() || new Date().toISOString().slice(0, 10);
 
   const ctx = await buildRiskMemoryStructuredContext(auth.supabase, companyScope.companyId, {
     days,

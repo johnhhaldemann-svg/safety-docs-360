@@ -540,6 +540,7 @@ export default function AppLayout({
           "/jobsites",
           "/field-id-exchange",
           "/safety-submit",
+          "/safety-intelligence",
           "/analytics",
           "/command-center",
           "/settings/risk-memory",

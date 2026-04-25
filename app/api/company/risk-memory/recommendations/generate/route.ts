@@ -5,6 +5,7 @@ import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/cs
 import { buildLlmRiskRecommendations } from "@/lib/riskMemory/llmRecommendations";
 import { buildRuleBasedRiskRecommendations, type RiskRecommendationDraft } from "@/lib/riskMemory/recommendations";
 import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
+import { buildSalesDemoRiskRecommendations } from "@/lib/demoWorkspace";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,12 @@ export async function POST(request: Request) {
     requireAnyPermission: ["can_view_analytics", "can_view_all_company_data"],
   });
   if ("error" in auth) return auth.error;
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const modeRaw = String(body?.mode ?? "rules").trim().toLowerCase();
+  const mode = modeRaw === "llm" || modeRaw === "both" ? modeRaw : "rules";
+  if (auth.role === "sales_demo") {
+    return NextResponse.json(buildSalesDemoRiskRecommendations(mode));
+  }
   if (!canManage(auth.role)) {
     return NextResponse.json({ error: "Only managers and admins can generate recommendations." }, { status: 403 });
   }
@@ -38,11 +45,8 @@ export async function POST(request: Request) {
     return csepWorkspaceForbiddenResponse();
   }
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const days = Math.min(365, Math.max(1, Number(body?.days ?? 90)));
   const jobsiteId = body?.jobsiteId != null ? String(body.jobsiteId).trim() || null : null;
-  const modeRaw = String(body?.mode ?? "rules").trim().toLowerCase();
-  const mode = modeRaw === "llm" || modeRaw === "both" ? modeRaw : "rules";
 
   const ctx = await buildRiskMemoryStructuredContext(auth.supabase, companyScope.companyId, {
     days,

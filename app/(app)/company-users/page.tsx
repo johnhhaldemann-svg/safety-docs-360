@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
+import { useTableDensity } from "@/hooks/useTableDensity";
+import { simpleDataTableLayout } from "@/lib/tableDensityLayout";
 import {
   ActivityFeed,
   appNativeSelectClassName,
@@ -708,6 +711,9 @@ export default function CompanyUsersPage() {
     setRemoveLoading(false);
   }
 
+  const { density, setDensity, isCompact } = useTableDensity();
+  const jobsiteTableLayout = useMemo(() => simpleDataTableLayout(isCompact), [isCompact]);
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -716,6 +722,11 @@ export default function CompanyUsersPage() {
         description={`Each person’s role (user type) determines what they can do in the app. Your company’s subscription sets which products and tiers the workspace uses overall. Jobsite titles on each person’s Construction profile are separate.`}
         actions={
           <div className="flex flex-wrap items-center gap-3">
+            <TableDensityToggle
+              value={density}
+              onChange={setDensity}
+              disabled={loading}
+            />
             <Link
               href="/training-matrix"
               className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-950/50"
@@ -1126,14 +1137,14 @@ export default function CompanyUsersPage() {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <table className={jobsiteTableLayout.table}>
               <thead className="bg-slate-950/50">
                 <tr>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-300">User</th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-300">Role</th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-300">Status</th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-300">Assigned Jobsites</th>
-                  <th className="px-3 py-2 text-right font-semibold text-slate-300">Manage</th>
+                  <th className={jobsiteTableLayout.th}>User</th>
+                  <th className={jobsiteTableLayout.th}>Role</th>
+                  <th className={jobsiteTableLayout.th}>Status</th>
+                  <th className={jobsiteTableLayout.th}>Assigned Jobsites</th>
+                  <th className={`${jobsiteTableLayout.th} text-right`}>Manage</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1145,11 +1156,11 @@ export default function CompanyUsersPage() {
                   const overflowCount = Math.max(0, assignedIds.length - assignedNames.length);
                   return (
                     <tr key={`assignment-${user.id}`} className="bg-slate-900/90">
-                      <td className="px-3 py-3">
+                      <td className={jobsiteTableLayout.td}>
                         <div className="font-semibold text-slate-100">{user.name}</div>
                         <div className="text-xs text-slate-500">{user.email}</div>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className={jobsiteTableLayout.td}>
                         <span
                           className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${roleClasses(
                             user.role
@@ -1158,10 +1169,10 @@ export default function CompanyUsersPage() {
                           {user.role}
                         </span>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className={jobsiteTableLayout.td}>
                         <StatusBadge label={user.status} tone={statusTone(user.status)} />
                       </td>
-                      <td className="px-3 py-3">
+                      <td className={jobsiteTableLayout.td}>
                         {roleNeedsAssignments(user.role) ? (
                           assignedIds.length > 0 ? (
                             <div className="text-xs text-slate-300">
@@ -1175,7 +1186,7 @@ export default function CompanyUsersPage() {
                           <span className="text-xs text-slate-500">Company-wide (all jobsites)</span>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-right">
+                      <td className={`${jobsiteTableLayout.td} text-right`}>
                         <button
                           onClick={() => {
                             setEditingUser(user);

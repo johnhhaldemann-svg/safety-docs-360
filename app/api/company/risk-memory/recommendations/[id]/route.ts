@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
+import { buildSalesDemoRecommendationDismissResponse } from "@/lib/demoWorkspace";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,14 @@ export async function PATCH(
     requireAnyPermission: ["can_view_analytics", "can_view_all_company_data"],
   });
   if ("error" in auth) return auth.error;
+  const { id: recId } = await params;
+  const id = String(recId ?? "").trim();
+  if (!id) {
+    return NextResponse.json({ error: "Invalid id." }, { status: 400 });
+  }
+  if (auth.role === "sales_demo") {
+    return NextResponse.json(buildSalesDemoRecommendationDismissResponse(id));
+  }
   if (!canManage(auth.role)) {
     return NextResponse.json({ error: "Only managers and admins can update recommendations." }, { status: 403 });
   }
@@ -36,12 +45,6 @@ export async function PATCH(
   }
   if (await companyHasCsepPlanName(auth.supabase, companyScope.companyId)) {
     return csepWorkspaceForbiddenResponse();
-  }
-
-  const { id: recId } = await params;
-  const id = String(recId ?? "").trim();
-  if (!id) {
-    return NextResponse.json({ error: "Invalid id." }, { status: 400 });
   }
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;

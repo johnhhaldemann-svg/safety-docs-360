@@ -4,7 +4,10 @@ import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
 import { PermitCopilotPanel } from "@/components/permits/PermitCopilotPanel";
+import { useTableDensity } from "@/hooks/useTableDensity";
+import { listSectionDensity } from "@/lib/tableDensityLayout";
 import {
   EmptyState,
   InlineMessage,
@@ -408,6 +411,9 @@ export default function PermitsPage() {
     }
   }
 
+  const { density, setDensity, isCompact } = useTableDensity();
+  const listDensity = useMemo(() => listSectionDensity(isCompact), [isCompact]);
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -415,9 +421,12 @@ export default function PermitsPage() {
         title="Permits"
         description="Manage permit lifecycle, SIF flags, escalation, and stop-work controls."
         actions={
-          <Link href="/dashboard" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300">
-            Back to Dashboard
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <TableDensityToggle value={density} onChange={setDensity} disabled={loading} />
+            <Link href="/dashboard" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300">
+              Back to Dashboard
+            </Link>
+          </div>
         }
       />
 
@@ -720,14 +729,18 @@ export default function PermitsPage() {
         ) : permitRows.length === 0 ? (
           <EmptyState title="No permits yet" description="Create your first permit to start high-risk controls." />
         ) : (
-          <div className="space-y-3">
+          <div className={listDensity.stackGap}>
             {permitRows.map((permit) => (
-              <div key={permit.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <div key={permit.id} className={listDensity.card}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1">
-                    <div className="text-sm font-semibold text-slate-100">{permit.title}</div>
-                    <div className="text-xs text-slate-500">{labelize(permit.permit_type)} · {labelize(permit.category)}</div>
-                    <div className="text-xs text-slate-500">Jobsite: {permit.jobsite?.name ?? "Company-wide / unassigned"}</div>
+                    <div className={listDensity.cardTitle}>{permit.title}</div>
+                    <div className={listDensity.cardMeta}>
+                      {labelize(permit.permit_type)} · {labelize(permit.category)}
+                    </div>
+                    <div className={listDensity.cardMeta}>
+                      Jobsite: {permit.jobsite?.name ?? "Company-wide / unassigned"}
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <StatusBadge label={permit.status} tone={permit.status === "active" ? "success" : permit.status === "closed" ? "neutral" : "info"} />
@@ -737,47 +750,57 @@ export default function PermitsPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Severity</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-100">{labelize(permit.severity)}</div>
+                <div className={listDensity.statGrid}>
+                  <div className={listDensity.statCell}>
+                    <div className={listDensity.statLabel}>Severity</div>
+                    <div className={listDensity.statValue}>{labelize(permit.severity)}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Due</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-100">{formatDateTime(permit.due_at)}</div>
+                  <div className={listDensity.statCell}>
+                    <div className={listDensity.statLabel}>Due</div>
+                    <div className={listDensity.statValue}>{formatDateTime(permit.due_at)}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Owner</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-100">{permit.owner_user_id ?? "Not assigned"}</div>
+                  <div className={listDensity.statCell}>
+                    <div className={listDensity.statLabel}>Owner</div>
+                    <div className={listDensity.statValue}>{permit.owner_user_id ?? "Not assigned"}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Created</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-100">{formatDateTime(permit.created_at)}</div>
+                  <div className={listDensity.statCell}>
+                    <div className={listDensity.statLabel}>Created</div>
+                    <div className={listDensity.statValue}>{formatDateTime(permit.created_at)}</div>
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-                      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Linked JSA activity</div>
-                      <div className="mt-1 text-sm font-semibold text-slate-100">{permit.dap_activity_id ?? "Not linked"}</div>
+                <div
+                  className={
+                    isCompact
+                      ? "mt-3 grid gap-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
+                      : "mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
+                  }
+                >
+                  <div className={isCompact ? "grid gap-2 sm:grid-cols-2" : "grid gap-3 sm:grid-cols-2"}>
+                    <div className={listDensity.statCell}>
+                      <div className={listDensity.statLabel}>Linked JSA activity</div>
+                      <div className={listDensity.statValue}>{permit.dap_activity_id ?? "Not linked"}</div>
                     </div>
-                    <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-                      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Linked observation</div>
-                      <div className="mt-1 text-sm font-semibold text-slate-100">{permit.observation_id ?? "Not linked"}</div>
+                    <div className={listDensity.statCell}>
+                      <div className={listDensity.statLabel}>Linked observation</div>
+                      <div className={listDensity.statValue}>{permit.observation_id ?? "Not linked"}</div>
                     </div>
-                    <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-                      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Updated</div>
-                      <div className="mt-1 text-sm font-semibold text-slate-100">{formatDateTime(permit.updated_at)}</div>
+                    <div className={listDensity.statCell}>
+                      <div className={listDensity.statLabel}>Updated</div>
+                      <div className={listDensity.statValue}>{formatDateTime(permit.updated_at)}</div>
                     </div>
-                    <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-                      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Jobsite scope</div>
-                      <div className="mt-1 text-sm font-semibold text-slate-100">{permit.jobsite?.location ?? "No location listed"}</div>
+                    <div className={listDensity.statCell}>
+                      <div className={listDensity.statLabel}>Jobsite scope</div>
+                      <div className={listDensity.statValue}>{permit.jobsite?.location ?? "No location listed"}</div>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Control notes</div>
-                    <div className="mt-2 space-y-2 text-sm text-slate-300">
+                  <div className={listDensity.statCell}>
+                    <div className={listDensity.statLabel}>Control notes</div>
+                    <div
+                      className={
+                        isCompact ? "mt-1.5 space-y-1.5 text-xs text-slate-300" : "mt-2 space-y-2 text-sm text-slate-300"
+                      }
+                    >
                       <p>Escalation reason: {permit.escalation_reason ?? "Not provided"}</p>
                       <p>Stop work reason: {permit.stop_work_reason ?? "Not provided"}</p>
                     </div>

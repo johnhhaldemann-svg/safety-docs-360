@@ -28,6 +28,7 @@ export function TableDensityToggle({ value, onChange, disabled, className }: Tab
             key={option}
             type="button"
             disabled={disabled}
+            aria-pressed={active}
             onClick={() => onChange(option)}
             className={cx(
               "rounded-xl px-3 py-1.5 text-xs font-semibold transition",

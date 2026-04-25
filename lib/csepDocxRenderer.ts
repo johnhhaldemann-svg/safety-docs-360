@@ -1883,7 +1883,10 @@ const DEFAULT_CSEP_COVER_LOGO_RELATIVE = ["public", "brand", "safety360docs-logo
 
 function readDefaultCoverLogoFile(): CsepRenderModel["coverLogo"] {
   try {
-    const abs = join(process.cwd(), ...DEFAULT_CSEP_COVER_LOGO_RELATIVE);
+    const abs = join(
+      /* turbopackIgnore: true */ process.cwd(),
+      ...DEFAULT_CSEP_COVER_LOGO_RELATIVE
+    );
     if (!existsSync(abs)) {
       return null;
     }
