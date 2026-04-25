@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
@@ -17,7 +18,9 @@ import {
   StartChecklist,
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
+import { useTableDensity } from "@/hooks/useTableDensity";
 import { getDocumentStatusLabel } from "@/lib/documentStatus";
+import { uploadCenterTableLayout } from "@/lib/tableDensityLayout";
 import type { PermissionMap } from "@/lib/rbac";
 
 const supabase = getSupabaseBrowserClient();
@@ -353,6 +356,9 @@ async function confirmOpenFile() {
     tone: "info" as const,
   }));
 
+  const { density, setDensity, isCompact } = useTableDensity();
+  const uploadTable = useMemo(() => uploadCenterTableLayout(isCompact), [isCompact]);
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -360,7 +366,12 @@ async function confirmOpenFile() {
         title="Upload Center"
         description="Upload files into storage, capture the right metadata, and keep new records moving cleanly into the rest of the platform."
         actions={
-          <>
+          <div className="flex flex-wrap items-center gap-3">
+            <TableDensityToggle
+              value={density}
+              onChange={setDensity}
+              disabled={loadingDocs || uploading}
+            />
             <Link
               href="/library"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
@@ -373,7 +384,7 @@ async function confirmOpenFile() {
             >
               Search Records
             </Link>
-          </>
+          </div>
         }
       />
 
@@ -399,21 +410,25 @@ async function confirmOpenFile() {
           title="Total Files"
           value={String(uploadCounts.total)}
           note="Saved in database"
+          compact={isCompact}
         />
         <StatCard
           title="Templates"
           value={String(uploadCounts.templates)}
           note="Template records"
+          compact={isCompact}
         />
         <StatCard
           title="Forms"
           value={String(uploadCounts.forms)}
           note="Form records"
+          compact={isCompact}
         />
         <StatCard
           title="Reports"
           value={String(uploadCounts.reports)}
           note="Report records"
+          compact={isCompact}
         />
       </section>
 
@@ -579,15 +594,17 @@ async function confirmOpenFile() {
                 actionLabel="Open Submit"
               />
             ) : (
-              <div className="space-y-3">
+              <div className={isCompact ? "space-y-2" : "space-y-3"}>
                 {recentSubmissions.map((item) => (
                   <div
                     key={item.id}
-                    className="rounded-xl border border-slate-700/80 bg-slate-950/50 px-4 py-4"
+                    className={`rounded-xl border border-slate-700/80 bg-slate-950/50 ${isCompact ? "px-3 py-3" : "px-4 py-4"}`}
                   >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <div className="text-sm font-semibold text-slate-100">
+                        <div
+                          className={`font-semibold text-slate-100 ${isCompact ? "text-xs" : "text-sm"}`}
+                        >
                           {item.title || "Untitled request"}
                         </div>
                         <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
@@ -620,22 +637,22 @@ async function confirmOpenFile() {
         ) : (
           <>
             <div className="hidden mt-6 overflow-x-auto md:block">
-            <table className="min-w-full border-separate border-spacing-y-3">
+            <table className={uploadTable.table}>
               <thead>
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  <th className={uploadTable.th}>
                     Title
                   </th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  <th className={uploadTable.th}>
                     Type
                   </th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  <th className={uploadTable.th}>
                     Category
                   </th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  <th className={uploadTable.th}>
                     File
                   </th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  <th className={`${uploadTable.th} text-right`}>
                     Open
                   </th>
                 </tr>
@@ -644,19 +661,19 @@ async function confirmOpenFile() {
               <tbody>
                 {documents.map((doc) => (
                   <tr key={doc.id}>
-                    <td className="rounded-l-2xl border-y border-l border-slate-700/80 bg-slate-950/50 px-4 py-4 text-sm font-semibold text-slate-100">
+                    <td className={uploadTable.tdFirst}>
                       {doc.document_title}
                     </td>
-                    <td className="border-y border-slate-700/80 bg-slate-950/50 px-4 py-4 text-sm text-slate-300">
+                    <td className={uploadTable.tdMid}>
                       {doc.document_type}
                     </td>
-                    <td className="border-y border-slate-700/80 bg-slate-950/50 px-4 py-4 text-sm text-slate-300">
+                    <td className={uploadTable.tdMid}>
                       {doc.category}
                     </td>
-                    <td className="border-y border-slate-700/80 bg-slate-950/50 px-4 py-4 text-sm text-slate-500">
+                    <td className={uploadTable.tdFile}>
                       {doc.file_name}
                     </td>
-                    <td className="rounded-r-2xl border-y border-r border-slate-700/80 bg-slate-950/50 px-4 py-4 text-right">
+                    <td className={uploadTable.tdLast}>
                       <button
                         onClick={() => handleOpenFile(doc.file_path)}
                         className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-900/90"
@@ -672,8 +689,11 @@ async function confirmOpenFile() {
 
             <div className="mt-6 grid gap-4 md:hidden">
               {documents.map((doc) => (
-                <div key={doc.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                  <div className="text-base font-semibold text-slate-100">{doc.document_title}</div>
+                <div
+                  key={doc.id}
+                  className={`rounded-2xl border border-slate-700/80 bg-slate-950/50 ${uploadTable.mobileCard}`}
+                >
+                  <div className={uploadTable.mobileTitle}>{doc.document_title}</div>
                   <div className="mt-2 grid gap-3 sm:grid-cols-2">
                     <InfoBox label="Type" value={doc.document_type || "Not set"} />
                     <InfoBox label="Category" value={doc.category || "Not set"} />
@@ -723,18 +743,24 @@ function StatCard({
   title,
   value,
   note,
+  compact,
 }: {
   title: string;
   value: string;
   note: string;
+  compact?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">{title}</p>
-      <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">
+    <div
+      className={`rounded-2xl border border-slate-700/80 bg-slate-900/90 shadow-sm ${compact ? "p-4" : "p-6"}`}
+    >
+      <p className={`font-medium text-slate-500 ${compact ? "text-xs" : "text-sm"}`}>{title}</p>
+      <p
+        className={`font-bold tracking-tight text-slate-100 ${compact ? "mt-2 text-3xl" : "mt-3 text-4xl"}`}
+      >
         {value}
       </p>
-      <p className="mt-2 text-sm text-slate-500">{note}</p>
+      <p className={`text-slate-500 ${compact ? "mt-1 text-xs" : "mt-2 text-sm"}`}>{note}</p>
     </div>
   );
 }

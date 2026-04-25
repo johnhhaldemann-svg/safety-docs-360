@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import {
@@ -37,6 +38,8 @@ import {
   type AnalyticsStatusKey,
   type TrendGranularity,
 } from "@/lib/fieldIssueAnalytics";
+import { useTableDensity } from "@/hooks/useTableDensity";
+import { fieldIdMatrixTableLayout } from "@/lib/tableDensityLayout";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -1561,6 +1564,9 @@ export default function FieldIdExchangePage() {
     }
   }
 
+  const { density, setDensity, isCompact } = useTableDensity();
+  const matrixLayout = useMemo(() => fieldIdMatrixTableLayout(isCompact), [isCompact]);
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -1568,7 +1574,8 @@ export default function FieldIdExchangePage() {
         title="Corrective Action Hub"
         description={`Track hazards and corrective actions for ${companyName} with assignees, due dates, reminders, and closure controls.`}
         actions={
-          <>
+          <div className="flex flex-wrap items-center gap-3">
+            <TableDensityToggle value={density} onChange={setDensity} disabled={loadingActions} />
             <button
               type="button"
               onClick={() => void reloadActions()}
@@ -1589,7 +1596,7 @@ export default function FieldIdExchangePage() {
             >
               Upload Field Photo
             </Link>
-          </>
+          </div>
         }
       />
 
@@ -2392,22 +2399,22 @@ export default function FieldIdExchangePage() {
             description="Live matrix of issue categories by status."
           >
             <div className="overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-y-2">
+              <table className={matrixLayout.table}>
                 <thead>
                   <tr>
-                    <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    <th className={matrixLayout.thFirst}>
                       Category
                     </th>
-                    <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    <th className={matrixLayout.thNum}>
                       Open
                     </th>
-                    <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    <th className={matrixLayout.thNum}>
                       In Progress
                     </th>
-                    <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    <th className={matrixLayout.thNum}>
                       Closed
                     </th>
-                    <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    <th className={matrixLayout.thNum}>
                       Total
                     </th>
                   </tr>
@@ -2415,19 +2422,19 @@ export default function FieldIdExchangePage() {
                 <tbody>
                   {activeMatrix.map((row) => (
                     <tr key={row.category}>
-                      <td className="rounded-l-xl border-y border-l border-slate-700/80 bg-slate-950/50 px-3 py-2 text-xs font-semibold text-slate-100">
+                      <td className={matrixLayout.tdCategory}>
                         {getCategoryLabel(row.category)}
                       </td>
-                      <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">
+                      <td className={matrixLayout.tdNumber}>
                         {row.open}
                       </td>
-                      <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">
+                      <td className={matrixLayout.tdNumber}>
                         {row.inProgress}
                       </td>
-                      <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">
+                      <td className={matrixLayout.tdNumber}>
                         {row.closed}
                       </td>
-                      <td className="rounded-r-xl border-y border-r border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs font-semibold text-slate-100">
+                      <td className={matrixLayout.tdTotal}>
                         {row.total}
                       </td>
                     </tr>
@@ -2707,37 +2714,37 @@ export default function FieldIdExchangePage() {
                 description="Category-by-status matrix for the selected filters, including a derived overdue column and totals row."
               >
                 <div className="overflow-x-auto">
-                  <table className="min-w-full border-separate border-spacing-y-2">
+                  <table className={matrixLayout.table}>
                     <thead>
                       <tr>
-                        <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        <th className={matrixLayout.thFirst}>
                           Category
                         </th>
-                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        <th className={matrixLayout.thNum}>
                           Open
                         </th>
-                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        <th className={matrixLayout.thNum}>
                           Assigned
                         </th>
-                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        <th className={matrixLayout.thNum}>
                           In Progress
                         </th>
-                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        <th className={matrixLayout.thNum}>
                           Corrected
                         </th>
-                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        <th className={matrixLayout.thNum}>
                           Verified Closed
                         </th>
-                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        <th className={matrixLayout.thNum}>
                           Overdue
                         </th>
-                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        <th className={matrixLayout.thNum}>
                           Escalated
                         </th>
-                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        <th className={matrixLayout.thNum}>
                           Stop Work
                         </th>
-                        <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        <th className={matrixLayout.thNum}>
                           Total
                         </th>
                       </tr>
@@ -2745,33 +2752,33 @@ export default function FieldIdExchangePage() {
                     <tbody>
                       {metricsAnalytics.matrixRows.map((row) => (
                         <tr key={row.category}>
-                          <td className="rounded-l-xl border-y border-l border-slate-700/80 bg-slate-950/50 px-3 py-2 text-xs font-semibold text-slate-100">
+                          <td className={matrixLayout.tdCategory}>
                             {getCategoryLabel(row.category)}
                           </td>
-                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.open}</td>
-                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.assigned}</td>
-                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.inProgress}</td>
-                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.corrected}</td>
-                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.verifiedClosed}</td>
-                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-orange-200">{row.overdue}</td>
-                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.escalated}</td>
-                          <td className="border-y border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">{row.stopWork}</td>
-                          <td className="rounded-r-xl border-y border-r border-slate-700/80 bg-slate-950/50 px-3 py-2 text-right text-xs font-semibold text-slate-100">{row.total}</td>
+                          <td className={matrixLayout.tdNumber}>{row.open}</td>
+                          <td className={matrixLayout.tdNumber}>{row.assigned}</td>
+                          <td className={matrixLayout.tdNumber}>{row.inProgress}</td>
+                          <td className={matrixLayout.tdNumber}>{row.corrected}</td>
+                          <td className={matrixLayout.tdNumber}>{row.verifiedClosed}</td>
+                          <td className={matrixLayout.tdNumberOrange}>{row.overdue}</td>
+                          <td className={matrixLayout.tdNumber}>{row.escalated}</td>
+                          <td className={matrixLayout.tdNumber}>{row.stopWork}</td>
+                          <td className={matrixLayout.tdTotal}>{row.total}</td>
                         </tr>
                       ))}
                       <tr>
-                        <td className="rounded-l-xl border-y border-l border-slate-700/80 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-white">
+                        <td className={matrixLayout.tdFooterLabel}>
                           Total
                         </td>
-                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.open}</td>
-                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.assigned}</td>
-                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.inProgress}</td>
-                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.corrected}</td>
-                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.verifiedClosed}</td>
-                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-orange-200">{metricsAnalytics.matrixTotals.overdue}</td>
-                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.escalated}</td>
-                        <td className="border-y border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-semibold text-white">{metricsAnalytics.matrixTotals.stopWork}</td>
-                        <td className="rounded-r-xl border-y border-r border-slate-700/80 bg-slate-900 px-3 py-2 text-right text-xs font-black text-white">{metricsAnalytics.matrixTotals.total}</td>
+                        <td className={matrixLayout.tdFooter}>{metricsAnalytics.matrixTotals.open}</td>
+                        <td className={matrixLayout.tdFooter}>{metricsAnalytics.matrixTotals.assigned}</td>
+                        <td className={matrixLayout.tdFooter}>{metricsAnalytics.matrixTotals.inProgress}</td>
+                        <td className={matrixLayout.tdFooter}>{metricsAnalytics.matrixTotals.corrected}</td>
+                        <td className={matrixLayout.tdFooter}>{metricsAnalytics.matrixTotals.verifiedClosed}</td>
+                        <td className={matrixLayout.tdFooterOrange}>{metricsAnalytics.matrixTotals.overdue}</td>
+                        <td className={matrixLayout.tdFooter}>{metricsAnalytics.matrixTotals.escalated}</td>
+                        <td className={matrixLayout.tdFooter}>{metricsAnalytics.matrixTotals.stopWork}</td>
+                        <td className={matrixLayout.tdFooterLast}>{metricsAnalytics.matrixTotals.total}</td>
                       </tr>
                     </tbody>
                   </table>

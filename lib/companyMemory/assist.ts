@@ -197,6 +197,18 @@ function isDocumentIntent(message: string) {
   );
 }
 
+/** CSEP builder weather smart-fill sends `ai_section.kind: "weather"` and expects parseable JSON in the reply. */
+export function wantsCsepBuilderWeatherJsonOutput(structuredContext?: string | null): boolean {
+  const raw = structuredContext?.trim();
+  if (!raw) return false;
+  try {
+    const parsed = JSON.parse(raw) as { ai_section?: { kind?: string } };
+    return parsed?.ai_section?.kind === "weather";
+  } catch {
+    return false;
+  }
+}
+
 function buildChecklistAssistGuardrails(surface: string, structuredContext?: string | null) {
   const key = surface.trim().toLowerCase();
   if (key !== "csep" && key !== "peshep") {
@@ -301,15 +313,25 @@ export async function runCompanyAiAssist(
   const structured =
     input.structuredContext?.trim().slice(0, 12_000) || null;
   const checklistGuardrails = buildChecklistAssistGuardrails(input.surface, structured);
+  const csepWeatherJsonMode = wantsCsepBuilderWeatherJsonOutput(structured);
 
   const system = [
     buildSurfaceSystemPrompt(input.surface),
     checklistGuardrails,
-    "Never output JSON unless the user explicitly asks for JSON.",
-    "Keep answers concise and actionable. Use bullet lists when helpful.",
+    csepWeatherJsonMode
+      ? [
+          "The user message is a CSEP builder structured fill: respond with one JSON object only, exactly as the user message specifies.",
+          "Do not wrap the JSON in markdown fences. Do not add headings, commentary, or bullet lists before or after the object.",
+        ].join(" ")
+      : [
+          "Never output JSON unless the user explicitly asks for JSON.",
+          "Keep answers concise and actionable. Use bullet lists when helpful.",
+        ].join("\n"),
     "If a memory excerpt is a document upload, treat it as the stronger source than a shorter note-style memory row.",
     COMPANY_AI_ASSIST_DISCLAIMER,
-  ].join("\n\n");
+  ]
+    .filter((part) => Boolean(part))
+    .join("\n\n");
 
   const userParts = [
     `Surface: ${input.surface}`,

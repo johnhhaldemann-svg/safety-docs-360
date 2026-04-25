@@ -25,7 +25,29 @@ vi.mock("@/lib/companyMemory/openaiResponses", () => ({
     typeof input === "string" ? input : JSON.stringify(input),
 }));
 
-import { buildSurfaceSystemPrompt, runCompanyAiAssist } from "@/lib/companyMemory/assist";
+import {
+  buildSurfaceSystemPrompt,
+  runCompanyAiAssist,
+  wantsCsepBuilderWeatherJsonOutput,
+} from "@/lib/companyMemory/assist";
+
+describe("wantsCsepBuilderWeatherJsonOutput", () => {
+  it("returns true when structured context marks weather AI section", () => {
+    expect(
+      wantsCsepBuilderWeatherJsonOutput(
+        JSON.stringify({ ai_section: { kind: "weather", id: "weather" } })
+      )
+    ).toBe(true);
+  });
+
+  it("returns false for other sections or invalid JSON", () => {
+    expect(wantsCsepBuilderWeatherJsonOutput(JSON.stringify({ ai_section: { kind: "text" } }))).toBe(
+      false
+    );
+    expect(wantsCsepBuilderWeatherJsonOutput("{")).toBe(false);
+    expect(wantsCsepBuilderWeatherJsonOutput(null)).toBe(false);
+  });
+});
 
 describe("buildSurfaceSystemPrompt", () => {
   it("returns surface-specific guidance", () => {
@@ -110,5 +132,27 @@ describe("runCompanyAiAssist", () => {
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}")) as { input?: string };
     expect(body.input).toContain("Checklist evaluation signals are provided in structured context");
     expect(body.input).toContain("Coverage, Missing Inputs, Conditional Programs");
+  });
+
+  it("uses JSON-only system guidance for CSEP weather smart fill (no anti-JSON line)", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    retrieveMemoryForQuery.mockResolvedValue({ method: "semantic", chunks: [] });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ output_text: "{}" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await runCompanyAiAssist({} as never, "company-1", {
+      surface: "csep",
+      userMessage: "Return only valid JSON with this exact shape:",
+      structuredContext: JSON.stringify({
+        ai_section: { id: "weather", kind: "weather", title: "Weather" },
+      }),
+    });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}")) as { input?: string };
+    expect(body.input).toContain("one JSON object only");
+    expect(body.input).not.toContain("Never output JSON unless the user explicitly asks for JSON.");
   });
 });

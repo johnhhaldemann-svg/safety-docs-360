@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
 import {
   ActivityFeed,
   appNativeSelectClassName,
@@ -12,6 +13,7 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
+import { useTableDensity } from "@/hooks/useTableDensity";
 import { PermissionOverridesEditor } from "@/components/PermissionOverridesEditor";
 import {
   normalizePermissionOverrides,
@@ -712,6 +714,8 @@ export default function AdminUsersPage() {
     setActionLoading("");
   }
 
+  const { density, setDensity, isCompact } = useTableDensity();
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -723,7 +727,8 @@ export default function AdminUsersPage() {
             : "Manage only your internal Safety360Docs employees here. Company workspaces and company employees are handled separately."
         }
         actions={
-          <>
+          <div className="flex flex-wrap items-center gap-3">
+            <TableDensityToggle value={density} onChange={setDensity} disabled={loading} />
             <Link
               href="/admin/companies"
               className="rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
@@ -743,18 +748,25 @@ export default function AdminUsersPage() {
             >
               Back to Admin
             </Link>
-          </>
+          </div>
         }
       />
 
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {userStats.map((item) => (
-          <div key={item.title} className="app-white-card rounded-2xl p-6 shadow-sm">
+          <div
+            key={item.title}
+            className={`app-white-card rounded-2xl shadow-sm ${isCompact ? "p-4" : "p-6"}`}
+          >
             <p className="text-sm font-medium text-[var(--app-muted)]">{item.title}</p>
-            <p className="mt-3 text-4xl font-bold tracking-tight text-[var(--app-text-strong)]">
+            <p
+              className={`font-bold tracking-tight text-[var(--app-text-strong)] ${isCompact ? "mt-2 text-3xl" : "mt-3 text-4xl"}`}
+            >
               {loading ? "-" : item.value}
             </p>
-            <p className="mt-2 text-sm text-[var(--app-text)]">{item.note}</p>
+            <p className={`text-[var(--app-text)] ${isCompact ? "mt-1 text-xs" : "mt-2 text-sm"}`}>
+              {item.note}
+            </p>
           </div>
         ))}
       </section>
@@ -877,9 +889,12 @@ export default function AdminUsersPage() {
               description="New internal employee accounts will appear here until an admin activates them."
             />
           ) : (
-            <div className="space-y-4">
+            <div className={isCompact ? "space-y-2" : "space-y-4"}>
               {pendingApprovals.slice(0, 6).map((user) => (
-                <div key={user.id} className="app-white-card rounded-2xl p-4">
+                <div
+                  key={user.id}
+                  className={`app-white-card rounded-2xl ${isCompact ? "p-3" : "p-4"}`}
+                >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -974,11 +989,11 @@ export default function AdminUsersPage() {
             description="Try a different search term or clear the role filter."
           />
         ) : (
-          <div className="grid gap-4">
+          <div className={isCompact ? "grid gap-3" : "grid gap-4"}>
             {filteredUsers.map((user) => (
               <div
                 key={user.id}
-                className="app-white-card rounded-2xl p-4"
+                className={`app-white-card rounded-2xl ${isCompact ? "p-3" : "p-4"}`}
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>

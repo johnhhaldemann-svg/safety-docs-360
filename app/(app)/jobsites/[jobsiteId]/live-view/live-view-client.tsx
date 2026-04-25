@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useMemo, useState } from "react";
+import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
 import { InlineMessage, PageHero, SectionCard, StatusBadge } from "@/components/WorkspacePrimitives";
+import { useTableDensity } from "@/hooks/useTableDensity";
+import { liveObservationMatrixLayout } from "@/lib/tableDensityLayout";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -295,12 +298,16 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
   const responsibleOptions = Array.from(new Set(rows.map((row) => row.assigned_user_id || "unassigned")));
   const permitTypeOptions = Array.from(new Set(permits.map((item) => item.permit_type).filter(Boolean)));
 
+  const { density, setDensity, isCompact } = useTableDensity();
+  const matrix = useMemo(() => liveObservationMatrixLayout(isCompact), [isCompact]);
+
   return (
     <div className="space-y-6">
       <PageHero
         eyebrow="Jobsite Workspace"
         title="Live View"
         description="Real-time observation matrix and action workflow for this jobsite."
+        actions={<TableDensityToggle value={density} onChange={setDensity} disabled={loading} />}
       />
       {message ? <InlineMessage tone="error">{message}</InlineMessage> : null}
 
@@ -380,24 +387,24 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
             ))}
           </div>
           <div className="overflow-auto">
-            <table className="min-w-[1500px] text-left text-xs">
+            <table className={matrix.table}>
               <thead>
                 <tr className="border-b border-slate-700/80 text-slate-500">
-                  <th className="px-2 py-2">Time</th>
-                  <th className="px-2 py-2">Area</th>
-                  <th className="px-2 py-2">Trade</th>
-                  <th className="px-2 py-2">Activity</th>
-                  <th className="px-2 py-2">Hazard Category</th>
-                  <th className="px-2 py-2">Observation Type</th>
-                  <th className="px-2 py-2">Description</th>
-                  <th className="px-2 py-2">Risk Level</th>
-                  <th className="px-2 py-2">Controls / Corrective Action</th>
-                  <th className="px-2 py-2">Responsible Party</th>
-                  <th className="px-2 py-2">Status</th>
-                  <th className="px-2 py-2">SIF Potential</th>
-                  <th className="px-2 py-2">Photo Count</th>
-                  <th className="px-2 py-2">Time Open</th>
-                  <th className="px-2 py-2">Actions</th>
+                  <th className={matrix.cell}>Time</th>
+                  <th className={matrix.cell}>Area</th>
+                  <th className={matrix.cell}>Trade</th>
+                  <th className={matrix.cell}>Activity</th>
+                  <th className={matrix.cell}>Hazard Category</th>
+                  <th className={matrix.cell}>Observation Type</th>
+                  <th className={matrix.cell}>Description</th>
+                  <th className={matrix.cell}>Risk Level</th>
+                  <th className={matrix.cell}>Controls / Corrective Action</th>
+                  <th className={matrix.cell}>Responsible Party</th>
+                  <th className={matrix.cell}>Status</th>
+                  <th className={matrix.cell}>SIF Potential</th>
+                  <th className={matrix.cell}>Photo Count</th>
+                  <th className={matrix.cell}>Time Open</th>
+                  <th className={matrix.cell}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -415,26 +422,26 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
                         row.status === "stop_work" ? "bg-amber-950/40" : ""
                       }`}
                     >
-                      <td className="px-2 py-2">{new Date(row.created_at).toLocaleTimeString()}</td>
-                      <td className="px-2 py-2">{area}</td>
-                      <td className="px-2 py-2">{trade}</td>
-                      <td className="px-2 py-2">{row.dap_activity_id ? `JSA ${row.dap_activity_id.slice(0, 8)}` : "Ad-hoc"}</td>
-                      <td className="px-2 py-2">{row.category}</td>
-                      <td className="px-2 py-2">{row.category === "near_miss" ? "near_miss" : "negative"}</td>
-                      <td className="px-2 py-2">{row.description ?? "-"}</td>
-                      <td className="px-2 py-2">{row.severity}</td>
-                      <td className="px-2 py-2">{row.title}</td>
-                      <td className="px-2 py-2">{row.assigned_user_id ?? "unassigned"}</td>
-                      <td className="px-2 py-2">
+                      <td className={matrix.cell}>{new Date(row.created_at).toLocaleTimeString()}</td>
+                      <td className={matrix.cell}>{area}</td>
+                      <td className={matrix.cell}>{trade}</td>
+                      <td className={matrix.cell}>{row.dap_activity_id ? `JSA ${row.dap_activity_id.slice(0, 8)}` : "Ad-hoc"}</td>
+                      <td className={matrix.cell}>{row.category}</td>
+                      <td className={matrix.cell}>{row.category === "near_miss" ? "near_miss" : "negative"}</td>
+                      <td className={matrix.cell}>{row.description ?? "-"}</td>
+                      <td className={matrix.cell}>{row.severity}</td>
+                      <td className={matrix.cell}>{row.title}</td>
+                      <td className={matrix.cell}>{row.assigned_user_id ?? "unassigned"}</td>
+                      <td className={matrix.cell}>
                         <StatusBadge
                           label={row.status}
                           tone={row.status === "verified_closed" ? "success" : row.status === "stop_work" ? "warning" : "info"}
                         />
                       </td>
-                      <td className="px-2 py-2">{isSif ? "Yes" : "No"}</td>
-                      <td className="px-2 py-2">{row.evidence_count ?? 0}</td>
-                      <td className="px-2 py-2">{durationSince(row.created_at)}</td>
-                      <td className="px-2 py-2">
+                      <td className={matrix.cell}>{isSif ? "Yes" : "No"}</td>
+                      <td className={matrix.cell}>{row.evidence_count ?? 0}</td>
+                      <td className={matrix.cell}>{durationSince(row.created_at)}</td>
+                      <td className={matrix.cell}>
                         <div className="flex flex-wrap gap-1">
                           <button type="button" className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900/80 px-2 py-2 text-[11px] font-semibold text-slate-200" onClick={() => setSelectedId(row.id)}>View details</button>
                           <button

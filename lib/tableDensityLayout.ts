@@ -26,6 +26,70 @@ export function wideInvoiceTableLayout(isCompact: boolean) {
   };
 }
 
+/** Jobsite live view: wide observation matrix (many columns). */
+export function liveObservationMatrixLayout(isCompact: boolean) {
+  return {
+    table: isCompact
+      ? "min-w-[1280px] text-left text-[10px] leading-snug"
+      : "min-w-[1500px] text-left text-xs",
+    cell: isCompact ? "px-1.5 py-1 align-top" : "px-2 py-2 align-top",
+  };
+}
+
+/** Upload center: bordered document rows (md+ table + mobile cards). */
+export function uploadCenterTableLayout(isCompact: boolean) {
+  const pad = isCompact ? "px-3 py-2.5" : "px-4 py-4";
+  const bodyText = isCompact ? "text-xs" : "text-sm";
+  return {
+    table: isCompact
+      ? "min-w-full border-separate border-spacing-y-2"
+      : "min-w-full border-separate border-spacing-y-3",
+    th: isCompact
+      ? "px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500"
+      : "px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500",
+    tdFirst: `rounded-l-2xl border-y border-l border-slate-700/80 bg-slate-950/50 ${pad} font-semibold text-slate-100 ${bodyText}`,
+    tdMid: `border-y border-slate-700/80 bg-slate-950/50 ${pad} text-slate-300 ${bodyText}`,
+    tdFile: `border-y border-slate-700/80 bg-slate-950/50 ${pad} text-slate-500 ${bodyText}`,
+    tdLast: `rounded-r-2xl border-y border-r border-slate-700/80 bg-slate-950/50 ${pad} text-right`,
+    mobileCard: isCompact ? "p-3" : "p-4",
+    mobileTitle: isCompact ? "text-sm font-semibold text-slate-100" : "text-base font-semibold text-slate-100",
+  };
+}
+
+/** Field ID exchange: Active Matrix + Analytics Matrix (category × status / counts). */
+export function fieldIdMatrixTableLayout(isCompact: boolean) {
+  const pad = isCompact ? "px-2 py-1.5" : "px-3 py-2";
+  const thPad = isCompact ? "px-2 py-1" : "px-3 py-2";
+  const thText = isCompact
+    ? "text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500"
+    : "text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500";
+  const body = isCompact ? "text-[11px]" : "text-xs";
+  return {
+    table: isCompact
+      ? "min-w-full border-separate border-spacing-y-1.5"
+      : "min-w-full border-separate border-spacing-y-2",
+    thFirst: `text-left ${thPad} ${thText}`,
+    thNum: `text-right ${thPad} ${thText}`,
+    tdCategory: `rounded-l-xl border-y border-l border-slate-700/80 bg-slate-950/50 ${pad} ${body} font-semibold text-slate-100`,
+    tdNumber: `border-y border-slate-700/80 bg-slate-950/50 ${pad} text-right ${body} text-slate-300`,
+    tdNumberOrange: `border-y border-slate-700/80 bg-slate-950/50 ${pad} text-right ${body} text-orange-200`,
+    tdTotal: `rounded-r-xl border-y border-r border-slate-700/80 bg-slate-950/50 ${pad} text-right ${body} font-semibold text-slate-100`,
+    tdFooterLabel: `rounded-l-xl border-y border-l border-slate-700/80 bg-slate-900 ${pad} ${body} font-black uppercase tracking-[0.14em] text-white`,
+    tdFooter: `border-y border-slate-700/80 bg-slate-900 ${pad} text-right ${body} font-semibold text-white`,
+    tdFooterOrange: `border-y border-slate-700/80 bg-slate-900 ${pad} text-right ${body} font-semibold text-orange-200`,
+    tdFooterLast: `rounded-r-xl border-y border-r border-slate-700/80 bg-slate-900 ${pad} text-right ${body} font-black text-white`,
+  };
+}
+
+/** Small admin / history tables (e.g. jobsite audit submissions preview). */
+export function submissionHistoryTableLayout(isCompact: boolean) {
+  return {
+    table: isCompact ? "w-full text-left text-[11px]" : "w-full text-left text-xs",
+    th: isCompact ? "px-2 py-1" : "px-3 py-2",
+    td: isCompact ? "px-2 py-1" : "px-3 py-2",
+  };
+}
+
 /** Card-style operations lists (permits, incidents) — padding and vertical rhythm. */
 export function listSectionDensity(isCompact: boolean) {
   return {

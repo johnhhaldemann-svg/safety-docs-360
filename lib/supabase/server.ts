@@ -3,7 +3,7 @@ import { getSupabaseAnonKey, getSupabaseServerUrl } from "@/lib/supabaseAdmin";
 
 /**
  * Supabase client for App Router route handlers and server components.
- * Reads the user session from cookies (kept fresh by middleware).
+ * Reads the user session from cookies (kept fresh by `proxy.ts`).
  *
  * `next/headers` is loaded dynamically so this module is not pulled into client bundles
  * that import shared helpers from the same graph as `authorizeRequest`.
@@ -29,7 +29,7 @@ export async function createSupabaseRouteHandlerClient() {
             cookieStore.set(name, value, options)
           );
         } catch {
-          // Server Components can be read-only; middleware refreshes sessions.
+          // Server Components can be read-only; proxy refreshes sessions.
         }
       },
     },

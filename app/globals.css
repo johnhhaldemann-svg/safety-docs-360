@@ -121,6 +121,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/*
+ * `data-table-density` on <html> is set by the inline script in `app/layout.tsx` and
+ * by `useTableDensity` (see `hooks/useTableDensity.ts`) so preference matches before paint.
+ */
+
 /* Let utility classes (e.g. text-white on CTAs) control link color */
 a:not([class]) {
   color: inherit;

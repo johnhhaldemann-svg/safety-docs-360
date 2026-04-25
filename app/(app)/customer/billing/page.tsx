@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
+import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
+import { useTableDensity } from "@/hooks/useTableDensity";
+import { listSectionDensity } from "@/lib/tableDensityLayout";
+import { EmptyState, InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrimitives";
 import {
   formatBillingPeriodLabel,
   getBillingSourceLabel,
@@ -110,12 +113,16 @@ export default function CustomerBillingPage() {
     [invoices, today]
   );
 
+  const { density, setDensity, isCompact } = useTableDensity();
+  const listD = useMemo(() => listSectionDensity(isCompact), [isCompact]);
+
   return (
     <div className="space-y-8">
       <PageHero
         eyebrow="Your company"
         title="Billing"
         description="Invoices issued to your organization. Subscription and licensing charges are labeled so you can spot recurring company pricing quickly."
+        actions={<TableDensityToggle value={density} onChange={setDensity} disabled={loading} />}
       />
 
       {message ? <InlineMessage tone="error">{message}</InlineMessage> : null}
@@ -139,9 +146,14 @@ export default function CustomerBillingPage() {
         {loading ? (
           <p className="text-sm text-slate-400">Loading...</p>
         ) : invoices.length === 0 ? (
-          <p className="text-sm text-slate-400">No invoices yet.</p>
+          <EmptyState
+            title="No invoices yet"
+            description="When your organization has invoices, they will appear here with status and balance."
+            align="left"
+            className="!p-6"
+          />
         ) : (
-          <ul className="space-y-3">
+          <ul className={listD.stackGap}>
             {invoices.map((invoice) => {
               const isOverdue =
                 invoice.balance_due_cents > 0 &&
@@ -151,11 +163,19 @@ export default function CustomerBillingPage() {
               return (
                 <li
                   key={invoice.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700/80 px-4 py-3"
+                  className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700/80 ${
+                    isCompact ? "px-3 py-2.5" : "px-4 py-3"
+                  }`}
                 >
                   <div className="space-y-1">
-                    <div className="font-mono text-sm font-semibold text-white">{invoice.invoice_number}</div>
-                    <div className="text-xs text-slate-500">
+                    <div
+                      className={`font-mono font-semibold text-white ${isCompact ? "text-xs" : "text-sm"}`}
+                    >
+                      {invoice.invoice_number}
+                    </div>
+                    <div
+                      className={`text-slate-500 ${isCompact ? "text-[11px]" : "text-xs"}`}
+                    >
                       Issued {formatDate(invoice.issue_date)} · Due {formatDate(invoice.due_date)}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -194,13 +214,18 @@ export default function CustomerBillingPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-semibold text-slate-200">
+                    <div
+                      className={`font-semibold text-slate-200 ${isCompact ? "text-xs" : "text-sm"}`}
+                    >
                       {formatMoney(invoice.total_cents, invoice.currency)}
                     </div>
-                    <div className="text-xs text-amber-200/90">
+                    <div className={`text-amber-200/90 ${isCompact ? "text-[11px]" : "text-xs"}`}>
                       Balance {formatMoney(invoice.balance_due_cents, invoice.currency)}
                     </div>
-                    <Link href={`/customer/billing/invoices/${invoice.id}`} className="text-sm text-sky-400">
+                    <Link
+                      href={`/customer/billing/invoices/${invoice.id}`}
+                      className={isCompact ? "text-xs text-sky-400" : "text-sm text-sky-400"}
+                    >
                       View
                     </Link>
                   </div>

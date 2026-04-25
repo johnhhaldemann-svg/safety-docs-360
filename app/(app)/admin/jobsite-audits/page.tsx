@@ -3,6 +3,7 @@
 import * as Tabs from "@radix-ui/react-tabs";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
 import { AuditorDashboard, buildDefaultTrend } from "@/components/jobsite-audits/AuditorDashboard";
 import { ExcelTemplateByCategory } from "@/components/jobsite-audits/ExcelTemplateByCategory";
 import { FieldAuditChecklist } from "@/components/jobsite-audits/FieldAuditChecklist";
@@ -20,6 +21,8 @@ import {
   AUDIT_SYSTEM_BLUEPRINT,
   AUDIT_SYSTEM_BLUEPRINT_TEXT,
 } from "@/lib/jobsiteAudits/auditSystemBlueprint";
+import { useTableDensity } from "@/hooks/useTableDensity";
+import { submissionHistoryTableLayout } from "@/lib/tableDensityLayout";
 import { CONSTRUCTION_TRADE_LABEL_BY_SLUG } from "@/lib/sharedTradeTaxonomy";
 import {
   fieldCompliancePercentForSections,
@@ -429,12 +432,16 @@ export default function AdminJobsiteAuditsPage() {
     }
   }, [auditDate, auditors, buildPayload, jobsite, refreshSubmissions]);
 
+  const { density, setDensity, isCompact } = useTableDensity();
+  const subTable = useMemo(() => submissionHistoryTableLayout(isCompact), [isCompact]);
+
   return (
     <div className="space-y-6 antialiased">
       <PageHero
         eyebrow="Internal — platform admin"
         title="Safety auditor workspace"
         description="Dashboard, OSHA field checklist, and full Excel-derived templates split by category. Drafts autosave in this browser; submit or download JSON to record the same payload on the platform."
+        actions={<TableDensityToggle value={density} onChange={setDensity} disabled={submitting} />}
       />
 
       <InlineMessage tone="warning">
@@ -540,29 +547,34 @@ export default function AdminJobsiteAuditsPage() {
           are excluded.
         </p>
         <div className="mt-4 max-h-48 overflow-y-auto rounded-xl border border-slate-700/60">
-          <table className="w-full text-left text-xs">
-            <thead className="sticky top-0 bg-slate-950/90 text-xs font-bold uppercase tracking-wide text-slate-300">
+          <table className={subTable.table}>
+            <thead
+              className={`sticky top-0 bg-slate-950/90 font-bold uppercase tracking-wide text-slate-300 ${isCompact ? "text-[10px]" : "text-xs"}`}
+            >
               <tr>
-                <th className="px-3 py-2">When</th>
-                <th className="px-3 py-2">Job</th>
-                <th className="px-3 py-2">Auditors</th>
+                <th className={subTable.th}>When</th>
+                <th className={subTable.th}>Job</th>
+                <th className={subTable.th}>Auditors</th>
               </tr>
             </thead>
             <tbody>
               {submissions.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-3 py-4 text-center text-slate-400">
+                  <td
+                    colSpan={3}
+                    className={`text-center text-slate-400 ${isCompact ? "px-2 py-3" : "px-3 py-4"}`}
+                  >
                     No submissions yet, or list still loading.
                   </td>
                 </tr>
               ) : (
                 submissions.map((s) => (
                   <tr key={s.id} className="border-t border-slate-700/60">
-                    <td className="px-3 py-2 text-slate-400">
+                    <td className={`${subTable.td} text-slate-400`}>
                       {new Date(s.created_at).toLocaleString()}
                     </td>
-                    <td className="px-3 py-2 font-medium text-slate-100">{s.jobsite_name || "—"}</td>
-                    <td className="px-3 py-2 text-slate-400">{s.auditors || "—"}</td>
+                    <td className={`${subTable.td} font-medium text-slate-100`}>{s.jobsite_name || "—"}</td>
+                    <td className={`${subTable.td} text-slate-400`}>{s.auditors || "—"}</td>
                   </tr>
                 ))
               )}

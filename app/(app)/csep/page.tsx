@@ -1151,12 +1151,14 @@ export default function CSEPPage() {
 
         if (!parsed) {
           throw new Error(
-            "The smart drafting tool returned text, but it was not in a usable weather-section format. Please try again."
+            "Smart fill could not read the AI reply as structured weather fields (for example, it may have returned plain paragraphs instead of the required JSON). Click Smart fill again, or type into the fields below."
           );
         }
 
         if (Object.keys(parsed).length === 0) {
-          throw new Error("The smart drafting response did not include usable weather-section content.");
+          throw new Error(
+            "The AI reply did not include any recognizable weather overlay values. Try Smart fill again or enter the fields manually."
+          );
         }
 
         setForm((prev) => ({
@@ -1873,7 +1875,7 @@ export default function CSEPPage() {
                   ) ? (
                     <SectionCard
                       title="Weather overlay"
-                      description="These inputs feed the dedicated weather section in the CSEP. Shared project baseline language stays first, then these project-specific thresholds and contractor notes are layered in."
+                      description="These fields add project-specific thresholds and notes on top of the shared weather language in your CSEP. Smart fill uses your selected tasks and project context to suggest values for the fields below; you should still review and edit them before issuing."
                     >
                       <div className="mb-4">{renderBuilderAiAction("weather", "Smart fill weather section")}</div>
                       <div className="grid gap-4 md:grid-cols-2">

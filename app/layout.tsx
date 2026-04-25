@@ -25,6 +25,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body>
+        {/* Sync table density before React so `useTableDensity` + first paint align with localStorage */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var k='safety360:tableDensity';var d=localStorage.getItem(k);if(d==='compact')document.documentElement.setAttribute('data-table-density','compact');else document.documentElement.removeAttribute('data-table-density');}catch(e){}})();`,
+          }}
+        />
         <a href="#main-content" className="app-skip-link">
           Skip to main content
         </a>

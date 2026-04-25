@@ -27,6 +27,62 @@ function buildSalesDemoAssistText(surface: string, userMessage: string) {
   ].join("\n");
 }
 
+/** JSON string matching {@link parseCsepWeatherSectionAiResponse} so CSEP "Smart fill weather" works for sales_demo. */
+function buildSalesDemoCsepWeatherAssistJson() {
+  return JSON.stringify({
+    monitoringSources: ["NOAA Weather Radio", "Site wind meter", "GC weather and lightning alerts"],
+    communicationMethods: ["Supervisor radio", "GC portal notices", "Start-of-shift huddle"],
+    highWindThresholdText:
+      "Suspend decking, picks, and loose material when sustained winds exceed 25 mph or gusts exceed 35 mph; GC concurrence before restart.",
+    lightningShelterNotes:
+      "Use designated hard shelters only; vehicles and open sheds are not shelter. Lower crane boom and clear steel when within site lightning policy.",
+    lightningRadiusMiles: 8,
+    lightningAllClearMinutes: 30,
+    heatTriggerText:
+      "Heat index at or above 90°F triggers hydrated rotations, shade breaks every 45 minutes, and buddy checks.",
+    coldTriggerText:
+      "Wind chill below 15°F triggers cold PPE verification, equipment warm-up, and 10-minute warm shelters each hour.",
+    tornadoStormShelterNotes:
+      "Account for all personnel in marked refuge; radio GC when warning expires and before returning to steel or crane work.",
+    unionAccountabilityNotes:
+      "Stewards confirm crew acknowledgment of weather holds; superintendent signs daily readiness log.",
+    dailyReviewNotes:
+      "Review forecast at shift start and after lunch; update board with wind/lightning status for crane and picks.",
+    projectOverrideNotes: ["Riverfront exposure can exceed forecast—spot-read wind at deck edge before erection."],
+    highWindControls: ["Secure deck bundles", "Pause crane and MEWP", "Inspect perimeter netting"],
+    heatControls: ["Ice water and electrolytes", "Misting respite area"],
+    coldControls: ["Heated break room", "Fuel gel checks"],
+    tornadoStormControls: ["Siren and radio cascade", "Crane boom tied per ERP"],
+    environmentalControls: ["Dust control when winds drop after hold"],
+    contractorResponsibilityNotes: ["Superintendent stops work and notifies GC within 15 minutes of threshold breach."],
+  });
+}
+
+function normalizeAssistContextString(context: unknown): string | null {
+  if (typeof context === "string" && context.trim()) {
+    return context;
+  }
+  if (context !== undefined && context !== null && typeof context === "object") {
+    try {
+      return JSON.stringify(context);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function getCsepAiSectionKindFromContext(contextJson: string | null): string | null {
+  if (!contextJson) return null;
+  try {
+    const parsed = JSON.parse(contextJson) as { ai_section?: { kind?: string } };
+    const kind = parsed?.ai_section?.kind;
+    return typeof kind === "string" ? kind : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
   const auth = await authorizeRequest(request);
   if ("error" in auth) {
@@ -62,6 +118,15 @@ export async function POST(request: Request) {
   const topK = typeof body.topK === "number" ? body.topK : undefined;
 
   if (auth.role === "sales_demo") {
+    const contextJson = normalizeAssistContextString(body.context);
+    const aiKind = getCsepAiSectionKindFromContext(contextJson);
+    if (surface === "csep" && aiKind === "weather") {
+      return NextResponse.json({
+        text: buildSalesDemoCsepWeatherAssistJson(),
+        disclaimer: COMPANY_AI_ASSIST_DISCLAIMER,
+        retrieval: "none",
+      });
+    }
     return NextResponse.json({
       text: buildSalesDemoAssistText(surface, userMessage),
       disclaimer: COMPANY_AI_ASSIST_DISCLAIMER,
