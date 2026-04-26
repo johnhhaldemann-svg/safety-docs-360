@@ -269,4 +269,13 @@ describe("DashboardView", () => {
     expect(html).toContain("Risk distribution chart");
     expect(html).toContain("Risk reduction graph");
   });
+
+  it("renders risk_ranking and hazard_trends as bar charts in the default company layout", () => {
+    mockLayout("company_admin");
+    const html = renderToStaticMarkup(<DashboardView model={getCompanyAdminDashboardModel(baseData)} />);
+
+    expect(html).toContain("Jobsite health ranking");
+    expect(html).toContain("Hazard trends");
+    expect((html.match(/h-3 overflow-hidden rounded-full/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
 });

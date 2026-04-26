@@ -15,6 +15,7 @@ import type {
   DashboardDocument,
   DashboardFeedItem,
   DashboardFeedSection,
+  DashboardGraphItem,
   DashboardGraphSection,
   DashboardMetric,
   DashboardSummaryItem,
@@ -527,6 +528,87 @@ function genericRiskItems(data: DashboardDataState, href = "/search"): Dashboard
   ];
 }
 
+function parseSummaryItemValue(raw: string): number {
+  const trimmed = raw.trim();
+  const direct = Number(trimmed);
+  if (Number.isFinite(direct)) return direct;
+  const match = trimmed.match(/-?\d+/);
+  if (match) return Number(match[0]);
+  return 0;
+}
+
+function summaryItemsToGraphItems(items: DashboardSummaryItem[]): DashboardGraphItem[] {
+  return items.map((item) => {
+    const value = Math.max(0, parseSummaryItemValue(item.value));
+    const tone = item.tone;
+    const graphTone: DashboardGraphItem["tone"] =
+      tone === "success"
+        ? "success"
+        : tone === "warning"
+          ? "warning"
+          : tone === "error"
+            ? "error"
+            : tone === "info"
+              ? "info"
+              : tone === "neutral"
+                ? "neutral"
+                : undefined;
+    return {
+      id: item.id,
+      label: item.label,
+      value,
+      detail: item.note,
+      tone: graphTone,
+    };
+  });
+}
+
+function graphSectionFromRiskRanking(
+  graphs: ReturnType<typeof dashboardGraphs>,
+  riskRanking: DashboardSummarySection
+): DashboardGraphSection {
+  const base = graphs.jobsiteRiskGraph;
+  if (base.items.length > 0) {
+    return {
+      ...base,
+      title: riskRanking.title,
+      description: riskRanking.description,
+      empty: riskRanking.empty,
+    };
+  }
+  return graphSection(
+    riskRanking.title,
+    riskRanking.description,
+    summaryItemsToGraphItems(riskRanking.items),
+    riskRanking.empty,
+    "risk score",
+    "bar"
+  );
+}
+
+function graphSectionFromHazardTrends(
+  graphs: ReturnType<typeof dashboardGraphs>,
+  hazardTrends: DashboardSummarySection
+): DashboardGraphSection {
+  const base = graphs.hazardTrendGraph;
+  if (base.items.length > 0) {
+    return {
+      ...base,
+      title: hazardTrends.title,
+      description: hazardTrends.description,
+      empty: hazardTrends.empty,
+    };
+  }
+  return graphSection(
+    hazardTrends.title,
+    hazardTrends.description,
+    summaryItemsToGraphItems(hazardTrends.items),
+    hazardTrends.empty,
+    "signals",
+    "bar"
+  );
+}
+
 function buildBlocks(params: {
   metrics: DashboardMetric[];
   priorityQueue: DashboardFeedSection;
@@ -656,14 +738,14 @@ function buildBlocks(params: {
       section: params.recentReports,
     },
     risk_ranking: {
-      kind: "summary",
+      kind: "graph",
       eyebrow: "Risk ranking",
-      section: params.riskRanking,
+      section: graphSectionFromRiskRanking(graphs, params.riskRanking),
     },
     hazard_trends: {
-      kind: "summary",
+      kind: "graph",
       eyebrow: "Hazard trends",
-      section: params.hazardTrends,
+      section: graphSectionFromHazardTrends(graphs, params.hazardTrends),
     },
     support_signals: {
       kind: "summary",
