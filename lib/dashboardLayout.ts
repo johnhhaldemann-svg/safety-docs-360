@@ -167,6 +167,17 @@ const ROLE_DEFAULT_LAYOUTS: Record<DashboardRole, DashboardBlockId[]> = {
     "incident_followups",
     "support_signals",
   ],
+  field_user: [
+    "metric_primary",
+    "metric_secondary",
+    "metric_tertiary",
+    "metric_quaternary",
+    "priority_queue",
+    "next_actions",
+    "recent_activity",
+    "graph_observation_mix",
+    "training_signal",
+  ],
   default: [
     "metric_primary",
     "metric_secondary",

@@ -527,9 +527,11 @@ function trainingItems(data: DashboardDataState, role: DashboardRole): Dashboard
   const proxyTrainingGap = data.companyInvites.length || pendingUsers;
   const trainingHref = role === "default" ? "/profile" : "/training-matrix";
   const jobsiteHref = role === "default" ? "/search" : "/jobsites";
-  const accessHref = role === "default" ? "/profile" : "/company-users";
+  const accessHref =
+    role === "default" || role === "field_user" ? "/profile" : "/company-users";
 
   const dm = data.dashboardMetrics;
+  const includeDirectoryMetrics = role !== "default" && role !== "field_user";
   const metricsRows: DashboardSummaryItem[] =
     dm && role !== "default"
       ? [
@@ -541,22 +543,26 @@ function trainingItems(data: DashboardDataState, role: DashboardRole): Dashboard
             href: trainingHref,
             tone: dm.trainingRequirementDefinitionsCount > 0 ? ("info" as const) : ("warning" as const),
           },
-          {
-            id: "dm-active-contractors",
-            label: "Active contractors",
-            value: `${dm.activeContractorsCount}`,
-            note: "Contractor profiles marked active in the company directory.",
-            href: "/company-contractors",
-            tone: "neutral",
-          },
-          {
-            id: "dm-sor-reports-window",
-            label: "SOR reports",
-            value: `${dm.sorReportsCount}`,
-            note: `Safety observation reports in the last ${dm.windowDays} days (company-wide; not jobsite-scoped in DB).`,
-            href: "/analytics",
-            tone: "info",
-          },
+          ...(includeDirectoryMetrics
+            ? [
+                {
+                  id: "dm-active-contractors",
+                  label: "Active contractors",
+                  value: `${dm.activeContractorsCount}`,
+                  note: "Contractor profiles marked active in the company directory.",
+                  href: "/company-contractors",
+                  tone: "neutral" as const,
+                },
+                {
+                  id: "dm-sor-reports-window",
+                  label: "SOR reports",
+                  value: `${dm.sorReportsCount}`,
+                  note: `Safety observation reports in the last ${dm.windowDays} days (company-wide; not jobsite-scoped in DB).`,
+                  href: "/analytics",
+                  tone: "info" as const,
+                },
+              ]
+            : []),
         ]
       : [];
 
@@ -1977,6 +1983,221 @@ export function getFieldSupervisorDashboardModel(data: DashboardDataState): Dash
         {
           title: "No incident follow-ups",
           description: "There are no active incident follow-up items visible right now.",
+          actionHref: "/incidents",
+          actionLabel: "Open incidents",
+        }
+      ),
+    }),
+  };
+}
+
+export function getFieldUserDashboardModel(data: DashboardDataState): DashboardViewModel {
+  if (data.loading) {
+    return loading("field_user", "Preparing field dashboard");
+  }
+
+  const risks = riskItems(data);
+  const graphs = dashboardGraphs(data);
+  const observations = data.workspaceSummary.observations;
+  const openFollowUps = observations.filter((row) => active(row.status)).length;
+  const overdueCount = observations.filter(overdue).length;
+  const activeSites = data.workspaceSummary.jobsites.filter((jobsite) => active(jobsite.status)).length;
+  const sorWindow = data.dashboardMetrics?.sorReportsCount;
+
+  const recentObservations = feedSection(
+    "Recent observations",
+    "Items from your visible field queue—submitted or assigned to you depending on workspace rules.",
+    observations.slice(0, 8).map((row, index) => ({
+      id: row.id ?? `obs-${index}`,
+      title: row.title?.trim() || row.category?.trim() || "Observation / corrective",
+      detail: row.jobsite_id ? jobsites(data).get(row.jobsite_id) ?? "Jobsite" : "Workspace",
+      meta: overdue(row) ? formatDue(row.due_at) : (row.status ?? "open").replace(/_/g, " "),
+      tone: overdue(row) ? ("warning" as const) : ("info" as const),
+    })),
+    {
+      title: "No observations yet",
+      description: "Submitted observations will appear here once they are recorded in the field issue log.",
+      actionHref: "/field-id-exchange",
+      actionLabel: "Open field issue log",
+    }
+  );
+
+  return {
+    role: "field_user",
+    hero: {
+      eyebrow: "Field dashboard",
+      title: "Tasks, follow-ups, training, and observations",
+      description:
+        "This view stays narrow: what is open for you, what is overdue, required training signals, and recent observation activity—without company-wide executive tiles.",
+      actions: [
+        { label: "Field issue log", href: "/field-id-exchange", variant: "primary" },
+        { label: "Training tracker", href: "/training-matrix", variant: "secondary" },
+      ],
+    },
+    banner: banner(data),
+    blocks: buildBlocks({
+      graphs,
+      metrics: [
+        metric(
+          "Open follow-ups",
+          `${openFollowUps}`,
+          "Observation and corrective items still active in your queue.",
+          openFollowUps > 0 ? "attention" : "elevated"
+        ),
+        metric(
+          "Overdue actions",
+          `${overdueCount}`,
+          "Items past due until closed or verified in the field.",
+          overdueCount > 0 ? "attention" : "elevated"
+        ),
+        metric("Assigned jobsites", `${activeSites}`, "Active jobsites currently visible to your account."),
+        metric(
+          "SOR reports (window)",
+          sorWindow != null ? `${sorWindow}` : "—",
+          data.dashboardMetrics
+            ? `Safety observation reports in the last ${data.dashboardMetrics.windowDays} days when metrics are connected.`
+            : "Connect analytics to show observation report volume for your window.",
+          "elevated"
+        ),
+      ],
+      priorityQueue: feedSection(
+        "Needs attention now",
+        "Overdue or high-priority follow-ups from the same queue as the field issue log.",
+        risks.overdueItems,
+        {
+          title: "Nothing overdue in view",
+          description: "When corrective work piles up, overdue items will surface here for same-day follow-up.",
+          actionHref: "/field-id-exchange",
+          actionLabel: "Open field issue log",
+        }
+      ),
+      nextActions: actionSection(
+        "Recommended next steps",
+        "Short paths for typical field workflows—submit observations, close training gaps, or upload evidence.",
+        [
+          {
+            title: "Submit an observation",
+            description: "Log a hazard, near miss, or positive catch through the field exchange.",
+            href: "/field-id-exchange",
+            actionLabel: "Open exchange",
+            tone: "attention",
+          },
+          {
+            title: "Complete assigned training",
+            description: "Open the training tracker to clear required credentials before high-risk work.",
+            href: "/training-matrix",
+            actionLabel: "Open training",
+          },
+          {
+            title: "Upload evidence",
+            description: "Attach photos or documents tied to a corrective or observation package.",
+            href: "/upload",
+            actionLabel: "Upload",
+          },
+          {
+            title: "Review assigned jobsites",
+            description: "Confirm you are on the correct site roster before starting work.",
+            href: "/jobsites",
+            actionLabel: "Open jobsites",
+          },
+        ],
+        {
+          title: "No suggested actions",
+          description: "Recommended actions will populate as assignments arrive.",
+        }
+      ),
+      recentActivity: recentObservations,
+      recentDocuments: feedSection(
+        "Documents",
+        "Recent submissions are available from search when your role can access them.",
+        recentDocumentsItems(data).slice(0, 4),
+        {
+          title: "No recent documents",
+          description: "Document movement will appear here when your workspace includes library activity.",
+          actionHref: "/search",
+          actionLabel: "Search workspace",
+        }
+      ),
+      recentReports: feedSection(
+        "Recent reports",
+        "Field report submissions visible in your workspace window.",
+        recentReportsItems(data).slice(0, 6),
+        {
+          title: "No recent reports",
+          description: "Reports will list here as they are filed for your sites.",
+          actionHref: "/reports",
+          actionLabel: "Open reports",
+        }
+      ),
+      riskRanking: summarySection(
+        "Risk ranking",
+        "Executive jobsite ranking is hidden for this role—use jobsites and the field issue log for your assignments.",
+        [],
+        {
+          title: "Not shown for field users",
+          description: "Company-wide risk ranking is available to managers and safety leads.",
+          actionHref: "/jobsites",
+          actionLabel: "Open jobsites",
+        }
+      ),
+      hazardTrends: summarySection(
+        "Hazard trends",
+        "Aggregate hazard trends are available to analytics roles.",
+        [],
+        {
+          title: "Not shown for field users",
+          description: "Ask your safety manager for hazard trend reviews when needed.",
+          actionHref: "/field-id-exchange",
+          actionLabel: "Open field issue log",
+        }
+      ),
+      supportSignals: summarySection(
+        "Your access",
+        "Role and workspace context for this account.",
+        accessItems(data, "field_user"),
+        {
+          title: "Access context unavailable",
+          description: "Profile and workspace details will appear after account data loads.",
+          actionHref: "/profile",
+          actionLabel: "Open profile",
+        }
+      ),
+      companyAccess: summarySection(
+        "Company access",
+        "Directory-level access is limited for field users.",
+        [],
+        {
+          title: "Not available",
+          description: "User management is restricted to company administrators.",
+        }
+      ),
+      trainingSignal: summarySection(
+        "Training signal",
+        "Training and onboarding signals that can affect field readiness.",
+        trainingItems(data, "field_user"),
+        {
+          title: "Training signal",
+          description: "Training indicators will appear when your roster and invite data are ready.",
+        }
+      ),
+      permitFollowups: feedSection(
+        "Permit follow-ups",
+        "Permit boards are managed by site leads; open the jobsite view when you need permit context.",
+        [],
+        {
+          title: "No permit queue for this role",
+          description: "Escalate permit questions to your supervisor or safety manager.",
+          actionHref: "/jobsites",
+          actionLabel: "Open jobsites",
+        }
+      ),
+      incidentFollowups: feedSection(
+        "Incident follow-ups",
+        "Incident management views are limited for field users—escalate through your supervisor.",
+        risks.incidentItems.slice(0, 4),
+        {
+          title: "No incident items in view",
+          description: "Open incidents when your workspace grants access.",
           actionHref: "/incidents",
           actionLabel: "Open incidents",
         }

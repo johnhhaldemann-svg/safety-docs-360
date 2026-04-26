@@ -5,10 +5,12 @@ import {
   getCompanyAdminDashboardModel,
   getDefaultDashboardModel,
   getFieldSupervisorDashboardModel,
+  getFieldUserDashboardModel,
   getSafetyManagerDashboardModel,
 } from "@/components/dashboard/dashboard-mappers";
 import type { DashboardBlockId, DashboardDataState } from "@/components/dashboard/types";
 import { getAvailableDashboardBlocks, getDashboardRoleDefaultLayout } from "@/lib/dashboardLayout";
+import type { DashboardRole } from "@/lib/dashboardRole";
 import { emptyOnboardingState } from "@/lib/onboardingState";
 
 vi.mock("@/components/dashboard/use-dashboard-layout", () => ({
@@ -157,10 +159,7 @@ const baseData: DashboardDataState = {
   reload: async () => {},
 };
 
-function mockLayout(
-  role: "company_admin" | "safety_manager" | "field_supervisor" | "default",
-  layoutOverride?: DashboardBlockId[]
-) {
+function mockLayout(role: DashboardRole, layoutOverride?: DashboardBlockId[]) {
   const defaultLayout = getDashboardRoleDefaultLayout(role);
   const effectiveLayout = layoutOverride ?? defaultLayout;
   vi.mocked(useDashboardLayout).mockReturnValue({
@@ -233,6 +232,20 @@ describe("DashboardView", () => {
     );
 
     expect((html.match(/data-dashboard-block=/g) ?? []).length).toBe(10);
+  });
+
+  it("renders the field user default layout (9 blocks)", () => {
+    mockLayout("field_user");
+    const html = renderToStaticMarkup(
+      <DashboardView
+        model={getFieldUserDashboardModel({
+          ...baseData,
+          userRole: "field_user",
+        })}
+      />
+    );
+
+    expect((html.match(/data-dashboard-block=/g) ?? []).length).toBe(9);
   });
 
   it("renders graph blocks from customized layouts", () => {

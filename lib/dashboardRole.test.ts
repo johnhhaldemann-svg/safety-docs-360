@@ -13,6 +13,11 @@ describe("resolveDashboardRole", () => {
     expect(resolveDashboardRole("foreman")).toBe("field_supervisor");
   });
 
+  it("routes field_user to the field user dashboard", () => {
+    expect(resolveDashboardRole("field_user")).toBe("field_user");
+    expect(resolveDashboardRole("Field User")).toBe("field_user");
+  });
+
   it("falls back safely for unknown or missing roles", () => {
     expect(resolveDashboardRole("viewer")).toBe("default");
     expect(resolveDashboardRole("")).toBe("default");

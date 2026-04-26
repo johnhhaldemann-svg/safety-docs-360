@@ -6,6 +6,7 @@ import { DashboardOverviewFiltersBar } from "@/components/dashboard/DashboardOve
 import { InlineMessage } from "@/components/WorkspacePrimitives";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { getDashboardOverviewSectionVisibility } from "@/lib/dashboardVisibility";
 import type { PermissionMap } from "@/lib/rbac";
 import type { DashboardDataState } from "@/components/dashboard/types";
 import type { DashboardOverview, EngineHealthItem, TrendPoint } from "@/src/lib/dashboard/types";
@@ -54,10 +55,6 @@ function canLoadDashboardOverview(map: PermissionMap | null): boolean {
     map.can_view_analytics ||
     map.can_manage_company_users
   );
-}
-
-function isSuperAdminLikeRole(role: string): boolean {
-  return role === "super_admin" || role === "platform_admin";
 }
 
 function partitionEngineHealth(items: EngineHealthItem[]): { smart: EngineHealthItem[]; platform: EngineHealthItem[] } {
@@ -109,6 +106,16 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
   const [error, setError] = useState<string | null>(null);
 
   const allowed = useMemo(() => canLoadDashboardOverview(workspace.permissionMap), [workspace.permissionMap]);
+
+  const overviewVisibility = useMemo(
+    () =>
+      getDashboardOverviewSectionVisibility({
+        userRole: workspace.userRole,
+        permissionMap: workspace.permissionMap,
+        linkedContractorId: workspace.linkedContractorId,
+      }),
+    [workspace.linkedContractorId, workspace.permissionMap, workspace.userRole]
+  );
 
   const load = useCallback(async () => {
     if (!allowed) return;
@@ -299,61 +306,95 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Prevention snapshot"
         title="1. Current Safety Health"
         tone="elevated"
-        description="Headline indicators for the selected window. Use them to decide where pre-task review may be needed before high-risk work proceeds."
+        description={
+          overviewVisibility.preventionHeadlineMode === "field"
+            ? "Field-focused snapshot: open high-risk exposure, overdue follow-ups, and training readiness for your visible work."
+            : "Headline indicators for the selected window. Use them to decide where pre-task review may be needed before high-risk work proceeds."
+        }
       >
         {headlineKpisAreMeaningful(overview) ? (
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-            <MetricCard
-              label="Safety health score"
-              value={overview.summary.safetyHealthScore}
-              hint="0–100 composite prevention posture"
-              statusBand={healthCompositeBand}
-            />
-            <MetricCard
-              label="Open high-risk items"
-              value={overview.summary.openHighRiskItems}
-              hint="High-risk work exposure—requires field verification"
-              statusBand={openHighRiskCountBand(overview.summary.openHighRiskItems)}
-            />
-            <MetricCard
-              label="Overdue corrective actions"
-              value={overview.summary.overdueCorrectiveActions}
-              hint="Missing control follow-through past due date"
-              statusBand={overdueCorrectiveCountBand(overview.summary.overdueCorrectiveActions)}
-            />
-            <MetricCard
-              label="Permit compliance rate"
-              value={permitRateMeasured ? `${Math.round(overview.summary.permitComplianceRate)}%` : "—"}
-              valueMuted={!permitRateMeasured}
-              statusBand={permitSummaryBand}
-              hint={
-                permitRateMeasured
-                  ? undefined
-                  : "No permit activity in this selection—rate is not shown so it is not mistaken for measured compliance."
-              }
-            />
-            <MetricCard
-              label="Training readiness rate"
-              value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "—"}
-              valueMuted={!trainingMeasured}
-              statusBand={trainingSummaryBand}
-              hint={
-                trainingMeasured
-                  ? undefined
-                  : "No training or credential rows in this selection—rate is hidden until records exist."
-              }
-            />
-            <MetricCard
-              label="Document readiness rate"
-              value={documentRateMeasured ? `${Math.round(overview.summary.documentReadinessRate)}%` : "—"}
-              valueMuted={!documentRateMeasured}
-              statusBand={documentSummaryBand}
-              hint={
-                documentRateMeasured
-                  ? undefined
-                  : "No documents in workflow for this selection—rate is hidden until files are submitted."
-              }
-            />
+            {overviewVisibility.preventionHeadlineMode === "field" ? (
+              <>
+                <MetricCard
+                  label="Open high-risk items"
+                  value={overview.summary.openHighRiskItems}
+                  hint="High-risk work exposure—requires field verification"
+                  statusBand={openHighRiskCountBand(overview.summary.openHighRiskItems)}
+                />
+                <MetricCard
+                  label="Overdue corrective actions"
+                  value={overview.summary.overdueCorrectiveActions}
+                  hint="Missing control follow-through past due date"
+                  statusBand={overdueCorrectiveCountBand(overview.summary.overdueCorrectiveActions)}
+                />
+                <MetricCard
+                  label="Training readiness rate"
+                  value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "—"}
+                  valueMuted={!trainingMeasured}
+                  statusBand={trainingSummaryBand}
+                  hint={
+                    trainingMeasured
+                      ? undefined
+                      : "No training or credential rows in this selection—rate is hidden until records exist."
+                  }
+                />
+              </>
+            ) : (
+              <>
+                <MetricCard
+                  label="Safety health score"
+                  value={overview.summary.safetyHealthScore}
+                  hint="0–100 composite prevention posture"
+                  statusBand={healthCompositeBand}
+                />
+                <MetricCard
+                  label="Open high-risk items"
+                  value={overview.summary.openHighRiskItems}
+                  hint="High-risk work exposure—requires field verification"
+                  statusBand={openHighRiskCountBand(overview.summary.openHighRiskItems)}
+                />
+                <MetricCard
+                  label="Overdue corrective actions"
+                  value={overview.summary.overdueCorrectiveActions}
+                  hint="Missing control follow-through past due date"
+                  statusBand={overdueCorrectiveCountBand(overview.summary.overdueCorrectiveActions)}
+                />
+                <MetricCard
+                  label="Permit compliance rate"
+                  value={permitRateMeasured ? `${Math.round(overview.summary.permitComplianceRate)}%` : "—"}
+                  valueMuted={!permitRateMeasured}
+                  statusBand={permitSummaryBand}
+                  hint={
+                    permitRateMeasured
+                      ? undefined
+                      : "No permit activity in this selection—rate is not shown so it is not mistaken for measured compliance."
+                  }
+                />
+                <MetricCard
+                  label="Training readiness rate"
+                  value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "—"}
+                  valueMuted={!trainingMeasured}
+                  statusBand={trainingSummaryBand}
+                  hint={
+                    trainingMeasured
+                      ? undefined
+                      : "No training or credential rows in this selection—rate is hidden until records exist."
+                  }
+                />
+                <MetricCard
+                  label="Document readiness rate"
+                  value={documentRateMeasured ? `${Math.round(overview.summary.documentReadinessRate)}%` : "—"}
+                  valueMuted={!documentRateMeasured}
+                  statusBand={documentSummaryBand}
+                  hint={
+                    documentRateMeasured
+                      ? undefined
+                      : "No documents in workflow for this selection—rate is hidden until files are submitted."
+                  }
+                />
+              </>
+            )}
           </div>
         ) : (
           <DashboardDomainEmptyState
@@ -364,6 +405,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         )}
       </SectionCard>
 
+      {overviewVisibility.showForecast ? (
       <SectionCard
         eyebrow="Forward view"
         title="2. Smart Safety Forecast"
@@ -401,13 +443,24 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           />
         )}
       </SectionCard>
+      ) : null}
 
+      {(overviewVisibility.showEmergingThemes || overviewVisibility.showObservationMix) && (
       <SectionCard
         eyebrow="Early signal"
-        title="3. Emerging Risk Areas"
+        title={
+          overviewVisibility.showEmergingThemes
+            ? "3. Emerging Risk Areas"
+            : "3. Observation activity"
+        }
         tone="panel"
-        description="Ranked themes and field observation mix. A rising negative pattern or concentrated category can signal a repeat issue or potential control gap before harm occurs."
+        description={
+          overviewVisibility.showEmergingThemes
+            ? "Ranked themes and field observation mix. A rising negative pattern or concentrated category can signal a repeat issue or potential control gap before harm occurs."
+            : "Positive versus other observation volume for your visible scope—use it to reflect submitted field observations back to the crew."
+        }
       >
+        {overviewVisibility.showEmergingThemes ? (
         <div>
           <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Top emerging themes</h3>
           {topEmerging.length === 0 ? (
@@ -440,13 +493,17 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
             </ul>
           )}
         </div>
-        <div className="mt-6">
+        ) : null}
+        {overviewVisibility.showObservationMix ? (
+        <div className={overviewVisibility.showEmergingThemes ? "mt-6" : undefined}>
           <ObservationDualLineChart
             points={overview.observationTrend}
             title="Observation mix by period"
             description="Compare positive versus other observation volume. Divergence can indicate a missing control or weak verification—escalate when negative volume climbs."
           />
         </div>
+        ) : null}
+        {overviewVisibility.showEmergingThemes ? (
         <div className="mt-6">
           <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Repeat observation categories</h3>
           {obsCategories.length === 0 ? (
@@ -462,8 +519,11 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
             </ul>
           )}
         </div>
+        ) : null}
       </SectionCard>
+      )}
 
+      {overviewVisibility.showCorrectiveCenter ? (
       <SectionCard
         eyebrow="Closure discipline"
         title="4. Corrective Action Control Center"
@@ -513,7 +573,9 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           </div>
         ) : null}
       </SectionCard>
+      ) : null}
 
+      {overviewVisibility.showPermits ? (
       <SectionCard
         eyebrow="Permits and daily plans"
         title="5. JSA / Permit Compliance"
@@ -530,7 +592,9 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           <PermitComplianceTable permits={overview.permitCompliance} jsaCompletionRate={overview.summary.jsaCompletionRate} />
         </div>
       </SectionCard>
+      ) : null}
 
+      {overviewVisibility.showContractorScorecards ? (
       <SectionCard
         eyebrow="Partners on site"
         title="6. Contractor Risk Scorecards"
@@ -539,7 +603,9 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
       >
         <ContractorRiskTable contractors={overview.contractorRiskScores} />
       </SectionCard>
+      ) : null}
 
+      {overviewVisibility.showWorkforceReadiness ? (
       <SectionCard
         eyebrow="Credentials and roles"
         title="7. Workforce Readiness"
@@ -581,7 +647,9 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           missing control signals include role coverage.
         </p>
       </SectionCard>
+      ) : null}
 
+      {overviewVisibility.showDocumentReadiness ? (
       <SectionCard
         eyebrow="Evidence trail"
         title="8. Document Readiness"
@@ -593,7 +661,9 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           overallStatusBand={documentPipelineTotal(doc) > 0 ? documentSummaryBand : undefined}
         />
       </SectionCard>
+      ) : null}
 
+      {overviewVisibility.showAiInsights ? (
       <SectionCard
         eyebrow="Narrative review"
         title="9. Safety Intelligence Review"
@@ -619,7 +689,9 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           {weakDocs ? <InlineMessage tone="warning">{weakDocs}</InlineMessage> : null}
         </div>
       </SectionCard>
+      ) : null}
 
+      {overviewVisibility.showEngineHealth ? (
       <SectionCard
         eyebrow="Signal pipeline"
         title="10. Smart Safety Engine Health"
@@ -628,8 +700,9 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
       >
         <EngineHealthPanel items={smartEngineFinal} />
       </SectionCard>
+      ) : null}
 
-      {isSuperAdminLikeRole(workspace.userRole) ? (
+      {overviewVisibility.showSuperadminPlatformHealth ? (
         <SectionCard
           eyebrow="Platform"
           title="11. Superadmin System Health"
@@ -659,19 +732,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
             </Link>
           </div>
         </SectionCard>
-      ) : (
-        <SectionCard
-          eyebrow="Platform"
-          title="11. Superadmin System Health"
-          tone="panel"
-          description="Restricted to Super Admin. Operational prevention tiles above still reflect your workspace permissions."
-        >
-          <p className="text-sm text-[var(--app-muted)]">
-            Super Admins use the Superadmin System Health page for the full probe list. Your overview above remains scoped to
-            your role and permissions.
-          </p>
-        </SectionCard>
-      )}
+      ) : null}
     </div>
   );
 }
