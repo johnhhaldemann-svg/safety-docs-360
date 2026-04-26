@@ -21,6 +21,23 @@ For Vercel env vars, Supabase Auth URLs, cron, and GitHub E2E secrets, use [prod
 
 After pulling new migrations, re-run push before testing features that depend on new tables or RLS.
 
+## Git on Windows (PowerShell)
+
+PowerShell is not bash. In particular:
+
+- Prefer `;` to chain commands (older PowerShell does not treat `&&` like bash).
+- Avoid bash-style heredocs like `git commit -m "$(cat <<'EOF' ... EOF)"` — they can hang or behave unexpectedly. Use one of these instead:
+  - `git commit -m "title" -m "body paragraph"`
+  - PowerShell here-strings:
+
+```powershell
+git commit -m @"
+title
+
+body
+"@
+```
+
 ## Superadmin and admin routes
 
 - **Admin** capabilities are enforced in [`lib/rbac.ts`](../lib/rbac.ts) (`authorizeRequest`, role checks) and in database RLS.
