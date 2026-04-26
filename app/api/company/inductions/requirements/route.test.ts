@@ -173,6 +173,7 @@ describe("inductions requirements route", () => {
         body: JSON.stringify({ programId: "p1", jobsiteId: "jobsite-1" }),
       })
     );
+    requireRouteResponse(response);
     expect(response.status).toBe(403);
   });
 
@@ -196,6 +197,7 @@ describe("inductions requirements route", () => {
         body: JSON.stringify({ programId: "p1", jobsiteId: "jobsite-1" }),
       })
     );
+    requireRouteResponse(response);
     expect(response.status).toBe(200);
     const body = (await response.json()) as { requirement: { id: string } };
     expect(body.requirement.id).toBe("r1");

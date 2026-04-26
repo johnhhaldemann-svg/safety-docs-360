@@ -1,3 +1,4 @@
+import { requireRouteResponse } from "@/lib/routeResponseTest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -92,8 +93,10 @@ describe("inductions completions route", () => {
       permissionMap: {},
     });
 
-    const response = await GET(
-      new Request("https://example.com/api/company/inductions/completions?userId=user-2")
+    const response = requireRouteResponse(
+      await GET(
+        new Request("https://example.com/api/company/inductions/completions?userId=user-2")
+      )
     );
     expect(response.status).toBe(403);
   });
@@ -112,7 +115,9 @@ describe("inductions completions route", () => {
       permissionMap: {},
     });
 
-    const response = await GET(new Request("https://example.com/api/company/inductions/completions"));
+    const response = requireRouteResponse(
+      await GET(new Request("https://example.com/api/company/inductions/completions"))
+    );
     expect(response.status).toBe(200);
     const body = (await response.json()) as { completions: Array<{ id: string }> };
     expect(body.completions).toHaveLength(1);
@@ -128,11 +133,13 @@ describe("inductions completions route", () => {
       permissionMap: { can_create_documents: true },
     });
 
-    const response = await POST(
-      new Request("https://example.com/api/company/inductions/completions", {
-        method: "POST",
-        body: JSON.stringify({ programId: "p1", userId: "user-1" }),
-      })
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/company/inductions/completions", {
+          method: "POST",
+          body: JSON.stringify({ programId: "p1", userId: "user-1" }),
+        })
+      )
     );
     expect(response.status).toBe(403);
   });
@@ -146,11 +153,13 @@ describe("inductions completions route", () => {
       permissionMap: { can_create_documents: true },
     });
 
-    const response = await POST(
-      new Request("https://example.com/api/company/inductions/completions", {
-        method: "POST",
-        body: JSON.stringify({ programId: "p1", userId: "user-2" }),
-      })
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/company/inductions/completions", {
+          method: "POST",
+          body: JSON.stringify({ programId: "p1", userId: "user-2" }),
+        })
+      )
     );
     expect(response.status).toBe(403);
   });
@@ -165,11 +174,13 @@ describe("inductions completions route", () => {
       permissionMap: { can_create_documents: true },
     });
 
-    const response = await POST(
-      new Request("https://example.com/api/company/inductions/completions", {
-        method: "POST",
-        body: JSON.stringify({ programId: "p1", userId: "user-1", jobsiteId: "jobsite-1" }),
-      })
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/company/inductions/completions", {
+          method: "POST",
+          body: JSON.stringify({ programId: "p1", userId: "user-1", jobsiteId: "jobsite-1" }),
+        })
+      )
     );
     expect(response.status).toBe(403);
   });
@@ -190,11 +201,13 @@ describe("inductions completions route", () => {
       permissionMap: { can_create_documents: true },
     });
 
-    const response = await POST(
-      new Request("https://example.com/api/company/inductions/completions", {
-        method: "POST",
-        body: JSON.stringify({ programId: "p1", userId: "user-1", jobsiteId: "jobsite-1" }),
-      })
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/company/inductions/completions", {
+          method: "POST",
+          body: JSON.stringify({ programId: "p1", userId: "user-1", jobsiteId: "jobsite-1" }),
+        })
+      )
     );
     expect(response.status).toBe(200);
     const body = (await response.json()) as { completion: { id: string } };

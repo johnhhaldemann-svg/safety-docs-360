@@ -1,3 +1,4 @@
+import { requireRouteResponse } from "@/lib/routeResponseTest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -72,6 +73,7 @@ describe("inductions requirements [id] route", () => {
       }),
       { params: Promise.resolve({ id: "r1" }) }
     );
+    requireRouteResponse(response);
     expect(response.status).toBe(403);
   });
 
@@ -92,6 +94,7 @@ describe("inductions requirements [id] route", () => {
       }),
       { params: Promise.resolve({ id: "r1" }) }
     );
+    requireRouteResponse(response);
     expect(response.status).toBe(404);
   });
 
@@ -115,6 +118,7 @@ describe("inductions requirements [id] route", () => {
       }),
       { params: Promise.resolve({ id: "r1" }) }
     );
+    requireRouteResponse(response);
     expect(response.status).toBe(200);
     const body = (await response.json()) as { requirement: { id: string; active: boolean } };
     expect(body.requirement.id).toBe("r1");
