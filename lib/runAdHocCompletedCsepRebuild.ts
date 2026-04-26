@@ -4,6 +4,7 @@ import {
   getCsepFormatDefinition,
 } from "@/lib/csepBuilder";
 import { renderGeneratedCsepDocx } from "@/lib/csepDocxRenderer";
+import { normalizeGcCmPartnerEntries } from "@/lib/csepGcCmPartners";
 import {
   extractBuilderReviewDocumentText,
   generateBuilderProgramAiReview,
@@ -46,7 +47,7 @@ type CompletedCsepRebuildPayload = {
     projectNumber: string;
     projectAddress: string;
     ownerClient: string;
-    gcCm: string;
+    gcCm: string | string[];
     contractorCompany: string;
     schedule: string;
     location: string;
@@ -782,7 +783,9 @@ function buildDraftFromPayload(
       projectNumber: compactWhitespace(payload.projectOverview.projectNumber),
       projectAddress: compactWhitespace(payload.projectOverview.projectAddress),
       ownerClient: compactWhitespace(payload.projectOverview.ownerClient),
-      gcCm: compactWhitespace(payload.projectOverview.gcCm),
+      gcCm: normalizeGcCmPartnerEntries(payload.projectOverview.gcCm).map((entry) =>
+        compactWhitespace(entry)
+      ),
       contractorCompany: compactWhitespace(payload.projectOverview.contractorCompany),
       schedule: compactWhitespace(payload.projectOverview.schedule),
       location: compactWhitespace(payload.projectOverview.location),
@@ -981,7 +984,9 @@ async function generateCompletedCsepRebuildDraft(params: {
                     projectNumber: { type: "string" },
                     projectAddress: { type: "string" },
                     ownerClient: { type: "string" },
-                    gcCm: { type: "string" },
+                    gcCm: {
+                      oneOf: [{ type: "string" }, { type: "array", items: { type: "string" }, maxItems: 24 }],
+                    },
                     contractorCompany: { type: "string" },
                     schedule: { type: "string" },
                     location: { type: "string" },

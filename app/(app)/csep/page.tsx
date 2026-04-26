@@ -20,6 +20,7 @@ import {
   buildCsepBuilderAiPrompt,
   hasBlockingCsepCoverageAudit,
   getCsepBuilderAiSectionConfig,
+  resolveIncludedSectionLabelsForAiSection,
   parseCsepAiTextResponse,
   parseCsepWeatherSectionAiResponse,
   type CsepBuilderAiSectionId,
@@ -63,7 +64,8 @@ type CSEPForm = {
   project_delivery_type: string;
   owner_client: string;
   owner_message_text: string;
-  gc_cm: string;
+  /** One string per GC / CM / program partner or interface role. */
+  gc_cm: string[];
   contractor_company: string;
   contractor_contact: string;
   contractor_phone: string;
@@ -221,7 +223,9 @@ const workflowCategoryDefinition = [
 ];
 
 const TASK_DRIVEN_SECTION_LABELS = new Set([
+  "Scope Summary",
   "Scope of Work",
+  "Project-Specific Safety Notes",
   "Site Specific Notes",
   "Emergency Procedures",
   "Weather Requirements and Severe Weather Response",
@@ -262,7 +266,7 @@ const initialForm: CSEPForm = {
   project_delivery_type: "",
   owner_client: "",
   owner_message_text: "",
-  gc_cm: "",
+  gc_cm: [""],
   contractor_company: "",
   contractor_contact: "",
   contractor_phone: "",
@@ -641,6 +645,7 @@ export default function CSEPPage() {
   const submissionFormData = useMemo(
     () => ({
       ...form,
+      gc_cm: form.gc_cm.map((line) => line.trim()).filter(Boolean),
       company_logo_data_url: companyLogoPreviewUrl,
       company_logo_file_name: companyLogoFileName,
       governing_state: form.governing_state,
@@ -682,8 +687,12 @@ export default function CSEPPage() {
         project_information: form.included_sections.includes("Project Information"),
         contractor_information: form.included_sections.includes("Contractor Information"),
         trade_summary: form.included_sections.includes("Trade Summary"),
-        scope_of_work: form.included_sections.includes("Scope of Work"),
-        site_specific_notes: form.included_sections.includes("Site Specific Notes"),
+        scope_of_work:
+          form.included_sections.includes("Scope Summary") ||
+          form.included_sections.includes("Scope of Work"),
+        site_specific_notes:
+          form.included_sections.includes("Project-Specific Safety Notes") ||
+          form.included_sections.includes("Site Specific Notes"),
         emergency_procedures: form.included_sections.includes("Emergency Procedures"),
         weather_requirements_and_severe_weather_response: form.included_sections.includes(
           "Weather Requirements and Severe Weather Response"
@@ -858,6 +867,27 @@ export default function CSEPPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
+  function updateGcCmPartnerLine(index: number, value: string) {
+    setForm((prev) => {
+      const next = [...prev.gc_cm];
+      next[index] = value;
+      return { ...prev, gc_cm: next };
+    });
+  }
+
+  function addGcCmPartnerLine() {
+    setForm((prev) => ({ ...prev, gc_cm: [...prev.gc_cm, ""] }));
+  }
+
+  function removeGcCmPartnerLine(index: number) {
+    setForm((prev) => {
+      if (prev.gc_cm.length <= 1) {
+        return { ...prev, gc_cm: [""] };
+      }
+      return { ...prev, gc_cm: prev.gc_cm.filter((_, i) => i !== index) };
+    });
+  }
+
   function applyJobsiteToForm(jobsiteId: string) {
     const selectedJobsite = jobsites.find((jobsite) => jobsite.id === jobsiteId);
 
@@ -1012,13 +1042,17 @@ export default function CSEPPage() {
   }
 
   function canUseBuilderAi(sectionId: CsepBuilderAiSectionId) {
-    const config = getCsepBuilderAiSectionConfig(sectionId);
-    return canUseBuilder && form.tasks.length > 0 && form.included_sections.includes(config.includedSectionLabel);
+    const labels = resolveIncludedSectionLabelsForAiSection(sectionId);
+    return (
+      canUseBuilder &&
+      form.tasks.length > 0 &&
+      labels.some((label) => form.included_sections.includes(label))
+    );
   }
 
   function shouldShowBuilderAiAction(sectionId: CsepBuilderAiSectionId) {
-    const config = getCsepBuilderAiSectionConfig(sectionId);
-    return form.included_sections.includes(config.includedSectionLabel);
+    const labels = resolveIncludedSectionLabelsForAiSection(sectionId);
+    return labels.some((label) => form.included_sections.includes(label));
   }
 
   function renderBuilderAiAction(sectionId: CsepBuilderAiSectionId, idleLabel?: string) {
@@ -1840,7 +1874,46 @@ export default function CSEPPage() {
                       value={form.owner_message_text}
                       onChange={(value) => updateField("owner_message_text", value)}
                     />
-                    <TextAreaField label="GCs / CMs" value={form.gc_cm} onChange={(value) => updateField("gc_cm", value)} />
+                    <div className="md:col-span-2 space-y-2">
+                      <div className="text-sm font-semibold text-[var(--app-text-strong)]">
+                        GC / CM / program partners
+                      </div>
+                      <p className="text-xs text-[var(--app-text)]">
+                        Add each organization or interface role separately (for example general contractor,
+                        construction manager, owner representative, or program partner). The export lists each on
+                        its own line; if you only enter one, the document shows a single value.
+                      </p>
+                      <div className="space-y-2">
+                        {form.gc_cm.map((line, index) => (
+                          <div key={`gc-cm-${index}`} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                            <label className="block min-w-0 flex-1">
+                              <span className="sr-only">GC / CM / program partner {index + 1}</span>
+                              <input
+                                type="text"
+                                value={line}
+                                onChange={(event) => updateGcCmPartnerLine(index, event.target.value)}
+                                placeholder="Organization or role"
+                                className="w-full rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm text-[var(--app-text-strong)] outline-none transition focus:border-[var(--app-accent-primary)]"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              className="shrink-0 rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--app-text-strong)] transition hover:bg-[var(--app-panel-muted)]"
+                              onClick={() => removeGcCmPartnerLine(index)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          className="w-full rounded-xl border border-dashed border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-2.5 text-sm font-medium text-[var(--app-text-strong)] transition hover:border-[var(--app-accent-primary)]"
+                          onClick={addGcCmPartnerLine}
+                        >
+                          Add organization or role
+                        </button>
+                      </div>
+                    </div>
                     <InputField label="Contractor company" value={form.contractor_company} onChange={(value) => updateField("contractor_company", value)} />
                     <InputField label="Contractor contact" value={form.contractor_contact} onChange={(value) => updateField("contractor_contact", value)} />
                     <InputField label="Contractor phone" value={form.contractor_phone} onChange={(value) => updateField("contractor_phone", value)} />
@@ -2066,20 +2139,28 @@ export default function CSEPPage() {
                       ? renderBuilderAiAction("scope_of_work")
                       : null}
                     <TextAreaField
-                      label="Scope of work"
+                      label="Scope Summary (optional narrative)"
                       value={form.scope_of_work}
                       onChange={(value) => updateField("scope_of_work", value)}
                     />
+                    <p className="text-xs text-[var(--app-text)]">
+                      Trade, sub-trade, and selected tasks are generated automatically. Use this box only for
+                      short contractor narrative that clarifies scope boundaries—do not repeat the task list here.
+                    </p>
                   </div>
                   <div className="space-y-3">
                     {shouldShowBuilderAiAction("site_specific_notes")
                       ? renderBuilderAiAction("site_specific_notes")
                       : null}
                     <TextAreaField
-                      label="Site-specific notes"
+                      label="Project-Specific Safety Notes"
                       value={form.site_specific_notes}
                       onChange={(value) => updateField("site_specific_notes", value)}
                     />
+                    <p className="text-xs text-[var(--app-text)]">
+                      Site constraints, owner or GC rules, access limits, logistics, and weather concerns only—do not
+                      repeat the Scope Summary task list.
+                    </p>
                   </div>
                   <div className="space-y-3">
                     {shouldShowBuilderAiAction("emergency_procedures")

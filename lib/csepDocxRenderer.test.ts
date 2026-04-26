@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import {
+  buildCsepOutlinePlan,
   buildCsepRenderModelFromGeneratedDraft,
   buildCsepTemplateSections,
   renderGeneratedCsepDocx,
@@ -170,7 +171,7 @@ function createGeneratedDraft(): GeneratedSafetyPlanDraft {
 }
 
 describe("csepDocxRenderer", () => {
-  it("builds the CSEP in the required front-matter order before Section 11 hazards", () => {
+  it("builds the CSEP in fixed order with hazards as the last narrative front-matter block before appendices", () => {
     const model = buildCsepRenderModelFromGeneratedDraft(createGeneratedDraft());
 
     expect(model.frontMatterSections.map((section) => section.key)).toEqual([
@@ -181,14 +182,17 @@ describe("csepDocxRenderer", () => {
       "scope",
       "top_10_risks",
       "trade_interaction_info",
+      "roles_and_responsibilities",
       "disciplinary_program",
       "union",
       "security_at_site",
       "hazcom",
       "iipp_emergency_response",
+      "work_attire_requirements",
+      "hazards_and_controls",
     ]);
-    expect(model.sections.map((section) => section.key)).toEqual(["hazards_and_controls"]);
-    expect(model.sections[0]?.numberLabel).toBe("11");
+    expect(model.sections.map((section) => section.key)).toEqual([]);
+    expect(model.frontMatterSections.find((s) => s.key === "hazards_and_controls")?.numberLabel).toBeUndefined();
   });
 
   it("renders Top 10 Risks as offset body lines without 4.1, 4.2-style numbering", async () => {
@@ -209,8 +213,8 @@ describe("csepDocxRenderer", () => {
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml } = await unzipDocx(rendered.body);
     expect(documentXml).toContain("Falls while decking");
-    expect(documentXml).not.toMatch(/4\.\d+\s+Falls while decking/);
-    expect(documentXml).not.toMatch(/4\.\d+\s+Struck-by or caught-in/);
+    expect(documentXml).not.toMatch(/7\.\d+\s+Falls while decking/);
+    expect(documentXml).not.toMatch(/7\.\d+\s+Struck-by or caught-in/);
   });
 
   it("tags hazard–control style matrices for offset table rows (no 11.x.y.z per row)", () => {
@@ -255,11 +259,11 @@ describe("csepDocxRenderer", () => {
     expect(matrixSub?.tableRowsStyle).toBe("offset_lines");
   });
 
-  it("renders Scope of Work tasks as offset lines without subsection numbers like 3.1.1", async () => {
+  it("renders Scope Summary tasks as offset lines without subsection numbers like 3.1.1", async () => {
     const draft = createGeneratedDraft();
     draft.sectionMap.unshift({
       key: "scope_of_work",
-      title: "Scope of Work",
+      title: "Scope Summary",
       body: "Self-performed structural steel for this phase.",
       bullets: ["Unload steel", "Rigging", "Crane picks"],
     });
@@ -273,14 +277,13 @@ describe("csepDocxRenderer", () => {
       taskTitles: ["Deck placement"],
       sourceSections: draft.sectionMap,
     });
-    const scopeSub = sections.find((s) => s.key === "scope")?.subsections.find((sub) => /scope of work/i.test(sub.title));
+    const scopeSub = sections.find((s) => s.key === "scope")?.subsections.find((sub) => /scope summary/i.test(sub.title));
     expect(scopeSub?.plainItemsStyle).toBe("offset_lines");
 
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml } = await unzipDocx(rendered.body);
     expect(documentXml).toContain("Unload steel");
-    expect(documentXml).not.toContain("3.1.1");
-    expect(documentXml).not.toContain("3.2.1");
+    expect(documentXml).not.toContain("6.1.1");
   });
 
   it("keeps one instance of each required section and supplies placeholders where needed", () => {
@@ -303,23 +306,25 @@ describe("csepDocxRenderer", () => {
       "scope",
       "top_10_risks",
       "trade_interaction_info",
+      "roles_and_responsibilities",
       "disciplinary_program",
       "union",
       "security_at_site",
       "hazcom",
       "iipp_emergency_response",
+      "work_attire_requirements",
       "hazards_and_controls",
     ]);
     expect(
       sections.find((section) => section.key === "union")?.subsections[0]?.paragraphs?.[0]
     ).toContain("No craft-specific union");
-    expect(sections.find((section) => section.key === "sign_off_page")?.numberLabel).toBeNull();
-    expect(sections.find((section) => section.key === "table_of_contents")?.numberLabel).toBeNull();
+    expect(sections.find((section) => section.key === "sign_off_page")?.numberLabel).toBeUndefined();
+    expect(sections.find((section) => section.key === "table_of_contents")?.numberLabel).toBeUndefined();
   });
 
   it("replaces repeated policy text inside hazard modules with short cross-references", () => {
     const model = buildCsepRenderModelFromGeneratedDraft(createGeneratedDraft());
-    const hazardSection = model.sections.find((section) => section.key === "hazards_and_controls");
+    const hazardSection = model.frontMatterSections.find((section) => section.key === "hazards_and_controls");
     const flattened = (hazardSection?.subsections ?? []).flatMap((subsection) => [
       ...(subsection.paragraphs ?? []),
       ...(subsection.items ?? []),
@@ -336,25 +341,38 @@ describe("csepDocxRenderer", () => {
     const rendered = await renderGeneratedCsepDocx(createGeneratedDraft());
     const { documentXml, headerXml, footerXml } = await unzipDocx(rendered.body);
 
+    expect(documentXml).toContain("Title Page");
     expect(documentXml.match(/Table of Contents/g)?.length ?? 0).toBe(1);
     // Legacy builder used "0.1 Revision History" as a free-standing section; the
     // export may still mention "Revision History" inside combined appendix titles.
     expect(documentXml).not.toContain("0.1 Revision History");
 
+    const tocBlockStart = documentXml.indexOf("4. Table of Contents");
+    expect(tocBlockStart).toBeGreaterThan(-1);
+    const tocBlockEnd = documentXml.indexOf("5. Purpose", tocBlockStart);
+    expect(tocBlockEnd).toBeGreaterThan(tocBlockStart);
+    const tocSlice = documentXml.slice(tocBlockStart, tocBlockEnd);
+    expect(tocSlice.indexOf("1. Title Page")).toBeLessThan(tocSlice.indexOf("2. Message from Owner"));
+
+    const outlineModel = buildCsepRenderModelFromGeneratedDraft(createGeneratedDraft());
+    const disclaimerOrdinal = buildCsepOutlinePlan(outlineModel).find((e) => e.kind === "disclaimer")!.ordinal;
     const orderedHeadings = [
-      "1. Message from Owner",
-      "Sign-Off Page",
-      "Table of Contents",
-      "2. Purpose",
-      "3. Scope",
-      "4. Top 10 Risks",
-      "5. Trade Interaction Info",
-      "6. Disciplinary Program",
-      "7. Union",
-      "8. Security at Site",
-      "9. HazCom",
-      "10. IIPP / Emergency Response",
-      "11. Hazards and Controls",
+      "2. Message from Owner",
+      "3. Sign-Off Page",
+      "4. Table of Contents",
+      "5. Purpose",
+      "6. Scope",
+      "7. Top 10 Risks",
+      "8. Trade Interaction Info",
+      "9. Roles and Responsibilities",
+      "10. Disciplinary Program",
+      "11. Union",
+      "12. Security at Site",
+      "13. HazCom",
+      "14. IIPP / Emergency Response",
+      "15. Work Attire Requirements",
+      "16. Hazards and Controls",
+      `${disclaimerOrdinal}. Disclaimer`,
     ];
 
     let lastIndex = -1;

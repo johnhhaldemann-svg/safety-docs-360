@@ -7,6 +7,7 @@ import {
   updateIngestionAttempt,
 } from "@/lib/safety-intelligence/ingestion/repository";
 import { prepareSafetyIntake } from "@/lib/safety-intelligence/ingestion/validate";
+import { refreshRiskMemoryRollupForCompany } from "@/lib/riskMemory/refreshCompany";
 
 type LiteClient = SupabaseClient<any, "public", any>;
 
@@ -55,6 +56,15 @@ export async function runSafetyIntakePipeline(params: {
       insertStatus: "inserted",
       bucketId: bucketRecord.id,
     });
+
+    const normalized = prepared.normalizedRecord;
+    if (normalized) {
+      void refreshRiskMemoryRollupForCompany({
+        supabase: params.supabase,
+        companyId: normalized.companyId,
+        jobsiteId: normalized.jobsiteId ?? null,
+      }).catch(() => {});
+    }
 
     return {
       auditLogId,

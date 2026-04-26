@@ -62,6 +62,7 @@ export const adminQuickLinks: NavItem[] = [
   { href: "/admin/sor-audit", label: "SOR audit", short: "SA" },
   { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },
   { href: "/superadmin/system-test", label: "System test", short: "SY" },
+  { href: "/superadmin/system-health", label: "System health", short: "SH" },
   { href: "/superadmin/csep-survey-test", label: "Survey test CSEP", short: "ST" },
   { href: "/superadmin/csep-completeness-review", label: "CSEP completeness review", short: "CR" },
   { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
@@ -194,6 +195,7 @@ export const adminSideSections: NavSection[] = [
     title: "Tools & systems",
     items: [
       { href: "/superadmin/system-test", label: "System test", short: "SY" },
+      { href: "/superadmin/system-health", label: "System health", short: "SH" },
       { href: "/superadmin/csep-survey-test", label: "Survey test CSEP", short: "ST" },
       { href: "/superadmin/csep-completeness-review", label: "CSEP completeness review", short: "CR" },
       { href: "/superadmin/builder-text", label: "Builder text", short: "BT" },

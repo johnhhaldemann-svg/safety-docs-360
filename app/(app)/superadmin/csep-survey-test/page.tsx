@@ -485,7 +485,7 @@ export default function SuperadminCsepSurveyTestPage() {
                   />
                   <Input
                     label="GC / CM"
-                    value={form.gc_cm}
+                    value={Array.isArray(form.gc_cm) ? form.gc_cm.join(", ") : form.gc_cm}
                     onChange={(value) => updateField("gc_cm", value)}
                   />
                   <Input
@@ -515,7 +515,7 @@ export default function SuperadminCsepSurveyTestPage() {
                   onChange={(value) => updateField("scope_of_work", value)}
                 />
                 <TextArea
-                  label="Site-specific notes"
+                  label="Project-Specific Safety Notes"
                   value={form.site_specific_notes}
                   onChange={(value) => updateField("site_specific_notes", value)}
                 />

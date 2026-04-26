@@ -20,6 +20,22 @@ function trimPlainText(value: string, maxLength: number) {
   return `${value.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
+/** Removes repeated steel task-module boilerplate from reference-pack text (AI context + readability). */
+function stripSteelTaskModulePlainTextBoilerplate(plainText: string) {
+  return plainText
+    .split("\n")
+    .filter(
+      (line) =>
+        !/this task element supports steel-erection planning, training, and field execution/i.test(
+          line
+        ) &&
+        !/it focuses on the practical steps needed to perform the task safely and hand it off cleanly to the next crew\.?$/i.test(
+          line.trim()
+        )
+    )
+    .join("\n");
+}
+
 function dedupeByModuleKey(modules: SteelErectionTaskModule[]) {
   const seen = new Set<string>();
   return modules.filter((module) => {
@@ -114,7 +130,10 @@ export function buildSteelErectionTaskModuleAiContext(
     taskNames: [...module.taskNames],
     summary: module.summary,
     sectionHeadings: module.sectionHeadings.slice(0, 12),
-    plainText: trimPlainText(module.plainText, plainTextMaxLength),
+    plainText: trimPlainText(
+      stripSteelTaskModulePlainTextBoilerplate(module.plainText),
+      plainTextMaxLength
+    ),
     sourceFilename: module.sourceFilename,
   }));
 }

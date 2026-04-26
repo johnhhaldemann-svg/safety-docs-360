@@ -1,4 +1,5 @@
 import type { RiskIntelligenceRequest, RiskOutputRecord } from "@/types/safety-intelligence";
+import { mergeRiskOutputWithRiskMemory } from "@/lib/safety-intelligence/ai/riskGrounding";
 import { assertAiReviewContextReady } from "@/lib/safety-intelligence/validation/ai";
 import { runStructuredAiJson } from "@/lib/safety-intelligence/ai/utils";
 import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
@@ -33,6 +34,7 @@ export async function generateRiskIntelligence(request: RiskIntelligenceRequest)
   const system = [
     "You are a construction risk intelligence assistant.",
     "Use ONLY the provided JSON review context.",
+    "When preventionLogic is present, prioritize those deterministic findings in summary, missingControls, and correctiveActions (explain and prioritize; do not contradict them).",
     "Return JSON with keys: summary, exposures, missingControls, trendPatterns, riskScores, forecastConflicts, correctiveActions.",
   ].join(" ");
   const user = JSON.stringify(request);
@@ -45,11 +47,16 @@ export async function generateRiskIntelligence(request: RiskIntelligenceRequest)
     surface: "safety-intelligence.risk",
   });
 
-  return {
-    record: {
+  const merged = mergeRiskOutputWithRiskMemory(
+    {
       ...fallback,
       ...result.parsed,
     },
+    request.reviewContext.riskMemorySummary ?? null
+  );
+
+  return {
+    record: merged,
     model: result.model,
     promptHash: result.promptHash,
   };

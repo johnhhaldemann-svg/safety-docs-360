@@ -681,16 +681,18 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       ),
       subsections: expect.arrayContaining([
         expect.objectContaining({
-          title: "6.1 Work Attire Requirements",
+          title: "Work Attire Requirements",
+          body: expect.stringMatching(/listed only in Required PPE/i),
           bullets: expect.arrayContaining([expect.stringMatching(/sleeves/i)]),
         }),
         expect.objectContaining({
-          title: "6.2 Personal Protective Equipment (PPE)",
-          bullets: expect.arrayContaining([expect.stringMatching(/Hard hat|harness|Fall protection/i)]),
+          title: "Required PPE",
+          body: expect.stringMatching(/Work Attire Requirements/i),
+          bullets: expect.arrayContaining([expect.stringMatching(/Project baseline PPE/i)]),
         }),
         expect.objectContaining({
           title: "5.6 Health and Wellness Expectations",
-          body: expect.stringContaining("Project- or site-specific notes:"),
+          body: expect.stringContaining("Project-specific health notes:"),
         }),
         expect.objectContaining({
           title: "5.6.1 Fit for duty",
@@ -1755,36 +1757,42 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     );
     expect(taskModulesSection?.table).toBeUndefined();
     expect(taskModulesSection?.bullets).toBeUndefined();
-    expect(taskModulesSection?.subsections).toEqual(
+    const labels = [
+      "Safety Exposure",
+      "Required Safety Controls",
+      "Access Restrictions",
+      "Required PPE",
+      "Required Permits / Hold Points",
+      "Stop-Work Triggers",
+      "Verification and Handoff / Release",
+    ] as const;
+    const barricadeSubs =
+      taskModulesSection?.subsections?.filter((s) => s.title.startsWith("Barricades — ")) ?? [];
+    const accessSubs =
+      taskModulesSection?.subsections?.filter((s) => s.title.startsWith("Access Control — ")) ??
+      [];
+    expect(barricadeSubs).toHaveLength(labels.length);
+    expect(accessSubs).toHaveLength(labels.length);
+    expect(barricadeSubs.map((s) => s.title)).toEqual(
+      labels.map((label) => `Barricades — ${label}`)
+    );
+    expect(accessSubs.map((s) => s.title)).toEqual(
+      labels.map((label) => `Access Control — ${label}`)
+    );
+    expect(
+      barricadeSubs.find((s) => s.title.endsWith("Verification and Handoff / Release"))?.bullets
+    ).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          title: "Barricades",
-          bullets: expect.arrayContaining([
-            expect.stringContaining("Scope and use:"),
-            expect.stringContaining("Pre-start verification:"),
-            expect.stringContaining("Required controls:"),
-            expect.stringContaining("Permits and PPE:"),
-            expect.stringContaining("Stop-work triggers:"),
-            expect.stringContaining("Verification and handoff:"),
-            expect.stringContaining(
-              "Related interfaces: Coordinate with Barricades, Site setup."
-            ),
-          ]),
-        }),
-        expect.objectContaining({
-          title: "Access Control",
-          bullets: expect.arrayContaining([
-            expect.stringContaining("Scope and use:"),
-            expect.stringContaining("Pre-start verification:"),
-            expect.stringContaining("Required controls:"),
-            expect.stringContaining("Permits and PPE:"),
-            expect.stringContaining("Stop-work triggers:"),
-            expect.stringContaining("Verification and handoff:"),
-            expect.stringContaining(
-              "Related interfaces: Coordinate with Access control, Site setup."
-            ),
-          ]),
-        }),
+        expect.stringContaining("Barricades"),
+        expect.stringContaining("Barricades, Site setup"),
+      ])
+    );
+    expect(
+      accessSubs.find((s) => s.title.endsWith("Verification and Handoff / Release"))?.bullets
+    ).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Access Control"),
+        expect.stringContaining("Access control, Site setup"),
       ])
     );
   });
@@ -2210,9 +2218,11 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     expect(steelProgramSection?.table).toBeUndefined();
     expect(steelTaskSection?.subsections).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ title: "Setting Columns and Base Lines" }),
         expect.objectContaining({
-          title: "Installing Metal Decking and Controlling Openings",
+          title: expect.stringContaining("Setting Columns and Base Lines"),
+        }),
+        expect.objectContaining({
+          title: expect.stringContaining("Installing Metal Decking and Controlling Openings"),
         }),
       ])
     );
@@ -2435,7 +2445,9 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         ?.subsections
     ).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ title: "Pre-Erection Planning and Site Readiness" }),
+        expect.objectContaining({
+          title: expect.stringContaining("Pre-Erection Planning and Site Readiness"),
+        }),
       ])
     );
     expect(
@@ -2606,16 +2618,49 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       draft.sectionMap.find((section) => section.key === "task_modules_reference")?.subsections
     ).toEqual([
       expect.objectContaining({
+        title: "Fallback Task Module — Safety Exposure",
         body: "Task fallback summary.",
-        title: "Fallback Task Module",
         bullets: expect.arrayContaining([
-          expect.stringContaining("Scope and use: Task fallback summary."),
-          expect.stringContaining("Pre-start verification:"),
-          expect.stringContaining("Required controls:"),
-          expect.stringContaining("Permits and PPE:"),
-          expect.stringContaining("Stop-work triggers:"),
-          expect.stringContaining("Verification and handoff:"),
-          expect.stringContaining("Related interfaces: Coordinate with site setup."),
+          expect.stringContaining("Primary safety exposures for this plan fragment align with: Task fallback summary."),
+        ]),
+      }),
+      expect.objectContaining({
+        title: "Fallback Task Module — Required Safety Controls",
+        body: null,
+        bullets: expect.arrayContaining([
+          expect.stringContaining(
+            "Establish and maintain engineered or administrative controls"
+          ),
+        ]),
+      }),
+      expect.objectContaining({
+        title: "Fallback Task Module — Access Restrictions",
+        body: null,
+        bullets: expect.arrayContaining([
+          expect.stringContaining("Restrict entry to trained, authorized personnel"),
+        ]),
+      }),
+      expect.objectContaining({
+        title: "Fallback Task Module — Required PPE",
+        body: null,
+        bullets: expect.arrayContaining([expect.stringContaining("project baseline PPE")]),
+      }),
+      expect.objectContaining({
+        title: "Fallback Task Module — Required Permits / Hold Points",
+        body: null,
+        bullets: expect.arrayContaining([expect.stringContaining("Confirm whether this activity interfaces")]),
+      }),
+      expect.objectContaining({
+        title: "Fallback Task Module — Stop-Work Triggers",
+        body: null,
+        bullets: expect.arrayContaining([expect.stringContaining("Stop work if a route")]),
+      }),
+      expect.objectContaining({
+        title: "Fallback Task Module — Verification and Handoff / Release",
+        body: null,
+        bullets: expect.arrayContaining([
+          expect.stringContaining("Fallback Task Module"),
+          expect.stringContaining("follow-on tasks"),
         ]),
       }),
     ]);
@@ -2641,20 +2686,43 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         ?.subsections
     ).toEqual([
       expect.objectContaining({
+        title: "Fallback Steel Task Module — Safety Exposure",
         body: "Steel task fallback summary.",
-        title: "Fallback Steel Task Module",
         bullets: expect.arrayContaining([
-          expect.stringContaining("Task description: Steel task fallback summary."),
-          expect.stringContaining("Safety exposure"),
-          expect.stringContaining("Pre-start verification:"),
-          expect.stringContaining("Required controls (before and during work):"),
-          expect.stringContaining("Access restrictions:"),
-          expect.stringContaining("PPE expectations:"),
-          expect.stringContaining("Permits and hold points:"),
-          expect.stringContaining("Stop-work and reassessment triggers:"),
-          expect.stringContaining("Handoff and closeout:"),
-          expect.stringContaining("Related interfaces: Coordinate with the steel-erection sequence"),
+          expect.stringContaining("Workers may be exposed to suspended loads"),
         ]),
+      }),
+      expect.objectContaining({
+        title: "Fallback Steel Task Module — Required Safety Controls",
+        body: null,
+        bullets: expect.arrayContaining([
+          expect.stringContaining("Establish the controlled steel-erection zone"),
+        ]),
+      }),
+      expect.objectContaining({
+        title: "Fallback Steel Task Module — Access Restrictions",
+        body: null,
+        bullets: expect.arrayContaining([expect.stringContaining("Limit entry to trained crew")]),
+      }),
+      expect.objectContaining({
+        title: "Fallback Steel Task Module — Required PPE",
+        body: null,
+        bullets: expect.arrayContaining([expect.stringContaining("Hard hat, safety glasses")]),
+      }),
+      expect.objectContaining({
+        title: "Fallback Steel Task Module — Required Permits / Hold Points",
+        body: null,
+        bullets: expect.arrayContaining([expect.stringContaining("Confirm the active permit")]),
+      }),
+      expect.objectContaining({
+        title: "Fallback Steel Task Module — Stop-Work Triggers",
+        body: null,
+        bullets: expect.arrayContaining([expect.stringContaining("Stop work and reassess")]),
+      }),
+      expect.objectContaining({
+        title: "Fallback Steel Task Module — Verification and Handoff / Release",
+        body: null,
+        bullets: expect.arrayContaining([expect.stringContaining("Document the pre-task brief")]),
       }),
     ]);
     expect(
@@ -2666,15 +2734,13 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         title: "Fallback Steel Hazard Module",
         bullets: expect.arrayContaining([
           expect.stringContaining("Hazard focus: Steel hazard fallback summary."),
-          expect.stringContaining("Safety exposure"),
-          expect.stringContaining("Pre-start verification:"),
-          expect.stringContaining("Required controls (before and during work):"),
-          expect.stringContaining("Access restrictions:"),
-          expect.stringContaining("PPE expectations:"),
-          expect.stringContaining("Permits and hold points:"),
-          expect.stringContaining("Stop-work and reassessment triggers:"),
-          expect.stringContaining("Handoff and closeout:"),
-          expect.stringContaining("Related interfaces: Coordinate with"),
+          expect.stringContaining("Safety Exposure:"),
+          expect.stringContaining("Required Safety Controls:"),
+          expect.stringContaining("Access Restrictions:"),
+          expect.stringContaining("Required PPE:"),
+          expect.stringContaining("Required Permits / Hold Points:"),
+          expect.stringContaining("Stop-Work Triggers:"),
+          expect.stringContaining("Verification and Handoff / Release:"),
         ]),
       }),
     ]);
@@ -2811,27 +2877,28 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       riskMemorySummary: null,
     });
 
-    const steelTaskSubsection = draft.sectionMap
+    const steelControlsSubsection = draft.sectionMap
       .find((section) => section.key === "steel_task_modules_reference")
       ?.subsections?.find(
-        (subsection) => subsection.title === "Receiving, Unloading, Inspecting and Staging Steel"
+        (subsection) =>
+          subsection.title.startsWith("Receiving, Unloading") &&
+          subsection.title.includes("Required Safety Controls")
       );
 
-    const requiredControlsBullet = steelTaskSubsection?.bullets.find((bullet) =>
-      bullet.startsWith("Required controls (before and during work):")
+    const controlsText = steelControlsSubsection?.bullets.join("\n") ?? "";
+    const leadControlsBullet = steelControlsSubsection?.bullets.find((bullet) =>
+      bullet.startsWith("Establish the controlled steel-erection zone")
     );
 
-    expect(requiredControlsBullet).toBe(
-      "Required controls (before and during work): Establish the controlled work zone, maintain the approved sequence, keep the frame stable at every stage, protect workers below, and correct drift immediately when field conditions change. Controls remain in place until the task is complete and formally released."
+    expect(leadControlsBullet).toBe(
+      "Establish the controlled steel-erection zone, maintain the approved sequence, keep the frame stable at every stage, protect workers below from falling objects and line-of-fire exposures, and correct drift immediately when field conditions change. Controls stay in effect until the task is complete and formally released."
     );
-    expect(steelTaskSubsection?.bullets).not.toEqual(
+    expect(steelControlsSubsection?.bullets).not.toEqual(
       expect.arrayContaining([expect.stringContaining("Trigger / reference:")])
     );
-    expect(requiredControlsBullet).not.toContain(
-      "Typical equipment includes lifting equipment, approved rigging, tag lines, dunnage, radios, inspection paperwork, and access-control devices for the unloading zone."
-    );
-    expect(requiredControlsBullet).not.toContain("3.1 Core equipment");
-    expect(requiredControlsBullet).not.toContain("4.2 Primary controls");
+    expect(controlsText).not.toContain("3.1 Core equipment");
+    expect(controlsText).not.toContain("4.2 Primary controls");
+    expect(controlsText.toLowerCase()).toContain("exclusion");
   });
 
   it("dedupes overlapping fall-protection sections and strips repeated inline OSHA tails", () => {

@@ -16,7 +16,8 @@ import { buildRawTaskInputsFromGenerationContext } from "@/lib/safety-intelligen
 import { buildGeneratedSafetyPlanDraft } from "@/lib/safety-intelligence/documents/assemble";
 import { getCsepProgramConfig } from "@/lib/csepProgramSettings";
 import { getJurisdictionStandardsConfig } from "@/lib/jurisdictionStandards/settings";
-import { buildAiReviewContext } from "@/lib/safety-intelligence/service";
+import { attachSmartSafetyEngineLayers, buildSmartSafetyAiReviewContext } from "@/lib/safety-intelligence/engine/orchestrator";
+import { refreshRiskMemoryRollupForCompany } from "@/lib/riskMemory/refreshCompany";
 import {
   deriveCsepTrainingProgram,
   syncGeneratedTrainingRequirements,
@@ -258,11 +259,13 @@ export async function runSafetyIntelligenceDocumentPipeline(params: {
   peerBuckets?: DocumentGenerationRequest["reviewContext"]["buckets"];
   riskMemorySummary?: JsonObject | null;
 }) {
-  const { bucket, rules, conflicts, context } = buildAiReviewContext({
+  const bucket = buildBucketedWorkItem(params.input);
+  const { reviewContext: baseReview, rules, conflicts } = await buildSmartSafetyAiReviewContext({
     input: params.input,
-    bucket: buildBucketedWorkItem(params.input),
+    bucket,
     peerBuckets: params.peerBuckets,
-    riskMemorySummary: params.riskMemorySummary,
+    riskMemorySummary: params.riskMemorySummary ?? null,
+    supabase: params.supabase,
   });
 
   const bucketRunId = await persistBucketRun(
@@ -275,7 +278,7 @@ export async function runSafetyIntelligenceDocumentPipeline(params: {
   );
 
   const reviewContext = {
-    ...context,
+    ...baseReview,
     bucketRunId,
     documentType: params.documentType,
   };
@@ -295,11 +298,18 @@ export async function runSafetyIntelligenceDocumentPipeline(params: {
     {
       document: doc.record,
       risk: risk.record,
+      smartSafetyProvenance: reviewContext.smartSafetyProvenance ?? null,
     },
     params.actorUserId,
     doc.model ?? risk.model,
     doc.promptHash ?? risk.promptHash
   );
+
+  void refreshRiskMemoryRollupForCompany({
+    supabase: params.supabase,
+    companyId: params.input.companyId,
+    jobsiteId: params.input.jobsiteId ?? null,
+  }).catch(() => {});
 
   const generatedDocumentId = await persistGeneratedDocument(params.supabase, {
     companyId: params.input.companyId,
@@ -398,7 +408,7 @@ export async function runSafetyPlanDocumentPipeline(params: {
   });
   const siteMetadata = (params.generationContext.siteContext.metadata ?? {}) as JsonObject;
 
-  const reviewContext: AiReviewContext = {
+  let reviewContext: AiReviewContext = {
     companyId: params.companyId,
     jobsiteId: params.jobsiteId ?? null,
     bucketRunId,
@@ -415,6 +425,21 @@ export async function runSafetyPlanDocumentPipeline(params: {
       siteMetadata,
     }),
   };
+
+  const primaryInput = rawInputs[0];
+  const primaryBucket = buckets[0];
+  const primaryRules = rules[0];
+  const primaryConflicts = conflictEvaluations[0];
+  if (primaryInput && primaryBucket && primaryRules && primaryConflicts) {
+    reviewContext = await attachSmartSafetyEngineLayers({
+      context: reviewContext,
+      primaryInput,
+      primaryBucket,
+      primaryRules,
+      primaryConflicts,
+      supabase: params.supabase,
+    });
+  }
 
   const [programConfig, jurisdictionStandardsConfig] = await Promise.all([
     getCsepProgramConfig().catch(() => null),
@@ -492,11 +517,18 @@ export async function runSafetyPlanDocumentPipeline(params: {
       narrativeSections: narratives.sections,
       aiAssemblyDecisions: narratives.aiAssemblyDecisions,
       validation: narratives.validation,
+      smartSafetyProvenance: reviewContext.smartSafetyProvenance ?? null,
     },
     params.actorUserId,
     narratives.model ?? risk.model,
     narratives.promptHash ?? risk.promptHash
   );
+
+  void refreshRiskMemoryRollupForCompany({
+    supabase: params.supabase,
+    companyId: params.companyId,
+    jobsiteId: params.jobsiteId ?? null,
+  }).catch(() => {});
 
   const generatedDocumentId = await persistGeneratedDocument(params.supabase, {
     companyId: params.companyId,
@@ -522,7 +554,7 @@ export async function runSafetyPlanDocumentPipeline(params: {
   return {
     bucketRunId,
     aiReviewId,
-      generatedDocumentId,
+    generatedDocumentId,
     generationContext: enrichedGenerationContext,
     rawInputs,
     bucket: buckets[0] ?? null,

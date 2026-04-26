@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     }
 
     try {
-      await renderGeneratedCsepDocx(pipeline.draft);
+      await renderGeneratedCsepDocx(pipeline.draft, { footerCompanyName: companyScope.companyName });
     } catch (renderError) {
       if (isCsepExportValidationError(renderError)) {
         return NextResponse.json(

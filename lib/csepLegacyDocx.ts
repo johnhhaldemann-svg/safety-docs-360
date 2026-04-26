@@ -1,4 +1,6 @@
 import type { CSEPRiskItem } from "@/lib/csepTradeSelection";
+import { formatGcCmPartnersForExport, normalizeGcCmPartnerEntries } from "@/lib/csepGcCmPartners";
+import { PROJECT_SPECIFIC_SAFETY_NOTES_EMPTY_FALLBACK } from "@/lib/csepSiteSpecificNotes";
 import {
   getDocumentBuilderSection,
   resolveDocumentBuilderSection,
@@ -61,7 +63,7 @@ export type LegacyCsepDocxInput = {
   project_address: string;
   owner_client: string;
   owner_message_text?: string;
-  gc_cm: string;
+  gc_cm: string | string[];
   contractor_company: string;
   contractor_contact: string;
   contractor_phone: string;
@@ -104,6 +106,8 @@ type BuildLegacyCsepRenderModelParams = {
   form: LegacyCsepDocxInput;
   builderTextConfig: DocumentBuilderTextConfig | null | undefined;
   programSections: CSEPProgramSection[];
+  /** Workspace company for DOCX footer; falls back in `normalizeRenderModel` when empty. */
+  footerCompanyName?: string | null;
 };
 
 function valueOrNA(value?: string | null) {
@@ -440,7 +444,7 @@ function buildNarrativeSection(params: {
 export function buildLegacyCsepRenderModel(
   params: BuildLegacyCsepRenderModelParams
 ): CsepRenderModel {
-  const { form, builderTextConfig, programSections } = params;
+  const { form, builderTextConfig, programSections, footerCompanyName } = params;
   const includedContent = normalizeIncludedContent(form);
   const selectedTasks = Array.isArray(form.tasks) ? form.tasks : [];
   const oshaRefs = Array.isArray(form.oshaRefs) ? form.oshaRefs : [];
@@ -518,7 +522,7 @@ export function buildLegacyCsepRenderModel(
     const section = getResolvedCsepSection(builderTextConfig, "scope_of_work");
     sections.push({
       key: "scope_of_work",
-      title: section?.title ?? "Scope of Work",
+      title: section?.title ?? "Scope Summary",
       body:
         valueOrNA(form.scope_of_work) === "N/A"
           ? section?.paragraphs[0] ??
@@ -531,11 +535,10 @@ export function buildLegacyCsepRenderModel(
     const section = getResolvedCsepSection(builderTextConfig, "site_specific_notes");
     sections.push({
       key: "site_specific_notes",
-      title: section?.title ?? "Site Specific Notes",
+      title: section?.title ?? "Project-Specific Safety Notes",
       body:
         valueOrNA(form.site_specific_notes) === "N/A"
-          ? section?.paragraphs[0] ??
-            "Site-specific constraints, active construction conditions, adjacent operations, and coordination requirements shall be reviewed daily before work begins."
+          ? section?.paragraphs[0] ?? PROJECT_SPECIFIC_SAFETY_NOTES_EMPTY_FALLBACK
           : valueOrNA(form.site_specific_notes),
     });
   }
@@ -854,21 +857,21 @@ export function buildLegacyCsepRenderModel(
   const tradeValue = valueOrNA(form.trade);
   const subTradeValue = valueOrNA(form.subTrade);
   const projectAddressValue = valueOrNA(form.project_address);
-  const coverSubtitleLines = [
-    tradeValue !== "N/A" ? `Trade: ${tradeValue}` : null,
-    projectAddressValue !== "N/A" ? projectAddressValue : null,
-    subTradeValue !== "N/A" ? `Sub-trade: ${subTradeValue}` : null,
-    selectedTasks.length ? `Tasks: ${selectedTasks.join(", ")}` : null,
-    issueLabel ? `Issue Date: ${issueLabel}` : null,
-  ].filter((line): line is string => Boolean(line));
+  const coverSubtitleLines: string[] = [];
+  const titlePageTaskSummary = selectedTasks.length ? selectedTasks.join("; ") : "N/A";
+  const titlePageProjectLocation = projectAddressValue;
+  const titlePageGoverningState = form.governing_state?.trim() || "N/A";
 
   return {
     projectName: valueOrNA(form.project_name),
     contractorName: valueOrNA(form.contractor_company),
-    footerProductName: "Safety360Docs",
+    footerCompanyName: footerCompanyName?.trim() || "",
     tradeLabel: tradeValue,
     subTradeLabel: subTradeValue,
     issueLabel,
+    titlePageTaskSummary,
+    titlePageProjectLocation,
+    titlePageGoverningState,
     statusLabel: "Draft Issue",
     preparedBy,
     coverSubtitleLines,
@@ -882,7 +885,7 @@ export function buildLegacyCsepRenderModel(
       { label: "Owner / Client", value: valueOrNA(form.owner_client) },
       {
         label: "GC / CM / program partners (list all with site safety or logistics authority)",
-        value: valueOrNA(form.gc_cm),
+        value: formatGcCmPartnersForExport(normalizeGcCmPartnerEntries(form.gc_cm)),
       },
       { label: "Contractor", value: valueOrNA(form.contractor_company) },
       { label: "Prepared By", value: preparedBy },
@@ -908,22 +911,27 @@ export function buildLegacyCsepRenderModel(
             : preparedBy,
       },
     ],
-    frontMatterSections: [],
-    sections: buildCsepTemplateSections({
-      projectName: valueOrNA(form.project_name),
-      contractorName: valueOrNA(form.contractor_company),
-      tradeLabel: tradeValue,
-      subTradeLabel: subTradeValue,
-      issueLabel,
-      sourceSections: sections,
-    }),
+    ...(() => {
+      const templateSections = buildCsepTemplateSections({
+        projectName: valueOrNA(form.project_name),
+        contractorName: valueOrNA(form.contractor_company),
+        tradeLabel: tradeValue,
+        subTradeLabel: subTradeValue,
+        issueLabel,
+        sourceSections: sections,
+      });
+      return {
+        frontMatterSections: templateSections.filter((section) => section.kind === "front_matter"),
+        sections: templateSections.filter((section) => section.kind === "main"),
+      };
+    })(),
     // Render the Task-Hazard-Control matrix as Appendix E so it never sits
     // awkwardly between numbered narrative sections in the body.
     appendixSections: activityHazardAppendixSection
       ? [toLegacyTemplateSection(activityHazardAppendixSection)]
       : [],
     disclaimerLines: [
-      "This CSEP is a generated planning aid and must be reviewed, corrected, and approved by responsible project leadership before field use.",
+      "This CSEP is prepared from project inputs and standard plan language; it must be reviewed, corrected, and approved by responsible project leadership before field use.",
       "Contractor supervision remains responsible for confirming site-specific conditions, permits, competent-person assignments, equipment suitability, and compliance with project requirements.",
       "When field conditions change, the work plan, controls, and communication expectations must be updated before work continues.",
     ],

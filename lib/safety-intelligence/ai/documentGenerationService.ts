@@ -19,7 +19,7 @@ function fallbackDocument(request: DocumentGenerationRequest): GeneratedDocument
 
   const sections = [
     {
-      heading: "Scope of Work",
+      heading: "Scope Summary",
       body: request.reviewContext.buckets.map((bucket) => bucket.taskTitle).join("; "),
     },
     {
@@ -63,6 +63,7 @@ export async function generateDocumentDraft(request: DocumentGenerationRequest):
   const system = [
     "You generate structured construction safety documents.",
     "Use ONLY the provided JSON review context.",
+    "When preventionLogic or ragMemoryExcerpts appear in reviewContext, incorporate them as supplemental grounded context; do not contradict deterministic preventionLogic items.",
     getCustomerFacingDocumentLayoutGuidance(),
     "Keep narrative fields concise and non-repetitive.",
     "Do not reuse the same sentence or restate OSHA references, front-matter facts, or section headings already captured elsewhere in the draft.",

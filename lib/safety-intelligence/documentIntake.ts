@@ -68,6 +68,7 @@ import type {
   SafetyPlanGenerationContext,
   SafetyPlanOperationInput,
 } from "@/types/safety-intelligence";
+import { normalizeGcCmPartnerEntries } from "@/lib/csepGcCmPartners";
 import { asStringArray, ensureJsonObject, ensureOptionalString, isRecord } from "@/lib/safety-intelligence/validation/common";
 
 type CSEPRiskItemLike = Pick<CSEPRiskItem, "activity" | "hazard" | "controls" | "permit">;
@@ -367,12 +368,19 @@ function buildCsepBuilderInstructions(params: {
     reviewedBy: ensureOptionalString(params.formData.reviewed_by),
     approvedBy: ensureOptionalString(params.formData.approved_by),
   };
+  const gcPartnerEntries = normalizeGcCmPartnerEntries(params.formData.gc_cm);
+  const gcInformationValue =
+    gcPartnerEntries.length === 0
+      ? null
+      : gcPartnerEntries.length === 1
+        ? gcPartnerEntries[0]
+        : gcPartnerEntries.map((partner) => `- ${partner}`).join("\n");
   const projectInformation = [
     ["Project Name", String(params.formData.project_name ?? "").trim()],
     ["Project Number", ensureOptionalString(params.formData.project_number)],
     ["Project Address", ensureOptionalString(params.formData.project_address)],
     ["Owner / Client", normalizePartyList(params.formData.owner_client)],
-    ["GC / CM", normalizePartyList(params.formData.gc_cm)],
+    ["GC / CM / program partners", gcInformationValue],
     ["Governing State", ensureOptionalString(params.formData.governing_state)],
   ]
     .filter(([, value]) => value)
@@ -826,7 +834,7 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
       projectNumber: ensureOptionalString(formData.project_number),
       projectAddress: ensureOptionalString(formData.project_address),
       ownerClient: normalizePartyList(formData.owner_client),
-      gcCm: normalizePartyList(formData.gc_cm),
+      gcCm: normalizeGcCmPartnerEntries(formData.gc_cm),
       contractorCompany: ensureOptionalString(formData.contractor_company),
       contractorContact: ensureOptionalString(formData.contractor_contact),
       contractorPhone: ensureOptionalString(formData.contractor_phone),
@@ -1055,7 +1063,7 @@ export function buildPshsepGenerationContext(formData: Record<string, unknown>):
       projectNumber: ensureOptionalString(normalizedFormData.project_number),
       projectAddress: location || null,
       ownerClient: normalizePartyList(normalizedFormData.owner_client),
-      gcCm: normalizePartyList(normalizedFormData.gc_cm),
+      gcCm: normalizeGcCmPartnerEntries(normalizedFormData.gc_cm),
       contractorCompany: ensureOptionalString(normalizedFormData.company_name),
       contractorContact: null,
       contractorPhone: null,
@@ -1228,7 +1236,7 @@ function normalizeGenerationContext(
       projectNumber: ensureOptionalString(project.projectNumber ?? project.project_number),
       projectAddress: ensureOptionalString(project.projectAddress ?? project.project_address),
       ownerClient: normalizePartyList(project.ownerClient ?? project.owner_client),
-      gcCm: normalizePartyList(project.gcCm ?? project.gc_cm),
+      gcCm: normalizeGcCmPartnerEntries(project.gcCm ?? project.gc_cm),
       contractorCompany: ensureOptionalString(project.contractorCompany ?? project.contractor_company),
       contractorContact: ensureOptionalString(project.contractorContact ?? project.contractor_contact),
       contractorPhone: ensureOptionalString(project.contractorPhone ?? project.contractor_phone),

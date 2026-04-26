@@ -1,3 +1,4 @@
+import { normalizeGcCmPartnerEntries } from "@/lib/csepGcCmPartners";
 import { buildCsepProgramSelections } from "@/lib/csepPrograms";
 import {
   buildCsepTradeSelection,
@@ -39,7 +40,7 @@ export type SurveyTestFormData = {
   project_number: string;
   project_address: string;
   owner_client: string;
-  gc_cm: string;
+  gc_cm: string | string[];
   contractor_company: string;
   contractor_contact: string;
   contractor_phone: string;
@@ -630,7 +631,7 @@ export function buildSurveyTestReviewSeedText(
     `Selected tasks: ${enrichment.selectedTasks.length ? enrichment.selectedTasks.join(", ") : "None"}`,
     `Selected layout sections: ${enrichment.selectedSections.map((section) => `${section.number}. ${section.title}`).join(" | ")}`,
     `Scope of work: ${mergeScopeText(input, enrichment.selectedTasks)}`,
-    `Site specific notes: ${input.site_specific_notes.trim() || "Not provided."}`,
+    `Project-specific safety notes: ${input.site_specific_notes.trim() || "Not provided."}`,
     `Emergency procedures: ${defaultEmergencyProcedures(input)}`,
     `Trade summary: ${enrichment.tradeSummary}`,
     `Hazards: ${enrichment.hazards.join(", ") || "None yet"}`,
@@ -654,7 +655,7 @@ export function buildSurveyTestExportPayload(input: SurveyTestFormData) {
     project_number: input.project_number.trim(),
     project_address: input.project_address.trim(),
     owner_client: input.owner_client.trim(),
-    gc_cm: input.gc_cm.trim(),
+    gc_cm: normalizeGcCmPartnerEntries(input.gc_cm),
     contractor_company: input.contractor_company.trim() || "SafetyDocs360",
     contractor_contact: input.contractor_contact.trim(),
     contractor_phone: input.contractor_phone.trim(),

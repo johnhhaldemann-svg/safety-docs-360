@@ -20,6 +20,7 @@ import {
   isMeaningfulFinalText,
   normalizePermitList,
 } from "@/lib/csepFinalization";
+import { gcCmPartnersHaystack } from "@/lib/csepGcCmPartners";
 
 type CsepFrontMatterDefinition = CsepFormatSectionDefinition & {
   key: (typeof CSEP_FRONT_MATTER_KEYS)[number];
@@ -58,13 +59,13 @@ const BLOCK_OPTION_DEFINITIONS: Array<{
   },
   {
     key: "scope_of_work",
-    label: "Scope of Work",
-    title: "Scope of Work",
+    label: "Scope Summary",
+    title: "Scope Summary",
   },
   {
     key: "site_specific_notes",
-    label: "Site Specific Notes",
-    title: "Site Specific Notes",
+    label: "Project-Specific Safety Notes",
+    title: "Project-Specific Safety Notes",
   },
   {
     key: "emergency_procedures",
@@ -84,7 +85,7 @@ const BLOCK_OPTION_DEFINITIONS: Array<{
   {
     key: "required_ppe",
     label: "Required PPE",
-    title: "Required Personal Protective Equipment",
+    title: "Required PPE",
   },
   {
     key: "additional_permits",
@@ -598,20 +599,20 @@ const CSEP_BUILDER_AI_SECTION_DEFINITIONS: readonly CsepBuilderAiSectionConfig[]
   {
     id: "scope_of_work",
     kind: "text",
-    title: "Scope of Work",
+    title: "Scope Summary",
     fieldKey: "scope_of_work",
-    includedSectionLabel: "Scope of Work",
+    includedSectionLabel: "Scope Summary",
     draftingFocus:
-      "Describe the selected tasks, work sequence, access, equipment, material handling, and the task boundaries that matter for the crew.",
+      "Summarize the trade, sub-trade, and selected tasks this CSEP governs (what work is in scope). Do not restate site-only constraints here—those belong in Project-Specific Safety Notes.",
   },
   {
     id: "site_specific_notes",
     kind: "text",
-    title: "Site Specific Notes",
+    title: "Project-Specific Safety Notes",
     fieldKey: "site_specific_notes",
-    includedSectionLabel: "Site Specific Notes",
+    includedSectionLabel: "Project-Specific Safety Notes",
     draftingFocus:
-      "Capture task-relevant site conditions, access limits, occupied-area concerns, adjacent operations, and other jobsite constraints that affect the selected tasks.",
+      "Capture unique site constraints, project conditions, owner or GC rules, access limits, weather or logistics concerns, and safety requirements that are not already covered in the Scope Summary task list.",
   },
   {
     id: "emergency_procedures",
@@ -729,7 +730,7 @@ type CsepBuilderAiPromptContext = {
   governing_state?: string;
   project_delivery_type?: string;
   owner_client?: string;
-  gc_cm?: string;
+  gc_cm?: string | string[];
   contractor_company?: string;
   contractor_contact?: string;
   contractor_phone?: string;
@@ -748,9 +749,12 @@ type CsepBuilderAiPromptParams = {
   currentValue?: string | CsepWeatherSectionInput;
 };
 
-const LABEL_TO_KEY = Object.fromEntries(
-  BLOCK_OPTION_DEFINITIONS.map((option) => [option.label, option.key])
-) as Record<string, CsepBuilderBlockKey>;
+const LABEL_TO_KEY = {
+  ...Object.fromEntries(BLOCK_OPTION_DEFINITIONS.map((option) => [option.label, option.key])),
+  /** Legacy `included_sections` labels from issued drafts and older sessions */
+  "Scope of Work": "scope_of_work",
+  "Site Specific Notes": "site_specific_notes",
+} as Record<string, CsepBuilderBlockKey>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -758,6 +762,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function compareValues(left: unknown, right: unknown) {
   return JSON.stringify(left).localeCompare(JSON.stringify(right));
+}
+
+/** Labels that may appear in `included_sections` for smart-drafting / gating (current + legacy). */
+export function resolveIncludedSectionLabelsForAiSection(sectionId: CsepBuilderAiSectionId): string[] {
+  if (sectionId === "scope_of_work") {
+    return ["Scope Summary", "Scope of Work"];
+  }
+  if (sectionId === "site_specific_notes") {
+    return ["Project-Specific Safety Notes", "Site Specific Notes"];
+  }
+  const config = CSEP_BUILDER_AI_SECTION_CONFIG[sectionId];
+  return "includedSectionLabel" in config ? [config.includedSectionLabel] : [];
 }
 
 export function normalizeSelectedCsepBlockKeys(params: {
@@ -2066,8 +2082,7 @@ function buildDocumentControlRevisionEndSection(
     key: "document_control_and_revision_history",
     kind: "appendix",
     order: 39,
-    numberLabel: "15",
-    title: "15. Document Control and Revision History",
+    title: "Document Control and Revision History",
     layoutKey: "document_control_and_revision_history",
     body:
       "Current issue control, revision status, and approval record for this issued CSEP package.",
@@ -2148,7 +2163,7 @@ function hasLaydownAreaNeed(
   const scopeSignals = [
     draft.projectOverview.contractorCompany,
     draft.projectOverview.ownerClient,
-    draft.projectOverview.gcCm,
+    gcCmPartnersHaystack(draft.projectOverview.gcCm),
     typeof builderSnapshot.scope_of_work === "string" ? String(builderSnapshot.scope_of_work) : "",
     typeof builderSnapshot.site_specific_notes === "string" ? String(builderSnapshot.site_specific_notes) : "",
     typeof builderSnapshot.trade === "string" ? String(builderSnapshot.trade) : "",
@@ -2519,7 +2534,7 @@ export function buildStructuredCsepSectionMap(
                       title: "Required Coverage Callout",
                       body:
                         aiAssemblyDecisions?.coverageGuidance ??
-                        "The format package identified content that should stay visible in this section based on the current builder inputs.",
+                        "Confirm subsection coverage against the information entered for this CSEP before issue.",
                       bullets: relatedFindings.map((finding) => `${finding.title}: ${finding.detail}`),
                     },
                   ]

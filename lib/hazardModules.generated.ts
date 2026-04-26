@@ -963,7 +963,7 @@ export const HAZARD_MODULES: GeneratedHazardModule[] = [
       "10.1 Ongoing control",
       "10.2 Field-use note"
     ],
-    "summary": "Struck-by and caught-between exposure at the vehicle—pedestrian interface is controlled with defined routes, spotters, barricades, and verified shift start-up. Cross-read Section 8 Security at Site, Section 10 IIPP / Emergency Response, and Section 11 companion modules, with Appendix E. Task-Hazard-Control Matrix and 29 CFR 1926.601 / 1926.602 at the project baseline.",
+    "summary": "Struck-by and caught-between exposure at the vehicle—pedestrian interface is controlled with defined routes, spotters, barricades, and verified shift start-up. See Section 8 Security at Site, Section 10 IIPP / Emergency Response, and Section 11 companion modules, with Appendix E. Task-Hazard-Control Matrix and 29 CFR 1926.601 / 1926.602 at the project baseline.",
     "sourceFilename": "18_Traffic_Control_Mobile_Equipment_and_Pedestrian_Interface.docx",
     "matchCriteria": {
       "hazardLabels": [

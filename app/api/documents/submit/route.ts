@@ -403,7 +403,7 @@ export async function POST(request: Request) {
     async function renderSubmittedDraft(draft: GeneratedSafetyPlanDraft) {
       try {
         return normalizedType === "CSEP"
-          ? await renderGeneratedCsepDocx(draft)
+          ? await renderGeneratedCsepDocx(draft, { footerCompanyName: companyScope.companyName })
           : await renderSafetyPlanDocx(draft);
       } catch (renderError) {
         if (normalizedType === "CSEP" && isCsepExportValidationError(renderError)) {

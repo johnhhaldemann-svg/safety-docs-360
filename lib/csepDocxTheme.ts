@@ -104,6 +104,23 @@ export function createCsepLabeledParagraph(
     spacingAfter?: number;
   } = {}
 ) {
+  const trimmed = value?.trim() ? value.trim() : "N/A";
+  const lines = trimmed.split("\n");
+  const valueRuns: TextRun[] = [];
+  lines.forEach((line, index) => {
+    if (index > 0) {
+      valueRuns.push(new TextRun({ break: 1 }));
+    }
+    valueRuns.push(
+      new TextRun({
+        text: line,
+        font: "Aptos",
+        size: 21,
+        color: COLORS.bodyText,
+      })
+    );
+  });
+
   return new Paragraph({
     style: CSEP_STYLE_IDS.body,
     indent: options.indentLeft ? { left: options.indentLeft } : undefined,
@@ -117,12 +134,7 @@ export function createCsepLabeledParagraph(
         size: 21,
         color: COLORS.subheadText,
       }),
-      new TextRun({
-        text: value?.trim() ? value.trim() : "N/A",
-        font: "Aptos",
-        size: 21,
-        color: COLORS.bodyText,
-      }),
+      ...valueRuns,
     ],
   });
 }

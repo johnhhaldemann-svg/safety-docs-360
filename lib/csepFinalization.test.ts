@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCsepPpeSectionBullets,
+  buildCsepPpeSectionBulletsFromCombined,
+  CSEP_BASELINE_PPE_DISPLAY,
   cleanFinalText,
   cleanSectionForFinalIssue,
+  dedupePpeItemsForExport,
+  flattenPpeSectionBulletsToItems,
   normalizeFinalExportText,
 } from "@/lib/csepFinalization";
 
@@ -155,5 +160,44 @@ describe("csepFinalization", () => {
         "This program establishes controls for elevated work and fall exposures."
       )
     ).toBeNull();
+  });
+
+  it("replaces empty-state and coverage guidance with contractor-facing language", () => {
+    expect(
+      normalizeFinalExportText(
+        "Scope summary details were not entered in the current builder payload."
+      )
+    ).toBe("Add the contractor scope narrative for this trade package in Section 3 before issue.");
+
+    expect(
+      normalizeFinalExportText(
+        "Emergency procedures were not entered in the current builder payload."
+      )
+    ).toBe("Complete emergency response procedures in Section 10 before issue.");
+
+    expect(
+      normalizeFinalExportText(
+        "The format package identified content that should stay visible in this section based on the current builder inputs."
+      )
+    ).toBe("Confirm subsection coverage against the information entered for this CSEP before issue.");
+  });
+
+  it("deduplicates PPE by normalized label and drops generic fall protection when harness gear is listed", () => {
+    expect(dedupePpeItemsForExport(["Steel-Toe Boots", "safety-toe boots"])).toEqual(["Safety-toe boots"]);
+    expect(dedupePpeItemsForExport(["Fall protection harness", "Harness", "fall protection"])).toEqual([
+      "Fall protection harness",
+    ]);
+  });
+
+  it("builds a fixed baseline PPE line plus a task-specific add-on line", () => {
+    const bullets = buildCsepPpeSectionBullets(["Hard Hat", "Welding hood"], []);
+    expect(bullets).toHaveLength(2);
+    expect(bullets[0]).toBe(`Project baseline PPE: ${CSEP_BASELINE_PPE_DISPLAY.join("; ")}.`);
+    expect(bullets[1]).toContain("Welding hood");
+    expect(bullets[1]).not.toContain("Hard Hat");
+    const merged = buildCsepPpeSectionBulletsFromCombined(
+      dedupePpeItemsForExport(flattenPpeSectionBulletsToItems(bullets))
+    );
+    expect(merged[0]).toBe(bullets[0]);
   });
 });

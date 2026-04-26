@@ -3,6 +3,9 @@
  * Dashboard: Project Settings → Database → Connect → Session pooler (IPv4-friendly) → URI.
  *
  * Usage: npm run db:push:env
+ *
+ * Optional: SUPABASE_DB_PUSH_INCLUDE_ALL=1 adds `--include-all` when the CLI reports
+ * out-of-order local migrations (use only after reviewing the listed files).
  */
 
 import { spawnSync } from "child_process";
@@ -63,10 +66,16 @@ function supabaseCliPath() {
 }
 
 const cli = supabaseCliPath();
+/** Set SUPABASE_DB_PUSH_INCLUDE_ALL=1 when the CLI asks for `--include-all` (out-of-order local files). */
+const includeAll = process.env.SUPABASE_DB_PUSH_INCLUDE_ALL === "1";
+const pushArgs = ["db", "push", "--yes"];
+if (includeAll) pushArgs.push("--include-all");
+pushArgs.push("--db-url", dbUrl);
+
 const args =
   cli.endsWith("supabase") || cli.endsWith("supabase.exe")
-    ? ["db", "push", "--yes", "--db-url", dbUrl]
-    : ["supabase", "db", "push", "--yes", "--db-url", dbUrl];
+    ? pushArgs
+    : ["supabase", ...pushArgs];
 
 const r = spawnSync(cli, args, {
   stdio: "inherit",

@@ -29,6 +29,7 @@ import {
   normalizeProjectDeliveryType,
   projectDeliveryTypeLabel,
 } from "@/lib/tradeConflictCatalog";
+import { formatGcCmPartnersForExport, normalizeGcCmPartnerEntries } from "@/lib/csepGcCmPartners";
 import type {
   GeneratedSafetyPlanDraft,
   GeneratedSafetyPlanSection,
@@ -217,7 +218,7 @@ function buildSummaryFields(draft: GeneratedSafetyPlanDraft): SummaryField[] {
     { label: "Owner / Client", value: valueOrNA(draft.projectOverview.ownerClient) },
     {
       label: "GC / CM / program partners (list all with site safety or logistics authority)",
-      value: valueOrNA(draft.projectOverview.gcCm),
+      value: formatGcCmPartnersForExport(normalizeGcCmPartnerEntries(draft.projectOverview.gcCm)),
     },
     { label: "Location", value: valueOrNA(draft.projectOverview.location) },
     { label: "Contractor", value: valueOrNA(draft.projectOverview.contractorCompany) },

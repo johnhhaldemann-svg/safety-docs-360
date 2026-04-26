@@ -161,7 +161,11 @@ export type SafetyPlanGenerationContext = {
     projectNumber?: string | null;
     projectAddress?: string | null;
     ownerClient?: string | null;
-    gcCm?: string | null;
+    /**
+     * GC / CM / program partners; each array entry is one organization or role label.
+     * A legacy single string may still appear when hydrating older saved contexts.
+     */
+    gcCm?: string[] | string | null;
     contractorCompany?: string | null;
     contractorContact?: string | null;
     contractorPhone?: string | null;
@@ -626,7 +630,8 @@ export type GeneratedSafetyPlanDraft = {
     projectNumber?: string | null;
     projectAddress?: string | null;
     ownerClient?: string | null;
-    gcCm?: string | null;
+    /** GC / CM / program partners (one string per organization). Legacy drafts may still store a single string. */
+    gcCm?: string[] | string | null;
     contractorCompany?: string | null;
     schedule?: string | null;
     location?: string | null;
@@ -680,6 +685,14 @@ export type GeneratedSafetyPlanDraft = {
   provenance: JsonObject;
 };
 
+export type PreventionScore = {
+  value: number;
+  scale: "0-100";
+  band: RiskBand;
+  confidence?: number;
+  source: "risk_memory" | "rules" | "blended";
+};
+
 export type RiskOutputRecord = {
   summary: string;
   exposures: string[];
@@ -692,6 +705,71 @@ export type RiskOutputRecord = {
   }>;
   forecastConflicts: string[];
   correctiveActions: string[];
+  /** Normalized 0–100 headline aligned with Risk Memory rollup when facet data exists. */
+  preventionScore?: PreventionScore | null;
+  /** Canonical rollup from Risk Memory (authoritative when present). */
+  canonicalRiskFromMemory?: { score: number; band: RiskBand; confidence?: number } | null;
+  /** Explains how riskScores relate to canonical rollup. */
+  riskScoresNote?: string | null;
+};
+
+/** Smart Safety diagram: structured thematic memory (incrementally populated). */
+export const SAFETY_MEMORY_SNAPSHOT_VERSION = 1 as const;
+
+export type SafetyMemoryBucketSlice = {
+  refs: string[];
+  notes?: string | null;
+};
+
+export type SafetyMemorySnapshot = {
+  version: typeof SAFETY_MEMORY_SNAPSHOT_VERSION;
+  generatedAt: string;
+  company: SafetyMemoryBucketSlice & { companyId: string };
+  jobsite: SafetyMemoryBucketSlice & { jobsiteId?: string | null };
+  trade: { codes: string[]; labels?: string[] };
+  hazard: { families: HazardFamily[]; categories: string[] };
+  task: { titles: string[]; taskCodes: string[] };
+  permit: { triggers: PermitTriggerType[] };
+  training: { requirementCodes: string[] };
+  incident: { signalCount: number; sourceModules: string[] };
+  documentQuality: { hints: string[] };
+};
+
+/** Deterministic “prevention logic” layer before LLM (diagram 3A). */
+export type PreventionLogicResult = {
+  missingControls: string[];
+  permitRecommendations: string[];
+  trainingGaps: string[];
+  repeatRiskPatterns: string[];
+  documentQualityHints: string[];
+};
+
+export type SmartSafetyEngineProvenance = {
+  version: string;
+  stages: string[];
+  inputHash: string;
+};
+
+export type DailyRiskBriefingLine = {
+  label: string;
+  detail: string;
+  severity?: "info" | "watch" | "elevated";
+};
+
+export type DailyRiskBriefing = {
+  generatedAt: string;
+  companyId: string;
+  jobsiteId?: string | null;
+  headline: string;
+  lines: DailyRiskBriefingLine[];
+  preventionScore?: PreventionScore | null;
+};
+
+export type PreTaskChecklistItem = {
+  id: string;
+  text: string;
+  source: "rule" | "permit" | "weather" | "memory" | "conflict";
+  required: boolean;
 };
 
 export type AiReviewContext = {
@@ -705,6 +783,11 @@ export type AiReviewContext = {
   riskMemorySummary?: JsonObject | null;
   companyContext?: JsonObject | null;
   templateContext?: JsonObject | null;
+  safetyMemorySnapshot?: SafetyMemorySnapshot | null;
+  preventionLogic?: PreventionLogicResult | null;
+  smartSafetyProvenance?: SmartSafetyEngineProvenance | null;
+  /** Company memory excerpts when SAFETY_INTELLIGENCE_RAG=1. */
+  ragMemoryExcerpts?: Array<{ title: string; excerpt: string }> | null;
 };
 
 export type DocumentGenerationRequest = {

@@ -769,6 +769,254 @@ export const STEEL_ERECTION_TASK_MODULES: GeneratedSteelErectionTaskModule[] = [
         "hot_work"
       ]
     }
+  },
+  {
+    "moduleKey": "steel_embeds_setting_and_verification",
+    "title": "Embeds — Setting, Adjustment, and Verification",
+    "trade": "Steel Erection",
+    "subTrade": "Steel erection / decking",
+    "taskNames": [
+      "Embeds"
+    ],
+    "plainText": "EMBEDS TASK MODULE\n\nSetting, adjusting, and verifying cast-in or post-installed steel embeds at slab edges, decks, and wall lines before and after concrete operations\n\n1. Task Scope & Work Conditions\n\n1.1 Task purpose  This task covers layout confirmation, setting, adjustment, welding or mechanical fastening of embeds, sleeve coordination, and verification sign-off prior to pour or follow-on trades.\n\n1.2 Main exposure profile  The main exposures during this task are falls from edges and openings, crush and pinch when handling heavy plates or channels, struck-by from tools or small picks, ignition from burning or grinding near combustibles, and electrical contact when verifying conduits tied to embedded boxes.\n\n2. Pre-Task & Pre-Construction Planning\n\n2.1 Planning focus  The planning review should address edge protection, pick plans for heavy embeds, hot-work boundaries, LOTO interfaces, and sequencing with rebar and concrete trades.\n\n2.2 Daily startup review  The daily review should identify weather, crane availability, incomplete guardrails, and any overnight changes to opening covers.\n\n3. Required Equipment and Access\n\n3.1 Core equipment  Typical equipment includes templates, lasers, torches or drills, small hoists, rigging for picks, radios, and fall-protection systems matched to the access method.\n\n3.2 Access and support  Access should be stable and should not force workers to lean past protected lines to reach embeds.\n\n4. Hazards & Controls\n\n4.1 Main hazards  The key hazards in this task are falls, dropped embeds, fire from hot work, and line-of-fire during short picks.\n\n4.2 Primary controls  Primary controls include barricades, spotters, engineered pick points, fire watch, and documented verification of location and orientation.\n\n5. Structural Stability / Sequence Controls\n\n5.1 Stability link  Embeds shall not destabilize formwork or partially cured concrete; follow engineer sequence for removal of temporary supports.\n\n5.2 Load and access limits  No follow-on loading should occur on slabs until embed verification and required curing or strength notifications are satisfied.\n\n6. Training & Qualification Requirements\n\n6.1 Required knowledge  Workers should understand fall protection, hot-work rules, and survey tolerance requirements for critical embeds.\n\n6.2 Oversight roles  Competent persons for layout and hot work shall be named before the shift.\n\n7. Permit / Approval Triggers\n\n7.1 Typical approvals  This task may require hot-work permits, short-pick lift plans, and engineer RFI responses for conflicts.\n\n7.2 Deviation handling  Field changes to embed location or type shall be documented before concrete or structural loads rely on the change.\n\n8. Inspection, Acceptance, and Closeout\n\n8.1 Completion standard  The task is complete when embeds are verified, documented, and the area is safe for pour or next trade.\n\n8.2 Handoff to the next operation  The handoff should identify open penetrations, temporary covers, and torque or weld maps as applicable.\n\n9. Additional Related Information\n\n9.1 Practical use  Use this module at pre-pour meetings and when scope adds field-installed plates after deck placement.\n\n9.2 Recordkeeping and communication  Photo logs and signed checklists shall accompany turnover to concrete or MEP.\n\nREFERENCE LANGUAGE AND OSHA SOURCE POINTS\n\nR1. Employers shall initiate and maintain programs necessary to comply with Part 1926, including frequent and regular inspections by competent persons. 29 CFR 1926.20(b)(1)-(2).\n\nR2. The employer shall instruct each employee in the recognition and avoidance of unsafe conditions. 29 CFR 1926.21(b)(2).\n\nR5. The employer is responsible for requiring appropriate personal protective equipment where employees are exposed to hazardous conditions. 29 CFR 1926.28(a).\n\nR10. Decking must be laid tightly and secured, and controlled decking zones must be clearly marked with restricted access. OSHA 1926.754(e)(5) and 1926.760(c)(2)-(3).\n",
+    "sectionHeadings": [
+      "1. Task Scope & Work Conditions",
+      "1.1 Task purpose  This task covers layout confirmation, setting, adjustment, welding or mechanical fastening of embeds, sleeve coordination, and verification sign-off prior to pour or follow-on trades.",
+      "1.2 Main exposure profile  The main exposures during this task are falls from edges and openings, crush and pinch when handling heavy plates or channels, struck-by from tools or small picks, ignition from burning or grinding near combustibles, and electrical contact when verifying conduits tied to embedded boxes.",
+      "2. Pre-Task & Pre-Construction Planning",
+      "2.1 Planning focus  The planning review should address edge protection, pick plans for heavy embeds, hot-work boundaries, LOTO interfaces, and sequencing with rebar and concrete trades.",
+      "2.2 Daily startup review  The daily review should identify weather, crane availability, incomplete guardrails, and any overnight changes to opening covers.",
+      "3. Required Equipment and Access",
+      "3.1 Core equipment  Typical equipment includes templates, lasers, torches or drills, small hoists, rigging for picks, radios, and fall-protection systems matched to the access method.",
+      "3.2 Access and support  Access should be stable and should not force workers to lean past protected lines to reach embeds.",
+      "4. Hazards & Controls",
+      "4.1 Main hazards  The key hazards in this task are falls, dropped embeds, fire from hot work, and line-of-fire during short picks.",
+      "4.2 Primary controls  Primary controls include barricades, spotters, engineered pick points, fire watch, and documented verification of location and orientation.",
+      "5. Structural Stability / Sequence Controls",
+      "5.1 Stability link  Embeds shall not destabilize formwork or partially cured concrete; follow engineer sequence for removal of temporary supports.",
+      "5.2 Load and access limits  No follow-on loading should occur on slabs until embed verification and required curing or strength notifications are satisfied.",
+      "6. Training & Qualification Requirements",
+      "6.1 Required knowledge  Workers should understand fall protection, hot-work rules, and survey tolerance requirements for critical embeds.",
+      "6.2 Oversight roles  Competent persons for layout and hot work shall be named before the shift.",
+      "7. Permit / Approval Triggers",
+      "7.1 Typical approvals  This task may require hot-work permits, short-pick lift plans, and engineer RFI responses for conflicts.",
+      "7.2 Deviation handling  Field changes to embed location or type shall be documented before concrete or structural loads rely on the change.",
+      "8. Inspection, Acceptance, and Closeout",
+      "8.1 Completion standard  The task is complete when embeds are verified, documented, and the area is safe for pour or next trade.",
+      "8.2 Handoff to the next operation  The handoff should identify open penetrations, temporary covers, and torque or weld maps as applicable.",
+      "9. Additional Related Information",
+      "9.1 Practical use  Use this module at pre-pour meetings and when scope adds field-installed plates after deck placement.",
+      "9.2 Recordkeeping and communication  Photo logs and signed checklists shall accompany turnover to concrete or MEP."
+    ],
+    "summary": "Setting, adjusting, and verifying steel embeds at edges and decks with hot work, picks, and interface controls",
+    "sourceFilename": "Task_10_Embeds.docx",
+    "triggerManifest": {
+      "tradeKeywords": [
+        "steel",
+        "ironwork",
+        "structural steel"
+      ],
+      "subTradeKeywords": [
+        "steel erection",
+        "decking",
+        "ironworker"
+      ],
+      "taskNames": [
+        "Embeds"
+      ],
+      "taskKeywords": [
+        "embed",
+        "embeds",
+        "insert plate",
+        "sleeve",
+        "cast-in"
+      ],
+      "taskAliases": [
+        "steel embeds",
+        "setting embeds"
+      ],
+      "pshsepScopeKeywords": [
+        "steel erection",
+        "structural steel"
+      ],
+      "highRiskKeywords": [
+        "steel erection / rigging",
+        "hot work / fire watch"
+      ],
+      "assumedTradeKeywords": [
+        "steel erection",
+        "ironwork"
+      ],
+      "exportProgramIds": [
+        "steel_erection",
+        "hot_work"
+      ]
+    }
+  },
+  {
+    "moduleKey": "steel_punch_list_and_closeout_remediation",
+    "title": "Punch List and Closeout Remediation (Steel)",
+    "trade": "Steel Erection",
+    "subTrade": "Steel erection / decking",
+    "taskNames": [
+      "Punch list"
+    ],
+    "plainText": "PUNCH LIST AND CLOSEOUT REMEDIATION TASK MODULE\n\nReturn visits to correct steel, connections, decking interfaces, and coatings after substantial completion activities\n\n1. Task Scope & Work Conditions\n\n1.1 Task purpose  This task covers selective replacement, re-bolting, welding repairs, small picks, and housekeeping tied to punch-list items after primary erection.\n\n1.2 Main exposure profile  The main exposures during this task are re-opened fall hazards, suspended loads during one-off picks, fire and fume exposure from welding in occupied buildings, and struck-by in congested finished spaces.\n\n2. Pre-Task & Pre-Construction Planning\n\n2.1 Planning focus  The planning review should address re-established guardrails, occupant notification, rigging for tight sites, and permit packages scaled to the actual hazard.\n\n2.2 Daily startup review  The daily review should identify changed roof access, elevator restrictions, and housekeeping expectations for finished floors.\n\n3. Required Equipment and Access\n\n3.1 Core equipment  Typical equipment includes small cranes or telehandlers, compact rigging, welding leads, fire extinguishers, and MEWPs sized for finished slab loads.\n\n3.2 Access and support  Access shall follow owner rules for finished spaces; no dragging leads across carpet without protection.\n\n4. Hazards & Controls\n\n4.1 Main hazards  The key hazards in this task are falls, dropped hardware, fire from hot work, and damage to finished surfaces.\n\n4.2 Primary controls  Primary controls include re-baselined JHAs, spotters, fire watch, and debris control at every opening.\n\n5. Structural Stability / Sequence Controls\n\n5.1 Stability link  Replacement members shall be installed without overloading partially released diaphragms; engineer approval may be required.\n\n5.2 Load and access limits  Limits on point loads for finished slabs shall be respected for equipment placement.\n\n6. Training & Qualification Requirements\n\n6.1 Required knowledge  Workers should understand owner PPE upgrades, noise windows, and medical escalation routes.\n\n6.2 Oversight roles  A competent person shall approve each punch cluster before hot work or picks resume.\n\n7. Permit / Approval Triggers\n\n7.1 Typical approvals  After-hours hot work, roof access, and critical picks may all apply on closeout visits.\n\n7.2 Deviation handling  Changes discovered during punch that affect structural capacity shall stop work until engineered direction is received.\n\n8. Inspection, Acceptance, and Closeout\n\n8.1 Completion standard  The task is complete when punch items are closed in the tracking system and the area is returned to owner housekeeping standards.\n\n8.2 Handoff to the next operation  The handoff should include NDT reopen results and updated as-built revisions.\n\n9. Additional Related Information\n\n9.1 Practical use  Use this module whenever steel trades return after turnover milestones.\n\n9.2 Recordkeeping and communication  Photo closure is required for each punch line item affecting life safety.\n\nREFERENCE LANGUAGE AND OSHA SOURCE POINTS\n\nR1. Employers shall initiate and maintain programs necessary to comply with Part 1926, including frequent and regular inspections by competent persons. 29 CFR 1926.20(b)(1)-(2).\n\nR2. The employer shall instruct each employee in the recognition and avoidance of unsafe conditions. 29 CFR 1926.21(b)(2).\n\nR5. The employer is responsible for requiring appropriate personal protective equipment where employees are exposed to hazardous conditions. 29 CFR 1926.28(a).\n\nR16. Debris must be kept cleared from work areas, passageways, and stairs, and waste handled at regular intervals. 29 CFR 1926.25(a)-(c).\n",
+    "sectionHeadings": [
+      "1. Task Scope & Work Conditions",
+      "1.1 Task purpose  This task covers selective replacement, re-bolting, welding repairs, small picks, and housekeeping tied to punch-list items after primary erection.",
+      "1.2 Main exposure profile  The main exposures during this task are re-opened fall hazards, suspended loads during one-off picks, fire and fume exposure from welding in occupied buildings, and struck-by in congested finished spaces.",
+      "2. Pre-Task & Pre-Construction Planning",
+      "2.1 Planning focus  The planning review should address re-established guardrails, occupant notification, rigging for tight sites, and permit packages scaled to the actual hazard.",
+      "2.2 Daily startup review  The daily review should identify changed roof access, elevator restrictions, and housekeeping expectations for finished floors.",
+      "3. Required Equipment and Access",
+      "3.1 Core equipment  Typical equipment includes small cranes or telehandlers, compact rigging, welding leads, fire extinguishers, and MEWPs sized for finished slab loads.",
+      "3.2 Access and support  Access shall follow owner rules for finished spaces; no dragging leads across carpet without protection.",
+      "4. Hazards & Controls",
+      "4.1 Main hazards  The key hazards in this task are falls, dropped hardware, fire from hot work, and damage to finished surfaces.",
+      "4.2 Primary controls  Primary controls include re-baselined JHAs, spotters, fire watch, and debris control at every opening.",
+      "5. Structural Stability / Sequence Controls",
+      "5.1 Stability link  Replacement members shall be installed without overloading partially released diaphragms; engineer approval may be required.",
+      "5.2 Load and access limits  Limits on point loads for finished slabs shall be respected for equipment placement.",
+      "6. Training & Qualification Requirements",
+      "6.1 Required knowledge  Workers should understand owner PPE upgrades, noise windows, and medical escalation routes.",
+      "6.2 Oversight roles  A competent person shall approve each punch cluster before hot work or picks resume.",
+      "7. Permit / Approval Triggers",
+      "7.1 Typical approvals  After-hours hot work, roof access, and critical picks may all apply on closeout visits.",
+      "7.2 Deviation handling  Changes discovered during punch that affect structural capacity shall stop work until engineered direction is received.",
+      "8. Inspection, Acceptance, and Closeout",
+      "8.1 Completion standard  The task is complete when punch items are closed in the tracking system and the area is returned to owner housekeeping standards.",
+      "8.2 Handoff to the next operation  The handoff should include NDT reopen results and updated as-built revisions.",
+      "9. Additional Related Information",
+      "9.1 Practical use  Use this module whenever steel trades return after turnover milestones.",
+      "9.2 Recordkeeping and communication  Photo closure is required for each punch line item affecting life safety."
+    ],
+    "summary": "Return visits for steel punch items, small picks, welding repairs, and owner-ready housekeeping",
+    "sourceFilename": "Task_11_Punch_List_Closeout.docx",
+    "triggerManifest": {
+      "tradeKeywords": [
+        "steel",
+        "ironwork",
+        "structural steel"
+      ],
+      "subTradeKeywords": [
+        "steel erection",
+        "decking",
+        "ironworker"
+      ],
+      "taskNames": [
+        "Punch list"
+      ],
+      "taskKeywords": [
+        "punch list",
+        "punchlist",
+        "closeout",
+        "remediation"
+      ],
+      "taskAliases": [
+        "steel punch",
+        "punch list steel"
+      ],
+      "pshsepScopeKeywords": [
+        "steel erection",
+        "structural steel"
+      ],
+      "highRiskKeywords": [
+        "steel erection / rigging",
+        "hot work / fire watch"
+      ],
+      "assumedTradeKeywords": [
+        "steel erection",
+        "ironwork"
+      ],
+      "exportProgramIds": [
+        "steel_erection",
+        "hot_work"
+      ]
+    }
+  },
+  {
+    "moduleKey": "steel_touch_up_painting_on_structural_steel",
+    "title": "Touch-Up Painting on Structural Steel",
+    "trade": "Steel Erection",
+    "subTrade": "Steel erection / decking",
+    "taskNames": [
+      "Touch-up painting"
+    ],
+    "plainText": "TOUCH-UP PAINTING ON STRUCTURAL STEEL TASK MODULE\n\nField touch-up of primers or field-applied coatings at welds, abrasions, and interfaces near occupied or finished spaces\n\n1. Task Scope & Work Conditions\n\n1.1 Task purpose  This task covers surface prep, solvent management, brush or roller touch-up, and cure management for structural steel in the field.\n\n1.2 Main exposure profile  The main exposures during this task are flammable vapor accumulation, slips on coated surfaces, falls from ladders or lifts, and overspray or odor migration to occupants.\n\n2. Pre-Task & Pre-Construction Planning\n\n2.1 Planning focus  The planning review should address ventilation, respiratory protection, ignition sources, HVAC isolation, and weather windows for recoat.\n\n2.2 Daily startup review  The daily review should identify wind direction relative to air intakes and occupied floors.\n\n3. Required Equipment and Access\n\n3.1 Core equipment  Typical equipment includes grounded spray or roller carts, spill kits, SDS binders, and fall protection for ladder or lift work.\n\n3.2 Access and support  Lifts shall be rated for floor loading; outriggers shall use pads that protect finished slabs.\n\n4. Hazards & Controls\n\n4.1 Main hazards  The key hazards in this task are fire, inhalation, slips, and incompatible coating batches.\n\n4.2 Primary controls  Primary controls include ventilation, cartridge change schedules, bonding and grounding, and hot-work separation distances.\n\n5. Structural Stability / Sequence Controls\n\n5.1 Stability link  Application weights and crew placement shall not overload temporary access or handrails.\n\n5.2 Load and access limits  Do not stack material on guardrails or parapet anchors used as tie-off points.\n\n6. Training & Qualification Requirements\n\n6.1 Required knowledge  Workers should understand SDS Section 2 hazards, GHS pictograms, and emergency eyewash locations.\n\n6.2 Oversight roles  A competent person shall verify ventilation effectiveness before sustained application.\n\n7. Permit / Approval Triggers\n\n7.1 Typical approvals  Owner after-hours work, VOC variances, and fire-watch extensions may apply.\n\n7.2 Deviation handling  Tint or product substitutions require manufacturer written compatibility approval.\n\n8. Inspection, Acceptance, and Closeout\n\n8.1 Completion standard  The task is complete when DFT checks pass, cure times are recorded, and waste is properly labeled.\n\n8.2 Handoff to the next operation  The handoff should state cure restrictions before gasket or insulation contact.\n\n9. Additional Related Information\n\n9.1 Practical use  Use this module whenever field painting follows welding or blast repair.\n\n9.2 Recordkeeping and communication  Batch tickets and environmental readings shall be filed with QC.\n\nREFERENCE LANGUAGE AND OSHA SOURCE POINTS\n\nR2. The employer shall instruct each employee in the recognition and avoidance of unsafe conditions. 29 CFR 1926.21(b)(2).\n\nR5. The employer is responsible for requiring appropriate personal protective equipment where employees are exposed to hazardous conditions. 29 CFR 1926.28(a).\n\nR16. Debris must be kept cleared from work areas, passageways, and stairs, and waste handled at regular intervals. 29 CFR 1926.25(a)-(c).\n",
+    "sectionHeadings": [
+      "1. Task Scope & Work Conditions",
+      "1.1 Task purpose  This task covers surface prep, solvent management, brush or roller touch-up, and cure management for structural steel in the field.",
+      "1.2 Main exposure profile  The main exposures during this task are flammable vapor accumulation, slips on coated surfaces, falls from ladders or lifts, and overspray or odor migration to occupants.",
+      "2. Pre-Task & Pre-Construction Planning",
+      "2.1 Planning focus  The planning review should address ventilation, respiratory protection, ignition sources, HVAC isolation, and weather windows for recoat.",
+      "2.2 Daily startup review  The daily review should identify wind direction relative to air intakes and occupied floors.",
+      "3. Required Equipment and Access",
+      "3.1 Core equipment  Typical equipment includes grounded spray or roller carts, spill kits, SDS binders, and fall protection for ladder or lift work.",
+      "3.2 Access and support  Lifts shall be rated for floor loading; outriggers shall use pads that protect finished slabs.",
+      "4. Hazards & Controls",
+      "4.1 Main hazards  The key hazards in this task are fire, inhalation, slips, and incompatible coating batches.",
+      "4.2 Primary controls  Primary controls include ventilation, cartridge change schedules, bonding and grounding, and hot-work separation distances.",
+      "5. Structural Stability / Sequence Controls",
+      "5.1 Stability link  Application weights and crew placement shall not overload temporary access or handrails.",
+      "5.2 Load and access limits  Do not stack material on guardrails or parapet anchors used as tie-off points.",
+      "6. Training & Qualification Requirements",
+      "6.1 Required knowledge  Workers should understand SDS Section 2 hazards, GHS pictograms, and emergency eyewash locations.",
+      "6.2 Oversight roles  A competent person shall verify ventilation effectiveness before sustained application.",
+      "7. Permit / Approval Triggers",
+      "7.1 Typical approvals  Owner after-hours work, VOC variances, and fire-watch extensions may apply.",
+      "7.2 Deviation handling  Tint or product substitutions require manufacturer written compatibility approval.",
+      "8. Inspection, Acceptance, and Closeout",
+      "8.1 Completion standard  The task is complete when DFT checks pass, cure times are recorded, and waste is properly labeled.",
+      "8.2 Handoff to the next operation  The handoff should state cure restrictions before gasket or insulation contact.",
+      "9. Additional Related Information",
+      "9.1 Practical use  Use this module whenever field painting follows welding or blast repair.",
+      "9.2 Recordkeeping and communication  Batch tickets and environmental readings shall be filed with QC."
+    ],
+    "summary": "Field touch-up painting on structural steel with solvent, ventilation, fall, and cure controls",
+    "sourceFilename": "Task_12_Touch_Up_Painting.docx",
+    "triggerManifest": {
+      "tradeKeywords": [
+        "steel",
+        "ironwork",
+        "structural steel"
+      ],
+      "subTradeKeywords": [
+        "steel erection",
+        "decking",
+        "ironworker"
+      ],
+      "taskNames": [
+        "Touch-up painting"
+      ],
+      "taskKeywords": [
+        "touch-up",
+        "touch up",
+        "painting",
+        "primer",
+        "coating"
+      ],
+      "taskAliases": [
+        "steel touch up",
+        "field painting steel"
+      ],
+      "pshsepScopeKeywords": [
+        "steel erection",
+        "structural steel"
+      ],
+      "highRiskKeywords": [
+        "steel erection / rigging",
+        "hot work / fire watch"
+      ],
+      "assumedTradeKeywords": [
+        "steel erection",
+        "ironwork"
+      ],
+      "exportProgramIds": [
+        "steel_erection",
+        "hot_work"
+      ]
+    }
   }
 ] as const;
 

@@ -342,7 +342,7 @@ function buildDefaultAcceptanceCheck(
     return "Weather Response lists daily monitoring source, communication path, named work restrictions for ice/wind/lightning/heat/cold, and the stop-work trigger for each.";
   }
   if (lower.includes("site") && (lower.includes("note") || lower.includes("specific"))) {
-    return "Site-Specific Notes lists the project's site constraints, adjacent operations, and coordination requirements that crews must review during the morning huddle.";
+    return "Project-Specific Safety Notes capture site constraints, owner or GC rules, access limits, logistics, and weather concerns that are not already listed in Scope Summary; crews should review them during the huddle.";
   }
   if (lower.includes("training")) {
     return "Training Requirements names OSHA 10/30 expectations, Subpart R or other task-specific training, competent-person designations, and where records are kept.";

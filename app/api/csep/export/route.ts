@@ -40,6 +40,13 @@ import {
   CONTRACTOR_SAFETY_BLUEPRINT_TITLE,
   getSafetyBlueprintDraftFilename,
 } from "@/lib/safetyBlueprintLabels";
+import { formatGcCmPartnersForExport, normalizeGcCmPartnerEntries } from "@/lib/csepGcCmPartners";
+import { buildCsepPpeSectionBullets } from "@/lib/csepFinalization";
+import {
+  CSEP_WORK_ATTIRE_DEFAULT_BULLETS,
+  CSEP_WORK_ATTIRE_SUBSECTION_BODY,
+} from "@/lib/csepWorkAttireDefaults";
+import { PROJECT_SPECIFIC_SAFETY_NOTES_EMPTY_FALLBACK } from "@/lib/csepSiteSpecificNotes";
 import { loadGeneratedDocumentDraft } from "@/lib/safety-intelligence/repository";
 import type { CsepWeatherSectionInput } from "@/types/csep-builder";
 import type { DocumentBuilderTextConfig } from "@/types/document-builder-text";
@@ -61,6 +68,7 @@ type IncludedContent = {
   site_specific_notes?: boolean;
   emergency_procedures?: boolean;
   weather_requirements_and_severe_weather_response?: boolean;
+  work_attire_requirements?: boolean;
   required_ppe?: boolean;
   additional_permits?: boolean;
   common_overlapping_trades?: boolean;
@@ -84,7 +92,8 @@ type CSEPInput = {
   project_address: string;
   owner_client: string;
   owner_message_text?: string;
-  gc_cm: string;
+  /** One organization per entry; legacy callers may still send a single string. */
+  gc_cm: string | string[];
 
   contractor_company: string;
   contractor_contact: string;
@@ -174,8 +183,8 @@ function buildProjectInfoTable(form: CSEPInput) {
       valueOrNA(form.owner_client),
     ],
     [
-      "GC / CM",
-      valueOrNA(form.gc_cm),
+      "GC / CM / program partners",
+      formatGcCmPartnersForExport(normalizeGcCmPartnerEntries(form.gc_cm)),
       "Trade",
       valueOrNA(form.trade),
     ],
@@ -523,6 +532,7 @@ function normalizeIncludedContent(form: CSEPInput): Required<IncludedContent> {
     site_specific_notes: true,
     emergency_procedures: true,
     weather_requirements_and_severe_weather_response: true,
+    work_attire_requirements: true,
     required_ppe: true,
     additional_permits: true,
     common_overlapping_trades: true,
@@ -733,7 +743,7 @@ async function buildDoc(form: CSEPInput) {
 
   if (includedContent.scope_of_work) {
     const section = getResolvedCsepSection(builderTextConfig, "scope_of_work");
-    children.push(heading1(`${sectionNumber}. ${section?.title ?? "Scope of Work"}`));
+    children.push(heading1(`${sectionNumber}. ${section?.title ?? "Scope Summary"}`));
     children.push(
       body(
         valueOrNA(form.scope_of_work) === "N/A"
@@ -747,12 +757,11 @@ async function buildDoc(form: CSEPInput) {
 
   if (includedContent.site_specific_notes) {
     const section = getResolvedCsepSection(builderTextConfig, "site_specific_notes");
-    children.push(heading1(`${sectionNumber}. ${section?.title ?? "Site Specific Notes"}`));
+    children.push(heading1(`${sectionNumber}. ${section?.title ?? "Project-Specific Safety Notes"}`));
     children.push(
       body(
         valueOrNA(form.site_specific_notes) === "N/A"
-          ? section?.paragraphs[0] ??
-              "Site-specific constraints, active construction conditions, adjacent operations, and coordination requirements shall be reviewed daily before work begins."
+          ? section?.paragraphs[0] ?? PROJECT_SPECIFIC_SAFETY_NOTES_EMPTY_FALLBACK
           : valueOrNA(form.site_specific_notes)
       )
     );
@@ -819,18 +828,25 @@ async function buildDoc(form: CSEPInput) {
     sectionNumber++;
   }
 
+  if (includedContent.work_attire_requirements) {
+    children.push(heading1(`${sectionNumber}. Work Attire Requirements`));
+    children.push(body(CSEP_WORK_ATTIRE_SUBSECTION_BODY));
+    appendNumberedItems(children, String(sectionNumber), [...CSEP_WORK_ATTIRE_DEFAULT_BULLETS]);
+    sectionNumber++;
+  }
+
   if (includedContent.required_ppe) {
     const section = getResolvedCsepSection(builderTextConfig, "required_ppe");
     children.push(
       heading1(
-        `${sectionNumber}. ${section?.title ?? "Required Personal Protective Equipment"}`
+        `${sectionNumber}. ${section?.title ?? "Required PPE"}`
       )
     );
-    if (requiredPPE.length) {
-      appendNumberedItems(children, String(sectionNumber), requiredPPE);
-    } else {
-      children.push(body(section?.paragraphs[0] ?? "No additional PPE selections were entered."));
-    }
+    appendNumberedItems(
+      children,
+      String(sectionNumber),
+      buildCsepPpeSectionBullets(requiredPPE, [])
+    );
     sectionNumber++;
   }
 
@@ -1133,7 +1149,7 @@ function buildSurveyTestDoc(form: CSEPInput) {
     project_number: form.project_number ?? "",
     project_address: form.project_address ?? "",
     owner_client: form.owner_client ?? "",
-    gc_cm: form.gc_cm ?? "",
+    gc_cm: normalizeGcCmPartnerEntries(form.gc_cm ?? []),
     contractor_company: form.contractor_company ?? "",
     contractor_contact: form.contractor_contact ?? "",
     contractor_phone: form.contractor_phone ?? "",
@@ -1215,7 +1231,7 @@ function buildSurveyTestDoc(form: CSEPInput) {
       children.push(heading2("2.B Active scope of work"));
       children.push(body(valueOrNA(form.scope_of_work)));
       if (valueOrNA(form.site_specific_notes) !== "N/A") {
-        children.push(heading2("2.C Site-specific notes"));
+        children.push(heading2("2.C Project-specific safety notes"));
         children.push(body(valueOrNA(form.site_specific_notes)));
       }
     }
@@ -1310,12 +1326,16 @@ export async function generateCsepDocx(
   options?: {
     supabase?: GeneratedDocumentDraftLoaderClient;
     companyId?: string | null;
+    /** Workspace company name for every-page DOCX footer (falls back to Safety360Docs when empty). */
+    footerCompanyName?: string | null;
   }
 ) {
   let rendered: { body: Uint8Array; filename: string } | null = null;
 
   if (hasGeneratedDraftPayload(form)) {
-    rendered = await renderGeneratedCsepDocx(form.draft);
+    rendered = await renderGeneratedCsepDocx(form.draft, {
+      footerCompanyName: options?.footerCompanyName,
+    });
   } else if (hasGeneratedDocumentReference(form) && options?.supabase) {
     if (!options.companyId) {
       // Do not leak row existence across tenants: mirror the generic error
@@ -1327,7 +1347,9 @@ export async function generateCsepDocx(
       form.generatedDocumentId,
       options.companyId
     );
-    rendered = await renderGeneratedCsepDocx(draft);
+    rendered = await renderGeneratedCsepDocx(draft, {
+      footerCompanyName: options?.footerCompanyName,
+    });
   }
 
   if (!rendered) {
@@ -1389,6 +1411,7 @@ export async function generateCsepDocx(
         form: legacyForm,
         builderTextConfig,
         programSections,
+        footerCompanyName: options?.footerCompanyName,
       });
       rendered = await renderCsepRenderModel(model);
     }
@@ -1421,18 +1444,15 @@ export async function POST(req: Request) {
       draft?: GeneratedSafetyPlanDraft | null;
     };
 
-    // Only resolve the company scope when we actually need to load a stored
-    // draft by id; the legacy form path and the inline-draft path do not read
-    // `company_generated_documents`.
+    const companyScope = await getCompanyScope({
+      supabase: auth.supabase as unknown as { from: (table: string) => unknown },
+      userId: auth.user.id,
+      fallbackTeam: auth.team,
+      authUser: auth.user,
+    });
+
     let companyId: string | null = null;
     if (hasGeneratedDocumentReference(form) && !hasGeneratedDraftPayload(form)) {
-      const companyScope = await getCompanyScope({
-        supabase: auth.supabase as unknown as { from: (table: string) => unknown },
-        userId: auth.user.id,
-        fallbackTeam: auth.team,
-        authUser: auth.user,
-      });
-
       if (!companyScope.companyId) {
         return new NextResponse(
           JSON.stringify({ error: "Generated document not found." }),
@@ -1446,6 +1466,7 @@ export async function POST(req: Request) {
     return await generateCsepDocx(form, {
       supabase: auth.supabase,
       companyId,
+      footerCompanyName: companyScope.companyName,
     });
   } catch (error) {
     console.error(`${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} export error:`, error);

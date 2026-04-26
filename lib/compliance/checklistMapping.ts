@@ -25,6 +25,9 @@ function readPath(source: Record<string, unknown>, path: string): unknown {
 
 function hasSignal(value: unknown): boolean {
   if (Array.isArray(value)) {
+    if (value.every((entry) => typeof entry === "string")) {
+      return value.some((entry) => entry.trim().length > 0);
+    }
     return value.length > 0;
   }
   if (typeof value === "boolean") {
@@ -78,6 +81,7 @@ function keywordCorpus(surface: ChecklistSurface, formData: Record<string, unkno
           "additional_permits",
           "required_ppe",
           "tradeItems",
+          "gc_cm",
         ]
       : [
           "company_name",

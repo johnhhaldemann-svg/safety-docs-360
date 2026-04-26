@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
+import { refreshRiskMemoryRollupForCompany } from "@/lib/riskMemory/refreshCompany";
 import { generateDocumentDraft } from "@/lib/safety-intelligence/ai/documentGenerationService";
 import { generateRiskIntelligence } from "@/lib/safety-intelligence/ai/riskIntelligenceService";
-import { buildAiReviewContext } from "@/lib/safety-intelligence/service";
+import { buildSmartSafetyAiReviewContext } from "@/lib/safety-intelligence/engine/orchestrator";
 import { buildBucketedWorkItem } from "@/lib/safety-intelligence/buckets";
 import { authorizeSafetyIntelligenceRequest, type SafetyIntelligenceAuthorized } from "@/lib/safety-intelligence/http";
 import { persistAiReview } from "@/lib/safety-intelligence/repository";
@@ -29,13 +30,16 @@ export async function POST(request: Request) {
       jobsiteId: input.jobsiteId ?? null,
       days: 90,
     });
-    const setup = buildAiReviewContext({
-      input: { ...input, companyId: resolved.companyScope.companyId },
-      bucket: buildBucketedWorkItem({ ...input, companyId: resolved.companyScope.companyId }),
+    const scopedInput = { ...input, companyId: resolved.companyScope.companyId };
+    const bucket = buildBucketedWorkItem(scopedInput);
+    const setup = await buildSmartSafetyAiReviewContext({
+      input: scopedInput,
+      bucket,
       riskMemorySummary: (riskMemory ?? null) as JsonObject | null,
+      supabase: resolved.supabase,
     });
     const reviewContext = {
-      ...setup.context,
+      ...setup.reviewContext,
       documentType,
     };
     const [document, risk] = await Promise.all([
@@ -50,11 +54,18 @@ export async function POST(request: Request) {
       {
         document: document.record,
         risk: risk.record,
+        smartSafetyProvenance: reviewContext.smartSafetyProvenance ?? null,
       },
       resolved.user.id,
       document.model ?? risk.model,
       document.promptHash ?? risk.promptHash
     );
+
+    void refreshRiskMemoryRollupForCompany({
+      supabase: resolved.supabase,
+      companyId: resolved.companyScope.companyId,
+      jobsiteId: input.jobsiteId ?? null,
+    }).catch(() => {});
 
     return NextResponse.json({
       aiReviewId,

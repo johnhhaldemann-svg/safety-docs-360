@@ -1,37 +1,35 @@
 import { describe, expect, it } from "vitest";
 import {
+  getProjectSpecificSafetyNotesNarrativeBody,
   getSiteSpecificNotesNarrativeBody,
-  NON_STEEL_SITE_NOTES_FALLBACK,
-  STEEL_DECKING_SITE_NOTES_FALLBACK,
+  PROJECT_SPECIFIC_SAFETY_NOTES_EMPTY_FALLBACK,
 } from "@/lib/csepSiteSpecificNotes";
 
-describe("csepSiteSpecificNotes", () => {
+describe("csepSiteSpecificNotes / project-specific safety notes", () => {
   it("uses user text when provided", () => {
     expect(
-      getSiteSpecificNotesNarrativeBody({
+      getProjectSpecificSafetyNotesNarrativeBody({
         userText: "  Gate 3 only after 6am.  ",
-        steelErectionInScope: true,
       })
     ).toBe("Gate 3 only after 6am.");
   });
 
-  it("uses steel fallback when user text is empty and steel is in scope", () => {
+  it("uses the standard empty fallback when user text is empty", () => {
+    expect(getProjectSpecificSafetyNotesNarrativeBody({ userText: "" })).toBe(
+      PROJECT_SPECIFIC_SAFETY_NOTES_EMPTY_FALLBACK
+    );
+    expect(getProjectSpecificSafetyNotesNarrativeBody({ userText: null })).toBe(
+      PROJECT_SPECIFIC_SAFETY_NOTES_EMPTY_FALLBACK
+    );
+    expect(PROJECT_SPECIFIC_SAFETY_NOTES_EMPTY_FALLBACK).toContain("Field supervision shall confirm");
+  });
+
+  it("legacy getSiteSpecificNotesNarrativeBody ignores steel flag and matches new helper", () => {
     expect(
       getSiteSpecificNotesNarrativeBody({
         userText: "",
         steelErectionInScope: true,
       })
-    ).toBe(STEEL_DECKING_SITE_NOTES_FALLBACK);
-    expect(STEEL_DECKING_SITE_NOTES_FALLBACK).toContain("structural steel erection and decking");
-  });
-
-  it("uses non-steel fallback when user text is empty and steel is not in scope", () => {
-    expect(
-      getSiteSpecificNotesNarrativeBody({
-        userText: null,
-        steelErectionInScope: false,
-      })
-    ).toBe(NON_STEEL_SITE_NOTES_FALLBACK);
-    expect(NON_STEEL_SITE_NOTES_FALLBACK).toContain("selected construction trade");
+    ).toBe(PROJECT_SPECIFIC_SAFETY_NOTES_EMPTY_FALLBACK);
   });
 });

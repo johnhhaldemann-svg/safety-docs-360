@@ -32,6 +32,22 @@ function trimPlainText(value: string, maxLength: number) {
   return `${value.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
+/** Same line filters as steel task modules; no-op for typical site-management packs. */
+function stripSiteTaskModulePlainTextBoilerplate(plainText: string) {
+  return plainText
+    .split("\n")
+    .filter(
+      (line) =>
+        !/this task element supports steel-erection planning, training, and field execution/i.test(
+          line
+        ) &&
+        !/it focuses on the practical steps needed to perform the task safely and hand it off cleanly to the next crew\.?$/i.test(
+          line.trim()
+        )
+    )
+    .join("\n");
+}
+
 export function getSiteManagementTaskModules(): SiteManagementTaskModule[] {
   return SITE_MANAGEMENT_TASK_MODULES.map((module) => ({
     ...module,
@@ -79,7 +95,10 @@ export function buildTaskModuleAiContext(
     taskNames: [...module.taskNames],
     summary: module.summary,
     sectionHeadings: module.sectionHeadings.slice(0, 12),
-    plainText: trimPlainText(module.plainText, plainTextMaxLength),
+    plainText: trimPlainText(
+      stripSiteTaskModulePlainTextBoilerplate(module.plainText),
+      plainTextMaxLength
+    ),
     sourceFilename: module.sourceFilename,
   }));
 }
