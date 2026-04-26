@@ -10,6 +10,7 @@ import {
   filterTasksForSteelHazardMatrix,
   getSteelErectionTaskMatrixContent,
 } from "@/lib/steelErectionTaskMatrix";
+import { CSEP_STOP_WORK_UNIVERSAL_AUTHORITY } from "@/lib/csepStopWorkLanguage";
 import type {
   GeneratedSafetyPlanDraft,
   GeneratedSafetyPlanSection,
@@ -259,7 +260,7 @@ function buildSteelErectionFallRescueSubsections(
   const immediateBody = [
     "This subsection applies to emergency response after a fall at height, a fall arrest (including worker suspension), or a serious injury during steel erection or decking. The immediate priority is 911, scene control, and proper notification—not improvised rescue by untrained workers.",
     "Take these steps in order:",
-    "1) Stop work in the affected area and secure the scene: control who enters, prevent additional fall or struck-by exposure, and stop overhead picks, swing, or other activity that could worsen the situation until the scene is under control.",
+    `1) ${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} Stop work in the affected area and secure the scene: control who enters, prevent additional fall or struck-by exposure, and stop overhead picks, swing, or other activity that could worsen the situation until the scene is under control.`,
     `2) ${call911}`,
     `3) After 911, notify or radio site leadership without delay: ${notify}. Do not wait to finish paperwork before making these notifications.`,
     "4) On-site extrication, lowering, or winch rescue may begin only for personnel who are trained, equipped, and authorized under this plan. If the event exceeds on-site capability, keep the area secure and hand off technical rescue to arriving fire/EMS.",

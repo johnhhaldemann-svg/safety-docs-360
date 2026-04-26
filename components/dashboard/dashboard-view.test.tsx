@@ -21,6 +21,7 @@ const baseData: DashboardDataState = {
   loading: false,
   userRole: "company_admin",
   userTeam: "Operations",
+  linkedContractorId: null,
   permissionMap: {
     can_manage_company_users: true,
     can_manage_users: true,
@@ -145,6 +146,7 @@ const baseData: DashboardDataState = {
       },
     ],
   },
+  dashboardMetrics: null,
   revenueReadiness: null,
   companyWorkspaceLoaded: true,
   companyWorkspaceLoading: false,

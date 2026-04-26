@@ -4,8 +4,10 @@ import {
   buildCsepOutlinePlan,
   buildCsepRenderModelFromGeneratedDraft,
   buildCsepTemplateSections,
+  buildHazardFlatProgramGroupsForTest,
   renderGeneratedCsepDocx,
 } from "@/lib/csepDocxRenderer";
+import { CSEP_SAFETY_PROGRAM_REFERENCE_PACK_KEY } from "@/lib/csepSafetyProgramReferenceRelocation";
 import type { GeneratedSafetyPlanDraft } from "@/types/safety-intelligence";
 
 async function unzipDocx(body: Uint8Array | ArrayBuffer) {
@@ -320,6 +322,44 @@ describe("csepDocxRenderer", () => {
     ).toContain("No craft-specific union");
     expect(sections.find((section) => section.key === "sign_off_page")?.numberLabel).toBeUndefined();
     expect(sections.find((section) => section.key === "table_of_contents")?.numberLabel).toBeUndefined();
+  });
+
+  it("groups catalog program subsections so one program maps to one flat outline bucket in hazards", () => {
+    const subs = [
+      { title: "Fall Protection Program", paragraphs: ["Intro for the program."], items: [] as string[] },
+      {
+        title: "Fall Protection Program: When It Applies",
+        paragraphs: ["Detail A."],
+        items: [] as string[],
+      },
+      {
+        title: "Fall Protection Program: Work Execution",
+        paragraphs: [],
+        items: ["Detail B."],
+      },
+      { title: "Hot Work Program", paragraphs: ["Hot intro."], items: [] as string[] },
+      {
+        title: "Hot Work Program: Stop-Work / Escalation",
+        paragraphs: [],
+        items: ["Stop detail."],
+      },
+    ];
+    const groups = buildHazardFlatProgramGroupsForTest(subs, "hazards_and_controls");
+    expect(groups).toHaveLength(2);
+    expect(groups[0]).toHaveLength(3);
+    expect(groups[1]).toHaveLength(2);
+  });
+
+  it("groups em-dash appendix reference rows by program title prefix", () => {
+    const subs = [
+      { title: "Alpha Program — overview", paragraphs: ["o"], items: [] as string[] },
+      { title: "Alpha Program — narrative", paragraphs: ["n"], items: [] as string[] },
+      { title: "Beta Program — overview", paragraphs: ["x"], items: [] as string[] },
+    ];
+    const groups = buildHazardFlatProgramGroupsForTest(subs, CSEP_SAFETY_PROGRAM_REFERENCE_PACK_KEY);
+    expect(groups).toHaveLength(2);
+    expect(groups[0]).toHaveLength(2);
+    expect(groups[1]).toHaveLength(1);
   });
 
   it("replaces repeated policy text inside hazard modules with short cross-references", () => {

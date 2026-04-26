@@ -115,6 +115,7 @@ describe("dashboardLayout", () => {
     expect(availableBlockIds).toContain("graph_hazard_trends");
     expect(availableBlockIds).toContain("graph_jobsite_risk");
     expect(availableBlockIds).toContain("graph_observation_mix");
+    expect(availableBlockIds).toContain("graph_workspace_signals");
   });
 
   it("pinDashboardBlockToLayout leaves layout unchanged when the block is already present", () => {

@@ -19,14 +19,15 @@ export const STEEL_TASK_MODULE_SUBSECTION_MIN_LINES = 4;
 
 const GENERIC_STEEL_TASK_PACK: SteelTaskModuleSafetyPlanPack = {
   safetyExposure: [
-    "Workers may be exposed to suspended loads, line-of-fire contact with moving steel, falls from incomplete walking surfaces, struck-by from tools or materials, and changing sequence conditions that erode established controls.",
+    "Fall from height is a major exposure whenever work occurs on structural steel, open metal deck, leading edges, incomplete floors, or narrow members before permanent guardrails or an approved alternative is in place.",
+    "Suspended loads and struck-by exposure are major whenever steel is hoisted, swung, landed, or released; line-of-fire contact with moving steel, crane components, rigging, and rolling or shifting materials adds crush and struck-by risk.",
     "Interfaces with other trades, equipment traffic, and incomplete barricades can widen the exposure footprint without a fresh hazard briefing.",
-    "Hearing, visibility, and thermal stress can compound recognition of movement hazards during crane picks and ground-clearing activity.",
     "Structural instability or unverified anchor conditions may be inherited if work begins before written notifications and field verification are complete.",
   ],
   requiredSafetyControls: [
     "Assign a competent person for the shift, document the pre-task plan, and verify hoisting, access, fall protection, and emergency communications before exposing crews.",
-    "Maintain barricades, swing-radius controls, spotters where required, and exclusion under suspended loads at all times during active picks.",
+    "For fall-from-height exposure, implement the site steel erection and fall-protection plan (100% tie-off, positioning, controlled decking zones, or collective systems as applicable) and verify anchorage and rescue before work at elevation.",
+    "For suspended-load and struck-by exposure, maintain barricades, swing-radius controls, spotters where required, and a hard rule that no employee may work, stand, or pass under a suspended load during any phase of the pick.",
     "Use engineering documents and approved sequences for bolting, bracing, and decking; do not substitute field judgment for missing approvals.",
     "Keep housekeeping, tag lines, rigging inspections, and two-way radio discipline aligned with the site lift plan and Subpart R coordination requirements.",
   ],
@@ -65,14 +66,17 @@ const GENERIC_STEEL_TASK_PACK: SteelTaskModuleSafetyPlanPack = {
 export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSafetyPlanPack> = {
   steel_pre_erection_planning_and_site_readiness: {
     safetyExposure: [
+      "Fall from height is a major exposure during walkdowns or layout at slab edges, column lines, or partial deck when the same leading-edge and opening controls required for production steel work are not in place.",
       "Premature lifting or loading before concrete and anchor notifications are satisfied can overload bases, rods, or partially cured supports.",
       "Congested laydown, unclear crane staging, and weak perimeter security increase struck-by and caught-between risk for survey, trucking, and ironworkers.",
+      "Suspended-load paths and early crane assembly create struck-by exposure if swing limits, matting, and exclusion zones are not defined before the first pick.",
       "Overhead and buried utilities that are not field-verified create shock, arc, strike, or excavation release exposures during mat placement and early picks.",
       "Poorly sequenced deliveries and incomplete access roads can destabilize cranes, trailers, and walking routes before the first engineered pick.",
     ],
     requiredSafetyControls: [
       "Verify written concrete strength and anchor-rod status per controlling-contractor notifications before mobilizing picks onto those supports.",
       "Define crane locations, outrigger mats, swing limits, exclusion zones, and laydown order on drawings or written lift plans reviewed with the crew.",
+      "For any elevated review or layout, provide fall protection, controlled access at leading edges, and opening covers consistent with the active fall-protection plan; do not treat planning visits as exempt from Subpart M and steel erection fall rules.",
       "Confirm weather triggers, manning levels, and rescue/fall plans for early leading-edge exposures before authorizing access to elevated sequencing reviews.",
       "Stage barricades, signage, and traffic control for deliveries so pedestrian and equipment routes cannot drift into active work paths.",
     ],
@@ -110,13 +114,14 @@ export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSaf
 
   steel_receiving_unloading_inspecting_and_staging: {
     safetyExposure: [
-      "Suspended loads over personnel and rigging attachment mistakes during offload remain the primary life-safety exposures.",
-      "Shifting dunnage, unstable stacks, and improvised shims create crush and roll exposures for taggers and inspectors walking bundles.",
+      "Suspended loads and struck-by exposure are major during unload: the load may swing, rotate, or drop if rigging fails, tag lines are lost, or the crew enters the line of fire; no employee may be under the load during hook-up, travel, or set-down.",
+      "Struck-by and caught-between exposure continues after the hook releases from shifting dunnage, unstable stacks, rolling members, and forklifts or haul trucks operating in the same unloading lane.",
       "Sharp edges, banding, and coating flakes drive cut, puncture, and respiratory irritation risks during shakeout.",
       "Traffic from haul trucks and forklifts around blind corners elevates struck-by risk for spotters and ironworkers simultaneously.",
     ],
     requiredSafetyControls: [
       "Use qualified riggers and documented rigging components for every lift; reject frayed straps, altered shackles, and mismatched WLL tags.",
+      "Establish and enforce an exclusion zone for the full swing and landing path; use tag lines and radio signals so no one enters the suspended-load footprint during any phase of the unload.",
       "Maintain dedicated landing zones, tag lines, controlled approach angles, and two-way radio discipline for every pick off the truck.",
       "Stack and chock in erection order with engineered or manufacturer limits for height, tier width, and slope; band distressed members out of service.",
       "Inspect for shipping damage, camber mismatch, and connection interference before members enter the active setting path.",
@@ -155,13 +160,16 @@ export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSaf
 
   steel_setting_columns_and_base_lines: {
     safetyExposure: [
-      "Column picks place workers near suspended loads, high binding compression, and moving tails during rotation.",
+      "Suspended loads and struck-by / pinch exposure are major during column erection: the column is a suspended load until landed and stabilized; swing, rotation, and tail lines can strike or crush workers in the line of fire.",
+      "Fall from height is a major exposure when workers access column tops, climbing aids, or adjacent slab or deck edges for plumbing, nut starting, or template work before guardrails or an approved fall system is in place.",
       "Workers aligning bases encounter pinch at anchor rods, shear on wedge packs, and falls at slab edges while plumbing.",
       "Early removal of temporary guys or premature loading of lines before final torque can destabilize the bay.",
       "Dropped tools and small hardware from elevation threaten crews on lower decks during plumbing activities.",
     ],
     requiredSafetyControls: [
       "Follow documented pick points, orientation marks, and connection sequence; double-check anchor engagement before releasing the crane hook from primary support.",
+      "Barricade and control the swing path; keep personnel outside the suspended column footprint except named rigging/receiving roles; stop the pick if anyone enters the line of fire.",
+      "Provide fall protection and access consistent with the steel erection plan for all work at elevation on or beside the column line.",
       "Install temporary bracing, guy cables, or tierods per detail before removing erection tackle that restrains drift.",
       "Use controlled tag line angles and prevent hands-on guided landings that place bodies inside pinch cylinders.",
       "Coordinate parallel welders or bolting crews so simultaneous heat or hammer blows cannot spring the member off seating.",
@@ -200,15 +208,17 @@ export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSaf
 
   steel_erecting_beams_and_girders_initial_connections: {
     safetyExposure: [
+      "Fall from height is a major exposure during connecting, beam setting, leading-edge work, and initial bolting while workers receive steel on narrow members, open bays, or incomplete deck with unprotected sides and openings.",
+      "Suspended loads and struck-by exposure are major: the beam is a suspended load until initial connection and release criteria are met; swing, uncontrolled rotation, drift pins, hammer blows, and rebound can strike workers in the line of fire.",
       "Suspended beams share pinch points with seat connections, drifting drift pins, and unpredicted rotation if center-of-gravity is misunderstood.",
-      "Connectors working leading edges while aligning bolt holes remain in fall exposure until decking closes the bay.",
       "Multiple workers on the same member during initial drift pin insertion increase struck-by risk from hammers and wrenches.",
       "Deck and joist sequencing gaps can expose connectors to unprotected openings below foot placement.",
     ],
     requiredSafetyControls: [
+      "Implement connector and leading-edge fall protection per the site steel erection plan (including 100% tie-off, positioning, or approved controlled zones) before exposing workers for connecting, beam setting, or initial bolting.",
       "Install initial drift pins and release bolts per detail before releasing primary rigging unless engineered alternative sequences are approved.",
       "Maintain sequential bolting patterns and partial joint packs to preserve frame stability as beams are landed.",
-      "Use engineered falsework, bull pins, or tag line tethers so connectors are never under the hook load path.",
+      "Use engineered falsework, bull pins, or tag line tethers so connectors are never under the hook load path; verify exclusion under the load before each crane movement.",
       "Protect below with barricades or netting when work fronts overlap occupied lower levels.",
     ],
     accessRestrictions: [
@@ -245,6 +255,7 @@ export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSaf
 
   steel_hoisting_and_rigging_multiple_lift: {
     safetyExposure: [
+      "Suspended loads and struck-by exposure are major for rigging and every crane pick: the load path, swing radius, and landing zone must treat the steel as a suspended hazard until rigging is fully released and the area is clear.",
       "Standard single-member picks expose workers under swing, at landing pinch, and along tag-line routes.",
       "Multiple-lift procedures add exposure from unequal center of gravity, dynamic load sharing, and simultaneous disconnection risks.",
       "Rigging failure, miscalculation of sling angles, or degraded hardware may cause sudden load transfer or shock loading.",
@@ -252,6 +263,7 @@ export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSaf
     ],
     requiredSafetyControls: [
       "Apply qualified rigger designation for every configuration; document calculated sling angles, capacities, and D/d ratios before the first movement.",
+      "Barricade and mark the swing path and landing zone; verify no personnel under or in the line of fire of the suspended load before each lift movement.",
       "Use a dedicated lift director for complex picks; rehearse emergency lowering paths and stop signals with operators and signal persons.",
       "For multiple-member picks, verify engineered procedures, de-rate factors, and tag line staffing before lifting more than one element unless explicitly permitted by code and plan.",
       "Inspect hooks, latches, sheaves, and anti-two-block devices at shift start; replace any questionable hardware before picks resume.",
@@ -290,15 +302,18 @@ export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSaf
 
   steel_installing_open_web_steel_joists_and_bridging: {
     safetyExposure: [
+      "Fall from height is a major exposure while placing joists, making seat connections, and installing bridging across unguarded bays, top chords, and leading-edge conditions before the deck or guardrails close the fall hazard.",
+      "Suspended loads and struck-by exposure are major during joist picks: joists can roll, slide on seats, or swing into workers if center of gravity, tag lines, or landing control are wrong.",
       "Instability during initial joist placement and bridging sequence creates roll-over exposure and line-of-fire from sliding chord seats.",
       "Workers installing bridging across unguarded bays face falls and seesaw effects when mid-span anchors are incomplete.",
       "Bundle banding snap-back and toppling bundles threaten feet and shins near laydown.",
       "Instability during erection when bridging rows called out on drawings are skipped to accelerate decking.",
     ],
     requiredSafetyControls: [
+      "Provide fall protection and access for joist and bridging work per the steel erection plan before exposing workers at elevation.",
       "Follow manufacturer and erector-specific bridging diagrams; never delete intermediate lateral restraint to accelerate decking.",
       "Use mechanical picks sized for combined weight and center of gravity; avoid free-standing joists without minimum bridging rows installed.",
-      "Capture both chords when stabilizing with cables; verify seat bearing length and weldable tags before releasing hook.",
+      "Capture both chords when stabilizing with cables; verify seat bearing length and weldable tags before releasing hook; keep personnel clear of the suspended joist path.",
       "Coordinate crane rate-of-travel with connectors to avoid oscillation resonance.",
     ],
     accessRestrictions: [
@@ -335,13 +350,17 @@ export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSaf
 
   steel_installing_metal_decking_and_controlling_openings: {
     safetyExposure: [
+      "Fall from height and leading-edge exposure are major during decking install: workers spread sheets at advancing edges, deck openings, and incomplete walking surfaces where a slip or mis-step can result in a fall to a lower level.",
+      "Suspended loads and struck-by exposure are major during deck bundle landing and travel: bundles are heavy suspended loads that can swing, strike workers on the steel, or overload supporting members if landed outside the engineered zone.",
       "Installing metal decking creates leading-edge and sheet-slide exposures, especially during bundle spreads and initial fastening cycles.",
       "Controlling floor and roof openings demands continuous guarding; premature removal of covers invites falls through.",
       "Shear studs and tripping on weld slag add puncture and slip exposures on partially decked bays.",
       "Wind lift on unsecured sheets can push workers toward edges or snag lifelines.",
     ],
     requiredSafetyControls: [
+      "Land deck bundles only where engineering and the steel plan authorize the load; verify supporting steel, temporary restraint, and exclusion of personnel from the landing footprint before the bundle is lowered.",
       "Install deck in bundles only per engineered edge-protection scheme; secure each sheet or bundle immediately per fastening patterns.",
+      "Implement leading-edge and CDZ rules per the site program before advancing the deck edge; maintain 100% fall protection or approved CDZ elements for decking crews as required.",
       "Use pre-cut opening covers, guardrail kits, or engineered nets before creating new penetrations during layout.",
       "Sequence welding or button punching so workers are never downslope of unsecured leading edges without alternate fall protection.",
       "Label controlled decking zones, maximum uncovered widths, and access-only stairs at each deck elevation.",
@@ -380,16 +399,20 @@ export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSaf
 
   steel_plumbing_temporary_bracing_and_final_bolting: {
     safetyExposure: [
+      "Fall from height is a major exposure during final bolting and plumbing when workers lean or reach past lifelines, work from beams or joists with incomplete perimeter protection, or stand near unguarded openings.",
+      "Struck-by exposure includes rebound from stored energy in braces, dropped bolts and tools from elevation, and simultaneous crane activity if picks continue over the bay.",
       "Adjusting brace tension while partially loaded frames may elastically release and strike workers in rebound corridors.",
       "Final bolting can require leaning past protected lines to reach connections at hips and skewbacks.",
       "Hydraulic jacks and come-alongs can fail explosively if overrated or side-loaded during alignment pushes.",
       "Removing temporary kicker braces before final torque maps are satisfied risks progressive collapse of a tier.",
     ],
     requiredSafetyControls: [
+      "Provide fall protection and stable work positioning for all bolting and plumbing at elevation; re-verify anchorage and edge protection when workers must reach outside the original plan envelope.",
       "Follow engineered sequence maps for installing, adjusting, and removing temporary bracing; require sign-off before removal lists.",
       "Use engineered falsework or threaded rods for incremental pulls; prohibit random clip angles that overload seats.",
       "Torque or tension-control procedures per ASTM F3125 class and project QA sampling plan.",
       "Tag each brace with intended removal stage and responsible foreman so partial removals are auditable.",
+      "Use tool tethering and debris nets or barricades below active bolt-up to control struck-by from dropped hardware where personnel or occupied levels exist below.",
     ],
     accessRestrictions: [
       "Exclude trades from bays beneath active re-leveling unless overhead protection or shift timing isolates exposures.",
@@ -425,12 +448,18 @@ export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSaf
 
   steel_field_welding_cutting_and_shear_connectors: {
     safetyExposure: [
+      "Hot work during welding, thermal cutting, and grinding on structural steel is a major exposure: sparks, slag, molten metal, and grinding particles ignite combustibles, travel through openings, and burn workers; fumes and ultraviolet radiation add health and visibility hazards.",
+      "Shear connector (stud) welding adds concentrated arc, spatter, and fire exposure at deck and coating interfaces where molten metal can lodge in corrugations or against combustible forms.",
+      "Fall from height remains a major exposure when welding, cutting, or grinding at deck edges, column lines, or from lifts without continuous tie-off or guarded access.",
       "Ignition sources from welding and cutting introduce fire, explosion, and smoke travel into occupied lower floors.",
       "Slag fall and metal drop create thermal burn and strike injuries to personnel under or adjacent to the joint.",
       "Electric shock or arc flash can occur from damaged leads, wet gloves, or improper grounding paths on coated steel.",
       "Pinched cables across sharp deck edges create intermittent arcing that may not trip upstream protection instantly.",
     ],
     requiredSafetyControls: [
+      "Issue and comply with a hot-work permit for welding, cutting, and grinding; post fire watch, extinguishers, and spark shields sized to the joint and floor openings before striking an arc or starting a torch.",
+      "For grinding, control spark direction with shields or curtains, secure flammable materials outside the spark cone, and use fire-resistant tarps on deck when sparks could smolder under bundles or insulation.",
+      "For shear connector welding, sequence work so deck openings and combustible protection are shielded; inspect for trapped slag and hot studs before leaving the bay.",
       "Fire watch duration and extinguisher counts per hot-work permit; extend watches if smoldering insulation is plausible.",
       "Barricade vertical drop zones when cutting or gouging above active lower levels; use fire blankets or shields horizontally.",
       "Ground-return design ensures current path does not flow through worker touch points or crane hook bearings.",
@@ -470,12 +499,16 @@ export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSaf
 
   steel_embeds_setting_and_verification: {
     safetyExposure: [
+      "Fall from height is a major exposure when embed work occurs at slab edges, deck openings, column penetrations, or leading-edge conditions without continuous guardrails or an approved fall-protection system.",
+      "Suspended loads and struck-by exposure apply when heavy embeds are hoisted or when small picks swing over workers adjusting templates.",
       "Working at slab edges and deck openings while aligning plates or sleeves creates leading-edge fall exposure.",
       "Heavy embeds handled manually or with come-alongs can pinch feet or crush fingers against forms or steel.",
       "Burning or drilling to adjust embeds can ignite form oil, spray foam, or debris in edge forms.",
       "Electrical shock when verifying conduits tied to embedded junction boxes before full LOTO verification.",
     ],
     requiredSafetyControls: [
+      "Provide guardrails, covers, or personal fall-arrest systems for all embed verification at slab edges, openings, and column lines before workers lean out for layout or welding.",
+      "For hoisted embeds, use qualified rigging, barricaded swing paths, and exclusion of personnel under the load; spotters control equipment conflicts in the laydown or deck approach.",
       "Engineered pick points or small hoist paragraphs when embed mass exceeds two-person manual lift threshold established by site ergonomics program.",
       "Template alignment checks so embed verticality does not rely on body weighting or pry leverage beyond neutral balance.",
       "Shield combustibles whenever grinding or burning within 35 feet horizontally of class A plastic sheathing unless permit upgrades control exist.",
@@ -515,16 +548,18 @@ export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSaf
 
   steel_punch_list_and_closeout_remediation: {
     safetyExposure: [
-      "Return trips often mix incomplete guardrails, removed nets, and altered access ladders—reopening fall exposure.",
+      "Punch list work at elevation is a major fall-from-height exposure: return visits often encounter incomplete guardrails, removed nets, altered access ladders, or new openings—treat the roof and steel as unguarded until fall protection is re-verified for the task.",
+      "Suspended loads and struck-by exposure are major when isolated crane picks replace members or deliver small steel in tight swing paths over occupied or finished spaces.",
       "Small welding or grinding on occupied lower floors can reintroduce fire or fume paths through penetrations.",
-      "Isolated crane picks to replace members may occur with tighter site constraints than original erection.",
+      "Hot work, cutting, or grinding during punch remediation reintroduces ignition and fume exposure near finishes, stock, or intumescent coatings.",
       "Loose hardware left from torque checks can fall when vibration resumes from adjacent trades.",
     ],
     requiredSafetyControls: [
-      "Re-baseline JHA for each punch cluster; verify that fall protection has been re-established to current building occupancy rules.",
-      "Re-inspect rigging and operator cards before one-off picks; mini-picks still follow full Subpart CC discipline scaled to load.",
+      "Re-baseline JHA for each punch cluster; verify that fall protection, opening covers, and leading-edge controls match current building conditions and occupancy rules before starting punch work at elevation.",
+      "Re-inspect rigging and operator cards before one-off picks; mini-picks still follow full Subpart CC discipline scaled to load; barricade swing and prohibit personnel under the load path.",
       "Control housekeeping each shift; tag and bag removed fasteners instead of loose buckets at parapet.",
       "Coordinate with GC for building smoke and HVAC modes before reopening penetrations.",
+      "Apply hot-work permits, fire watch, and spark control whenever punch-list welding, cutting, or grinding occurs above occupied or sensitive areas.",
     ],
     accessRestrictions: [
       "Use controlled roof hatches or interior hoists when exterior swing is no longer available; prohibit improvised rope pulls over parapet guards.",
@@ -560,6 +595,8 @@ export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSaf
 
   steel_touch_up_painting_on_structural_steel: {
     safetyExposure: [
+      "Flammable coatings, solvents, reducers, and catalyzed touch-up kits are a major fire and health exposure: vapors can ignite from sparks, grinding, welding, or static discharge and can accumulate near intakes, shafts, and lifts.",
+      "Fall from height is a major exposure when touch-up is performed from ladders, stilts, or lifts at roof edges, column lines, or open deck without guardrails or an approved fall system.",
       "Solvent vapors and overspray may accumulate near HVAC intakes or scissor lifts staged inside atrium voids.",
       "Manual reach from ladders or short stilts to touch field welds or row ends introduces fall and overreach exposure.",
       "Rags soaked in thinners create spontaneous combustion if discarded in ordinary trash.",
@@ -568,8 +605,9 @@ export const STEEL_TASK_MODULE_SAFETY_LIBRARY: Record<string, SteelTaskModuleSaf
     requiredSafetyControls: [
       "Ventilation or respiratory program tied to SDS and manufacturer maximum recoat windows; calculate air changes when working in enclosed steel bays.",
       "Ground and bond conductive lift platforms when spraying flammable coatings near energized temp power.",
-      "Ignition source control list posted; no grinding or cutting within defined radius unless separate hot-work permit exists.",
+      "Post an ignition-source control plan: no welding, cutting, or grinding within the defined radius of open solvent containers or fresh coating unless a separate hot-work assessment and permit address the combined hazard.",
       "Spill kits sized to largest container staged at each elevation before opening cans.",
+      "Provide fall protection and ladder or lift setup that eliminates overreach at leading edges and parapets.",
     ],
     accessRestrictions: [
       "Coordinate shutdowns of intakes; post signage at elevator lobbies warning of odor migration windows.",

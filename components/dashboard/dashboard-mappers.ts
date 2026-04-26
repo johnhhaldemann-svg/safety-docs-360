@@ -277,6 +277,71 @@ function dashboardGraphs(data: DashboardDataState) {
       "items",
       "bar"
     ),
+    workspaceSignalsGraph: (() => {
+      const dm = data.dashboardMetrics;
+      if (!dm) {
+        return graphSection(
+          "Workspace signal mix",
+          "SOR reports vs corrective actions vs near misses from the dashboard metrics service.",
+          [],
+          {
+            title: "No workspace signal graph yet",
+            description: "This chart fills when dashboard metrics finish loading for your workspace.",
+            actionHref: "/analytics",
+            actionLabel: "Open analytics",
+          },
+          "records",
+          "bar"
+        );
+      }
+      const scopeNote = dm.jobsiteScoped
+        ? `Assigned jobsites only for corrective and incident rows (${dm.windowDays}d). SOR counts stay company-wide.`
+        : `Company-wide (${dm.windowDays}d).`;
+      const rawItems: DashboardGraphItem[] = [
+        {
+          id: "sor-reports",
+          label: "SOR reports",
+          value: dm.sorReportsCount,
+          detail: "company_sor_records",
+          tone: "info",
+        },
+        {
+          id: "corrective-actions",
+          label: "Corrective actions",
+          value: dm.correctiveActionsInWindowCount,
+          detail: "company_corrective_actions",
+          tone: "neutral",
+        },
+        {
+          id: "near-miss-actions",
+          label: "Near miss (actions)",
+          value: dm.nearMissCorrectiveActionsCount,
+          detail: "observation_type near_miss",
+          tone: "warning",
+        },
+        {
+          id: "near-miss-incidents",
+          label: "Near miss (incidents)",
+          value: dm.incidentNearMissRecordsCount,
+          detail: "category near_miss",
+          tone: "warning",
+        },
+      ];
+      const items = rawItems.filter((item) => item.value > 0);
+      return graphSection(
+        "Workspace signal mix",
+        scopeNote,
+        items,
+        {
+          title: "No countable signals in this window",
+          description: "Log SORs, corrective actions, or incidents to populate this chart.",
+          actionHref: "/field-id-exchange",
+          actionLabel: "Open field exchange",
+        },
+        "records",
+        "bar"
+      );
+    })(),
   };
 }
 
@@ -464,7 +529,39 @@ function trainingItems(data: DashboardDataState, role: DashboardRole): Dashboard
   const jobsiteHref = role === "default" ? "/search" : "/jobsites";
   const accessHref = role === "default" ? "/profile" : "/company-users";
 
+  const dm = data.dashboardMetrics;
+  const metricsRows: DashboardSummaryItem[] =
+    dm && role !== "default"
+      ? [
+          {
+            id: "dm-training-requirements",
+            label: "Training requirements",
+            value: `${dm.trainingRequirementDefinitionsCount}`,
+            note: "Defined rows in the company training requirements matrix.",
+            href: trainingHref,
+            tone: dm.trainingRequirementDefinitionsCount > 0 ? ("info" as const) : ("warning" as const),
+          },
+          {
+            id: "dm-active-contractors",
+            label: "Active contractors",
+            value: `${dm.activeContractorsCount}`,
+            note: "Contractor profiles marked active in the company directory.",
+            href: "/company-contractors",
+            tone: "neutral",
+          },
+          {
+            id: "dm-sor-reports-window",
+            label: "SOR reports",
+            value: `${dm.sorReportsCount}`,
+            note: `Safety observation reports in the last ${dm.windowDays} days (company-wide; not jobsite-scoped in DB).`,
+            href: "/analytics",
+            tone: "info",
+          },
+        ]
+      : [];
+
   return [
+    ...metricsRows,
     {
       id: "training-gap-proxy",
       label: "Training gaps",
@@ -682,6 +779,17 @@ function buildBlocks(params: {
         "items",
         "bar"
       ),
+      workspaceSignalsGraph: graphSection(
+        "Workspace signal mix",
+        "SOR reports vs corrective actions vs near misses from the dashboard metrics service.",
+        [],
+        {
+          title: "No workspace signal graph yet",
+          description: "This chart fills when dashboard metrics finish loading for your workspace.",
+        },
+        "records",
+        "bar"
+      ),
     };
 
   return {
@@ -811,6 +919,11 @@ function buildBlocks(params: {
       kind: "graph",
       eyebrow: "Graph",
       section: graphs.riskReductionGraph,
+    },
+    graph_workspace_signals: {
+      kind: "graph",
+      eyebrow: "Graph",
+      section: graphs.workspaceSignalsGraph,
     },
   };
 }

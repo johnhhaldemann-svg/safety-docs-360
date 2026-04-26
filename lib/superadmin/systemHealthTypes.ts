@@ -5,6 +5,8 @@ export type SystemHealthCheck = {
   status: SystemHealthStatus;
   message: string;
   recommendedFix: string | null;
+  /** When set (e.g. platform grid), shown as the per-item last check time. */
+  lastCheckedAt?: string | null;
 };
 
 export type SystemHealthSection = {
@@ -38,6 +40,8 @@ export type SystemHealthResponse = {
     critical: number;
     unknown: number;
   };
+  /** Canonical infrastructure + core table probes (flat list for the Superadmin grid). */
+  platformInfrastructure: SystemHealthCheck[];
   sections: SystemHealthSection[];
   connections: SystemHealthConnection[];
 };

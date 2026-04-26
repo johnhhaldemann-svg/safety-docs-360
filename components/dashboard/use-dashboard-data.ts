@@ -18,6 +18,7 @@ import type {
   DashboardRevenueReadiness,
   DashboardWorkspaceSummary,
 } from "@/components/dashboard/types";
+import type { DashboardHomeMetrics } from "@/lib/dashboardAnalytics";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -70,6 +71,7 @@ export function useDashboardData(): DashboardDataState {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState("viewer");
   const [userTeam, setUserTeam] = useState("General");
+  const [linkedContractorId, setLinkedContractorId] = useState<string | null>(null);
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [companyProfile, setCompanyProfile] = useState<DashboardCompanyProfile | null>(null);
   const [workspaceProduct, setWorkspaceProduct] = useState<WorkspaceProduct>("full");
@@ -81,6 +83,7 @@ export function useDashboardData(): DashboardDataState {
     emptyWorkspaceSummary
   );
   const [analyticsSummary, setAnalyticsSummary] = useState<DashboardAnalyticsSummary>(null);
+  const [dashboardMetrics, setDashboardMetrics] = useState<DashboardHomeMetrics | null>(null);
   const [revenueReadiness, setRevenueReadiness] = useState<DashboardRevenueReadiness>(null);
   const [companyWorkspaceLoaded, setCompanyWorkspaceLoaded] = useState(false);
   const [companyWorkspaceLoading, setCompanyWorkspaceLoading] = useState(false);
@@ -97,6 +100,7 @@ export function useDashboardData(): DashboardDataState {
       setCompanyInvites([]);
       setWorkspaceSummary(emptyWorkspaceSummary());
       setAnalyticsSummary(null);
+      setDashboardMetrics(null);
       setRevenueReadiness(null);
       setCompanyWorkspaceLoaded(true);
       setCompanyWorkspaceLoading(false);
@@ -111,21 +115,28 @@ export function useDashboardData(): DashboardDataState {
 
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const [companyResponse, workspaceResponse, analyticsResponse] = await Promise.all([
-        fetchWithTimeoutSafe("/api/company/users", { headers }, 15000, "Company directory"),
-        fetchWithTimeoutSafe(
-          "/api/company/workspace/summary",
-          { headers },
-          15000,
-          "Workspace summary"
-        ),
-        fetchWithTimeoutSafe(
-          "/api/company/analytics/summary?days=30",
-          { headers },
-          15000,
-          "Analytics summary"
-        ),
-      ]);
+      const [companyResponse, workspaceResponse, analyticsResponse, dashboardMetricsResponse] =
+        await Promise.all([
+          fetchWithTimeoutSafe("/api/company/users", { headers }, 15000, "Company directory"),
+          fetchWithTimeoutSafe(
+            "/api/company/workspace/summary",
+            { headers },
+            15000,
+            "Workspace summary"
+          ),
+          fetchWithTimeoutSafe(
+            "/api/company/analytics/summary?days=30",
+            { headers },
+            15000,
+            "Analytics summary"
+          ),
+          fetchWithTimeoutSafe(
+            "/api/company/dashboard-metrics?days=30",
+            { headers },
+            15000,
+            "Dashboard metrics"
+          ),
+        ]);
 
       const companyData = (await companyResponse.json().catch(() => null)) as
         | { users?: DashboardCompanyUser[]; invites?: DashboardCompanyInvite[]; error?: string }
@@ -135,6 +146,9 @@ export function useDashboardData(): DashboardDataState {
         | null;
       const analyticsData = (await analyticsResponse.json().catch(() => null)) as
         | { summary?: DashboardAnalyticsSummary; error?: string; warning?: string }
+        | null;
+      const dashboardMetricsData = (await dashboardMetricsResponse.json().catch(() => null)) as
+        | { metrics?: DashboardHomeMetrics; error?: string }
         | null;
 
       setCompanyUsers(companyResponse.ok ? companyData?.users ?? [] : []);
@@ -152,6 +166,11 @@ export function useDashboardData(): DashboardDataState {
           : emptyWorkspaceSummary()
       );
       setAnalyticsSummary(analyticsData?.summary ?? null);
+      setDashboardMetrics(
+        dashboardMetricsResponse.ok && dashboardMetricsData?.metrics
+          ? dashboardMetricsData.metrics
+          : null
+      );
       setAnalyticsSummaryIssue(buildAnalyticsBanner(analyticsResponse, analyticsData));
 
       if (!workspaceResponse.ok) {
@@ -167,6 +186,7 @@ export function useDashboardData(): DashboardDataState {
       }
       setWorkspaceSummary(emptyWorkspaceSummary());
       setAnalyticsSummary(null);
+      setDashboardMetrics(null);
       setRevenueReadiness(null);
       setAnalyticsSummaryIssue({
         message: "Analytics summary could not be loaded.",
@@ -186,6 +206,7 @@ export function useDashboardData(): DashboardDataState {
       setLoading(false);
       setUserRole("viewer");
       setUserTeam("General");
+      setLinkedContractorId(null);
       setPermissionMap(null);
       setCompanyProfile(null);
       setWorkspaceProduct("full");
@@ -195,6 +216,7 @@ export function useDashboardData(): DashboardDataState {
       setCompanyInvites([]);
       setWorkspaceSummary(emptyWorkspaceSummary());
       setAnalyticsSummary(null);
+      setDashboardMetrics(null);
       setCompanyWorkspaceLoaded(true);
       setCompanyWorkspaceLoading(false);
       setCompanyWorkspaceError(null);
@@ -218,6 +240,7 @@ export function useDashboardData(): DashboardDataState {
             user?: {
               role?: string;
               team?: string;
+              linkedContractorId?: string | null;
               permissionMap?: PermissionMap;
               companyProfile?: DashboardCompanyProfile | null;
               workspaceProduct?: WorkspaceProduct;
@@ -243,6 +266,7 @@ export function useDashboardData(): DashboardDataState {
         });
         setUserRole(demoData.userRole);
         setUserTeam(demoData.userTeam);
+        setLinkedContractorId(null);
         setPermissionMap(demoData.permissionMap);
         setCompanyProfile(demoData.companyProfile);
         setWorkspaceProduct(demoData.workspaceProduct);
@@ -252,6 +276,7 @@ export function useDashboardData(): DashboardDataState {
         setCompanyInvites(demoData.companyInvites);
         setWorkspaceSummary(demoData.workspaceSummary);
         setAnalyticsSummary(demoData.analyticsSummary);
+        setDashboardMetrics(demoData.dashboardMetrics);
         setRevenueReadiness({
           score: 88,
           band: "Ready to sell",
@@ -285,6 +310,12 @@ export function useDashboardData(): DashboardDataState {
 
       setUserRole(nextRole);
       setUserTeam(meData?.user?.team ?? "General");
+      {
+        const rawLinked = meData?.user?.linkedContractorId;
+        setLinkedContractorId(
+          typeof rawLinked === "string" && rawLinked.trim().length > 0 ? rawLinked.trim() : null
+        );
+      }
       setPermissionMap(nextPermissions);
       setCompanyProfile(meData?.user?.companyProfile ?? null);
       setWorkspaceProduct(nextWorkspaceProduct);
@@ -328,6 +359,7 @@ export function useDashboardData(): DashboardDataState {
         setCompanyInvites([]);
         setWorkspaceSummary(emptyWorkspaceSummary());
         setAnalyticsSummary(null);
+        setDashboardMetrics(null);
         setRevenueReadiness(null);
         setCompanyWorkspaceLoaded(true);
         setCompanyWorkspaceLoading(false);
@@ -348,6 +380,7 @@ export function useDashboardData(): DashboardDataState {
     loading,
     userRole,
     userTeam,
+    linkedContractorId,
     permissionMap,
     companyProfile,
     workspaceProduct,
@@ -357,6 +390,7 @@ export function useDashboardData(): DashboardDataState {
     companyInvites,
     workspaceSummary,
     analyticsSummary,
+    dashboardMetrics,
     revenueReadiness,
     companyWorkspaceLoaded,
     companyWorkspaceLoading,

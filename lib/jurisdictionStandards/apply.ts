@@ -1,3 +1,4 @@
+import { mergeApplicableReferenceRCodeBullets } from "@/lib/csepRegulatoryReferenceIndex";
 import { getProgramSelectionKey } from "@/lib/csepPrograms";
 import { getJurisdictionSurfaceStandards } from "@/lib/jurisdictionStandards/catalog";
 import { getStateRequirementSupplement } from "@/lib/jurisdictionStandards/stateRequirements";
@@ -57,16 +58,28 @@ function appendToSubsection(
   const existing = subsections.find((item) => item.title === title);
 
   if (!existing) {
+    const bullets =
+      title === "Applicable References"
+        ? mergeApplicableReferenceRCodeBullets([], additions)
+        : additions;
     return {
       ...section,
-      subsections: [...subsections, { title, bullets: additions }],
+      subsections: [...subsections, { title, bullets }],
     };
   }
 
   return {
     ...section,
     subsections: subsections.map((item) =>
-      item.title === title ? { ...item, bullets: appendBullets(item.bullets, additions) } : item
+      item.title === title
+        ? {
+            ...item,
+            bullets:
+              title === "Applicable References"
+                ? mergeApplicableReferenceRCodeBullets(item.bullets, additions)
+                : appendBullets(item.bullets, additions),
+          }
+        : item
     ),
   };
 }

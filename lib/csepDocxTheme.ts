@@ -7,6 +7,7 @@ import {
   TextRun,
   type IParagraphOptions,
 } from "docx";
+import { polishCsepDocxNarrativeText } from "@/lib/csepDocxNarrativePolish";
 import { CONTRACTOR_SAFETY_BLUEPRINT_TITLE } from "@/lib/safetyBlueprintLabels";
 
 type DocChild = Paragraph;
@@ -50,7 +51,7 @@ export function createCsepBody(
     alignment,
     children: [
       new TextRun({
-        text,
+        text: polishCsepDocxNarrativeText(text),
         font: "Aptos",
         size: 21,
         color: COLORS.bodyText,
@@ -113,7 +114,7 @@ export function createCsepLabeledParagraph(
     }
     valueRuns.push(
       new TextRun({
-        text: line,
+        text: polishCsepDocxNarrativeText(line),
         font: "Aptos",
         size: 21,
         color: COLORS.bodyText,

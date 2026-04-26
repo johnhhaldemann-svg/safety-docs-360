@@ -6,6 +6,7 @@ import type {
   DashboardDocument,
   DashboardWorkspaceSummary,
 } from "@/components/dashboard/types";
+import type { DashboardHomeMetrics } from "@/lib/dashboardAnalytics";
 import { getPermissionMap } from "@/lib/rbac";
 import { emptyOnboardingState } from "@/lib/onboardingState";
 
@@ -363,6 +364,7 @@ export function buildSalesDemoDashboardData(base: Pick<DashboardDataState, "relo
     loading: false,
     userRole: "sales_demo",
     userTeam: "Demo Workspace",
+    linkedContractorId: null,
     permissionMap: getPermissionMap("company_admin"),
     companyProfile: demoCompanyProfile,
     workspaceProduct: "full",
@@ -404,8 +406,26 @@ export function buildSalesDemoDashboardData(base: Pick<DashboardDataState, "relo
       completedSteps: ["company_profile", "team_invites", "first_jobsite", "first_document"],
       lastSeenCommandCenterAt: null,
     },
+    dashboardMetrics: buildSalesDemoDashboardMetrics(30),
     refreshCompanyWorkspace: base.refreshCompanyWorkspace,
     reload: base.reload,
+  };
+}
+
+export function buildSalesDemoDashboardMetrics(windowDays: number): DashboardHomeMetrics {
+  const normalizedDays = Math.max(1, Number.isFinite(windowDays) ? Math.floor(windowDays) : 30);
+  const since = new Date(Date.now() - normalizedDays * 24 * 60 * 60 * 1000).toISOString();
+  return {
+    windowDays: normalizedDays,
+    since,
+    sorReportsCount: 14,
+    correctiveActionsInWindowCount: 22,
+    nearMissCorrectiveActionsCount: 6,
+    positiveObservationsCount: 9,
+    incidentNearMissRecordsCount: 2,
+    activeContractorsCount: 5,
+    trainingRequirementDefinitionsCount: 8,
+    jobsiteScoped: false,
   };
 }
 

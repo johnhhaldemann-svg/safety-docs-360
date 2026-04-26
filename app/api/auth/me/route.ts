@@ -7,6 +7,7 @@ import {
   getUserRoleContext,
   isAdminRole,
 } from "@/lib/rbac";
+import { linkedContractorIdFromUser } from "@/lib/dashboardOverviewAccess";
 import {
   TERMS_VERSION,
   getDefaultAgreementConfig,
@@ -658,17 +659,18 @@ async function handleAuthMeGet(request: Request) {
 
   return NextResponse.json(
     {
-    user: {
-      id: auth.user.id,
-      email: auth.user.email ?? "",
-      role: refreshedRoleContext.role,
-      roleLabel: formatAppRole(refreshedRoleContext.role),
-      team: refreshedRoleContext.team,
-      companyId: companyScope.companyId,
-      companyName: effectiveCompanyName,
-      workspaceProduct,
-      subscriptionStatus,
-      profile: {
+      user: {
+        id: auth.user.id,
+        email: auth.user.email ?? "",
+        linkedContractorId: linkedContractorIdFromUser(auth.user),
+        role: refreshedRoleContext.role,
+        roleLabel: formatAppRole(refreshedRoleContext.role),
+        team: refreshedRoleContext.team,
+        companyId: companyScope.companyId,
+        companyName: effectiveCompanyName,
+        workspaceProduct,
+        subscriptionStatus,
+        profile: {
         userId: auth.user.id,
         fullName: userProfile?.full_name?.trim() || fallbackFullName,
         preferredName: userProfile?.preferred_name?.trim() || "",

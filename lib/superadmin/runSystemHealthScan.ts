@@ -1,4 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  buildPlatformInfrastructureChecks,
+  buildPlatformInfrastructureChecksWhenAdminMissing,
+} from "@/lib/superadmin/platformInfrastructureHealth";
 import { getSupabaseServerEnvStatus } from "@/lib/supabaseAdmin";
 import type {
   SystemHealthCheck,
@@ -228,11 +232,27 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
           }) satisfies SystemHealthSection
       ),
     ];
+    const platformInfrastructure = buildPlatformInfrastructureChecksWhenAdminMissing(
+      lastCheckedAt,
+      "Supabase admin client is not configured."
+    );
+    const mergedChecks = [...skippedSections.flatMap((s) => s.checks), ...platformInfrastructure];
+    const summary = {
+      totalChecks: mergedChecks.length,
+      healthy: mergedChecks.filter((c) => c.status === "healthy").length,
+      warning: mergedChecks.filter((c) => c.status === "warning").length,
+      critical: mergedChecks.filter((c) => c.status === "critical").length,
+      unknown: mergedChecks.filter((c) => c.status === "unknown").length,
+    };
+    const healthScore = Math.round(
+      mergedChecks.reduce((acc, c) => acc + scoreFromStatus(c.status), 0) / Math.max(1, mergedChecks.length)
+    );
     return {
       overallStatus: "critical",
-      healthScore: 0,
+      healthScore,
       lastCheckedAt,
-      summary: { totalChecks: 1, healthy: 0, warning: 0, critical: 1, unknown: 0 },
+      summary,
+      platformInfrastructure,
       sections: skippedSections,
       connections: buildConnections(skippedSections),
     };
@@ -805,7 +825,9 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
     buildSection("field_feedback_loop", "Field Feedback Loop", checksFeedback, recordsFeedback),
   ];
 
-  const allChecks = sections.flatMap((s) => s.checks);
+  const platformInfrastructure = await buildPlatformInfrastructureChecks(admin, lastCheckedAt);
+  const sectionChecks = sections.flatMap((s) => s.checks);
+  const allChecks = [...sectionChecks, ...platformInfrastructure];
   const summary = {
     totalChecks: allChecks.length,
     healthy: allChecks.filter((c) => c.status === "healthy").length,
@@ -818,11 +840,15 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
     allChecks.reduce((acc, c) => acc + scoreFromStatus(c.status), 0) / Math.max(1, allChecks.length)
   );
 
+  const platformOverall = statusFromChecks(platformInfrastructure);
+  const overallStatus = worstStatus(overallFromSections(sections), platformOverall);
+
   return {
-    overallStatus: overallFromSections(sections),
+    overallStatus,
     healthScore,
     lastCheckedAt,
     summary,
+    platformInfrastructure,
     sections,
     connections: buildConnections(sections),
   };

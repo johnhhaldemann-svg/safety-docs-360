@@ -352,9 +352,9 @@ export function DashboardView({ model }: { model: DashboardViewModel }) {
 
       {layout.editing ? (
         <SectionCard
-          eyebrow="Dashboard layout"
-          title="Customize your 10 dashboard blocks"
-          description="Choose which full widgets appear in each slot. Your layout is saved to your account and follows your role defaults when access changes."
+          eyebrow="Workspace layout"
+          title="Customize your 10 prevention blocks"
+          description="Choose which widgets appear in each slot so supervisors see the right leading indicators first. Your layout is saved to your account and follows role defaults when access changes."
           aside={
             <div className="flex flex-wrap gap-3">
               <button

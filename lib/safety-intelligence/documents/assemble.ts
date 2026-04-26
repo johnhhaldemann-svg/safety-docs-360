@@ -15,11 +15,19 @@ import {
   normalizeSelectedCsepBlockKeys,
 } from "@/lib/csepBuilder";
 import { buildCsepProgramSections } from "@/lib/csepPrograms";
+import {
+  CSEP_REGULATORY_R_CODE_TO_CITATION,
+  dedupeSortedRCodes,
+  mapOshaRefLineToRCode,
+  mapOshaRefStringsToSortedRCodes,
+  substituteOshaCitationsWithRCodes,
+} from "@/lib/csepRegulatoryReferenceIndex";
 import { getHazardModules } from "@/lib/hazardModules";
 import {
   applyJurisdictionStandardsToCsep,
   applyJurisdictionStandardsToPeshep,
 } from "@/lib/jurisdictionStandards/apply";
+import { augmentCsepActivityMatrixRow } from "@/lib/csepActivityMatrixAugmentations";
 import { buildRiskItem } from "@/lib/csepTradeSelection";
 import { getSiteManagementTaskModules } from "@/lib/siteManagementTaskModules";
 import { SITE_SAFETY_BLUEPRINT_TITLE } from "@/lib/safetyBlueprintLabels";
@@ -58,6 +66,8 @@ import {
   getTradeConflictProfile,
   projectDeliveryTypeLabel,
 } from "@/lib/tradeConflictCatalog";
+import { splitParagraphAtEstimatedDocxLineCount } from "@/lib/csepDocxReadableParagraphs";
+import { CSEP_RESTART_AFTER_VERIFICATION, CSEP_STOP_WORK_UNIVERSAL_AUTHORITY } from "@/lib/csepStopWorkLanguage";
 import type {
   CsepBuilderBlockKey,
   CsepBuilderInstructions,
@@ -108,8 +118,12 @@ function stringList(value: unknown) {
 
 function appendInlineOsha(body: string | null | undefined, refs: string[]) {
   if (!refs.length) return body ?? null;
-  const suffix = `Applicable OSHA references: ${refs.join(", ")}.`;
-  return body?.trim() ? `${body.trim()} ${suffix}` : suffix;
+  const codes = mapOshaRefStringsToSortedRCodes(refs);
+  const suffix = codes.length
+    ? `Applicable OSHA references (Appendix G): ${codes.join(", ")}.`
+    : `Applicable OSHA references: ${refs.join(", ")}.`;
+  const base = body?.trim() ? substituteOshaCitationsWithRCodes(body.trim()) : "";
+  return base ? `${base} ${suffix}` : suffix;
 }
 
 type GeneratedSafetyPlanSubsection = NonNullable<GeneratedSafetyPlanSection["subsections"]>[number];
@@ -131,7 +145,9 @@ type GroupedTradePackage = {
   conflicts: string[];
 };
 
-const INLINE_OSHA_SUFFIX_PATTERN = /\s*Applicable OSHA references:\s*.+\.\s*$/i;
+/** Matches legacy "Applicable OSHA references:" and "(Appendix G)" variants from {@link appendInlineOsha}. */
+const INLINE_OSHA_SUFFIX_PATTERN =
+  /\s*Applicable OSHA references(?:\s*\([^)]+\))?:\s*.+\.\s*$/i;
 const CSEP_SOFT_PAGE_BUDGET_UNITS = 42_000;
 const CSEP_COMPACTABLE_KEYS = new Set([
   "trade_summary",
@@ -237,6 +253,8 @@ function groupOperationsByTradePackage(operations: DraftOperation[]) {
 
 function augmentCsepActivityMatrixByTaskName(
   taskTitle: string,
+  tradeLabel: string,
+  subTradeLabel: string | null | undefined,
   risk: { hazard: string; controls: string[]; permit: string },
   base: { hazards: string[]; controls: string[] }
 ) {
@@ -255,10 +273,17 @@ function augmentCsepActivityMatrixByTaskName(
     extraH.push("Struck-by mobile equipment, slips, trips, and manual handling in active yard traffic");
     extraC.push("Segregate people from equipment paths; use spotters when equipment moves; maintain clear egress");
   }
-  return {
+  const merged = {
     hazards: dedupe([...base.hazards, ...extraH]),
     controls: dedupe([...base.controls, ...extraC]),
   };
+  return augmentCsepActivityMatrixRow({
+    taskTitle,
+    tradeLabel,
+    subTradeLabel,
+    risk,
+    base: merged,
+  });
 }
 
 function competencyListForCsepActivityMatrix(
@@ -351,7 +376,10 @@ function buildCsepActivityHazardMatrixTable(params: {
         if (!controls.length) {
           controls = [...risk.controls];
         }
-        const aug = augmentCsepActivityMatrixByTaskName(task, risk, { hazards, controls });
+        const aug = augmentCsepActivityMatrixByTaskName(task, op.tradeLabel ?? "", op.subTradeLabel, risk, {
+          hazards,
+          controls,
+        });
         const ppeList = normalizePpeList(op.ppeRequirements);
         const ppeOut = ppeList.length ? ppeList : ["PPE per JHA and site program for the listed task"];
         let permits = normalizePermitList(op.permitTriggers);
@@ -391,7 +419,10 @@ function buildCsepActivityHazardMatrixTable(params: {
           if (!controls.length) {
             controls = [...risk.controls];
           }
-          const aug = augmentCsepActivityMatrixByTaskName(taskTitle, risk, { hazards, controls });
+          const aug = augmentCsepActivityMatrixByTaskName(taskTitle, pkg.tradeLabel, pkg.subTradeLabel, risk, {
+            hazards,
+            controls,
+          });
           const ppeList = normalizePpeList(pkg.ppeRequirements);
           const ppeOut = ppeList.length ? ppeList : ["PPE per JHA and site program for the listed task"];
           let permits = normalizePermitList(pkg.permitTriggers);
@@ -497,7 +528,9 @@ function stripInlineOshaSuffix(value: string | null | undefined) {
 function extractInlineOshaSuffix(value: string | null | undefined) {
   if (!value?.trim()) return null;
 
-  const match = value.match(/^(.*?)(?:\s*Applicable OSHA references:\s*(.+?)\.\s*)$/i);
+  const match = value.match(
+    /^(.*?)(?:\s*Applicable OSHA references(?:\s*\([^)]*\))?:\s*(.+?)\.\s*)$/i
+  );
   if (!match) return null;
 
   return {
@@ -511,38 +544,63 @@ function formatReferenceTokenList(tokens: string[]) {
   return `(${tokens.join(", ")})`;
 }
 
-function applyInlineReferenceTokens(
-  value: string | null | undefined,
-  orderedReferences: string[],
-  referenceTokenMap: Map<string, string>
-) {
+function applyInlineReferenceTokens(value: string | null | undefined) {
   if (!value?.trim()) return value;
 
   const extracted = extractInlineOshaSuffix(value);
-  if (!extracted) return value.replace(/\s+/g, " ").trim();
+  if (!extracted) {
+    return substituteOshaCitationsWithRCodes(value.replace(/\s+/g, " ").trim());
+  }
 
-  const matchedTokens = orderedReferences
-    .filter((reference) => extracted.referencesText.includes(reference))
-    .map((reference) => referenceTokenMap.get(reference))
-    .filter((token): token is string => Boolean(token));
+  const parts = extracted.referencesText
+    .split(/\s*,\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const fromSuffix = dedupeSortedRCodes(
+    parts.flatMap((part) => {
+      if (/^R\d+$/i.test(part)) return [part.toUpperCase()];
+      const c = mapOshaRefLineToRCode(part);
+      return c ? [c] : [];
+    })
+  );
+  const tokenText = formatReferenceTokenList(fromSuffix);
+  const cleanedBody = extracted.body ? substituteOshaCitationsWithRCodes(extracted.body) : null;
+  if (!tokenText) return cleanedBody;
+  if (!cleanedBody) return tokenText;
 
-  const tokenText = formatReferenceTokenList(matchedTokens);
-  if (!tokenText) return extracted.body;
-  if (!extracted.body) return tokenText;
+  return `${cleanedBody} ${tokenText}`;
+}
 
-  return `${extracted.body} ${tokenText}`;
+function substituteRegulatoryTextInSection(section: GeneratedSafetyPlanSection): GeneratedSafetyPlanSection {
+  return {
+    ...section,
+    summary: section.summary ? substituteOshaCitationsWithRCodes(section.summary) : section.summary,
+    body: section.body ? substituteOshaCitationsWithRCodes(section.body) : section.body,
+    bullets: section.bullets?.map((b) => substituteOshaCitationsWithRCodes(b)),
+    subsections: section.subsections?.map((subsection) => ({
+      ...subsection,
+      title: substituteOshaCitationsWithRCodes(subsection.title),
+      body: subsection.body ? substituteOshaCitationsWithRCodes(subsection.body) : subsection.body,
+      bullets: subsection.bullets.map((b) => substituteOshaCitationsWithRCodes(b)),
+    })),
+    table: section.table
+      ? {
+          ...section.table,
+          columns: section.table.columns.map((c) => substituteOshaCitationsWithRCodes(c)),
+          rows: section.table.rows.map((row) => row.map((cell) => substituteOshaCitationsWithRCodes(cell))),
+        }
+      : section.table,
+  };
 }
 
 function applyOshaReferenceTokensToSections(
   sections: GeneratedSafetyPlanSection[],
   oshaReferences: string[]
 ) {
-  if (!oshaReferences.length) return sections;
-
   const orderedReferences = dedupe(oshaReferences.map((reference) => reference.trim()).filter(Boolean));
-  const referenceTokenMap = new Map(
-    orderedReferences.map((reference, index) => [reference, `R${index + 1}`])
-  );
+  if (!orderedReferences.length) {
+    return sections.map(substituteRegulatoryTextInSection);
+  }
 
   return sections.map((section) => {
     const isReferenceSection =
@@ -550,42 +608,41 @@ function applyOshaReferenceTokensToSections(
       section.key === "osha_references" ||
       section.key === "osha_reference_appendix";
 
-    return {
+    const referenceBullets = mapOshaRefStringsToSortedRCodes(orderedReferences).map(
+      (code) => `${code} ${CSEP_REGULATORY_R_CODE_TO_CITATION[code]}`
+    );
+
+    return substituteRegulatoryTextInSection({
       ...section,
-      summary: applyInlineReferenceTokens(section.summary, orderedReferences, referenceTokenMap),
-      body: applyInlineReferenceTokens(section.body, orderedReferences, referenceTokenMap),
+      summary: applyInlineReferenceTokens(section.summary),
+      body: applyInlineReferenceTokens(section.body),
       bullets: isReferenceSection
-        ? orderedReferences.map((reference) => `${referenceTokenMap.get(reference)} ${reference}`)
-        : section.bullets?.map((bullet) =>
-            applyInlineReferenceTokens(bullet, orderedReferences, referenceTokenMap) ?? bullet
-          ),
+        ? referenceBullets.length
+          ? referenceBullets
+          : section.bullets
+        : section.bullets?.map((bullet) => applyInlineReferenceTokens(bullet) ?? bullet),
       subsections: section.subsections?.map((subsection) => ({
         ...subsection,
-        body: applyInlineReferenceTokens(subsection.body, orderedReferences, referenceTokenMap),
+        body: applyInlineReferenceTokens(subsection.body),
         bullets:
           isReferenceSection && subsection.title.toLowerCase().includes("reference")
-            ? orderedReferences.map((reference) => `${referenceTokenMap.get(reference)} ${reference}`)
-            : subsection.bullets.map(
-                (bullet) =>
-                  applyInlineReferenceTokens(bullet, orderedReferences, referenceTokenMap) ?? bullet
+            ? referenceBullets
+            : (subsection.bullets ?? []).map(
+                (bullet) => applyInlineReferenceTokens(bullet) ?? bullet
               ),
       })),
       table: section.table
         ? {
             ...section.table,
             columns: section.table.columns.map(
-              (column) =>
-                applyInlineReferenceTokens(column, orderedReferences, referenceTokenMap) ?? column
+              (column) => applyInlineReferenceTokens(column) ?? column
             ),
             rows: section.table.rows.map((row) =>
-              row.map(
-                (cell) =>
-                  applyInlineReferenceTokens(cell, orderedReferences, referenceTokenMap) ?? cell
-              )
+              row.map((cell) => applyInlineReferenceTokens(cell) ?? cell)
             ),
           }
         : section.table,
-    };
+    });
   });
 }
 
@@ -1059,12 +1116,15 @@ function buildDefinitionsSection(
 }
 
 function buildReferencesSection(oshaReferences: string[]): GeneratedSafetyPlanSection {
+  const codes = mapOshaRefStringsToSortedRCodes(oshaReferences);
+  const bullets = codes.length
+    ? codes.map((code) => `${code} ${CSEP_REGULATORY_R_CODE_TO_CITATION[code]}`)
+    : ["No indexed OSHA citations were identified from the current plan inputs."];
   return {
     key: "references",
     title: "References",
-    bullets: oshaReferences.length
-      ? oshaReferences.map((reference, index) => `R${index + 1} ${reference}`)
-      : ["No OSHA references were identified from the current plan inputs."],
+    body: "R-numbers are stable across this CSEP and match Appendix G. Program modules cite R-codes instead of repeating full OSHA titles.",
+    bullets,
   };
 }
 
@@ -1549,13 +1609,13 @@ function buildSiteTaskModuleSafetySubsections(
         ];
 
   const stopWorkBullets = [
-    "Stop work if a route, barrier, gate, fencing, signage, lighting, traffic control device, or interface with another trade no longer matches the pre-task brief or approved plan.",
-    "Stop work if unbriefed visitors, gaps in access accountability, or uncontrolled equipment movement increases exposure in the active work area. Restart only after the superintendent, foreman, or competent person re-walks the condition and explicitly releases the work.",
+    `${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} Stop work if a route, barrier, gate, fencing, signage, lighting, traffic control device, or interface with another trade no longer matches the pre-task brief or approved plan.`,
+    `Stop work if unbriefed visitors, gaps in access accountability, or uncontrolled equipment movement increases exposure in the active work area. ${CSEP_RESTART_AFTER_VERIFICATION}`,
   ];
 
   const verificationBullets = dedupe([
     ...verificationItems,
-    `Document inspections, boundary or route changes, permits, sign-in or badging actions, and corrective actions tied to ${item.title}. The superintendent, foreman, or competent person attests that exposures remain controlled before crews are added, shifts change, or the zone is released to another activity.`,
+    `Document inspections, boundary or route changes, permits, sign-in or badging actions, and corrective actions tied to ${item.title}. Before crews are added, shifts change, or the zone is released to another activity, a competent person or assigned supervisor verifies exposures are controlled and records who authorized verification and release for restart.`,
     `Before handoff or release, confirm interfaces remain safe for ${sentenceList(item.taskNames, "follow-on tasks")}, including deliveries, emergency egress, and adjacent operations that share the same circulation paths.`,
   ]);
 
@@ -1769,14 +1829,14 @@ function buildHazardModuleSubsection(
     body: buildModuleBody(item.summary, parsed),
     bullets: [
       `Hazard overview: ${summaryWithoutTrailingPeriod(item.summary)}. Review the exposure, control method, and affected interface before the crew enters the area.`,
-      "Pre-start verification: Inspect the hazard area, confirm the exposure is correctly identified, verify the control method, and confirm who has authority to release the work for start once permits, PPE, access, rescue provisions, and hazard controls are verified.",
+      `Pre-start verification: Inspect the hazard area, confirm the exposure is correctly identified, verify the control method, and confirm who is authorized to verify and release the work for restart once permits, PPE, access, rescue provisions, and hazard controls are verified. ${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY}`,
       ...planningItems,
       "Required controls: Establish the hazard boundary, maintain the selected controls, keep non-essential personnel out of the exposure zone, and correct drift immediately when field conditions change.",
       ...suspendedLoadBullets,
       ...controlsItems,
       "Permits and PPE: Confirm whether this exposure triggers a permit, engineered approval, rescue plan, or owner authorization before work starts. Inspect required PPE before use and do not proceed if the permit or PPE is missing, incompatible, or damaged.",
       ...permitsItems,
-      "Stop-work triggers: Stop work if the exposure expands, if the control method fails, if the supporting structure or access route changes, if unauthorized personnel enter the zone, or if weather, visibility, or sequencing conditions no longer match the plan. Restart only after the competent person re-verifies the area and releases the work.",
+      `Stop-work triggers: ${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} Stop work if the exposure expands, if the control method fails, if the supporting structure or access route changes, if unauthorized personnel enter the zone, or if weather, visibility, or sequencing conditions no longer match the plan. ${CSEP_RESTART_AFTER_VERIFICATION}`,
       "Verification and handoff: Document the hazard assessment, inspections, permits, corrective actions, and release status for this section. The foreman or competent person verifies the condition at start-up, after any change, and before follow-on work enters the area.",
       "Related interfaces: Coordinate this section with the active work face, access routes, hoisting paths, affected trades, and any follow-on crew that could inherit the exposure.",
       ...relatedItems,
@@ -1911,8 +1971,8 @@ function buildSteelTaskModuleSafetySubsections(
   );
 
   const stopWorkNarrative = [
-    "Stop work and reassess if the sequence changes without competent-person review, if support steel or access is not ready, if communications or signals are lost, if the crew cannot maintain the planned stable condition, if weather or wind exceeds the plan limits, if unauthorized personnel enter the controlled zone, or if required controls, PPE, or permits are missing or invalid.",
-    "Restart only after the foreman or competent person re-verifies the work face, re-briefs affected workers, and explicitly releases the next step.",
+    `${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} Stop work and reassess if the sequence changes without competent-person review, if support steel or access is not ready, if communications or signals are lost, if the crew cannot maintain the planned stable condition, if weather or wind exceeds the plan limits, if unauthorized personnel enter the controlled zone, or if required controls, PPE, or permits are missing or invalid.`,
+    CSEP_RESTART_AFTER_VERIFICATION,
   ];
   const stopWorkBullets = mergeSteelTaskSubsectionLines(
     [...stopWorkFromPack, ...stopWorkNarrative],
@@ -2006,13 +2066,13 @@ function buildSteelProgramModuleSubsection(item: SteelProgramModuleContextRow): 
     title: item.title,
     body: buildModuleBody(item.summary, parsed),
     bullets: [
-      `Program scope: ${summaryWithoutTrailingPeriod(item.summary)}. The superintendent, foreman, and competent person assign ownership before the exposed work starts and keep the program active until the work face is formally released.`,
+      `Program scope: ${summaryWithoutTrailingPeriod(item.summary)}. The superintendent, foreman, and competent person assign program ownership before the exposed work starts and keep the program active until the work face is formally released. ${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY}`,
       "Pre-start verification: Verify responsible roles, communications, rescue or response path, equipment staging, permits, and the exact work face covered by the program before the shift starts.",
       ...planningItems,
       "Required controls: Establish the program boundary, maintain the assigned sequence, keep unauthorized personnel out of the area, and enforce the daily field procedure exactly as briefed.",
       ...suspendedLoadBullets,
       "Permits and PPE: Confirm rescue plan, site crane and pick authorizations (lift plan, pick plan, crane permit, or other site-required authorizations per the project permit register), hot-work, engineered approvals, owner authorization, and specialty PPE before work starts. Inspect PPE before use; do not proceed if permits, rescue, or PPE are missing or damaged.",
-      "Stop-work triggers: Stop work if the responsible roles are not staffed, if rescue or communication capability is unavailable, if access control fails, if the exposed condition changes without review, or if the program approvals are not active. Restart only after project leadership re-verifies the program and reauthorizes the work.",
+      `Stop-work triggers: ${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} Stop work if the responsible roles are not staffed, if rescue or communication capability is unavailable, if access control fails, if the exposed condition changes without review, or if the program approvals are not active. ${CSEP_RESTART_AFTER_VERIFICATION}`,
       "Verification and handoff: Document the daily brief, inspections, permit package, drill or rescue readiness, deviations, corrective actions, and release status for this program.",
       ...documentationItems,
       "Related interfaces: Coordinate this program with the steel-erection sequence, controlling contractor, crane and access crews, adjacent trades, and emergency responders supporting the exposed condition.",
@@ -2224,7 +2284,7 @@ function buildSteelErectionHazardModuleSubsection(
     title: item.title,
     body: blocks[0]?.body ?? buildModuleBody(item.summary, parsed),
     bullets: [
-      `Hazard focus: ${summaryWithoutTrailingPeriod(item.summary)}. The numbered blocks below state exposure control, access, PPE, permits and hold points, stop-work conditions, and release criteria for this hazard module—not a step-by-step erection procedure.`,
+      `Hazard focus: ${summaryWithoutTrailingPeriod(item.summary)}. The numbered blocks below state exposure control, access, PPE, permits and hold points, stop-work conditions, and who is authorized to verify and release the work for restart for this hazard module—not a step-by-step erection procedure. ${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY}`,
       ...mergeSteelTaskSafetySubsectionsForHazardPack(blocks),
     ],
   };
@@ -2360,7 +2420,7 @@ function buildHealthAndWellnessExpectationsSubsections(
   const notes = healthInput?.replace(/\r\n?/g, "\n").trim();
   const intro = [
     "Fit-for-duty, heat, hydration, fatigue, hygiene, and exposure concerns are managed through the 5.6 subsections below and task-level planning.",
-    notes ? `Project-specific health notes: ${notes}` : null,
+    notes ? `Project-specific health notes:\n\n${notes}` : null,
   ]
     .filter((p): p is string => Boolean(p?.trim()))
     .join("\n\n");
@@ -2383,7 +2443,10 @@ function buildHealthAndWellnessExpectationsSubsections(
     },
     {
       title: "5.6.3 Fatigue management",
-      body: "Schedule breaks that match the work and weather. Watch for heat stress, exhaustion, or loss of focus. Stop or re-plan work when fatigue would reduce safe performance.",
+      body: [
+        "Schedule breaks that match the work and weather. Watch for heat stress, exhaustion, or loss of focus.",
+        "Stop or re-plan work when fatigue would reduce safe performance.",
+      ].join("\n\n"),
       bullets: [],
     },
     {
@@ -2393,71 +2456,72 @@ function buildHealthAndWellnessExpectationsSubsections(
     },
     {
       title: "5.6.5 Exposure management",
-      body: "When chemical, noise, dust, or similar site exposures apply, use the project controls in place (PPE, engineering, work rotation, decontamination). Report symptoms, suspected overexposures, or control failures to supervision or the site safety lead.",
+      body: [
+        "When chemical, noise, dust, or similar site exposures apply, use the project controls in place (PPE, engineering, work rotation, decontamination).",
+        "Report symptoms, suspected overexposures, or control failures to supervision or the site safety lead.",
+      ].join("\n\n"),
       bullets: [],
     },
     {
       title: "5.6.6 Worker wellness / reporting concerns",
-      body: "Report injuries, near misses, and unsafe conditions promptly. Workers may raise health and safety concerns to supervision or site safety. Support first-aid access and follow-up with medical or occupational guidance when required, without fear of reprisal for good-faith reporting.",
+      body: [
+        "Report injuries, near misses, and unsafe conditions promptly. Workers may raise health and safety concerns to supervision or site safety.",
+        "Support first-aid access and follow-up with medical or occupational guidance when required, without fear of reprisal for good-faith reporting.",
+      ].join("\n\n"),
       bullets: [],
     },
   ];
 }
 
 /**
- * IIPP incident block: 5.7.x controls (scannable, not one narrative blob).
- * `incidentInput` is appended to 5.7 as builder/project notes. Steel/ironworker fall emphasis when scope applies.
+ * IIPP incident block: single 5.7 field process (numbered steps) plus optional project notes.
+ * `incidentInput` becomes subsection 5.7.1 only when present (forms, portals, phone chains).
  */
 function buildIncidentReportingInvestigationSubsections(
   incidentInput: string | null | undefined,
   steelErectionInScope: boolean
 ): GeneratedSafetyPlanSubsection[] {
   const notes = incidentInput?.replace(/\r\n?/g, "\n").trim();
-  const steelFallNote = steelErectionInScope
-    ? "Fall from height is a primary reporting and investigation trigger (falls, fall arrest, leading edges, decking, dropped objects) for this scope."
-    : "Fall from height, struck-by, and other high-energy exposures in the active scope are high-priority report and review triggers when they occur.";
 
-  return [
+  const intro = [
+    "When an injury, a near miss with serious injury potential, or an emergency condition occurs, follow the numbered field sequence below in order. Life safety, emergency medical response, and required notifications take priority over paperwork.",
+    steelErectionInScope
+      ? "For structural steel and decking in scope, treat falls from height, fall-arrest events, struck-by in the load path, dropped materials, fire during hot work, and unstable structural conditions as conditions that typically require steps 1–2 and immediate escalation through step 3."
+      : null,
+  ]
+    .filter((p): p is string => Boolean(p))
+    .join("\n\n");
+
+  const fieldProcessSteps = [
+    "1. Stop work and make the scene safe.",
+    "2. Call 911 immediately for serious injury, fall from height, fall arrest, fire, collapse, struck-by, electrocution, or other emergency condition.",
+    "3. Notify Foreman, Superintendent, Competent Person, and Safety Director.",
+    "4. Protect the scene from additional exposure.",
+    "5. Provide first aid only within the responder's level of training.",
+    "6. Complete the incident report.",
+    "7. Collect witness statements and photos.",
+    "8. Identify root cause and corrective actions.",
+    "9. Verify corrective actions before work restarts.",
+    "10. Track follow-up items to closure.",
+  ];
+
+  const sections: GeneratedSafetyPlanSubsection[] = [
     {
       title: "5.7 Incident Reporting and Investigation",
-      body: null,
-      bullets: [
-        "Report injuries, near misses, and serious exposures promptly; investigate for system causes, not blame alone. Correct and track actions to prevent recurrence.",
-        steelFallNote,
-        ...(notes ? [`Project-specific requirements: ${notes}`] : []),
-      ],
-    },
-    {
-      title: "5.7.1 Immediate reporting",
-      body: "Report work-related injuries, serious illnesses, and dangerous occurrences to supervision and the employer as soon as the scene is safe, and within any site or contract time limit. Escalate to site safety and the owner or GC/CM when program rules, law, or contract require. Treat hospitalization, emergency medical response, or potential recordable and fatality events with same-shift notification. Do not wait for a full write-up before starting the report chain.",
-      bullets: [],
-    },
-    {
-      title: "5.7.2 Scene protection and access control",
-      body: "Stabilize the situation, stop additional exposure, and protect the scene. Mark or barricade the area, control access, and keep lines of fire clear for EMS. Do not move equipment or materials or alter the scene for convenience until the competent investigation lead releases the scene, except to prevent further injury, unstable loads, or life safety risk.",
-      bullets: [],
-    },
-    {
-      title: "5.7.3 Supervisor responsibilities",
-      body: "Supervision shall confirm that reporting is in progress, that affected workers get medical or first aid as needed, and that witnesses and involved crew are identified. Supervision shall assign an investigator, preserve evidence, and keep restart or demobilization under their approval until the initial facts are recorded.",
-      bullets: [],
-    },
-    {
-      title: "5.7.4 Investigation and documentation",
-      body: "Perform a fact-based review: who, what, when, where, training and permits, equipment, and environmental factors. Use interviews, photos or sketches, and JHA, permit, and equipment records as needed. File the investigation record per employer and site rules, including regulatory and owner notifications when required. Focus on system causes, not blame alone.",
-      bullets: [],
-    },
-    {
-      title: "5.7.5 Corrective actions and follow-up",
-      body: "Document corrective and preventive actions with owners and dates. Close items only after the fix is in place and verified. Re-brief the crew and update the JHA, tools, or training if the event shows a weak control. Track repeat events for trend review.",
-      bullets: [],
-    },
-    {
-      title: "5.7.6 Near-miss reporting",
-      body: "Report near misses that could have caused serious injury, especially unplanned release of energy, line-of-fire events, and fall or dropped-load scenarios. Use the same reporting path as for injuries when the site requires; record near misses for lessons learned and trend review whether or not someone was hurt.",
-      bullets: [],
+      body: intro,
+      bullets: fieldProcessSteps,
     },
   ];
+
+  if (notes) {
+    sections.push({
+      title: "5.7.1 Project-specific incident reporting notes",
+      body: notes,
+      bullets: [],
+    });
+  }
+
+  return sections;
 }
 
 function buildStandaloneSubsectionContent(params: {
@@ -2498,8 +2562,12 @@ function buildStandaloneSubsectionContent(params: {
     .map((block) => block.replace(/\s{2,}/g, " ").trim())
     .filter(Boolean);
 
+  const sizedBlocks = paragraphBlocks.flatMap((block) =>
+    splitParagraphAtEstimatedDocxLineCount(block, { maxLines: 6 })
+  );
+
   return {
-    body: paragraphBlocks.join("\n\n") || params.fallbackBody,
+    body: sizedBlocks.join("\n\n") || params.fallbackBody,
     bullets: bulletItems.length ? bulletItems : params.fallbackBullets ?? [],
   };
 }
@@ -3229,10 +3297,15 @@ function collectOshaReferences(
   }
   for (const section of programSections) {
     const refsSection = section.subsections?.find((subsection) => subsection.title === "Applicable References");
-    refsSection?.bullets?.forEach((ref) => refs.add(ref));
+    refsSection?.bullets?.forEach((ref) => {
+      const t = ref.trim();
+      refs.add(/^R\d+$/i.test(t) ? t.toUpperCase() : ref.trim());
+    });
     for (const subsection of section.subsections ?? []) {
       subsection.bullets?.forEach((b) => {
-        if (/\bOSHA\b|29\s*CFR|\b1926\b/i.test(b)) refs.add(b.trim());
+        const t = b.trim();
+        if (/^R\d+$/i.test(t)) refs.add(t.toUpperCase());
+        else if (/\bOSHA\b|29\s*CFR|\b1926\b/i.test(b)) refs.add(b.trim());
       });
       const body = subsection.body;
       if (!body) continue;
@@ -3369,7 +3442,7 @@ function buildTradeAccessProfiles(
     profiles.push({
       label: "Steel Erection Access Control (Subpart R / ironworker zones)",
       intro:
-        "Field access follows 29 CFR 1926 Subpart R (steel erection) and project fall-protection and hoisting programs. For steel erection and decking, the competent person and supervision establish a Controlled Access Zone (CAZ) or other Subpart R style boundary whenever work needs a clear limit for leading-edge, decking, connecting, or overhead activity, or to control who is under exposed work. Ironworkers, connectors, decking crews, and direct trade support (e.g., tag line, small tools) are the only personnel authorized in ironworker work zones, CAZs, and controlled decking zones (CDZ) unless the site adds other named roles. No employee may work, stand, or pass under a suspended load. The competent person re-briefs the crew when picks, swing, CDZ, or the boundary change. Coordinated lift path, drop zone, CAZ, and laydown rules apply to every shift.",
+        `${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} Field access follows 29 CFR 1926 Subpart R (steel erection) and project fall-protection and hoisting programs. For steel erection and decking, the competent person and supervision establish a Controlled Access Zone (CAZ) or other Subpart R style boundary whenever work needs a clear limit for leading-edge, decking, connecting, or overhead activity, or to control who is under exposed work. Ironworkers, connectors, decking crews, and direct trade support (e.g., tag line, small tools) are the only personnel authorized in ironworker work zones, CAZs, and controlled decking zones (CDZ) unless the site adds other named roles. No employee may work, stand, or pass under a suspended load. The competent person re-briefs the crew when picks, swing, CDZ, or the boundary change. Coordinated lift path, drop zone, CAZ, and laydown rules apply to every shift.`,
       rows: [
         [
           "Ironworker and connector / decking zones",
@@ -3378,13 +3451,13 @@ function buildTradeAccessProfiles(
         ],
         [
           "Controlled Access Zone (CAZ)",
-          "Use a CAZ for steel erection and decking when the work requires a defined boundary for leading-edge, decking, connecting, or overhead steel activity, or to restrict access under exposed work. Only workers involved in the operation may enter. Supervision or the competent person identifies and maintains the CAZ before and during the shift, aligned with site barricades, warning line, or signage, and with stop-work if unauthorized workers breach the line or the control boundary is not intact.",
+          `Use a CAZ for steel erection and decking when the work requires a defined boundary for leading-edge, decking, connecting, or overhead steel activity, or to restrict access under exposed work. Only workers involved in the operation may enter. ${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} Supervision or the competent person identifies and maintains the CAZ before and during the shift, aligned with site barricades, warning line, or signage, and with immediate stop-work if unauthorized workers breach the line or the control boundary is not intact. ${CSEP_RESTART_AFTER_VERIFICATION}`,
           "Competent Person / Foreman",
         ],
         ["Controlled access below erection", "No unauthorized access below active steel erection, bolting, welding, or decking work. Barricade or hard-line the area below and post warning signage before work begins.", "Superintendent / Competent Person"],
         [
           "Suspended load, CAZ, and drop zone",
-          "Do not rely on drop zone wording alone: where the work creates a controlled access boundary, the CAZ is established, communicated, and kept clear of unauthorized personnel, together with barricades, signage, and exclusion limits. No employee shall work, stand, or travel beneath a suspended load. Remain clear of the load path, swing radius, and fall or drop area for every pick; do not enter until the load is landed, unrigged, and released by the signal person. Use spotters and stop-work as needed if anyone enters the CAZ, swing path, or uncontrolled area below active steel.",
+          `Do not rely on drop zone wording alone: where the work creates a controlled access boundary, the CAZ is established, communicated, and kept clear of unauthorized personnel, together with barricades, signage, and exclusion limits. No employee shall work, stand, or travel beneath a suspended load. Remain clear of the load path, swing radius, and fall or drop area for every pick; do not enter until the load is landed, unrigged, and released by the signal person. ${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} Use spotters and stop-work as needed if anyone enters the CAZ, swing path, or uncontrolled area below active steel. ${CSEP_RESTART_AFTER_VERIFICATION}`,
           "Signal Person / Crane Lead",
         ],
         ["Connector and decking access limit", "Only authorized connectors and decking crew enter leading-edge or newly placed decking until fall protection is complete and the controlled decking zone is released.", "Foreman / Competent Person"],
@@ -3856,22 +3929,22 @@ function buildCsepSelectedSections(params: {
       [
         superintendentRole,
         "Own implementation of this CSEP, staffing, sequencing, permit readiness, and coordination with the GC/CM and affected trades.",
-        "Authorize work start, stop work when controls fail, and approve restart after corrective action.",
+        `Confirm who is authorized to verify and release the work for restart after stop-work or corrective action. Support universal stop-work authority so any worker may halt unsafe work. ${CSEP_RESTART_AFTER_VERIFICATION}`,
       ],
       [
         "Competent Person",
         "Inspect the work area, verify required controls, monitor changing conditions, and correct hazards before and during work.",
-        "Hold work when access, protection, rescue, or permit conditions are incomplete.",
+        `Hold work when access, protection, rescue, or permit conditions are incomplete. After conditions are corrected, ${CSEP_RESTART_AFTER_VERIFICATION}`,
       ],
       [
         "Foreman / Crew Lead",
         "Run pre-task planning, verify crew understanding, maintain housekeeping, and confirm inspections and permits are in place.",
-        "Do not release the crew to start until controls, PPE, and authorizations are verified.",
+        `Do not release the crew to start until controls, PPE, and authorizations are verified. After any stop-work, ${CSEP_RESTART_AFTER_VERIFICATION}`,
       ],
       [
         "Workers",
         "Follow the CSEP, participate in pre-task planning, inspect assigned tools/PPE, and report hazards, incidents, and changing conditions immediately.",
-        "Exercise stop-work authority when conditions are unsafe or instructions conflict with field conditions.",
+        `${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} Escalate to supervision immediately when work is stopped.`,
       ],
     ] satisfies string[][];
 
@@ -3886,7 +3959,7 @@ function buildCsepSelectedSections(params: {
             ? `${project.contractorCompany} must assign accountable supervision and a competent person for the selected work scope before work starts.`
             : null,
         ],
-        "Accountable supervision, competent-person oversight, and worker stop-work authority apply to the active contractor scope."
+        `${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} Accountable supervision and competent-person oversight support verification and release for restart on the active contractor scope.`
       ),
       subsections: buildStructuredRowSubsections(
         ["Role", "Core Responsibilities", "Authority / Hold Point"],
@@ -3903,7 +3976,7 @@ function buildCsepSelectedSections(params: {
 
     const generalRestrictedAreaDescription = tradeAccessProfiles.length
       ? "Restricted areas: See the trade-specific access-control subsections below for the restricted-area definitions that apply to the active scope. General site restricted areas (permits, energized equipment, fall-risk edges) remain controlled by barricades, signage, and permit ownership."
-      : "Restricted areas: Permit-required and high-hazard areas are barricaded, signed, and released only after controls are verified by the competent person responsible for that area.";
+      : `Restricted areas: Permit-required and high-hazard areas are barricaded, signed, and released only after verification per site rules. ${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} ${CSEP_RESTART_AFTER_VERIFICATION}`;
 
     const securityRows = [
       ["Worker access", "Verify orientation, badging, and daily work assignment before entry.", "Superintendent / Foreman"],
@@ -4014,8 +4087,10 @@ function buildCsepSelectedSections(params: {
     const drugAlcohol = buildStandaloneSubsectionContent({
       title: "Drug, Alcohol, and Fit-for-Duty Controls",
       value: drugAlcoholInput,
-      fallbackBody:
+      fallbackBody: [
         "The bulleted items below are mandatory for all project personnel in this CSEP contract scope, including lower-tier and subcontracted employees.",
+        "When the site or employer uses a numbered compliance checklist, map these bullets to Requirement, Responsible party, Required action, Documentation, and Verification / closeout as applicable.",
+      ].join("\n\n"),
       fallbackBullets: [
         "Required: Before first work activity on the project (and after a major scope, employer, or site-rule change that affects the policy), each worker must complete project and employer orientation and must acknowledge the applicable drug-, alcohol-, and fit-for-duty rules; supervision retains evidence per site rules.",
         "Comply with employer, union, and reciprocal-body substance programs that apply to the craft or project (e.g., referral, random, post-accident, and reasonable-cause testing under the collective bargaining agreement, union trust, or inter-local reciprocal agreements when they govern this work).",
@@ -4023,19 +4098,22 @@ function buildCsepSelectedSections(params: {
         "Do not keep, use, or store alcohol, illegal drugs, or unauthorized personal-use controlled substances in personal vehicles while those vehicles are parked on the construction site, owner staging or parking, or on other project-controlled client property. Lawfully prescribed medicine remains subject to the site’s medical, privacy, and fit-for-duty rules.",
         "Report suspected alcohol- or drug-related impairment: supervision removes affected workers from exposed, at-height, and equipment work until the situation is managed under program rules.",
         "Post-incident, reasonable-suspicion, return-to-work, and other testing triggers the program lists must be followed; if impairment or noncompliance creates an unacceptable risk, the work does not continue until the risk is abated and required steps are met.",
-        "Restart of work after stop for impairment, or for covered tasks after a related program action, follows site and employer rules, including documented supervisor (or other designated) approval when required.",
+        `Restart of work after stop for impairment, or for covered tasks after a related program action, follows site and employer rules, including documented supervisor (or other designated) approval when required. ${CSEP_RESTART_AFTER_VERIFICATION}`,
       ],
     });
     const enforcement = buildStandaloneSubsectionContent({
       title: "Enforcement and Corrective Action",
       value: enforcementInput,
-      fallbackBody:
-        "This subsection governs correction, escalation, documentation, field verification, and approved restart after CSEP or site-rule violations. It does not restate the substance, testing, and fit-for-duty program (see 6.3 Drug, Alcohol, and Fit-for-Duty Controls).",
+      fallbackBody: [
+        "This subsection governs correction, escalation, documentation, field verification, and approved restart after CSEP or site-rule violations.",
+        "It does not restate the substance, testing, and fit-for-duty program (see 6.3 Drug, Alcohol, and Fit-for-Duty Controls).",
+        "For field use, align stop-work, documentation, and restart steps with Requirement, Responsible party, Required action, Documentation, and Verification / closeout where the project uses that structure.",
+      ].join("\n\n"),
       fallbackBullets: [
         "Correct the deficiency at once or stop the work: issue clear, task-specific direction on what must change before the crew or equipment re-engages.",
         "Escalate in proportion to risk: foreman to superintendent to company safety; involve owner/GC and union stewards when program rules, labor agreements, or contract terms require it.",
         "Document findings, immediate actions, responsible parties, follow-up due dates, and any disciplinary, progressive, or site-removal steps taken. Track repeat issues for trend review.",
-        "Verify corrective measures in the field (including permits, re-briefs, and equipment or access fixes) before closing an item. Restart after stop-work requires documented release when the site or program requires it.",
+        `Verify corrective measures in the field (including permits, re-briefs, and equipment or access fixes) before closing an item. ${CSEP_RESTART_AFTER_VERIFICATION} Document who authorized verification and release when the site or program requires it.`,
         "Disciplinary and contract consequences, including removal from site, follow employer policy, labor obligations, and owner/GC direction; communicate outcomes as those rules require.",
       ],
     });
@@ -4205,7 +4283,7 @@ function buildCsepSelectedSections(params: {
             `Lightning watch / stop-work radius: ${lightningMiles} miles. When risk is within that radius, stop exposed outdoor work, hoisting, and elevated work per the site SOP. A different radius applies only if the owner or GC documents it in the site weather SOP.`,
             `Lightning all-clear: ${lightningAllClear} minutes from the last strike or flash within the trigger radius, unless a written site SOP, owner standard, or approved weather service prescribes otherwise; document the source used for restart.`,
             "Stop crane work, high steel or deck, MEWPs in the exposure, and similar exposed tasks when the lightning plan triggers; do not rely on ad hoc ‘shelter’ that still leaves people in open steel, on unsecured deck, or next to ungrounded mobile equipment.",
-            "Restart exposed work only after the all-clear clock completes and a competent person re-approves the task list for that weather window.",
+            `After the all-clear clock completes for lightning, ${CSEP_RESTART_AFTER_VERIFICATION} Re-approve the task list for that weather window when the site SOP requires it.`,
           ],
         },
         {
@@ -4216,7 +4294,7 @@ function buildCsepSelectedSections(params: {
             "Move immediately to the designated in-building shelter, hardened interior rooms, or other owner-approved refuges identified on the site map. Do not remain on lifts, exposed structural steel, roofs, open deck, latticed cranes, or in open yards during a watch or warning unless an emergency release has been given by a responder.",
             "Vehicles: do not treat ordinary pickups or job trucks as safe shelters; only use a vehicle as shelter when the project policy or fire marshal explicitly approves a vehicle plan (e.g., low-lying, sealed cab with instructions)—otherwise proceed to a designated building shelter.",
             "Accountability: at the shelter, foremen and the GC/CM (or their designee) perform a field headcount or electronic roll against the muster list; report missing workers only through the site emergency process.",
-            "Restart: return to the workface only after site leadership, emergency services, or the GC/CM has formally released the site for work. Re-brief the crew, re-walk the area for downed power, damaged weather enclosure, and unstable material before re-engaging.",
+            `After site leadership, emergency services, or the GC/CM has formally released the site for work, ${CSEP_RESTART_AFTER_VERIFICATION} Re-walk the area for downed power, damaged weather enclosure, and unstable material before re-engaging.`,
           ],
         },
         {
@@ -4225,7 +4303,7 @@ function buildCsepSelectedSections(params: {
           bullets: [
             "On shaking or a seismic warning: stop work immediately; do not run through active steel, under suspended loads, scaffolds, or crane booms, or next to freestanding wall panels and glass that can shift or fall.",
             "Move to an open, clear area away from structures, fuel points, and overhead utilities when an outdoor “drop, cover, hold” location is the site plan; otherwise follow the posted indoor refuge or roof-access freeze plan.",
-            "After the event, evacuate or shelter as directed; account for all personnel. Do not restart in affected bays until a competent person has inspected for fallen steel, damaged connections, dislodged rigging, cracked concrete, and damaged access ladders.",
+            `After the event, evacuate or shelter as directed; account for all personnel. Do not restart in affected bays until a competent person has inspected for fallen steel, damaged connections, dislodged rigging, cracked concrete, and damaged access ladders. ${CSEP_RESTART_AFTER_VERIFICATION}`,
             "Re-inspect crane bases, outrigger pads, tower ties, and laydown for movement before the next pick. Confirm temporary power, gas, and standpipes for damage before re-energizing.",
           ],
         },

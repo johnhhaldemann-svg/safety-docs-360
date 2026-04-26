@@ -2,6 +2,7 @@ import type { PermissionMap } from "@/lib/rbac";
 import type { WorkspaceProduct } from "@/lib/workspaceProduct";
 import type { DashboardRole } from "@/lib/dashboardRole";
 import type { OnboardingState } from "@/lib/onboardingState";
+import type { DashboardHomeMetrics } from "@/lib/dashboardAnalytics";
 
 export type DashboardDocument = {
   id: string;
@@ -292,7 +293,8 @@ export type DashboardBlockId =
   | "graph_jobsite_risk"
   | "graph_observation_mix"
   | "graph_risk_distribution"
-  | "graph_risk_reduction";
+  | "graph_risk_reduction"
+  | "graph_workspace_signals";
 
 export type DashboardAvailableBlock = {
   id: DashboardBlockId;
@@ -349,6 +351,8 @@ export type DashboardDataState = {
   loading: boolean;
   userRole: string;
   userTeam: string;
+  /** When set, dashboard overview contractor scope is locked to this company_contractors id. */
+  linkedContractorId: string | null;
   permissionMap: PermissionMap | null;
   companyProfile: DashboardCompanyProfile | null;
   workspaceProduct: WorkspaceProduct;
@@ -358,6 +362,8 @@ export type DashboardDataState = {
   companyInvites: DashboardCompanyInvite[];
   workspaceSummary: DashboardWorkspaceSummary;
   analyticsSummary: DashboardAnalyticsSummary;
+  /** Narrow `/api/company/dashboard-metrics` rollup; null when not loaded or unavailable. */
+  dashboardMetrics: DashboardHomeMetrics | null;
   revenueReadiness: DashboardRevenueReadiness;
   companyWorkspaceLoaded: boolean;
   companyWorkspaceLoading: boolean;

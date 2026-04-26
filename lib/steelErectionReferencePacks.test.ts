@@ -16,7 +16,7 @@ import { getSteelErectionTaskModulesForCsepSelection } from "@/lib/steelErection
 describe("steel erection reference packs", () => {
   it("ships generated hazard, task, and program libraries for all steel source docs", () => {
     expect(STEEL_ERECTION_HAZARD_MODULES).toHaveLength(8);
-    expect(STEEL_ERECTION_TASK_MODULES).toHaveLength(9);
+    expect(STEEL_ERECTION_TASK_MODULES).toHaveLength(12);
     expect(STEEL_ERECTION_PROGRAM_MODULES).toHaveLength(10);
 
     expect(STEEL_ERECTION_HAZARD_MODULES[0]).toEqual(

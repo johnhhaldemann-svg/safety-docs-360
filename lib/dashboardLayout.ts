@@ -28,6 +28,7 @@ export const DASHBOARD_BLOCK_IDS: DashboardBlockId[] = [
   "graph_observation_mix",
   "graph_risk_distribution",
   "graph_risk_reduction",
+  "graph_workspace_signals",
 ];
 
 const DASHBOARD_BLOCK_META: Record<
@@ -121,6 +122,11 @@ const DASHBOARD_BLOCK_META: Record<
   graph_risk_reduction: {
     title: "Risk reduction graph",
     description: "A bar graph showing open, in-progress, and reduced (closed) risk items.",
+  },
+  graph_workspace_signals: {
+    title: "Workspace signal mix",
+    description:
+      "SOR reports, corrective actions, and near-miss counts from the dashboard metrics service (corrective/incident rows respect jobsite assignment when applicable).",
   },
 };
 
@@ -301,6 +307,7 @@ export function areDashboardLayoutsEqual(
  * the last slot is overwritten so the pin always succeeds for allowed block ids.
  */
 export const DASHBOARD_PIN_EVICT_PRIORITY: readonly DashboardBlockId[] = [
+  "graph_workspace_signals",
   "graph_risk_reduction",
   "graph_risk_distribution",
   "graph_observation_mix",

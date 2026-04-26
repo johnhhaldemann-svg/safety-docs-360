@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { PageHero, appButtonPrimaryClassName, appButtonSecondaryClassName } from "@/components/WorkspacePrimitives";
 import type {
+  SystemHealthCheck,
   SystemHealthConnection,
   SystemHealthResponse,
   SystemHealthSection,
@@ -69,6 +70,31 @@ function StatusIcon({ status }: { status: SystemHealthStatus }) {
 
 function formatStatusLabel(s: SystemHealthStatus) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function PlatformInfrastructureCard({ check, scanTime }: { check: SystemHealthCheck; scanTime: string }) {
+  const checkedAt = check.lastCheckedAt ?? scanTime;
+  return (
+    <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h3 className="min-w-0 font-semibold capitalize text-[var(--app-text-strong)]">{check.name}</h3>
+        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${statusBadgeClasses(check.status)}`}>
+          <StatusIcon status={check.status} />
+          {formatStatusLabel(check.status)}
+        </span>
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-[var(--app-text)]">{check.message}</p>
+      {check.recommendedFix ? (
+        <p className="mt-2 text-sm font-medium text-amber-900/90">
+          <span className="text-[var(--app-muted)]">Suggested fix: </span>
+          {check.recommendedFix}
+        </p>
+      ) : null}
+      <p className="mt-3 text-xs text-[var(--app-muted)]">
+        Last checked: <strong className="text-[var(--app-text)]">{new Date(checkedAt).toLocaleString()}</strong>
+      </p>
+    </div>
+  );
 }
 
 function SectionCardBlock({
@@ -315,6 +341,17 @@ function issuesPanelItemsFromPayload(data: SystemHealthResponse) {
       }
     }
   }
+  for (const c of data.platformInfrastructure ?? []) {
+    if (c.status === "critical" || c.status === "warning") {
+      items.push({
+        section: "Infrastructure & core routes",
+        name: c.name,
+        message: c.message,
+        fix: c.recommendedFix,
+        status: c.status,
+      });
+    }
+  }
   items.sort((a, b) => {
     if (a.status === b.status) return 0;
     if (a.status === "critical") return -1;
@@ -336,7 +373,11 @@ export default function SuperadminSystemHealthPage() {
     setError(null);
     setForbidden(false);
     try {
-      const res = await fetch("/api/superadmin/system-health", { credentials: "include", cache: "no-store" });
+      const res = await fetch("/api/superadmin/system-health", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
       if (res.status === 403) {
         setForbidden(true);
         setData(null);
@@ -377,7 +418,7 @@ export default function SuperadminSystemHealthPage() {
           <ShieldAlert className="mx-auto h-12 w-12 text-red-600" aria-hidden />
           <h1 className="mt-4 text-xl font-bold text-red-950">Access denied</h1>
           <p className="mt-2 text-sm text-red-900/90">
-            The System Health dashboard is restricted to users with the <strong>Super Admin</strong> role. If you
+            Superadmin System Health is restricted to users with the <strong>Super Admin</strong> role. If you
             believe you should have access, contact a platform administrator.
           </p>
         </div>
@@ -395,10 +436,10 @@ export default function SuperadminSystemHealthPage() {
             </div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-200/90">Superadmin</p>
-              <h1 className="font-app-display text-2xl font-bold tracking-tight sm:text-3xl">Smart Safety System Health</h1>
+              <h1 className="font-app-display text-2xl font-bold tracking-tight sm:text-3xl">Superadmin System Health</h1>
               <p className="mt-1 max-w-xl text-sm text-slate-200/90">
-                Live checks across database, storage, roles, workflows, and Safety Intelligence. Results are
-                non-technical summaries with suggested fixes when something needs attention.
+                Read-only checks across database, storage, core routes, and key tables. Results are plain-language signals
+                with suggested fixes so prevention data stays trustworthy—field verification still owns the final call.
               </p>
             </div>
           </div>
@@ -411,8 +452,8 @@ export default function SuperadminSystemHealthPage() {
 
       <PageHero
         eyebrow="Platform diagnostics"
-        title="End-to-end Smart Safety readiness"
-        description="Each card mirrors the Smart Safety architecture: foundation data, memory buckets, prevention rules, AI engine outputs, field deliverables, and the feedback loop back into memory."
+        title="Prevention-ready platform signals"
+        description="Layered checks follow how data flows from foundation tables through memory, prevention logic, intelligence outputs, and field feedback. Use them to find missing controls in the stack—not as a substitute for jobsite verification."
         actions={
           <button type="button" className={appButtonPrimaryClassName} onClick={() => void load()} disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
@@ -443,6 +484,21 @@ export default function SuperadminSystemHealthPage() {
               </div>
             </div>
           ) : null}
+
+          <section className="rounded-2xl border border-[var(--app-border-strong)] bg-white/95 p-6 shadow-[var(--app-shadow-soft)]">
+            <h2 className="text-lg font-bold text-[var(--app-text-strong)]">Infrastructure and core routes</h2>
+            <p className="mt-1 text-sm text-[var(--app-text)]">
+              Each card is an independent probe. <strong className="font-semibold text-emerald-800">Green</strong> means
+              working, <strong className="font-semibold text-amber-900">yellow</strong> usually means connected but empty
+              or incomplete, <strong className="font-semibold text-red-900">red</strong> means broken or missing. Table
+              checks never insert data—they only run read-only row counts.
+            </p>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {(data.platformInfrastructure ?? []).map((c) => (
+                <PlatformInfrastructureCard key={c.name} check={c} scanTime={data.lastCheckedAt} />
+              ))}
+            </div>
+          </section>
 
           <section className="rounded-2xl border border-[var(--app-border-strong)] bg-white/95 p-6 shadow-[var(--app-shadow-soft)]">
             <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--app-muted)]">Summary</h2>

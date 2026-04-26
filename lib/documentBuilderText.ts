@@ -4,6 +4,7 @@ import type {
   DocumentBuilderSectionTemplate,
   DocumentBuilderTextConfig,
 } from "@/types/document-builder-text";
+import { CSEP_RESTART_AFTER_VERIFICATION, CSEP_STOP_WORK_UNIVERSAL_AUTHORITY } from "@/lib/csepStopWorkLanguage";
 
 function section(
   key: string,
@@ -517,8 +518,10 @@ export const DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG: DocumentBuilderTextConfig = {
               section("responsibilities", "Responsibilities", "Responsibilities", {
                 paragraphs: [
                   "Project management is responsible for ensuring fall hazards are identified and controlled prior to beginning work.",
-                  "Supervisors must ensure workers understand and comply with fall protection requirements.",
+                  "Supervisors must ensure workers understand and comply with fall protection requirements and who is authorized to verify and release the work for restart after any stop-work event.",
+                  `${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY}`,
                   "Employees must inspect fall protection equipment before each use.",
+                  `${CSEP_RESTART_AFTER_VERIFICATION}`,
                 ],
               }),
               section("hazard_identification", "Hazard Identification", "Hazard Identification", {
@@ -534,7 +537,10 @@ export const DEFAULT_DOCUMENT_BUILDER_TEXT_CONFIG: DocumentBuilderTextConfig = {
                 ],
               }),
               section("control_measures", "Control Measures", "Control Measures", {
-                paragraphs: ["Engineering controls will be implemented whenever feasible."],
+                paragraphs: [
+                  "Engineering controls will be implemented whenever feasible.",
+                  `${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} ${CSEP_RESTART_AFTER_VERIFICATION}`,
+                ],
                 bullets: [
                   "Guardrail systems",
                   "Personal fall arrest systems",

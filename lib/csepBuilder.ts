@@ -21,6 +21,8 @@ import {
   normalizePermitList,
 } from "@/lib/csepFinalization";
 import { gcCmPartnersHaystack } from "@/lib/csepGcCmPartners";
+import { CSEP_REGULATORY_REFERENCE_INDEX } from "@/lib/csepRegulatoryReferenceIndex";
+import { CSEP_RESTART_AFTER_VERIFICATION, CSEP_STOP_WORK_UNIVERSAL_AUTHORITY } from "@/lib/csepStopWorkLanguage";
 
 type CsepFrontMatterDefinition = CsepFormatSectionDefinition & {
   key: (typeof CSEP_FRONT_MATTER_KEYS)[number];
@@ -538,6 +540,17 @@ const APPENDIX_DEFINITIONS: readonly CsepAppendixDefinition[] = [
     numberLabel: "Appendix F",
     purpose:
       "Full narratives for selected hazard programs (fall protection, hot work, rigging, CDZ, steel program modules, and similar) when the Hazards and Controls section uses abbreviated field summaries.",
+    aiEligible: true,
+  },
+  {
+    key: "appendix_g_regulatory_references_r_index",
+    kind: "appendix",
+    order: 45,
+    title: "Appendix G. Regulatory References (R-index)",
+    shortTitle: "Regulatory References (R-index)",
+    numberLabel: "Appendix G",
+    purpose:
+      "Stable R-number citations used throughout this CSEP; program modules reference R-codes instead of repeating full OSHA titles.",
     aiEligible: true,
   },
 ] as const;
@@ -1742,11 +1755,17 @@ const PROJECT_SCOPE_SUMMARY_BY_TITLE: Record<string, string> = {
   "crane picks": "Plan and execute crane lifts with controlled paths, communication, and exclusion zones.",
   "column erection": "Set, align, and stabilize structural columns during initial steel installation.",
   "beam setting": "Lift and place beams into position for connection and structural framing progress.",
+  connecting:
+    "Receive hoisted members at leading edges and seats, align bolt holes, install drift pins and initial fasteners, and communicate release conditions per the steel plan.",
   bolting: "Install and tighten structural bolts to required connection standards.",
   welding: "Perform structural welding in accordance with approved procedures and safety controls.",
+  cutting: "Thermally or mechanically cut structural steel with hot-work controls, fire watch, and exclusion of personnel from spark and slag paths.",
+  grinding: "Grind welds, edges, or shear-stud areas on structural steel with spark control, fire watch when required, and respiratory protection per exposure assessment.",
   "decking install": "Place and secure metal decking to support floors and roof assemblies.",
   embeds: "Install or coordinate embedded items needed for structural or follow-on trade work.",
   "punch list": "Identify and correct incomplete, damaged, or nonconforming work before closeout.",
+  "touch-up painting":
+    "Apply field touch-up coatings or solvents on structural steel with ventilation, ignition-source control, and fall protection matched to access method.",
   "fire protection": "Install, modify, or coordinate fire protection systems and related components.",
   "general conditions / site management":
     "Manage site logistics, access, housekeeping, coordination, and overall field control.",
@@ -2156,9 +2175,9 @@ function buildOperationalQuickReferenceSubsections(): NonNullable<GeneratedSafet
     },
     {
       title: "Life-Saving Rules",
-      body: "Stop-work authority and life-saving expectations apply whenever conditions defeat the planned controls.",
+      body: `${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} Life-saving expectations apply whenever conditions defeat the planned controls.`,
       bullets: [
-        "Work Stoppage: Stop work when fall protection, access, or rescue conditions are not in place.",
+        `Work stoppage: Stop work when fall protection, access, or rescue conditions are not in place. ${CSEP_RESTART_AFTER_VERIFICATION}`,
         "Permit and Authorization Control: Do not bypass permit, energy-isolation, or authorization requirements.",
         "Line-of-Fire and Struck-By Prevention: Stay clear of line-of-fire, suspended-load, and struck-by exposure zones.",
         "Emergency Response and Evacuation: Use emergency response, shelter, and evacuation procedures immediately when triggers are met.",
@@ -2317,12 +2336,14 @@ function buildAppendixLibrarySections(
                       "Carry the Hazards and Controls summaries at the work face; use this appendix for training, audits, and detailed reference.",
                     ],
                   ]
-                : [
-                    ["Emergency Contacts", "Clinic directions, emergency ladder, and owner / GC contact inserts."],
-                    ["Maps and Routes", "Site maps, shelter locations, access routes, and staging references."],
-                    ["Quick Inserts", "Field reference cards and worker-facing quick-use pages."],
-                    ["Specialty References", hazardTitles.join(", ") || "Hazard-module references and project-specific field aids."],
-                  ];
+                : definition.key === "appendix_g_regulatory_references_r_index"
+                  ? CSEP_REGULATORY_REFERENCE_INDEX.map((entry) => [entry.code, entry.citation])
+                  : [
+                      ["Emergency Contacts", "Clinic directions, emergency ladder, and owner / GC contact inserts."],
+                      ["Maps and Routes", "Site maps, shelter locations, access routes, and staging references."],
+                      ["Quick Inserts", "Field reference cards and worker-facing quick-use pages."],
+                      ["Specialty References", hazardTitles.join(", ") || "Hazard-module references and project-specific field aids."],
+                    ];
 
     return {
       key: definition.key,

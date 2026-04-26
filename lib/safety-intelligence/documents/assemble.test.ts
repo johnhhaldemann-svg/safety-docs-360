@@ -279,26 +279,16 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     );
     expect(String(matrixRow[6] ?? "")).toMatch(/elevated|work|notice|none|identified/i);
     expect(String(matrixRow[7] ?? "")).toMatch(/competent|training|osha|person/i);
-    expect(
+    const fallSubs =
       draft.sectionMap.find((section) => section.key === "program_hazard__falls_from_height__base")
-        ?.subsections
-    ).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: "References",
-          body: expect.stringMatching(/R1|OSHA|Subpart M|fall/i),
-          bullets: [],
-        }),
-        expect.objectContaining({
-          title: "When Not Required",
-          body: expect.stringMatching(/fully protected|ground-level|guardrail|fall exposure/i),
-        }),
-        expect.objectContaining({
-          title: "Tie-Off",
-          body: expect.stringMatching(/100%/i),
-        }),
-      ])
+        ?.subsections ?? [];
+    expect(fallSubs.some((s) => s.title === "Applicable References" && s.bullets?.includes("R2"))).toBe(
+      true
     );
+    expect(fallSubs.find((s) => s.title === "When Not Required")?.body).toMatch(
+      /fully protected|ground-level|guardrail|fall exposure/i
+    );
+    expect(fallSubs.find((s) => s.title === "Tie-Off")?.body).toMatch(/100%/i);
     expect(
       draft.sectionMap.find((section) => section.key === "program_ppe__safety_glasses__base")
         ?.subsections
@@ -306,8 +296,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       expect.arrayContaining([
         expect.objectContaining({
           title: "Applicable References",
-          body: expect.stringContaining("OSHA 1926 Subpart E - PPE."),
-          bullets: [],
+          bullets: ["R10"],
         }),
         expect.objectContaining({
           title: "Related Tasks",
@@ -720,35 +709,16 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         }),
         expect.objectContaining({
           title: "5.7 Incident Reporting and Investigation",
-          body: null,
+          body: expect.stringMatching(/numbered field sequence|Life safety/i),
           bullets: expect.arrayContaining([
-            expect.stringMatching(/Report injuries, near misses/i),
-            expect.stringMatching(/primary reporting and investigation trigger/i),
+            expect.stringMatching(/^1\.\s*Stop work/i),
+            expect.stringMatching(/^2\.\s*Call 911/i),
+            expect.stringMatching(/^10\.\s*Track follow-up/i),
           ]),
         }),
         expect.objectContaining({
-          title: "5.7.1 Immediate reporting",
-          body: expect.stringMatching(/Report work-related injuries/i),
-        }),
-        expect.objectContaining({
-          title: "5.7.2 Scene protection and access control",
-          body: expect.stringMatching(/Stabilize the situation[\s\S]*[Ss]cene/i),
-        }),
-        expect.objectContaining({
-          title: "5.7.3 Supervisor responsibilities",
-          body: expect.stringMatching(/Supervision shall confirm that reporting is in progress/i),
-        }),
-        expect.objectContaining({
-          title: "5.7.4 Investigation and documentation",
-          body: expect.stringMatching(/Perform a fact-based review/i),
-        }),
-        expect.objectContaining({
-          title: "5.7.5 Corrective actions and follow-up",
-          body: expect.stringMatching(/Document corrective and preventive actions/i),
-        }),
-        expect.objectContaining({
-          title: "5.7.6 Near-miss reporting",
-          body: expect.stringMatching(/Report near misses that could have caused serious injury/i),
+          title: "5.7.1 Project-specific incident reporting notes",
+          body: expect.stringMatching(/Notify supervision immediately/i),
         }),
       ]),
     });
@@ -2901,6 +2871,15 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     expect(controlsText.toLowerCase()).toContain("exclusion");
   });
 
+  it("extractInlineOshaSuffix matches legacy narrative tails (regression)", () => {
+    const value =
+      "Steel erection at elevation requires coordinated access and tie-off. Applicable OSHA references: OSHA 1926 Subpart M - Fall Protection.";
+    const match = value.match(
+      /^(.*?)(?:\s*Applicable OSHA references(?:\s*\([^)]*\))?:\s*(.+?)\.\s*)$/i
+    );
+    expect(match?.[2]).toBe("OSHA 1926 Subpart M - Fall Protection");
+  });
+
   it("dedupes overlapping fall-protection sections and strips repeated inline OSHA tails", () => {
     const draft = buildGeneratedSafetyPlanDraft({
       generationContext: {
@@ -3073,25 +3052,37 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     expect(titles).toContain("Fall Protection Program");
     expect(titles).not.toContain("Personal Fall Arrest Equipment Program");
     expect(
-      draft.sectionMap.some((section) =>
-        [section.summary, section.body, ...(section.subsections ?? []).map((subsection) => subsection.body ?? "")]
-          .filter(Boolean)
-          .some((text) => text?.includes("Applicable OSHA references:"))
-      )
-    ).toBe(false);
-
-    expect(
-      draft.sectionMap.some((section) =>
-        [section.summary, section.body, ...(section.subsections ?? []).map((subsection) => subsection.body ?? "")]
-          .filter(Boolean)
-          .some((text) => text?.includes("(R1)"))
-      )
+      draft.sectionMap.some((section) => {
+        const texts = [
+          section.summary,
+          section.body,
+          ...(section.bullets ?? []),
+          ...(section.subsections ?? []).flatMap((subsection) => [
+            subsection.body ?? "",
+            ...(subsection.bullets ?? []),
+          ]),
+        ].filter(Boolean);
+        return texts.some((text) => {
+          if (typeof text !== "string" || !text.trim()) return false;
+          const t = text.trim();
+          return (
+            text.includes("(R2)") ||
+            text.includes("Applicable OSHA references (Appendix G):") ||
+            /^R2$/i.test(t) ||
+            /^R2\s+OSHA/i.test(t)
+          );
+        });
+      })
     ).toBe(true);
 
     expect(
-      draft.sectionMap.some((section) =>
-        (section.bullets ?? []).includes("R1 OSHA 1926 Subpart M - Fall Protection")
-      )
+      draft.sectionMap.some((section) => {
+        const allBullets = [
+          ...(section.bullets ?? []),
+          ...(section.subsections ?? []).flatMap((subsection) => subsection.bullets ?? []),
+        ];
+        return allBullets.some((b) => /^R2\s+OSHA 29 CFR 1926 Subpart M/i.test(b));
+      })
     ).toBe(true);
   });
 

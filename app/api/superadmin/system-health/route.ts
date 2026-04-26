@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 /** Cross-tenant diagnostics; service role used only server-side. */
 export const maxDuration = 60;
 
-export async function GET(request: Request) {
+async function handleSystemHealth(request: Request) {
   const auth = await authorizeRequest(request, {
     requirePermission: "can_access_internal_admin",
     allowPending: true,
@@ -27,4 +27,13 @@ export async function GET(request: Request) {
   const payload = await runSystemHealthScan(admin);
 
   return NextResponse.json(payload);
+}
+
+export async function GET(request: Request) {
+  return handleSystemHealth(request);
+}
+
+/** Idempotent: same body as GET; use from the UI "Run Health Check" control. */
+export async function POST(request: Request) {
+  return handleSystemHealth(request);
 }

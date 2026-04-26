@@ -607,8 +607,8 @@ Use this draft weather overlay:
             },
             {
               title: "Applicable References",
-              body: "OSHA 1926 Subpart E - PPE.",
-              bullets: [],
+              body: undefined,
+              bullets: ["R10"],
             },
             {
               title: "Minimum Required Controls",
@@ -630,8 +630,8 @@ Use this draft weather overlay:
             },
             {
               title: "Applicable References",
-              body: "OSHA 1926 Subpart E - PPE.",
-              bullets: [],
+              body: undefined,
+              bullets: ["R10"],
             },
             {
               title: "Minimum Required Controls",
@@ -660,12 +660,12 @@ Use this draft weather overlay:
     ]);
     expect(ppeSection?.subsections?.[0]?.bullets).toEqual([
       "When It Applies: Selected work or site rules require head protection.",
-      "Applicable References: OSHA 1926 Subpart E - PPE.",
+      "Applicable References: R10",
       "Minimum Required Controls: Wear head protection that is in serviceable condition and appropriate for the hazard.",
     ]);
     expect(ppeSection?.subsections?.[1]?.bullets).toEqual([
       "When It Applies: Selected work exposes crews to dust, debris, impact, splash, or other eye hazards.",
-      "Applicable References: OSHA 1926 Subpart E - PPE.",
+      "Applicable References: R10",
       "Minimum Required Controls: Wear approved eye protection whenever eye hazards are present. Keep lenses clean and replace damaged eye protection immediately.",
     ]);
   });
@@ -718,8 +718,8 @@ Use this draft weather overlay:
           subsections: [
             {
               title: "Applicable References",
-              body: "R1 OSHA 1926 Subpart J - Fire Protection and Prevention.",
-              bullets: [],
+              body: undefined,
+              bullets: ["R5"],
             },
             {
               title: "Minimum Required Controls",
@@ -736,8 +736,8 @@ Use this draft weather overlay:
           subsections: [
             {
               title: "Applicable References",
-              body: "R1 OSHA 1926 Subpart K - Electrical.",
-              bullets: [],
+              body: undefined,
+              bullets: ["R11"],
             },
             {
               title: "Minimum Required Controls",
@@ -768,7 +768,7 @@ Use this draft weather overlay:
         body:
           "This program defines the permit controls, authorization steps, and field verifications required before hot work begins.",
         bullets: [
-          "Applicable References: R1 OSHA 1926 Subpart J - Fire Protection and Prevention.",
+          "Applicable References: R5",
           "Minimum Required Controls: Review ignition controls, fire watch needs, extinguisher placement, and permit approval before work starts.",
         ],
       },
@@ -779,7 +779,7 @@ Use this draft weather overlay:
         body:
           "This program defines controls required to prevent shock, arc, burn, and energized-equipment exposure during selected construction activities.",
         bullets: [
-          "Applicable References: R1 OSHA 1926 Subpart K - Electrical.",
+          "Applicable References: R11",
           "Minimum Required Controls: Verify de-energization, maintain boundaries, and protect workers from exposed parts and temporary power hazards.",
         ],
       },
@@ -1151,7 +1151,7 @@ Use this draft weather overlay:
       emergencySection?.subsections?.find((subsection) => subsection.title === "Life-Saving Rules")
         ?.bullets
     ).toEqual([
-      "Work Stoppage: Stop work when fall protection, access, or rescue conditions are not in place.",
+      expect.stringMatching(/Work stoppage:.*fall protection/i),
       "Permit and Authorization Control: Do not bypass permit, energy-isolation, or authorization requirements.",
       "Line-of-Fire and Struck-By Prevention: Stay clear of line-of-fire, suspended-load, and struck-by exposure zones.",
       "Emergency Response and Evacuation: Use emergency response, shelter, and evacuation procedures immediately when triggers are met.",

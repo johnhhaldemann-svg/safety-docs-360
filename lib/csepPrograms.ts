@@ -1,3 +1,8 @@
+import {
+  formatApplicableReferenceBullets,
+  formatApplicableReferencesInline,
+} from "@/lib/csepRegulatoryReferenceIndex";
+import { CSEP_RESTART_AFTER_VERIFICATION, CSEP_STOP_WORK_UNIVERSAL_AUTHORITY } from "@/lib/csepStopWorkLanguage";
 import type { CSEPRiskItem } from "@/lib/csepTradeSelection";
 import type {
   CSEPProgramCategory,
@@ -98,28 +103,8 @@ function formatProgramParagraph(values: readonly string[], fallback?: string) {
   return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
-function formatProgramReferenceParagraph(values: readonly string[], fallback?: string) {
-  const items = dedupe(values);
-  if (items.length > 0) {
-    return items
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .map((item, index) => {
-        const sentence = /[.!?]$/.test(item) ? item : `${item}.`;
-        return `R${index + 1} ${sentence}`;
-      })
-      .join(" ");
-  }
-
-  const text = fallback?.trim() || "";
-  if (!text) return undefined;
-  const sentence = /[.!?]$/.test(text) ? text : `${text}.`;
-  return `R1 ${sentence}`;
-}
-
 const PROGRAM_PARAGRAPH_SUBSECTION_TITLES = new Set([
   "When It Applies",
-  "Applicable References",
   "Responsibilities and Training",
   "Minimum Required Controls",
   "Related Tasks",
@@ -772,7 +757,7 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
       "Verify isolation and lockout/tagout where required before opening or servicing systems.",
       "Use controlled release methods and keep personnel clear of potential release paths.",
       "Establish communication and exclusion boundaries during testing, flushing, and startup.",
-      "Stop work and reassess when pressure behavior, equipment condition, or scope changes unexpectedly.",
+      `${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} Stop work and reassess when pressure behavior, equipment condition, or scope changes unexpectedly. ${CSEP_RESTART_AFTER_VERIFICATION}`,
     ],
     training: [
       "Workers shall be trained on pressure hazards, controlled release methods, and line-break stop-work triggers.",
@@ -799,7 +784,7 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
       "Review dropped-object and CAZ / communication expectations during pre-task planning.",
     ],
     training: [
-      "Workers shall be trained on overhead hazard recognition, CAZ and exclusion-zone rules, and who may enter.",
+      `Workers shall be trained on overhead hazard recognition, CAZ and exclusion-zone rules, authorized entry, ${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} ${CSEP_RESTART_AFTER_VERIFICATION}`,
     ],
   },
   {
@@ -1083,7 +1068,7 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
       "Selected work requires trench or excavation inspection documentation before entry.",
     ],
     responsibilities: [
-      "The competent person shall document inspections and stop work when conditions change.",
+      "The competent person shall document inspections. Any worker shall stop work when conditions change; the competent person or assigned supervisor verifies and releases the work for restart per site rules.",
     ],
     controls: [
       "Inspect the excavation before each shift and after conditions change.",
@@ -1167,7 +1152,7 @@ const BASE_PROGRAM_DEFINITIONS: Array<Omit<CSEPProgramDefinition, keyof ProgramP
       "Selected work creates overhead or gravity-driven exposure to people below or adjacent to the work area.",
     ],
     responsibilities: [
-      "Supervision shall define drop zones, barricades, CAZ or exclusion limits, and protected access before overhead work begins, and use stop work when a posted boundary is breached or signage is not maintained.",
+      `Supervision shall define drop zones, barricades, CAZ or exclusion limits, and protected access before overhead work begins. ${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} ${CSEP_RESTART_AFTER_VERIFICATION}`,
     ],
     controls: [
       "Maintain barricades, overhead protection, and signed exclusion limits; where a CAZ is required, align it with the same communication used for the drop or fall path so unauthorized ironworkers, laborers, and other trades stay out.",
@@ -1800,7 +1785,11 @@ function buildFallProtectionGoverningProgramSection(
   }
 
   const subsections: CSEPProgramSection["subsections"] = [
-    { title: "References", body: formatProgramReferenceParagraph(definition.oshaRefs), bullets: [] },
+    {
+      title: "Applicable References",
+      body: undefined,
+      bullets: formatApplicableReferenceBullets(definition.oshaRefs),
+    },
     { title: "When Required", body: undefined, bullets: whenRequired },
     { title: "When Not Required", body: FALL_WHEN_NOT_REQUIRED_LEAD, bullets: FALL_WHEN_NOT_REQUIRED_BULLETS },
     { title: "Planning / Release for Work", body: planningBody, bullets: [] },
@@ -1906,7 +1895,11 @@ function buildHotWorkGoverningProgramSection(
   }
 
   const subsections: CSEPProgramSection["subsections"] = [
-    { title: "References", body: formatProgramReferenceParagraph(definition.oshaRefs), bullets: [] },
+    {
+      title: "Applicable References",
+      body: undefined,
+      bullets: formatApplicableReferenceBullets(definition.oshaRefs),
+    },
     { title: "Purpose / When Required", body: purposeBody, bullets: [] },
     { title: "Core Requirements", body: undefined, bullets: coreBullets },
     { title: "Pre-Task Verification", body: preTaskBody, bullets: [] },
@@ -1945,7 +1938,7 @@ function buildCompactProgramSection(
   const trainingParagraph = formatProgramParagraph(
     dedupe([...definition.responsibilities, ...definition.training])
   );
-  const referenceParagraph = formatProgramReferenceParagraph(definition.oshaRefs);
+  const referenceParagraph = formatApplicableReferencesInline(definition.oshaRefs);
   const relatedNote = relatedTasks.length
     ? `Related tasks: ${relatedTasks.join(", ")}.`
     : null;
@@ -2012,7 +2005,7 @@ export function buildCsepProgramSection(
     },
     {
       title: "Applicable References",
-      bullets: definition.oshaRefs,
+      bullets: formatApplicableReferenceBullets(definition.oshaRefs),
     },
     {
       title: "Responsibilities and Training",
@@ -2058,11 +2051,7 @@ export function buildCsepProgramSection(
         PROGRAM_PARAGRAPH_SUBSECTION_TITLES.has(section.title)
           ? {
               title: section.title,
-              body:
-                section.body ??
-                (section.title === "Applicable References"
-                  ? formatProgramReferenceParagraph(section.bullets)
-                  : formatProgramParagraph(section.bullets)),
+              body: section.body ?? formatProgramParagraph(section.bullets),
               bullets: [] as string[],
             }
           : section

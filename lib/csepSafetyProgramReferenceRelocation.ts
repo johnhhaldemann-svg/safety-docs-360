@@ -1,3 +1,4 @@
+import { CSEP_RESTART_AFTER_VERIFICATION, CSEP_STOP_WORK_UNIVERSAL_AUTHORITY } from "@/lib/csepStopWorkLanguage";
 import type { GeneratedSafetyPlanSection } from "@/types/safety-intelligence";
 
 export const CSEP_SAFETY_PROGRAM_REFERENCE_PACK_KEY = "appendix_safety_program_reference_pack";
@@ -92,7 +93,7 @@ function buildStubProgramSection(full: GeneratedSafetyPlanSection): GeneratedSaf
         : [
             "Confirm applicability with supervision before starting exposed work.",
             "Verify permits, inspections, and rescue or interface readiness per site rules.",
-            "Stop work when conditions change and restart only after re-verification.",
+            `${CSEP_STOP_WORK_UNIVERSAL_AUTHORITY} ${CSEP_RESTART_AFTER_VERIFICATION}`,
           ],
     subsections: undefined,
   };

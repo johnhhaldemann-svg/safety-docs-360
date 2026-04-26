@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * Legacy standalone company-admin screen (not mounted from `/dashboard`).
+ * The live role dashboard is `components/dashboard/company-admin-dashboard.tsx`
+ * via `RoleDashboardResolver` on [`app/(app)/dashboard/page.tsx`](./page.tsx).
+ * Prefer editing the `components/dashboard/*` pipeline (mappers, `DashboardView`, layout APIs).
+ */
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {

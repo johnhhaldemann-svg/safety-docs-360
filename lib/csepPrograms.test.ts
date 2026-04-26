@@ -206,7 +206,7 @@ describe("csepPrograms", () => {
 
     expect(section.title).toBe("Hot Work Program");
     expect(section.subsections.map((s) => s.title)).toEqual([
-      "References",
+      "Applicable References",
       "Purpose / When Required",
       "Core Requirements",
       "Pre-Task Verification",
@@ -230,7 +230,7 @@ describe("csepPrograms", () => {
     });
 
     expect(section.subsections.map((subsection) => subsection.title)).toEqual([
-      "References",
+      "Applicable References",
       "When Required",
       "When Not Required",
       "Planning / Release for Work",
@@ -276,8 +276,8 @@ describe("csepPrograms", () => {
     expect(hazardSection.subsections).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: "References",
-          body: expect.stringMatching(/R1|OSHA|Subpart M/i),
+          title: "Applicable References",
+          bullets: expect.arrayContaining(["R2"]),
         }),
         expect.objectContaining({
           title: "When Not Required",
@@ -300,8 +300,7 @@ describe("csepPrograms", () => {
         }),
         expect.objectContaining({
           title: "Applicable References",
-          body: "R1 OSHA 1926 Subpart E - PPE.",
-          bullets: [],
+          bullets: ["R10"],
         }),
         expect.objectContaining({
           title: "Responsibilities and Training",

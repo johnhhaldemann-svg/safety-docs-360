@@ -30,12 +30,21 @@ import {
   normalizePermitList,
   normalizePpeList,
 } from "@/lib/csepFinalization";
-import { relocateSafetyProgramReferencePacks } from "@/lib/csepSafetyProgramReferenceRelocation";
+import { polishCsepDocxNarrativeText, splitCsepDocxBodyIntoSegments } from "@/lib/csepDocxNarrativePolish";
+import {
+  expandParagraphsForDocxReadability,
+  splitParagraphAtEstimatedDocxLineCount,
+} from "@/lib/csepDocxReadableParagraphs";
+import {
+  CSEP_SAFETY_PROGRAM_REFERENCE_PACK_KEY,
+  relocateSafetyProgramReferencePacks,
+} from "@/lib/csepSafetyProgramReferenceRelocation";
 import { formatGcCmPartnersForExport, normalizeGcCmPartnerEntries } from "@/lib/csepGcCmPartners";
 import {
   CSEP_WORK_ATTIRE_DEFAULT_BULLETS,
   CSEP_WORK_ATTIRE_SUBSECTION_BODY,
 } from "@/lib/csepWorkAttireDefaults";
+import { assertCsepExportQuality } from "@/lib/csepExportQualityCheck";
 import type { GeneratedSafetyPlanDraft, GeneratedSafetyPlanSection } from "@/types/safety-intelligence";
 
 export type CsepCoverMetadataRow = {
@@ -222,7 +231,7 @@ const FIXED_SECTION_DEFINITIONS: FixedSectionDefinition[] = [
     kind: "front_matter",
     title: "Roles and Responsibilities",
     descriptor:
-      "Who owns field safety decisions, competent-person duties, hoisting interfaces, and coordination with the GC/CM for this CSEP issue.",
+      "Field safety coordination, competent-person duties, hoisting interfaces, and GC/CM coordination for this CSEP issue—including who is authorized to verify and release the work for restart after controls are restored.",
   },
   {
     key: "disciplinary_program",
@@ -1744,7 +1753,7 @@ function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplate
     (source.subsections ?? []).forEach((subsection) => {
       subsections.push({
         title: contextualizeSubsectionTitle(source.title, subsection.title),
-        paragraphs: uniqueItems(splitParagraphs(subsection.body)),
+        paragraphs: expandParagraphsForDocxReadability(uniqueItems(splitParagraphs(subsection.body))),
         items: uniqueItems(subsection.bullets),
       });
     });
@@ -1823,7 +1832,7 @@ function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplate
       : undefined;
     subsections.push({
       title: parentHeadingTitle,
-      paragraphs: leadingNarrativeParagraphs,
+      paragraphs: expandParagraphsForDocxReadability(leadingNarrativeParagraphs),
       items: initialItems,
       table: source.table ?? null,
       plainItemsStyle,
@@ -1835,10 +1844,13 @@ function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplate
     const splitSubsectionParagraphs = splitInlineEnumeratedParagraphs(
       uniqueItems(splitParagraphs(subsection.body))
     );
+    const splitBullets = uniqueItems(subsection.bullets).flatMap((item) =>
+      splitParagraphAtEstimatedDocxLineCount(item, { maxLines: 6 })
+    );
     subsections.push({
       title: contextualizeSubsectionTitle(source.title, subsection.title),
-      paragraphs: splitSubsectionParagraphs.paragraphs,
-      items: uniqueItems([...splitSubsectionParagraphs.items, ...uniqueItems(subsection.bullets)]),
+      paragraphs: expandParagraphsForDocxReadability(splitSubsectionParagraphs.paragraphs),
+      items: uniqueItems([...splitSubsectionParagraphs.items, ...splitBullets]),
     });
   });
 
@@ -3003,7 +3015,7 @@ function bodyParagraph(
   return makeParagraph(
     [
       new TextRun({
-        text,
+        text: polishCsepDocxNarrativeText(text),
         font: "Calibri",
         size: 21,
         color: COLORS.ink,
@@ -3041,7 +3053,7 @@ function sectionDescriptorParagraph(text: string) {
   return makeParagraph(
     [
       new TextRun({
-        text,
+        text: polishCsepDocxNarrativeText(text),
         font: "Calibri",
         italics: true,
         size: 20,
@@ -3051,7 +3063,7 @@ function sectionDescriptorParagraph(text: string) {
     {
       style: STYLE_IDS.sectionDescriptor,
       keepNext: true,
-      spacing: { before: 40, after: 180, line: 276 },
+      spacing: { before: 36, after: 140, line: 276 },
     }
   );
 }
@@ -3081,7 +3093,7 @@ function numberedParagraph(
         color: COLORS.ink,
       }),
       new TextRun({
-        text,
+        text: polishCsepDocxNarrativeText(text),
         font: "Calibri",
         size: 21,
         color: COLORS.ink,
@@ -3096,17 +3108,19 @@ function numberedParagraph(
 }
 
 function termDefinitionParagraph(term: string, definition: string) {
+  const polishedTerm = polishCsepDocxNarrativeText(term, { skipTerminalPunctuation: true });
+  const polishedDefinition = polishCsepDocxNarrativeText(definition);
   return makeParagraph(
     [
       new TextRun({
-        text: `${term}: `,
+        text: `${polishedTerm}: `,
         font: "Calibri",
         bold: true,
         size: 21,
         color: COLORS.ink,
       }),
       new TextRun({
-        text: definition,
+        text: polishedDefinition,
         font: "Calibri",
         size: 21,
         color: COLORS.ink,
@@ -3194,7 +3208,7 @@ function labeledFieldParagraph(
     }
     valueRuns.push(
       new TextRun({
-        text: line,
+        text: polishCsepDocxNarrativeText(line),
         font: "Calibri",
         size: 20,
         color: COLORS.ink,
@@ -3352,11 +3366,11 @@ function createCover(model: CsepRenderModel) {
 
   // Approval block. Reframed so it reads as an intentional pre-issue approval
   // placeholder rather than an unresolved draft artifact.
-  coverChildren.push(new Paragraph({ children: [] }));
   coverChildren.push(
     bodyParagraph("Approval Block — Required Before Field Issue", {
       style: STYLE_IDS.subheading,
       alignment: AlignmentType.CENTER,
+      spacing: { before: 200, after: 90 },
     })
   );
   coverChildren.push(
@@ -3729,6 +3743,229 @@ function shouldRenderSubheading(sectionTitle: string, subsection: CsepTemplateSu
   return !(uniqueComparableContent.length === 1 && uniqueComparableContent[0] === normalizeToken(title));
 }
 
+const CSEP_SECTION_KEYS_WITH_FLAT_PROGRAM_OUTLINE = new Set<string>([
+  "hazards_and_controls",
+  CSEP_SAFETY_PROGRAM_REFERENCE_PACK_KEY,
+]);
+
+const EM_DASH_TITLE_SPLIT = /\s*[—]\s*/u;
+
+/**
+ * When set, catalog program slices (e.g. "Program: When It Applies") and
+ * appendix reference rows ("Program — overview") share one outline number for
+ * the program and render inner slices as unnumbered subheadings + body text.
+ */
+function usesFlatProgramOutline(section: CsepTemplateSection) {
+  return CSEP_SECTION_KEYS_WITH_FLAT_PROGRAM_OUTLINE.has(section.key);
+}
+
+function programBaseKeyFromSubsectionTitle(
+  rawTitle: string,
+  sectionKey: string
+): string | null {
+  const t = stripExistingNumberPrefix(rawTitle).trim();
+  if (!t) return null;
+
+  const emParts = t.split(EM_DASH_TITLE_SPLIT);
+  if (emParts.length >= 2 && sectionKey === CSEP_SAFETY_PROGRAM_REFERENCE_PACK_KEY) {
+    return normalizeToken(emParts[0]!.trim());
+  }
+
+  const colonIdx = t.indexOf(": ");
+  if (colonIdx !== -1) {
+    const base = t.slice(0, colonIdx).trim();
+    const rest = t.slice(colonIdx + 2).trim();
+    if (GENERIC_SUBSECTION_TITLES.has(normalizeCompareToken(rest))) {
+      return normalizeToken(base);
+    }
+  }
+
+  return null;
+}
+
+function hazardFlatGroupingKey(
+  subsections: CsepTemplateSubsection[],
+  index: number,
+  sectionKey: string
+): string {
+  const sub = subsections[index]!;
+  const fromTitle = programBaseKeyFromSubsectionTitle(sub.title, sectionKey);
+  if (fromTitle) return fromTitle;
+
+  const t = stripExistingNumberPrefix(sub.title).trim();
+  const next = subsections[index + 1];
+  if (next) {
+    const nk = programBaseKeyFromSubsectionTitle(next.title, sectionKey);
+    if (nk && nk === normalizeToken(t)) return nk;
+  }
+  const prev = subsections[index - 1];
+  if (prev) {
+    const pk = programBaseKeyFromSubsectionTitle(prev.title, sectionKey);
+    if (pk && pk === normalizeToken(t)) return pk;
+  }
+
+  return `_row:${index}:${normalizeToken(t)}`;
+}
+
+function groupSubsectionsForFlatProgramOutline(
+  subsections: CsepTemplateSubsection[],
+  sectionKey: string
+): CsepTemplateSubsection[][] {
+  if (!subsections.length) return [];
+  const keys = subsections.map((_, i) => hazardFlatGroupingKey(subsections, i, sectionKey));
+  const groups: CsepTemplateSubsection[][] = [];
+  for (let i = 0; i < subsections.length; i++) {
+    if (i === 0 || keys[i] !== keys[i - 1]) {
+      groups.push([subsections[i]!]);
+    } else {
+      groups[groups.length - 1]!.push(subsections[i]!);
+    }
+  }
+  return groups;
+}
+
+/** Exported for unit tests — groups hazard/reference subsections that share one outline number. */
+export function buildHazardFlatProgramGroupsForTest(
+  subsections: CsepTemplateSubsection[],
+  sectionKey: string
+) {
+  return groupSubsectionsForFlatProgramOutline(subsections, sectionKey);
+}
+
+function majorProgramTitleForFlatGroup(blocks: CsepTemplateSubsection[]): string {
+  if (!blocks.length) return "";
+  for (const b of blocks) {
+    const t = stripExistingNumberPrefix(b.title).trim();
+    const emParts = t.split(EM_DASH_TITLE_SPLIT);
+    if (emParts.length >= 2) {
+      return emParts[0]!.trim();
+    }
+    const colonIdx = t.indexOf(": ");
+    if (colonIdx !== -1) {
+      const rest = t.slice(colonIdx + 2).trim();
+      if (GENERIC_SUBSECTION_TITLES.has(normalizeCompareToken(rest))) {
+        return t.slice(0, colonIdx).trim();
+      }
+    }
+  }
+  return stripExistingNumberPrefix(blocks[0]!.title).trim();
+}
+
+function sliceLabelWithinProgramGroup(majorTitle: string, subsection: CsepTemplateSubsection): string | null {
+  const raw = stripExistingNumberPrefix(subsection.title).trim();
+  const major = stripExistingNumberPrefix(majorTitle).trim();
+  if (!raw || normalizeCompareToken(raw) === normalizeCompareToken(major)) {
+    return null;
+  }
+
+  const emParts = raw.split(EM_DASH_TITLE_SPLIT);
+  if (emParts.length >= 2 && normalizeCompareToken(emParts[0]!.trim()) === normalizeCompareToken(major)) {
+    return emParts.slice(1).join(" — ").trim();
+  }
+
+  const colonIdx = raw.indexOf(": ");
+  if (colonIdx !== -1) {
+    const base = raw.slice(0, colonIdx).trim();
+    if (normalizeCompareToken(base) === normalizeCompareToken(major)) {
+      return raw.slice(colonIdx + 2).trim();
+    }
+  }
+
+  return raw;
+}
+
+function appendFlatSubsectionContent(children: Paragraph[], subsection: CsepTemplateSubsection) {
+  const paragraphSplit = splitStructuredSourceItems(subsection.paragraphs);
+  const itemSplit = splitStructuredSourceItems(subsection.items);
+  const structuredEntries = [...paragraphSplit.structured, ...itemSplit.structured];
+
+  appendIndentedParagraphs(children, paragraphSplit.plain, { left: INDENTS.childBodyLeft });
+
+  structuredEntries.forEach((entry) => {
+    const bodySegments = splitCsepDocxBodyIntoSegments(entry.body);
+    const bodyText = bodySegments.join("\n\n").trim();
+    const title = entry.title?.trim() ?? "";
+    if (title && bodyText) {
+      children.push(termDefinitionParagraph(title, bodyText));
+    } else if (title) {
+      children.push(
+        bodyParagraph(title, {
+          indent: { left: INDENTS.childBodyLeft },
+          spacing: { after: 140, line: 276 },
+        })
+      );
+    } else if (bodyText) {
+      children.push(
+        bodyParagraph(bodyText, {
+          indent: { left: INDENTS.childBodyLeft },
+          spacing: { after: 140, line: 276 },
+        })
+      );
+    }
+  });
+
+  itemSplit.plain.forEach((item, itemIndex) => {
+    children.push(
+      bodyParagraph(item, {
+        indent: { left: INDENTS.childBodyLeft },
+        spacing: { before: itemIndex === 0 ? 100 : 50, after: 90, line: 276 },
+      })
+    );
+  });
+
+  if (!subsection.table?.rows.length) return;
+
+  if (isFieldValueTable(subsection.table)) {
+    appendFieldValueTableParagraphs(children, subsection.table, { indent: { left: INDENTS.childBodyLeft } });
+    return;
+  }
+
+  appendTableRowsAsOffsetParagraphs(children, subsection.table, {
+    renderMode: "numbered",
+    nested: true,
+  });
+}
+
+function renderSectionWithFlatProgramOutline(outlineOrdinal: number, section: CsepTemplateSection) {
+  const children: Paragraph[] = [
+    sectionHeading(displayOutlineSectionHeading(outlineOrdinal, section), sectionHeadingTone(section)),
+  ];
+  if (section.descriptor?.trim()) {
+    children.push(sectionDescriptorParagraph(section.descriptor.trim()));
+  }
+  const basePrefix = sectionPrefix(section, outlineOrdinal);
+  const groups = groupSubsectionsForFlatProgramOutline(section.subsections, section.key);
+  let nextTopLevelNumber = 0;
+
+  for (const group of groups) {
+    nextTopLevelNumber += 1;
+    const majorTitle = majorProgramTitleForFlatGroup(group);
+    const headingText = majorTitle || stripExistingNumberPrefix(group[0]!.title).trim() || "Program";
+    children.push(
+      numberedParagraph(`${basePrefix}.${nextTopLevelNumber}`, headingText, {
+        indent: { left: INDENTS.childLeft, hanging: INDENTS.childHanging },
+        spacing: { before: nextTopLevelNumber === 1 ? 120 : 260, after: 160, line: 276 },
+      })
+    );
+
+    for (const subsection of group) {
+      const slice = sliceLabelWithinProgramGroup(headingText, subsection);
+      if (slice) {
+        children.push(
+          bodyParagraph(slice, {
+            style: STYLE_IDS.subheading,
+            indent: { left: INDENTS.childBodyLeft },
+            spacing: { before: 200, after: 90, line: 276 },
+          })
+        );
+      }
+      appendFlatSubsectionContent(children, subsection);
+    }
+  }
+
+  return children;
+}
+
 function appendParagraphs(children: Paragraph[], paragraphs?: string[]) {
   (paragraphs ?? []).forEach((paragraph) => {
     children.push(
@@ -3825,6 +4062,10 @@ function createAppendicesDivider(ordinal: number) {
 }
 
 function renderSection(outlineOrdinal: number, section: CsepTemplateSection) {
+  if (usesFlatProgramOutline(section)) {
+    return renderSectionWithFlatProgramOutline(outlineOrdinal, section);
+  }
+
   const children: Paragraph[] = [
     sectionHeading(displayOutlineSectionHeading(outlineOrdinal, section), sectionHeadingTone(section)),
   ];
@@ -3866,14 +4107,8 @@ function renderSection(outlineOrdinal: number, section: CsepTemplateSection) {
 
     const structuredEntries = [...paragraphSplit.structured, ...itemSplit.structured];
 
-    const bodyParagraphsFor = (body: string) =>
-      body
-        .split(/\n{2,}/)
-        .map((segment) => segment.trim())
-        .filter(Boolean);
-
     structuredEntries.forEach((entry, entryIndex) => {
-      const bodySegments = bodyParagraphsFor(entry.body);
+      const bodySegments = splitCsepDocxBodyIntoSegments(entry.body);
 
       if (distinctSubheading) {
         const childNumber = `${itemPrefixBase}.${entryIndex + 1}`;
@@ -4148,8 +4383,8 @@ export async function createCsepDocument(model: CsepRenderModel) {
           name: STYLE_IDS.sectionHeading,
           paragraph: {
             spacing: {
-              before: 220,
-              after: 100,
+              before: 200,
+              after: 112,
             },
           },
           run: {
@@ -4164,8 +4399,8 @@ export async function createCsepDocument(model: CsepRenderModel) {
           name: STYLE_IDS.sectionDescriptor,
           paragraph: {
             spacing: {
-              before: 40,
-              after: 180,
+              before: 36,
+              after: 140,
             },
           },
           run: {
@@ -4180,8 +4415,8 @@ export async function createCsepDocument(model: CsepRenderModel) {
           name: STYLE_IDS.subheading,
           paragraph: {
             spacing: {
-              before: 140,
-              after: 70,
+              before: 160,
+              after: 80,
             },
           },
           run: {
@@ -4234,8 +4469,12 @@ export async function createCsepDocument(model: CsepRenderModel) {
   });
 }
 
-export async function renderCsepRenderModel(model: CsepRenderModel) {
+export async function renderCsepRenderModel(
+  model: CsepRenderModel,
+  options?: { draft?: GeneratedSafetyPlanDraft | null }
+) {
   const normalizedModel = normalizeRenderModel(model);
+  assertCsepExportQuality(normalizedModel, { draft: options?.draft ?? undefined });
   validateCsepRenderModel(normalizedModel);
   const doc = await createCsepDocument(normalizedModel);
   const buffer = await Packer.toBuffer(doc);
@@ -4253,5 +4492,5 @@ export async function renderGeneratedCsepDocx(
   draft: GeneratedSafetyPlanDraft,
   options?: { footerCompanyName?: string | null }
 ) {
-  return renderCsepRenderModel(buildCsepRenderModelFromGeneratedDraft(draft, options));
+  return renderCsepRenderModel(buildCsepRenderModelFromGeneratedDraft(draft, options), { draft });
 }
