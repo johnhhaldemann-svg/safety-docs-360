@@ -529,6 +529,17 @@ const APPENDIX_DEFINITIONS: readonly CsepAppendixDefinition[] = [
     purpose: "Field-use maps, emergency contacts, clinic directions, and quick inserts.",
     aiEligible: true,
   },
+  {
+    key: "appendix_safety_program_reference_pack",
+    kind: "appendix",
+    order: 44,
+    title: "Appendix F. Safety Program Reference Pack",
+    shortTitle: "Safety Program Reference Pack",
+    numberLabel: "Appendix F",
+    purpose:
+      "Full narratives for selected hazard programs (fall protection, hot work, rigging, CDZ, steel program modules, and similar) when the Hazards and Controls section uses abbreviated field summaries.",
+    aiEligible: true,
+  },
 ] as const;
 
 export const CSEP_FORMAT_DEFINITIONS = [
@@ -2288,12 +2299,30 @@ function buildAppendixLibrarySections(
                 ["Audit Sheets", "Weekly / periodic audit and corrective-action follow-up tools."],
                 ["Frequency Notes", "Project-specific trigger and cadence notes."],
               ]
-            : [
-                ["Emergency Contacts", "Clinic directions, emergency ladder, and owner / GC contact inserts."],
-                ["Maps and Routes", "Site maps, shelter locations, access routes, and staging references."],
-                ["Quick Inserts", "Field reference cards and worker-facing quick-use pages."],
-                ["Specialty References", hazardTitles.join(", ") || "Hazard-module references and project-specific field aids."],
-              ];
+            : definition.key === "appendix_d_field_references_maps_and_contact_inserts"
+              ? [
+                  ["Emergency Contacts", "Clinic directions, emergency ladder, and owner / GC contact inserts."],
+                  ["Maps and Routes", "Site maps, shelter locations, access routes, and staging references."],
+                  ["Quick Inserts", "Field reference cards and worker-facing quick-use pages."],
+                  ["Specialty References", hazardTitles.join(", ") || "Hazard-module references and project-specific field aids."],
+                ]
+              : definition.key === "appendix_safety_program_reference_pack"
+                ? [
+                    [
+                      "Program narratives",
+                      "Full procedure text for programs summarized in Hazards and Controls (issued export merges narratives here when applicable).",
+                    ],
+                    [
+                      "Field use",
+                      "Carry the Hazards and Controls summaries at the work face; use this appendix for training, audits, and detailed reference.",
+                    ],
+                  ]
+                : [
+                    ["Emergency Contacts", "Clinic directions, emergency ladder, and owner / GC contact inserts."],
+                    ["Maps and Routes", "Site maps, shelter locations, access routes, and staging references."],
+                    ["Quick Inserts", "Field reference cards and worker-facing quick-use pages."],
+                    ["Specialty References", hazardTitles.join(", ") || "Hazard-module references and project-specific field aids."],
+                  ];
 
     return {
       key: definition.key,

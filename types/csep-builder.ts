@@ -66,6 +66,7 @@ export const CSEP_APPENDIX_KEYS = [
   "appendix_b_incident_and_investigation_package",
   "appendix_c_checklists_and_inspection_sheets",
   "appendix_d_field_references_maps_and_contact_inserts",
+  "appendix_safety_program_reference_pack",
 ] as const;
 
 export type CsepFrontMatterKey = (typeof CSEP_FRONT_MATTER_KEYS)[number];

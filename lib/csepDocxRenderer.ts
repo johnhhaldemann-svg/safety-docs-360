@@ -30,6 +30,7 @@ import {
   normalizePermitList,
   normalizePpeList,
 } from "@/lib/csepFinalization";
+import { relocateSafetyProgramReferencePacks } from "@/lib/csepSafetyProgramReferenceRelocation";
 import { formatGcCmPartnersForExport, normalizeGcCmPartnerEntries } from "@/lib/csepGcCmPartners";
 import {
   CSEP_WORK_ATTIRE_DEFAULT_BULLETS,
@@ -1354,7 +1355,7 @@ function mergeGeneratedSafetyPlanSections(group: GeneratedSafetyPlanSection[]): 
     summary: summaryParts.length ? summaryParts.join("\n\n") : first.summary,
     body: bodyParts.length ? bodyParts.join("\n\n") : first.body,
     bullets: mergedBullets.length ? mergedBullets : first.bullets,
-    subsections: mergedSubsections.length ? mergedSubsections : first.subsections,
+    subsections: mergedSubsections?.length ? mergedSubsections : first.subsections,
   };
 }
 
@@ -2848,12 +2849,12 @@ export function buildCsepRenderModelFromGeneratedDraft(
       title: "Appendix E. Task-Hazard-Control Matrix",
     };
   };
-  const legacySanitizedSections = draft.sectionMap
-    .map(sanitizeGeneratedSection)
-    .map(relocateMatrixToAppendix);
-  const sanitizedSections = structuredDraft.sectionMap
-    .map(sanitizeGeneratedSection)
-    .map(relocateMatrixToAppendix);
+  const legacySanitizedSections = relocateSafetyProgramReferencePacks(
+    draft.sectionMap.map(sanitizeGeneratedSection).map(relocateMatrixToAppendix)
+  );
+  const sanitizedSections = relocateSafetyProgramReferencePacks(
+    structuredDraft.sectionMap.map(sanitizeGeneratedSection).map(relocateMatrixToAppendix)
+  );
   const issueLabel = structuredDraft.documentControl?.issueDate || todayIssueLabel();
   const preparedBy =
     cleanFinalText(structuredDraft.documentControl?.preparedBy) ||
