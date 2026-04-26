@@ -97,7 +97,7 @@ export function ObservationDualLineChart({
         <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
         {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
       </div>
-      <div className="h-56 w-full min-h-[220px] rounded-2xl border border-[var(--app-border)] bg-white/90 p-2 shadow-[0_8px_18px_rgba(76,108,161,0.05)] sm:h-64 sm:p-3">
+      <div className="h-56 w-full min-h-[220px] min-w-0 max-w-full rounded-2xl border border-[var(--app-border)] bg-white/90 p-2 shadow-[0_8px_18px_rgba(76,108,161,0.05)] sm:h-64 sm:p-3">
         <ResponsiveContainer width="100%" height="100%" minHeight={200}>
           <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
             <CartesianGrid stroke={CHART_GRID} vertical={false} strokeDasharray="3 3" />

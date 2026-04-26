@@ -313,7 +313,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         }
       >
         {headlineKpisAreMeaningful(overview) ? (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-3">
             {overviewVisibility.preventionHeadlineMode === "field" ? (
               <>
                 <MetricCard

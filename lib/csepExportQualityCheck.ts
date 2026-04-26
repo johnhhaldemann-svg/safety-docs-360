@@ -331,6 +331,28 @@ function matrixColumnIndex(columns: readonly string[], ...aliases: string[]): nu
   return -1;
 }
 
+/**
+ * Appendix E flags identical long control prose across many task rows to catch
+ * accidental copy-paste. Some controls are standard permit boilerplate and are
+ * expected to repeat verbatim across unrelated tasks (e.g. hot work + fire watch
+ * on welding, cutting, grinding, touch-up).
+ */
+function controlTextIsLegitimatelyReusableAcrossTasks(normalizedControl: string): boolean {
+  if (normalizedControl.length < 24) return false;
+  if (/\bhot\s+work\b/.test(normalizedControl) && /\bfire\s+watch\b/.test(normalizedControl)) return true;
+  if (/\bhot\s+work\b/.test(normalizedControl) && /\b(permit|posted|authorization)\b/.test(normalizedControl))
+    return true;
+  if (
+    /\b(welding|cutting|grinding|torch|brazing)\b/.test(normalizedControl) &&
+    /\b(hot\s+work|fire\s+watch|combustible|spark|ignite)\b/.test(normalizedControl)
+  ) {
+    return true;
+  }
+  if (/\block\s*out\b/.test(normalizedControl) && /\btag\s*out\b/.test(normalizedControl)) return true;
+  if (/\bloto\b/.test(normalizedControl) && /\b(energy|electrical|de\s*energ)\b/.test(normalizedControl)) return true;
+  return false;
+}
+
 function checkAppendixEDuplicateControls(model: CsepRenderModel): string[] {
   const appendix = model.appendixSections.find(
     (s) =>
@@ -359,6 +381,7 @@ function checkAppendixEDuplicateControls(model: CsepRenderModel): string[] {
 
     const problems: string[] = [];
     for (const [control, tasks] of byControl) {
+      if (controlTextIsLegitimatelyReusableAcrossTasks(control)) continue;
       if (tasks.size >= 3) {
         problems.push(`"${control.slice(0, 80)}…" reused across ${tasks.size} distinct task rows`);
       }

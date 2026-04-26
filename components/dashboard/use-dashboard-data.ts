@@ -373,7 +373,9 @@ export function useDashboardData(): DashboardDataState {
   }, [refreshCompanyWorkspace]);
 
   useEffect(() => {
-    void reload();
+    queueMicrotask(() => {
+      void reload();
+    });
   }, [reload]);
 
   return {

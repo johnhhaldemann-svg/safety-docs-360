@@ -112,15 +112,17 @@ export function useDashboardLayout({ role }: { role: DashboardRole }) {
 
   useEffect(() => {
     const nextFallback = getLocalLayoutFallback(role);
-    setLoading(true);
-    setEditing(false);
-    setSavedLayout(null);
-    setDefaultLayout(nextFallback.defaultLayout);
-    setEffectiveLayout(nextFallback.effectiveLayout);
-    setDraftLayout(nextFallback.effectiveLayout);
-    setAvailableBlocks(nextFallback.availableBlocks);
-    setMessage(null);
-    void refresh();
+    queueMicrotask(() => {
+      setLoading(true);
+      setEditing(false);
+      setSavedLayout(null);
+      setDefaultLayout(nextFallback.defaultLayout);
+      setEffectiveLayout(nextFallback.effectiveLayout);
+      setDraftLayout(nextFallback.effectiveLayout);
+      setAvailableBlocks(nextFallback.availableBlocks);
+      setMessage(null);
+      void refresh();
+    });
   }, [refresh, role]);
 
   const updateSlot = useCallback((slotIndex: number, blockId: DashboardBlockId) => {

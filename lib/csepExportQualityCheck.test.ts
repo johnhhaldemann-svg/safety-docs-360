@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assertCsepExportQuality } from "@/lib/csepExportQualityCheck";
 import { buildCsepRenderModelFromGeneratedDraft } from "@/lib/csepDocxRenderer";
+import type { CsepTemplateSection } from "@/lib/csepDocxRenderer";
 import type { GeneratedSafetyPlanDraft } from "@/types/safety-intelligence";
 
 describe("assertCsepExportQuality", () => {
@@ -37,7 +38,50 @@ describe("assertCsepExportQuality", () => {
     });
     expect(() => assertCsepExportQuality(model, { draft })).toThrow(/document_control_placement/i);
   });
+
+  it("allows Appendix E when hot work / fire watch boilerplate repeats across many tasks", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const boilerplate =
+      "Hot work permit active and posted where required; fire watch where required; maintain extinguisher access and combustible clearance for welding, cutting, or grinding.";
+    model.appendixSections.push(appendixETaskHazardMatrixSectionWithControlColumn(boilerplate));
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/appendix_e_duplicate_controls/i);
+  });
+
+  it("blocks Appendix E when the same long non-boilerplate control appears across many tasks", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const unique =
+      "Project-specific temporary anchor system design must be signed by the qualified person for tower crane picks on this deck phase marker-unique-xyz-991122.";
+    model.appendixSections.push(appendixETaskHazardMatrixSectionWithControlColumn(unique));
+    expect(() => assertCsepExportQuality(model, { draft })).toThrow(/appendix_e_duplicate_controls/i);
+  });
 });
+
+function appendixETaskHazardMatrixSectionWithControlColumn(controlCell: string): CsepTemplateSection {
+  const rows = [
+    ["Receiving / unloading", "Struck-by", controlCell],
+    ["Column setting", "Crush", controlCell],
+    ["Field welding", "Ignition", controlCell],
+    ["Touch-up painting", "Ignition", controlCell],
+  ];
+  return {
+    key: "appendix_e_task_hazard_control_matrix",
+    title: "Appendix E. Task-Hazard-Control Matrix",
+    kind: "appendix",
+    subsections: [
+      {
+        title: "Consolidated matrix",
+        paragraphs: [],
+        items: [],
+        table: {
+          columns: ["Activity", "Hazard", "Required Controls"],
+          rows,
+        },
+      },
+    ],
+  };
+}
 
 function minimalSteelDraft(): GeneratedSafetyPlanDraft {
   return {

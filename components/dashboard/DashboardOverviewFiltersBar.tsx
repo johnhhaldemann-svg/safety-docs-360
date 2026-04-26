@@ -130,8 +130,8 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
           </p>
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
+      <div className="mt-4 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
           Jobsite
           <select
             className={appNativeSelectClassName}
@@ -150,7 +150,7 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
           </select>
         </label>
 
-        <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
+        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
           Contractor
           <select
             className={appNativeSelectClassName}
@@ -180,7 +180,7 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
           ) : null}
         </label>
 
-        <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
+        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
           Date range
           <select
             className={appNativeSelectClassName}
@@ -202,7 +202,7 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
           </select>
         </label>
 
-        <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
+        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
           Risk level
           <select
             className={appNativeSelectClassName}
@@ -218,8 +218,8 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
       </div>
 
       {effectiveRange === "custom" ? (
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
+        <div className="mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
             Start (UTC date)
             <input
               type="date"
@@ -228,7 +228,7 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
               onChange={(e) => pushParams({ startDate: e.target.value || null, range: "custom" })}
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
             End (UTC date)
             <input
               type="date"

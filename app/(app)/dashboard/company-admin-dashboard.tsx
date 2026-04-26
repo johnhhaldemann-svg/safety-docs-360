@@ -221,29 +221,31 @@ export function CompanyAdminDashboard({
     : null;
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(DASHBOARD_FILTER_STORAGE_KEY);
-      if (!stored) {
+    queueMicrotask(() => {
+      try {
+        const stored = window.localStorage.getItem(DASHBOARD_FILTER_STORAGE_KEY);
+        if (!stored) {
+          setFiltersLoaded(true);
+          return;
+        }
+
+        const parsed = JSON.parse(stored) as {
+          searchQuery?: string;
+          selectedJobsite?: string;
+        } | null;
+
+        if (typeof parsed?.searchQuery === "string") {
+          setSearchQuery(parsed.searchQuery);
+        }
+        if (typeof parsed?.selectedJobsite === "string" && parsed.selectedJobsite.trim()) {
+          setSelectedJobsite(parsed.selectedJobsite);
+        }
+      } catch {
+        // Ignore malformed or unavailable persisted filters.
+      } finally {
         setFiltersLoaded(true);
-        return;
       }
-
-      const parsed = JSON.parse(stored) as {
-        searchQuery?: string;
-        selectedJobsite?: string;
-      } | null;
-
-      if (typeof parsed?.searchQuery === "string") {
-        setSearchQuery(parsed.searchQuery);
-      }
-      if (typeof parsed?.selectedJobsite === "string" && parsed.selectedJobsite.trim()) {
-        setSelectedJobsite(parsed.selectedJobsite);
-      }
-    } catch {
-      // Ignore malformed or unavailable persisted filters.
-    } finally {
-      setFiltersLoaded(true);
-    }
+    });
   }, []);
 
   useEffect(() => {
@@ -262,7 +264,9 @@ export function CompanyAdminDashboard({
   useEffect(() => {
     if (selectedJobsite === "all") return;
     if (jobsites.some((jobsite) => jobsite.name === selectedJobsite)) return;
-    setSelectedJobsite("all");
+    queueMicrotask(() => {
+      setSelectedJobsite("all");
+    });
   }, [jobsites, selectedJobsite]);
 
   if (workspaceProduct === "csep") {
