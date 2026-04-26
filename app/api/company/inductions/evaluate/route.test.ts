@@ -1,3 +1,4 @@
+import { requireRouteResponse } from "@/lib/routeResponseTest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -71,7 +72,9 @@ describe("GET /api/company/inductions/evaluate", () => {
       permissionMap: {},
     });
 
-    const response = await GET(new Request("https://example.com/api/company/inductions/evaluate"));
+    const response = requireRouteResponse(
+      await GET(new Request("https://example.com/api/company/inductions/evaluate"))
+    );
     expect(response.status).toBe(400);
     const body = (await response.json()) as { error: string };
     expect(body.error).toContain("jobsiteId");
@@ -87,8 +90,10 @@ describe("GET /api/company/inductions/evaluate", () => {
       permissionMap: {},
     });
 
-    const response = await GET(
-      new Request("https://example.com/api/company/inductions/evaluate?jobsiteId=jobsite-1")
+    const response = requireRouteResponse(
+      await GET(
+        new Request("https://example.com/api/company/inductions/evaluate?jobsiteId=jobsite-1")
+      )
     );
     expect(response.status).toBe(403);
   });
@@ -121,8 +126,10 @@ describe("GET /api/company/inductions/evaluate", () => {
       permissionMap: {},
     });
 
-    const response = await GET(
-      new Request("https://example.com/api/company/inductions/evaluate?jobsiteId=jobsite-1")
+    const response = requireRouteResponse(
+      await GET(
+        new Request("https://example.com/api/company/inductions/evaluate?jobsiteId=jobsite-1")
+      )
     );
     expect(response.status).toBe(200);
     const body = (await response.json()) as { status: string; reasons: string[] };
@@ -170,8 +177,10 @@ describe("GET /api/company/inductions/evaluate", () => {
       permissionMap: {},
     });
 
-    const response = await GET(
-      new Request("https://example.com/api/company/inductions/evaluate?jobsiteId=jobsite-1")
+    const response = requireRouteResponse(
+      await GET(
+        new Request("https://example.com/api/company/inductions/evaluate?jobsiteId=jobsite-1")
+      )
     );
     expect(response.status).toBe(200);
     const body = (await response.json()) as { status: string; reasons: string[] };
@@ -204,9 +213,11 @@ describe("GET /api/company/inductions/evaluate", () => {
     });
     isAdminRole.mockReturnValue(true);
 
-    const response = await GET(
-      new Request(
-        "https://example.com/api/company/inductions/evaluate?jobsiteId=jobsite-1&contractorId=contractor-1"
+    const response = requireRouteResponse(
+      await GET(
+        new Request(
+          "https://example.com/api/company/inductions/evaluate?jobsiteId=jobsite-1&contractorId=contractor-1"
+        )
       )
     );
     expect(response.status).toBe(200);
