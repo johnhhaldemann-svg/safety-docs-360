@@ -91,6 +91,24 @@ const ITEM_META: Array<{
     primaryActionLabel: "Open JSA builder",
   },
   {
+    matcher: (href) => href === "/company-inductions",
+    group: "operations",
+    description: "Configure induction programs and jobsite requirements for site access.",
+    primaryActionLabel: "Open induction setup",
+  },
+  {
+    matcher: (href) => href === "/company-safety-forms",
+    group: "operations",
+    description: "Version safety checklists and publish forms crews run on jobsites.",
+    primaryActionLabel: "Open form builder",
+  },
+  {
+    matcher: (href) => href === "/company-integrations",
+    group: "admin",
+    description: "Webhooks, delivery logs, and HRIS roster import entry points.",
+    primaryActionLabel: "Open integrations",
+  },
+  {
     matcher: (href) => href === "/permits",
     group: "operations",
     description: "Open permit workflows, active stop-work status, and approvals.",

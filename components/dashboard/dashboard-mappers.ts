@@ -115,9 +115,10 @@ function graphSection(
   description: string,
   items: DashboardGraphSection["items"],
   empty: DashboardGraphSection["empty"],
-  valueLabel?: string
+  valueLabel?: string,
+  chartType: DashboardGraphSection["chartType"] = "bar"
 ): DashboardGraphSection {
-  return { title, description, items, empty, valueLabel };
+  return { title, description, items, empty, valueLabel, chartType };
 }
 
 function onboardingChecklistSection(
@@ -160,6 +161,23 @@ function onboardingChecklistSection(
 function dashboardGraphs(data: DashboardDataState) {
   const jobsiteNames = jobsites(data);
   const breakdown = data.analyticsSummary?.observationBreakdown;
+  const dashboardMetrics = data.analyticsSummary?.companyDashboard;
+  const priorityBands = dashboardMetrics?.observationPriorityBands;
+  const highRiskCount =
+    priorityBands?.high ?? dashboardMetrics?.totalHighRiskObservations ?? 0;
+  const mediumRiskCount = priorityBands?.medium ?? 0;
+  const lowRiskCount = priorityBands?.low ?? 0;
+  const observationStatuses = data.workspaceSummary.observations.map((row) => s(row.status));
+  const reducedRiskCount = observationStatuses.filter(
+    (status) => !active(status)
+  ).length;
+  const inProgressRiskCount = observationStatuses.filter((status) =>
+    ["in_progress", "in progress", "in-review", "review", "mitigating"].includes(status)
+  ).length;
+  const openRiskCount = Math.max(
+    0,
+    observationStatuses.length - reducedRiskCount - inProgressRiskCount
+  );
 
   return {
     hazardTrendGraph: graphSection(
@@ -218,6 +236,45 @@ function dashboardGraphs(data: DashboardDataState) {
         actionLabel: "Open analytics",
       },
       "records"
+    ),
+    riskDistributionGraph: graphSection(
+      "Risk distribution chart",
+      "Current mix of high, medium, and low priority risk observations.",
+      [
+        { id: "risk-high", label: "High", value: highRiskCount, tone: "error" },
+        { id: "risk-medium", label: "Medium", value: mediumRiskCount, tone: "warning" },
+        { id: "risk-low", label: "Low", value: lowRiskCount, tone: "success" },
+      ].filter((item) => item.value > 0),
+      {
+        title: "No risk distribution yet",
+        description: "Risk priority distribution appears after analytics aggregation is available.",
+        actionHref: "/analytics",
+        actionLabel: "Open analytics",
+      },
+      "items",
+      "pie"
+    ),
+    riskReductionGraph: graphSection(
+      "Risk reduction graph",
+      "Risk status movement from open to in-progress to reduced (closed).",
+      [
+        { id: "risk-open", label: "Open", value: openRiskCount, tone: "warning" },
+        {
+          id: "risk-in-progress",
+          label: "In progress",
+          value: inProgressRiskCount,
+          tone: "info",
+        },
+        { id: "risk-reduced", label: "Reduced", value: reducedRiskCount, tone: "success" },
+      ].filter((item) => item.value > 0),
+      {
+        title: "No risk reduction data yet",
+        description: "Risk-reduction movement appears when corrective action statuses are available.",
+        actionHref: "/field-id-exchange",
+        actionLabel: "Open field exchange",
+      },
+      "items",
+      "bar"
     ),
   };
 }
@@ -521,6 +578,28 @@ function buildBlocks(params: {
         },
         "records"
       ),
+      riskDistributionGraph: graphSection(
+        "Risk distribution chart",
+        "Current mix of high, medium, and low priority risk observations.",
+        [],
+        {
+          title: "No risk distribution yet",
+          description: "Risk priority distribution appears after analytics aggregation is available.",
+        },
+        "items",
+        "pie"
+      ),
+      riskReductionGraph: graphSection(
+        "Risk reduction graph",
+        "Risk status movement from open to in-progress to reduced (closed).",
+        [],
+        {
+          title: "No risk reduction data yet",
+          description: "Risk-reduction movement appears when corrective action statuses are available.",
+        },
+        "items",
+        "bar"
+      ),
     };
 
   return {
@@ -640,6 +719,16 @@ function buildBlocks(params: {
       kind: "graph",
       eyebrow: "Graph",
       section: graphs.observationMixGraph,
+    },
+    graph_risk_distribution: {
+      kind: "graph",
+      eyebrow: "Graph",
+      section: graphs.riskDistributionGraph,
+    },
+    graph_risk_reduction: {
+      kind: "graph",
+      eyebrow: "Graph",
+      section: graphs.riskReductionGraph,
     },
   };
 }

@@ -8,147 +8,11 @@ import { userVisibleInjuryModelMessage } from "@/lib/analytics/injuryModelMessag
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { HeatmapGrid } from "@/components/metrics/HeatmapGrid";
 import { Sparkline } from "@/components/metrics/Sparkline";
+import { AnalyticsFocusedTab } from "@/components/analytics/AnalyticsFocusedTab";
+import { AnalyticsOverviewSkeleton } from "@/components/analytics/AnalyticsOverviewSkeleton";
+import type { AnalyticsSummary, LikelyInjuryInsightPayload, TabId } from "@/components/analytics/types";
 
 const supabase = getSupabaseBrowserClient();
-
-type AnalyticsSummary = {
-  totals?: {
-    correctiveActions?: number;
-    incidents?: number;
-    permits?: number;
-    daps?: number;
-    dapActivities?: number;
-  };
-  closureTimes?: {
-    averageHours?: number;
-    sampleSize?: number;
-  };
-  topHazardCategories?: Array<{ category: string; count: number }>;
-  observationTrends?: Array<{ date: string; count: number }>;
-  sifDashboard?: {
-    potentialCount: number;
-    byCategory: Array<{ category: string; count: number }>;
-  };
-  jobsiteRiskScore?: Array<{
-    jobsiteId: string;
-    score: number;
-    incidents: number;
-    sif: number;
-    stopWork: number;
-    overdue: number;
-  }>;
-  companyDashboard?: {
-    totalActiveJobsites?: number;
-    totalOpenObservations?: number;
-    totalHighRiskObservations?: number;
-    sifCount?: number;
-    averageClosureTimeHours?: number;
-    openIncidents?: number;
-    observationPriorityBands?: { high: number; medium: number; low: number };
-    dapCompletionToday?: { completed: number; total: number; percent: number };
-  };
-  safetyLeadership?: {
-    trendOfObservationsByWeek: Array<{ week: string; count: number }>;
-    positiveNegativeObservationRatio: { positive: number; negative: number; ratio: number };
-  };
-  recentReports?: Array<{ id: string; title: string; tag: string }>;
-  observationBreakdown?: {
-    nearMiss: number;
-    hazard: number;
-    positive: number;
-    other: number;
-    inspections: number;
-    daps: number;
-  };
-  riskHeatmap?: {
-    rowLabels: string[];
-    colLabels: string[];
-    cells: number[][];
-    max: number;
-  };
-  benchmarking?: {
-    industryCode: string | null;
-    industryInjuryRate: number | null;
-    tradeInjuryRate: number | null;
-    /** Denominator for rate; align period with incident counts (e.g. annual hours for TRIR). */
-    hoursWorked: number | null;
-    /** Injury incidents in the selected window counted for the rate (category incident, not explicitly non-recordable). */
-    incidentsForRate: number;
-    /** (incidentsForRate × 200,000) / hoursWorked when hours are set. */
-    incidentRate: number | null;
-    industryBenchmarkRates?: {
-      naicsPrefix: string;
-      recordableCasesPer200kHours: number | null;
-      dartCasesPer200kHours: number | null;
-      fatalityPer200kHours: number | null;
-      sourceNote: string;
-      injuryFactsIndustryProfilesUrl: string;
-      injuryFactsIncidentTrendsUrl: string;
-      historicalTrendSummary: string;
-      referenceDataNote: string;
-      unitEquivalenceNote: string;
-    };
-  };
-  injuryAnalytics?: {
-    averageSeverityScore: number;
-    severitySampleSize: number;
-    sorToInjuryRatio: number | null;
-    sorCount: number;
-    injuryIncidentCount: number;
-    /** Percent of (near-miss + hazard observations + injury incidents) that were injuries. */
-    observationToInjuryConversionRate: number | null;
-    injuryPredictionModelUrl: string;
-  };
-  riskMemory?: {
-    engine: string;
-    windowDays: number;
-    facetCount: number;
-    topScopes: Array<{ code: string | null; count: number }>;
-    topHazards: Array<{ code: string | null; count: number }>;
-    openCorrectiveFacetHints: { openStyleStatuses: number };
-    aggregated: {
-      score: number;
-      band: string;
-      sampleSize: number;
-      baselineContribution: number;
-    };
-    baselineHints: Array<{
-      scope_code: string;
-      hazard_code: string;
-      signals: Record<string, unknown>;
-    }>;
-    aggregatedWithBaseline: { score: number; band: string };
-    topLocationGrids?: Array<{ label: string; count: number }>;
-    topLocationAreas?: Array<{ label: string; count: number }>;
-    /** Heuristic trust in rollup as a forecast signal (not medical prediction). */
-    derivedRollupConfidence?: number;
-  } | null;
-  riskMemoryRecommendations?: Array<{
-    id: string;
-    kind: string;
-    title: string;
-    body: string;
-    confidence: number;
-    created_at: string;
-  }>;
-  /** Daily company-scope rollup score (`public.company_risk_scores`) for the last 30 days. */
-  riskMemoryTrend?: {
-    points: Array<{ date: string; score: number; band: string; windowDays: number }>;
-    latest: { date: string; score: number; band: string } | null;
-    earliest: { date: string; score: number; band: string } | null;
-    deltaScore: number | null;
-    direction: "up" | "down" | "flat" | null;
-  };
-};
-
-type LikelyInjuryInsightPayload = {
-  headline: string;
-  secondaryLine: string | null;
-  detailNote: string;
-  hasData: boolean;
-};
-
-type TabId = "overview" | "near_misses" | "hazards" | "inspections";
 
 const FALLBACK_HAZARD_TILES = ["Trips & Falls", "Fire Risks", "PPE Violations", "Electrical"];
 
@@ -164,203 +28,6 @@ async function getAuthHeaders() {
   return { Authorization: `Bearer ${session.access_token}` };
 }
 
-type FocusTabId = Exclude<TabId, "overview">;
-
-function AnalyticsFocusedTab({
-  tab,
-  loading,
-  breakdown,
-  totals,
-  dash,
-  trends,
-  filteredRecent,
-  recent,
-  hazardTiles,
-  tagChip,
-  sif,
-  leadership,
-  windowDays,
-}: {
-  tab: FocusTabId;
-  loading: boolean;
-  breakdown: AnalyticsSummary["observationBreakdown"];
-  totals: AnalyticsSummary["totals"];
-  dash: AnalyticsSummary["companyDashboard"];
-  trends: Array<{ date: string; count: number }>;
-  filteredRecent: Array<{ id: string; title: string; tag: string }>;
-  recent: Array<{ id: string; title: string; tag: string }>;
-  hazardTiles: Array<{ label: string; count: number }>;
-  tagChip: (tag: string) => string;
-  sif: AnalyticsSummary["sifDashboard"];
-  leadership: AnalyticsSummary["safetyLeadership"];
-  windowDays: number;
-}) {
-  const rows = loading ? [] : filteredRecent.length > 0 ? filteredRecent : recent;
-  const title =
-    tab === "near_misses"
-      ? "Near miss lens"
-      : tab === "hazards"
-        ? "Hazard lens"
-        : "Inspections & field activity";
-  const subtitle =
-    tab === "near_misses"
-      ? "Observations tagged as near misses in your selected time range."
-      : tab === "hazards"
-        ? "Hazard and negative observations — prioritize corrective follow-up."
-        : "Permits, JSAs, and recorded activity in the same window as your summary.";
-
-  const heroStat =
-    tab === "near_misses"
-      ? (breakdown?.nearMiss ?? 0)
-      : tab === "hazards"
-        ? (breakdown?.hazard ?? 0)
-        : (breakdown?.inspections ?? 0);
-  const heroLabel =
-    tab === "near_misses"
-      ? "Near misses in window"
-      : tab === "hazards"
-        ? "Hazard-tagged observations"
-        : "Permit + activity events (approx.)";
-
-  return (
-    <div className="space-y-6" id={`analytics-tabpanel-${tab}`} role="tabpanel">
-      <div className="rounded-2xl border border-[var(--app-accent-border-24)] bg-gradient-to-br from-[var(--app-accent-surface-12)] to-[rgba(234,241,255,0.92)] p-6">
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">{title}</p>
-        <h2 className="mt-2 text-3xl font-black text-white sm:text-4xl">{loading ? "—" : heroStat}</h2>
-        <p className="mt-1 text-sm text-slate-400">{heroLabel}</p>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-500">{subtitle}</p>
-        {tab === "inspections" ? (
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-center">
-              <p className="text-[10px] font-bold uppercase text-slate-500">Permits (window)</p>
-              <p className="mt-1 text-2xl font-black text-cyan-200">{loading ? "—" : totals?.permits ?? 0}</p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-center">
-              <p className="text-[10px] font-bold uppercase text-slate-500">JSAs / Planned activity</p>
-              <p className="mt-1 text-2xl font-black text-cyan-200">{loading ? "—" : totals?.daps ?? 0}</p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-center">
-              <p className="text-[10px] font-bold uppercase text-slate-500">JSA activities</p>
-              <p className="mt-1 text-2xl font-black text-cyan-200">{loading ? "—" : totals?.dapActivities ?? 0}</p>
-            </div>
-          </div>
-        ) : null}
-        {tab === "inspections" ? (
-          <p className="mt-4 text-xs text-slate-500">
-            JSA completion today:{" "}
-            <span className="font-semibold text-slate-300">
-              {loading
-                ? "—"
-                : `${dash?.dapCompletionToday?.percent ?? 0}% (${dash?.dapCompletionToday?.completed ?? 0}/${dash?.dapCompletionToday?.total ?? 0})`}
-            </span>
-          </p>
-        ) : null}
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        <div className="analytics-dark-panel p-5 shadow-inner">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Observation trend</p>
-          <div className="analytics-dark-panel-soft mt-4 px-3 py-2">
-            <Sparkline
-              points={trends}
-              windowDays={windowDays}
-              loading={loading}
-              variant="compact"
-            />
-          </div>
-        </div>
-        <div className="analytics-dark-panel p-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recent reports</p>
-          <ul className="mt-4 space-y-3">
-            {rows.map((row) => (
-              <li
-                key={row.id}
-                className="analytics-dark-panel-soft flex items-center justify-between gap-3 px-4 py-3"
-              >
-                <span className="min-w-0 truncate text-sm font-semibold text-slate-100">{row.title}</span>
-                <span
-                  className={[
-                    "shrink-0 rounded-lg border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide",
-                    tagChip(row.tag),
-                  ].join(" ")}
-                >
-                  {row.tag}
-                </span>
-              </li>
-            ))}
-            {!loading && filteredRecent.length === 0 && recent.length > 0 ? (
-              <li className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-slate-500">
-                No items for this tab in the selected range.
-              </li>
-            ) : null}
-            {!loading && recent.length === 0 ? (
-              <li className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
-                No observations in this range yet.
-              </li>
-            ) : null}
-          </ul>
-        </div>
-      </div>
-
-      {tab === "hazards" ? (
-        <div className="grid gap-5 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <div className="analytics-dark-panel p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Trending hazards</p>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {hazardTiles.map((tile) => (
-                  <div
-                    key={tile.label}
-                    className="analytics-dark-panel-soft p-4 text-center"
-                  >
-                    <p className="text-[11px] font-semibold text-slate-300">{tile.label}</p>
-                    <p className="mt-2 text-2xl font-black text-cyan-300">{loading ? "—" : tile.count}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="lg:col-span-5">
-            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-5 text-center">
-              <p className="text-xs font-semibold uppercase tracking-wider text-rose-200/80">SIF potential</p>
-              <p className="mt-4 text-5xl font-black text-white">{loading ? "—" : sif?.potentialCount ?? 0}</p>
-              <p className="mt-2 text-xs text-slate-500">From observations in window</p>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {tab === "near_misses" && leadership ? (
-        <div className="analytics-dark-panel p-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Leadership mix</p>
-          <div className="mt-4 flex flex-wrap gap-6 text-sm text-slate-300">
-            <div>
-              <span className="text-slate-500">Positive observations</span>
-              <span className="ml-2 font-bold text-emerald-300">
-                {leadership.positiveNegativeObservationRatio?.positive ?? 0}
-              </span>
-            </div>
-            <div>
-              <span className="text-slate-500">Negative / near miss</span>
-              <span className="ml-2 font-bold text-amber-200">
-                {leadership.positiveNegativeObservationRatio?.negative ?? 0}
-              </span>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <div className="flex justify-end">
-        <Link
-          href="/reports"
-          className="analytics-action-primary px-4 py-2.5 text-xs uppercase tracking-wide transition"
-        >
-          Open reports
-        </Link>
-      </div>
-    </div>
-  );
-}
 
 export default function AnalyticsPage() {
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
@@ -378,8 +45,9 @@ export default function AnalyticsPage() {
   const [riskRecWorking, setRiskRecWorking] = useState(false);
   const [riskSnapWorking, setRiskSnapWorking] = useState(false);
   const [dismissingRecId, setDismissingRecId] = useState<string | null>(null);
+  const [selectedHealthIssue, setSelectedHealthIssue] = useState<string | null>(null);
 
-  const loadSummary = useCallback(async (windowDays: number) => {
+  const loadSummary = useCallback(async (windowDays: number, injuryType?: string | null) => {
     setLoading(true);
     setMessage("");
     setMessageTone("error");
@@ -387,12 +55,7 @@ export default function AnalyticsPage() {
     try {
       const headers = await getAuthHeaders();
       const [response, injRes] = await Promise.all([
-        fetchWithTimeoutSafe(
-          `/api/company/analytics/summary?days=${windowDays}`,
-          { headers },
-          15000,
-          "Analytics summary"
-        ),
+        fetchWithTimeoutSafe(`/api/company/analytics/summary?days=${windowDays}${injuryType ? `&injuryType=${encodeURIComponent(injuryType)}` : ""}`, { headers }, 15000, "Analytics summary"),
         fetchWithTimeoutSafe(
           `/api/company/injury-analytics/model?days=${windowDays}`,
           { headers },
@@ -472,7 +135,7 @@ export default function AnalyticsPage() {
       );
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       if (!res.ok) throw new Error(data?.error || "Could not generate recommendations.");
-      await loadSummary(days);
+      await loadSummary(days, selectedHealthIssue);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Recommendation refresh failed.");
       setMessageTone("error");
@@ -515,7 +178,7 @@ export default function AnalyticsPage() {
       );
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       if (!res.ok) throw new Error(data?.error || "Could not dismiss recommendation.");
-      await loadSummary(days);
+      await loadSummary(days, selectedHealthIssue);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Dismiss failed.");
       setMessageTone("error");
@@ -525,10 +188,10 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     const t = window.setTimeout(() => {
-      void loadSummary(days);
+      void loadSummary(days, selectedHealthIssue);
     }, 0);
     return () => window.clearTimeout(t);
-  }, [days, loadSummary]);
+  }, [days, loadSummary, selectedHealthIssue]);
 
   const totals = useMemo(() => summary?.totals ?? {}, [summary]);
   const closure = useMemo(() => summary?.closureTimes ?? {}, [summary]);
@@ -575,8 +238,10 @@ export default function AnalyticsPage() {
     if (tab === "hazards") return `Hazard-tagged observations: ${breakdown?.hazard ?? 0}`;
     if (tab === "inspections")
       return `Permits + JSA activities in window: ${breakdown?.inspections ?? 0} · JSAs: ${breakdown?.daps ?? 0}`;
+    if (tab === "health_issues")
+      return `Typed injury records in range: ${summary?.healthIssueRollup?.reduce((sum, item) => sum + item.count, 0) ?? 0}`;
     return "Workspace-wide safety observation metrics";
-  }, [tab, breakdown]);
+  }, [tab, breakdown, summary?.healthIssueRollup]);
 
   const tagChip = (tag: string) => {
     const t = tag.toUpperCase();
@@ -588,16 +253,20 @@ export default function AnalyticsPage() {
 
   return (
     <div className="analytics-workspace-light min-h-[calc(100vh-4rem)] rounded-[1.5rem] border border-[var(--app-accent-surface-18)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(237,244,255,0.96)_100%)] text-[var(--app-text)] shadow-[var(--app-shadow-primary-float)]">
-      <div className="border-b border-[rgba(198,212,236,0.85)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.96)_100%)] px-5 py-6 sm:px-8">
-        <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-cyan-400/90">
+      <div className="relative border-b border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.99)_0%,_rgba(237,244,255,0.97)_100%)] px-5 py-6 sm:px-8">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,_var(--app-accent-primary)_0%,_#5b92ff_55%,_var(--semantic-success)_100%)]"
+          aria-hidden
+        />
+        <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[var(--app-accent-primary)]">
           Safety observation hub
         </p>
-        <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
+            <h1 className="font-app-display text-3xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
               Centralized Safety Monitoring
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--app-text)]">
               Enterprise safety management — live counts, trends, and leadership signals for your
               company workspace.
             </p>
@@ -613,6 +282,7 @@ export default function AnalyticsPage() {
                 ["near_misses", "Near Misses"],
                 ["hazards", "Hazards"],
                 ["inspections", "Inspections"],
+                ["health_issues", "Health issues"],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -626,8 +296,8 @@ export default function AnalyticsPage() {
                 className={[
                   "rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide transition",
                   tab === id
-                    ? "bg-cyan-500/20 text-cyan-100 ring-1 ring-cyan-400/40"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200",
+                    ? "bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)] ring-1 ring-[var(--app-accent-border-28)] shadow-sm"
+                    : "border border-transparent text-[var(--app-muted)] hover:border-[var(--app-border)] hover:bg-white/90 hover:text-[var(--app-text-strong)]",
                 ].join(" ")}
               >
                 {label}
@@ -637,7 +307,7 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-slate-500">{tabHint}</p>
+          <p className="text-xs text-[var(--app-muted)]">{tabHint}</p>
           <div className="flex flex-wrap items-center gap-2">
             {([7, 30, 90] as const).map((d) => (
               <button
@@ -647,35 +317,34 @@ export default function AnalyticsPage() {
                 className={[
                   "rounded-full px-3 py-1.5 text-xs font-semibold transition",
                   days === d
-                    ? "bg-cyan-500 text-white"
-                    : "bg-slate-800/80 text-slate-300 hover:bg-slate-700",
+                    ? "bg-[var(--app-accent-primary)] text-white shadow-[var(--app-shadow-primary-button)]"
+                    : "border border-[var(--app-border)] bg-white/90 text-[var(--app-text)] hover:border-[var(--app-accent-border-24)] hover:bg-[var(--app-accent-primary-soft)]",
                 ].join(" ")}
               >
                 {d === 7 ? "1 week" : `${d} days`}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={() => void loadSummary(days)}
-              disabled={loading}
-              className="analytics-action-primary rounded-full px-4 py-2 text-xs uppercase tracking-wide transition disabled:opacity-50"
-            >
-              {loading ? "Refreshing…" : "Refresh view"}
-            </button>
           </div>
         </div>
       </div>
 
       <div className="space-y-6 px-5 py-6 sm:px-8 sm:py-8">
+        <div className="sticky top-4 z-10 rounded-xl border border-[var(--app-accent-border-24)] bg-white/85 px-4 py-2 backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-slate-500">{lastLoadedAt ? `Last updated ${new Date(lastLoadedAt).toLocaleString()}` : "Not loaded yet"}</p>
+            <button
+              type="button"
+              onClick={() => void loadSummary(days, selectedHealthIssue)}
+              disabled={loading}
+              className="analytics-action-primary rounded-full px-4 py-1.5 text-xs uppercase tracking-wide transition disabled:opacity-50"
+            >
+              {loading ? "Refreshing…" : "Refresh view"}
+            </button>
+          </div>
+        </div>
         {message ? (
           <InlineMessage tone={messageTone}>{message}</InlineMessage>
-        ) : (
-          <div className="rounded-xl border border-sky-500/25 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
-            {lastLoadedAt
-              ? "Figures reflect your selected range. Use Refresh view to pull the latest data from the workspace."
-              : "The page is ready. Choose a time range or click Refresh view to load current figures."}
-          </div>
-        )}
+        ) : null}
 
         {!loading && injuryModelIssue ? (
           <InlineMessage tone={injuryModelIssue.tone}>{injuryModelIssue.message}</InlineMessage>
@@ -691,14 +360,14 @@ export default function AnalyticsPage() {
               {days} days). Same logic as Injury Weather; not a calibrated medical probability.
             </p>
             <p
-              className={`mt-4 font-black tracking-tight text-white ${injuryLikelihood.hasData ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl"}`}
+              className={`font-app-display mt-4 font-black tracking-tight text-[var(--app-text-strong)] ${injuryLikelihood.hasData ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl"}`}
             >
               {injuryLikelihood.headline}
             </p>
             {injuryLikelihood.secondaryLine ? (
               <p className="mt-2 text-sm font-medium text-[var(--app-text-strong)]">{injuryLikelihood.secondaryLine}</p>
             ) : null}
-            <p className="mt-3 text-xs leading-relaxed text-slate-400">{injuryLikelihood.detailNote}</p>
+            <p className="mt-3 text-xs leading-relaxed text-[var(--app-muted)]">{injuryLikelihood.detailNote}</p>
           </div>
         ) : null}
 
@@ -707,43 +376,43 @@ export default function AnalyticsPage() {
           summary.benchmarking.industryInjuryRate != null ||
           summary.benchmarking.tradeInjuryRate != null ||
           summary.benchmarking.hoursWorked != null) ? (
-          <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-50">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-200/90">
+          <details id="benchmarking-compare" className="rounded-xl border border-[rgba(46,158,91,0.28)] bg-[var(--semantic-success-bg)] px-4 py-3 text-sm text-[var(--app-text)]">
+            <summary className="cursor-pointer list-none text-[10px] font-bold uppercase tracking-wider text-[var(--semantic-success)]">
               Industry and trade benchmarks
-            </p>
-            <p className="mt-1 text-xs text-emerald-100/90">
+            </summary>
+            <p className="mt-1 text-xs text-[var(--app-text)]">
               NAICS{" "}
-              <span className="font-mono font-semibold text-white">
+              <span className="font-mono font-semibold text-[var(--app-text-strong)]">
                 {summary.benchmarking.industryCode ?? "—"}
               </span>
               {" · "}
               Industry ref. rate:{" "}
-              <span className="font-semibold text-white">
+              <span className="font-semibold text-[var(--app-text-strong)]">
                 {summary.benchmarking.industryInjuryRate != null
                   ? summary.benchmarking.industryInjuryRate.toString()
                   : "—"}
               </span>
               {" · "}
               Trade ref. rate:{" "}
-              <span className="font-semibold text-white">
+              <span className="font-semibold text-[var(--app-text-strong)]">
                 {summary.benchmarking.tradeInjuryRate != null
                   ? summary.benchmarking.tradeInjuryRate.toString()
                   : "—"}
               </span>
             </p>
-            <p className="mt-2 text-xs text-emerald-100/90">
-              <span className="text-emerald-200/90">Exposure hours: </span>
-              <span className="font-semibold text-white">
+            <p className="mt-2 text-xs text-[var(--app-text)]">
+              <span className="text-[var(--app-muted)]">Exposure hours: </span>
+              <span className="font-semibold text-[var(--app-text-strong)]">
                 {summary.benchmarking.hoursWorked != null
                   ? summary.benchmarking.hoursWorked.toLocaleString()
                   : "—"}
               </span>
               {" · "}
-              <span className="text-emerald-200/90">Injury incidents (window, for rate): </span>
-              <span className="font-semibold text-white">{summary.benchmarking.incidentsForRate ?? 0}</span>
+              <span className="text-[var(--app-muted)]">Injury incidents (window, for rate): </span>
+              <span className="font-semibold text-[var(--app-text-strong)]">{summary.benchmarking.incidentsForRate ?? 0}</span>
               {" · "}
-              <span className="text-emerald-200/90">Incident rate (per 200k hrs): </span>
-              <span className="font-semibold text-white">
+              <span className="text-[var(--app-muted)]">Incident rate (per 200k hrs): </span>
+              <span className="font-semibold text-[var(--app-text-strong)]">
                 {summary.benchmarking.incidentRate != null
                   ? summary.benchmarking.incidentRate.toFixed(2)
                   : "—"}
@@ -780,7 +449,7 @@ export default function AnalyticsPage() {
                       <div>
                         <div className="flex items-center justify-between gap-2 text-[10px] text-emerald-100/95">
                           <span className="min-w-0">This workspace</span>
-                          <span className="shrink-0 font-mono font-semibold text-white">
+                          <span className="shrink-0 font-mono font-semibold text-emerald-50">
                             {a.toFixed(2)}
                           </span>
                         </div>
@@ -798,7 +467,7 @@ export default function AnalyticsPage() {
                       <div>
                         <div className="flex items-center justify-between gap-2 text-[10px] text-emerald-100/95">
                           <span className="min-w-0">NSC/NAICS ref. (recordable)</span>
-                          <span className="shrink-0 font-mono font-semibold text-white">
+                          <span className="shrink-0 font-mono font-semibold text-emerald-50">
                             {b.toFixed(2)}
                           </span>
                         </div>
@@ -832,7 +501,7 @@ export default function AnalyticsPage() {
                     href={summary.benchmarking.industryBenchmarkRates.injuryFactsIndustryProfilesUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="font-semibold text-emerald-100 underline decoration-emerald-400/50 underline-offset-2 hover:text-white"
+                    className="font-semibold text-[var(--semantic-success)] underline decoration-[rgba(46,158,91,0.45)] underline-offset-2 hover:text-[var(--app-text-strong)]"
                   >
                     NSC Injury Facts — Industry Profiles
                   </a>
@@ -841,7 +510,7 @@ export default function AnalyticsPage() {
                     href={summary.benchmarking.industryBenchmarkRates.injuryFactsIncidentTrendsUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="font-semibold text-emerald-100 underline decoration-emerald-400/50 underline-offset-2 hover:text-white"
+                    className="font-semibold text-[var(--semantic-success)] underline decoration-[rgba(46,158,91,0.45)] underline-offset-2 hover:text-[var(--app-text-strong)]"
                   >
                     Incident rate trends
                   </a>
@@ -849,28 +518,28 @@ export default function AnalyticsPage() {
                 <p className="text-emerald-200/70">{summary.benchmarking.industryBenchmarkRates.referenceDataNote}</p>
               </div>
             ) : null}
-          </div>
+          </details>
         ) : null}
 
         {summary?.injuryAnalytics ? (
-          <div className="rounded-xl border border-violet-500/25 bg-violet-500/10 px-4 py-3 text-sm text-violet-50">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-violet-200/90">
+          <div className="rounded-xl border border-[rgba(109,40,217,0.22)] bg-[rgba(245,240,255,0.96)] px-4 py-3 text-sm text-[var(--app-text)]">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">
               Injury outcome &amp; prediction inputs
             </p>
-            <p className="mt-1 text-xs text-violet-100/90">
+            <p className="mt-1 text-xs text-[var(--app-text)]">
               Avg. severity score (DART + lost time):{" "}
-              <span className="font-semibold text-white">
+              <span className="font-semibold text-[var(--app-text-strong)]">
                 {summary.injuryAnalytics.averageSeverityScore}
               </span>{" "}
               (n={summary.injuryAnalytics.severitySampleSize}) · SOR→injury ratio:{" "}
-              <span className="font-semibold text-white">
+              <span className="font-semibold text-[var(--app-text-strong)]">
                 {summary.injuryAnalytics.sorToInjuryRatio != null
                   ? summary.injuryAnalytics.sorToInjuryRatio.toString()
                   : "—"}
               </span>{" "}
               ({summary.injuryAnalytics.injuryIncidentCount} injuries / {summary.injuryAnalytics.sorCount} SOR) ·
               Observation→injury %:{" "}
-              <span className="font-semibold text-white">
+              <span className="font-semibold text-[var(--app-text-strong)]">
                 {summary.injuryAnalytics.observationToInjuryConversionRate != null
                   ? `${summary.injuryAnalytics.observationToInjuryConversionRate}%`
                   : "—"}
@@ -892,92 +561,97 @@ export default function AnalyticsPage() {
             role="tabpanel"
             aria-labelledby="analytics-tab-overview"
           >
+        {loading ? (
+          <AnalyticsOverviewSkeleton />
+        ) : (
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="analytics-dark-panel p-5 shadow-inner">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Overview</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">Overview</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-200/80">
+              <div className="rounded-xl border border-[var(--app-accent-border-22)] bg-[var(--app-accent-primary-soft)] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--app-accent-primary)]">
                   Total observations
                 </p>
-                <p className="mt-2 text-3xl font-black text-white">
-                  {loading ? "—" : totalObs}
+                <p className="font-app-display mt-2 text-3xl font-black text-[var(--app-text-strong)]">
+                  {totalObs}
                 </p>
               </div>
-              <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-200/80">
+              <div className="rounded-xl border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--semantic-warning)]">
                   Open issues
                 </p>
-                <p className="mt-2 text-3xl font-black text-white">
-                  {loading ? "—" : openIssues}
+                <p className="font-app-display mt-2 text-3xl font-black text-[var(--app-text-strong)]">
+                  {openIssues}
                 </p>
               </div>
-              <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/30 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-200/80">
+              <div className="rounded-xl border border-[rgba(46,158,91,0.28)] bg-[var(--semantic-success-bg)] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--semantic-success)]">
                   Resolution rate
                 </p>
-                <p className="mt-2 text-3xl font-black text-white">
-                  {loading ? "—" : `${resolutionPct}%`}
+                <p className="font-app-display mt-2 text-3xl font-black text-[var(--app-text-strong)]">
+                  {`${resolutionPct}%`}
                 </p>
               </div>
             </div>
             <div className="analytics-dark-panel-soft mt-5 px-3 py-2">
-              <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-[var(--app-muted)]">
                 Trend
               </p>
               <Sparkline
                 points={trends}
                 windowDays={days}
-                loading={loading}
+                loading={false}
                 rangeCaption={`Selected window: last ${days} days of observation activity`}
               />
             </div>
           </div>
 
           <div className="analytics-dark-panel p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">
               Observation priority
             </p>
             <ul className="mt-4 space-y-4">
-              <li className="flex items-start gap-3 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4">
-                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-rose-400" />
+              <li className="flex items-start gap-3 rounded-xl border border-[rgba(217,83,79,0.22)] bg-[var(--semantic-danger-bg)] p-4">
+                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--semantic-danger)]" />
                 <div>
-                  <p className="font-bold text-rose-100">High priority</p>
-                  <p className="text-2xl font-black text-white">
-                    {loading ? "—" : bands?.high ?? dash?.totalHighRiskObservations ?? 0}
+                  <p className="font-bold text-[var(--semantic-danger)]">High priority</p>
+                  <p className="font-app-display text-2xl font-black text-[var(--app-text-strong)]">
+                    {bands?.high ?? dash?.totalHighRiskObservations ?? 0}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-[var(--app-muted)]">
                     Elevated risk observations currently active.
                   </p>
                 </div>
               </li>
-              <li className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-amber-400" />
+              <li className="flex items-start gap-3 rounded-xl border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] p-4">
+                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--semantic-warning)]" />
                 <div>
-                  <p className="font-bold text-amber-100">Medium</p>
-                  <p className="text-2xl font-black text-white">{loading ? "—" : bands?.medium ?? 0}</p>
-                  <p className="mt-1 text-xs text-slate-500">Moderate severity in the selected window.</p>
+                  <p className="font-bold text-[#9a680a]">Medium</p>
+                  <p className="font-app-display text-2xl font-black text-[var(--app-text-strong)]">{bands?.medium ?? 0}</p>
+                  <p className="mt-1 text-xs text-[var(--app-muted)]">Moderate severity in the selected window.</p>
                 </div>
               </li>
-              <li className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-950/30 p-4">
-                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400" />
+              <li className="flex items-start gap-3 rounded-xl border border-[rgba(46,158,91,0.28)] bg-[var(--semantic-success-bg)] p-4">
+                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--semantic-success)]" />
                 <div>
-                  <p className="font-bold text-emerald-100">Low</p>
-                  <p className="text-2xl font-black text-white">{loading ? "—" : bands?.low ?? 0}</p>
-                  <p className="mt-1 text-xs text-slate-500">Lower-severity observations recorded.</p>
+                  <p className="font-bold text-[var(--semantic-success)]">Low</p>
+                  <p className="font-app-display text-2xl font-black text-[var(--app-text-strong)]">{bands?.low ?? 0}</p>
+                  <p className="mt-1 text-xs text-[var(--app-muted)]">Lower-severity observations recorded.</p>
                 </div>
               </li>
             </ul>
           </div>
         </div>
+        )}
 
-        <div
+        <details
           id="safety-risk-memory"
           className="scroll-mt-8 rounded-2xl border border-violet-500/25 bg-violet-950/20 p-5"
+          open
         >
-            <p className="text-xs font-semibold uppercase tracking-wider text-violet-200/90">
+            <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-wider text-violet-200/90">
               Safety360 Risk Memory Engine
-            </p>
+            </summary>
             {riskMemory ? (
               <>
                 <p className="mt-1 text-[11px] text-slate-500">
@@ -986,17 +660,17 @@ export default function AnalyticsPage() {
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                   <div className="analytics-dark-panel-soft p-4">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Facet rows</p>
-                    <p className="mt-2 text-2xl font-black text-white">{riskMemory.facetCount}</p>
+                    <p className="mt-2 text-2xl font-black font-app-display text-[var(--app-text-strong)]">{riskMemory.facetCount}</p>
                   </div>
                   <div className="analytics-dark-panel-soft p-4">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Score (facets only)</p>
-                    <p className="mt-2 text-2xl font-black text-white">{riskMemory.aggregated.score}</p>
+                    <p className="mt-2 text-2xl font-black font-app-display text-[var(--app-text-strong)]">{riskMemory.aggregated.score}</p>
                   </div>
                   <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/20 p-4">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-fuchsia-200/90">
                       + baseline adjust
                     </p>
-                    <p className="mt-2 text-2xl font-black text-white">
+                    <p className="mt-2 text-2xl font-black font-app-display text-[var(--app-text-strong)]">
                       {riskMemory.aggregatedWithBaseline?.score ?? riskMemory.aggregated.score}
                     </p>
                   </div>
@@ -1008,7 +682,7 @@ export default function AnalyticsPage() {
                   </div>
                   <div className="analytics-dark-panel-soft p-4">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Open CA hints</p>
-                    <p className="mt-2 text-2xl font-black text-white">
+                    <p className="mt-2 text-2xl font-black font-app-display text-[var(--app-text-strong)]">
                       {riskMemory.openCorrectiveFacetHints.openStyleStatuses}
                     </p>
                   </div>
@@ -1034,7 +708,7 @@ export default function AnalyticsPage() {
                       </div>
                       {riskMemoryTrend.latest ? (
                         <div className="flex items-baseline gap-2 text-right">
-                          <span className="text-2xl font-black text-white">
+                          <span className="text-2xl font-black font-app-display text-[var(--app-text-strong)]">
                             {riskMemoryTrend.latest.score.toFixed(1)}
                           </span>
                           <span className="text-[10px] font-bold uppercase tracking-wider text-violet-200/90">
@@ -1210,7 +884,7 @@ export default function AnalyticsPage() {
               </ul>
             </div>
           ) : null}
-        </div>
+        </details>
 
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="analytics-dark-panel p-5">
@@ -1219,17 +893,17 @@ export default function AnalyticsPage() {
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Total observations
                 </p>
-                <p className="mt-2 text-5xl font-black text-white">{loading ? "—" : totalObs}</p>
+                <p className="mt-2 text-5xl font-black font-app-display text-[var(--app-text-strong)]">{loading ? "—" : totalObs}</p>
               </div>
               <div className="min-w-0 flex-1 space-y-3">
                 <div>
-                  <div className="flex justify-between text-xs text-slate-400">
+                  <div className="flex justify-between text-xs text-[var(--app-muted)]">
                     <span>Open observations</span>
-                    <span className="font-semibold text-cyan-200">{loading ? "—" : openIssues}</span>
+                    <span className="font-semibold text-[var(--app-accent-primary)]">{loading ? "—" : openIssues}</span>
                   </div>
-                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-800">
+                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-[var(--app-border-subtle)]">
                     <div
-                      className="h-full rounded-full bg-cyan-400/80"
+                      className="h-full rounded-full bg-[var(--app-accent-primary)]/85"
                       style={{
                         width: `${totalObs > 0 ? Math.min(100, (openIssues / totalObs) * 100) : 0}%`,
                       }}
@@ -1237,15 +911,15 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="flex justify-between text-xs text-slate-400">
+                  <div className="flex justify-between text-xs text-[var(--app-muted)]">
                     <span>High risk</span>
-                    <span className="font-semibold text-amber-200">
+                    <span className="font-semibold text-[var(--semantic-warning)]">
                       {loading ? "—" : bands?.high ?? 0}
                     </span>
                   </div>
-                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-800">
+                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-[var(--app-border-subtle)]">
                     <div
-                      className="h-full rounded-full bg-amber-400/80"
+                      className="h-full rounded-full bg-[var(--semantic-warning)]/85"
                       style={{
                         width: `${totalObs > 0 ? Math.min(100, ((bands?.high ?? 0) / totalObs) * 100) : 0}%`,
                       }}
@@ -1321,8 +995,10 @@ export default function AnalyticsPage() {
                     key={tile.label}
                     className="analytics-dark-panel-soft p-4 text-center"
                   >
-                    <p className="text-[11px] font-semibold text-slate-300">{tile.label}</p>
-                    <p className="mt-2 text-2xl font-black text-cyan-300">{loading ? "—" : tile.count}</p>
+                    <p className="text-[11px] font-semibold text-[var(--app-muted)]">{tile.label}</p>
+                    <p className="font-app-display mt-2 text-2xl font-black text-[var(--app-text-strong)]">
+                      {loading ? "—" : tile.count}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -1344,25 +1020,25 @@ export default function AnalyticsPage() {
             <div className="analytics-dark-panel p-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Summary</p>
               <ul className="mt-4 space-y-3 text-sm">
-                <li className="flex justify-between border-b border-white/5 py-2 text-slate-400">
+                <li className="flex justify-between border-b border-[var(--app-border-subtle)] py-2 text-[var(--app-muted)]">
                   <span>Active jobsites</span>
-                  <span className="font-bold text-white">
+                  <span className="font-app-display font-bold text-[var(--app-text-strong)]">
                     {loading ? "—" : dash?.totalActiveJobsites ?? 0}
                   </span>
                 </li>
-                <li className="flex justify-between border-b border-white/5 py-2 text-slate-400">
+                <li className="flex justify-between border-b border-[var(--app-border-subtle)] py-2 text-[var(--app-muted)]">
                   <span>Reports in view</span>
-                  <span className="font-bold text-white">{loading ? "—" : totalObs}</span>
+                  <span className="font-app-display font-bold text-[var(--app-text-strong)]">{loading ? "—" : totalObs}</span>
                 </li>
-                <li className="flex justify-between border-b border-white/5 py-2 text-slate-400">
+                <li className="flex justify-between border-b border-[var(--app-border-subtle)] py-2 text-[var(--app-muted)]">
                   <span>Average closure time</span>
-                  <span className="font-bold text-white">
+                  <span className="font-app-display font-bold text-[var(--app-text-strong)]">
                     {loading ? "—" : `${closure.averageHours ?? 0} hrs`}
                   </span>
                 </li>
-                <li className="flex justify-between py-2 text-slate-400">
+                <li className="flex justify-between py-2 text-[var(--app-muted)]">
                   <span>JSA completion today</span>
-                  <span className="font-bold text-white">
+                  <span className="font-app-display font-bold text-[var(--app-text-strong)]">
                     {loading
                       ? "—"
                       : `${dash?.dapCompletionToday?.percent ?? 0}% (${dash?.dapCompletionToday?.completed ?? 0}/${dash?.dapCompletionToday?.total ?? 0})`}
@@ -1374,22 +1050,22 @@ export default function AnalyticsPage() {
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Leadership
               </p>
-              <div className="mt-4 space-y-2 text-sm text-slate-300">
+              <div className="mt-4 space-y-2 text-sm text-[var(--app-text)]">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Positive observations</span>
-                  <span className="font-bold text-emerald-300">
+                  <span className="text-[var(--app-muted)]">Positive observations</span>
+                  <span className="font-bold text-[var(--semantic-success)]">
                     {leadership?.positiveNegativeObservationRatio?.positive ?? 0}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Negative / near miss</span>
-                  <span className="font-bold text-amber-200">
+                  <span className="text-[var(--app-muted)]">Negative / near miss</span>
+                  <span className="font-bold text-[var(--semantic-warning)]">
                     {leadership?.positiveNegativeObservationRatio?.negative ?? 0}
                   </span>
                 </div>
-                <div className="flex justify-between border-t border-white/5 pt-3">
-                  <span className="text-slate-500">Ratio (pos ÷ neg)</span>
-                  <span className="font-black text-cyan-300">
+                <div className="flex justify-between border-t border-[var(--app-border-subtle)] pt-3">
+                  <span className="text-[var(--app-muted)]">Ratio (pos ÷ neg)</span>
+                  <span className="font-app-display font-black text-[var(--app-accent-primary)]">
                     {leadership?.positiveNegativeObservationRatio?.ratio ?? 0}
                   </span>
                 </div>
@@ -1398,17 +1074,68 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="lg:col-span-3">
-            <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-b from-cyan-500/10 to-transparent p-6 text-center">
-              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-200/80">
+            <div className="rounded-2xl border border-[var(--app-accent-border-24)] bg-[linear-gradient(180deg,_var(--app-accent-primary-soft)_0%,_transparent_100%)] p-6 text-center">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-accent-primary)]">
                 SIF dashboard
               </p>
-              <p className="mt-6 text-6xl font-black text-white">
+              <p className="mt-6 text-6xl font-black font-app-display text-[var(--app-text-strong)]">
                 {loading ? "—" : sif?.potentialCount ?? 0}
               </p>
               <p className="mt-2 text-xs text-slate-500">Potential SIF count (observations)</p>
             </div>
           </div>
         </div>
+          </div>
+        ) : tab === "health_issues" ? (
+          <div className="space-y-5" id="analytics-tabpanel-health_issues" role="tabpanel" aria-labelledby="analytics-tab-health_issues">
+            <div className="grid gap-5 lg:grid-cols-12">
+              <div className="lg:col-span-5">
+                <div className="analytics-dark-panel p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Health issues</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {(summary?.healthIssueRollup ?? []).map((item) => (
+                      <button
+                        key={item.injuryType}
+                        type="button"
+                        onClick={() => setSelectedHealthIssue((current) => (current === item.injuryType ? null : item.injuryType))}
+                        className={[
+                          "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                          selectedHealthIssue === item.injuryType
+                            ? "border-[var(--app-accent-primary)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]"
+                            : "border-[var(--app-accent-border-24)] bg-white/70 text-slate-700 hover:bg-white",
+                        ].join(" ")}
+                      >
+                        {item.label} · {item.count}
+                      </button>
+                    ))}
+                    {(summary?.healthIssueRollup?.length ?? 0) === 0 ? (
+                      <p className="text-sm text-slate-500">No typed injury incidents in this window. Add injury type fields in incidents.</p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+              <div className="lg:col-span-7">
+                <div className="analytics-dark-panel p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Selected issue detail</p>
+                  {summary?.healthIssueFocus ? (
+                    <>
+                      <h3 className="mt-2 text-2xl font-black font-app-display text-[var(--app-text-strong)]">{summary.healthIssueFocus.label}</h3>
+                      <p className="mt-1 text-sm text-slate-400">{summary.healthIssueFocus.count} incident(s) in selected window.</p>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-5">
+                        {Object.entries(summary.healthIssueFocus.severityBands).map(([band, value]) => (
+                          <div key={band} className="analytics-dark-panel-soft p-3 text-center">
+                            <p className="text-[10px] uppercase tracking-wide text-slate-500">{band}</p>
+                            <p className="mt-1 text-xl font-black font-app-display text-[var(--app-text-strong)]">{value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-500">Choose a health issue chip to load its drill-down summary.</p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           <AnalyticsFocusedTab
@@ -1428,17 +1155,32 @@ export default function AnalyticsPage() {
           />
         )}
 
+        <div className="rounded-2xl border border-[var(--app-accent-border-24)] bg-gradient-to-r from-[var(--app-accent-surface-12)] to-white px-5 py-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">Actions</p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Link href="/analytics/safety-intelligence" className="analytics-action-primary px-4 py-2 text-xs uppercase tracking-wide">
+              Deep dive
+            </Link>
+            <Link href="/reports" className="rounded-xl border border-[var(--app-accent-border-24)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)]">
+              Reports
+            </Link>
+            <a href="#benchmarking-compare" className="rounded-xl border border-[var(--app-accent-border-24)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)]">
+              Compare
+            </a>
+          </div>
+        </div>
+
         <div className="analytics-panel flex flex-col gap-4 px-5 py-4 shadow-[var(--app-shadow-primary-panel)] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-3 text-slate-500">
             <Link
               href="/dashboard"
-              className="text-sm font-semibold text-slate-400 underline-offset-4 hover:text-cyan-300 hover:underline"
+              className="text-sm font-semibold text-[var(--app-muted)] underline-offset-4 hover:text-[var(--app-accent-primary)] hover:underline"
             >
               Dashboard
             </Link>
             <Link
               href="/search"
-              className="text-sm font-semibold text-slate-400 underline-offset-4 hover:text-cyan-300 hover:underline"
+              className="text-sm font-semibold text-[var(--app-muted)] underline-offset-4 hover:text-[var(--app-accent-primary)] hover:underline"
             >
               Search
             </Link>

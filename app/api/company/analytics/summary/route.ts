@@ -8,6 +8,7 @@ import { isForecasterSyntheticIncident } from "@/lib/injuryWeather/excludeForeca
 import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
 import { loadCompanyRiskScoreTrend, summarizeTrendDelta } from "@/lib/riskMemory/scoresRepo";
 import { buildSalesDemoAnalyticsSummaryResponse } from "@/lib/demoWorkspace";
+import { INJURY_TYPE_LABELS } from "@/lib/incidents/injuryType";
 
 export const runtime = "nodejs";
 
@@ -35,8 +36,18 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error;
   const { searchParams } = new URL(request.url);
   const days = Number(searchParams.get("days") ?? "30");
+  const selectedInjuryType = String(searchParams.get("injuryType") ?? "").trim().toLowerCase();
   if (auth.role === "sales_demo") {
-    return NextResponse.json(buildSalesDemoAnalyticsSummaryResponse(days));
+    const demo = buildSalesDemoAnalyticsSummaryResponse(days) as {
+      summary?: { healthIssueRollup?: Array<{ injuryType: string }>; healthIssueFocus?: { injuryType: string } | null };
+    };
+    if (demo.summary) {
+      demo.summary.healthIssueFocus =
+        selectedInjuryType && demo.summary.healthIssueFocus?.injuryType === selectedInjuryType
+          ? demo.summary.healthIssueFocus
+          : null;
+    }
+    return NextResponse.json(demo);
   }
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) {
@@ -88,7 +99,7 @@ export async function GET(request: Request) {
     auth.supabase
       .from("company_incidents")
       .select(
-        "id, title, description, category, status, severity, sif_flag, escalation_level, created_at, jobsite_id, recordable"
+        "id, title, description, category, status, severity, sif_flag, escalation_level, created_at, jobsite_id, recordable, injury_type, body_part"
       )
       .eq("company_id", companyScope.companyId)
       .gte("created_at", since),
@@ -363,6 +374,52 @@ export async function GET(request: Request) {
     injuryPredictionModelUrl: "/api/company/injury-analytics/model",
   };
 
+  const injuryRows = incidents.filter((row) => String(row.category ?? "").toLowerCase() === "incident");
+  const healthIssueMap = new Map<string, number>();
+  for (const row of injuryRows) {
+    const key = String((row as { injury_type?: string | null }).injury_type ?? "").trim().toLowerCase() || "unspecified";
+    healthIssueMap.set(key, (healthIssueMap.get(key) ?? 0) + 1);
+  }
+  const healthIssueRollup = Array.from(healthIssueMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([injuryType, count]) => ({
+      injuryType,
+      label: injuryType === "unspecified" ? "Unspecified" : (INJURY_TYPE_LABELS as Record<string, string>)[injuryType] ?? injuryType,
+      count,
+    }));
+
+  const focusType = selectedInjuryType || null;
+  const focusRows = focusType
+    ? injuryRows.filter((row) => {
+        const key = String((row as { injury_type?: string | null }).injury_type ?? "").trim().toLowerCase() || "unspecified";
+        return key === focusType;
+      })
+    : [];
+  const healthIssueFocus = focusType
+    ? {
+        injuryType: focusType,
+        label: focusType === "unspecified" ? "Unspecified" : (INJURY_TYPE_LABELS as Record<string, string>)[focusType] ?? focusType,
+        count: focusRows.length,
+        severityBands: {
+          critical: focusRows.filter((row) => String(row.severity ?? "").toLowerCase() === "critical").length,
+          high: focusRows.filter((row) => String(row.severity ?? "").toLowerCase() === "high").length,
+          medium: focusRows.filter((row) => ["medium", "moderate"].includes(String(row.severity ?? "").toLowerCase())).length,
+          low: focusRows.filter((row) => String(row.severity ?? "").toLowerCase() === "low").length,
+          unspecified: focusRows.filter((row) => !String(row.severity ?? "").trim()).length,
+        },
+        recentItems: focusRows
+          .slice()
+          .sort((a, b) => new Date(String(b.created_at ?? 0)).getTime() - new Date(String(a.created_at ?? 0)).getTime())
+          .slice(0, 8)
+          .map((row) => ({
+            id: row.id,
+            title: String(row.title ?? "").trim() || "Untitled incident",
+            severity: row.severity ?? null,
+            created_at: row.created_at ?? null,
+          })),
+      }
+    : null;
+
   function severityRowIndex(severity: string | null | undefined) {
     const v = String(severity ?? "").toLowerCase();
     if (v === "critical") return 0;
@@ -491,6 +548,8 @@ export async function GET(request: Request) {
       },
       benchmarking,
       injuryAnalytics,
+      healthIssueRollup,
+      healthIssueFocus,
       riskMemory: riskMemoryRollup,
       riskMemoryTrend,
       riskMemoryRecommendations,

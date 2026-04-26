@@ -64,12 +64,20 @@ function getSiteBuilderChild(
 export type PSHSEPInput = Record<string, unknown> & {
   // Admin / cover inputs (expand as you like)
   company_name?: string;
+  company_address?: string;
+  /** data:image/...;base64,... for optional cover logo */
+  company_logo_data_url?: string | null;
+  company_logo_file_name?: string | null;
 
   project_name?: string;
   project_number?: string;
   project_address?: string;
+  /** e.g. Preconstruction, Construction, Commissioning */
+  project_phase?: string;
 
   owner_client?: string;
+  /** Mailing or registered address for the owner at / for this site (cover) */
+  owner_site_address?: string;
   gc_cm?: string;
   gc_safety_contact?: string;
 
@@ -265,6 +273,31 @@ function parseBase64Image(dataUrl: string) {
     type,
     buffer: Buffer.from(base64, "base64"),
   };
+}
+
+function optionalCoverLogoParagraph(companyLogoDataUrl: unknown): Paragraph | null {
+  if (typeof companyLogoDataUrl !== "string" || !companyLogoDataUrl.trim().startsWith("data:image/")) {
+    return null;
+  }
+  try {
+    const image = parseBase64Image(companyLogoDataUrl.trim());
+    return new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 200 },
+      children: [
+        new ImageRun({
+          type: image.type,
+          data: image.buffer,
+          transformation: {
+            width: 240,
+            height: 100,
+          },
+        }),
+      ],
+    });
+  } catch {
+    return null;
+  }
 }
 
 let activeProgramSectionNumber = "";
@@ -3761,6 +3794,10 @@ function buildAdminSummary(
 ) {
   const projectName = form.project_name || "Project";
   const projectNumber = form.project_number || "";
+  const projectPhase = typeof form.project_phase === "string" ? form.project_phase.trim() : "";
+  const companyAddress = typeof form.company_address === "string" ? form.company_address.trim() : "";
+  const ownerSiteAddress =
+    typeof form.owner_site_address === "string" ? form.owner_site_address.trim() : "";
 
   const companyName =
     typeof form.company_name === "string" && form.company_name.trim()
@@ -3769,10 +3806,13 @@ function buildAdminSummary(
 
   const rows: Array<[string, string]> = [
     ["Company Name", companyName],
+    ["Company Address (project)", companyAddress],
     ["Project Name", projectName],
     ["Project Number", projectNumber],
-    ["Project Address", form.project_address || ""],
+    ["Project Phase", projectPhase],
+    ["Project Address (site / jobsite)", form.project_address || ""],
     ["Owner / Client", form.owner_client || ""],
+    ["Owner Site Address", ownerSiteAddress],
     ["GC / CM", form.gc_cm || ""],
     ["GC Safety Contact", form.gc_safety_contact || ""],
     ["Contractor Company", form.contractor_company || ""],
@@ -3921,10 +3961,17 @@ function buildCover(
 
   const projectName = form.project_name || "Project";
   const projectNumber = form.project_number || "";
+  const projectPhase = typeof form.project_phase === "string" ? form.project_phase.trim() : "";
+  const companyAddress = typeof form.company_address === "string" ? form.company_address.trim() : "";
+  const ownerSiteAddress =
+    typeof form.owner_site_address === "string" ? form.owner_site_address.trim() : "";
   const revision = typeof form.revision === "string" ? form.revision : "0";
   const approvalDate = form.approval_date || "";
 
+  const coverLogo = optionalCoverLogoParagraph(form.company_logo_data_url);
+
   return [
+    ...(coverLogo ? [coverLogo] : []),
     brandedHeaderBar(companyName),
 
     new Paragraph({
@@ -3943,12 +3990,14 @@ function buildCover(
     formSectionTitle("PROJECT INFORMATION"),
     infoTable([
       ["Project Name", projectName, "Project Number", projectNumber],
-      ["Project Address", form.project_address || "", "Owner / Client", form.owner_client || ""],
-      ["GC / CM", form.gc_cm || "", "GC Safety Contact", form.gc_safety_contact || ""],
-      ["Contractor Company", form.contractor_company || "", "Contractor Phone", form.contractor_phone || ""],
-      ["Contractor Email", form.contractor_email || "", "Plan Author", form.plan_author || ""],
-      ["Approved By", form.approval_name || "", "Approval Date", approvalDate],
-      ["Revision", revision, "Document Status", "Issued for Construction Use"],
+      ["Company Address (project)", companyAddress, "Project Phase", projectPhase],
+      ["Project Address (site / jobsite)", form.project_address || "", "Owner / Client", form.owner_client || ""],
+      ["Owner Site Address", ownerSiteAddress, "GC / CM", form.gc_cm || ""],
+      ["GC Safety Contact", form.gc_safety_contact || "", "Contractor Company", form.contractor_company || ""],
+      ["Contractor Phone", form.contractor_phone || "", "Contractor Email", form.contractor_email || ""],
+      ["Plan Author", form.plan_author || "", "Approved By", form.approval_name || ""],
+      ["Approval Date", approvalDate, "Revision", revision],
+      ["Document Status", "Issued for Construction Use", "", ""],
     ]),
 
     spacerParagraph(2),

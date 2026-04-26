@@ -95,6 +95,27 @@ describe("legacy PSHSEP DOCX export", () => {
     expect(documentXml).toContain("Working at Heights");
     expect(documentXml).toContain("Custom fall protection purpose.");
   });
+
+  it("includes company address, project phase, and owner site address on the cover information table", async () => {
+    const rendered = await generatePshsepDocx({
+      company_name: "Acme Safety",
+      company_address: "100 Main St, Suite 2, Boston MA",
+      project_name: "Riverside",
+      project_number: "P-2026-14",
+      project_phase: "Construction",
+      project_address: "9 Industrial Way",
+      owner_client: "Riverside Holdings LLC",
+      owner_site_address: "9 Industrial Way, Receiving Gate A",
+      scope_of_work_selected: ["Excavation"],
+    });
+    const { documentXml } = await unzipDocx(new Uint8Array(rendered.body));
+    expect(documentXml).toContain("Company Address (project)");
+    expect(documentXml).toContain("100 Main St");
+    expect(documentXml).toContain("Project Phase");
+    expect(documentXml).toContain("Construction");
+    expect(documentXml).toContain("Owner Site Address");
+    expect(documentXml).toContain("9 Industrial Way, Receiving Gate A");
+  });
 });
 
 /**

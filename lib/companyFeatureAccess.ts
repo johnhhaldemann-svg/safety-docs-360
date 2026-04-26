@@ -253,6 +253,9 @@ export function canAccessCompanyWorkspaceHref(
   if (normalizedHref === "/company-users") {
     return Boolean(permissionMap?.can_manage_company_users || permissionMap?.can_manage_users);
   }
+  if (normalizedHref === "/company-integrations") {
+    return Boolean(permissionMap?.can_manage_company_users || permissionMap?.can_manage_users);
+  }
 
   return true;
 }

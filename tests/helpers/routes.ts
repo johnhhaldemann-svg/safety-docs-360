@@ -37,6 +37,9 @@ export const AUTH_APP_STATIC_ROUTES = [
   "/analytics",
   "/analytics/safety-intelligence",
   "/command-center",
+  "/company-inductions",
+  "/company-safety-forms",
+  "/company-integrations",
   "/settings/risk-memory",
   "/reports",
   "/company-users",
@@ -70,6 +73,7 @@ const id = E2E_PLACEHOLDER_UUID;
 
 /** Dynamic `(app)` routes exercised with a placeholder id. */
 export const AUTH_APP_DYNAMIC_ROUTES = [
+  `/company-contractors/${id}`,
   `/admin/companies/${id}`,
   `/admin/review-documents/${id}`,
   `/jobsites/${id}/overview`,
@@ -82,6 +86,10 @@ export const AUTH_APP_DYNAMIC_ROUTES = [
   `/jobsites/${id}/reports`,
   `/jobsites/${id}/safety-intelligence`,
   `/jobsites/${id}/team`,
+  `/jobsites/${id}/inductions`,
+  `/jobsites/${id}/toolbox`,
+  `/jobsites/${id}/chemicals`,
+  `/jobsites/${id}/safety-forms`,
   `/companies/${id}/overview`,
   `/companies/${id}/documents`,
   `/companies/${id}/jobsites`,

@@ -267,6 +267,7 @@ export type DashboardGraphSection = {
   items: DashboardGraphItem[];
   empty: DashboardSectionEmpty;
   valueLabel?: string;
+  chartType?: "bar" | "pie";
 };
 
 export type DashboardBlockId =
@@ -289,7 +290,9 @@ export type DashboardBlockId =
   | "incident_followups"
   | "graph_hazard_trends"
   | "graph_jobsite_risk"
-  | "graph_observation_mix";
+  | "graph_observation_mix"
+  | "graph_risk_distribution"
+  | "graph_risk_reduction";
 
 export type DashboardAvailableBlock = {
   id: DashboardBlockId;

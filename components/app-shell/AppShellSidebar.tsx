@@ -6,6 +6,7 @@ import type { NavSection } from "@/lib/appNavigation";
 import { isWorkspaceNavActive } from "@/lib/workspaceNavActive";
 import { formatUserRoleLabel, getUserDisplayName } from "@/lib/userRoleDisplay";
 import { getWorkspaceNavItemMeta } from "@/lib/workspaceNavigationModel";
+import { getNavSectionIcon } from "@/lib/navSectionIcon";
 import { ProfileAvatar, type ProfileSummary } from "./ProfileAvatar";
 import { ChevronDownIcon } from "./shellIcons";
 
@@ -72,6 +73,7 @@ export function AppShellSidebar({
               const sectionDescription = (section as { description?: string }).description ?? "";
               const isExpanded = expandedSectionKey === section.key;
               const sectionContentId = `nav-section-panel-${section.key}`;
+              const SectionIcon = getNavSectionIcon(section);
               return (
                 <div
                   key={`nav-section-${sectionIndex}-${section.title}`}
@@ -83,17 +85,28 @@ export function AppShellSidebar({
                     aria-controls={sectionContentId}
                     onClick={() => onToggleSection(section.key)}
                     className={cx(
-                      "flex w-full items-start justify-between gap-3 rounded-2xl px-3 py-2 text-left transition",
+                      "flex w-full items-start justify-between gap-3 rounded-2xl px-3 py-2 text-left transition duration-150",
                       isExpanded
-                        ? "bg-white/75 text-[var(--app-text-strong)] shadow-sm"
+                        ? "bg-white/75 text-[var(--app-text-strong)] shadow-sm ring-1 ring-[var(--app-accent-border-20)]"
                         : "text-slate-500 hover:bg-white/60 hover:text-[var(--app-text-strong)]"
                     )}
                   >
-                    <div className="min-w-0">
+                    <div className="flex min-w-0 gap-2.5">
+                      <span
+                        className={cx(
+                          "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--app-border-subtle)] bg-white/80 text-[var(--app-muted)] shadow-sm transition",
+                          isExpanded && "border-[var(--app-accent-border-22)] text-[var(--app-accent-primary)]"
+                        )}
+                        aria-hidden
+                      >
+                        <SectionIcon className="h-4 w-4" strokeWidth={2.25} />
+                      </span>
+                      <div className="min-w-0">
                       <div className="text-[10px] font-bold uppercase tracking-[0.22em]">{section.title}</div>
                       {sectionDescription ? (
                         <div className="mt-1 text-[11px] leading-5 text-[var(--app-muted)]">{sectionDescription}</div>
                       ) : null}
+                      </div>
                     </div>
                     <span
                       className={cx(
@@ -121,9 +134,9 @@ export function AppShellSidebar({
                               key={`${section.title}-${item.href}`}
                               href={item.href}
                               className={cx(
-                                "flex items-center rounded-2xl border px-4 py-3 transition",
+                                "relative flex items-center rounded-2xl border py-3 pl-4 pr-4 transition duration-150",
                                 active
-                                  ? "border-[var(--app-accent-border-24)] bg-[linear-gradient(135deg,_var(--app-accent-surface-14)_0%,_var(--app-accent-surface-08)_100%)] text-[var(--app-text-strong)] shadow-[var(--app-shadow-primary-nav)]"
+                                  ? "border-[var(--app-accent-border-24)] bg-[linear-gradient(135deg,_var(--app-accent-surface-14)_0%,_var(--app-accent-surface-08)_100%)] text-[var(--app-text-strong)] shadow-[var(--app-shadow-primary-nav)] before:absolute before:inset-y-2.5 before:left-1 before:w-1 before:rounded-full before:bg-[var(--app-accent-primary)] before:shadow-[0_0_14px_rgba(37,99,235,0.45)]"
                                   : "border-transparent text-[var(--app-text)] hover:bg-white/70 hover:text-[var(--app-text-strong)]"
                               )}
                               onClick={onNavLinkActivate}

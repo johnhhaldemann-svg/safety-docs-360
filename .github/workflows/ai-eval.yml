@@ -2,15 +2,21 @@ name: AI eval (non-blocking)
 
 # This workflow exercises our golden-file AI fixtures against real OpenAI.
 # Intentionally non-blocking on purpose:
-#   - manual-trigger only at first (workflow_dispatch)
+#   - `continue-on-error: true` so failures inform without blocking merges
 #   - scheduled nightly so drift is caught within a day
-#   - skipped silently when `OPENAI_API_KEY` is not configured
+#   - pull requests get the same harness (signal only until you remove
+#     continue-on-error and mark the check required in branch protection)
 #
-# Promote to a required check (and add `pull_request` trigger) once the
-# harness has been stable for ~1 week. See `tests/ai/golden/README.md`.
+# Configure repository secret `OPENAI_API_KEY` (Settings → Secrets and variables
+# → Actions). Optional model overrides: `AI_EVAL_COMPANY_AI_MODEL`,
+# `AI_EVAL_RISK_MEMORY_LLM_MODEL`, `AI_EVAL_SI_DOCUMENT_MODEL`.
+#
+# See `tests/ai/golden/README.md`.
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main, master]
   schedule:
     # 09:17 UTC daily — off-peak vs the rest of CI.
     - cron: "17 9 * * *"

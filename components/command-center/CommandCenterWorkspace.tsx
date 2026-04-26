@@ -25,6 +25,7 @@ import {
   summarizeOpenWork,
   type WorkspaceSummary,
 } from "@/components/command-center/model";
+import { InductionReadinessCard } from "@/components/command-center/InductionReadinessCard";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
@@ -104,7 +105,7 @@ function StatTile({
   hint,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   href: string;
   hint?: string;
 }) {
@@ -113,8 +114,8 @@ function StatTile({
       href={href}
       className="group flex flex-col rounded-2xl border border-[var(--app-border-strong)] bg-white/88 px-4 py-4 shadow-[var(--app-shadow-soft)] transition hover:border-[var(--app-accent-surface-35)]"
     >
-      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">{label}</span>
-      <span className="mt-2 text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--app-text)]">{label}</span>
+      <span className="mt-2 text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</span>
       {hint ? <span className="mt-2 text-xs leading-5 text-[var(--app-text)]">{hint}</span> : null}
     </Link>
   );
@@ -249,6 +250,7 @@ export function CommandCenterWorkspace() {
   );
 
   const risk = analytics?.summary?.riskMemory;
+  const companyDashboard = analytics?.summary?.companyDashboard;
   const recommendations = analytics?.summary?.riskMemoryRecommendations ?? [];
   const workflowRails = useMemo(() => buildSafetyManagerWorkflowRails(openWork), [openWork]);
   const band = risk?.aggregatedWithBaseline?.band ?? risk?.aggregated?.band ?? "-";
@@ -433,18 +435,26 @@ export function CommandCenterWorkspace() {
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Coverage</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div>
-                  <p className="text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">
-                    {analytics?.summary?.companyDashboard?.totalOpenObservations ?? 0}
+                  <p className="text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">
+                    {companyDashboard ? (companyDashboard.totalOpenObservations ?? 0) : "-"}
                   </p>
-                  <p className="mt-1 text-sm text-[var(--app-text)]">open issues in range</p>
+                  <p className="mt-1 text-sm text-[var(--app-text)]">
+                    {companyDashboard ? "open issues in range" : "awaiting analytics sync"}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">
-                    {analytics?.summary?.companyDashboard?.totalActiveJobsites ?? 0}
+                  <p className="text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">
+                    {companyDashboard ? (companyDashboard.totalActiveJobsites ?? 0) : "-"}
                   </p>
-                  <p className="mt-1 text-sm text-[var(--app-text)]">active jobsites</p>
+                  <p className="mt-1 text-sm text-[var(--app-text)]">
+                    {companyDashboard ? "active jobsites" : "awaiting analytics sync"}
+                  </p>
                 </div>
               </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <InductionReadinessCard />
             </div>
 
             <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/88 p-5 shadow-[var(--app-shadow-soft)]">

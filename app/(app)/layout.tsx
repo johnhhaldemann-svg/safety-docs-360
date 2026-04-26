@@ -31,6 +31,7 @@ import { getCsepNavSectionsForRole, type WorkspaceProduct } from "@/lib/workspac
 import { groupCompanyWorkspaceSections } from "@/lib/workspaceNavigationModel";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { isWorkspaceNavActive } from "@/lib/workspaceNavActive";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { AppLoading } from "@/components/app-shell/AppLoading";
 import { AppShellHeader } from "@/components/app-shell/AppShellHeader";
 import { AppShellSidebar } from "@/components/app-shell/AppShellSidebar";
@@ -116,7 +117,7 @@ export default function AppLayout({
   const [termsError, setTermsError] = useState("");
   const [permissionMap, setPermissionMap] = useState<PermissionMap | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [, setCompanyName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [workspaceProduct, setWorkspaceProduct] = useState<WorkspaceProduct>("full");
   const [profileComplete, setProfileComplete] = useState(false);
   const [profileSummary, setProfileSummary] = useState<ProfileSummary | null>(null);
@@ -664,6 +665,16 @@ export default function AppLayout({
       : isCompanyScopedUser
         ? "Company Workspace"
         : "User Workspace";
+
+  const slimWorkspaceFooterStrip = useMemo(() => {
+    return (
+      pathname === "/dashboard" ||
+      pathname === "/analytics" ||
+      pathname.startsWith("/analytics/") ||
+      pathname === "/command-center"
+    );
+  }, [pathname]);
+
   async function handleLogout() {
     try {
       setLoading(true);
@@ -913,6 +924,8 @@ export default function AppLayout({
             isCompanyScopedUser={isCompanyScopedUser}
             currentNavSection={currentNavSection}
             currentNavItem={currentNavItem}
+            contextCompanyName={companyName.trim() || null}
+            workspaceProduct={workspaceProduct}
           />
 
           <main id="main-content" className="flex-1 px-4 py-6 sm:px-6 sm:py-7 xl:px-8">
@@ -923,11 +936,17 @@ export default function AppLayout({
                 </div>
               ) : null}
               <div className="workspace-frame rounded-[1.6rem] p-3 sm:rounded-[2rem] sm:p-4">
-                <div className="workspace-content">
-                {children}
+                <div key={pathname} className="workspace-content app-page-transition">
+                  {children}
                 </div>
               </div>
-              <div className="app-radius-card bg-[linear-gradient(135deg,_var(--app-accent-primary)_0%,_#6ea0ff_100%)] px-4 py-4 text-center text-xl font-black tracking-tight text-white shadow-[var(--app-shadow-primary-hero)] sm:rounded-[1.6rem] sm:px-6 sm:py-5 sm:text-[1.85rem]">
+              <div
+                className={`app-radius-card bg-[linear-gradient(135deg,_var(--app-accent-primary)_0%,_#6ea0ff_100%)] text-center font-black tracking-tight text-white shadow-[var(--app-shadow-primary-hero)] sm:rounded-[1.6rem] ${
+                  slimWorkspaceFooterStrip
+                    ? "px-4 py-2.5 text-sm sm:px-5 sm:py-3 sm:text-base"
+                    : "px-4 py-4 text-xl sm:px-6 sm:py-5 sm:text-[1.85rem]"
+                }`}
+              >
                 Systems live. Secure. Document. Stay Safe.
               </div>
             </div>
@@ -940,6 +959,7 @@ export default function AppLayout({
         onOpenChange={setCommandPaletteOpen}
         items={commandPaletteItems}
       />
+      <ServiceWorkerRegister />
     </div>
   );
 }

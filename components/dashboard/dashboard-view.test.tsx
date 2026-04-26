@@ -239,9 +239,9 @@ describe("DashboardView", () => {
       "metric_secondary",
       "metric_tertiary",
       "metric_quaternary",
+      "graph_risk_distribution",
+      "graph_risk_reduction",
       "graph_hazard_trends",
-      "graph_jobsite_risk",
-      "graph_observation_mix",
       "priority_queue",
       "next_actions",
       "recent_activity",
@@ -266,7 +266,7 @@ describe("DashboardView", () => {
     );
 
     expect(html).toContain("Hazard trend graph");
-    expect(html).toContain("Jobsite risk graph");
-    expect(html).toContain("Observation mix graph");
+    expect(html).toContain("Risk distribution chart");
+    expect(html).toContain("Risk reduction graph");
   });
 });

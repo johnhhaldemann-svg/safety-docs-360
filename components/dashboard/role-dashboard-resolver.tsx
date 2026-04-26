@@ -1,6 +1,7 @@
 "use client";
 
 import { CompanyAdminDashboard } from "@/components/dashboard/company-admin-dashboard";
+import { DashboardPageSkeleton } from "@/components/dashboard/DashboardPageSkeleton";
 import { DefaultDashboard } from "@/components/dashboard/default-dashboard";
 import { FieldSupervisorDashboard } from "@/components/dashboard/field-supervisor-dashboard";
 import { SafetyManagerDashboard } from "@/components/dashboard/safety-manager-dashboard";
@@ -8,6 +9,10 @@ import type { DashboardDataState } from "@/components/dashboard/types";
 import { resolveDashboardRole } from "@/lib/dashboardRole";
 
 export function RoleDashboardResolver({ data }: { data: DashboardDataState }) {
+  if (data.loading) {
+    return <DashboardPageSkeleton />;
+  }
+
   const dashboardRole = resolveDashboardRole(data.userRole);
 
   if (dashboardRole === "company_admin") {

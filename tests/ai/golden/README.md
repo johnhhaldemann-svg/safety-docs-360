@@ -78,3 +78,11 @@ Keep assertions tolerant of LLM phrasing variation. The point is to catch
 
 If `OPENAI_API_KEY` is not set, every fixture is marked skipped (not failed),
 so the harness can be inspected locally without burning tokens.
+
+## GitHub Actions
+
+The workflow [`.github/workflows/ai-eval.yml`](../../../.github/workflows/ai-eval.yml) runs `npm run test:ai-eval` on `workflow_dispatch`, on pull requests to `main`/`master`, and on a daily schedule.
+
+Add an Actions **repository secret** named `OPENAI_API_KEY` (same value as local AI usage) so CI runs exercise real fixtures instead of skipping. Optional secrets `AI_EVAL_COMPANY_AI_MODEL`, `AI_EVAL_RISK_MEMORY_LLM_MODEL`, and `AI_EVAL_SI_DOCUMENT_MODEL` override the models those codepaths read, without editing application code.
+
+The workflow uses `continue-on-error: true` until you are ready to treat regressions as merge blockers; then remove that flag and add the workflow as a **required status check** in branch protection.

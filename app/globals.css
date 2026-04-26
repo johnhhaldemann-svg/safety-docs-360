@@ -95,6 +95,11 @@ html {
   --font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", "Roboto Mono", monospace;
 }
 
+/* Display / hero numerics (loaded via `Plus_Jakarta_Sans` in `app/layout.tsx`). */
+.font-app-display {
+  font-family: var(--font-display), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -794,11 +799,56 @@ textarea {
 }
 
 .workspace-content :where(thead th) {
-  color: var(--app-muted);
+  color: var(--app-text-strong);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
 }
 
 .workspace-content :where(tbody tr) {
   border-color: var(--app-border);
+}
+
+.workspace-content :where(tbody tr:nth-child(even)) {
+  background: rgba(248, 251, 255, 0.55);
+}
+
+.workspace-content :where(tbody tr:hover) {
+  box-shadow: var(--app-shadow-soft);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .workspace-content :where(tbody tr) {
+    transition: box-shadow 0.15s ease, background-color 0.15s ease;
+  }
+}
+
+/** Scroll container: opt-in sticky table headers inside workspace content. */
+.app-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: var(--app-radius-lg);
+  border: 1px solid var(--app-border-subtle);
+}
+
+.app-table-scroll :where(thead th) {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 249, 255, 0.96) 100%);
+  box-shadow: 0 1px 0 var(--app-border-subtle);
+}
+
+html[data-table-density="compact"] .workspace-content :where(td, th) {
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+  padding-left: 0.55rem;
+  padding-right: 0.55rem;
+}
+
+html[data-table-density="compact"] .workspace-content :where(table) {
+  font-size: 0.8125rem;
 }
 
 .workspace-content :where(button, a) {

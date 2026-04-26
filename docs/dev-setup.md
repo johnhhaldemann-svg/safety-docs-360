@@ -41,5 +41,19 @@ After pulling new migrations, re-run push before testing features that depend on
 ## E2E tests
 
 1. Configure `NEXT_PUBLIC_SUPABASE_*` so the app can run.
-2. Optional: `E2E_USER_EMAIL`, `E2E_USER_PASSWORD`, `E2E_NEXT_PUBLIC_SUPABASE_URL`, and `E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY` for CI full E2E on `main` (all four required there; see [production-deployment.md](./production-deployment.md)).
-3. Run `npm run test:e2e` or `npm run test:e2e:ci` (see root [`README.md`](../README.md)).
+2. Run `npm run test:e2e` or `npm run test:e2e:ci` (see root [`README.md`](../README.md)).
+
+### Full E2E on `main` / `master` (GitHub Actions)
+
+The [`playwright-full` job](../.github/workflows/ci.yml) runs `npm run test:e2e:ci` only on pushes to `main` or `master` when **all** of the following **repository secrets** are set (empty string counts as unset, so the job is skipped until the set is complete):
+
+| Secret | Role |
+|--------|------|
+| `E2E_USER_EMAIL` | Test user email in your Supabase project |
+| `E2E_USER_PASSWORD` | Test user password |
+| `E2E_NEXT_PUBLIC_SUPABASE_URL` | Same project URL as used by that user (often matches production or a dedicated CI Supabase project) |
+| `E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anon key for the same project |
+
+After configuring secrets, push to `main` (or use **Actions → CI → Run workflow** if you add `workflow_dispatch` later) and open the **`playwright-full`** job log. Failures there are real E2E regressions: re-run locally with the same four values in `.env.local` and `npm run test:e2e:ci`.
+
+More deployment context: [production-deployment.md](./production-deployment.md).

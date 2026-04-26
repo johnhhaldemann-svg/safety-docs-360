@@ -26,6 +26,8 @@ export const DASHBOARD_BLOCK_IDS: DashboardBlockId[] = [
   "graph_hazard_trends",
   "graph_jobsite_risk",
   "graph_observation_mix",
+  "graph_risk_distribution",
+  "graph_risk_reduction",
 ];
 
 const DASHBOARD_BLOCK_META: Record<
@@ -111,6 +113,14 @@ const DASHBOARD_BLOCK_META: Record<
   graph_observation_mix: {
     title: "Observation mix graph",
     description: "A bar graph of near misses, hazards, positives, inspections, and DAPs.",
+  },
+  graph_risk_distribution: {
+    title: "Risk distribution chart",
+    description: "A pie chart showing high, medium, and low risk observation mix.",
+  },
+  graph_risk_reduction: {
+    title: "Risk reduction graph",
+    description: "A bar graph showing open, in-progress, and reduced (closed) risk items.",
   },
 };
 

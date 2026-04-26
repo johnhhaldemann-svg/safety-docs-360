@@ -1,7 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
@@ -35,9 +43,15 @@ import { buildPshsepGenerationContext } from "@/lib/safety-intelligence/document
 type Answers = {
   jobsite_id: string;
   company_name: string;
+  /** Contractor / company mailing or main office for this project (exports to cover) */
+  company_address: string;
   project_name: string;
   project_number: string;
   project_address: string;
+  /** e.g. Preconstruction, Construction, Commissioning (cover / admin summary) */
+  project_phase: string;
+  /** Physical owner address at the site (distinct from project / jobsite address) */
+  owner_site_address: string;
   governing_state: string;
   project_delivery_type: string;
   owner_client: string;
@@ -133,8 +147,11 @@ const steps: BuilderStep[] = [
     detail: "Core project, owner, and job-specific context.",
     requiredInputs: [
       "Company / brand name",
-      "Project name and project number",
+      "Company address for the project (cover)",
+      "Cover logo (optional PNG/JPG)",
+      "Project name, number, and phase",
       "Project address and governing state",
+      "Owner / client and owner site address",
       "Jurisdiction profile",
       "Project delivery type",
       "Owner / client information",
@@ -458,9 +475,12 @@ const textareaAiHints: Record<DraftableAnswerField, string> = {
 const initialAnswers: Answers = {
   jobsite_id: "",
   company_name: "SafetyDocs",
+  company_address: "",
   project_name: "",
   project_number: "",
   project_address: "",
+  project_phase: "",
+  owner_site_address: "",
   governing_state: "",
   project_delivery_type: "",
   owner_client: "",
@@ -540,6 +560,8 @@ export default function PESHEPUniversalPage() {
   const [assemblyPoint, setAssemblyPoint] = useState("");
   const [nearestHospital, setNearestHospital] = useState("");
   const [emergencyContact, setEmergencyContact] = useState("");
+  const [companyLogoPreviewUrl, setCompanyLogoPreviewUrl] = useState<string | null>(null);
+  const [companyLogoFileName, setCompanyLogoFileName] = useState<string | null>(null);
   const [agreedToSubmissionTerms, setAgreedToSubmissionTerms] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
@@ -945,6 +967,8 @@ export default function PESHEPUniversalPage() {
     setAssemblyPoint("");
     setNearestHospital("");
     setEmergencyContact("");
+    setCompanyLogoPreviewUrl(null);
+    setCompanyLogoFileName(null);
     setAgreedToSubmissionTerms(false);
     setOwnerLetterPresetId("");
     setMessage("");
@@ -1054,6 +1078,22 @@ export default function PESHEPUniversalPage() {
     reader.readAsDataURL(file);
   }
 
+  function handleCompanyLogoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCompanyLogoPreviewUrl(typeof reader.result === "string" ? reader.result : null);
+      setCompanyLogoFileName(file.name);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearCompanyLogo() {
+    setCompanyLogoPreviewUrl(null);
+    setCompanyLogoFileName(null);
+  }
+
   async function handleSubmitForReview() {
     try {
       setMessage("");
@@ -1094,6 +1134,8 @@ export default function PESHEPUniversalPage() {
         governing_state: normalizedAnswers.governing_state,
         jurisdiction_code: jurisdictionProfile.jurisdictionCode,
         jurisdiction_plan_type: jurisdictionProfile.jurisdictionPlanType,
+        company_logo_data_url: companyLogoPreviewUrl,
+        company_logo_file_name: companyLogoFileName,
         emergency_map: {
           aed_location: aedLocation,
           first_aid_location: firstAidLocation,
@@ -1256,8 +1298,16 @@ export default function PESHEPUniversalPage() {
                     </div>
                     <Field label="Company Name (branding)" value={answers.company_name} onChange={(value) => updateField("company_name", value)} />
                     <Field label="Project Name" value={answers.project_name} onChange={(value) => updateField("project_name", value)} />
+                    <div className="md:col-span-2">
+                      <TextArea
+                        label="Company Address (for this project / cover page)"
+                        value={answers.company_address}
+                        onChange={(value) => updateField("company_address", value)}
+                      />
+                    </div>
                     <Field label="Project Number" value={answers.project_number} onChange={(value) => updateField("project_number", value)} />
-                    <Field label="Project Address" value={answers.project_address} onChange={(value) => updateField("project_address", value)} />
+                    <Field label="Project Phase" value={answers.project_phase} onChange={(value) => updateField("project_phase", value)} />
+                    <Field label="Project Address (site / jobsite)" value={answers.project_address} onChange={(value) => updateField("project_address", value)} />
                     <Select
                       label="Governing State"
                       value={answers.governing_state}
@@ -1291,6 +1341,52 @@ export default function PESHEPUniversalPage() {
                     </div>
                     <Field label="Owner / Client" value={answers.owner_client} onChange={(value) => updateField("owner_client", value)} />
                     <Field label="GC / CM" value={answers.gc_cm} onChange={(value) => updateField("gc_cm", value)} />
+                    <div className="md:col-span-2">
+                      <TextArea
+                        label="Owner Site Address (owner address for the site — cover page)"
+                        value={answers.owner_site_address}
+                        onChange={(value) => updateField("owner_site_address", value)}
+                      />
+                    </div>
+                    <div className="md:col-span-2 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                      <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                        Cover logo
+                      </div>
+                      <p className="mb-3 text-xs leading-5 text-slate-400">
+                        Optional. Upload a PNG or JPG. It appears on the first page of the Word export above the project banner.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label className="inline-flex cursor-pointer items-center rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-950/50">
+                          Upload logo
+                          <input type="file" accept="image/*" className="hidden" onChange={handleCompanyLogoChange} />
+                        </label>
+                        {companyLogoPreviewUrl ? (
+                          <button
+                            type="button"
+                            onClick={clearCompanyLogo}
+                            className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-950/50"
+                          >
+                            Clear logo
+                          </button>
+                        ) : null}
+                      </div>
+                      {companyLogoPreviewUrl ? (
+                        <div className="mt-3 flex items-start gap-3">
+                          <div className="relative h-16 w-40 overflow-hidden rounded-lg border border-slate-600 bg-slate-900">
+                            <Image
+                              src={companyLogoPreviewUrl}
+                              alt="Company logo preview"
+                              fill
+                              className="object-contain p-1"
+                              unoptimized
+                            />
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {companyLogoFileName ?? "Uploaded logo"}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                   <TextArea
                     label="Project Description"

@@ -138,7 +138,7 @@ function renderSummaryBlock(block: DashboardSummaryBlock) {
                     <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{item.note}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <span className="rounded-2xl border border-current/15 bg-white/72 px-3.5 py-2 text-2xl font-bold tracking-tight text-[var(--app-text-strong)] shadow-sm">
+                    <span className="font-app-display rounded-2xl border border-current/15 bg-white/72 px-3 py-1.5 text-xl font-bold tracking-tight text-[var(--app-text-strong)] shadow-sm">
                       {item.value}
                     </span>
                     <span className={`h-2.5 w-2.5 rounded-full ${toneDotClassName(item.tone)}`} aria-hidden="true" />
@@ -209,8 +209,25 @@ function graphToneClassName(tone: DashboardGraphBlock["section"]["items"][number
   }
 }
 
+function graphToneColor(tone: DashboardGraphBlock["section"]["items"][number]["tone"]) {
+  switch (tone) {
+    case "success":
+      return "#10b981";
+    case "warning":
+      return "#f59e0b";
+    case "error":
+      return "#f43f5e";
+    case "info":
+      return "#0ea5e9";
+    default:
+      return "#3b82f6";
+  }
+}
+
 function renderGraphBlock(block: DashboardGraphBlock) {
   const maxValue = Math.max(...block.section.items.map((item) => item.value), 0);
+  const totalValue = block.section.items.reduce((sum, item) => sum + item.value, 0);
+  const isPieChart = block.section.chartType === "pie";
 
   return (
     <SectionCard
@@ -226,6 +243,46 @@ function renderGraphBlock(block: DashboardGraphBlock) {
           actionHref={block.section.empty.actionHref}
           actionLabel={block.section.empty.actionLabel}
         />
+      ) : isPieChart && totalValue > 0 ? (
+        <div className="grid gap-4 rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.7)_0%,_rgba(234,241,255,0.52)_100%)] p-4 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center">
+          <div className="mx-auto h-40 w-40 rounded-full border border-[var(--app-border-subtle)] bg-white/80 shadow-inner">
+            <div
+              className="h-full w-full rounded-full"
+              style={{
+                background: `conic-gradient(${(() => {
+                  let cursor = 0;
+                  return block.section.items
+                    .map((item) => {
+                      const ratio = item.value / totalValue;
+                      const next = cursor + ratio * 100;
+                      const color = graphToneColor(item.tone);
+                      const segment = `${color} ${cursor.toFixed(2)}% ${next.toFixed(2)}%`;
+                      cursor = next;
+                      return segment;
+                    })
+                    .join(", ");
+                })()})`,
+              }}
+            />
+          </div>
+          <div className="grid gap-3">
+            {block.section.items.map((item) => {
+              const percent = Math.round((item.value / totalValue) * 100);
+              const valueText = `${item.value}${block.section.valueLabel ? ` ${block.section.valueLabel}` : ""}`;
+              return (
+                <div key={item.id} className="flex items-start justify-between gap-3 rounded-xl border border-[var(--app-border-subtle)] bg-white/80 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full ${graphToneClassName(item.tone)}`} />
+                    <p className="text-sm font-semibold text-[var(--app-text-strong)]">{item.label}</p>
+                  </div>
+                  <p className="text-sm font-bold text-[var(--app-text-strong)]">
+                    {valueText} ({percent}%)
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       ) : (
         <div className="grid gap-4 rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.7)_0%,_rgba(234,241,255,0.52)_100%)] p-4">
           {block.section.items.map((item) => {
@@ -398,7 +455,7 @@ export function DashboardView({ model }: { model: DashboardViewModel }) {
                   <div className={`relative overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.88)_0%,_var(--app-panel)_100%)] px-5 py-6 shadow-[0_10px_22px_rgba(76,108,161,0.06)] ${toneAccentClassName(block.tone)}`}>
                     <span className="absolute right-5 top-5 h-12 w-12 rounded-2xl border border-current/15 bg-current/10" aria-hidden="true" />
                     <span className="absolute inset-y-4 left-0 w-1.5 rounded-r-full bg-current opacity-75" aria-hidden="true" />
-                    <p className="max-w-[78%] text-4xl font-bold tracking-tight text-[var(--app-text-strong)]">
+                    <p className="font-app-display max-w-[78%] text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">
                       {block.value}
                     </p>
                     <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--app-text)]">{block.detail}</p>

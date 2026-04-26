@@ -57,7 +57,15 @@ Always do **step 1 before step 2** when migrations changed, so production code m
 | `E2E_NEXT_PUBLIC_SUPABASE_URL` / `E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase project for CI E2E (same as test user); all four values required for the `playwright-full` GitHub Actions job |
 | `PLAYWRIGHT_BASE_URL` | Override default `http://127.0.0.1:3000` |
 | `PLAYWRIGHT_SKIP_WEBSERVER` | Set to skip starting the dev server from Playwright |
-See [`docs/dev-setup.md`](docs/dev-setup.md) for Supabase workflow, cron, and superadmin notes.
+
+**GitHub Actions (optional repository secrets)**
+
+| Secret | Purpose |
+|--------|---------|
+| `OPENAI_API_KEY` | Enables non-blocking [AI eval](.github/workflows/ai-eval.yml) runs (otherwise fixtures skip). |
+| `AI_EVAL_COMPANY_AI_MODEL` / `AI_EVAL_RISK_MEMORY_LLM_MODEL` / `AI_EVAL_SI_DOCUMENT_MODEL` | Optional model overrides for the AI eval workflow only. |
+
+See [`docs/dev-setup.md`](docs/dev-setup.md) for Supabase workflow, cron, E2E secret checklist, and superadmin notes.
 
 **Production launch:** step-by-step checklist in [`docs/production-deployment.md`](docs/production-deployment.md). Operations and go-to-market alignment in [`docs/support-onboarding-runbook.md`](docs/support-onboarding-runbook.md).
 

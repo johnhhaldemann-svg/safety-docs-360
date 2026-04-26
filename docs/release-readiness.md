@@ -8,8 +8,9 @@ Run:
 
 ```bash
 npm run verify:release
-node ./node_modules/typescript/bin/tsc --noEmit
 ```
+
+(`verify:release` includes `test:links` and `tsc --noEmit`; use the same command locally and in CI.)
 
 Expected result:
 

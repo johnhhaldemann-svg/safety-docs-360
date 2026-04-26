@@ -51,7 +51,7 @@ export function PageHero({
       <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
           <p className={workspaceEyebrowClassName}>{eyebrow}</p>
-          <h1 className="mt-2 max-w-4xl text-3xl font-bold tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
+          <h1 className="font-app-display mt-2 max-w-4xl text-3xl font-bold tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
             {title}
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-[1.7] text-[var(--app-text)]">{description}</p>
@@ -435,8 +435,8 @@ export function MetricTile({
     <div className={`relative overflow-hidden rounded-2xl p-4 ${getSurfaceToneClassName(tone)}`}>
       <span className="absolute right-4 top-4 h-10 w-10 rounded-2xl border border-[var(--app-accent-surface-14)] bg-[var(--app-accent-primary-soft)]" aria-hidden="true" />
       {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
-      <p className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{title}</p>
-      <p className="mt-3 max-w-[80%] text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</p>
+      <p className="mt-1 text-sm font-medium text-[var(--app-text-strong)]">{title}</p>
+      <p className="mt-3 max-w-[80%] text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</p>
       <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{detail}</p>
     </div>
   );

@@ -563,6 +563,24 @@ export function buildSalesDemoAnalyticsSummaryResponse(days: number) {
         observationToInjuryConversionRate: 14.29,
         injuryPredictionModelUrl: `/api/company/injury-analytics/model?days=${normalizedDays}`,
       },
+      healthIssueRollup: [
+        { injuryType: "contusion", label: "Contusion / bruise", count: 1 },
+        { injuryType: "laceration", label: "Laceration / cut", count: 1 },
+      ],
+      healthIssueFocus: {
+        injuryType: "contusion",
+        label: "Contusion / bruise",
+        count: 1,
+        severityBands: { critical: 0, high: 0, medium: 1, low: 0, unspecified: 0 },
+        recentItems: [
+          {
+            id: "demo-incident-1",
+            title: "Worker slipped while carrying material",
+            severity: "medium",
+            created_at: toIso(2),
+          },
+        ],
+      },
       riskMemory: {
         engine: "Safety360 Risk Memory Engine",
         windowDays: normalizedDays,
