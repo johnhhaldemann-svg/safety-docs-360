@@ -4,6 +4,7 @@ import {
   getDashboardRoleDefaultLayout,
   getDashboardSlotOptionIds,
   normalizeDashboardLayout,
+  pinDashboardBlockToLayout,
   validateDashboardLayout,
 } from "@/lib/dashboardLayout";
 
@@ -114,5 +115,63 @@ describe("dashboardLayout", () => {
     expect(availableBlockIds).toContain("graph_hazard_trends");
     expect(availableBlockIds).toContain("graph_jobsite_risk");
     expect(availableBlockIds).toContain("graph_observation_mix");
+  });
+
+  it("pinDashboardBlockToLayout leaves layout unchanged when the block is already present", () => {
+    const availableBlockIds = getAvailableDashboardBlockIds({ role: "company_admin" });
+    const layout = getDashboardRoleDefaultLayout("company_admin");
+    const pin = pinDashboardBlockToLayout({
+      layout,
+      blockId: layout[0]!,
+      availableBlockIds,
+    });
+    expect(pin.ok).toBe(true);
+    if (!pin.ok) throw new Error("expected ok");
+    expect(pin.layout).toEqual(layout);
+    expect(pin.replaced).toBeNull();
+  });
+
+  it("pinDashboardBlockToLayout swaps out the first evictable graph slot", () => {
+    const availableBlockIds = getAvailableDashboardBlockIds({ role: "company_admin" });
+    const layout: (typeof availableBlockIds)[number][] = [
+      "metric_primary",
+      "metric_secondary",
+      "metric_tertiary",
+      "metric_quaternary",
+      "priority_queue",
+      "next_actions",
+      "recent_activity",
+      "graph_risk_reduction",
+      "graph_jobsite_risk",
+      "graph_observation_mix",
+    ];
+    const pin = pinDashboardBlockToLayout({
+      layout,
+      blockId: "graph_risk_distribution",
+      availableBlockIds,
+    });
+    expect(pin.ok).toBe(true);
+    if (!pin.ok) throw new Error("expected ok");
+    expect(pin.replaced).toBe("graph_risk_reduction");
+    expect(pin.layout).toContain("graph_risk_distribution");
+    expect(new Set(pin.layout).size).toBe(10);
+  });
+
+  it("pinDashboardBlockToLayout rejects unavailable blocks", () => {
+    const availableBlockIds = getAvailableDashboardBlockIds({
+      role: "default",
+      permissionMap: { can_view_analytics: false, can_view_reports: false } as never,
+    });
+    const layout = normalizeDashboardLayout({
+      layout: getDashboardRoleDefaultLayout("default"),
+      defaultLayout: getDashboardRoleDefaultLayout("default"),
+      availableBlockIds,
+    });
+    const pin = pinDashboardBlockToLayout({
+      layout,
+      blockId: "risk_ranking",
+      availableBlockIds,
+    });
+    expect(pin.ok).toBe(false);
   });
 });

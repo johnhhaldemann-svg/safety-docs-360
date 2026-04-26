@@ -295,6 +295,63 @@ export function areDashboardLayoutsEqual(
   return left.every((value, index) => value === right[index]);
 }
 
+/**
+ * When pinning a widget, replace the first block in the current 10-slot layout that
+ * matches this list (analytics-style graphs and secondary feeds first). If none match,
+ * the last slot is overwritten so the pin always succeeds for allowed block ids.
+ */
+export const DASHBOARD_PIN_EVICT_PRIORITY: readonly DashboardBlockId[] = [
+  "graph_risk_reduction",
+  "graph_risk_distribution",
+  "graph_observation_mix",
+  "graph_hazard_trends",
+  "graph_jobsite_risk",
+  "training_signal",
+  "support_signals",
+  "recent_documents",
+  "recent_reports",
+  "hazard_trends",
+  "risk_ranking",
+];
+
+export function pinDashboardBlockToLayout(params: {
+  layout: readonly DashboardBlockId[];
+  blockId: DashboardBlockId;
+  availableBlockIds: readonly DashboardBlockId[];
+}):
+  | { ok: true; layout: DashboardBlockId[]; replaced: DashboardBlockId | null }
+  | { ok: false; error: string } {
+  const allowed = new Set(params.availableBlockIds);
+  if (!allowed.has(params.blockId)) {
+    return {
+      ok: false,
+      error: `Dashboard block is not available for this user: ${params.blockId}`,
+    };
+  }
+
+  if (params.layout.length !== 10) {
+    return { ok: false, error: "Current layout must contain exactly 10 blocks." };
+  }
+
+  const next = [...params.layout];
+  if (next.includes(params.blockId)) {
+    return { ok: true, layout: next, replaced: null };
+  }
+
+  for (const victim of DASHBOARD_PIN_EVICT_PRIORITY) {
+    const idx = next.indexOf(victim);
+    if (idx >= 0) {
+      const replaced = next[idx]!;
+      next[idx] = params.blockId;
+      return { ok: true, layout: next, replaced };
+    }
+  }
+
+  const replaced = next[9]!;
+  next[9] = params.blockId;
+  return { ok: true, layout: next, replaced };
+}
+
 export function getDashboardSlotOptionIds(params: {
   layout: readonly DashboardBlockId[];
   availableBlockIds: readonly DashboardBlockId[];

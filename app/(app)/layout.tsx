@@ -28,7 +28,10 @@ import {
 import { getDefaultAgreementConfig, type AgreementConfig } from "@/lib/legal";
 import type { PermissionMap } from "@/lib/rbac";
 import { getCsepNavSectionsForRole, type WorkspaceProduct } from "@/lib/workspaceProduct";
-import { groupCompanyWorkspaceSections } from "@/lib/workspaceNavigationModel";
+import {
+  getOrphanCompanyWorkspaceNav,
+  groupCompanyWorkspaceSections,
+} from "@/lib/workspaceNavigationModel";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { isWorkspaceNavActive } from "@/lib/workspaceNavActive";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
@@ -241,6 +244,13 @@ export default function AppLayout({
       }
     }
 
+    if (!showPlatformAdminShell) {
+      const orphan = getOrphanCompanyWorkspaceNav(pathname);
+      if (orphan) {
+        return orphan.item;
+      }
+    }
+
     return {
       href: pathname,
       label: showPlatformAdminShell ? "Admin Workspace" : "Workspace",
@@ -249,10 +259,24 @@ export default function AppLayout({
   }, [keyedSideSections, pathname, showPlatformAdminShell]);
 
   const currentNavSection = useMemo(() => {
-    return keyedSideSections.find((section) =>
+    const fromSidebar = keyedSideSections.find((section) =>
       section.items.some((item) => isWorkspaceNavActive(pathname, item.href))
     );
-  }, [keyedSideSections, pathname]);
+    if (fromSidebar) {
+      return fromSidebar;
+    }
+    if (!showPlatformAdminShell) {
+      const orphan = getOrphanCompanyWorkspaceNav(pathname);
+      if (orphan) {
+        return {
+          key: orphan.sectionKey,
+          title: orphan.sectionTitle,
+          items: [],
+        };
+      }
+    }
+    return undefined;
+  }, [keyedSideSections, pathname, showPlatformAdminShell]);
 
   useEffect(() => {
     const nextKey = currentNavSection?.key ?? keyedSideSections[0]?.key ?? null;

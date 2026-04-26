@@ -7,6 +7,7 @@ import { buildBucketedWorkItem } from "@/lib/safety-intelligence/buckets";
 import { authorizeSafetyIntelligenceRequest, type SafetyIntelligenceAuthorized } from "@/lib/safety-intelligence/http";
 import { persistAiReview } from "@/lib/safety-intelligence/repository";
 import { parseRawTaskInput } from "@/lib/safety-intelligence/validation/intake";
+import type { JsonObject } from "@/types/safety-intelligence";
 
 export const runtime = "nodejs";
 
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
     const setup = buildAiReviewContext({
       input: { ...input, companyId: resolved.companyScope.companyId },
       bucket: buildBucketedWorkItem({ ...input, companyId: resolved.companyScope.companyId }),
-      riskMemorySummary: (riskMemory ?? null) as any,
+      riskMemorySummary: (riskMemory ?? null) as JsonObject | null,
     });
     const reviewContext = {
       ...setup.context,

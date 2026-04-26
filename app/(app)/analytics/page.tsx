@@ -8,6 +8,7 @@ import { userVisibleInjuryModelMessage } from "@/lib/analytics/injuryModelMessag
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { HeatmapGrid } from "@/components/metrics/HeatmapGrid";
 import { Sparkline } from "@/components/metrics/Sparkline";
+import { AddInsightToDashboardButton } from "@/components/analytics/AddInsightToDashboardButton";
 import { AnalyticsFocusedTab } from "@/components/analytics/AnalyticsFocusedTab";
 import { AnalyticsOverviewSkeleton } from "@/components/analytics/AnalyticsOverviewSkeleton";
 import type { AnalyticsSummary, LikelyInjuryInsightPayload, TabId } from "@/components/analytics/types";
@@ -566,7 +567,10 @@ export default function AnalyticsPage() {
         ) : (
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="analytics-dark-panel p-5 shadow-inner">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">Overview</p>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">Overview</p>
+              <AddInsightToDashboardButton blockId="graph_observation_mix" />
+            </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-[var(--app-accent-border-22)] bg-[var(--app-accent-primary-soft)] p-4">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--app-accent-primary)]">
@@ -607,9 +611,12 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="analytics-dark-panel p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">
-              Observation priority
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">
+                Observation priority
+              </p>
+              <AddInsightToDashboardButton blockId="graph_risk_distribution" />
+            </div>
             <ul className="mt-4 space-y-4">
               <li className="flex items-start gap-3 rounded-xl border border-[rgba(217,83,79,0.22)] bg-[var(--semantic-danger-bg)] p-4">
                 <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--semantic-danger)]" />
@@ -649,8 +656,9 @@ export default function AnalyticsPage() {
           className="scroll-mt-8 rounded-2xl border border-violet-500/25 bg-violet-950/20 p-5"
           open
         >
-            <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-wider text-violet-200/90">
-              Safety360 Risk Memory Engine
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-violet-200/90">
+              <span>Safety360 Risk Memory Engine</span>
+              <AddInsightToDashboardButton blockId="risk_ranking" />
             </summary>
             {riskMemory ? (
               <>
@@ -888,12 +896,13 @@ export default function AnalyticsPage() {
 
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="analytics-dark-panel p-5">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total observations</p>
+              <AddInsightToDashboardButton blockId="recent_activity" />
+            </div>
+            <div className="mt-2 flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Total observations
-                </p>
-                <p className="mt-2 text-5xl font-black font-app-display text-[var(--app-text-strong)]">{loading ? "—" : totalObs}</p>
+                <p className="text-5xl font-black font-app-display text-[var(--app-text-strong)]">{loading ? "—" : totalObs}</p>
               </div>
               <div className="min-w-0 flex-1 space-y-3">
                 <div>
@@ -947,9 +956,10 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="analytics-dark-panel p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Recent reports
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recent reports</p>
+              <AddInsightToDashboardButton blockId="recent_reports" />
+            </div>
             <ul className="mt-4 space-y-3">
               {(loading ? [] : filteredRecent.length > 0 ? filteredRecent : recent).map((row) => (
                 <li
@@ -986,9 +996,10 @@ export default function AnalyticsPage() {
         <div className="grid gap-5 lg:grid-cols-12">
           <div className="lg:col-span-5">
             <div className="analytics-dark-panel p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Trending hazards
-              </p>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Trending hazards</p>
+                <AddInsightToDashboardButton blockId="hazard_trends" />
+              </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 {hazardTiles.map((tile) => (
                   <div
@@ -1003,7 +1014,10 @@ export default function AnalyticsPage() {
                 ))}
               </div>
             </div>
-            <div className="analytics-dark-panel mt-5 p-5">
+            <div className="analytics-dark-panel relative mt-5 p-5">
+              <div className="absolute right-4 top-4 z-10">
+                <AddInsightToDashboardButton blockId="graph_jobsite_risk" />
+              </div>
               <HeatmapGrid
                 title="Risk heatmap"
                 description="Severity × priority (corrective actions in window)"
@@ -1018,7 +1032,10 @@ export default function AnalyticsPage() {
 
           <div className="space-y-5 lg:col-span-4">
             <div className="analytics-dark-panel p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Summary</p>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Summary</p>
+                <AddInsightToDashboardButton blockId="support_signals" />
+              </div>
               <ul className="mt-4 space-y-3 text-sm">
                 <li className="flex justify-between border-b border-[var(--app-border-subtle)] py-2 text-[var(--app-muted)]">
                   <span>Active jobsites</span>
@@ -1047,9 +1064,10 @@ export default function AnalyticsPage() {
               </ul>
             </div>
             <div className="analytics-dark-panel p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Leadership
-              </p>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Leadership</p>
+                <AddInsightToDashboardButton blockId="training_signal" />
+              </div>
               <div className="mt-4 space-y-2 text-sm text-[var(--app-text)]">
                 <div className="flex justify-between">
                   <span className="text-[var(--app-muted)]">Positive observations</span>
@@ -1074,7 +1092,10 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="lg:col-span-3">
-            <div className="rounded-2xl border border-[var(--app-accent-border-24)] bg-[linear-gradient(180deg,_var(--app-accent-primary-soft)_0%,_transparent_100%)] p-6 text-center">
+            <div className="relative rounded-2xl border border-[var(--app-accent-border-24)] bg-[linear-gradient(180deg,_var(--app-accent-primary-soft)_0%,_transparent_100%)] p-6 text-center">
+              <div className="absolute right-4 top-4 z-10">
+                <AddInsightToDashboardButton blockId="graph_risk_reduction" />
+              </div>
               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-accent-primary)]">
                 SIF dashboard
               </p>

@@ -23,7 +23,9 @@ import {
   getUserDashboardLayout,
   saveUserDashboardLayout,
 } from "@/lib/dashboardLayoutSettings";
-import { getDashboardRoleDefaultLayout } from "@/lib/dashboardLayout";
+import { getAvailableDashboardBlocks, getDashboardRoleDefaultLayout } from "@/lib/dashboardLayout";
+import { resolveDashboardRole } from "@/lib/dashboardRole";
+import type { PermissionMap } from "@/lib/rbac";
 
 describe("/api/dashboard/layout", () => {
   beforeEach(() => {
@@ -60,6 +62,15 @@ describe("/api/dashboard/layout", () => {
       error: null,
     } as never);
 
+    const permissionMap = {
+      can_manage_company_users: true,
+      can_manage_users: true,
+      can_view_analytics: true,
+      can_view_reports: true,
+    } as PermissionMap;
+    const role = resolveDashboardRole("company_admin");
+    const expectedAvailable = getAvailableDashboardBlocks({ role, permissionMap });
+
     const response = await GET(new Request("http://localhost/api/dashboard/layout"));
     const payload = await response.json();
 
@@ -67,7 +78,7 @@ describe("/api/dashboard/layout", () => {
     expect(payload.savedLayout).toBeNull();
     expect(payload.defaultLayout).toEqual(getDashboardRoleDefaultLayout("company_admin"));
     expect(payload.effectiveLayout).toHaveLength(10);
-    expect(payload.availableBlocks).toHaveLength(20);
+    expect(payload.availableBlocks).toEqual(expectedAvailable);
   });
 
   it("rejects malformed patch payloads", async () => {

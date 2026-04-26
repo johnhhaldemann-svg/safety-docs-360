@@ -3,6 +3,7 @@ import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredCon
 import { runSafetyIntelligenceDocumentPipeline } from "@/lib/safety-intelligence/documents/pipeline";
 import { authorizeSafetyIntelligenceRequest, type SafetyIntelligenceAuthorized } from "@/lib/safety-intelligence/http";
 import { parseRawTaskInput } from "@/lib/safety-intelligence/validation/intake";
+import type { JsonObject } from "@/types/safety-intelligence";
 
 export const runtime = "nodejs";
 
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
       actorUserId: resolved.user.id,
       input: { ...input, companyId: resolved.companyScope.companyId },
       documentType,
-      riskMemorySummary: (riskMemory ?? null) as any,
+      riskMemorySummary: (riskMemory ?? null) as JsonObject | null,
     });
 
     return NextResponse.json(pipeline);

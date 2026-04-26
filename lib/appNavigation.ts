@@ -100,8 +100,8 @@ export const companyAdminQuickLinks: NavItem[] = [
   { href: "/training-matrix", label: "Training Tracker", short: "TR" },
   { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
   { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
-  { href: "/analytics/safety-intelligence", label: "Safety Insights", short: "SA" },
-  { href: "/analytics", label: "Risk Trends", short: "AN" },
+  { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
+  { href: "/analytics", label: "Safety analytics", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
@@ -130,8 +130,8 @@ export const companyManagerQuickLinks: NavItem[] = [
   { href: "/training-matrix", label: "Training Tracker", short: "TR" },
   { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
   { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
-  { href: "/analytics/safety-intelligence", label: "Safety Insights", short: "SA" },
-  { href: "/analytics", label: "Risk Trends", short: "AN" },
+  { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
+  { href: "/analytics", label: "Safety analytics", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
@@ -284,9 +284,8 @@ export const companyAdminSideSections: NavSection[] = [
     items: [
       { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
-      { href: "/analytics", label: "Risk Trends", short: "AN" },
-      { href: "/analytics/safety-intelligence", label: "Safety Insights", short: "SA" },
-      { href: "/settings/risk-memory", label: "Risk Settings", short: "RM" },
+      { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
+      { href: "/analytics", label: "Safety analytics", short: "AN" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
   },
@@ -340,9 +339,8 @@ export const companyManagerSideSections: NavSection[] = [
     items: [
       { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
-      { href: "/analytics", label: "Risk Trends", short: "AN" },
-      { href: "/analytics/safety-intelligence", label: "Safety Insights", short: "SA" },
-      { href: "/settings/risk-memory", label: "Risk Settings", short: "RM" },
+      { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
+      { href: "/analytics", label: "Safety analytics", short: "AN" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
   },

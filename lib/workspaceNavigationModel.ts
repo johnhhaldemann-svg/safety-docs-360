@@ -28,7 +28,7 @@ const SECTION_META: Record<
   },
   insights: {
     title: "Insights & intelligence",
-    description: "Safety Intelligence, portfolio analytics, and risk-memory context.",
+    description: "Safety Intelligence, company-wide analytics, and risk program context.",
     audience: "leadership",
   },
   documents: {
@@ -187,22 +187,25 @@ const ITEM_META: Array<{
     primaryActionLabel: "Open profile",
   },
   {
-    matcher: (href) => href === "/analytics",
-    group: "insights",
-    description: "Review risk-memory trends, learned patterns, and portfolio-level performance signals.",
-    primaryActionLabel: "Open analytics",
-  },
-  {
     matcher: (href) => href === "/analytics/safety-intelligence",
     group: "insights",
-    description: "Track safety-intelligence activity, document pipeline trends, and workflow throughput.",
+    description:
+      "Safety Intelligence workload for your company: volumes, reviews, rule conflicts, and recurring task and hazard signals.",
+    primaryActionLabel: "View activity",
+  },
+  {
+    matcher: (href) => href === "/analytics",
+    group: "insights",
+    description:
+      "Company-wide safety analytics: observations, incidents, injury analytics, and Risk Memory signals you can act on.",
     primaryActionLabel: "Open analytics",
   },
   {
     matcher: (href) => href === "/settings/risk-memory",
-    group: "insights",
-    description: "Tune Risk Memory rules, recommendations, and company knowledge settings.",
-    primaryActionLabel: "Open settings",
+    group: "operations",
+    description:
+      "Manage contractor and crew lists used on incidents, field issues, and Risk Memory rollups.",
+    primaryActionLabel: "Open setup",
   },
   {
     matcher: (href) => href === "/reports",
@@ -234,6 +237,27 @@ export function getWorkspaceNavItemMeta(item: NavItem): WorkspaceNavItem {
     group: match?.group ?? "documents",
     description: match?.description ?? "Open this workspace area.",
     primaryActionLabel: item.primaryActionLabel ?? match?.primaryActionLabel,
+  };
+}
+
+/** Sidebar entries omitted intentionally; header/breadcrumbs still resolve from pathname. */
+const ORPHAN_COMPANY_WORKSPACE_NAV: Record<string, Pick<NavItem, "label" | "short">> = {
+  "/settings/risk-memory": { label: "Risk Memory setup", short: "RM" },
+};
+
+export function getOrphanCompanyWorkspaceNav(pathname: string): {
+  item: NavItem;
+  sectionTitle: string;
+  sectionKey: string;
+} | null {
+  const href = normalizeHref(pathname);
+  const extra = ORPHAN_COMPANY_WORKSPACE_NAV[href];
+  if (!extra) return null;
+  const meta = getWorkspaceNavItemMeta({ href, label: extra.label, short: extra.short });
+  return {
+    item: { href, label: extra.label, short: extra.short },
+    sectionTitle: SECTION_META[meta.group].title,
+    sectionKey: `orphan-${meta.group}`,
   };
 }
 

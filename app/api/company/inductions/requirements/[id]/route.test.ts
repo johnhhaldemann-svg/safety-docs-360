@@ -66,14 +66,15 @@ describe("inductions requirements [id] route", () => {
       supabase: makeSupabaseMock({}),
     });
 
-    const response = await PATCH(
-      new Request("https://example.com/api/company/inductions/requirements/r1", {
-        method: "PATCH",
-        body: JSON.stringify({ active: false }),
-      }),
-      { params: Promise.resolve({ id: "r1" }) }
+    const response = requireRouteResponse(
+      await PATCH(
+        new Request("https://example.com/api/company/inductions/requirements/r1", {
+          method: "PATCH",
+          body: JSON.stringify({ active: false }),
+        }),
+        { params: Promise.resolve({ id: "r1" }) }
+      )
     );
-    requireRouteResponse(response);
     expect(response.status).toBe(403);
   });
 
@@ -87,14 +88,15 @@ describe("inductions requirements [id] route", () => {
       }),
     });
 
-    const response = await PATCH(
-      new Request("https://example.com/api/company/inductions/requirements/r1", {
-        method: "PATCH",
-        body: JSON.stringify({ active: false }),
-      }),
-      { params: Promise.resolve({ id: "r1" }) }
+    const response = requireRouteResponse(
+      await PATCH(
+        new Request("https://example.com/api/company/inductions/requirements/r1", {
+          method: "PATCH",
+          body: JSON.stringify({ active: false }),
+        }),
+        { params: Promise.resolve({ id: "r1" }) }
+      )
     );
-    requireRouteResponse(response);
     expect(response.status).toBe(404);
   });
 
@@ -111,14 +113,15 @@ describe("inductions requirements [id] route", () => {
       }),
     });
 
-    const response = await PATCH(
-      new Request("https://example.com/api/company/inductions/requirements/r1", {
-        method: "PATCH",
-        body: JSON.stringify({ active: false }),
-      }),
-      { params: Promise.resolve({ id: "r1" }) }
+    const response = requireRouteResponse(
+      await PATCH(
+        new Request("https://example.com/api/company/inductions/requirements/r1", {
+          method: "PATCH",
+          body: JSON.stringify({ active: false }),
+        }),
+        { params: Promise.resolve({ id: "r1" }) }
+      )
     );
-    requireRouteResponse(response);
     expect(response.status).toBe(200);
     const body = (await response.json()) as { requirement: { id: string; active: boolean } };
     expect(body.requirement.id).toBe("r1");

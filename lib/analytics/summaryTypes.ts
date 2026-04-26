@@ -1,4 +1,4 @@
-/** Shared shapes for `/api/company/analytics/summary` and the Risk Trends UI. */
+/** Shared shapes for `/api/company/analytics/summary` and the Safety analytics UI (`/analytics`). */
 
 export type AnalyticsSummary = {
   totals?: {

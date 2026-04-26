@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getOrphanCompanyWorkspaceNav,
   getWorkspaceNavItemMeta,
   groupCompanyWorkspaceSections,
 } from "@/lib/workspaceNavigationModel";
@@ -115,10 +116,20 @@ describe("workspaceNavigationModel", () => {
         short: "RM",
       })
     ).toMatchObject({
-      group: "insights",
-      description: "Tune Risk Memory rules, recommendations, and company knowledge settings.",
-      primaryActionLabel: "Open settings",
+      group: "operations",
+      description:
+        "Manage contractor and crew lists used on incidents, field issues, and Risk Memory rollups.",
+      primaryActionLabel: "Open setup",
     });
+  });
+
+  it("exposes orphan company routes for shell header when omitted from sidebar nav", () => {
+    expect(getOrphanCompanyWorkspaceNav("/settings/risk-memory")).toMatchObject({
+      item: { href: "/settings/risk-memory", label: "Risk Memory setup", short: "RM" },
+      sectionTitle: "Operations",
+      sectionKey: "orphan-operations",
+    });
+    expect(getOrphanCompanyWorkspaceNav("/incidents")).toBeNull();
   });
 
   it("places safety intelligence and portfolio analytics into the insights rail group", () => {
@@ -141,7 +152,7 @@ describe("workspaceNavigationModel", () => {
         title: "Insights",
         items: [
           { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
-          { href: "/analytics", label: "Risk Trends", short: "AN" },
+          { href: "/analytics", label: "Safety analytics", short: "AN" },
           { href: "/dashboard", label: "Home", short: "HM" },
         ],
       },

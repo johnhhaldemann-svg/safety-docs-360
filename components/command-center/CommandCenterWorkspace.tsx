@@ -11,12 +11,14 @@ import {
   InlineMessage,
   MetricTile,
   PageHero,
+  ProvenanceBadge,
   SectionCard,
   StatusBadge,
   appButtonPrimaryClassName,
   appButtonQuietClassName,
   appButtonSecondaryClassName,
 } from "@/components/WorkspacePrimitives";
+import type { SafetyDashboardPayload } from "@/components/safety-intelligence/types";
 import {
   buildSafetyManagerWorkflowRails,
   buildCommandCenterNotices,
@@ -137,6 +139,7 @@ export function CommandCenterWorkspace() {
   const [analyticsErr, setAnalyticsErr] = useState("");
   const [workspaceErr, setWorkspaceErr] = useState("");
   const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
+  const [siWorkloadSummary, setSiWorkloadSummary] = useState<SafetyDashboardPayload["summary"] | null>(null);
   const [adoption, setAdoption] = useState<CommandCenterAdoptionPayload>({
     companyProfile: null,
     companyUsers: [],
@@ -158,6 +161,7 @@ export function CommandCenterWorkspace() {
         setAnalyticsErr("Sign in to load Command Center.");
         setWorkspace(null);
         setAnalytics(null);
+        setSiWorkloadSummary(null);
         return;
       }
 
@@ -165,6 +169,7 @@ export function CommandCenterWorkspace() {
       const [
         analyticsResponse,
         workspaceResponse,
+        siWorkloadResponse,
         meResponse,
         usersResponse,
         documentsResponse,
@@ -172,6 +177,12 @@ export function CommandCenterWorkspace() {
       ] = await Promise.all([
         fetchWithTimeoutSafe(`/api/company/analytics/summary?days=${days}`, { headers }, 20000, "Analytics"),
         fetchWithTimeoutSafe("/api/company/workspace/summary", { headers }, 20000, "Workspace"),
+        fetchWithTimeoutSafe(
+          "/api/company/safety-intelligence/analytics/summary",
+          { headers },
+          15000,
+          "Safety Intelligence workload"
+        ),
         fetchWithTimeoutSafe("/api/auth/me", { headers }, 15000, "Current user"),
         fetchWithTimeoutSafe("/api/company/users", { headers }, 15000, "Company users"),
         fetchWithTimeoutSafe("/api/workspace/documents", { headers }, 15000, "Workspace documents"),
@@ -189,6 +200,15 @@ export function CommandCenterWorkspace() {
 
       const analyticsJson = (await analyticsResponse.json().catch(() => null)) as AnalyticsSummaryPayload | null;
       const workspaceJson = (await workspaceResponse.json().catch(() => null)) as WorkspaceSummary | null;
+      const siWorkloadJson = (await siWorkloadResponse.json().catch(() => null)) as {
+        summary?: SafetyDashboardPayload["summary"];
+        error?: string;
+      } | null;
+      if (siWorkloadResponse.ok) {
+        setSiWorkloadSummary(siWorkloadJson?.summary ?? null);
+      } else {
+        setSiWorkloadSummary(null);
+      }
       const meJson = (await meResponse.json().catch(() => null)) as
         | { user?: { companyProfile?: CommandCenterAdoptionPayload["companyProfile"] } }
         | null;
@@ -404,6 +424,61 @@ export function CommandCenterWorkspace() {
       </SectionCard>
 
       <SectionCard
+        eyebrow="Safety Intelligence"
+        title="Workflow activity"
+        description="Company-scoped snapshot of Safety Intelligence volume—the same signals as the full activity page, so you can triage here before opening lists or conflicts."
+        aside={
+          <Link
+            href="/analytics/safety-intelligence"
+            className={`${appButtonSecondaryClassName} whitespace-nowrap px-3 py-2 text-xs`}
+          >
+            Full activity view
+          </Link>
+        }
+      >
+        {siWorkloadSummary ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Pipeline batches</p>
+              <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{siWorkloadSummary.totals.bucketRuns}</p>
+            </div>
+            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">AI-assisted reviews</p>
+                <ProvenanceBadge kind="ai" />
+              </div>
+              <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{siWorkloadSummary.totals.aiReviews}</p>
+            </div>
+            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Open rule conflicts</p>
+                <ProvenanceBadge kind="rules" />
+              </div>
+              <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{siWorkloadSummary.totals.openConflicts}</p>
+            </div>
+            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Documents generated</p>
+                <ProvenanceBadge kind="hybrid" />
+              </div>
+              <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">
+                {siWorkloadSummary.totals.generatedDocuments}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="rounded-2xl border border-dashed border-[var(--app-border-strong)] bg-white/75 px-4 py-5 text-sm text-[var(--app-text)]">
+            Workflow metrics are not available for this account yet, or your role does not include analytics access. When
+            they are, the counts appear here and in the{" "}
+            <Link href="/analytics/safety-intelligence" className="font-semibold text-[var(--app-accent-primary)] underline">
+              full activity view
+            </Link>
+            .
+          </p>
+        )}
+      </SectionCard>
+
+      <SectionCard
         eyebrow="Work Area"
         title="Current Risk"
         description="Start with the current risk rollup, then jump straight into the workflow or drill-down surface that matches the decision you need to make."
@@ -503,15 +578,15 @@ export function CommandCenterWorkspace() {
             />
             <LaunchCard
               href="/analytics/safety-intelligence"
-              title="View Safety Intelligence analytics"
-              description="Open the drill-down companion page for throughput, conflicts, and generated document volume."
-              label="Open analytics"
+              title="Workflow activity (detail)"
+              description="Lists, hazard themes, and rule conflict drill-down when you need more than the Command Center snapshot."
+              label="Open full view"
             />
             <LaunchCard
               href="/analytics"
-              title="Open Risk Memory analytics"
-              description="Inspect the full trend view when the rollup needs deeper analysis before action."
-              label="Drill down"
+              title="Safety analytics"
+              description="Company-wide charts for observations, incidents, injury analytics, and Risk Memory when you need depth beyond this hub."
+              label="Open analytics"
             />
             <LaunchCard
               href="/settings/risk-memory"
@@ -554,7 +629,7 @@ export function CommandCenterWorkspace() {
             title="No smart recommendations yet"
             description={recommendationEmptyMessage}
             actionHref="/analytics"
-            actionLabel="Open Risk Memory analytics"
+            actionLabel="Open Safety analytics"
           />
         ) : (
           <div className="grid gap-3">

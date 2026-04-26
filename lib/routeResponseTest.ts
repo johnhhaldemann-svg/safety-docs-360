@@ -1,7 +1,15 @@
 import type { NextResponse } from "next/server";
 
-/** Narrow Next route handler results for Vitest + `tsc --noEmit` (handlers typed as possibly undefined). */
-export function requireRouteResponse<T extends Response | NextResponse>(r: T | undefined | null): T {
+type RouteHandlerResponse = Response | NextResponse;
+
+/**
+ * Narrow App Router handler results for Vitest + `tsc --noEmit`.
+ * Some handlers are inferred as `Response | undefined`; avoid a generic `T` here so
+ * `T` is not inferred as `Response | undefined` (which breaks the return type).
+ */
+export function requireRouteResponse(
+  r: RouteHandlerResponse | undefined | null
+): RouteHandlerResponse {
   if (r == null) {
     throw new Error("Route handler returned no response");
   }

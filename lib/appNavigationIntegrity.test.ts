@@ -114,5 +114,12 @@ describe("App Navigation Integrity", () => {
       "/command-center",
       "/safety-intelligence",
     ]);
+
+    const analyticsChildIdx =
+      adminInsightsSection?.items.findIndex((item) => item.href === "/analytics/safety-intelligence") ?? -1;
+    const analyticsParentIdx = adminInsightsSection?.items.findIndex((item) => item.href === "/analytics") ?? -1;
+    expect(analyticsChildIdx).toBeGreaterThan(0);
+    expect(analyticsParentIdx).toBeGreaterThan(0);
+    expect(analyticsChildIdx).toBeLessThan(analyticsParentIdx);
   });
 });

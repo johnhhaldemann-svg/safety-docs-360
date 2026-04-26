@@ -1817,6 +1817,7 @@ export default function FieldIdExchangePage() {
             <div className="sm:col-span-2">
               <RiskMemoryFormFields
                 showOutcomeFields={false}
+                showPicklistSettingsLink
                 value={composer.riskMemory}
                 onChange={(riskMemory) => setComposer((current) => ({ ...current, riskMemory }))}
                 contractors={contractors}

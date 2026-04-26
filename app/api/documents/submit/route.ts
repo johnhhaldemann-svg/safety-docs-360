@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getCsepExportValidationDetail, isCsepExportValidationError } from "@/lib/csepExportValidation";
@@ -13,7 +14,7 @@ import { renderGeneratedCsepDocx } from "@/lib/csepDocxRenderer";
 import { syncGeneratedTrainingRequirements } from "@/lib/safety-intelligence/trainingProgram";
 import { generateCsepDocx } from "@/app/api/csep/export/route";
 import { generatePshsepDocx } from "@/app/api/pshsep/export/route";
-import type { GeneratedSafetyPlanDraft } from "@/types/safety-intelligence";
+import type { GeneratedSafetyPlanDraft, JsonObject } from "@/types/safety-intelligence";
 
 export const runtime = "nodejs";
 
@@ -164,7 +165,7 @@ function parseContentDispositionFilename(value: string | null) {
 async function renderLegacyDraftFile(params: {
   normalizedType: string;
   formData: Record<string, unknown>;
-  supabase: any;
+  supabase: SupabaseClient;
 }) {
   if (params.normalizedType === "CSEP") {
     const response = await generateCsepDocx(params.formData as Record<string, unknown>, {
@@ -458,7 +459,7 @@ export async function POST(request: Request) {
             project_name: project_name.trim(),
             form_data,
           },
-          riskMemorySummary: (riskMemory ?? null) as any,
+          riskMemorySummary: (riskMemory ?? null) as JsonObject | null,
         });
         const rendered = await renderSubmittedDraft(pipeline.draft);
         fileData = rendered.body;

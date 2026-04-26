@@ -1,6 +1,7 @@
 // src/app/api/pshsep/export/route.ts
 export const runtime = "nodejs";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import {
   AlignmentType,
@@ -4263,7 +4264,7 @@ function isGeneratedDraft(value: unknown): value is GeneratedSafetyPlanDraft {
 
 export async function generatePshsepDocx(
   form: PSHSEPInput | { generatedDocumentId?: string | null; draft?: GeneratedSafetyPlanDraft | null },
-  options?: { supabase?: any; companyId?: string | null }
+  options?: { supabase?: SupabaseClient; companyId?: string | null }
 ) {
   if (form && typeof form === "object" && isGeneratedDraft((form as { draft?: unknown }).draft)) {
     return renderSafetyPlanDocx((form as { draft: GeneratedSafetyPlanDraft }).draft);

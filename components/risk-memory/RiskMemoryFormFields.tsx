@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   FAILED_CONTROL_CODES,
   PERMIT_STATUS_SUMMARY_CODES,
@@ -49,6 +50,8 @@ type Props = {
   /** From `/api/company/crews` (optionally filtered by jobsite). */
   crews?: CrewOption[];
   className?: string;
+  /** Surface a link to company contractor/crew directory setup (not shown in the main nav). */
+  showPicklistSettingsLink?: boolean;
 };
 
 const selectClass =
@@ -65,6 +68,7 @@ export function RiskMemoryFormFields({
   contractors = [],
   crews = [],
   className = "",
+  showPicklistSettingsLink = false,
 }: Props) {
   const l1 = (value.rootCauseLevel1 || "") as RootCauseLevel1 | "";
   const l2Options = l1 && l1 in ROOT_CAUSE_LEVEL2_BY_L1 ? ROOT_CAUSE_LEVEL2_BY_L1[l1 as RootCauseLevel1] : [];
@@ -77,6 +81,18 @@ export function RiskMemoryFormFields({
 
   return (
     <div className={`grid gap-3 md:grid-cols-2 ${className}`}>
+      {showPicklistSettingsLink ? (
+        <p className="md:col-span-2 text-sm text-slate-400">
+          Contractor and crew pick lists are managed in{" "}
+          <Link
+            href="/settings/risk-memory"
+            className="font-semibold text-sky-400 underline-offset-2 hover:underline"
+          >
+            Risk Memory setup
+          </Link>
+          .
+        </p>
+      ) : null}
       <div className="md:col-span-2 text-xs font-semibold uppercase tracking-wide text-sky-400/90">
         Risk Memory Engine (optional context)
       </div>

@@ -8,6 +8,7 @@ import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredCon
 import { serverLog } from "@/lib/serverLog";
 import { ensureSafetyPlanGenerationContext } from "@/lib/safety-intelligence/documentIntake";
 import { runSafetyPlanDocumentPipeline } from "@/lib/safety-intelligence/documents/pipeline";
+import type { JsonObject } from "@/types/safety-intelligence";
 
 export const runtime = "nodejs";
 
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
         project_name: projectName,
         form_data: formData,
       },
-      riskMemorySummary: (riskMemory ?? null) as any,
+      riskMemorySummary: (riskMemory ?? null) as JsonObject | null,
     });
 
     let structuredDraft = pipeline.draft;

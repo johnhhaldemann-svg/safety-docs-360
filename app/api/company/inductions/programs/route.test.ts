@@ -1,3 +1,4 @@
+import { requireRouteResponse } from "@/lib/routeResponseTest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -76,7 +77,9 @@ describe("inductions programs route", () => {
       supabase: makeSupabaseMock({}),
     });
 
-    const response = await GET(new Request("https://example.com/api/company/inductions/programs"));
+    const response = requireRouteResponse(
+      await GET(new Request("https://example.com/api/company/inductions/programs"))
+    );
     expect(response.status).toBe(200);
     const body = (await response.json()) as { programs: unknown[] };
     expect(body.programs).toEqual([]);
@@ -95,7 +98,9 @@ describe("inductions programs route", () => {
       }),
     });
 
-    const response = await GET(new Request("https://example.com/api/company/inductions/programs"));
+    const response = requireRouteResponse(
+      await GET(new Request("https://example.com/api/company/inductions/programs"))
+    );
     expect(response.status).toBe(200);
     const body = (await response.json()) as { programs: unknown[]; warning?: string };
     expect(body.programs).toEqual([]);
@@ -110,11 +115,13 @@ describe("inductions programs route", () => {
       supabase: makeSupabaseMock({}),
     });
 
-    const response = await POST(
-      new Request("https://example.com/api/company/inductions/programs", {
-        method: "POST",
-        body: JSON.stringify({ name: "Orientation" }),
-      })
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/company/inductions/programs", {
+          method: "POST",
+          body: JSON.stringify({ name: "Orientation" }),
+        })
+      )
     );
     expect(response.status).toBe(403);
   });
@@ -127,11 +134,13 @@ describe("inductions programs route", () => {
       supabase: makeSupabaseMock({}),
     });
 
-    const response = await POST(
-      new Request("https://example.com/api/company/inductions/programs", {
-        method: "POST",
-        body: JSON.stringify({ name: "  " }),
-      })
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/company/inductions/programs", {
+          method: "POST",
+          body: JSON.stringify({ name: "  " }),
+        })
+      )
     );
     expect(response.status).toBe(400);
   });
@@ -149,11 +158,13 @@ describe("inductions programs route", () => {
       }),
     });
 
-    const response = await POST(
-      new Request("https://example.com/api/company/inductions/programs", {
-        method: "POST",
-        body: JSON.stringify({ name: "Site Orientation", audience: "worker" }),
-      })
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/company/inductions/programs", {
+          method: "POST",
+          body: JSON.stringify({ name: "Site Orientation", audience: "worker" }),
+        })
+      )
     );
     expect(response.status).toBe(200);
     const body = (await response.json()) as { program: { id: string } };

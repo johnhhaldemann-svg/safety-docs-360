@@ -1,3 +1,4 @@
+import { requireRouteResponse } from "@/lib/routeResponseTest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -65,12 +66,14 @@ describe("inductions programs [id] route", () => {
       supabase: makeSupabaseMock({}),
     });
 
-    const response = await PATCH(
-      new Request("https://example.com/api/company/inductions/programs/program-1", {
-        method: "PATCH",
-        body: JSON.stringify({ active: false }),
-      }),
-      { params: Promise.resolve({ id: "program-1" }) }
+    const response = requireRouteResponse(
+      await PATCH(
+        new Request("https://example.com/api/company/inductions/programs/program-1", {
+          method: "PATCH",
+          body: JSON.stringify({ active: false }),
+        }),
+        { params: Promise.resolve({ id: "program-1" }) }
+      )
     );
     expect(response.status).toBe(403);
   });
@@ -85,12 +88,14 @@ describe("inductions programs [id] route", () => {
       }),
     });
 
-    const response = await PATCH(
-      new Request("https://example.com/api/company/inductions/programs/program-1", {
-        method: "PATCH",
-        body: JSON.stringify({ active: false }),
-      }),
-      { params: Promise.resolve({ id: "program-1" }) }
+    const response = requireRouteResponse(
+      await PATCH(
+        new Request("https://example.com/api/company/inductions/programs/program-1", {
+          method: "PATCH",
+          body: JSON.stringify({ active: false }),
+        }),
+        { params: Promise.resolve({ id: "program-1" }) }
+      )
     );
     expect(response.status).toBe(404);
   });
@@ -108,12 +113,14 @@ describe("inductions programs [id] route", () => {
       }),
     });
 
-    const response = await PATCH(
-      new Request("https://example.com/api/company/inductions/programs/program-1", {
-        method: "PATCH",
-        body: JSON.stringify({ active: false, name: "Site Safety" }),
-      }),
-      { params: Promise.resolve({ id: "program-1" }) }
+    const response = requireRouteResponse(
+      await PATCH(
+        new Request("https://example.com/api/company/inductions/programs/program-1", {
+          method: "PATCH",
+          body: JSON.stringify({ active: false, name: "Site Safety" }),
+        }),
+        { params: Promise.resolve({ id: "program-1" }) }
+      )
     );
     expect(response.status).toBe(200);
     const body = (await response.json()) as { program: { id: string; active: boolean } };

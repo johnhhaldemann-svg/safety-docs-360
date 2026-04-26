@@ -45,9 +45,9 @@ export function SafetyIntelligenceAnalyticsClient() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="Safety Intelligence"
-        title="Workflow analytics companion"
-        description="Use this page as the drill-down companion to Command Center and the Safety Intelligence workflow. It focuses on throughput, conflict load, and recurring hazard concentration."
+        eyebrow="Company workspace"
+        title="Safety Intelligence workload"
+        description="Activity for your company only: how much Safety Intelligence work is running, what is being reviewed, and where tasks and hazard themes cluster. Pair this with Command Center when you want the live hub; use this view when you are tuning programs, templates, and who should act next."
         actions={
           <>
             <Link
@@ -60,7 +60,7 @@ export function SafetyIntelligenceAnalyticsClient() {
               href="/safety-intelligence"
               className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[var(--app-shadow-primary-button)]"
             >
-              Open workflow
+              Run Safety Intelligence
             </Link>
           </>
         }
@@ -69,31 +69,31 @@ export function SafetyIntelligenceAnalyticsClient() {
       {message ? <InlineMessage tone="error">{message}</InlineMessage> : null}
 
       <SectionCard
-        title="Leading vs lagging indicators"
-        description="Conflict activity and bucket volume operate as leading indicators; generated documents and intelligence review counts show adoption and review throughput."
+        title="Activity at a glance"
+        description="Counts below are scoped to your company. Pipeline batches and open rule conflicts are early signals; AI-assisted reviews and generated documents show review load and output volume."
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Bucket runs</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Pipeline batches</p>
             <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{summary?.totals.bucketRuns ?? 0}</p>
           </div>
           <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Intelligence reviews</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">AI-assisted reviews</p>
               <ProvenanceBadge kind="ai" />
             </div>
             <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{summary?.totals.aiReviews ?? 0}</p>
           </div>
           <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Open conflicts</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Open rule conflicts</p>
               <ProvenanceBadge kind="rules" />
             </div>
             <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{summary?.totals.openConflicts ?? 0}</p>
           </div>
           <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Generated docs</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Documents generated</p>
               <ProvenanceBadge kind="hybrid" />
             </div>
             <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{summary?.totals.generatedDocuments ?? 0}</p>
@@ -102,7 +102,10 @@ export function SafetyIntelligenceAnalyticsClient() {
       </SectionCard>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <SectionCard title="Trend dashboard" description="Most frequent task signals entering the pipeline right now.">
+        <SectionCard
+          title="Most common workflow steps"
+          description="Task codes your teams are sending into Safety Intelligence most often—useful for prioritizing training, templates, and field coaching."
+        >
           <ul className="space-y-3">
             {(summary?.topTrades ?? []).map((row) => (
               <li key={row.code} className="flex items-center justify-between rounded-xl bg-[var(--app-panel)] px-4 py-3">
@@ -112,7 +115,10 @@ export function SafetyIntelligenceAnalyticsClient() {
             ))}
           </ul>
         </SectionCard>
-        <SectionCard title="Hazard concentration" description="Recurring hazard families can be used to drive templates, controls, and review priority.">
+        <SectionCard
+          title="Recurring hazard themes"
+          description="Hazard families showing up repeatedly for your company—strong candidates for pre-job briefings, inspections, and control updates."
+        >
           <ul className="space-y-3">
             {(summary?.topHazards ?? []).map((row) => (
               <li key={row.code} className="flex items-center justify-between rounded-xl bg-[var(--app-panel)] px-4 py-3">
@@ -125,8 +131,8 @@ export function SafetyIntelligenceAnalyticsClient() {
       </div>
 
       <SectionCard
-        title="Conflict drill-down"
-        description="Open conflict findings from the deterministic engine are the core early-warning signal for the platform."
+        title="Rule conflicts to review"
+        description="Items the rules engine flagged for your company that still need a decision—clear these so crews are not blocked and so audit trails stay accurate."
         aside={<ProvenanceBadge kind="rules" />}
       >
         <div className="grid gap-3">
@@ -145,7 +151,7 @@ export function SafetyIntelligenceAnalyticsClient() {
           ))}
           {summary?.openConflictItems?.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-[var(--app-border-strong)] bg-white/75 px-4 py-6 text-sm text-[var(--app-text)]">
-              No open conflicts are currently queued.
+              No rule conflicts are waiting—your Safety Intelligence queue is clear.
             </p>
           ) : null}
         </div>

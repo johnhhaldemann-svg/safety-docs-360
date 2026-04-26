@@ -4,12 +4,9 @@ import { detectConflicts } from "@/lib/safety-intelligence/conflicts";
 import { authorizeSafetyIntelligenceRequest, type SafetyIntelligenceAuthorized } from "@/lib/safety-intelligence/http";
 import { evaluateRules } from "@/lib/safety-intelligence/rules";
 import { parseRawTaskInput } from "@/lib/safety-intelligence/validation/intake";
+import { parseCompanyBucketItemPeerRow } from "@/lib/safety-intelligence/validation/companyBucketPeers";
 
 export const runtime = "nodejs";
-
-function mapRowToBucket(row: Record<string, unknown>) {
-  return row.bucket_payload as Record<string, unknown>;
-}
 
 export async function POST(request: Request) {
   const auth = await authorizeSafetyIntelligenceRequest(request);
@@ -30,12 +27,11 @@ export async function POST(request: Request) {
       .order("updated_at", { ascending: false })
       .limit(25);
 
-    const peerBuckets = (peersResult.data ?? [])
-      .map((row) => mapRowToBucket(row as Record<string, unknown>))
-      .filter(Boolean) as any[];
-    const peerRules = ((peersResult.data ?? []) as Array<Record<string, unknown>>)
-      .map((row) => row.rule_results)
-      .filter(Boolean) as any[];
+    const peers = (peersResult.data ?? [])
+      .map((row) => parseCompanyBucketItemPeerRow(row))
+      .filter((row): row is NonNullable<typeof row> => Boolean(row));
+    const peerBuckets = peers.map((row) => row.bucket);
+    const peerRules = peers.map((row) => row.rules);
 
     const conflicts = detectConflicts(
       bucket,

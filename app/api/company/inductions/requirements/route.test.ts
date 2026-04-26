@@ -1,3 +1,4 @@
+import { requireRouteResponse } from "@/lib/routeResponseTest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -91,8 +92,10 @@ describe("inductions requirements route", () => {
       }),
     });
 
-    const response = await GET(
-      new Request("https://example.com/api/company/inductions/requirements?jobsiteId=jobsite-1")
+    const response = requireRouteResponse(
+      await GET(
+        new Request("https://example.com/api/company/inductions/requirements?jobsiteId=jobsite-1")
+      )
     );
     expect(response.status).toBe(200);
     const body = (await response.json()) as { requirements: unknown[] };
@@ -116,8 +119,10 @@ describe("inductions requirements route", () => {
       }),
     });
 
-    const response = await GET(
-      new Request("https://example.com/api/company/inductions/requirements?jobsiteId=jobsite-1")
+    const response = requireRouteResponse(
+      await GET(
+        new Request("https://example.com/api/company/inductions/requirements?jobsiteId=jobsite-1")
+      )
     );
     expect(response.status).toBe(200);
     const body = (await response.json()) as { requirements: Array<{ id: string }> };
@@ -132,11 +137,13 @@ describe("inductions requirements route", () => {
       supabase: makeSupabaseMock({}),
     });
 
-    const response = await POST(
-      new Request("https://example.com/api/company/inductions/requirements", {
-        method: "POST",
-        body: JSON.stringify({ programId: "p1" }),
-      })
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/company/inductions/requirements", {
+          method: "POST",
+          body: JSON.stringify({ programId: "p1" }),
+        })
+      )
     );
     expect(response.status).toBe(403);
   });
@@ -149,11 +156,13 @@ describe("inductions requirements route", () => {
       supabase: makeSupabaseMock({}),
     });
 
-    const response = await POST(
-      new Request("https://example.com/api/company/inductions/requirements", {
-        method: "POST",
-        body: JSON.stringify({}),
-      })
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/company/inductions/requirements", {
+          method: "POST",
+          body: JSON.stringify({}),
+        })
+      )
     );
     expect(response.status).toBe(400);
   });
@@ -167,13 +176,14 @@ describe("inductions requirements route", () => {
       supabase: makeSupabaseMock({}),
     });
 
-    const response = await POST(
-      new Request("https://example.com/api/company/inductions/requirements", {
-        method: "POST",
-        body: JSON.stringify({ programId: "p1", jobsiteId: "jobsite-1" }),
-      })
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/company/inductions/requirements", {
+          method: "POST",
+          body: JSON.stringify({ programId: "p1", jobsiteId: "jobsite-1" }),
+        })
+      )
     );
-    requireRouteResponse(response);
     expect(response.status).toBe(403);
   });
 
@@ -191,13 +201,14 @@ describe("inductions requirements route", () => {
       }),
     });
 
-    const response = await POST(
-      new Request("https://example.com/api/company/inductions/requirements", {
-        method: "POST",
-        body: JSON.stringify({ programId: "p1", jobsiteId: "jobsite-1" }),
-      })
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/company/inductions/requirements", {
+          method: "POST",
+          body: JSON.stringify({ programId: "p1", jobsiteId: "jobsite-1" }),
+        })
+      )
     );
-    requireRouteResponse(response);
     expect(response.status).toBe(200);
     const body = (await response.json()) as { requirement: { id: string } };
     expect(body.requirement.id).toBe("r1");

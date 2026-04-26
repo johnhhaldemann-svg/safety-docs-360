@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AddInsightToDashboardButton } from "@/components/analytics/AddInsightToDashboardButton";
 import { Sparkline } from "@/components/metrics/Sparkline";
 import type { AnalyticsSummary, FocusTabId } from "@/components/analytics/types";
 
@@ -57,10 +58,20 @@ export function AnalyticsFocusedTab({
   const metricTileClassName =
     "rounded-xl border border-[var(--app-border-subtle)] bg-white/90 px-4 py-3 text-center shadow-[0_8px_18px_rgba(76,108,161,0.05)]";
 
+  const heroPinBlock =
+    tab === "inspections"
+      ? ("permit_followups" as const)
+      : tab === "hazards"
+        ? ("hazard_trends" as const)
+        : ("graph_observation_mix" as const);
+
   return (
     <div className="space-y-6" id={`analytics-tabpanel-${tab}`} role="tabpanel">
       <div className="rounded-2xl border border-[var(--app-accent-border-24)] bg-gradient-to-br from-[var(--app-accent-surface-12)] to-[rgba(234,241,255,0.92)] p-6">
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">{title}</p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">{title}</p>
+          <AddInsightToDashboardButton blockId={heroPinBlock} />
+        </div>
         <h2 className="font-app-display mt-2 text-3xl font-black text-[var(--app-text-strong)] sm:text-4xl">{loading ? "—" : heroStat}</h2>
         <p className="mt-1 text-sm text-[var(--app-text)]">{heroLabel}</p>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[var(--app-muted)]">{subtitle}</p>
@@ -99,13 +110,19 @@ export function AnalyticsFocusedTab({
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="analytics-dark-panel p-5 shadow-inner">
-          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">Observation trend</p>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">Observation trend</p>
+            <AddInsightToDashboardButton blockId="graph_hazard_trends" />
+          </div>
           <div className="analytics-dark-panel-soft mt-4 px-3 py-2">
             <Sparkline points={trends} windowDays={windowDays} loading={loading} variant="compact" />
           </div>
         </div>
         <div className="analytics-dark-panel p-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">Recent reports</p>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">Recent reports</p>
+            <AddInsightToDashboardButton blockId="recent_reports" />
+          </div>
           <ul className="mt-4 space-y-3">
             {rows.map((row) => (
               <li key={row.id} className="analytics-dark-panel-soft flex items-center justify-between gap-3 px-4 py-3">
@@ -120,7 +137,10 @@ export function AnalyticsFocusedTab({
         <div className="grid gap-5 lg:grid-cols-12">
           <div className="lg:col-span-7">
             <div className="analytics-dark-panel p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">Trending hazards</p>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">Trending hazards</p>
+                <AddInsightToDashboardButton blockId="graph_hazard_trends" />
+              </div>
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {hazardTiles.map((tile) => (
                   <div key={tile.label} className="analytics-dark-panel-soft p-4 text-center">

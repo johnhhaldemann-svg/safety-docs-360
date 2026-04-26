@@ -614,6 +614,7 @@ export default function IncidentsPage() {
               value={form.riskMemory}
               onChange={(riskMemory) => setForm((prev) => ({ ...prev, riskMemory }))}
               showOutcomeFields
+              showPicklistSettingsLink
               contractors={contractors}
               crews={crews}
             />
