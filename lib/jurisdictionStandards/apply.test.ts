@@ -1,7 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { buildJurisdictionProfileSection } from "@/lib/jurisdictionStandards/apply";
+import {
+  applyJurisdictionStandardsToCsep,
+  buildJurisdictionProfileSection,
+} from "@/lib/jurisdictionStandards/apply";
 
 describe("jurisdiction profile section", () => {
+  it("does not merge builderGuidance or federal baseline marketing copy into §5.2 after standards apply", () => {
+    const { sections } = applyJurisdictionStandardsToCsep({
+      sections: [],
+      selections: [],
+      profile: {
+        governingState: "WI",
+        jurisdictionCode: "federal",
+        jurisdictionName: "Federal OSHA",
+        jurisdictionLabel: "Wisconsin (Federal OSHA)",
+        jurisdictionPlanType: "federal_osha",
+        coversPrivateSector: true,
+        source: "document_override",
+      },
+      config: undefined,
+    });
+
+    const profile = sections.find((s) => s.key === "jurisdiction_profile");
+    const body = (profile?.body ?? "").toLowerCase();
+    expect(body).toContain("governs this project");
+    expect(body).not.toContain("seeded");
+    expect(body).not.toContain("draft and review workflow");
+    expect(body).not.toContain("peshep");
+    expect(body).not.toContain("layered into");
+    expect((profile?.bullets ?? []).join(" ").toLowerCase()).not.toContain("seeded");
+    expect((profile?.bullets ?? []).join(" ").toLowerCase()).not.toContain("flag the draft");
+  });
+
   it("keeps admin-review wording out of the exported jurisdiction summary", () => {
     const section = buildJurisdictionProfileSection({
       profile: {

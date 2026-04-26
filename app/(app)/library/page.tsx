@@ -9,12 +9,14 @@ import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBan
 import { DownloadConfirmModal } from "@/components/DownloadConfirmModal";
 import { MarketplacePreviewModal } from "@/components/MarketplacePreviewModal";
 import { AppLoading } from "@/components/app-shell/AppLoading";
+import { AppTabBar } from "@/components/AppTabBar";
 import {
   ActivityFeed,
   EmptyState,
   InlineMessage,
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
+import { useUrlTabState } from "@/hooks/useUrlTabState";
 import {
   getDocumentCreditCost,
   getSubmitterPreviewStatus,
@@ -78,6 +80,8 @@ type ExcerptModalState = {
 
 const LIBRARY_FILTER_STORAGE_KEY = "safety360:library-filters";
 
+const LIBRARY_PRIMARY_TABS = ["documents", "templates", "marketplace"] as const;
+
 function getDocumentTitle(doc: DocumentRow) {
   return doc.document_title ?? doc.project_name ?? doc.file_name ?? "Untitled Document";
 }
@@ -131,6 +135,11 @@ function getSubscriptionTone(status: string) {
 function LibraryPageContent() {
   const searchParams = useSearchParams();
   const highlightDocId = searchParams.get("doc");
+  const { value: libraryTab, setValue: setLibraryTab } = useUrlTabState(
+    "tab",
+    LIBRARY_PRIMARY_TABS,
+    "documents"
+  );
 
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [marketplaceCatalog, setMarketplaceCatalog] = useState<DocumentRow[]>([]);
@@ -557,6 +566,13 @@ function LibraryPageContent() {
   }, [loadCredits, loadDocuments]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash === "#library-marketplace") {
+      setLibraryTab("marketplace");
+    }
+  }, [setLibraryTab]);
+
+  useEffect(() => {
     try {
       const saved = window.localStorage.getItem(LIBRARY_FILTER_STORAGE_KEY);
       if (!saved) {
@@ -690,6 +706,11 @@ function LibraryPageContent() {
   const filteredMarketplaceCatalog = useMemo(() => {
     return marketplaceCatalog.filter(matchesLibraryFilters);
   }, [marketplaceCatalog, matchesLibraryFilters]);
+
+  const templateDocumentsFiltered = useMemo(
+    () => filteredDocuments.filter((doc) => doc.document_type === "Template"),
+    [filteredDocuments]
+  );
 
   const approvedDocuments = useMemo(() => {
     return filteredDocuments.filter(
@@ -895,7 +916,7 @@ function LibraryPageContent() {
     {
       label: "Marketplace unlocks",
       note: `${marketplaceDocuments.length} unlockable file${marketplaceDocuments.length === 1 ? "" : "s"}`,
-      href: "#library-marketplace",
+      href: "?tab=marketplace",
     },
     {
       label: "Active documents",
@@ -964,6 +985,98 @@ function LibraryPageContent() {
           detail: "Open completed documents directly from your ready-to-open list after approval or purchase.",
           active: accessibleApprovedDocuments.length > 0,
           complete: accessibleApprovedDocuments.length > 0,
+        },
+      ];
+
+  const templateWorkflowSteps = isManagerView
+    ? [
+        {
+          label: "Locate templates",
+          detail: "Find reusable template records in your library; completed templates appear in this tab.",
+          active: stats.templates > 0,
+          complete: stats.templates > 0,
+        },
+        {
+          label: "Roll into programs",
+          detail: "Use approved templates as the base for toolbox talks, inductions, and field packs.",
+          active: templateDocumentsFiltered.length > 0,
+          complete: templateDocumentsFiltered.length > 0,
+        },
+        {
+          label: "Refresh revisions",
+          detail: "Archive outdated template revisions when trade scope or regulation changes.",
+          active: otherDocuments.some((d) => d.document_type === "Template"),
+          complete: otherDocuments.filter((d) => d.document_type === "Template").length === 0,
+        },
+      ]
+    : [
+        {
+          label: "Submit template drafts",
+          detail: "Upload template files the same way as other documents; they follow the same review path.",
+          active: stats.templates > 0,
+          complete: stats.templates > 0,
+        },
+        {
+          label: "Track review",
+          detail: "Templates stay in Active documents until an admin approves the final file.",
+          active: otherDocuments.some((d) => d.document_type === "Template"),
+          complete: templateDocumentsFiltered.some((d) =>
+            isApprovedDocumentStatus(d.status, Boolean(d.final_file_path))
+          ),
+        },
+        {
+          label: "Open when approved",
+          detail: "Approved templates land in Ready to open so you can reopen them anytime.",
+          active: templateDocumentsFiltered.length > 0,
+          complete: accessibleApprovedDocuments.filter((d) => d.document_type === "Template").length > 0,
+        },
+      ];
+
+  const marketplaceWorkflowSteps = isManagerView
+    ? [
+        {
+          label: "Scan listings",
+          detail: "Browse completed documents your company can unlock with shared credits.",
+          active: marketplaceDocuments.length > 0,
+          complete: marketplaceDocuments.length > 0,
+        },
+        {
+          label: "Preview samples",
+          detail: "Review excerpts or PDF snippets before spending credits.",
+          active: marketplaceDocuments.some((d) => canRequestMarketplaceLibraryPreview(d)),
+          complete: false,
+        },
+        {
+          label: "Unlock & ledger",
+          detail: "Unlocks debit credits and appear in the company ledger.",
+          active: creditState.transactions.length > 0,
+          complete: creditState.purchasedDocumentIds.length > 0,
+        },
+        {
+          label: "Ready shelf",
+          detail: "Purchased documents move straight into Ready to open for your account.",
+          active: accessibleApprovedDocuments.length > 0,
+          complete: accessibleApprovedDocuments.length > 0,
+        },
+      ]
+    : [
+        {
+          label: "Browse unlocks",
+          detail: "Discover marketplace listings you can add with credits.",
+          active: marketplaceDocuments.length > 0,
+          complete: marketplaceDocuments.length > 0,
+        },
+        {
+          label: "Keep credits ready",
+          detail: "Top up credits so you can unlock finals when you need them.",
+          active: creditState.creditBalance > 0,
+          complete: creditState.creditBalance > 0,
+        },
+        {
+          label: "Unlock & open",
+          detail: "After unlock, files appear alongside your other ready-to-open documents.",
+          active: creditState.purchasedDocumentIds.length > 0,
+          complete: creditState.purchasedDocumentIds.length > 0,
         },
       ];
 
@@ -1245,88 +1358,169 @@ function LibraryPageContent() {
         ) : null}
       </section>
 
-      <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Templates"
-          value={String(stats.templates)}
-          note="Reusable template documents"
-        />
-        <StatCard
-          title="Forms"
-          value={String(stats.forms)}
-          note="Operational form records"
-        />
-        <StatCard
-          title="Reports"
-          value={String(stats.reports)}
-          note="Completed report documents"
-        />
-        <StatCard
-          title="Subscription"
-          value={creditState.subscriptionStatus}
-          note="Default credits can be tied to account status"
-        />
-      </section>
+      <AppTabBar
+        value={libraryTab}
+        onValueChange={setLibraryTab}
+        items={[
+          {
+            value: "documents",
+            label: "Documents",
+            content: (
+              <div className="space-y-6">
+                <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                  <StatCard
+                    title="Templates"
+                    value={String(stats.templates)}
+                    note="Reusable template documents"
+                  />
+                  <StatCard
+                    title="Forms"
+                    value={String(stats.forms)}
+                    note="Operational form records"
+                  />
+                  <StatCard
+                    title="Reports"
+                    value={String(stats.reports)}
+                    note="Completed report documents"
+                  />
+                  <StatCard
+                    title="Subscription"
+                    value={creditState.subscriptionStatus}
+                    note="Default credits can be tied to account status"
+                  />
+                </section>
 
-      <WorkflowPath
-        title={isManagerView ? "Company Access Workflow" : "Upload to Library Workflow"}
-        description={
-          isManagerView
-            ? "Approved files land in Ready to open. Draft and in-review company submissions appear under Active documents, where attached files can be previewed when storage paths exist."
-            : "The library is the end of the document journey. Files appear here after upload, submission, admin review, and final approval."
-        }
-        steps={workflowSteps}
-      />
+                <WorkflowPath
+                  title={isManagerView ? "Company Access Workflow" : "Upload to Library Workflow"}
+                  description={
+                    isManagerView
+                      ? "Approved files land in Ready to open. Draft and in-review company submissions appear under Active documents, where attached files can be previewed when storage paths exist."
+                      : "The library is the end of the document journey. Files appear here after upload, submission, admin review, and final approval."
+                  }
+                  steps={workflowSteps}
+                />
 
-      {recentDocumentItems.length > 0 ? (
-        <ActivityFeed
-          title="Recent Document History"
-          description="Latest document changes and approvals now visible from the library."
-          items={recentDocumentItems}
-        />
-      ) : null}
+                {recentDocumentItems.length > 0 ? (
+                  <ActivityFeed
+                    title="Recent Document History"
+                    description="Latest document changes and approvals now visible from the library."
+                    items={recentDocumentItems}
+                  />
+                ) : null}
 
-      <DocumentSection
-        sectionId="ready-documents"
-        title="Ready to open"
-        description="Completed documents you already have access to."
-        headerPills={["Owned or unlocked", "Open without preview", "Adds to your ready-to-open list"]}
-        loading={loading}
-        documents={accessibleApprovedDocuments}
-        emptyTitle="Your ready-to-open shelf is empty"
-        emptyMessage="Completed documents you own or unlock with credits will land here first."
-        onOpen={(doc) => setPendingDownload({ mode: "completed", documentId: doc.id })}
-        actionLabel="Open document"
-        highlightDocumentId={highlightDocId}
-      />
+                <DocumentSection
+                  sectionId="ready-documents"
+                  title="Ready to open"
+                  description="Completed documents you already have access to."
+                  headerPills={["Owned or unlocked", "Open without preview", "Adds to your ready-to-open list"]}
+                  loading={loading}
+                  documents={accessibleApprovedDocuments}
+                  emptyTitle="Your ready-to-open shelf is empty"
+                  emptyMessage="Completed documents you own or unlock with credits will land here first."
+                  onOpen={(doc) => setPendingDownload({ mode: "completed", documentId: doc.id })}
+                  actionLabel="Open document"
+                  highlightDocumentId={highlightDocId}
+                />
 
-      <MarketplaceSection
-        documents={marketplaceDocuments}
-        loading={loading}
-        creditBalance={creditState.creditBalance}
-        actionLoadingId={actionLoadingId}
-        previewLoadingId={previewLoadingId}
-        marketplacePreviewPageCounts={marketplacePreviewPageCounts}
-        onPurchase={handlePurchaseDocument}
-        onPreview={handleMarketplacePreview}
-        highlightDocumentId={highlightDocId}
-      />
+                <DocumentSection
+                  sectionId="active-documents"
+                  title="All active documents"
+                  description="Uploaded records that are still in progress or waiting on completion."
+                  headerPills={["Drafts and reviews", "Preview sample available when a file exists", "Search and filters apply here"]}
+                  loading={loading}
+                  documents={otherDocuments}
+                  emptyTitle="Nothing matches this filter"
+                  emptyMessage="Try another search or clear the filters to see the full document board."
+                  onOpen={(doc) => {
+                    void handleWorkspaceDocumentExcerpt(doc.id);
+                  }}
+                  actionLabel="Preview sample"
+                  actionLoadingDocumentId={activeExcerptLoadingId}
+                  highlightDocumentId={highlightDocId}
+                />
+              </div>
+            ),
+          },
+          {
+            value: "templates",
+            label: "Templates",
+            content: (
+              <div className="space-y-6">
+                <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                  <StatCard
+                    title="Template records"
+                    value={String(stats.templates)}
+                    note="Completed template documents in your library view"
+                  />
+                  <StatCard
+                    title="Template drafts"
+                    value={String(otherDocuments.filter((d) => d.document_type === "Template").length)}
+                    note="Templates still moving through review"
+                  />
+                  <StatCard
+                    title="Ready template finals"
+                    value={String(
+                      accessibleApprovedDocuments.filter((d) => d.document_type === "Template").length
+                    )}
+                    note="Approved templates you can open now"
+                  />
+                </section>
 
-      <DocumentSection
-        sectionId="active-documents"
-        title="All active documents"
-        description="Uploaded records that are still in progress or waiting on completion."
-        headerPills={["Drafts and reviews", "Preview sample available when a file exists", "Search and filters apply here"]}
-        loading={loading}
-        documents={otherDocuments}
-        emptyTitle="Nothing matches this filter"
-        emptyMessage="Try another search or clear the filters to see the full document board."
-        onOpen={(doc) => {
-          void handleWorkspaceDocumentExcerpt(doc.id);
-        }}
-        actionLabel="Preview sample"
-        actionLoadingDocumentId={activeExcerptLoadingId}
-        highlightDocumentId={highlightDocId}
+                <WorkflowPath
+                  title="Template library workflow"
+                  description="Keep canonical templates easy to find, refresh them on schedule, and reuse them across programs without rebuilding from scratch."
+                  steps={templateWorkflowSteps}
+                />
+
+                <DocumentSection
+                  sectionId="library-templates"
+                  title="Template records"
+                  description="Template documents that match your current search and filters."
+                  headerPills={["Includes drafts and finals", "Same filters as Documents tab", "Open finals or preview uploads"]}
+                  loading={loading}
+                  documents={templateDocumentsFiltered}
+                  emptyTitle="No templates match this filter"
+                  emptyMessage="Clear filters or switch document type to “Template” to widen the list."
+                  onOpen={(doc) => {
+                    if (isApprovedDocumentStatus(doc.status, Boolean(doc.final_file_path))) {
+                      setPendingDownload({ mode: "completed", documentId: doc.id });
+                    } else {
+                      void handleWorkspaceDocumentExcerpt(doc.id);
+                    }
+                  }}
+                  actionLabel="Open or preview"
+                  actionLoadingDocumentId={activeExcerptLoadingId}
+                  highlightDocumentId={highlightDocId}
+                />
+              </div>
+            ),
+          },
+          {
+            value: "marketplace",
+            label: "Marketplace",
+            content: (
+              <div className="space-y-6">
+                <WorkflowPath
+                  title="Marketplace unlock workflow"
+                  description="Preview marketplace listings, spend credits intentionally, and land unlocked finals on your ready-to-open shelf."
+                  steps={marketplaceWorkflowSteps}
+                />
+
+                <MarketplaceSection
+                  documents={marketplaceDocuments}
+                  loading={loading}
+                  creditBalance={creditState.creditBalance}
+                  actionLoadingId={actionLoadingId}
+                  previewLoadingId={previewLoadingId}
+                  marketplacePreviewPageCounts={marketplacePreviewPageCounts}
+                  onPurchase={handlePurchaseDocument}
+                  onPreview={handleMarketplacePreview}
+                  highlightDocumentId={highlightDocId}
+                />
+              </div>
+            ),
+          },
+        ]}
       />
 
       <DownloadConfirmModal

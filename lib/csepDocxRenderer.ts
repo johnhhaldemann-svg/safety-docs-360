@@ -1842,6 +1842,7 @@ export function buildCsepTemplateSections(
   });
 
   dedupedSources.forEach((section) => {
+    if (normalizeToken(section.key ?? "") === "project information") return;
     const mappedKey = mapSourceSectionToFixedSection(section);
     if (!mappedKey) return;
     const existing = grouped.get(mappedKey) ?? [];
@@ -2090,12 +2091,8 @@ function synthesizeScopeSubsections(
   const steelErectionScope = isStructuralSteelOrDeckingScope(draft, tradeLabel, subTradeLabel);
   const tradeSummary = [tradeLabel, subTradeLabel].filter((value) => value && value !== "N/A").join(" / ");
   const scopeSummaryParts = [
-    projectName !== "N/A" ? `Project: ${projectName}` : null,
     contractorName !== "N/A" ? `Contractor: ${contractorName}` : null,
     tradeSummary ? `Covered trade / discipline: ${tradeSummary}` : null,
-    finalValueOrNA(draft.projectOverview.projectAddress) !== "N/A"
-      ? `Project address: ${finalValueOrNA(draft.projectOverview.projectAddress)}`
-      : null,
     steelErectionScope
       ? "Task-level steel erection, rigging, and decking controls are governed in §11 Hazards and Controls and the approved plans referenced there—not in this Scope section."
       : null,
@@ -2123,18 +2120,19 @@ function synthesizeScopeSubsections(
         steelErectionInScope: steelErectionScope,
       });
 
+  const siteTail = siteBody.trim();
+  const headParts = scopeSummaryParts.join(". ");
+  const merged =
+    headParts && siteTail
+      ? `${headParts}. ${siteTail}`
+      : headParts
+        ? `${headParts}.`
+        : siteTail || "Project-specific information to be completed.";
+
   return [
     {
       title: "Scope summary",
-      paragraphs: [
-        scopeSummaryParts.length
-          ? scopeSummaryParts.join(". ") + "."
-          : "Project-specific information to be completed.",
-      ],
-    },
-    {
-      title: "Site-specific field conditions",
-      paragraphs: [siteBody],
+      paragraphs: [merged.replace(/\s+/g, " ").trim()],
     },
   ];
 }
@@ -2693,9 +2691,23 @@ export function buildCsepRenderModelFromGeneratedDraft(
     preparedBy;
   const projectName = finalValueOrNA(draft.projectOverview.projectName);
   const projectAddress = finalValueOrNA(draft.projectOverview.projectAddress);
+  const provenanceRecord = draft.provenance as Record<string, unknown>;
+  const governingFromProvenance =
+    typeof provenanceRecord.governingState === "string" ? provenanceRecord.governingState.trim() : "";
+  const builderSnap =
+    draft.builderSnapshot && typeof draft.builderSnapshot === "object"
+      ? (draft.builderSnapshot as Record<string, unknown>)
+      : null;
+  const governingFromSnapshot =
+    builderSnap && typeof builderSnap.governing_state === "string"
+      ? String(builderSnap.governing_state).trim()
+      : "";
+  const governingStateRaw = governingFromProvenance || governingFromSnapshot;
   const coverMetadataRows = meaningfulFieldRows([
+    { label: "Project Name", value: projectName },
     { label: "Project Number", value: finalValueOrNA(draft.projectOverview.projectNumber) },
     { label: "Project Address", value: projectAddress },
+    ...(governingStateRaw ? [{ label: "Governing State", value: governingStateRaw }] : []),
     { label: "Owner / Client", value: finalPartyValueOrNA(draft.projectOverview.ownerClient) },
     {
       label: "GC / CM / program partners (list all with site safety or logistics authority)",
@@ -2982,7 +2994,11 @@ function subtleDivider() {
 function labeledFieldParagraph(
   label: string,
   value: string,
-  options?: { indent?: { left?: number; hanging?: number }; spacing?: { after?: number; line?: number } }
+  options?: {
+    indent?: { left?: number; hanging?: number };
+    spacing?: { after?: number; line?: number };
+    alignment?: (typeof AlignmentType)[keyof typeof AlignmentType];
+  }
 ) {
   return makeParagraph(
     [
@@ -3004,6 +3020,7 @@ function labeledFieldParagraph(
       style: STYLE_IDS.body,
       spacing: options?.spacing ?? { after: 100, line: 276 },
       indent: options?.indent,
+      alignment: options?.alignment,
     }
   );
 }
@@ -3139,7 +3156,23 @@ function createCover(model: CsepRenderModel) {
       );
     });
 
-  return coverChildren;
+  const coverFieldRows = meaningfulFieldRows(model.coverMetadataRows);
+  if (coverFieldRows.length) {
+    coverChildren.push(
+      new Paragraph({
+        spacing: { before: 200, after: 120 },
+        children: [],
+      })
+    );
+    coverFieldRows.forEach((row) => {
+      coverChildren.push(
+        labeledFieldParagraph(row.label, row.value, {
+          indent: { left: 360 },
+          spacing: { after: 90, line: 276 },
+        })
+      );
+    });
+  }
 
   // Approval block. Reframed so it reads as an intentional pre-issue approval
   // placeholder rather than an unresolved draft artifact.

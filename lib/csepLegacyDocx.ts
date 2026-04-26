@@ -80,6 +80,8 @@ export type LegacyCsepDocxInput = {
   program_subtype_selections?: Partial<Record<CSEPProgramSubtypeGroup, CSEPProgramSubtypeValue>>;
   included_sections?: string[];
   tradeSummary?: string;
+  /** Optional; shown on cover metadata when set (not repeated in legacy body project table). */
+  governing_state?: string;
   oshaRefs?: string[];
   tradeItems?: CSEPRiskItem[];
   derivedHazards?: string[];
@@ -463,29 +465,6 @@ export function buildLegacyCsepRenderModel(
   const hasSelectedHazardsSectionContent = activeHazards.length > 0;
   const hasActivityHazardMatrixSectionContent = tradeItems.length > 0;
   const sections: GeneratedSafetyPlanSection[] = [];
-
-  if (includedContent.project_information) {
-    sections.push({
-      key: "project_information",
-      title: "Project Information",
-      table: {
-        columns: ["Field", "Value"],
-        rows: [
-          ["Project Name", valueOrNA(form.project_name)],
-          ["Project Number", valueOrNA(form.project_number)],
-          ["Project Address", valueOrNA(form.project_address)],
-          ["Owner / Client", valueOrNA(form.owner_client)],
-          [
-            "GC / CM / program partners (list all with site safety or logistics authority)",
-            valueOrNA(form.gc_cm),
-          ],
-          ["Trade", valueOrNA(form.trade)],
-          ["Sub-trade", valueOrNA(form.subTrade)],
-          ["Selected Tasks", selectedTasks.length ? selectedTasks.join(", ") : "N/A"],
-        ],
-      },
-    });
-  }
 
   if (includedContent.contractor_information) {
     sections.push({
@@ -894,8 +873,12 @@ export function buildLegacyCsepRenderModel(
     preparedBy,
     coverSubtitleLines,
     coverMetadataRows: [
+      { label: "Project Name", value: valueOrNA(form.project_name) },
       { label: "Project Number", value: valueOrNA(form.project_number) },
       { label: "Project Address", value: valueOrNA(form.project_address) },
+      ...(form.governing_state?.trim()
+        ? [{ label: "Governing State", value: form.governing_state.trim() }]
+        : []),
       { label: "Owner / Client", value: valueOrNA(form.owner_client) },
       {
         label: "GC / CM / program partners (list all with site safety or logistics authority)",

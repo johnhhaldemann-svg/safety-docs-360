@@ -207,16 +207,16 @@ const workflowCategoryDefinition = [
     stepIndexes: [0, 1] as number[],
   },
   {
+    title: "Scope",
+    stepIndexes: [2, 3] as number[],
+  },
+  {
     title: "Build",
-    stepIndexes: [2, 3, 4, 5] as number[],
+    stepIndexes: [4, 5] as number[],
   },
   {
-    title: "Review",
-    stepIndexes: [6] as number[],
-  },
-  {
-    title: "Submit",
-    stepIndexes: [7] as number[],
+    title: "Review & Submit",
+    stepIndexes: [6, 7] as number[],
   },
 ];
 
@@ -2937,17 +2937,8 @@ function CsepDraftSectionPreview({
           {sectionMetaLabel}
         </div>
       ) : null}
-      <div className="mt-2 flex items-start gap-3">
-        {sectionPrefix ? (
-          <span className="csep-doc-number-badge inline-flex min-w-[3.25rem] justify-center rounded-full px-2.5 py-1 text-[11px] font-bold tracking-[0.12em]">
-            {sectionPrefix}
-          </span>
-        ) : null}
-        <div className="min-w-0 flex-1 pt-0.5">
-          <div className="csep-doc-heading text-[15px] font-semibold">
-            {sectionPrefix ? sanitizeNumberedTitle(cleanTitle) : cleanTitle}
-          </div>
-        </div>
+      <div className="mt-2 min-w-0">
+        <div className="csep-doc-heading text-[15px] font-semibold">{cleanTitle}</div>
       </div>
       {section.summary ? <GeneratedSectionCopy text={section.summary} /> : null}
       {section.body ? <GeneratedSectionCopy text={section.body} /> : null}
@@ -2956,11 +2947,8 @@ function CsepDraftSectionPreview({
           {section.bullets.map((bullet, bulletIndex) => (
             <div
               key={`${section.key}-bullet-${bulletIndex}`}
-              className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-3 rounded-xl bg-slate-50/70 px-3 py-2"
+              className="rounded-xl bg-slate-50/70 px-3 py-2"
             >
-              <span className="csep-doc-number-text pt-0.5 text-right text-xs font-semibold tracking-[0.08em]">
-                {sectionPrefix ? `${sectionPrefix}.${bulletIndex + 1}` : `${bulletIndex + 1}.`}
-              </span>
               <p className="max-w-[72ch] text-sm leading-7 text-slate-700">{bullet}</p>
             </div>
           ))}
@@ -2991,14 +2979,7 @@ function CsepDraftSectionPreview({
                 }
               >
                 {subsectionHeading ? (
-                  <div className="flex items-start gap-3">
-                    <span className="csep-doc-number-text inline-flex min-w-[3rem] justify-end pt-0.5 text-xs font-semibold tracking-[0.08em]">
-                      {subsectionPrefix}
-                    </span>
-                    <div className="csep-doc-number-text min-w-0 flex-1 text-sm font-semibold">
-                      {sanitizeNumberedTitle(subsectionHeading)}
-                    </div>
-                  </div>
+                  <div className="csep-doc-number-text text-sm font-semibold">{subsectionHeading}</div>
                 ) : null}
                 {subsection.body ? <GeneratedSectionCopy text={subsection.body} /> : null}
                 {subsection.bullets.length ? (
@@ -3017,11 +2998,8 @@ function CsepDraftSectionPreview({
                         return (
                           <div
                             key={`${section.key}-subsection-${subsectionIndex}-bullet-${bulletIndex}`}
-                            className="grid grid-cols-[5rem_minmax(0,1fr)] items-start gap-3 rounded-xl bg-slate-50/70 px-3 py-2"
+                            className="rounded-xl bg-slate-50/70 px-3 py-2"
                           >
-                            <span className="csep-doc-number-text pt-0.5 text-right text-xs font-semibold tracking-[0.08em]">
-                              {sectionPrefix || subsectionHeading ? numberedLabel : `${numberedLabel}.`}
-                            </span>
                             <ReferencePackDetailBullet bullet={bullet} numberedLabel={numberedLabel} />
                           </div>
                         );

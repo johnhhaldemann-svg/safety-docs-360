@@ -28,8 +28,12 @@ import {
   type WorkspaceSummary,
 } from "@/components/command-center/model";
 import { InductionReadinessCard } from "@/components/command-center/InductionReadinessCard";
+import { AppTabBar } from "@/components/AppTabBar";
+import { useUrlTabState } from "@/hooks/useUrlTabState";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+
+const COMMAND_CENTER_HUB_TABS = ["now", "risk", "knowledge"] as const;
 
 const supabase = getSupabaseBrowserClient();
 
@@ -133,6 +137,11 @@ function rollupTone(band: string) {
 
 export function CommandCenterWorkspace() {
   const [days, setDays] = useState(90);
+  const { value: hubTab, setValue: setHubTab } = useUrlTabState(
+    "tab",
+    COMMAND_CENTER_HUB_TABS,
+    "now"
+  );
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState<AnalyticsSummaryPayload | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceSummary | null>(null);
@@ -341,350 +350,378 @@ export function CommandCenterWorkspace() {
         </p>
       ) : null}
 
-      <SectionCard
-        eyebrow="Start Here"
-        title="Workspace launch checklist"
-        description={`${adoptionChecklist.completedCount} of ${adoptionChecklist.totalCount} adoption milestones complete. Use this path to turn an approved workspace into an active operating system.`}
-        aside={
-          <StatusBadge
-            label={adoptionChecklist.nextItem ? `Next: ${adoptionChecklist.nextItem.label}` : "Launch complete"}
-            tone={adoptionChecklist.nextItem ? "warning" : "success"}
-          />
-        }
-        tone="attention"
-      >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          {adoptionChecklist.items.map((item) => (
-            <Link
-              key={item.id}
-              href={item.href}
-              className="rounded-2xl border border-[var(--app-border)] bg-white/90 px-4 py-4 shadow-[var(--app-shadow-soft)] transition hover:border-[var(--app-accent-border-28)]"
-            >
-              <StatusBadge label={item.complete ? "Done" : "Next"} tone={item.complete ? "success" : "warning"} />
-              <p className="mt-3 text-sm font-semibold text-[var(--app-text-strong)]">{item.label}</p>
-              <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{item.note}</p>
-            </Link>
-          ))}
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        eyebrow="Today / Attention"
-        title="What needs attention now"
-        description="Start here before you move into the detailed workflow screens. These cards summarize the live work picture safety managers care about most."
-        tone="attention"
-      >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricTile
-            eyebrow="Current risk"
-            title={band === "-" ? "Awaiting rollup" : band}
-            value={score != null ? Number(score).toFixed(1) : "-"}
-            detail="Risk Memory score for the selected window."
-            tone="attention"
-          />
-          <MetricTile
-            eyebrow="Open work"
-            title="Issues"
-            value={String(openWork.openObservations)}
-            detail={`${openWork.overdueObservations} overdue and ${openWork.openIncidents} incident${openWork.openIncidents === 1 ? "" : "s"} still open.`}
-          />
-          <MetricTile
-            eyebrow="Permit pressure"
-            title="Active permits"
-            value={String(openWork.activePermits)}
-            detail={`${openWork.stopWorkPermits} permit${openWork.stopWorkPermits === 1 ? "" : "s"} with stop-work status need review.`}
-          />
-          <MetricTile
-            eyebrow="In progress"
-            title="JSAs + reports"
-            value={String(openWork.openJsas + openWork.openReports)}
-            detail={`${openWork.openJsas} JSA${openWork.openJsas === 1 ? "" : "s"} and ${openWork.openReports} report draft${openWork.openReports === 1 ? "" : "s"} are still moving.`}
-          />
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        eyebrow="Workflow Rails"
-        title="Core operator paths"
-        description="Use these rails to move from signal to action without hunting through separate modules."
-      >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {workflowRails.map((rail) => (
-            <ActionTile
-              key={rail.title}
-              eyebrow={rail.tone === "warning" ? "Needs attention" : "Guided flow"}
-              title={rail.title}
-              description={rail.description}
-              href={rail.href}
-              actionLabel={rail.actionLabel}
-              tone={rail.tone === "warning" ? "attention" : rail.tone === "info" ? "elevated" : "panel"}
-            />
-          ))}
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        eyebrow="Safety Intelligence"
-        title="Workflow activity"
-        description="Company-scoped snapshot of Safety Intelligence volume—the same signals as the full activity page, so you can triage here before opening lists or conflicts."
-        aside={
-          <Link
-            href="/analytics/safety-intelligence"
-            className={`${appButtonSecondaryClassName} whitespace-nowrap px-3 py-2 text-xs`}
-          >
-            Full activity view
-          </Link>
-        }
-      >
-        {siWorkloadSummary ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Pipeline batches</p>
-              <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{siWorkloadSummary.totals.bucketRuns}</p>
-            </div>
-            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">AI-assisted reviews</p>
-                <ProvenanceBadge kind="ai" />
-              </div>
-              <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{siWorkloadSummary.totals.aiReviews}</p>
-            </div>
-            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Open rule conflicts</p>
-                <ProvenanceBadge kind="rules" />
-              </div>
-              <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{siWorkloadSummary.totals.openConflicts}</p>
-            </div>
-            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Documents generated</p>
-                <ProvenanceBadge kind="hybrid" />
-              </div>
-              <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">
-                {siWorkloadSummary.totals.generatedDocuments}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <p className="rounded-2xl border border-dashed border-[var(--app-border-strong)] bg-white/75 px-4 py-5 text-sm text-[var(--app-text)]">
-            Workflow metrics are not available for this account yet, or your role does not include analytics access. When
-            they are, the counts appear here and in the{" "}
-            <Link href="/analytics/safety-intelligence" className="font-semibold text-[var(--app-accent-primary)] underline">
-              full activity view
-            </Link>
-            .
-          </p>
-        )}
-      </SectionCard>
-
-      <SectionCard
-        eyebrow="Work Area"
-        title="Current Risk"
-        description="Start with the current risk rollup, then jump straight into the workflow or drill-down surface that matches the decision you need to make."
-        aside={<StatusBadge label={band === "-" ? "Awaiting rollup" : band} tone={rollupTone(band)} />}
-      >
-        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-5 shadow-[var(--app-shadow-soft)]">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Risk Memory</p>
-              {risk ? (
-                <>
-                  <div className="mt-3 flex flex-wrap items-end gap-3">
-                    <p className="text-4xl font-bold tracking-tight text-[var(--app-text-strong)]">{band}</p>
-                    {score != null ? (
-                      <p className="text-sm font-semibold text-[var(--app-text)]">Score {Number(score).toFixed(1)}</p>
-                    ) : null}
+      <AppTabBar
+        value={hubTab}
+        onValueChange={setHubTab}
+        items={[
+          {
+            value: "now",
+            label: "Now",
+            content: (
+              <div className="space-y-6">
+                <SectionCard
+                  eyebrow="Start Here"
+                  title="Workspace launch checklist"
+                  description={`${adoptionChecklist.completedCount} of ${adoptionChecklist.totalCount} adoption milestones complete. Use this path to turn an approved workspace into an active operating system.`}
+                  aside={
+                    <StatusBadge
+                      label={adoptionChecklist.nextItem ? `Next: ${adoptionChecklist.nextItem.label}` : "Launch complete"}
+                      tone={adoptionChecklist.nextItem ? "warning" : "success"}
+                    />
+                  }
+                  tone="attention"
+                >
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                    {adoptionChecklist.items.map((item) => (
+                      <Link
+                        key={item.id}
+                        href={item.href}
+                        className="rounded-2xl border border-[var(--app-border)] bg-white/90 px-4 py-4 shadow-[var(--app-shadow-soft)] transition hover:border-[var(--app-accent-border-28)]"
+                      >
+                        <StatusBadge label={item.complete ? "Done" : "Next"} tone={item.complete ? "success" : "warning"} />
+                        <p className="mt-3 text-sm font-semibold text-[var(--app-text-strong)]">{item.label}</p>
+                        <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{item.note}</p>
+                      </Link>
+                    ))}
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">
-                    {risk.facetCount ?? 0} facets in the last {risk.windowDays ?? days} days. Use this as the executive
-                    signal before moving into workflow triage.
-                  </p>
-                </>
-              ) : (
-                <p className="mt-3 text-sm text-[var(--app-text)]">{getRiskMemoryEmptyMessage(loading)}</p>
-              )}
-            </div>
+                </SectionCard>
 
-            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-5 shadow-[var(--app-shadow-soft)]">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Coverage</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">
-                    {companyDashboard ? (companyDashboard.totalOpenObservations ?? 0) : "-"}
-                  </p>
-                  <p className="mt-1 text-sm text-[var(--app-text)]">
-                    {companyDashboard ? "open issues in range" : "awaiting analytics sync"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">
-                    {companyDashboard ? (companyDashboard.totalActiveJobsites ?? 0) : "-"}
-                  </p>
-                  <p className="mt-1 text-sm text-[var(--app-text)]">
-                    {companyDashboard ? "active jobsites" : "awaiting analytics sync"}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="md:col-span-2">
-              <InductionReadinessCard />
-            </div>
-
-            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/88 p-5 shadow-[var(--app-shadow-soft)]">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Top scopes</p>
-              <div className="mt-4 space-y-2">
-                {(risk?.topScopes ?? []).slice(0, 4).map((row, index) => (
-                  <div
-                    key={`${row.code ?? "scope"}-${index}`}
-                    className="flex items-center justify-between rounded-xl bg-[var(--app-panel)] px-3 py-2.5"
-                  >
-                    <span className="text-sm font-medium text-[var(--app-text-strong)]">{row.code ?? "Unmapped"}</span>
-                    <strong className="text-[var(--app-accent-primary)]">{row.count}</strong>
+                <SectionCard
+                  eyebrow="Today / Attention"
+                  title="What needs attention now"
+                  description="Start here before you move into the detailed workflow screens. These cards summarize the live work picture safety managers care about most."
+                  tone="attention"
+                >
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <MetricTile
+                      eyebrow="Current risk"
+                      title={band === "-" ? "Awaiting rollup" : band}
+                      value={score != null ? Number(score).toFixed(1) : "-"}
+                      detail="Risk Memory score for the selected window."
+                      tone="attention"
+                    />
+                    <MetricTile
+                      eyebrow="Open work"
+                      title="Issues"
+                      value={String(openWork.openObservations)}
+                      detail={`${openWork.overdueObservations} overdue and ${openWork.openIncidents} incident${openWork.openIncidents === 1 ? "" : "s"} still open.`}
+                    />
+                    <MetricTile
+                      eyebrow="Permit pressure"
+                      title="Active permits"
+                      value={String(openWork.activePermits)}
+                      detail={`${openWork.stopWorkPermits} permit${openWork.stopWorkPermits === 1 ? "" : "s"} with stop-work status need review.`}
+                    />
+                    <MetricTile
+                      eyebrow="In progress"
+                      title="JSAs + reports"
+                      value={String(openWork.openJsas + openWork.openReports)}
+                      detail={`${openWork.openJsas} JSA${openWork.openJsas === 1 ? "" : "s"} and ${openWork.openReports} report draft${openWork.openReports === 1 ? "" : "s"} are still moving.`}
+                    />
                   </div>
-                ))}
-                {!risk?.topScopes?.length ? (
-                  <p className="text-sm text-[var(--app-text)]">Scope rollups will appear here when Risk Memory is available.</p>
-                ) : null}
-              </div>
-            </div>
+                </SectionCard>
 
-            <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/88 p-5 shadow-[var(--app-shadow-soft)]">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Top hazards</p>
-              <div className="mt-4 space-y-2">
-                {(risk?.topHazards ?? []).slice(0, 4).map((row, index) => (
-                  <div
-                    key={`${row.code ?? "hazard"}-${index}`}
-                    className="flex items-center justify-between rounded-xl bg-[var(--app-panel)] px-3 py-2.5"
-                  >
-                    <span className="text-sm font-medium text-[var(--app-text-strong)]">{row.code ?? "Unmapped"}</span>
-                    <strong className="text-[var(--semantic-warning)]">{row.count}</strong>
+                <SectionCard
+                  eyebrow="Recommended Next Step"
+                  title="Recommended Actions"
+                  description="Stored recommendations stay company-scoped. Use them as the action list that sits between the risk rollup and the execution workflow."
+                >
+                  {recommendationEmptyMessage ? (
+                    <EmptyState
+                      title="No smart recommendations yet"
+                      description={recommendationEmptyMessage}
+                      actionHref="/analytics"
+                      actionLabel="Open Safety analytics"
+                    />
+                  ) : (
+                    <div className="grid gap-3">
+                      {recommendations.map((recommendation) => (
+                        <div
+                          key={recommendation.id}
+                          className="rounded-2xl border border-[var(--app-border-strong)] bg-white/90 px-4 py-4 shadow-[var(--app-shadow-soft)]"
+                        >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-[var(--app-text-strong)]">{recommendation.title}</p>
+                              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--app-text)]">{recommendation.body}</p>
+                            </div>
+                            <StatusBadge
+                              label={`${recommendation.kind} - ${Math.round((recommendation.confidence ?? 0) * 100)}%`}
+                              tone="info"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </SectionCard>
+              </div>
+            ),
+          },
+          {
+            value: "risk",
+            label: "Risk & Open Work",
+            content: (
+              <div className="space-y-6">
+                <SectionCard
+                  eyebrow="Workflow Rails"
+                  title="Core operator paths"
+                  description="Use these rails to move from signal to action without hunting through separate modules."
+                >
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    {workflowRails.map((rail) => (
+                      <ActionTile
+                        key={rail.title}
+                        eyebrow={rail.tone === "warning" ? "Needs attention" : "Guided flow"}
+                        title={rail.title}
+                        description={rail.description}
+                        href={rail.href}
+                        actionLabel={rail.actionLabel}
+                        tone={rail.tone === "warning" ? "attention" : rail.tone === "info" ? "elevated" : "panel"}
+                      />
+                    ))}
                   </div>
-                ))}
-                {!risk?.topHazards?.length ? (
-                  <p className="text-sm text-[var(--app-text)]">Hazard concentration will appear here when signals are available.</p>
-                ) : null}
-              </div>
-            </div>
-          </div>
+                </SectionCard>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-            <LaunchCard
-              href="/safety-intelligence"
-              title="Start Safety Intelligence workflow"
-              description="Move from executive signal into intake, rules, conflicts, and document generation."
-              label="Run workflow"
-            />
-            <LaunchCard
-              href="/analytics/safety-intelligence"
-              title="Workflow activity (detail)"
-              description="Lists, hazard themes, and rule conflict drill-down when you need more than the Command Center snapshot."
-              label="Open full view"
-            />
-            <LaunchCard
-              href="/analytics"
-              title="Safety analytics"
-              description="Company-wide charts for observations, incidents, injury analytics, and Risk Memory when you need depth beyond this hub."
-              label="Open analytics"
-            />
-            <LaunchCard
-              href="/settings/risk-memory"
-              title="Tune Risk Memory setup"
-              description="Adjust taxonomy and configuration without leaving the intelligence operating model."
-              label="Configure"
-            />
-          </div>
-        </div>
-      </SectionCard>
+                <SectionCard
+                  eyebrow="Work Area"
+                  title="Current Risk"
+                  description="Start with the current risk rollup, then jump straight into the workflow or drill-down surface that matches the decision you need to make."
+                  aside={<StatusBadge label={band === "-" ? "Awaiting rollup" : band} tone={rollupTone(band)} />}
+                >
+                  <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-5 shadow-[var(--app-shadow-soft)]">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Risk Memory</p>
+                        {risk ? (
+                          <>
+                            <div className="mt-3 flex flex-wrap items-end gap-3">
+                              <p className="text-4xl font-bold tracking-tight text-[var(--app-text-strong)]">{band}</p>
+                              {score != null ? (
+                                <p className="text-sm font-semibold text-[var(--app-text)]">Score {Number(score).toFixed(1)}</p>
+                              ) : null}
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">
+                              {risk.facetCount ?? 0} facets in the last {risk.windowDays ?? days} days. Use this as the executive
+                              signal before moving into workflow triage.
+                            </p>
+                          </>
+                        ) : (
+                          <p className="mt-3 text-sm text-[var(--app-text)]">{getRiskMemoryEmptyMessage(loading)}</p>
+                        )}
+                      </div>
 
-      <SectionCard
-        eyebrow="Work Area"
-        title="Open Work"
-        description="Use the current workload picture to decide where human follow-up is needed before or after smart-generated outputs."
-      >
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile
-            label="Open issues"
-            value={openWork.openObservations}
-            href="/field-id-exchange"
-            hint="Corrective actions not verified closed"
-          />
-          <StatTile label="Overdue issues" value={openWork.overdueObservations} href="/field-id-exchange" hint="Open items past due" />
-          <StatTile label="Open incidents" value={openWork.openIncidents} href="/incidents" />
-          <StatTile label="Active permits" value={openWork.activePermits} href="/permits" />
-          <StatTile label="Stop work" value={openWork.stopWorkPermits} href="/permits" hint="Requested or active" />
-          <StatTile label="JSAs in flight" value={openWork.openJsas} href="/jsa" />
-          <StatTile label="Reports draft" value={openWork.openReports} href="/reports" />
-        </div>
-      </SectionCard>
+                      <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-5 shadow-[var(--app-shadow-soft)]">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Coverage</p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <p className="text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">
+                              {companyDashboard ? (companyDashboard.totalOpenObservations ?? 0) : "-"}
+                            </p>
+                            <p className="mt-1 text-sm text-[var(--app-text)]">
+                              {companyDashboard ? "open issues in range" : "awaiting analytics sync"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">
+                              {companyDashboard ? (companyDashboard.totalActiveJobsites ?? 0) : "-"}
+                            </p>
+                            <p className="mt-1 text-sm text-[var(--app-text)]">
+                              {companyDashboard ? "active jobsites" : "awaiting analytics sync"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
 
-      <SectionCard
-        eyebrow="Recommended Next Step"
-        title="Recommended Actions"
-        description="Stored recommendations stay company-scoped. Use them as the action list that sits between the risk rollup and the execution workflow."
-      >
-        {recommendationEmptyMessage ? (
-          <EmptyState
-            title="No smart recommendations yet"
-            description={recommendationEmptyMessage}
-            actionHref="/analytics"
-            actionLabel="Open Safety analytics"
-          />
-        ) : (
-          <div className="grid gap-3">
-            {recommendations.map((recommendation) => (
-              <div
-                key={recommendation.id}
-                className="rounded-2xl border border-[var(--app-border-strong)] bg-white/90 px-4 py-4 shadow-[var(--app-shadow-soft)]"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-[var(--app-text-strong)]">{recommendation.title}</p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--app-text)]">{recommendation.body}</p>
+                      <div className="md:col-span-2">
+                        <InductionReadinessCard />
+                      </div>
+
+                      <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/88 p-5 shadow-[var(--app-shadow-soft)]">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Top scopes</p>
+                        <div className="mt-4 space-y-2">
+                          {(risk?.topScopes ?? []).slice(0, 4).map((row, index) => (
+                            <div
+                              key={`${row.code ?? "scope"}-${index}`}
+                              className="flex items-center justify-between rounded-xl bg-[var(--app-panel)] px-3 py-2.5"
+                            >
+                              <span className="text-sm font-medium text-[var(--app-text-strong)]">{row.code ?? "Unmapped"}</span>
+                              <strong className="text-[var(--app-accent-primary)]">{row.count}</strong>
+                            </div>
+                          ))}
+                          {!risk?.topScopes?.length ? (
+                            <p className="text-sm text-[var(--app-text)]">Scope rollups will appear here when Risk Memory is available.</p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/88 p-5 shadow-[var(--app-shadow-soft)]">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Top hazards</p>
+                        <div className="mt-4 space-y-2">
+                          {(risk?.topHazards ?? []).slice(0, 4).map((row, index) => (
+                            <div
+                              key={`${row.code ?? "hazard"}-${index}`}
+                              className="flex items-center justify-between rounded-xl bg-[var(--app-panel)] px-3 py-2.5"
+                            >
+                              <span className="text-sm font-medium text-[var(--app-text-strong)]">{row.code ?? "Unmapped"}</span>
+                              <strong className="text-[var(--semantic-warning)]">{row.count}</strong>
+                            </div>
+                          ))}
+                          {!risk?.topHazards?.length ? (
+                            <p className="text-sm text-[var(--app-text)]">Hazard concentration will appear here when signals are available.</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                      <LaunchCard
+                        href="/safety-intelligence"
+                        title="Start Safety Intelligence workflow"
+                        description="Move from executive signal into intake, rules, conflicts, and document generation."
+                        label="Run workflow"
+                      />
+                      <LaunchCard
+                        href="/analytics/safety-intelligence"
+                        title="Workflow activity (detail)"
+                        description="Lists, hazard themes, and rule conflict drill-down when you need more than the Command Center snapshot."
+                        label="Open full view"
+                      />
+                      <LaunchCard
+                        href="/analytics"
+                        title="Safety analytics"
+                        description="Company-wide charts for observations, incidents, injury analytics, and Risk Memory when you need depth beyond this hub."
+                        label="Open analytics"
+                      />
+                      <LaunchCard
+                        href="/settings/risk-memory"
+                        title="Tune Risk Memory setup"
+                        description="Adjust taxonomy and configuration without leaving the intelligence operating model."
+                        label="Configure"
+                      />
+                    </div>
                   </div>
-                  <StatusBadge
-                    label={`${recommendation.kind} - ${Math.round((recommendation.confidence ?? 0) * 100)}%`}
-                    tone="info"
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </SectionCard>
+                </SectionCard>
 
-      <SectionCard
-        eyebrow="Supporting Context"
-        title="Company Knowledge"
-        description="Keep reusable company context close to the hub so assistants and downstream workflows can stay grounded in your actual procedures."
-      >
-        <div className="grid gap-4 lg:grid-cols-[0.3fr_0.7fr]">
-          <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel-soft)] p-4">
-            <p className="text-sm font-semibold text-[var(--app-text-strong)]">What belongs here</p>
-            <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--app-text)]">
-              <li>Company procedures and recurring site rules</li>
-              <li>Lessons learned worth reusing across jobsites</li>
-              <li>Uploaded references that intelligence workflows should retrieve later</li>
-            </ul>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Link
-                href="/safety-intelligence"
-                className={appButtonQuietClassName.replace("rounded-xl", "rounded-full").replace("px-4 py-2.5", "px-3 py-1.5").replace("text-sm", "text-xs")}
-              >
-                Open workflow
-              </Link>
-              <Link
-                href="/analytics"
-                className={appButtonSecondaryClassName.replace("rounded-xl", "rounded-full").replace("px-4 py-2.5", "px-3 py-1.5").replace("text-sm", "text-xs")}
-              >
-                Open analytics
-              </Link>
-            </div>
-          </div>
-          <CompanyMemoryBankPanel />
-        </div>
-      </SectionCard>
+                <SectionCard
+                  eyebrow="Work Area"
+                  title="Open Work"
+                  description="Use the current workload picture to decide where human follow-up is needed before or after smart-generated outputs."
+                >
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <StatTile
+                      label="Open issues"
+                      value={openWork.openObservations}
+                      href="/field-id-exchange"
+                      hint="Corrective actions not verified closed"
+                    />
+                    <StatTile label="Overdue issues" value={openWork.overdueObservations} href="/field-id-exchange" hint="Open items past due" />
+                    <StatTile label="Open incidents" value={openWork.openIncidents} href="/incidents" />
+                    <StatTile label="Active permits" value={openWork.activePermits} href="/permits" />
+                    <StatTile label="Stop work" value={openWork.stopWorkPermits} href="/permits" hint="Requested or active" />
+                    <StatTile label="JSAs in flight" value={openWork.openJsas} href="/jsa" />
+                    <StatTile label="Reports draft" value={openWork.openReports} href="/reports" />
+                  </div>
+                </SectionCard>
+              </div>
+            ),
+          },
+          {
+            value: "knowledge",
+            label: "Knowledge",
+            content: (
+              <div className="space-y-6">
+                <SectionCard
+                  eyebrow="Safety Intelligence"
+                  title="Workflow activity"
+                  description="Company-scoped snapshot of Safety Intelligence volume—the same signals as the full activity page, so you can triage here before opening lists or conflicts."
+                  aside={
+                    <Link
+                      href="/analytics/safety-intelligence"
+                      className={`${appButtonSecondaryClassName} whitespace-nowrap px-3 py-2 text-xs`}
+                    >
+                      Full activity view
+                    </Link>
+                  }
+                >
+                  {siWorkloadSummary ? (
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                      <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Pipeline batches</p>
+                        <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{siWorkloadSummary.totals.bucketRuns}</p>
+                      </div>
+                      <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">AI-assisted reviews</p>
+                          <ProvenanceBadge kind="ai" />
+                        </div>
+                        <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{siWorkloadSummary.totals.aiReviews}</p>
+                      </div>
+                      <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Open rule conflicts</p>
+                          <ProvenanceBadge kind="rules" />
+                        </div>
+                        <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{siWorkloadSummary.totals.openConflicts}</p>
+                      </div>
+                      <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Documents generated</p>
+                          <ProvenanceBadge kind="hybrid" />
+                        </div>
+                        <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">
+                          {siWorkloadSummary.totals.generatedDocuments}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="rounded-2xl border border-dashed border-[var(--app-border-strong)] bg-white/75 px-4 py-5 text-sm text-[var(--app-text)]">
+                      Workflow metrics are not available for this account yet, or your role does not include analytics access. When
+                      they are, the counts appear here and in the{" "}
+                      <Link href="/analytics/safety-intelligence" className="font-semibold text-[var(--app-accent-primary)] underline">
+                        full activity view
+                      </Link>
+                      .
+                    </p>
+                  )}
+                </SectionCard>
+
+                <SectionCard
+                  eyebrow="Supporting Context"
+                  title="Company Knowledge"
+                  description="Keep reusable company context close to the hub so assistants and downstream workflows can stay grounded in your actual procedures."
+                >
+                  <div className="grid gap-4 lg:grid-cols-[0.3fr_0.7fr]">
+                    <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel-soft)] p-4">
+                      <p className="text-sm font-semibold text-[var(--app-text-strong)]">What belongs here</p>
+                      <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--app-text)]">
+                        <li>Company procedures and recurring site rules</li>
+                        <li>Lessons learned worth reusing across jobsites</li>
+                        <li>Uploaded references that intelligence workflows should retrieve later</li>
+                      </ul>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Link
+                          href="/safety-intelligence"
+                          className={appButtonQuietClassName.replace("rounded-xl", "rounded-full").replace("px-4 py-2.5", "px-3 py-1.5").replace("text-sm", "text-xs")}
+                        >
+                          Open workflow
+                        </Link>
+                        <Link
+                          href="/analytics"
+                          className={appButtonSecondaryClassName.replace("rounded-xl", "rounded-full").replace("px-4 py-2.5", "px-3 py-1.5").replace("text-sm", "text-xs")}
+                        >
+                          Open analytics
+                        </Link>
+                      </div>
+                    </div>
+                    <CompanyMemoryBankPanel />
+                  </div>
+                </SectionCard>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       {loading ? <InlineMessage tone="neutral">Refreshing Command Center data...</InlineMessage> : null}
     </div>

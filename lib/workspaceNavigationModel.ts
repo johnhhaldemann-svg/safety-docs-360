@@ -16,7 +16,15 @@ export type WorkspaceNavSection = NavSection & {
   items: WorkspaceNavItem[];
 };
 
-const GROUP_ORDER: WorkspaceNavGroup[] = ["today", "fieldSites", "programs", "insights", "account"];
+/** Stable rail order for company workspace navigation (used by tests and layout). */
+export const WORKSPACE_NAV_GROUP_ORDER: readonly WorkspaceNavGroup[] = [
+  "today",
+  "fieldSites",
+  "programs",
+  "insights",
+  "account",
+];
+const GROUP_ORDER = WORKSPACE_NAV_GROUP_ORDER;
 
 const SECTION_META: Record<
   WorkspaceNavGroup,

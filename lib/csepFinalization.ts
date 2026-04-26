@@ -58,6 +58,11 @@ const EXPORT_TEXT_REMOVALS = [
 ];
 
 const EXPORT_TEXT_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/^Minimum Requirements?:\s*/gim, ""],
+  [/^Minimum Cadence:\s*/gim, "Requirement: "],
+  [/^Minimum Frequency:\s*/gim, "Requirement: "],
+  [/\bMinimum Cadence\b/gi, "Requirement"],
+  [/\bMinimum Frequency\b/gi, "Requirement"],
   [/^Trigger \/ reference:\s*/gi, ""],
   [/^Applicability \/ trigger logic:\s*Apply this module whenever\s*/gi, "This section applies when "],
   [/^Applicability \/ trigger logic:\s*Apply this program before\s*/gi, "This section applies before "],

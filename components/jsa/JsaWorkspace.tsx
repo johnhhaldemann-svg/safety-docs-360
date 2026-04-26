@@ -309,7 +309,8 @@ export function JsaWorkspace() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [memoryLessonNudge, setMemoryLessonNudge] = useState(false);
-  const [mainTab, setMainTab] = useState("header");
+  const [mainTab, setMainTab] = useState("setup");
+  const [hazardSubTab, setHazardSubTab] = useState("steps");
 
   const selected = useMemo(
     () => records.find((r) => r.id === selectedId) ?? null,
@@ -437,7 +438,7 @@ export function JsaWorkspace() {
   }, [selectedId, loadActivitiesForDap]);
 
   useEffect(() => {
-    if (selectedId) setMainTab("header");
+    if (selectedId) setMainTab("setup");
   }, [selectedId]);
 
   const hazardTagsForStep = (hazard_category: string) =>
@@ -553,7 +554,7 @@ export function JsaWorkspace() {
     const jobsiteId = selectedJobsiteId.trim() || newJobsiteId.trim() || null;
     if (!title) {
       setMessage("Create a JSA first by entering a title or choosing a jobsite, then try again.");
-      setMainTab("header");
+      setMainTab("setup");
       return null;
     }
     try {
@@ -580,7 +581,7 @@ export function JsaWorkspace() {
       throw new Error("Created a draft JSA, but could not select it.");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Failed to create a draft JSA.");
-      setMainTab("header");
+      setMainTab("setup");
       return null;
     }
   }
@@ -1273,13 +1274,10 @@ export function JsaWorkspace() {
             <Tabs.List className="flex flex-wrap gap-0 overflow-x-auto border-b border-slate-700/70 bg-slate-950/40 print:hidden">
               {(
                 [
-                  ["header", "Header"],
-                  ["steps", "Steps"],
+                  ["setup", "Setup"],
                   ["hazards", "Hazards"],
-                  ["controls", "Controls"],
-                  ["ppe", "PPE / Permits"],
-                  ["review", "Review"],
-                  ["signoff", "Signoff"],
+                  ["ppe", "PPE & Permits"],
+                  ["signoff", "Sign-off"],
                 ] as const
               ).map(([value, label]) => (
                 <Tabs.Trigger key={value} value={value} className={tabTriggerClass}>
@@ -1288,7 +1286,7 @@ export function JsaWorkspace() {
               ))}
             </Tabs.List>
 
-            <Tabs.Content value="header" className="outline-none">
+            <Tabs.Content value="setup" className="outline-none">
               <section className="rounded-2xl border border-sky-500/25 bg-slate-900/95 p-5 shadow-[0_0_32px_-8px_rgba(14,165,233,0.15)]">
                 <div className="mb-4 flex items-center gap-2 border-b border-slate-700/80 pb-3">
                   <ClipboardCheck className="h-5 w-5 text-sky-400" aria-hidden />
@@ -1438,7 +1436,27 @@ export function JsaWorkspace() {
               </section>
             </Tabs.Content>
 
-            <Tabs.Content value="steps" className="outline-none">
+            <Tabs.Content value="hazards" className="outline-none">
+              <Tabs.Root value={hazardSubTab} onValueChange={setHazardSubTab} className="space-y-4">
+                <Tabs.List className="flex flex-wrap gap-2 print:hidden">
+                  {(
+                    [
+                      ["steps", "Steps"],
+                      ["hazard_detail", "Hazards"],
+                      ["controls", "Controls"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Tabs.Trigger
+                      key={value}
+                      value={value}
+                      className="rounded-full border border-slate-600/80 bg-slate-900/80 px-3 py-1.5 text-xs font-semibold text-slate-300 data-[state=active]:border-sky-500/50 data-[state=active]:bg-sky-950/50 data-[state=active]:text-sky-100"
+                    >
+                      {label}
+                    </Tabs.Trigger>
+                  ))}
+                </Tabs.List>
+
+                <Tabs.Content value="steps" className="outline-none">
               <div className="grid gap-6 lg:grid-cols-[1fr_minmax(280px,320px)]">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between print:hidden">
@@ -1463,9 +1481,9 @@ export function JsaWorkspace() {
                 </div>
                 {renderRightRail()}
               </div>
-            </Tabs.Content>
+                </Tabs.Content>
 
-            <Tabs.Content value="hazards" className="outline-none">
+                <Tabs.Content value="hazard_detail" className="outline-none">
               <div className="grid gap-6 lg:grid-cols-[1fr_minmax(280px,320px)]">
                 <div className="space-y-4">
                   {steps.length === 0 ? (
@@ -1528,9 +1546,9 @@ export function JsaWorkspace() {
                 </div>
                 {renderRightRail()}
               </div>
-            </Tabs.Content>
+                </Tabs.Content>
 
-            <Tabs.Content value="controls" className="outline-none">
+                <Tabs.Content value="controls" className="outline-none">
               <div className="grid gap-6 lg:grid-cols-[1fr_minmax(280px,320px)]">
                 <div className="space-y-4">
                   {steps.length === 0 ? (
@@ -1559,6 +1577,8 @@ export function JsaWorkspace() {
                 </div>
                 {renderRightRail()}
               </div>
+                </Tabs.Content>
+              </Tabs.Root>
             </Tabs.Content>
 
             <Tabs.Content value="ppe" className="outline-none">
@@ -1617,7 +1637,7 @@ export function JsaWorkspace() {
               </div>
             </Tabs.Content>
 
-            <Tabs.Content value="review" className="outline-none">
+            <Tabs.Content value="signoff" className="outline-none space-y-6">
               <div className="grid gap-6 lg:grid-cols-[1fr_minmax(280px,320px)]">
                 <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
                   <h2 className="text-lg font-bold text-slate-50">Pre-job review</h2>
@@ -1634,7 +1654,7 @@ export function JsaWorkspace() {
                       >
                         ✓
                       </span>
-                      Crew roster ({overlay.crewUserIds.length} selected on Header tab)
+                      Crew roster ({overlay.crewUserIds.length} selected on Setup tab)
                     </li>
                     <li className="flex gap-2">
                       <span className={steps.length > 0 ? "text-emerald-400" : "text-slate-600"}>✓</span>
@@ -1654,9 +1674,6 @@ export function JsaWorkspace() {
                 </div>
                 {renderRightRail()}
               </div>
-            </Tabs.Content>
-
-            <Tabs.Content value="signoff" className="outline-none">
               <section className="rounded-2xl border border-emerald-500/25 bg-slate-900/95 p-5 shadow-[0_0_28px_-8px_rgba(52,211,153,0.2)]">
                 <div className="mb-4 flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-400" aria-hidden />

@@ -60,3 +60,19 @@ Fully exercising definitions, versions, submissions, webhook HMAC deliveries, an
 | RBAC / scope / CSEP manual matrix | **Partially covered** by new tests; complete in staging. |
 
 When staging is available, attach screenshots and HTTP traces to this packet or your release ticket and mark the pending rows complete.
+
+## 6. Revenue pilot sign-off (optional appendix)
+
+Use when a **paid pilot** completes staging or production validation. Copy rows from [pilot-qa-signoff.md](./pilot-qa-signoff.md) and [pilot-staging-and-env.md](./pilot-staging-and-env.md).
+
+| Criterion | Staging | Production pilot |
+| --- | --- | --- |
+| Migrations applied (evidence attached) | ☐ | ☐ |
+| `npm run verify:release` green on release commit | ☐ | ☐ |
+| Isolation / RBAC spot tests ([pilot-qa-signoff](./pilot-qa-signoff.md)) | ☐ | ☐ |
+| Happy path per [pilot-sku](./pilot-sku.md) | ☐ | ☐ |
+| Billing (test or live per contract) | ☐ | ☐ |
+| Legal / privacy review ([pilot-legal-and-agreements](./pilot-legal-and-agreements.md)) | ☐ | ☐ |
+| Owner approval name + date | | |
+
+**Waived checklist items** (must match pilot contract): _e.g. document-only search — see pilot-sku waivers table._

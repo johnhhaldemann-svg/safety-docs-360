@@ -80,13 +80,13 @@
       "surfaceScope": "both",
       "standardType": "osha_ref",
       "title": "Federal OSHA construction baseline",
-      "summary": "Use federal OSHA 29 CFR Part 1926 as the baseline construction profile when the selected state is not covered by a state-plan delta.",
+      "summary": "Use federal OSHA 29 CFR Part 1926 as the baseline construction profile for covered construction work unless an OSHA-approved State Plan applies to the project.",
       "applicability": {},
       "content": {
-        "body": "Federal OSHA remains the baseline construction standard set for CSEP and PESHEP unless a selected OSHA-approved State Plan introduces additional or different requirements that must be layered into the draft and review workflow.",
+        "body": "Federal OSHA construction standards in 29 CFR Part 1926 set baseline safety and health expectations for covered work. Verify that the issued plan addresses housekeeping, training, first aid, emergency response, and PPE requirements that apply to this scope.",
         "bullets": [
-          "Confirm project planning addresses housekeeping, training, first aid, emergency response, and PPE expectations from the federal construction baseline.",
-          "When a selected state does not have a seeded state-plan delta, keep the federal baseline active and flag the draft as federal OSHA."
+          "Align cited Part 1926 references with the current published regulatory text and any project-specific obligations from the owner or AHJ.",
+          "When an OSHA-approved State Plan applies to the work, reconcile this federal baseline with the applicable state-plan requirements before field issue."
         ],
         "oshaRefs": [
           "29 CFR 1926 Subpart C - General Safety and Health Provisions",
@@ -97,7 +97,7 @@
           "29 CFR 1926.28 - Personal protective equipment",
           "29 CFR 1926.35 - Employee emergency action plans"
         ],
-        "builderGuidance": "Apply the federal OSHA construction baseline unless the governing state resolves to a seeded state-plan jurisdiction.",
+        "builderGuidance": "Keep the federal OSHA (29 CFR Part 1926) profile active unless the governing state is an OSHA-approved State Plan; then apply the matching state-plan standard set and verify overlays before issue.",
         "adminReviewNote": "This draft uses the federal OSHA baseline profile."
       },
       "sourceUrl": "https://www.osha.gov/laws-regs/regulations/standardnumber/1926/1926SubpartC",
@@ -144,7 +144,7 @@
       "applicability": {},
       "content": {
         "body": "California operates an OSHA-approved State Plan through Cal/OSHA. Reviewers should confirm that the draft aligns with current Cal/OSHA expectations, including project-specific written safety management requirements and any applicable Title 8 construction orders.",
-        "builderGuidance": "Show the draft as a California state-plan profile and direct reviewers to confirm current Cal/OSHA-specific requirements before release.",
+        "builderGuidance": "Use the California (Cal/OSHA) state-plan profile in the builder and confirm current Title 8 / construction-order expectations before final issue.",
         "adminReviewNote": "California state-plan delta active. Verify current Cal/OSHA / Title 8 alignment before approval.",
         "checklist": {
           "requiredFields": [

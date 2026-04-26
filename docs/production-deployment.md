@@ -2,6 +2,8 @@
 
 Use this checklist when cutting over a **new production** environment (Vercel + Supabase). Staging should mirror these steps on its own project.
 
+**Revenue pilot:** step-by-step staging isolation, env matrix, and evidence expectations are in [pilot-staging-and-env.md](./pilot-staging-and-env.md). Production day-of checklist: [pilot-production-cutover.md](./pilot-production-cutover.md).
+
 ## 0. Two pushes (Supabase vs Vercel)
 
 | Push | Target | Typical command / trigger |

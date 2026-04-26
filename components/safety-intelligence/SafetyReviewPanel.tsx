@@ -5,16 +5,15 @@ import * as Tabs from "@radix-ui/react-tabs";
 import { EmptyState, InlineMessage, ProvenanceBadge, StatusBadge } from "@/components/WorkspacePrimitives";
 import type { SafetyReviewGap, SafetyReviewPayload, SafetyReviewRow } from "@/types/safety-intelligence";
 
-type ReviewTab = "all" | "permit" | "training" | "ppe";
+type ReviewTab = "gaps" | "permits" | "training_ppe";
 
 function humanizeCode(value: string) {
   return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
 function summaryCardTone(tab: ReviewTab) {
-  if (tab === "permit") return "border-[rgba(217,83,79,0.16)] bg-[rgba(255,242,242,0.92)]";
-  if (tab === "training") return "border-[var(--app-accent-surface-18)] bg-[rgba(239,245,255,0.95)]";
-  if (tab === "ppe") return "border-[rgba(217,164,65,0.18)] bg-[rgba(255,248,232,0.96)]";
+  if (tab === "permits") return "border-[rgba(217,83,79,0.16)] bg-[rgba(255,242,242,0.92)]";
+  if (tab === "training_ppe") return "border-[var(--app-accent-surface-18)] bg-[rgba(239,245,255,0.95)]";
   return "border-[rgba(138,150,168,0.18)] bg-[rgba(248,251,255,0.96)]";
 }
 
@@ -26,25 +25,20 @@ function toneForGap(gap: SafetyReviewGap | undefined) {
 }
 
 function rowMatchesTab(row: SafetyReviewRow, tab: ReviewTab) {
-  if (tab === "all") return row.gaps.length > 0;
-  if (tab === "permit") {
+  if (tab === "gaps") return row.gaps.length > 0;
+  if (tab === "permits") {
     return (
       row.expectedPermitTriggers.length > 0 ||
       row.permitTriggers.length > 0 ||
       row.gaps.some((gap) => gap.domain === "permit")
     );
   }
-  if (tab === "training") {
-    return (
-      row.expectedTrainingRequirements.length > 0 ||
-      row.trainingRequirements.length > 0 ||
-      row.gaps.some((gap) => gap.domain === "training")
-    );
-  }
   return (
+    row.expectedTrainingRequirements.length > 0 ||
+    row.trainingRequirements.length > 0 ||
     row.expectedPpeRequirements.length > 0 ||
     row.ppeRequirements.length > 0 ||
-    row.gaps.some((gap) => gap.domain === "ppe")
+    row.gaps.some((gap) => gap.domain === "training" || gap.domain === "ppe")
   );
 }
 
@@ -195,10 +189,13 @@ export function SafetyReviewPanel({
   loading: boolean;
 }) {
   const tabs: Array<{ value: ReviewTab; label: string; count: number }> = [
-    { value: "all", label: "All gaps", count: review?.summary.totalGaps ?? 0 },
-    { value: "permit", label: "Permit matrix", count: review?.summary.permitGaps ?? 0 },
-    { value: "training", label: "Training review", count: review?.summary.trainingGaps ?? 0 },
-    { value: "ppe", label: "PPE review", count: review?.summary.ppeGaps ?? 0 },
+    { value: "gaps", label: "Gaps", count: review?.summary.totalGaps ?? 0 },
+    { value: "permits", label: "Permits", count: review?.summary.permitGaps ?? 0 },
+    {
+      value: "training_ppe",
+      label: "Training & PPE",
+      count: (review?.summary.trainingGaps ?? 0) + (review?.summary.ppeGaps ?? 0),
+    },
   ];
 
   if (loading && !review) {
@@ -233,7 +230,7 @@ export function SafetyReviewPanel({
       </div>
       {review.warning ? <InlineMessage tone="warning">{review.warning}</InlineMessage> : null}
 
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-3">
         {tabs.map((tab) => (
           <div
             key={tab.value}
@@ -242,13 +239,13 @@ export function SafetyReviewPanel({
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-text)]">{tab.label}</p>
             <p className="mt-1 text-xl font-bold text-[var(--app-text-strong)]">{tab.count}</p>
             <p className="mt-0.5 text-[10px] text-[var(--app-text)]">
-              {tab.value === "all" ? `${review.rowCount} scoped row${review.rowCount === 1 ? "" : "s"}` : "Coverage gaps in this domain"}
+              {tab.value === "gaps" ? `${review.rowCount} scoped row${review.rowCount === 1 ? "" : "s"}` : "Coverage gaps in this domain"}
             </p>
           </div>
         ))}
       </div>
 
-      <Tabs.Root defaultValue="all" className="space-y-3">
+      <Tabs.Root defaultValue="gaps" className="space-y-3">
         <Tabs.List className="flex flex-wrap gap-1.5 rounded-xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.8)] p-1.5">
           {tabs.map((tab) => (
             <Tabs.Trigger

@@ -550,18 +550,8 @@ Use this draft weather overlay:
     );
 
     expect(scopeSection?.table).toBeNull();
-    expect(scopeSection?.subsections).toEqual([
-      {
-        title: "Project Name",
-        body: "Placeholder for the final project name to be confirmed before release.",
-        bullets: [],
-      },
-      {
-        title: "Governing State",
-        body: "Indicates WI is the governing state for this project's requirements.",
-        bullets: [],
-      },
-    ]);
+    expect(scopeSection?.subsections ?? []).toEqual([]);
+    expect(scopeSection?.body).toMatch(/project summary|trade|scope|phase/i);
   });
 
   it("groups PPE programs into per-program subsections instead of flattening each metadata row", () => {

@@ -243,7 +243,6 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       expect.arrayContaining([
         "definitions",
         "jurisdiction_profile",
-        "project_information",
         "trade_summary",
         "scope_of_work",
         "site_specific_notes",
@@ -255,15 +254,10 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         "program_ppe__safety_glasses__base",
       ])
     );
+    expect(keys).not.toContain("project_information");
     expect(keys.slice(0, 2)).toEqual(["definitions", "jurisdiction_profile"]);
-    expect(keys.indexOf("jurisdiction_profile")).toBeLessThan(
-      keys.indexOf("project_information")
-    );
-    // Scope / project setup: scope and site notes precede project identity tables; tables are not
-    // deferred after narrative blocks (e.g. enforcement) in sectionMap order.
-    expect(keys.indexOf("scope_of_work")).toBeLessThan(keys.indexOf("project_information"));
-    expect(keys.indexOf("site_specific_notes")).toBeLessThan(keys.indexOf("project_information"));
-    expect(keys.indexOf("project_information")).toBeLessThan(keys.indexOf("trade_summary"));
+    expect(keys.indexOf("jurisdiction_profile")).toBeLessThan(keys.indexOf("scope_of_work"));
+    expect(keys.indexOf("scope_of_work")).toBeLessThan(keys.indexOf("trade_summary"));
     expect(draft.ruleSummary.siteRestrictions).toContain("No A-frame ladders.");
     expect(draft.ruleSummary.trainingRequirements).toContain("OSHA 10");
     expect(draft.conflictSummary.total).toBe(1);
@@ -700,27 +694,27 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         }),
         expect.objectContaining({
           title: "5.6.1 Fit for duty",
-          body: expect.stringMatching(/Minimum Requirement:/i),
+          body: expect.stringMatching(/Workers must be fit for assigned tasks/i),
         }),
         expect.objectContaining({
           title: "5.6.2 Hydration",
-          body: expect.stringMatching(/Minimum Requirement:[\s\S]*[Ww]ater/),
+          body: expect.stringMatching(/clean drinking water/i),
         }),
         expect.objectContaining({
           title: "5.6.3 Fatigue management",
-          body: expect.stringMatching(/Minimum Requirement:/i),
+          body: expect.stringMatching(/Schedule breaks that match the work and weather/i),
         }),
         expect.objectContaining({
           title: "5.6.4 Sanitation and hygiene",
-          body: expect.stringMatching(/Minimum Requirement:[\s\S]*[Rr]estroom/),
+          body: expect.stringMatching(/restroom and handwashing access/i),
         }),
         expect.objectContaining({
           title: "5.6.5 Exposure management",
-          body: expect.stringMatching(/Minimum Requirement:/i),
+          body: expect.stringMatching(/chemical, noise, dust/i),
         }),
         expect.objectContaining({
           title: "5.6.6 Worker wellness / reporting concerns",
-          body: expect.stringMatching(/Minimum Requirement:/i),
+          body: expect.stringMatching(/Report injuries, near misses/i),
         }),
         expect.objectContaining({
           title: "5.7 Incident Reporting and Investigation",
@@ -732,27 +726,27 @@ describe("buildGeneratedSafetyPlanDraft", () => {
         }),
         expect.objectContaining({
           title: "5.7.1 Immediate reporting",
-          body: expect.stringMatching(/Minimum Requirement:/i),
+          body: expect.stringMatching(/Report work-related injuries/i),
         }),
         expect.objectContaining({
           title: "5.7.2 Scene protection and access control",
-          body: expect.stringMatching(/Minimum Requirement:.*[Ss]cene/i),
+          body: expect.stringMatching(/Stabilize the situation[\s\S]*[Ss]cene/i),
         }),
         expect.objectContaining({
           title: "5.7.3 Supervisor responsibilities",
-          body: expect.stringMatching(/Minimum Requirement:.*[Ss]upervision/i),
+          body: expect.stringMatching(/Supervision shall confirm that reporting is in progress/i),
         }),
         expect.objectContaining({
           title: "5.7.4 Investigation and documentation",
-          body: expect.stringMatching(/Minimum Requirement:.*[Ii]nvestigat/i),
+          body: expect.stringMatching(/Perform a fact-based review/i),
         }),
         expect.objectContaining({
           title: "5.7.5 Corrective actions and follow-up",
-          body: expect.stringMatching(/Minimum Requirement:.*[Cc]orrective/i),
+          body: expect.stringMatching(/Document corrective and preventive actions/i),
         }),
         expect.objectContaining({
           title: "5.7.6 Near-miss reporting",
-          body: expect.stringMatching(/Minimum Requirement:[\s\S]*[Nn]ear.miss/),
+          body: expect.stringMatching(/Report near misses that could have caused serious injury/i),
         }),
       ]),
     });
@@ -1015,7 +1009,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     expect(draft.sectionMap.find((section) => section.key === "sub_tier_contractor_management")).toMatchObject({
       body: null,
       table: {
-        columns: ["Oversight Topic", "Minimum Requirement", "Responsible Party"],
+        columns: ["Oversight Topic", "Requirement", "Responsible Party"],
         rows: expect.arrayContaining([
           expect.arrayContaining([
             "Fire Protection",

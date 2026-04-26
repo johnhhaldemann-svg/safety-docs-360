@@ -69,6 +69,8 @@ See [`docs/dev-setup.md`](docs/dev-setup.md) for Supabase workflow, cron, E2E se
 
 **Production launch:** step-by-step checklist in [`docs/production-deployment.md`](docs/production-deployment.md). Operations and go-to-market alignment in [`docs/support-onboarding-runbook.md`](docs/support-onboarding-runbook.md).
 
+**Revenue-ready pilot (1–3 paying customers):** use the pilot pack in order — [`docs/pilot-sku.md`](docs/pilot-sku.md) (scope), [`docs/pilot-staging-and-env.md`](docs/pilot-staging-and-env.md) (staging + env), [`docs/pilot-qa-signoff.md`](docs/pilot-qa-signoff.md) (QA tables), [`docs/pilot-billing-cutover.md`](docs/pilot-billing-cutover.md), [`docs/pilot-notifications-inventory.md`](docs/pilot-notifications-inventory.md), [`docs/pilot-legal-and-agreements.md`](docs/pilot-legal-and-agreements.md), [`docs/pilot-production-cutover.md`](docs/pilot-production-cutover.md). Post-pilot product gaps: [`docs/post-pilot-checklist-backlog.md`](docs/post-pilot-checklist-backlog.md).
+
 ## Scripts
 
 | Command | Description |

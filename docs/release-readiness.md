@@ -2,6 +2,8 @@
 
 Use this before cutting a preview or production release.
 
+**Paid pilot:** extend the smoke and sign-off tables in [pilot-qa-signoff.md](./pilot-qa-signoff.md) and record waivers in [pilot-sku.md](./pilot-sku.md).
+
 ## Local verification
 
 Run:

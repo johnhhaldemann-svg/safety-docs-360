@@ -35,6 +35,7 @@ import {
   buildSteelCommonOverlappingTradesSubsections,
   buildSteelErectionOverlaySections,
   buildSteelErectionPlan,
+  filterSteelCommonOverlappingBullets,
   hasSteelErectionScope,
   isSteelErectionPackage,
   STEEL_OVERLAP_TRADES_CSEP_INTRO,
@@ -985,6 +986,19 @@ function normalizeCsepSections(sections: GeneratedSafetyPlanSection[]) {
   return compactCsepSections(mergedSections);
 }
 
+const CSEP_BASE_DEFINITION_KEYS_SUPERSEDED_WHEN_STEEL_ERECTION: ReadonlySet<string> = new Set([
+  "competent person",
+  "qualified person",
+  "controlling contractor",
+  "exclusion zone",
+]);
+
+function csepDefinitionTermPrefixKey(line: string): string | null {
+  const delimiter = line.indexOf(":");
+  if (delimiter === -1) return null;
+  return line.slice(0, delimiter).trim().toLowerCase();
+}
+
 function buildDefinitionsSection(
   generationContext: SafetyPlanGenerationContext,
   inlineOshaRefs: string[],
@@ -1015,17 +1029,65 @@ function buildDefinitionsSection(
   ];
 
   const steelDefinitions = [
-    "Qualified Rigger: A rigger who meets the qualified-person criteria and is specifically competent to select, inspect, and use rigging for the lift being performed.",
-    "Signal Person: A qualified individual who directs crane and hoist movements using standard hand or radio signals and is in clear communication with the operator.",
-    "Leading Edge: The unprotected edge of a floor, roof, deck, or formwork surface that changes location as additional sections, panels, or plates are added.",
-    "Controlled Access Zone (CAZ): A clearly defined and restricted work area where access is limited to authorized personnel engaged in specific operations such as leading-edge work, decking, connecting, or other controlled steel-erection activities. The CAZ boundary shall be established, marked, and maintained to prevent entry by employees not involved in the operation.",
-    "Connector: An employee who, working aloft, connects structural members and components as they are placed, bolted, or welded in position.",
-    "Suspended Load: Any load lifted by a crane, hoist, rigging, or derrick that is not landed and secured; personnel must remain clear of the load path and drop zone.",
-    "Critical Lift: A lift that exceeds normal rigging complexity, load rating, or risk thresholds (tandem picks, blind picks, over 75 percent of chart, picks over occupied areas) and requires a written plan.",
+    "Steel Erection: The construction, alteration, or installation of structural steel members, metal decking, joists, bolting, welding, and related steel components.",
+    "Controlling Contractor: The GC/CM or employer with overall responsibility for site coordination, access, sequencing, and providing required steel erection information.",
+    "Steel Erector: The contractor responsible for receiving, hoisting, setting, connecting, stabilizing, and completing the structural steel frame.",
+    "Site-Specific Erection Plan: A written plan identifying the erection sequence, crane locations, fall protection, hoisting methods, access, stability controls, and special hazards.",
+    "Erection Sequence: The planned order in which columns, beams, joists, decking, bracing, and connections are installed.",
+    "Structural Steel: Steel members that support building loads, including columns, beams, girders, joists, bracing, and other primary or secondary framing.",
+    "Connector: An employee who works aloft to connect structural members as they are landed, bolted, or welded into position.",
+    "Column Anchorage: The anchor rods, base plates, bolts, nuts, grout, and supporting concrete/masonry that hold columns in position.",
+    "Anchor Rod / Anchor Bolt: Embedded or installed bolts used to secure column base plates or other steel components to the foundation.",
+    "Base Plate: A steel plate at the bottom of a column that transfers load into the foundation and connects to anchor rods.",
+    "Temporary Bracing / Guying: Temporary supports used to stabilize steel until the permanent structural system is complete.",
+    "Plumbing: Aligning columns or frames vertically and within tolerance before final bolting or welding.",
+    "Initial Connection: The first bolts or welds installed to safely hold a member in place before the final connection is completed.",
+    "Final Bolting: Completing the required bolted connection after alignment, plumbing, and fit-up are verified.",
+    "Double Connection: A connection where two members frame into opposite sides of a column web or shared connection point.",
+    "Open-Web Steel Joist: A lightweight steel framing member used to support floors or roofs that requires proper bridging and stability controls.",
+    "Joist Bridging: Bracing installed between joists to prevent movement, rotation, or collapse during and after erection.",
+    "Metal Decking: Steel floor or roof deck panels installed over structural framing; OSHA treats integrated metal roof decking with insulation/clips as steel erection when installed as part of the decking sequence.",
+    "Deck Bundle: A bundle of metal decking lifted or landed on the structure that must be placed only where the steel can support it.",
+    "Controlled Decking Zone (CDZ): A controlled area where decking work is performed under specific access and fall protection rules.",
+    "Leading Edge: The unprotected edge of decking, floor, roof, or steel work that changes as work progresses.",
+    "Fall Protection: Systems used to prevent or arrest falls, including PFAS, guardrails, safety nets, restraint, positioning, or approved controlled access methods.",
+    "Personal Fall Arrest System (PFAS): A system including anchorage, harness, connector, lanyard/SRL, and deceleration equipment used to arrest a fall.",
+    "Anchorage: A secure point of attachment for lifelines, lanyards, or deceleration devices.",
+    "Self-Retracting Lifeline (SRL): A fall arrest device that automatically retracts and locks during a fall.",
+    "Controlled Access Zone (CAZ): A restricted area where only authorized workers may enter due to leading edge, decking, connecting, hoisting, or overhead hazards.",
+    "Exclusion Zone / Drop Zone: A controlled area below or around active steel erection where workers are kept out due to suspended loads or falling-object exposure.",
+    "Suspended Load: Any load lifted by a crane, hoist, or rigging that has not been landed and secured.",
+    "Rigging: Slings, shackles, hooks, chokers, spreader bars, and other equipment used to attach and lift steel members.",
+    "Qualified Rigger: A person qualified by training, experience, or knowledge to select, inspect, and use rigging for the specific lift.",
+    "Signal Person: A qualified person who directs crane movement using standard hand, voice, or radio signals.",
+    "Hoisting: Lifting and moving steel members or materials by crane, hoist, or derrick.",
+    "Critical Lift: A lift with higher risk, such as heavy picks, blind picks, tandem lifts, lifts near power lines, or lifts near capacity limits.",
+    "Multiple-Lift Rigging / Christmas Treeing: Hoisting more than one steel member at a time using an approved multiple-lift rigging assembly.",
+    "Tagline: A rope used to help control load rotation and positioning during hoisting.",
+    "Load Path: The travel route of a suspended load from pick point to landing location.",
+    "Landing Zone: The planned location where a lifted steel member, joist, or deck bundle will be set down.",
+    "Struck-By Hazard: Exposure to being hit by swinging steel, moving equipment, falling materials, or released hardware.",
+    "Caught-In / Caught-Between Hazard: Exposure to being pinched, crushed, or trapped between steel members, equipment, or fixed objects.",
+    "Falling Object Protection: Controls used to prevent tools, bolts, deck sheets, weld rods, or materials from falling to lower levels.",
+    "Hot Work: Welding, cutting, grinding, torch work, or other spark-producing activity.",
+    "Fire Watch: A trained person assigned to monitor hot work areas for fire hazards during and after hot work.",
+    "Shear Connector: A welded or attached steel component used to connect decking or concrete slab systems to structural steel.",
+    "Slip-Critical Connection: A bolted connection designed to resist movement through bolt tension and friction.",
+    "Snug-Tight Condition: A bolted condition where the plies are brought into firm contact before final tightening requirements, where applicable.",
+    "Competent Person: A person capable of identifying existing and predictable hazards and authorized to take prompt corrective action.",
+    "Qualified Person: A person who has demonstrated the ability to solve or resolve problems related to the work by training, certification, education, or experience.",
+    "Structural Stability: The condition where the steel frame or member can safely support imposed loads without collapse, rotation, displacement, or unintended movement.",
+    "Systems-Engineered Metal Building: A pre-engineered metal building system with primary frames, secondary framing, bracing, sheeting, and manufacturer-specific erection requirements.",
   ];
 
   const definitions = hasSteelErectionScope(generationContext, operations)
-    ? [...baseDefinitions, ...steelDefinitions]
+    ? [
+        ...baseDefinitions.filter((line) => {
+          const key = csepDefinitionTermPrefixKey(line);
+          return !key || !CSEP_BASE_DEFINITION_KEYS_SUPERSEDED_WHEN_STEEL_ERECTION.has(key);
+        }),
+        ...steelDefinitions,
+      ]
     : baseDefinitions;
 
   return {
@@ -2076,32 +2138,32 @@ function buildHealthAndWellnessExpectationsSubsections(
     },
     {
       title: "5.6.1 Fit for duty",
-      body: "Minimum Requirement: Workers must be fit for assigned tasks. Do not work when illness, injury, or fatigue would make the job unsafe. Supervision shall reassign or stand down workers who are not fit for exposed, safety-sensitive, or at-height work.",
+      body: "Workers must be fit for assigned tasks. Do not work when illness, injury, or fatigue would make the job unsafe. Supervision shall reassign or stand down workers who are not fit for exposed, safety-sensitive, or at-height work.",
       bullets: [],
     },
     {
       title: "5.6.2 Hydration",
-      body: "Minimum Requirement: Provide access to clean drinking water at all times. Increase water availability and break frequency during hot weather, high-exertion work, or extended steel erection or outdoor activity.",
+      body: "Provide access to clean drinking water at all times. Increase water availability and break frequency during hot weather, high-exertion work, or extended steel erection or outdoor activity.",
       bullets: [],
     },
     {
       title: "5.6.3 Fatigue management",
-      body: "Minimum Requirement: Schedule breaks that match the work and weather. Watch for heat stress, exhaustion, or loss of focus. Stop or re-plan work when fatigue would reduce safe performance.",
+      body: "Schedule breaks that match the work and weather. Watch for heat stress, exhaustion, or loss of focus. Stop or re-plan work when fatigue would reduce safe performance.",
       bullets: [],
     },
     {
       title: "5.6.4 Sanitation and hygiene",
-      body: "Minimum Requirement: Maintain clean restroom and handwashing access for all workers. Service facilities on a regular schedule and keep them reachable throughout the shift.",
+      body: "Maintain clean restroom and handwashing access for all workers. Service facilities on a regular schedule and keep them reachable throughout the shift.",
       bullets: [],
     },
     {
       title: "5.6.5 Exposure management",
-      body: "Minimum Requirement: When chemical, noise, dust, or similar site exposures apply, use the project controls in place (PPE, engineering, work rotation, decontamination). Report symptoms, suspected overexposures, or control failures to supervision or the site safety lead.",
+      body: "When chemical, noise, dust, or similar site exposures apply, use the project controls in place (PPE, engineering, work rotation, decontamination). Report symptoms, suspected overexposures, or control failures to supervision or the site safety lead.",
       bullets: [],
     },
     {
       title: "5.6.6 Worker wellness / reporting concerns",
-      body: "Minimum Requirement: Report injuries, near misses, and unsafe conditions promptly. Workers may raise health and safety concerns to supervision or site safety. Support first-aid access and follow-up with medical or occupational guidance when required, without fear of reprisal for good-faith reporting.",
+      body: "Report injuries, near misses, and unsafe conditions promptly. Workers may raise health and safety concerns to supervision or site safety. Support first-aid access and follow-up with medical or occupational guidance when required, without fear of reprisal for good-faith reporting.",
       bullets: [],
     },
   ];
@@ -2132,32 +2194,32 @@ function buildIncidentReportingInvestigationSubsections(
     },
     {
       title: "5.7.1 Immediate reporting",
-      body: "Minimum Requirement: Report work-related injuries, serious illnesses, and dangerous occurrences to supervision and the employer as soon as the scene is safe, and within any site or contract time limit. Escalate to site safety and the owner or GC/CM when program rules, law, or contract require. Treat hospitalization, emergency medical response, or potential recordable and fatality events with same-shift notification. Do not wait for a full write-up before starting the report chain.",
+      body: "Report work-related injuries, serious illnesses, and dangerous occurrences to supervision and the employer as soon as the scene is safe, and within any site or contract time limit. Escalate to site safety and the owner or GC/CM when program rules, law, or contract require. Treat hospitalization, emergency medical response, or potential recordable and fatality events with same-shift notification. Do not wait for a full write-up before starting the report chain.",
       bullets: [],
     },
     {
       title: "5.7.2 Scene protection and access control",
-      body: "Minimum Requirement: Stabilize the situation, stop additional exposure, and protect the scene. Mark or barricade the area, control access, and keep lines of fire clear for EMS. Do not move equipment or materials or alter the scene for convenience until the competent investigation lead releases the scene, except to prevent further injury, unstable loads, or life safety risk.",
+      body: "Stabilize the situation, stop additional exposure, and protect the scene. Mark or barricade the area, control access, and keep lines of fire clear for EMS. Do not move equipment or materials or alter the scene for convenience until the competent investigation lead releases the scene, except to prevent further injury, unstable loads, or life safety risk.",
       bullets: [],
     },
     {
       title: "5.7.3 Supervisor responsibilities",
-      body: "Minimum Requirement: Supervision shall confirm that reporting is in progress, that affected workers get medical or first aid as needed, and that witnesses and involved crew are identified. Supervision shall assign an investigator, preserve evidence, and keep restart or demobilization under their approval until the initial facts are recorded.",
+      body: "Supervision shall confirm that reporting is in progress, that affected workers get medical or first aid as needed, and that witnesses and involved crew are identified. Supervision shall assign an investigator, preserve evidence, and keep restart or demobilization under their approval until the initial facts are recorded.",
       bullets: [],
     },
     {
       title: "5.7.4 Investigation and documentation",
-      body: "Minimum Requirement: Perform a fact-based review: who, what, when, where, training and permits, equipment, and environmental factors. Use interviews, photos or sketches, and JHA, permit, and equipment records as needed. File the investigation record per employer and site rules, including regulatory and owner notifications when required. Focus on system causes, not blame alone.",
+      body: "Perform a fact-based review: who, what, when, where, training and permits, equipment, and environmental factors. Use interviews, photos or sketches, and JHA, permit, and equipment records as needed. File the investigation record per employer and site rules, including regulatory and owner notifications when required. Focus on system causes, not blame alone.",
       bullets: [],
     },
     {
       title: "5.7.5 Corrective actions and follow-up",
-      body: "Minimum Requirement: Document corrective and preventive actions with owners and dates. Close items only after the fix is in place and verified. Re-brief the crew and update the JHA, tools, or training if the event shows a weak control. Track repeat events for trend review.",
+      body: "Document corrective and preventive actions with owners and dates. Close items only after the fix is in place and verified. Re-brief the crew and update the JHA, tools, or training if the event shows a weak control. Track repeat events for trend review.",
       bullets: [],
     },
     {
       title: "5.7.6 Near-miss reporting",
-      body: "Minimum Requirement: Report near misses that could have caused serious injury, especially unplanned release of energy, line-of-fire events, and fall or dropped-load scenarios. Use the same reporting path as for injuries when the site requires; record near misses for lessons learned and trend review whether or not someone was hurt.",
+      body: "Report near misses that could have caused serious injury, especially unplanned release of energy, line-of-fire events, and fall or dropped-load scenarios. Use the same reporting path as for injuries when the site requires; record near misses for lessons learned and trend review whether or not someone was hurt.",
       bullets: [],
     },
   ];
@@ -2207,6 +2269,15 @@ function buildStandaloneSubsectionContent(params: {
   };
 }
 
+function formatStructuredDetailParagraph(column: string, value: string): string {
+  const label = column.trim();
+  const cell = value.trim() || "N/A";
+  if (/^minimum requirements?$/i.test(label) || /^requirements?$/i.test(label)) {
+    return cell;
+  }
+  return `${column}: ${cell}`;
+}
+
 function buildStructuredRowSubsections(
   columns: string[],
   rows: string[][]
@@ -2219,7 +2290,7 @@ function buildStructuredRowSubsections(
       const paragraphs = detailColumns
         .map((column, columnIndex) => {
           const value = cleanFinalText(row[columnIndex + 1]) || "N/A";
-          return `${column}: ${value}`;
+          return formatStructuredDetailParagraph(column, value);
         })
         .filter(Boolean);
 
@@ -3346,24 +3417,6 @@ function buildCsepSelectedSections(params: {
     params.operations.some((operation) => operation.hazardCategories.length > 0);
 
   const sectionsByKey: Partial<Record<CsepBuilderBlockKey, GeneratedSafetyPlanSection>> = {
-    project_information: {
-      key: "project_information",
-      title: CSEP_BUILDER_BLOCK_TITLES.project_information,
-      table: {
-        columns: ["Field", "Value"],
-        rows: [
-          ["Project Name", project.projectName || "N/A"],
-          ["Project Number", project.projectNumber ?? "N/A"],
-          ["Project Address", project.projectAddress ?? "N/A"],
-          ["Owner / Client", project.ownerClient ?? "N/A"],
-          [
-            "GC / CM / program partners (all with site safety or logistics authority; list each)",
-            project.gcCm ?? "N/A",
-          ],
-          ["Governing State", params.generationContext.documentProfile.governingState ?? "N/A"],
-        ],
-      },
-    },
     contractor_information: {
       key: "contractor_information",
       title: CSEP_BUILDER_BLOCK_TITLES.contractor_information,
@@ -3514,9 +3567,12 @@ function buildCsepSelectedSections(params: {
             ? buildSteelCommonOverlappingTradesSubsections()
             : undefined,
           bullets: (() => {
-            const merged = steelErectionInScopeForOverlap
-              ? dedupe(overlapInput)
-              : dedupe([...interfaceTrades, ...overlapInput]);
+            if (steelErectionInScopeForOverlap) {
+              const merged = dedupe(overlapInput);
+              const filtered = filterSteelCommonOverlappingBullets(merged);
+              return filtered.length ? filtered : undefined;
+            }
+            const merged = dedupe([...interfaceTrades, ...overlapInput]);
             return merged.length ? merged : undefined;
           })(),
           table: null,
@@ -3688,7 +3744,7 @@ function buildCsepSelectedSections(params: {
           bullets: [],
         },
         ...buildStructuredRowSubsections(
-          ["Restricted Zone", "Minimum Requirement", "Responsible Party"],
+          ["Restricted Zone", "Requirement", "Responsible Party"],
           profile.rows
         ),
       ]
@@ -3704,15 +3760,15 @@ function buildCsepSelectedSections(params: {
       body: combineParagraphs([securityInput], generalBody),
       subsections: [
         ...buildStructuredRowSubsections(
-          ["Access Topic", "Minimum Requirement", "Responsible Party"],
+          ["Access Topic", "Requirement", "Responsible Party"],
           securityRows
         ),
         ...buildStructuredRowSubsections(
-          ["Delivery Vehicle and Driver Control", "Minimum Requirement", "Responsible Party"],
+          ["Delivery Vehicle and Driver Control", "Requirement", "Responsible Party"],
           deliveryRows
         ),
         ...buildStructuredRowSubsections(
-          ["Laydown and staging", "Minimum Requirement", "Responsible Party"],
+          ["Laydown and staging", "Requirement", "Responsible Party"],
           laydownRows
         ),
         ...tradeAccessSubsections,
@@ -4056,7 +4112,7 @@ function buildCsepSelectedSections(params: {
         "The contractor shall monitor field execution, document inspections and corrective actions, and maintain reporting records that demonstrate ongoing compliance. All required permits shall be obtained before the task begins, fully completed, kept active for the duration of the work as required, and maintained on site for review by supervision, CM / HSE, or other authorized representatives."
       ),
       table: {
-        columns: ["Monitoring Activity", "Minimum Frequency", "Responsible Party", "Required Record"],
+        columns: ["Monitoring Activity", "Requirement", "Led By", "Required Record"],
         rows: [
           ["Pre-task plan / JHA review", "Each shift and when the task changes", "Foreman / Crew Lead", "Daily pre-task record"],
           ["Field safety inspection", "Daily or as triggered by conditions", "Competent Person / Superintendent", "Inspection log"],
@@ -4110,7 +4166,7 @@ function buildCsepSelectedSections(params: {
         "Field briefings, toolbox meetings, and coordination huddles keep the CSEP current with trade and site conditions."
       ),
       table: {
-        columns: ["Meeting / Engagement Activity", "Minimum Cadence", "Led By", "Required Output"],
+        columns: ["Meeting / Engagement Activity", "Requirement", "Led By", "Required Output"],
         rows: [
           ["Pre-task planning / JHA", "Each shift and before new work phases", "Foreman / Crew Lead", "Task plan, hazards, controls, permits, and PPE reviewed with the crew"],
           ["Toolbox / safety meeting", "Weekly or as required by site policy", "Superintendent / Safety Lead", "Attendance and topic record"],
@@ -4132,7 +4188,7 @@ function buildCsepSelectedSections(params: {
       title: "Sub-Tier Contractor Management",
       body: null,
       table: {
-        columns: ["Oversight Topic", "Minimum Requirement", "Responsible Party"],
+        columns: ["Oversight Topic", "Requirement", "Responsible Party"],
         rows: overlapRows.length
           ? overlapRows.map((item) => [
               item,
@@ -4153,10 +4209,7 @@ function buildCsepSelectedSections(params: {
       "Complete the subsections below before final turnover of the work area, permits, and records.";
     const closeOutBody = closeOutIntro;
     const closeOutAction = (minimum: string, party: string) => ({
-      bullets: [
-        `Minimum Requirement: ${minimum}`,
-        `Responsible Party: ${party}`,
-      ],
+      bullets: [minimum, `Responsible Party: ${party}`],
     });
 
     derivedFormatSections.push({
@@ -4215,7 +4268,7 @@ function buildCsepSelectedSections(params: {
       body:
         "Inspection and checklist tools shall be used at the listed frequencies to confirm conditions stay aligned with this CSEP.",
       table: {
-        columns: ["Checklist / Inspection", "Minimum Frequency", "Responsible Party", "Record / Trigger"],
+        columns: ["Checklist / Inspection", "Requirement", "Led By", "Required Output"],
         rows: [
           ["Pre-task plan / JHA", "Each shift and before task changes", "Foreman / Crew", "Required before starting new or changed work"],
           ["PPE and tool inspection", "Prior to use", "Each user / Operator", "Remove damaged gear or equipment from service"],

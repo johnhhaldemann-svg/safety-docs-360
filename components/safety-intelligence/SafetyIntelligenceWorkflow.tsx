@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import * as Tabs from "@radix-ui/react-tabs";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AdminReviewQueue } from "@/components/safety-intelligence/AdminReviewQueue";
 import { DocumentGenerationPanel } from "@/components/safety-intelligence/DocumentGenerationPanel";
@@ -21,6 +22,7 @@ import {
   InlineMessage,
   ProvenanceBadge,
   StatusBadge,
+  WorkflowPath,
 } from "@/components/WorkspacePrimitives";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -60,6 +62,7 @@ export function SafetyIntelligenceWorkflow({
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
   const [loading, setLoading] = useState(true);
+  const [mainTab, setMainTab] = useState("intake");
   const scopedJobsiteId = fixedJobsiteId ?? selectedJobsiteId;
 
   useEffect(() => {
@@ -252,23 +255,6 @@ export function SafetyIntelligenceWorkflow({
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
-            {!fixedJobsiteId ? (
-              <label className="grid min-w-[220px] gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--app-text)]">
-                Review scope
-                <select
-                  value={selectedJobsiteId ?? ""}
-                  onChange={(event) => setSelectedJobsiteId(event.target.value || null)}
-                  className={`${appNativeSelectClassName} h-9 text-xs normal-case tracking-normal`}
-                >
-                  <option value="">All company work</option>
-                  {jobsites.map((jobsite) => (
-                    <option key={jobsite.id} value={jobsite.id}>
-                      {jobsite.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
             <Link
               href="/command-center"
               className="rounded-lg border border-[var(--app-border-strong)] bg-white/85 px-3 py-2 text-xs font-semibold text-[var(--app-text-strong)] hover:bg-white"
@@ -287,52 +273,70 @@ export function SafetyIntelligenceWorkflow({
 
       {status ? <InlineMessage tone={status.tone}>{status.message}</InlineMessage> : null}
 
-      <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_300px]">
-        <aside className="space-y-3 xl:sticky xl:top-4 xl:h-max">
-          <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-3 shadow-[var(--app-shadow-soft)]">
-            <p className="px-1 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--app-text)]">
-              Start here
-            </p>
-            <div className="mt-2 space-y-1.5">
-              {stages.map((stage, index) => (
-                <div
-                  key={stage.label}
-                  className={`rounded-xl border px-3 py-2 ${
-                    stage.complete
-                      ? "border-[rgba(38,166,91,0.22)] bg-[rgba(38,166,91,0.08)]"
-                      : stage.active
-                        ? "border-[var(--app-accent-surface-18)] bg-[var(--app-accent-surface-08)]"
-                        : "border-[var(--app-border)] bg-[var(--app-panel)]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-black text-[var(--app-text)]">{index + 1}</span>
-                    <StatusBadge
-                      label={stage.complete ? "Done" : stage.active ? "Now" : "Next"}
-                      tone={stage.complete ? "success" : stage.active ? "info" : "neutral"}
-                    />
-                  </div>
-                  <p className="mt-1 text-xs font-bold leading-4 text-[var(--app-text-strong)]">{stage.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </aside>
+      <Tabs.Root value={mainTab} onValueChange={setMainTab} className="space-y-4">
+        <Tabs.List className="flex flex-wrap gap-1.5 rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-1.5 shadow-[var(--app-shadow-soft)]">
+          {(
+            [
+              ["intake", "Intake"],
+              ["rules", "Rules & conflicts"],
+              ["generate", "Generate"],
+              ["review", "Review"],
+            ] as const
+          ).map(([value, label]) => (
+            <Tabs.Trigger
+              key={value}
+              value={value}
+              className="rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-[var(--app-text)] transition data-[state=active]:bg-[var(--app-accent-primary)] data-[state=active]:text-white data-[state=active]:shadow-[var(--app-shadow-primary-button)]"
+            >
+              {label}
+            </Tabs.Trigger>
+          ))}
+        </Tabs.List>
 
-        <main className="min-w-0 space-y-4">
+        <WorkflowPath
+          title="Workflow progress"
+          description="Four stages — complete intake before generating so outputs stay rule-grounded."
+          steps={stages.map((stage) => ({
+            label: stage.label,
+            detail: stage.detail,
+            active: stage.active,
+            complete: stage.complete,
+          }))}
+        />
+
+        <Tabs.Content value="intake" className="outline-none">
           <WorkflowPanel
-            eyebrow="Step 1"
+            eyebrow="Stage 1"
             title="Capture work package"
             description="Enter the task once. Safety Intelligence uses this as the source for rules, conflicts, and generation."
             aside={<StatusBadge label={latestDraft ? "Captured" : "Waiting"} tone={latestDraft ? "success" : "neutral"} />}
           >
+            {!fixedJobsiteId ? (
+              <label className="mb-4 grid max-w-md gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--app-text)]">
+                Review scope
+                <select
+                  value={selectedJobsiteId ?? ""}
+                  onChange={(event) => setSelectedJobsiteId(event.target.value || null)}
+                  className={`${appNativeSelectClassName} h-9 text-xs normal-case tracking-normal`}
+                >
+                  <option value="">All company work</option>
+                  {jobsites.map((jobsite) => (
+                    <option key={jobsite.id} value={jobsite.id}>
+                      {jobsite.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <TradeTaskIntakeForm trades={dashboard?.trades ?? []} onSubmit={handleIntake} initialJobsiteId={scopedJobsiteId} />
           </WorkflowPanel>
+        </Tabs.Content>
 
+        <Tabs.Content value="rules" className="outline-none">
           <WorkflowPanel
-            eyebrow="Step 2"
-            title="Review rule coverage"
-            description="A compact view of the deterministic checks before anything is generated."
+            eyebrow="Stage 2"
+            title="Rules & conflicts"
+            description="Deterministic checks before anything is generated."
             aside={
               <div className="flex flex-wrap items-center gap-2">
                 <ProvenanceBadge kind="rules" />
@@ -353,43 +357,42 @@ export function SafetyIntelligenceWorkflow({
           >
             {!fixedJobsiteId ? (
               <InlineMessage tone="neutral">
-                Company-wide review is broad. Pick a jobsite above when you want a tighter field-ready view.
+                Company-wide review is broad. Pick a jobsite in Intake when you want a tighter field-ready view.
               </InlineMessage>
             ) : null}
             <LiveRiskMatrix summary={dashboard?.summary ?? null} />
-            <details className="rounded-xl border border-[var(--app-border-strong)] bg-white/70 p-3">
-              <summary className="cursor-pointer text-xs font-bold text-[var(--app-text-strong)]">
-                Show live conflicts and detailed permit/training/PPE coverage
-              </summary>
-              <div className="mt-3 space-y-3">
-                <SimOpsMap conflicts={dashboard?.liveConflicts ?? []} />
-                <PermitTriggerPanel intake={latestIntake} />
-                <SafetyReviewPanel review={review} loading={loading} />
-              </div>
-            </details>
+            <div className="mt-4 space-y-3">
+              <SimOpsMap conflicts={dashboard?.liveConflicts ?? []} />
+              <PermitTriggerPanel intake={latestIntake} />
+            </div>
           </WorkflowPanel>
-        </main>
+        </Tabs.Content>
 
-        <aside className="space-y-4 xl:sticky xl:top-4 xl:h-max">
+        <Tabs.Content value="generate" className="outline-none">
           <WorkflowPanel
-            eyebrow="Step 3"
+            eyebrow="Stage 3"
             title="Generate draft"
             description="Generate after intake so the draft is tied to the rule context."
             aside={<StatusBadge label={generated ? "Ready" : "Draft"} tone={generated ? "success" : "info"} />}
           >
             <DocumentGenerationPanel onGenerate={handleGenerate} generated={generated} />
           </WorkflowPanel>
+        </Tabs.Content>
 
+        <Tabs.Content value="review" className="outline-none space-y-4">
           <WorkflowPanel
-            eyebrow="Handoff"
+            eyebrow="Stage 4"
             title="Review queue"
             description="Recent generated drafts waiting for approval."
             aside={<StatusBadge label={`${documents.length}`} tone={documents.length ? "info" : "neutral"} />}
           >
             <AdminReviewQueue documents={documents} />
           </WorkflowPanel>
-        </aside>
-      </div>
+          <WorkflowPanel eyebrow="Coverage" title="Permit · training · PPE review" description="Rule-based gap list for the current scope.">
+            <SafetyReviewPanel review={review} loading={loading} />
+          </WorkflowPanel>
+        </Tabs.Content>
+      </Tabs.Root>
     </div>
   );
 }

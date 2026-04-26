@@ -400,6 +400,14 @@ const steps: BuilderStep[] = [
   },
 ];
 
+/** Four phase tabs in the builder nav (each phase lists its PSHEP sections). */
+const PESHEP_PHASE_GROUPS: ReadonlyArray<{ title: string; stepIndexes: readonly number[] }> = [
+  { title: "Setup", stepIndexes: [0, 1] },
+  { title: "Scope", stepIndexes: [2, 3] },
+  { title: "Build", stepIndexes: [4, 5, 6] },
+  { title: "Review & Submit", stepIndexes: [7] },
+];
+
 const permitOptions = getPshsepCatalogOptions("permits_selected");
 const scopeOptions = getPshsepCatalogOptions("scope_of_work_selected");
 const highRiskFocusOptions = getPshsepCatalogOptions("high_risk_focus_areas");
@@ -1237,7 +1245,7 @@ export default function PESHEPUniversalPage() {
         </div>
       </details>
 
-      <div className="grid gap-4 xl:grid-cols-[230px_minmax(0,1fr)_310px]">
+      <div className="grid gap-4 xl:grid-cols-[230px_minmax(0,1fr)]">
         <BuilderSectionNav
           steps={steps}
           progress={sectionProgress}
@@ -1916,11 +1924,10 @@ export default function PESHEPUniversalPage() {
             </div>
           </div>
         </div>
+      </div>
 
+      <div className="mt-4 space-y-3">
         <BuilderSidePanel
-          steps={steps}
-          activeStep={step}
-          onSelectStep={setStep}
           readyCount={readyCount}
           readinessItems={readinessItems}
           checklistLoading={checklistLoading}
@@ -1928,7 +1935,7 @@ export default function PESHEPUniversalPage() {
           checklistEvaluation={checklistEvaluation}
           onRefreshChecklist={refreshChecklistEvaluation}
         >
-          <div className="grid gap-2">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <SummaryRow label="Project" value={answers.project_name || "Not set"} />
             <SummaryRow label="Jurisdiction" value={jurisdictionProfile.jurisdictionLabel} />
             <SummaryRow label="Definitions" value={answers.definitions_text ? "Drafted" : "Missing"} />
@@ -1998,13 +2005,37 @@ function BuilderSectionNav({
   activeStep: number;
   onSelect: (step: number) => void;
 }) {
+  const activePhase =
+    PESHEP_PHASE_GROUPS.find((phase) => phase.stepIndexes.includes(activeStep)) ?? PESHEP_PHASE_GROUPS[0];
+
   return (
     <nav className="sticky top-4 h-max rounded-2xl border border-slate-700/70 bg-slate-950/65 p-2 shadow-sm">
       <div className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
         PSHEP Map
       </div>
-      <div className="space-y-1">
-        {steps.map((item, index) => {
+      <div className="flex flex-wrap gap-2 border-b border-slate-800/80 pb-2">
+        {PESHEP_PHASE_GROUPS.map((phase) => {
+          const phaseActive = phase.stepIndexes.includes(activeStep);
+          return (
+            <button
+              key={phase.title}
+              type="button"
+              onClick={() => onSelect(phase.stepIndexes[0] ?? 0)}
+              className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide transition ${
+                phaseActive
+                  ? "border-sky-500/50 bg-sky-950/40 text-sky-100"
+                  : "border-transparent text-slate-500 hover:border-slate-600 hover:text-slate-300"
+              }`}
+            >
+              {phase.title}
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-2 space-y-1">
+        {activePhase.stepIndexes.map((index) => {
+          const item = steps[index];
+          if (!item) return null;
           const current = progress[index];
           const isComplete = current.complete >= current.total;
           const isActive = index === activeStep;
@@ -2120,9 +2151,6 @@ function CompactMapGroup({ title, items }: { title: string; items: string[] }) {
 }
 
 function BuilderSidePanel({
-  steps,
-  activeStep,
-  onSelectStep,
   readyCount,
   readinessItems,
   checklistLoading,
@@ -2131,9 +2159,6 @@ function BuilderSidePanel({
   onRefreshChecklist,
   children,
 }: {
-  steps: BuilderStep[];
-  activeStep: number;
-  onSelectStep: (step: number) => void;
   readyCount: number;
   readinessItems: Array<{ label: string; done: boolean }>;
   checklistLoading: boolean;
@@ -2143,53 +2168,9 @@ function BuilderSidePanel({
   children: ReactNode;
 }) {
   return (
-    <aside className="space-y-3 xl:sticky xl:top-4 xl:h-max">
+    <div className="space-y-3">
       <CompactPanel title="Plan Snapshot" description={`${readyCount}/20 readiness points`}>
         {children}
-      </CompactPanel>
-
-      <CompactPanel title="Document TOC Preview" description="Sections that will appear in the plan">
-        <div className="space-y-2">
-          {steps.map((step, stepIndex) => (
-            <button
-              key={step.title}
-              type="button"
-              onClick={() => onSelectStep(stepIndex)}
-              className={`w-full rounded-xl border px-2.5 py-2 text-left transition ${
-                activeStep === stepIndex
-                  ? "border-sky-500/35 bg-sky-950/35"
-                  : "border-slate-700/70 bg-slate-950/45 hover:bg-slate-900/70"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-black text-slate-100">
-                  {stepIndex + 1}. {step.title}
-                </span>
-                <span className="text-[10px] font-bold text-slate-500">
-                  {step.documentSections.length} sections
-                </span>
-              </div>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {step.documentSections.slice(0, 3).map((section, index) => (
-                  <span
-                    key={section}
-                    className="rounded-full bg-slate-800/90 px-2 py-0.5 text-[10px] font-semibold text-slate-400"
-                  >
-                    {stepIndex + 1}.{index + 1} {section}
-                  </span>
-                ))}
-                {step.documentSections.length > 3 ? (
-                  <span className="rounded-full bg-slate-800/90 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                    +{step.documentSections.length - 3}
-                  </span>
-                ) : null}
-              </div>
-              <div className="mt-1 text-[10px] font-semibold text-slate-500">
-                {step.requiredInputs.length} inputs / {step.generatedOutputs.length} outputs / {step.referenceIds.join(", ")}
-              </div>
-            </button>
-          ))}
-        </div>
       </CompactPanel>
 
       <CompactPanel title="Readiness" description="Admin handoff checks">
@@ -2217,7 +2198,7 @@ function BuilderSidePanel({
           }}
         />
       </div>
-    </aside>
+    </div>
   );
 }
 

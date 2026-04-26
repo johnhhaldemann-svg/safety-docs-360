@@ -2383,6 +2383,7 @@ export function buildStructuredCsepSectionMap(
 
   draft.sectionMap
     .filter((section) => section.kind !== "front_matter" && section.kind !== "appendix")
+    .filter((section) => normalizeToken(section.key ?? "") !== "project information")
     .forEach((section) => {
       const formatKey = inferFormatSectionKey(section);
       if (!grouped.has(formatKey)) {

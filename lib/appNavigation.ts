@@ -236,7 +236,7 @@ export const companyAdminSideSections: NavSection[] = [
       { href: "/dashboard", label: "Home Dashboard", short: "HM" },
       { href: "/library", label: "Document Library", short: "DC" },
       {
-        href: "/library#library-marketplace",
+        href: "/library?tab=marketplace",
         label: "Template Marketplace",
         short: "MK",
       },
@@ -300,7 +300,7 @@ export const companyManagerSideSections: NavSection[] = [
       { href: "/dashboard", label: "Home Dashboard", short: "HM" },
       { href: "/library", label: "Document Library", short: "DC" },
       {
-        href: "/library#library-marketplace",
+        href: "/library?tab=marketplace",
         label: "Template Marketplace",
         short: "MK",
       },
@@ -359,7 +359,7 @@ export const companyUserSideSections: NavSection[] = [
       { href: "/dashboard", label: "Home Dashboard", short: "HM" },
       { href: "/library", label: "Document Library", short: "DC" },
       {
-        href: "/library#library-marketplace",
+        href: "/library?tab=marketplace",
         label: "Template Marketplace",
         short: "MK",
       },

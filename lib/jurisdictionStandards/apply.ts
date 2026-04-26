@@ -75,11 +75,18 @@ function applyStandardToSection(
   section: GeneratedSafetyPlanSection,
   standard: ReturnType<typeof getJurisdictionSurfaceStandards>[number]
 ): GeneratedSafetyPlanSection {
-  const bodyAdditions = [standard.content.body ?? "", standard.content.builderGuidance ?? ""];
+  // `builderGuidance` is for builder / super-admin tooling only — never merge into issued document text.
+  const suppressFederalBaselineProfileNarrative =
+    section.key === "jurisdiction_profile" && standard.id === "std_federal_baseline";
+  const bodyAdditions = suppressFederalBaselineProfileNarrative
+    ? []
+    : [standard.content.body ?? ""].filter((text) => text.trim().length > 0);
+  const bulletAdditions = suppressFederalBaselineProfileNarrative ? [] : standard.content.bullets ?? [];
+
   const sectionWithBody: GeneratedSafetyPlanSection = {
     ...section,
     body: appendBody(section.body, bodyAdditions),
-    bullets: appendBullets(section.bullets, standard.content.bullets ?? []),
+    bullets: appendBullets(section.bullets, bulletAdditions),
   };
 
   let next = sectionWithBody;

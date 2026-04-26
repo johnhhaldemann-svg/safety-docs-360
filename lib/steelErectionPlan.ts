@@ -192,6 +192,49 @@ export function buildSteelCommonOverlappingTradesSubsections(): NonNullable<
   ];
 }
 
+/**
+ * Drops short overlapping-trade labels that duplicate the steel interface
+ * subsections (e.g. "Fire Protection", "HVAC / Mechanical") and other boilerplate
+ * list lines so §5.4 stays intro + narrative subsections without a redundant
+ * numbered trade list. Project-specific bullets (e.g. façade coordination) are kept.
+ */
+export function filterSteelCommonOverlappingBullets(bullets: readonly string[]): string[] {
+  const steelSubs = buildSteelCommonOverlappingTradesSubsections();
+  const subsectionNorms = steelSubs.map((sub) => normalizeToken(sub.title));
+
+  const redundantStandaloneNorms = new Set([
+    "welding hot work",
+    "welding",
+    "hot work",
+  ]);
+
+  const kept: string[] = [];
+  const seenNorm = new Set<string>();
+
+  for (const raw of bullets) {
+    const bullet = typeof raw === "string" ? raw.trim() : "";
+    if (!bullet) continue;
+    const n = normalizeToken(bullet);
+    if (!n || seenNorm.has(n)) continue;
+
+    if (redundantStandaloneNorms.has(n)) continue;
+
+    const coveredBySteelSubsection = subsectionNorms.some((titleNorm) => {
+      if (!titleNorm) return false;
+      if (n === titleNorm) return true;
+      if (titleNorm.startsWith(`${n} `)) return true;
+      if (n.startsWith(`${titleNorm} `)) return true;
+      return false;
+    });
+    if (coveredBySteelSubsection) continue;
+
+    seenNorm.add(n);
+    kept.push(bullet);
+  }
+
+  return kept;
+}
+
 /** True when a trade-package row is steel / structural / decking / rigging–related for permit roll-up. */
 export function isSteelErectionPackage(pkg: {
   tradeLabel: string;

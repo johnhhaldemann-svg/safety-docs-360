@@ -180,6 +180,7 @@ export default function AdminJobsiteAuditsPage() {
   const [auditDate, setAuditDate] = useState("");
   const [selectedTrade, setSelectedTrade] = useState<(typeof tradeOptions)[number]>("general_contractor");
   const [query, setQuery] = useState("");
+  const [excelWorkbook, setExcelWorkbook] = useState<"hs" | "env">("hs");
   const [statusMap, setStatusMap] = useState<Record<string, RowStatus>>({});
   const [photoCounts, setPhotoCounts] = useState<Record<string, number>>({});
   const [history, setHistory] = useState<MonthPoint[]>([]);
@@ -654,52 +655,65 @@ export default function AdminJobsiteAuditsPage() {
                 className="mt-1.5 w-full rounded-xl border border-slate-600/80 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-50 shadow-sm placeholder:text-slate-500"
               />
             </label>
-            <Tabs.Root defaultValue="hs" className="w-full">
-              <Tabs.List className="flex flex-wrap gap-2 border-b border-slate-700/80 pb-3">
-                <Tabs.Trigger
-                  value="hs"
-                  className="rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-slate-300 data-[state=active]:border-emerald-500/40 data-[state=active]:bg-emerald-950/50 data-[state=active]:text-emerald-50"
+            <div className="w-full">
+              <div className="flex flex-wrap gap-2 pb-3" role="group" aria-label="Excel workbook">
+                <button
+                  type="button"
+                  onClick={() => setExcelWorkbook("hs")}
+                  className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                    excelWorkbook === "hs"
+                      ? "border-emerald-500/50 bg-emerald-950/55 text-emerald-50"
+                      : "border-transparent text-slate-400 hover:border-slate-600 hover:text-slate-200"
+                  }`}
                 >
                   Health & safety (V2)
-                </Tabs.Trigger>
-                <Tabs.Trigger
-                  value="env"
-                  className="rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-slate-300 data-[state=active]:border-emerald-500/40 data-[state=active]:bg-emerald-950/50 data-[state=active]:text-emerald-50"
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExcelWorkbook("env")}
+                  className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                    excelWorkbook === "env"
+                      ? "border-emerald-500/50 bg-emerald-950/55 text-emerald-50"
+                      : "border-transparent text-slate-400 hover:border-slate-600 hover:text-slate-200"
+                  }`}
                 >
                   Environmental
-                </Tabs.Trigger>
-              </Tabs.List>
-              <Tabs.Content value="hs" className="mt-6 outline-none">
-                <p className="mb-4 text-sm leading-relaxed text-slate-300">
-                  From <em className="text-slate-200">Quick Audit Tool V2 H&amp;S.xlsx</em>. Pick a block in the category list; use Prev
-                  / Next to move between blocks.
-                </p>
-                <ExcelTemplateByCategory
-                  sections={hsSections}
-                  sectionTitles={hsSectionTitles}
-                  tabPrefix="hs"
-                  query={query}
-                  statusMap={statusMap}
-                  onRowStatus={setRowStatus}
-                  categoryLabel="H&S categories"
-                />
-              </Tabs.Content>
-              <Tabs.Content value="env" className="mt-6 outline-none">
-                <p className="mb-4 text-sm leading-relaxed text-slate-300">
-                  From <em className="text-slate-200">Quick Audit Tool Env.xlsx</em> — full Sheet1 export (all rows and columns from the
-                  workbook JSON).
-                </p>
-                <ExcelTemplateByCategory
-                  sections={envSections}
-                  sectionTitles={envSectionTitles}
-                  tabPrefix="env"
-                  query={query}
-                  statusMap={statusMap}
-                  onRowStatus={setRowStatus}
-                  categoryLabel="Environmental categories"
-                />
-              </Tabs.Content>
-            </Tabs.Root>
+                </button>
+              </div>
+              {excelWorkbook === "hs" ? (
+                <div className="mt-6 outline-none">
+                  <p className="mb-4 text-sm leading-relaxed text-slate-300">
+                    From <em className="text-slate-200">Quick Audit Tool V2 H&amp;S.xlsx</em>. Pick a block in the category list; use Prev
+                    / Next to move between blocks.
+                  </p>
+                  <ExcelTemplateByCategory
+                    sections={hsSections}
+                    sectionTitles={hsSectionTitles}
+                    tabPrefix="hs"
+                    query={query}
+                    statusMap={statusMap}
+                    onRowStatus={setRowStatus}
+                    categoryLabel="H&S categories"
+                  />
+                </div>
+              ) : (
+                <div className="mt-6 outline-none">
+                  <p className="mb-4 text-sm leading-relaxed text-slate-300">
+                    From <em className="text-slate-200">Quick Audit Tool Env.xlsx</em> — full Sheet1 export (all rows and columns from the
+                    workbook JSON).
+                  </p>
+                  <ExcelTemplateByCategory
+                    sections={envSections}
+                    sectionTitles={envSectionTitles}
+                    tabPrefix="env"
+                    query={query}
+                    statusMap={statusMap}
+                    onRowStatus={setRowStatus}
+                    categoryLabel="Environmental categories"
+                  />
+                </div>
+              )}
+            </div>
           </SectionCard>
         </Tabs.Content>
       </Tabs.Root>

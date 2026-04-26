@@ -1,6 +1,18 @@
 # Support and onboarding runbook (launch alignment)
 
-Use this to align **how you launch** (pilot, open beta, paid) with operations. Replace placeholders with your decisions and contacts.
+Use this to align **how you launch** (pilot, open beta, paid) with operations. Fill the **Organization configuration** tables before external pilots pay or receive production access.
+
+**Pilot pack (this repo):** [pilot-sku](./pilot-sku.md) · [pilot-staging-and-env](./pilot-staging-and-env.md) · [pilot-qa-signoff](./pilot-qa-signoff.md) · [pilot-billing-cutover](./pilot-billing-cutover.md) · [pilot-notifications-inventory](./pilot-notifications-inventory.md) · [pilot-legal-and-agreements](./pilot-legal-and-agreements.md) · [pilot-production-cutover](./pilot-production-cutover.md)
+
+## Organization configuration (fill in)
+
+| Field | Value |
+|-------|-------|
+| Company / product legal name | |
+| Public support email (`NEXT_PUBLIC_SUPPORT_EMAIL`) | |
+| Internal engineering on-call email / phone | |
+| Internal security escalation contact | |
+| Customer-facing support hours (timezone) | |
 
 ## Launch mode
 
@@ -13,20 +25,39 @@ Use this to align **how you launch** (pilot, open beta, paid) with operations. R
 
 ## Company onboarding
 
-- **Who creates companies?** (platform admin only vs self-serve `company-register`).
-- **Default roles** for the first user (e.g. `company_admin`).
-- **Invite flow**: email provider (`RESEND_FROM_EMAIL`), bounce handling, resend policy.
+| Decision | Your answer |
+|----------|-------------|
+| Who creates companies? (platform admin only vs self-serve `company-register`) | |
+| Default role for first user (e.g. `company_admin`) | |
+| Invite email sender (`RESEND_FROM_EMAIL` / `COMPANY_INVITE_FROM_EMAIL`) | |
+| Bounce / undeliverable handling | |
+| Max invites per day (optional guardrail) | |
 
 ## Platform admin
 
-- Document emails in `NEXT_PUBLIC_ADMIN_EMAILS` (see [README](../README.md)).
-- **Escalation path**: who receives security or outage pages (on-call or founder list).
+| Item | Value |
+|------|-------|
+| Emails in `NEXT_PUBLIC_ADMIN_EMAILS` (comma-separated) | |
+| Who receives **security** escalations (name + contact) | |
+| Who receives **outage / availability** pages (name + contact) | |
+| Who may run **raw SQL** against production (if anyone) | |
 
 ## User support (tier 0)
 
-- **Password reset**: Supabase Auth email; document what users should do if mail is missing (spam folder, allowlist).
-- **Account suspension**: where `accountStatus` is set and who may reactivate.
-- **Agreement version bumps**: how you notify users and whether re-acceptance is required (see admin legal settings).
+| Topic | Runbook entry |
+|-------|----------------|
+| Password reset | Supabase Auth email. If mail missing: spam folder, corporate allowlist, confirm Supabase SMTP. |
+| Account suspension | Where `accountStatus` is set: document table/UI path. Who may reactivate: name + role. |
+| Agreement version bumps | How users are notified (email template owner, in-app banner). Re-accept required? Y/N. Owner: |
+
+## Refunds, credits, and disputes (Stripe)
+
+| Scenario | Owner | SLA / steps |
+|----------|-------|-------------|
+| Refund request (subscription) | | |
+| Refund request (one-time / credits) | | |
+| Chargeback / dispute | | |
+| Pilot “money back” promise (if any) | | |
 
 ## Privacy and marketing
 
@@ -38,7 +69,7 @@ Use this to align **how you launch** (pilot, open beta, paid) with operations. R
 
 - Live **`STRIPE_SECRET_KEY`**, **`STRIPE_WEBHOOK_SECRET`**, webhook URL pointing at production `/api/billing/stripe/webhook`.
 - Test checkout and webhook delivery in Stripe dashboard after first deploy.
-- Document refund and invoice dispute handling internally.
+- Staging test mode and live cutover checklist: [pilot-billing-cutover](./pilot-billing-cutover.md). Refund ownership: table above.
 
 ## Incident response (minimal)
 

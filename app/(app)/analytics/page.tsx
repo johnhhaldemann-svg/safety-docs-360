@@ -407,9 +407,7 @@ function AnalyticsPageInner() {
                 </button>
               ))}
             </div>
-          ) : (
-            <span className="text-xs text-transparent">.</span>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -639,102 +637,6 @@ function AnalyticsPageInner() {
             </p>
           </div>
         ) : null}
-
-        {tab === "overview" ? (
-          <div
-            className="space-y-6"
-            id="analytics-tabpanel-overview"
-            role="tabpanel"
-            aria-labelledby="analytics-tab-overview"
-          >
-        {loading ? (
-          <AnalyticsOverviewSkeleton />
-        ) : (
-        <div className="grid gap-5 lg:grid-cols-2">
-          <div className="analytics-dark-panel p-5 shadow-inner">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">Overview</p>
-              <AddInsightToDashboardButton blockId="graph_observation_mix" />
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-[var(--app-accent-border-22)] bg-[var(--app-accent-primary-soft)] p-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--app-accent-primary)]">
-                  Total observations
-                </p>
-                <p className="font-app-display mt-2 text-3xl font-black text-[var(--app-text-strong)]">
-                  {totalObs}
-                </p>
-              </div>
-              <div className="rounded-xl border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] p-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--semantic-warning)]">
-                  Open issues
-                </p>
-                <p className="font-app-display mt-2 text-3xl font-black text-[var(--app-text-strong)]">
-                  {openIssues}
-                </p>
-              </div>
-              <div className="rounded-xl border border-[rgba(46,158,91,0.28)] bg-[var(--semantic-success-bg)] p-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--semantic-success)]">
-                  Resolution rate
-                </p>
-                <p className="font-app-display mt-2 text-3xl font-black text-[var(--app-text-strong)]">
-                  {`${resolutionPct}%`}
-                </p>
-              </div>
-            </div>
-            <div className="analytics-dark-panel-soft mt-5 px-3 py-2">
-              <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-[var(--app-muted)]">
-                Trend
-              </p>
-              <Sparkline
-                points={trends}
-                windowDays={days}
-                loading={false}
-                rangeCaption={`Selected window: last ${days} days of observation activity`}
-              />
-            </div>
-          </div>
-
-          <div className="analytics-dark-panel p-5">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">
-                Observation priority
-              </p>
-              <AddInsightToDashboardButton blockId="graph_risk_distribution" />
-            </div>
-            <ul className="mt-4 space-y-4">
-              <li className="flex items-start gap-3 rounded-xl border border-[rgba(217,83,79,0.22)] bg-[var(--semantic-danger-bg)] p-4">
-                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--semantic-danger)]" />
-                <div>
-                  <p className="font-bold text-[var(--semantic-danger)]">High priority</p>
-                  <p className="font-app-display text-2xl font-black text-[var(--app-text-strong)]">
-                    {bands?.high ?? dash?.totalHighRiskObservations ?? 0}
-                  </p>
-                  <p className="mt-1 text-xs text-[var(--app-muted)]">
-                    Elevated risk observations currently active.
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-3 rounded-xl border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] p-4">
-                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--semantic-warning)]" />
-                <div>
-                  <p className="font-bold text-[#9a680a]">Medium</p>
-                  <p className="font-app-display text-2xl font-black text-[var(--app-text-strong)]">{bands?.medium ?? 0}</p>
-                  <p className="mt-1 text-xs text-[var(--app-muted)]">Moderate severity in the selected window.</p>
-                </div>
-              </li>
-              <li className="flex items-start gap-3 rounded-xl border border-[rgba(46,158,91,0.28)] bg-[var(--semantic-success-bg)] p-4">
-                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--semantic-success)]" />
-                <div>
-                  <p className="font-bold text-[var(--semantic-success)]">Low</p>
-                  <p className="font-app-display text-2xl font-black text-[var(--app-text-strong)]">{bands?.low ?? 0}</p>
-                  <p className="mt-1 text-xs text-[var(--app-muted)]">Lower-severity observations recorded.</p>
-                </div>
-              </li>
-            </ul>
-          </div>
-        </div>
-        )}
 
         {tab === "risk" ? (
         <details
@@ -982,6 +884,101 @@ function AnalyticsPageInner() {
         ) : null}
 
         {tab === "overview" ? (
+          <div
+            className="space-y-6"
+            id="analytics-tabpanel-overview"
+            role="tabpanel"
+            aria-labelledby="analytics-tab-overview"
+          >
+        {loading ? (
+          <AnalyticsOverviewSkeleton />
+        ) : (
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="analytics-dark-panel p-5 shadow-inner">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">Overview</p>
+              <AddInsightToDashboardButton blockId="graph_observation_mix" />
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-[var(--app-accent-border-22)] bg-[var(--app-accent-primary-soft)] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--app-accent-primary)]">
+                  Total observations
+                </p>
+                <p className="font-app-display mt-2 text-3xl font-black text-[var(--app-text-strong)]">
+                  {totalObs}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--semantic-warning)]">
+                  Open issues
+                </p>
+                <p className="font-app-display mt-2 text-3xl font-black text-[var(--app-text-strong)]">
+                  {openIssues}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[rgba(46,158,91,0.28)] bg-[var(--semantic-success-bg)] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--semantic-success)]">
+                  Resolution rate
+                </p>
+                <p className="font-app-display mt-2 text-3xl font-black text-[var(--app-text-strong)]">
+                  {`${resolutionPct}%`}
+                </p>
+              </div>
+            </div>
+            <div className="analytics-dark-panel-soft mt-5 px-3 py-2">
+              <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-[var(--app-muted)]">
+                Trend
+              </p>
+              <Sparkline
+                points={trends}
+                windowDays={days}
+                loading={false}
+                rangeCaption={`Selected window: last ${days} days of observation activity`}
+              />
+            </div>
+          </div>
+
+          <div className="analytics-dark-panel p-5">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--app-muted)]">
+                Observation priority
+              </p>
+              <AddInsightToDashboardButton blockId="graph_risk_distribution" />
+            </div>
+            <ul className="mt-4 space-y-4">
+              <li className="flex items-start gap-3 rounded-xl border border-[rgba(217,83,79,0.22)] bg-[var(--semantic-danger-bg)] p-4">
+                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--semantic-danger)]" />
+                <div>
+                  <p className="font-bold text-[var(--semantic-danger)]">High priority</p>
+                  <p className="font-app-display text-2xl font-black text-[var(--app-text-strong)]">
+                    {bands?.high ?? dash?.totalHighRiskObservations ?? 0}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--app-muted)]">
+                    Elevated risk observations currently active.
+                  </p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3 rounded-xl border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] p-4">
+                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--semantic-warning)]" />
+                <div>
+                  <p className="font-bold text-[#9a680a]">Medium</p>
+                  <p className="font-app-display text-2xl font-black text-[var(--app-text-strong)]">{bands?.medium ?? 0}</p>
+                  <p className="mt-1 text-xs text-[var(--app-muted)]">Moderate severity in the selected window.</p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3 rounded-xl border border-[rgba(46,158,91,0.28)] bg-[var(--semantic-success-bg)] p-4">
+                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--semantic-success)]" />
+                <div>
+                  <p className="font-bold text-[var(--semantic-success)]">Low</p>
+                  <p className="font-app-display text-2xl font-black text-[var(--app-text-strong)]">{bands?.low ?? 0}</p>
+                  <p className="mt-1 text-xs text-[var(--app-muted)]">Lower-severity observations recorded.</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+        )}
+
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="analytics-dark-panel p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1195,74 +1192,63 @@ function AnalyticsPageInner() {
           </div>
         </div>
           </div>
-        ) : tab === "health_issues" ? (
-          <div className="space-y-5" id="analytics-tabpanel-health_issues" role="tabpanel" aria-labelledby="analytics-tab-health_issues">
-            <div className="grid gap-5 lg:grid-cols-12">
-              <div className="lg:col-span-5">
-                <div className="analytics-dark-panel p-5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Health issues</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {(summary?.healthIssueRollup ?? []).map((item) => (
-                      <button
-                        key={item.injuryType}
-                        type="button"
-                        onClick={() => setSelectedHealthIssue((current) => (current === item.injuryType ? null : item.injuryType))}
-                        className={[
-                          "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
-                          selectedHealthIssue === item.injuryType
-                            ? "border-[var(--app-accent-primary)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]"
-                            : "border-[var(--app-accent-border-24)] bg-white/70 text-slate-700 hover:bg-white",
-                        ].join(" ")}
-                      >
-                        {item.label} · {item.count}
-                      </button>
-                    ))}
-                    {(summary?.healthIssueRollup?.length ?? 0) === 0 ? (
-                      <p className="text-sm text-slate-500">No typed injury incidents in this window. Add injury type fields in incidents.</p>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-              <div className="lg:col-span-7">
-                <div className="analytics-dark-panel p-5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Selected issue detail</p>
-                  {summary?.healthIssueFocus ? (
-                    <>
-                      <h3 className="mt-2 text-2xl font-black font-app-display text-[var(--app-text-strong)]">{summary.healthIssueFocus.label}</h3>
-                      <p className="mt-1 text-sm text-slate-400">{summary.healthIssueFocus.count} incident(s) in selected window.</p>
-                      <div className="mt-4 grid gap-3 sm:grid-cols-5">
-                        {Object.entries(summary.healthIssueFocus.severityBands).map(([band, value]) => (
-                          <div key={band} className="analytics-dark-panel-soft p-3 text-center">
-                            <p className="text-[10px] uppercase tracking-wide text-slate-500">{band}</p>
-                            <p className="mt-1 text-xl font-black font-app-display text-[var(--app-text-strong)]">{value}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <p className="mt-3 text-sm text-slate-500">Choose a health issue chip to load its drill-down summary.</p>
-                  )}
-                </div>
-              </div>
-            </div>
+        ) : tab === "observations" ? (
+          <div
+            className="space-y-6"
+            id="analytics-tabpanel-observations"
+            role="tabpanel"
+            aria-labelledby="analytics-tab-observations"
+          >
+            <AnalyticsFocusedTab
+              tab={
+                observationMode === "health_issues"
+                  ? "health_issues"
+                  : observationMode === "hazards"
+                    ? "hazards"
+                    : "near_misses"
+              }
+              loading={loading}
+              breakdown={breakdown}
+              totals={totals}
+              dash={dash}
+              trends={trends}
+              filteredRecent={filteredRecent}
+              recent={recent}
+              hazardTiles={hazardTiles}
+              tagChip={tagChip}
+              sif={sif}
+              leadership={leadership}
+              windowDays={days}
+              healthIssueRollup={summary?.healthIssueRollup}
+              healthIssueFocus={summary?.healthIssueFocus ?? null}
+              selectedHealthIssue={selectedHealthIssue}
+              onSelectHealthIssue={(id) => setSelectedHealthIssue(id)}
+            />
           </div>
-        ) : (
-          <AnalyticsFocusedTab
-            tab={tab}
-            loading={loading}
-            breakdown={breakdown}
-            totals={totals}
-            dash={dash}
-            trends={trends}
-            filteredRecent={filteredRecent}
-            recent={recent}
-            hazardTiles={hazardTiles}
-            tagChip={tagChip}
-            sif={sif}
-            leadership={leadership}
-            windowDays={days}
-          />
-        )}
+        ) : tab === "inspections" ? (
+          <div
+            className="space-y-6"
+            id="analytics-tabpanel-inspections"
+            role="tabpanel"
+            aria-labelledby="analytics-tab-inspections"
+          >
+            <AnalyticsFocusedTab
+              tab="inspections"
+              loading={loading}
+              breakdown={breakdown}
+              totals={totals}
+              dash={dash}
+              trends={trends}
+              filteredRecent={filteredRecent}
+              recent={recent}
+              hazardTiles={hazardTiles}
+              tagChip={tagChip}
+              sif={sif}
+              leadership={leadership}
+              windowDays={days}
+            />
+          </div>
+        ) : null}
 
         <div className="rounded-2xl border border-[var(--app-accent-border-24)] bg-gradient-to-r from-[var(--app-accent-surface-12)] to-white px-5 py-4">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">Actions</p>
@@ -1273,9 +1259,13 @@ function AnalyticsPageInner() {
             <Link href="/reports" className="rounded-xl border border-[var(--app-accent-border-24)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)]">
               Reports
             </Link>
-            <a href="#benchmarking-compare" className="rounded-xl border border-[var(--app-accent-border-24)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)]">
+            <button
+              type="button"
+              onClick={() => setTabWithUrl("risk")}
+              className="rounded-xl border border-[var(--app-accent-border-24)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)]"
+            >
               Compare
-            </a>
+            </button>
           </div>
         </div>
 
@@ -1315,5 +1305,13 @@ function AnalyticsPageInner() {
         Systems live. Secure. Document. Stay Safe.
       </div>
     </div>
+  );
+}
+
+export default function AnalyticsPage() {
+  return (
+    <Suspense fallback={<AnalyticsOverviewSkeleton />}>
+      <AnalyticsPageInner />
+    </Suspense>
   );
 }

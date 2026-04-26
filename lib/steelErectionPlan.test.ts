@@ -1,7 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { buildSteelErectionOverlaySections, buildSteelErectionPlan } from "@/lib/steelErectionPlan";
+import {
+  buildSteelErectionOverlaySections,
+  buildSteelErectionPlan,
+  filterSteelCommonOverlappingBullets,
+} from "@/lib/steelErectionPlan";
 
 describe("steelErectionPlan", () => {
+  it("filterSteelCommonOverlappingBullets removes trade labels that duplicate steel interface subsections", () => {
+    expect(
+      filterSteelCommonOverlappingBullets([
+        "Fire Protection",
+        "General Conditions / Site Management",
+        "HVAC / Mechanical",
+        "Painting / Coatings",
+        "Welding / Hot Work",
+        "Facade access coordination",
+      ])
+    ).toEqual(["Facade access coordination"]);
+  });
+
   it("uses a final-export-safe fallback for emergency access instructions when the project address is blank", () => {
     const plan = buildSteelErectionPlan({
       generationContext: {
