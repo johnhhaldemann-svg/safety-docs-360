@@ -1,21 +1,33 @@
 import type { DashboardSummary } from "@/src/lib/dashboard/types";
+import {
+  incidentCountBand,
+  nearMissCountBand,
+  openHighRiskCountBand,
+  overdueCorrectiveCountBand,
+  readinessPercentBand,
+  safetyHealthCompositeBand,
+  trafficLightStripeClass,
+  trainingReadinessSummaryBand,
+} from "@/src/lib/dashboard/dashboardStatusSemantics";
 import { EmptyState } from "@/components/WorkspacePrimitives";
 import { Activity } from "lucide-react";
 import { MetricCard } from "@/src/components/dashboard/MetricCard";
 
 export type SafetyHealthScoreProps = {
   summary: DashboardSummary;
+  /** When true, composite health is forced red (e.g. SIF‑potential theme in top risks). */
+  sifPotentialTheme?: boolean;
+  expiredCredentials?: number;
   /** Section heading override */
   title?: string;
   description?: string;
   className?: string;
 };
 
-function scoreBand(score: number): { label: string; barClass: string } {
-  if (score >= 85) return { label: "Strong", barClass: "bg-[var(--semantic-success)]" };
-  if (score >= 70) return { label: "Stable", barClass: "bg-[var(--semantic-warning)]" };
-  if (score >= 50) return { label: "Elevated risk", barClass: "bg-[var(--semantic-warning)]" };
-  return { label: "Needs attention", barClass: "bg-[var(--semantic-danger)]" };
+function compositeLabel(band: ReturnType<typeof safetyHealthCompositeBand>): string {
+  if (band === "green") return "On target";
+  if (band === "yellow") return "Needs attention";
+  return "Critical exposure";
 }
 
 /**
@@ -23,12 +35,15 @@ function scoreBand(score: number): { label: string; barClass: string } {
  */
 export function SafetyHealthScore({
   summary,
+  sifPotentialTheme = false,
+  expiredCredentials = 0,
   title = "Current Safety Health",
   description = "Blended prevention posture from corrective work, observations, incidents, permits, training, and documents in the selected window.",
   className = "",
 }: SafetyHealthScoreProps) {
   const score = Math.max(0, Math.min(100, Math.round(Number(summary.safetyHealthScore) || 0)));
-  const band = scoreBand(score);
+  const healthBand = safetyHealthCompositeBand(summary, { sifPotentialTheme });
+  const barClass = trafficLightStripeClass(healthBand);
   const noActivity =
     summary.openHighRiskItems === 0 &&
     summary.overdueCorrectiveActions === 0 &&
@@ -57,33 +72,60 @@ export function SafetyHealthScore({
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--app-muted)]">Composite score</p>
-              <p className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{band.label}</p>
+              <p className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{compositeLabel(healthBand)}</p>
               <div className="mt-3 h-2 w-full max-w-xs overflow-hidden rounded-full bg-[var(--app-panel)] mx-auto sm:mx-0">
-                <div className={`h-full rounded-full transition-all ${band.barClass}`} style={{ width: `${score}%` }} />
+                <div className={`h-full rounded-full transition-all ${barClass}`} style={{ width: `${score}%` }} />
               </div>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <MetricCard label="Open high-risk items" value={summary.openHighRiskItems} />
-          <MetricCard label="Overdue corrective actions" value={summary.overdueCorrectiveActions} />
-          <MetricCard label="Incidents" value={summary.incidentCount} />
-          <MetricCard label="Near misses" value={summary.nearMissCount} />
+          <MetricCard
+            label="Open high-risk items"
+            value={summary.openHighRiskItems}
+            statusBand={openHighRiskCountBand(summary.openHighRiskItems)}
+          />
+          <MetricCard
+            label="Overdue corrective actions"
+            value={summary.overdueCorrectiveActions}
+            statusBand={overdueCorrectiveCountBand(summary.overdueCorrectiveActions)}
+          />
+          <MetricCard
+            label="Incidents"
+            value={summary.incidentCount}
+            statusBand={incidentCountBand(summary.incidentCount)}
+          />
+          <MetricCard
+            label="Near misses"
+            value={summary.nearMissCount}
+            statusBand={nearMissCountBand(summary.nearMissCount)}
+          />
         </div>
       </div>
 
       <div>
-        <h4 className="text-sm font-bold text-[var(--app-text-strong)]">Training &amp; workforce readiness</h4>
+        <h4 className="text-sm font-bold text-[var(--app-text-strong)]">Training and workforce readiness</h4>
         <p className="mt-1 text-xs text-[var(--app-muted)]">Coverage signals from your live dashboard service.</p>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <MetricCard
             label="Training readiness"
             value={`${Math.round(summary.trainingReadinessRate)}%`}
             hint="vs requirements in scope"
+            statusBand={trainingReadinessSummaryBand(summary.trainingReadinessRate, true, expiredCredentials)}
           />
-          <MetricCard label="Permit compliance" value={`${Math.round(summary.permitComplianceRate)}%`} hint="observed in window" />
-          <MetricCard label="JSA / activity completion" value={`${Math.round(summary.jsaCompletionRate)}%`} hint="plans completed" />
+          <MetricCard
+            label="Permit compliance"
+            value={`${Math.round(summary.permitComplianceRate)}%`}
+            hint="observed in window"
+            statusBand={readinessPercentBand(summary.permitComplianceRate, true)}
+          />
+          <MetricCard
+            label="JSA / activity completion"
+            value={`${Math.round(summary.jsaCompletionRate)}%`}
+            hint="plans completed"
+            statusBand={readinessPercentBand(summary.jsaCompletionRate, true)}
+          />
         </div>
       </div>
 

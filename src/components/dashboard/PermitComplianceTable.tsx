@@ -1,4 +1,6 @@
 import type { PermitCompliance } from "@/src/lib/dashboard/types";
+import { PERMITS_EMPTY } from "@/src/lib/dashboard/dashboardOverviewEmptyMessages";
+import { permitComplianceRowBand, readinessPercentBand } from "@/src/lib/dashboard/dashboardStatusSemantics";
 import { EmptyState } from "@/components/WorkspacePrimitives";
 import { ClipboardCheck } from "lucide-react";
 import { StatusBadge } from "@/src/components/dashboard/StatusBadge";
@@ -11,12 +13,6 @@ export type PermitComplianceTableProps = {
   description?: string;
   className?: string;
 };
-
-function rateTraffic(rate: number, missing: number, required: number): "green" | "yellow" | "red" {
-  if (required > 0 && missing / required > 0.25) return "red";
-  if (rate < 70) return "yellow";
-  return "green";
-}
 
 /**
  * Permit-type compliance grid plus optional JSA completion headline from the same overview payload.
@@ -36,17 +32,13 @@ export function PermitComplianceTable({
           {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
         </div>
         {jsaCompletionRate != null && jsaCompletionRate > 0 ? (
-          <p className="mb-3 rounded-xl border border-[var(--app-border)] bg-[var(--app-accent-primary-soft)] px-3 py-2 text-xs text-[var(--app-text)]">
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-accent-primary-soft)] px-3 py-2 text-xs text-[var(--app-text)]">
             <span className="font-semibold text-[var(--app-text-strong)]">JSA completion (summary): </span>
-            {Math.round(jsaCompletionRate)}%
-          </p>
+            <span className="font-app-display font-bold text-[var(--app-text-strong)]">{Math.round(jsaCompletionRate)}%</span>
+            <StatusBadge label="JSA status" trafficLight={readinessPercentBand(jsaCompletionRate, true)} />
+          </div>
         ) : null}
-        <EmptyState
-          align="left"
-          icon={ClipboardCheck}
-          title="No permit buckets in this window"
-          description="When permit tracking is connected and work is scheduled in scope, buckets appear here so you can close gaps before high-risk activities proceed."
-        />
+        <EmptyState align="left" icon={ClipboardCheck} title={PERMITS_EMPTY.title} description={PERMITS_EMPTY.description} />
       </div>
     );
   }
@@ -58,10 +50,11 @@ export function PermitComplianceTable({
           <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
           {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
         </div>
-        {jsaCompletionRate != null ? (
-          <div className="flex items-center gap-2 rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-2 text-xs">
+        {jsaCompletionRate != null && jsaCompletionRate > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-2 text-xs">
             <span className="font-semibold text-[var(--app-text-strong)]">JSA completion</span>
             <span className="font-app-display text-base font-bold text-[var(--app-text-strong)]">{Math.round(jsaCompletionRate)}%</span>
+            <StatusBadge label="JSA status" trafficLight={readinessPercentBand(jsaCompletionRate, true)} />
           </div>
         ) : null}
       </div>
@@ -86,7 +79,7 @@ export function PermitComplianceTable({
                 <td className="px-4 py-3 text-[var(--app-text)]">{p.missing}</td>
                 <td className="px-4 py-3 font-semibold text-[var(--app-text-strong)]">{Math.round(p.complianceRate)}%</td>
                 <td className="px-4 py-3">
-                  <StatusBadge label="Compliance" trafficLight={rateTraffic(p.complianceRate, p.missing, p.required)} />
+                  <StatusBadge label="Compliance" trafficLight={permitComplianceRowBand(p)} />
                 </td>
               </tr>
             ))}

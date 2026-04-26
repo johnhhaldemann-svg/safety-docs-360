@@ -1,12 +1,18 @@
-import type { DocumentReadiness } from "@/src/lib/dashboard/types";
+import type { DocumentReadiness, TrafficLightStatus } from "@/src/lib/dashboard/types";
+import { DOCUMENTS_EMPTY } from "@/src/lib/dashboard/dashboardOverviewEmptyMessages";
 import { EmptyState } from "@/components/WorkspacePrimitives";
 import { FileStack } from "lucide-react";
+import { StatusBadge } from "@/src/components/dashboard/StatusBadge";
 
 export type DocumentReadinessPanelProps = {
   readiness: DocumentReadiness;
   title?: string;
   description?: string;
   className?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  /** When set, shows a traffic-light badge beside the section title (from summary readiness logic). */
+  overallStatusBand?: TrafficLightStatus;
 };
 
 type Row = { key: keyof DocumentReadiness; label: string; tone: string };
@@ -29,6 +35,9 @@ export function DocumentReadinessPanel({
   title = "Document readiness",
   description = "Draft through approval, plus missing required items and upcoming expirations—evidence you need for audits and pre-job verification.",
   className = "",
+  emptyTitle = DOCUMENTS_EMPTY.title,
+  emptyDescription = DOCUMENTS_EMPTY.description,
+  overallStatusBand,
 }: DocumentReadinessPanelProps) {
   const total = ROWS.reduce((s, r) => s + Math.max(0, readiness[r.key]), 0);
 
@@ -39,12 +48,7 @@ export function DocumentReadinessPanel({
           <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
           {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
         </div>
-        <EmptyState
-          align="left"
-          icon={FileStack}
-          title="No document lifecycle counts"
-          description="When documents move through workflow states, counts appear here. If this stays empty, connect the documents source so prevention reviews are not flying blind."
-        />
+        <EmptyState align="left" icon={FileStack} title={emptyTitle} description={emptyDescription} />
       </div>
     );
   }
@@ -52,7 +56,10 @@ export function DocumentReadinessPanel({
   return (
     <div className={`space-y-4 ${className}`.trim()}>
       <div>
-        <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
+        <div className="flex flex-wrap items-center gap-2">
+          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
+          {overallStatusBand ? <StatusBadge label="Readiness" trafficLight={overallStatusBand} /> : null}
+        </div>
         {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
       </div>
       <div className="flex h-4 w-full overflow-hidden rounded-full border border-[var(--app-border)] bg-[var(--app-panel)]">

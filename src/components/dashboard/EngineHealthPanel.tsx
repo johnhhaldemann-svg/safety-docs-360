@@ -1,5 +1,7 @@
 import type { EngineHealthItem } from "@/src/lib/dashboard/types";
-import { EmptyState } from "@/components/WorkspacePrimitives";
+import { ENGINE_HEALTH_ALL_CLEAR } from "@/src/lib/dashboard/dashboardOverviewEmptyMessages";
+import { engineAggregateBand } from "@/src/lib/dashboard/dashboardStatusSemantics";
+import { EmptyState, InlineMessage } from "@/components/WorkspacePrimitives";
 import { Cpu } from "lucide-react";
 import { StatusBadge } from "@/src/components/dashboard/StatusBadge";
 import Link from "next/link";
@@ -50,12 +52,25 @@ export function EngineHealthPanel({
     );
   }
 
+  const allGreen = items.length > 0 && items.every((i) => i.status === "green");
+  const aggregate = engineAggregateBand(items);
+
   return (
     <div className={`space-y-3 ${className}`.trim()}>
       <div>
         <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
         {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
       </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--app-muted)]">Overall</span>
+        <StatusBadge label="Engine status" trafficLight={aggregate} />
+      </div>
+      {allGreen ? (
+        <InlineMessage tone="success">
+          <span className="font-semibold text-[var(--app-text-strong)]">{ENGINE_HEALTH_ALL_CLEAR.title}</span>
+          <span className="mt-1 block text-sm font-normal text-[var(--app-text)]">{ENGINE_HEALTH_ALL_CLEAR.description}</span>
+        </InlineMessage>
+      ) : null}
       <ul className="grid gap-2 sm:grid-cols-1 lg:grid-cols-2">
         {items.map((item, idx) => (
           <li

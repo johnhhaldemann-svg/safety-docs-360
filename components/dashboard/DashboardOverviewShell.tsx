@@ -19,6 +19,29 @@ import { PermitComplianceTable } from "@/src/components/dashboard/PermitComplian
 import { DocumentReadinessPanel } from "@/src/components/dashboard/DocumentReadinessPanel";
 import { EngineHealthPanel } from "@/src/components/dashboard/EngineHealthPanel";
 import { AiInsightsPanel } from "@/src/components/dashboard/AiInsightsPanel";
+import { DashboardDomainEmptyState } from "@/src/components/dashboard/DashboardDomainEmptyState";
+import {
+  EMERGING_THEMES_EMPTY,
+  HEADLINE_HEALTH_EMPTY,
+  INCIDENTS_EMPTY,
+  TRAINING_EMPTY,
+} from "@/src/lib/dashboard/dashboardOverviewEmptyMessages";
+import {
+  documentReadinessPortfolioBand,
+  openHighRiskCountBand,
+  overdueCorrectiveCountBand,
+  permitPortfolioSummaryBand,
+  safetyHealthCompositeBand,
+  trainingReadinessSummaryBand,
+} from "@/src/lib/dashboard/dashboardStatusSemantics";
+import {
+  correctiveHasAnyActivity,
+  documentPipelineTotal,
+  headlineKpisAreMeaningful,
+  trendHasPositiveValues,
+  workforceReadinessHasSignals,
+} from "@/src/lib/dashboard/overviewDataPresence";
+import { Activity, AlertTriangle, GraduationCap, ScanLine } from "lucide-react";
 import Link from "next/link";
 
 const supabase = getSupabaseBrowserClient();
@@ -221,6 +244,44 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         );
   const smartEngineFinal = smartEngineDisplay.length > 0 ? smartEngineDisplay : overview.engineHealth;
 
+  const permitRateMeasured =
+    overview.permitCompliance.length > 0 ||
+    missingPermitsTotal > 0 ||
+    overview.summary.permitComplianceRate > 0;
+  const trainingMeasured = workforceReadinessHasSignals(
+    overview.summary.trainingReadinessRate,
+    cred.expiredCredentials,
+    cred.expiringSoonCredentials
+  );
+  const documentRateMeasured =
+    documentPipelineTotal(doc) > 0 || overview.summary.documentReadinessRate > 0;
+  const incidentsHaveData =
+    overview.summary.incidentCount > 0 ||
+    overview.summary.nearMissCount > 0 ||
+    trendHasPositiveValues(overview.incidentTrend);
+
+  const sifPotentialTheme = overview.topRisks.some(
+    (r) =>
+      /sif|serious\s*injury|potential\s*fatal/i.test(r.name) &&
+      (r.severity === "critical" || r.severity === "high")
+  );
+  const healthCompositeBand = safetyHealthCompositeBand(overview.summary, { sifPotentialTheme });
+  const permitSummaryBand = permitPortfolioSummaryBand(
+    overview.summary.permitComplianceRate,
+    permitRateMeasured,
+    missingPermitsTotal
+  );
+  const trainingSummaryBand = trainingReadinessSummaryBand(
+    overview.summary.trainingReadinessRate,
+    trainingMeasured,
+    cred.expiredCredentials
+  );
+  const documentSummaryBand = documentReadinessPortfolioBand(
+    overview.summary.documentReadinessRate,
+    documentRateMeasured,
+    doc
+  );
+
   return (
     <div className="space-y-8">
       {filters}
@@ -240,26 +301,67 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         tone="elevated"
         description="Headline indicators for the selected window. Use them to decide where pre-task review may be needed before high-risk work proceeds."
       >
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          <MetricCard
-            label="Safety health score"
-            value={overview.summary.safetyHealthScore}
-            hint="0–100 composite prevention posture"
+        {headlineKpisAreMeaningful(overview) ? (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            <MetricCard
+              label="Safety health score"
+              value={overview.summary.safetyHealthScore}
+              hint="0–100 composite prevention posture"
+              statusBand={healthCompositeBand}
+            />
+            <MetricCard
+              label="Open high-risk items"
+              value={overview.summary.openHighRiskItems}
+              hint="High-risk work exposure—requires field verification"
+              statusBand={openHighRiskCountBand(overview.summary.openHighRiskItems)}
+            />
+            <MetricCard
+              label="Overdue corrective actions"
+              value={overview.summary.overdueCorrectiveActions}
+              hint="Missing control follow-through past due date"
+              statusBand={overdueCorrectiveCountBand(overview.summary.overdueCorrectiveActions)}
+            />
+            <MetricCard
+              label="Permit compliance rate"
+              value={permitRateMeasured ? `${Math.round(overview.summary.permitComplianceRate)}%` : "—"}
+              valueMuted={!permitRateMeasured}
+              statusBand={permitSummaryBand}
+              hint={
+                permitRateMeasured
+                  ? undefined
+                  : "No permit activity in this selection—rate is not shown so it is not mistaken for measured compliance."
+              }
+            />
+            <MetricCard
+              label="Training readiness rate"
+              value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "—"}
+              valueMuted={!trainingMeasured}
+              statusBand={trainingSummaryBand}
+              hint={
+                trainingMeasured
+                  ? undefined
+                  : "No training or credential rows in this selection—rate is hidden until records exist."
+              }
+            />
+            <MetricCard
+              label="Document readiness rate"
+              value={documentRateMeasured ? `${Math.round(overview.summary.documentReadinessRate)}%` : "—"}
+              valueMuted={!documentRateMeasured}
+              statusBand={documentSummaryBand}
+              hint={
+                documentRateMeasured
+                  ? undefined
+                  : "No documents in workflow for this selection—rate is hidden until files are submitted."
+              }
+            />
+          </div>
+        ) : (
+          <DashboardDomainEmptyState
+            icon={Activity}
+            title={HEADLINE_HEALTH_EMPTY.title}
+            description={HEADLINE_HEALTH_EMPTY.description}
           />
-          <MetricCard
-            label="Open high-risk items"
-            value={overview.summary.openHighRiskItems}
-            hint="High-risk work exposure—requires field verification"
-          />
-          <MetricCard
-            label="Overdue corrective actions"
-            value={overview.summary.overdueCorrectiveActions}
-            hint="Missing control follow-through past due date"
-          />
-          <MetricCard label="Permit compliance rate" value={`${Math.round(overview.summary.permitComplianceRate)}%`} />
-          <MetricCard label="Training readiness rate" value={`${Math.round(overview.summary.trainingReadinessRate)}%`} />
-          <MetricCard label="Document readiness rate" value={`${Math.round(overview.summary.documentReadinessRate)}%`} />
-        </div>
+        )}
       </SectionCard>
 
       <SectionCard
@@ -268,25 +370,35 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         tone="elevated"
         description="Incident and near-miss buckets compared across the period. Trending upward suggests risk building—use it to target verification, not as a prediction of a specific event."
       >
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--app-muted)]">Incident signal</span>
-          <StatusBadge label={outlookLabel(outlook)} tone={outlookTone(outlook)} />
-        </div>
-        {outlook === "worsening" ? (
-          <p className="mt-3 text-sm leading-relaxed text-[var(--app-text)]">
-            Recent buckets show higher counts than earlier in the window. Recommended action: confirm staffing, scope changes,
-            and energy isolation / fall protection where work is active. Pre-task review needed on the highest-hazard tasks.
-          </p>
-        ) : outlook === "improving" ? (
-          <p className="mt-3 text-sm leading-relaxed text-[var(--app-text)]">
-            Counts are easing compared with earlier in the window. Sustain the controls and supervision behaviors that
-            likely contributed—document them for other sites.
-          </p>
+        {incidentsHaveData ? (
+          <>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--app-muted)]">Incident signal</span>
+              <StatusBadge label={outlookLabel(outlook)} tone={outlookTone(outlook)} />
+            </div>
+            {outlook === "worsening" ? (
+              <p className="mt-3 text-sm leading-relaxed text-[var(--app-text)]">
+                Recent buckets show higher counts than earlier in the window. Recommended action: confirm staffing, scope changes,
+                and energy isolation / fall protection where work is active. Pre-task review needed on the highest-hazard tasks.
+              </p>
+            ) : outlook === "improving" ? (
+              <p className="mt-3 text-sm leading-relaxed text-[var(--app-text)]">
+                Counts are easing compared with earlier in the window. Sustain the controls and supervision behaviors that
+                likely contributed—document them for other sites.
+              </p>
+            ) : (
+              <p className="mt-3 text-sm text-[var(--app-muted)]">
+                Incident signal is stable in this window. Keep routine verification so a quiet chart does not mask a repeat issue
+                on the ground.
+              </p>
+            )}
+          </>
         ) : (
-          <p className="mt-3 text-sm text-[var(--app-muted)]">
-            Incident signal is stable in this window. Keep routine verification so a quiet chart does not mask a repeat issue
-            on the ground.
-          </p>
+          <DashboardDomainEmptyState
+            icon={AlertTriangle}
+            title={INCIDENTS_EMPTY.title}
+            description={INCIDENTS_EMPTY.description}
+          />
         )}
       </SectionCard>
 
@@ -299,9 +411,13 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         <div>
           <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Top emerging themes</h3>
           {topEmerging.length === 0 ? (
-            <p className="mt-2 text-sm text-[var(--app-muted)]">
-              No ranked themes in this window yet—widen the range or confirm observations are being logged.
-            </p>
+            <div className="mt-2">
+              <DashboardDomainEmptyState
+                icon={ScanLine}
+                title={EMERGING_THEMES_EMPTY.title}
+                description={EMERGING_THEMES_EMPTY.description}
+              />
+            </div>
           ) : (
             <ul className="mt-2 space-y-2">
               {topEmerging.map((r, i) => (
@@ -334,7 +450,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         <div className="mt-6">
           <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Repeat observation categories</h3>
           {obsCategories.length === 0 ? (
-            <p className="mt-2 text-sm text-[var(--app-muted)]">No category rollups yet for this window.</p>
+            <p className="mt-2 text-sm text-[var(--app-muted)]">No repeat observation categories for this period.</p>
           ) : (
             <ul className="mt-2 grid gap-2 sm:grid-cols-2">
               {obsCategories.slice(0, 8).map((c, i) => (
@@ -360,36 +476,42 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           description="Open and overdue items are prevention debt until verified in the field and closed in the system."
           showCompositionStrip
         />
-        <div className="mt-4">
-          <MetricCard
-            label="Average days to close"
-            value={overview.correctiveActionStatus.averageDaysToClose ?? "—"}
-            hint={overview.correctiveActionStatus.averageDaysToClose == null ? "Need closed rows with dates." : undefined}
-          />
-        </div>
-        <div className="mt-6">
-          <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Overdue items (requires field verification)</h3>
-          {overdueRows.length === 0 ? (
-            <p className="mt-2 text-sm text-[var(--app-muted)]">No overdue open correctives in this window.</p>
-          ) : (
-            <ul className="mt-2 divide-y divide-[var(--app-border-subtle)] overflow-hidden rounded-xl border border-[var(--app-border)] bg-white/92 text-sm">
-              {overdueRows.map((row) => (
-                <li key={row.id} className="flex flex-col gap-1 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="font-medium text-[var(--app-text-strong)]">{(row.category ?? "Uncategorized").replace(/_/g, " ")}</p>
-                    <p className="text-xs text-[var(--app-muted)]">
-                      {row.observation_type ? `${row.observation_type} · ` : null}
-                      Due {row.due_at ? new Date(row.due_at).toLocaleDateString() : "—"}
-                    </p>
-                  </div>
-                  <Link href="/field-id-exchange" className="shrink-0 text-xs font-semibold text-[var(--app-accent-primary)]">
-                    View correctives
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {correctiveHasAnyActivity(overview.correctiveActionStatus) ? (
+          <div className="mt-4">
+            <MetricCard
+              label="Average days to close"
+              value={overview.correctiveActionStatus.averageDaysToClose ?? "—"}
+              hint={overview.correctiveActionStatus.averageDaysToClose == null ? "Need closed rows with dates." : undefined}
+            />
+          </div>
+        ) : null}
+        {correctiveHasAnyActivity(overview.correctiveActionStatus) ? (
+          <div className="mt-6">
+            <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Overdue items (requires field verification)</h3>
+            {overdueRows.length === 0 ? (
+              <p className="mt-2 text-sm text-[var(--app-muted)]">
+                No overdue corrective actions require follow-up for this view.
+              </p>
+            ) : (
+              <ul className="mt-2 divide-y divide-[var(--app-border-subtle)] overflow-hidden rounded-xl border border-[var(--app-border)] bg-white/92 text-sm">
+                {overdueRows.map((row) => (
+                  <li key={row.id} className="flex flex-col gap-1 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-medium text-[var(--app-text-strong)]">{(row.category ?? "Uncategorized").replace(/_/g, " ")}</p>
+                      <p className="text-xs text-[var(--app-muted)]">
+                        {row.observation_type ? `${row.observation_type} · ` : null}
+                        Due {row.due_at ? new Date(row.due_at).toLocaleDateString() : "—"}
+                      </p>
+                    </div>
+                    <Link href="/field-id-exchange" className="shrink-0 text-xs font-semibold text-[var(--app-accent-primary)]">
+                      View correctives
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : null}
       </SectionCard>
 
       <SectionCard
@@ -398,10 +520,12 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         tone="panel"
         description="Type-level permit posture and JSA completion. Missing permits for hot work, cranes, excavation, confined space, or energized work are a missing control until documented."
       >
-        <p className="text-sm text-[var(--app-text)]">
-          <span className="font-semibold text-[var(--app-text-strong)]">Missing required permits (bucketed): </span>
-          {missingPermitsTotal}
-        </p>
+        {overview.permitCompliance.length > 0 || missingPermitsTotal > 0 ? (
+          <p className="text-sm text-[var(--app-text)]">
+            <span className="font-semibold text-[var(--app-text-strong)]">Missing required permits (bucketed): </span>
+            {missingPermitsTotal}
+          </p>
+        ) : null}
         <div className="mt-4">
           <PermitComplianceTable permits={overview.permitCompliance} jsaCompletionRate={overview.summary.jsaCompletionRate} />
         </div>
@@ -422,11 +546,36 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         tone="panel"
         description="Training coverage and credential timing. Expired or missing credentials should be resolved before task assignment on regulated or high-energy work."
       >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <MetricCard label="Overall training readiness" value={`${Math.round(overview.summary.trainingReadinessRate)}%`} />
-          <MetricCard label="Expired credentials (docs)" value={cred.expiredCredentials} hint="Contractor documents past expiry" />
-          <MetricCard label="Expiring soon (30d)" value={cred.expiringSoonCredentials} />
-        </div>
+        {trainingMeasured ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <MetricCard
+              label="Overall training readiness"
+              value={`${Math.round(overview.summary.trainingReadinessRate)}%`}
+              statusBand={trainingReadinessSummaryBand(
+                overview.summary.trainingReadinessRate,
+                true,
+                cred.expiredCredentials
+              )}
+            />
+            <MetricCard
+              label="Expired credentials (docs)"
+              value={cred.expiredCredentials}
+              hint="Contractor documents past expiry"
+              statusBand={cred.expiredCredentials > 0 ? "red" : "green"}
+            />
+            <MetricCard
+              label="Expiring soon (30d)"
+              value={cred.expiringSoonCredentials}
+              statusBand={cred.expiringSoonCredentials > 0 ? "yellow" : "green"}
+            />
+          </div>
+        ) : (
+          <DashboardDomainEmptyState
+            icon={GraduationCap}
+            title={TRAINING_EMPTY.title}
+            description={TRAINING_EMPTY.description}
+          />
+        )}
         <p className="mt-4 text-sm text-[var(--app-muted)]">
           Role-based training gaps are not shown in this overview yet—use the training matrix when HR connects assignments so
           missing control signals include role coverage.
@@ -439,7 +588,10 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         tone="elevated"
         description="Lifecycle counts for documents in scope. Gaps here can block verification of programs and contractor packages before work continues."
       >
-        <DocumentReadinessPanel readiness={overview.documentReadiness} />
+        <DocumentReadinessPanel
+          readiness={overview.documentReadiness}
+          overallStatusBand={documentPipelineTotal(doc) > 0 ? documentSummaryBand : undefined}
+        />
       </SectionCard>
 
       <SectionCard

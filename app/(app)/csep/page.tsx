@@ -1455,6 +1455,31 @@ export default function CSEPPage() {
     return true;
   }
 
+  /** Highest step index reachable via sequential gates (same as repeated "Next step"). Used so category tabs cannot skip ahead of `canProceed`. */
+  function maxReachableStepIndex(): number {
+    let max = 0;
+    for (let i = 0; i < workflowDefinition.length - 1; i++) {
+      if (!canProceed(i)) break;
+      max = i + 1;
+    }
+    return max;
+  }
+
+  function goToStep(nextIndex: number) {
+    const max = maxReachableStepIndex();
+    if (nextIndex > max) {
+      setMessageTone("warning");
+      setMessage(
+        nextIndex >= 6
+          ? `Draft review and submission stay locked until earlier steps are complete. ${nextRequiredInput}`
+          : `That step is not unlocked yet. ${nextRequiredInput}`
+      );
+      setStep(max);
+      return;
+    }
+    setStep(nextIndex);
+  }
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -1513,7 +1538,7 @@ export default function CSEPPage() {
                 <button
                   key={category.title}
                   type="button"
-                  onClick={() => setStep(category.stepIndexes[0] ?? 0)}
+                  onClick={() => goToStep(category.stepIndexes[0] ?? 0)}
                   className={`border-b-2 px-1 pb-2 text-sm font-semibold transition ${
                     isActive
                       ? "border-[var(--app-accent-primary)] text-[var(--app-accent-primary)]"
@@ -1533,7 +1558,7 @@ export default function CSEPPage() {
                 <button
                   key={`${activeWorkflowCategory.title}-${stepItem.title}`}
                   type="button"
-                  onClick={() => setStep(stepIndex)}
+                  onClick={() => goToStep(stepIndex)}
                   className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
                     isActive
                       ? "border-[var(--app-accent-primary)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]"
@@ -2326,6 +2351,15 @@ export default function CSEPPage() {
                         {previewApproved && previewIsCurrent ? "Draft approved" : "Approve current draft"}
                       </button>
                     </div>
+                    {!csepReady && !previewLoading ? (
+                      <div className="mt-4">
+                        <InlineMessage tone="warning">
+                          Smart draft stays disabled until the live form matches the generator gate: trade, project delivery type,
+                          sub-trade, at least one task, at least one hazard, and required program classifications.{" "}
+                          <span className="font-medium">{nextRequiredInput}</span>
+                        </InlineMessage>
+                      </div>
+                    ) : null}
                     {previewState && !previewIsCurrent ? (
                       <div className="mt-4">
                         <InlineMessage tone="warning">

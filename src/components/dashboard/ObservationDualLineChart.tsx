@@ -1,6 +1,7 @@
 "use client";
 
 import type { TrendPoint } from "@/src/lib/dashboard/types";
+import { OBSERVATIONS_EMPTY } from "@/src/lib/dashboard/dashboardOverviewEmptyMessages";
 import { EmptyState } from "@/components/WorkspacePrimitives";
 import { LineChart as LineChartIcon } from "lucide-react";
 import {
@@ -19,6 +20,9 @@ export type ObservationDualLineChartProps = {
   title: string;
   description?: string;
   className?: string;
+  /** When the series has no usable points, shown instead of an empty chart. */
+  emptyTitle?: string;
+  emptyDescription?: string;
 };
 
 function formatTick(iso: string): string {
@@ -63,7 +67,14 @@ const CHART_TOOLTIP_BORDER = "rgba(111, 138, 177, 0.35)";
 /**
  * Positive vs negative observation counts by bucket (from {@link TrendPoint} labels).
  */
-export function ObservationDualLineChart({ points, title, description, className = "" }: ObservationDualLineChartProps) {
+export function ObservationDualLineChart({
+  points,
+  title,
+  description,
+  className = "",
+  emptyTitle = OBSERVATIONS_EMPTY.title,
+  emptyDescription = OBSERVATIONS_EMPTY.description,
+}: ObservationDualLineChartProps) {
   const data = mergeObservationSeries(points);
   const hasPositive = data.some((d) => d.positive > 0);
   const hasNegative = data.some((d) => d.negative > 0);
@@ -75,12 +86,7 @@ export function ObservationDualLineChart({ points, title, description, className
           <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
           {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
         </div>
-        <EmptyState
-          align="left"
-          icon={LineChartIcon}
-          title="No observation mix for this range"
-          description="Positive and negative observation buckets are empty. Log field observations with clear types, or widen the date range so emerging risk is visible before work continues."
-        />
+        <EmptyState align="left" icon={LineChartIcon} title={emptyTitle} description={emptyDescription} />
       </div>
     );
   }

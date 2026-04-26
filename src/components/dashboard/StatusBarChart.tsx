@@ -1,6 +1,7 @@
 "use client";
 
 import type { TrafficLightStatus } from "@/src/lib/dashboard/types";
+import { CORRECTIVE_ACTIONS_EMPTY } from "@/src/lib/dashboard/dashboardOverviewEmptyMessages";
 import { EmptyState } from "@/components/WorkspacePrimitives";
 import { LayoutList } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -20,6 +21,9 @@ export type StatusBarChartProps = {
   className?: string;
   /** When true, shows the proportional strip under the bar chart (no fake data — same segment values). */
   showCompositionStrip?: boolean;
+  /** When all segment values are zero, shown instead of an empty chart. */
+  emptyTitle?: string;
+  emptyDescription?: string;
 };
 
 function barFill(tone: TrafficLightStatus | undefined): string {
@@ -50,6 +54,8 @@ export function StatusBarChart({
   description,
   className = "",
   showCompositionStrip = true,
+  emptyTitle = CORRECTIVE_ACTIONS_EMPTY.title,
+  emptyDescription = CORRECTIVE_ACTIONS_EMPTY.description,
 }: StatusBarChartProps) {
   const total = segments.reduce((s, x) => s + Math.max(0, x.value), 0);
 
@@ -60,12 +66,7 @@ export function StatusBarChart({
           <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
           {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
         </div>
-        <EmptyState
-          align="left"
-          icon={LayoutList}
-          title="Nothing to compare yet"
-          description="All segment values are zero for this view. As corrective work accumulates, this chart shows where open and overdue prevention debt sits."
-        />
+        <EmptyState align="left" icon={LayoutList} title={emptyTitle} description={emptyDescription} />
       </div>
     );
   }

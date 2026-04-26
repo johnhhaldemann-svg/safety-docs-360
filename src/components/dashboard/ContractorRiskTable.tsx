@@ -1,4 +1,9 @@
 import type { ContractorRiskScore } from "@/src/lib/dashboard/types";
+import { CONTRACTOR_SCORECARDS_EMPTY } from "@/src/lib/dashboard/dashboardOverviewEmptyMessages";
+import {
+  contractorCompliancePercentBand,
+  contractorExposureBand,
+} from "@/src/lib/dashboard/dashboardStatusSemantics";
 import { EmptyState } from "@/components/WorkspacePrimitives";
 import { Users } from "lucide-react";
 import { StatusBadge } from "@/src/components/dashboard/StatusBadge";
@@ -9,12 +14,6 @@ export type ContractorRiskTableProps = {
   description?: string;
   className?: string;
 };
-
-function riskTraffic(score: number): "green" | "yellow" | "red" {
-  if (score >= 70) return "red";
-  if (score >= 40) return "yellow";
-  return "green";
-}
 
 /**
  * Responsive contractor scorecard table (stacks on small screens).
@@ -35,8 +34,8 @@ export function ContractorRiskTable({
         <EmptyState
           align="left"
           icon={Users}
-          title="No contractor risk rows"
-          description="When evaluations and compliance documents are available, scorecards appear here so you can target contractor coordination and field verification."
+          title={CONTRACTOR_SCORECARDS_EMPTY.title}
+          description={CONTRACTOR_SCORECARDS_EMPTY.description}
         />
       </div>
     );
@@ -60,6 +59,7 @@ export function ContractorRiskTable({
               <th className="px-4 py-3 font-semibold text-[var(--app-text-strong)]">Inc.</th>
               <th className="px-4 py-3 font-semibold text-[var(--app-text-strong)]">Training</th>
               <th className="px-4 py-3 font-semibold text-[var(--app-text-strong)]">Permits</th>
+              <th className="px-4 py-3 font-semibold text-[var(--app-text-strong)]">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -67,17 +67,27 @@ export function ContractorRiskTable({
               <tr key={`${c.contractorName}-${i}`} className="border-b border-[var(--app-border-subtle)] last:border-0">
                 <td className="px-4 py-3 font-medium text-[var(--app-text-strong)]">{c.contractorName}</td>
                 <td className="px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-app-display font-bold text-[var(--app-text-strong)]">{Math.round(c.riskScore)}</span>
-                    <StatusBadge label="Exposure band" trafficLight={riskTraffic(c.riskScore)} />
-                  </div>
+                  <span className="font-app-display font-bold text-[var(--app-text-strong)]">{Math.round(c.riskScore)}</span>
                 </td>
                 <td className="px-4 py-3 text-[var(--app-text)]">{c.openItems}</td>
                 <td className="px-4 py-3 text-[var(--app-text)]">{c.overdueItems}</td>
                 <td className="px-4 py-3 text-[var(--app-text)]">{c.observations}</td>
                 <td className="px-4 py-3 text-[var(--app-text)]">{c.incidents}</td>
-                <td className="px-4 py-3 text-[var(--app-text)]">{Math.round(c.trainingCompliance)}%</td>
-                <td className="px-4 py-3 text-[var(--app-text)]">{Math.round(c.permitCompliance)}%</td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2 text-[var(--app-text)]">
+                    <span>{Math.round(c.trainingCompliance)}%</span>
+                    <StatusBadge label="Training" trafficLight={contractorCompliancePercentBand(c.trainingCompliance)} />
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2 text-[var(--app-text)]">
+                    <span>{Math.round(c.permitCompliance)}%</span>
+                    <StatusBadge label="Permits" trafficLight={contractorCompliancePercentBand(c.permitCompliance)} />
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <StatusBadge label="Exposure" trafficLight={contractorExposureBand(c)} />
+                </td>
               </tr>
             ))}
           </tbody>

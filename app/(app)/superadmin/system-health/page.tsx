@@ -27,6 +27,11 @@ import type {
   SystemHealthSection,
   SystemHealthStatus,
 } from "@/lib/superadmin/systemHealthTypes";
+import {
+  systemHealthStatusToTrafficLight,
+  trafficLightBadgeClasses,
+  trafficLightNodeRingClass,
+} from "@/src/lib/dashboard/dashboardStatusSemantics";
 
 const SECTION_LABELS: Record<string, string> = {
   data_foundation: "Data Foundation",
@@ -48,17 +53,13 @@ const SECTION_DISPLAY_ORDER = [
 ] as const;
 
 function statusBadgeClasses(status: SystemHealthStatus) {
-  if (status === "healthy") return "bg-emerald-500/15 text-emerald-800 ring-1 ring-emerald-500/30";
-  if (status === "warning") return "bg-amber-500/15 text-amber-900 ring-1 ring-amber-500/35";
-  if (status === "critical") return "bg-red-500/15 text-red-900 ring-1 ring-red-500/35";
-  return "bg-slate-400/15 text-slate-700 ring-1 ring-slate-400/30";
+  if (status === "unknown") return "bg-slate-400/15 text-slate-700 ring-1 ring-slate-400/30";
+  return trafficLightBadgeClasses(systemHealthStatusToTrafficLight(status));
 }
 
 function nodeRing(status: SystemHealthStatus) {
-  if (status === "healthy") return "ring-2 ring-emerald-500/70 border-emerald-600/30";
-  if (status === "warning") return "ring-2 ring-amber-500/70 border-amber-600/30";
-  if (status === "critical") return "ring-2 ring-red-500/70 border-red-600/30";
-  return "ring-2 ring-slate-300 border-slate-300/80";
+  if (status === "unknown") return "ring-2 ring-slate-300 border-slate-300/80";
+  return trafficLightNodeRingClass(systemHealthStatusToTrafficLight(status));
 }
 
 function StatusIcon({ status }: { status: SystemHealthStatus }) {
