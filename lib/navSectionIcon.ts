@@ -10,16 +10,16 @@ import {
   Users,
 } from "lucide-react";
 import type { NavSection } from "@/lib/appNavigation";
-import type { WorkspaceNavGroup } from "@/lib/workspaceNavigationModel";
+import type { WorkspaceNavGroup } from "@/lib/workspaceNavGroup";
 
 type SectionWithGroup = NavSection & { group?: WorkspaceNavGroup };
 
 const GROUP_ICONS: Record<WorkspaceNavGroup, LucideIcon> = {
-  operations: LayoutDashboard,
+  today: LayoutDashboard,
+  fieldSites: HardHat,
+  programs: ClipboardList,
   insights: BarChart3,
-  documents: FolderOpen,
-  jobsites: HardHat,
-  admin: Users,
+  account: Users,
 };
 
 const TITLE_HINTS: Array<{ test: (t: string) => boolean; Icon: LucideIcon }> = [

@@ -20,18 +20,10 @@ describe("workspaceNavigationModel", () => {
       },
     ]);
 
-    expect(grouped.map((section) => section.group)).toEqual([
-      "operations",
-      "documents",
-      "jobsites",
-      "admin",
-    ]);
-    expect(grouped.some((s) => s.group === "insights")).toBe(false);
-    expect(grouped[0]?.items.map((item) => item.href)).toEqual([
-      "/dashboard",
-      "/command-center",
-    ]);
-    expect(grouped[1]?.description).toContain("library");
+    expect(grouped.map((section) => section.group)).toEqual(["today", "fieldSites", "insights"]);
+    expect(grouped.some((s) => s.group === "programs")).toBe(false);
+    expect(grouped[0]?.items.map((item) => item.href)).toEqual(["/dashboard", "/command-center"]);
+    expect(grouped.find((s) => s.group === "insights")?.description).toContain("library");
   });
 
   it("adds item-level descriptions and CTA copy for operator surfaces", () => {
@@ -42,7 +34,7 @@ describe("workspaceNavigationModel", () => {
         short: "TR",
       })
     ).toMatchObject({
-      group: "operations",
+      group: "programs",
       primaryActionLabel: "Review gaps",
     });
 
@@ -69,10 +61,10 @@ describe("workspaceNavigationModel", () => {
     ]);
 
     expect(grouped.map((section) => `${section.title}:${section.description}`)).toEqual([
-      "Operations:Run daily safety work, triage risk, and keep approvals moving.",
-      "Documents:Open records, search the library, and move submissions forward.",
-      "Job Sites:Open live jobsites and jump into project-scoped workspaces.",
-      "Account & reports:Open billing, team access, reports, and account settings.",
+      "Today:Dashboard, command hub, and submission inbox for daily work.",
+      "Field & Sites:Job sites, JSAs, permits, incidents, and field issue tracking.",
+      "Insights:Analytics, workflow activity, reports, library, and search.",
+      "Account:Billing, team access, profile, purchases, and marketplace previews.",
     ]);
     expect(grouped[0]?.items[0]).toMatchObject({
       href: "/command-center",
@@ -92,7 +84,7 @@ describe("workspaceNavigationModel", () => {
         short: "BL",
       })
     ).toMatchObject({
-      group: "admin",
+      group: "account",
       description: "Review billing activity, invoices, payment status, and account charges.",
       primaryActionLabel: "Open billing",
     });
@@ -104,8 +96,8 @@ describe("workspaceNavigationModel", () => {
         short: "TM",
       })
     ).toMatchObject({
-      group: "admin",
-      description: "Manage team members, invitations, access roles, and company user permissions.",
+      group: "account",
+      description: "Manage team members, contractors, invitations, access roles, and permissions.",
       primaryActionLabel: "Open team",
     });
 
@@ -116,7 +108,7 @@ describe("workspaceNavigationModel", () => {
         short: "RM",
       })
     ).toMatchObject({
-      group: "operations",
+      group: "fieldSites",
       description:
         "Manage contractor and crew lists used on incidents, field issues, and Risk Memory rollups.",
       primaryActionLabel: "Open setup",
@@ -126,16 +118,16 @@ describe("workspaceNavigationModel", () => {
   it("exposes orphan company routes for shell header when omitted from sidebar nav", () => {
     expect(getOrphanCompanyWorkspaceNav("/settings/risk-memory")).toMatchObject({
       item: { href: "/settings/risk-memory", label: "Risk Memory setup", short: "RM" },
-      sectionTitle: "Operations",
-      sectionKey: "orphan-operations",
+      sectionTitle: "Field & Sites",
+      sectionKey: "orphan-fieldSites",
     });
     expect(getOrphanCompanyWorkspaceNav("/incidents")).toBeNull();
   });
 
-  it("places safety intelligence and portfolio analytics into the insights rail group", () => {
+  it("places safety intelligence under programs and portfolio analytics under insights", () => {
     expect(
       getWorkspaceNavItemMeta({ href: "/safety-intelligence", label: "SI", short: "SI" })
-    ).toMatchObject({ group: "insights" });
+    ).toMatchObject({ group: "programs" });
     expect(getWorkspaceNavItemMeta({ href: "/analytics", label: "RT", short: "AN" })).toMatchObject({
       group: "insights",
     });
@@ -158,9 +150,11 @@ describe("workspaceNavigationModel", () => {
       },
     ]);
 
-    expect(grouped.map((s) => s.group)).toEqual(["operations", "insights"]);
+    expect(grouped.map((s) => s.group)).toEqual(["today", "programs", "insights"]);
     const insights = grouped.find((s) => s.group === "insights");
-    expect(insights?.title).toBe("Insights & intelligence");
-    expect(insights?.items.map((i) => i.href)).toEqual(["/safety-intelligence", "/analytics"]);
+    expect(insights?.title).toBe("Insights");
+    expect(insights?.items.map((i) => i.href)).toEqual(["/analytics"]);
+    const programs = grouped.find((s) => s.group === "programs");
+    expect(programs?.items.map((i) => i.href)).toEqual(["/safety-intelligence"]);
   });
 });

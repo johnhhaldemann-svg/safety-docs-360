@@ -1,6 +1,7 @@
 import type { NavItem, NavSection } from "@/lib/appNavigation";
+import type { WorkspaceNavGroup } from "@/lib/workspaceNavGroup";
 
-export type WorkspaceNavGroup = "operations" | "insights" | "documents" | "jobsites" | "admin";
+export type { WorkspaceNavGroup } from "@/lib/workspaceNavGroup";
 
 export type WorkspaceNavItem = NavItem & {
   group: WorkspaceNavGroup;
@@ -15,35 +16,35 @@ export type WorkspaceNavSection = NavSection & {
   items: WorkspaceNavItem[];
 };
 
-const GROUP_ORDER: WorkspaceNavGroup[] = ["operations", "insights", "documents", "jobsites", "admin"];
+const GROUP_ORDER: WorkspaceNavGroup[] = ["today", "fieldSites", "programs", "insights", "account"];
 
 const SECTION_META: Record<
   WorkspaceNavGroup,
   Pick<WorkspaceNavSection, "title" | "description" | "audience">
 > = {
-  operations: {
-    title: "Operations",
-    description: "Run daily safety work, triage risk, and keep approvals moving.",
+  today: {
+    title: "Today",
+    description: "Dashboard, command hub, and submission inbox for daily work.",
+    audience: "operator",
+  },
+  fieldSites: {
+    title: "Field & Sites",
+    description: "Job sites, JSAs, permits, incidents, and field issue tracking.",
+    audience: "field",
+  },
+  programs: {
+    title: "Programs",
+    description: "Safety Intelligence, inductions, forms, integrations, and blueprint builders.",
     audience: "operator",
   },
   insights: {
-    title: "Insights & intelligence",
-    description: "Safety Intelligence, company-wide analytics, and risk program context.",
+    title: "Insights",
+    description: "Analytics, workflow activity, reports, library, and search.",
     audience: "leadership",
   },
-  documents: {
-    title: "Documents",
-    description: "Open records, search the library, and move submissions forward.",
-    audience: "operator",
-  },
-  jobsites: {
-    title: "Job Sites",
-    description: "Open live jobsites and jump into project-scoped workspaces.",
-    audience: "operator",
-  },
-  admin: {
-    title: "Account & reports",
-    description: "Open billing, team access, reports, and account settings.",
+  account: {
+    title: "Account",
+    description: "Billing, team access, profile, purchases, and marketplace previews.",
     audience: "leadership",
   },
 };
@@ -55,136 +56,95 @@ const ITEM_META: Array<{
   primaryActionLabel?: string;
 }> = [
   {
-    matcher: (href) => href === "/command-center",
-    group: "operations",
-    description: "Current risk, open work, and recommended next steps.",
-    primaryActionLabel: "Open hub",
-  },
-  {
     matcher: (href) => href === "/dashboard",
-    group: "operations",
+    group: "today",
     description: "Start here for urgent work, progress, and next actions.",
     primaryActionLabel: "Review today",
   },
   {
-    matcher: (href) => href === "/training-matrix",
-    group: "operations",
-    description: "Track worker readiness, certifications, and training gaps.",
-    primaryActionLabel: "Review gaps",
+    matcher: (href) => href === "/command-center",
+    group: "today",
+    description: "Current risk, open work, and recommended next steps.",
+    primaryActionLabel: "Open hub",
   },
   {
-    matcher: (href) => href === "/safety-intelligence",
-    group: "insights",
-    description: "Run intake, conflicts, and intelligence-powered safety document workflows.",
-    primaryActionLabel: "Start workflow",
+    matcher: (href) => href === "/submit" || href === "/upload",
+    group: "today",
+    description: "Prepare submissions and upload supporting files into review.",
+    primaryActionLabel: "Open inbox",
   },
   {
-    matcher: (href) => href === "/field-id-exchange",
-    group: "operations",
-    description: "Review field issues, corrective actions, and escalations.",
-    primaryActionLabel: "Open issue log",
+    matcher: (href) => href === "/jobsites" || href.startsWith("/jobsites/"),
+    group: "fieldSites",
+    description: "Open project-scoped workspaces, team context, and live activity.",
+    primaryActionLabel: "Open jobsite",
   },
   {
     matcher: (href) => href === "/jsa",
-    group: "operations",
+    group: "fieldSites",
     description: "Create, review, and manage job safety analyses.",
     primaryActionLabel: "Open JSA builder",
   },
   {
-    matcher: (href) => href === "/company-inductions",
-    group: "operations",
-    description: "Configure induction programs and jobsite requirements for site access.",
-    primaryActionLabel: "Open induction setup",
-  },
-  {
-    matcher: (href) => href === "/company-safety-forms",
-    group: "operations",
-    description: "Version safety checklists and publish forms crews run on jobsites.",
-    primaryActionLabel: "Open form builder",
-  },
-  {
-    matcher: (href) => href === "/company-integrations",
-    group: "admin",
-    description: "Webhooks, delivery logs, and HRIS roster import entry points.",
-    primaryActionLabel: "Open integrations",
-  },
-  {
     matcher: (href) => href === "/permits",
-    group: "operations",
+    group: "fieldSites",
     description: "Open permit workflows, active stop-work status, and approvals.",
     primaryActionLabel: "Open permits",
   },
   {
     matcher: (href) => href === "/incidents",
-    group: "operations",
+    group: "fieldSites",
     description: "Track incident response, escalation, and closure status.",
     primaryActionLabel: "Review incidents",
   },
   {
-    matcher: (href) => href.startsWith("/library"),
-    group: "documents",
-    description: "Browse finished records, templates, and marketplace content.",
-    primaryActionLabel: "Open documents",
+    matcher: (href) => href === "/field-id-exchange",
+    group: "fieldSites",
+    description: "Review field issues, corrective actions, and escalations.",
+    primaryActionLabel: "Open issue log",
   },
   {
-    matcher: (href) => href === "/search",
-    group: "documents",
-    description: "Search documents, records, projects, and saved pages.",
-    primaryActionLabel: "Search now",
+    matcher: (href) => href === "/settings/risk-memory",
+    group: "fieldSites",
+    description:
+      "Manage contractor and crew lists used on incidents, field issues, and Risk Memory rollups.",
+    primaryActionLabel: "Open setup",
   },
   {
-    matcher: (href) => href === "/submit",
-    group: "documents",
-    description: "Prepare a submission package and send it into review.",
-    primaryActionLabel: "Submit package",
+    matcher: (href) => href === "/safety-intelligence",
+    group: "programs",
+    description: "Run intake, conflicts, and intelligence-powered safety document workflows.",
+    primaryActionLabel: "Start workflow",
   },
   {
-    matcher: (href) => href === "/upload",
-    group: "documents",
-    description: "Add source files, supporting records, and templates.",
-    primaryActionLabel: "Upload files",
+    matcher: (href) => href === "/company-inductions",
+    group: "programs",
+    description: "Configure induction programs and jobsite requirements for site access.",
+    primaryActionLabel: "Open induction setup",
   },
   {
-    matcher: (href) => href === "/purchases",
-    group: "documents",
-    description: "Open purchases, credits, and previously unlocked records.",
-    primaryActionLabel: "Review history",
+    matcher: (href) => href === "/company-safety-forms",
+    group: "programs",
+    description: "Version safety checklists and publish forms crews run on jobsites.",
+    primaryActionLabel: "Open form builder",
   },
   {
-    matcher: (href) => href === "/marketplace-preview-approvals",
-    group: "documents",
-    description: "Review marketplace preview requests and approval decisions.",
-    primaryActionLabel: "Review previews",
+    matcher: (href) => href === "/company-integrations",
+    group: "programs",
+    description: "Webhooks, delivery logs, and HRIS roster import entry points.",
+    primaryActionLabel: "Open integrations",
+  },
+  {
+    matcher: (href) => href === "/training-matrix",
+    group: "programs",
+    description: "Track worker readiness, certifications, and training gaps.",
+    primaryActionLabel: "Review gaps",
   },
   {
     matcher: (href) => href === "/peshep" || href === "/csep",
-    group: "documents",
+    group: "programs",
     description: "Build guided safety document packages from one workflow.",
     primaryActionLabel: "Build document",
-  },
-  {
-    matcher: (href) => href === "/jobsites" || href.startsWith("/jobsites/"),
-    group: "jobsites",
-    description: "Open project-scoped workspaces, team context, and live activity.",
-    primaryActionLabel: "Open jobsite",
-  },
-  {
-    matcher: (href) => href === "/customer/billing" || href === "/billing",
-    group: "admin",
-    description: "Review billing activity, invoices, payment status, and account charges.",
-    primaryActionLabel: "Open billing",
-  },
-  {
-    matcher: (href) => href === "/company-users",
-    group: "admin",
-    description: "Manage team members, invitations, access roles, and company user permissions.",
-    primaryActionLabel: "Open team",
-  },
-  {
-    matcher: (href) => href === "/profile",
-    group: "admin",
-    description: "Update your account profile, contact details, role context, and personal settings.",
-    primaryActionLabel: "Open profile",
   },
   {
     matcher: (href) => href === "/analytics/safety-intelligence",
@@ -201,17 +161,46 @@ const ITEM_META: Array<{
     primaryActionLabel: "Open analytics",
   },
   {
-    matcher: (href) => href === "/settings/risk-memory",
-    group: "operations",
-    description:
-      "Manage contractor and crew lists used on incidents, field issues, and Risk Memory rollups.",
-    primaryActionLabel: "Open setup",
-  },
-  {
     matcher: (href) => href === "/reports",
-    group: "admin",
+    group: "insights",
     description: "Open company reports, summaries, and export-ready management views.",
     primaryActionLabel: "Open reports",
+  },
+  {
+    matcher: (href) => href.startsWith("/library"),
+    group: "insights",
+    description: "Browse finished records, templates, and marketplace content.",
+    primaryActionLabel: "Open documents",
+  },
+  {
+    matcher: (href) => href === "/search",
+    group: "insights",
+    description: "Search documents, records, projects, and saved pages.",
+    primaryActionLabel: "Search now",
+  },
+  {
+    matcher: (href) => href === "/customer/billing" || href === "/billing",
+    group: "account",
+    description: "Review billing activity, invoices, payment status, and account charges.",
+    primaryActionLabel: "Open billing",
+  },
+  {
+    matcher: (href) => href === "/company-users" || href === "/company-contractors",
+    group: "account",
+    description: "Manage team members, contractors, invitations, access roles, and permissions.",
+    primaryActionLabel: "Open team",
+  },
+  {
+    matcher: (href) => href === "/profile",
+    group: "account",
+    description: "Update your account profile, contact details, role context, and personal settings.",
+    primaryActionLabel: "Open profile",
+  },
+  {
+    matcher: (href) => href === "/purchases" || href === "/marketplace-preview-approvals",
+    group: "account",
+    description: "Open purchases, credits, preview requests, and previously unlocked records.",
+    primaryActionLabel: "Review history",
   },
   {
     matcher: (href) =>
@@ -219,7 +208,7 @@ const ITEM_META: Array<{
       href.startsWith("/settings/") ||
       href.startsWith("/billing/") ||
       href.startsWith("/customer/billing/"),
-    group: "admin",
+    group: "account",
     description: "Manage workspace controls, analytics, reporting, and account details.",
     primaryActionLabel: "Open controls",
   },
@@ -234,7 +223,7 @@ export function getWorkspaceNavItemMeta(item: NavItem): WorkspaceNavItem {
   const match = ITEM_META.find((entry) => entry.matcher(href));
   return {
     ...item,
-    group: match?.group ?? "documents",
+    group: match?.group ?? "insights",
     description: match?.description ?? "Open this workspace area.",
     primaryActionLabel: item.primaryActionLabel ?? match?.primaryActionLabel,
   };

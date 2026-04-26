@@ -154,5 +154,11 @@ export type LikelyInjuryInsightPayload = {
   hasData: boolean;
 };
 
-export type TabId = "overview" | "near_misses" | "hazards" | "inspections" | "health_issues";
-export type FocusTabId = Exclude<TabId, "overview" | "health_issues">;
+/** Primary analytics workspace tabs (max 4). */
+export type TabId = "overview" | "observations" | "inspections" | "risk";
+
+/** Lens inside the Observations tab (near miss / hazard / typed health). */
+export type ObservationModeId = "near_misses" | "hazards" | "health_issues";
+
+/** Focus layouts used by `AnalyticsFocusedTab` (includes health drill-down). */
+export type FocusTabId = "near_misses" | "hazards" | "inspections" | "health_issues";

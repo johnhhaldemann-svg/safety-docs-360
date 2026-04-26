@@ -2,9 +2,10 @@
  * Single source of truth for app shell navigation (sidebar, quick links, setup flows).
  * Keep in sync with route files under app/ - see appNavigationIntegrity.test.ts.
  *
- * Company workspace rail (full product): Operations, Insights & intelligence, Documents, Job Sites, Account & reports.
+ * Company workspace rail (full product): Today, Field & Sites, Programs, Insights, Account.
  */
 
+import type { WorkspaceNavGroup } from "@/lib/workspaceNavGroup";
 import {
   CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL,
   SITE_SAFETY_BLUEPRINT_NAV_LABEL,
@@ -21,15 +22,7 @@ export type NavItem = {
 
 export type NavSection = {
   title: string;
-  group?:
-    | "operations"
-    | "insights"
-    | "documents"
-    | "jobsites"
-    | "admin"
-    | "account"
-    | "platform"
-    | "review";
+  group?: WorkspaceNavGroup | "platform" | "review";
   description?: string;
   audience?: "operator" | "leadership" | "field" | "buyer" | "admin";
   items: NavItem[];

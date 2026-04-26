@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { InlineMessage } from "@/components/WorkspacePrimitives";
 import { userVisibleInjuryModelMessage } from "@/lib/analytics/injuryModelMessage";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
@@ -11,11 +12,20 @@ import { Sparkline } from "@/components/metrics/Sparkline";
 import { AddInsightToDashboardButton } from "@/components/analytics/AddInsightToDashboardButton";
 import { AnalyticsFocusedTab } from "@/components/analytics/AnalyticsFocusedTab";
 import { AnalyticsOverviewSkeleton } from "@/components/analytics/AnalyticsOverviewSkeleton";
-import type { AnalyticsSummary, LikelyInjuryInsightPayload, TabId } from "@/components/analytics/types";
+import type {
+  AnalyticsSummary,
+  LikelyInjuryInsightPayload,
+  ObservationModeId,
+  TabId,
+} from "@/components/analytics/types";
+import { mergeSearchParam, readAllowedSearchParam } from "@/lib/tabUrlState";
 
 const supabase = getSupabaseBrowserClient();
 
 const FALLBACK_HAZARD_TILES = ["Trips & Falls", "Fire Risks", "PPE Violations", "Electrical"];
+
+const ANALYTICS_TAB_IDS = ["overview", "observations", "inspections", "risk"] as const;
+const OBSERVATION_MODE_IDS = ["near_misses", "hazards", "health_issues"] as const;
 
 function formatCategory(raw: string) {
   return raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -30,7 +40,9 @@ async function getAuthHeaders() {
 }
 
 
-export default function AnalyticsPage() {
+function AnalyticsPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [injuryLikelihood, setInjuryLikelihood] = useState<LikelyInjuryInsightPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,6 +50,40 @@ export default function AnalyticsPage() {
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"error" | "warning">("error");
   const [tab, setTab] = useState<TabId>("overview");
+  const [observationMode, setObservationMode] = useState<ObservationModeId>("near_misses");
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const t = readAllowedSearchParam(sp, "tab", ANALYTICS_TAB_IDS, "overview") as TabId;
+    const o = readAllowedSearchParam(sp, "obs", OBSERVATION_MODE_IDS, "near_misses") as ObservationModeId;
+    setTab(t);
+    setObservationMode(o);
+  }, []);
+
+  const setTabWithUrl = useCallback(
+    (next: TabId) => {
+      setTab(next);
+      const raw = typeof window !== "undefined" ? window.location.search.replace(/^\?/, "") : "";
+      const q = mergeSearchParam(raw, "tab", next);
+      router.replace(`${pathname}${q}`, { scroll: false });
+    },
+    [router, pathname]
+  );
+
+  const setObservationModeWithUrl = useCallback(
+    (next: ObservationModeId) => {
+      setObservationMode(next);
+      setTab("observations");
+      const raw = typeof window !== "undefined" ? window.location.search.replace(/^\?/, "") : "";
+      const params = new URLSearchParams(raw);
+      params.set("tab", "observations");
+      params.set("obs", next);
+      const serialized = params.toString();
+      router.replace(`${pathname}${serialized ? `?${serialized}` : ""}`, { scroll: false });
+    },
+    [router, pathname]
+  );
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
   const [injuryModelIssue, setInjuryModelIssue] = useState<{
     message: string;
@@ -228,21 +274,27 @@ export default function AnalyticsPage() {
   }, [topHazards]);
 
   const filteredRecent = useMemo(() => {
-    if (tab === "near_misses") return recent.filter((r) => r.tag === "NEAR MISS");
-    if (tab === "hazards") return recent.filter((r) => r.tag === "HAZARD");
+    if (tab === "observations") {
+      if (observationMode === "near_misses") return recent.filter((r) => r.tag === "NEAR MISS");
+      if (observationMode === "hazards") return recent.filter((r) => r.tag === "HAZARD");
+      return recent;
+    }
     if (tab === "inspections") return recent.slice(0, 3);
     return recent;
-  }, [recent, tab]);
+  }, [recent, tab, observationMode]);
 
   const tabHint = useMemo(() => {
-    if (tab === "near_misses") return `Near misses in view: ${breakdown?.nearMiss ?? 0}`;
-    if (tab === "hazards") return `Hazard-tagged observations: ${breakdown?.hazard ?? 0}`;
+    if (tab === "observations") {
+      if (observationMode === "near_misses") return `Near misses in view: ${breakdown?.nearMiss ?? 0}`;
+      if (observationMode === "hazards") return `Hazard-tagged observations: ${breakdown?.hazard ?? 0}`;
+      if (observationMode === "health_issues")
+        return `Typed injury records in range: ${summary?.healthIssueRollup?.reduce((sum, item) => sum + item.count, 0) ?? 0}`;
+    }
     if (tab === "inspections")
       return `Permits + JSA activities in window: ${breakdown?.inspections ?? 0} · JSAs: ${breakdown?.daps ?? 0}`;
-    if (tab === "health_issues")
-      return `Typed injury records in range: ${summary?.healthIssueRollup?.reduce((sum, item) => sum + item.count, 0) ?? 0}`;
+    if (tab === "risk") return "Risk Memory, benchmarking, and injury analytic inputs for this window.";
     return "Workspace-wide safety observation metrics";
-  }, [tab, breakdown, summary?.healthIssueRollup]);
+  }, [tab, observationMode, breakdown, summary?.healthIssueRollup]);
 
   const tagChip = (tag: string) => {
     const t = tag.toUpperCase();
@@ -263,7 +315,7 @@ export default function AnalyticsPage() {
           Safety observation hub
         </p>
         <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+          <div className="min-w-0 flex-1">
             <h1 className="font-app-display text-3xl font-black tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
               Centralized Safety Monitoring
             </h1>
@@ -272,60 +324,92 @@ export default function AnalyticsPage() {
               company workspace.
             </p>
           </div>
-          <div
-            className="flex flex-wrap items-center gap-2"
-            role="tablist"
-            aria-label="Safety observation views"
-          >
-            {(
-              [
-                ["overview", "Overview"],
-                ["near_misses", "Near Misses"],
-                ["hazards", "Hazards"],
-                ["inspections", "Inspections"],
-                ["health_issues", "Health issues"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={tab === id}
-                aria-controls={`analytics-tabpanel-${id}`}
-                id={`analytics-tab-${id}`}
-                onClick={() => setTab(id)}
-                className={[
-                  "rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide transition",
-                  tab === id
-                    ? "bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)] ring-1 ring-[var(--app-accent-border-28)] shadow-sm"
-                    : "border border-transparent text-[var(--app-muted)] hover:border-[var(--app-border)] hover:bg-white/90 hover:text-[var(--app-text-strong)]",
-                ].join(" ")}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="flex flex-col items-stretch gap-3 sm:items-end">
+            <div
+              className="flex flex-wrap items-center justify-end gap-2"
+              role="tablist"
+              aria-label="Time window"
+            >
+              {([7, 30, 90] as const).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDays(d)}
+                  className={[
+                    "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                    days === d
+                      ? "bg-[var(--app-accent-primary)] text-white shadow-[var(--app-shadow-primary-button)]"
+                      : "border border-[var(--app-border)] bg-white/90 text-[var(--app-text)] hover:border-[var(--app-accent-border-24)] hover:bg-[var(--app-accent-primary-soft)]",
+                  ].join(" ")}
+                >
+                  {d === 7 ? "1 week" : `${d} days`}
+                </button>
+              ))}
+            </div>
+            <div
+              className="flex flex-wrap items-center justify-end gap-2"
+              role="tablist"
+              aria-label="Safety observation views"
+            >
+              {(
+                [
+                  ["overview", "Overview"],
+                  ["observations", "Observations"],
+                  ["inspections", "Inspections"],
+                  ["risk", "Risk"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === id}
+                  aria-controls={`analytics-tabpanel-${id}`}
+                  id={`analytics-tab-${id}`}
+                  onClick={() => setTabWithUrl(id)}
+                  className={[
+                    "rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide transition",
+                    tab === id
+                      ? "bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)] ring-1 ring-[var(--app-accent-border-28)] shadow-sm"
+                      : "border border-transparent text-[var(--app-muted)] hover:border-[var(--app-border)] hover:bg-white/90 hover:text-[var(--app-text-strong)]",
+                  ].join(" ")}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-[var(--app-muted)]">{tabHint}</p>
-          <div className="flex flex-wrap items-center gap-2">
-            {([7, 30, 90] as const).map((d) => (
-              <button
-                key={d}
-                type="button"
-                onClick={() => setDays(d)}
-                className={[
-                  "rounded-full px-3 py-1.5 text-xs font-semibold transition",
-                  days === d
-                    ? "bg-[var(--app-accent-primary)] text-white shadow-[var(--app-shadow-primary-button)]"
-                    : "border border-[var(--app-border)] bg-white/90 text-[var(--app-text)] hover:border-[var(--app-accent-border-24)] hover:bg-[var(--app-accent-primary-soft)]",
-                ].join(" ")}
-              >
-                {d === 7 ? "1 week" : `${d} days`}
-              </button>
-            ))}
-          </div>
+          {tab === "observations" ? (
+            <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Observation lens">
+              {(
+                [
+                  ["near_misses", "Near misses"],
+                  ["hazards", "Hazards"],
+                  ["health_issues", "Health issues"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setObservationModeWithUrl(id)}
+                  className={[
+                    "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                    observationMode === id
+                      ? "bg-[var(--app-accent-primary)] text-white shadow-[var(--app-shadow-primary-button)]"
+                      : "border border-[var(--app-border)] bg-white/90 text-[var(--app-text)] hover:border-[var(--app-accent-border-24)]",
+                  ].join(" ")}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className="text-xs text-transparent">.</span>
+          )}
         </div>
       </div>
 
@@ -372,7 +456,8 @@ export default function AnalyticsPage() {
           </div>
         ) : null}
 
-        {summary?.benchmarking &&
+        {tab === "risk" &&
+        summary?.benchmarking &&
         (summary.benchmarking.industryCode ||
           summary.benchmarking.industryInjuryRate != null ||
           summary.benchmarking.tradeInjuryRate != null ||
@@ -522,7 +607,7 @@ export default function AnalyticsPage() {
           </details>
         ) : null}
 
-        {summary?.injuryAnalytics ? (
+        {tab === "risk" && summary?.injuryAnalytics ? (
           <div className="rounded-xl border border-[rgba(109,40,217,0.22)] bg-[rgba(245,240,255,0.96)] px-4 py-3 text-sm text-[var(--app-text)]">
             <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">
               Injury outcome &amp; prediction inputs
@@ -651,6 +736,7 @@ export default function AnalyticsPage() {
         </div>
         )}
 
+        {tab === "risk" ? (
         <details
           id="safety-risk-memory"
           className="scroll-mt-8 rounded-2xl border border-violet-500/25 bg-violet-950/20 p-5"
@@ -893,7 +979,9 @@ export default function AnalyticsPage() {
             </div>
           ) : null}
         </details>
+        ) : null}
 
+        {tab === "overview" ? (
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="analytics-dark-panel p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
