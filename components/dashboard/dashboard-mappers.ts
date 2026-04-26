@@ -241,9 +241,9 @@ function dashboardGraphs(data: DashboardDataState) {
       "Risk distribution chart",
       "Current mix of high, medium, and low priority risk observations.",
       [
-        { id: "risk-high", label: "High", value: highRiskCount, tone: "error" },
-        { id: "risk-medium", label: "Medium", value: mediumRiskCount, tone: "warning" },
-        { id: "risk-low", label: "Low", value: lowRiskCount, tone: "success" },
+        { id: "risk-high", label: "High", value: highRiskCount, tone: "error" as const },
+        { id: "risk-medium", label: "Medium", value: mediumRiskCount, tone: "warning" as const },
+        { id: "risk-low", label: "Low", value: lowRiskCount, tone: "success" as const },
       ].filter((item) => item.value > 0),
       {
         title: "No risk distribution yet",
@@ -258,14 +258,14 @@ function dashboardGraphs(data: DashboardDataState) {
       "Risk reduction graph",
       "Risk status movement from open to in-progress to reduced (closed).",
       [
-        { id: "risk-open", label: "Open", value: openRiskCount, tone: "warning" },
+        { id: "risk-open", label: "Open", value: openRiskCount, tone: "warning" as const },
         {
           id: "risk-in-progress",
           label: "In progress",
           value: inProgressRiskCount,
-          tone: "info",
+          tone: "info" as const,
         },
-        { id: "risk-reduced", label: "Reduced", value: reducedRiskCount, tone: "success" },
+        { id: "risk-reduced", label: "Reduced", value: reducedRiskCount, tone: "success" as const },
       ].filter((item) => item.value > 0),
       {
         title: "No risk reduction data yet",
