@@ -20,6 +20,12 @@ function extractErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error ?? "");
 }
 
+function stripClientGenerationContext(formData: Record<string, unknown>) {
+  const sanitized = { ...formData };
+  delete sanitized.generationContext;
+  return sanitized;
+}
+
 export async function POST(request: Request) {
   try {
     const auth = await authorizeRequest(request, {
@@ -31,10 +37,11 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json()) as Record<string, unknown>;
-    const formData =
+    const rawFormData =
       body.form_data && typeof body.form_data === "object"
         ? (body.form_data as Record<string, unknown>)
         : (body as Record<string, unknown>);
+    const formData = stripClientGenerationContext(rawFormData);
     const projectName =
       typeof body.project_name === "string" && body.project_name.trim()
         ? body.project_name.trim()

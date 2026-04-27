@@ -45,6 +45,12 @@ function extractErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error ?? "");
 }
 
+function stripClientGenerationContext(formData: Record<string, unknown>) {
+  const sanitized = { ...formData };
+  delete sanitized.generationContext;
+  return sanitized;
+}
+
 function isMissingSafetyIntelligenceSchemaError(error: unknown) {
   const message = extractErrorMessage(error).toLowerCase();
   if (!message) return false;
@@ -207,8 +213,9 @@ export async function POST(request: Request) {
     const body = (await request.json()) as SubmitPayload;
     const document_type = normalizeRequiredString(body.document_type);
     const project_name = normalizeRequiredString(body.project_name);
-    const form_data =
+    const raw_form_data =
       body.form_data && typeof body.form_data === "object" ? body.form_data : null;
+    const form_data = raw_form_data ? stripClientGenerationContext(raw_form_data) : null;
 
     if (!document_type || !project_name || !form_data) {
       return NextResponse.json(

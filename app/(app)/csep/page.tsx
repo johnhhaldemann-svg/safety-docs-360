@@ -43,7 +43,6 @@ import {
   CONTRACTOR_SAFETY_BLUEPRINT_TITLE,
 } from "@/lib/safetyBlueprintLabels";
 import { OWNER_MESSAGE_PRESETS, getOwnerMessagePreset } from "@/lib/ownerMessagePresets";
-import { buildCsepGenerationContext } from "@/lib/safety-intelligence/documentIntake";
 import type { ChecklistEvaluationResponse } from "@/lib/compliance/evaluation";
 import {
   useCompanyWorkspaceData,
@@ -1420,6 +1419,9 @@ export default function CSEPPage() {
       }
 
       setPreviewLoading(true);
+      const previewFormData = { ...submissionFormData };
+      delete previewFormData.company_logo_data_url;
+      delete previewFormData.company_logo_file_name;
 
       const response = await fetch("/api/company/csep/preview", {
         method: "POST",
@@ -1429,10 +1431,7 @@ export default function CSEPPage() {
         },
         body: JSON.stringify({
           project_name: form.project_name,
-          form_data: {
-            ...submissionFormData,
-            generationContext: buildCsepGenerationContext(submissionFormData),
-          },
+          form_data: previewFormData,
         }),
       });
 
@@ -1537,10 +1536,7 @@ export default function CSEPPage() {
           project_name: form.project_name,
           generated_document_id: previewState.generatedDocumentId,
           builder_input_hash: previewState.builderInputHash,
-          form_data: {
-            ...submissionFormData,
-            generationContext: buildCsepGenerationContext(submissionFormData),
-          },
+          form_data: submissionFormData,
         }),
       });
 
