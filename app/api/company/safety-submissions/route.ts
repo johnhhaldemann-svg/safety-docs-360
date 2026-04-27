@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -85,6 +86,34 @@ export async function GET(request: Request) {
 
   if ("error" in auth) {
     return auth.error;
+  }
+  const isDemoRequest =
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase();
+  if (isDemoRequest) {
+    return NextResponse.json({
+      submissions: [
+        {
+          id: "demo-submission-1",
+          company_id: "demo-company",
+          jobsite_id: "demo-jobsite-1",
+          title: "Missing toe-board at level 4",
+          description: "Crew-reported hazard submission for demo review queue.",
+          severity: "high",
+          category: "hazard",
+          photo_path: null,
+          submitted_by: "offline-sales-demo-user",
+          created_by: "offline-sales-demo-user",
+          review_status: "pending",
+          reviewed_by: null,
+          reviewed_at: null,
+          linked_action_id: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      canReview: true,
+    });
   }
 
   const companyScope = await getCompanyScope({

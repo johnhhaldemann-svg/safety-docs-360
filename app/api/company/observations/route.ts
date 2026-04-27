@@ -5,6 +5,8 @@ import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { canManageObservations } from "@/lib/companyPermissions";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { buildCorrectiveActionFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
+import { demoWorkspaceSummary } from "@/lib/demoWorkspace";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -33,6 +35,30 @@ export async function GET(request: Request) {
     ],
   });
   if ("error" in auth) return auth.error;
+  const isDemoRequest =
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase();
+  if (isDemoRequest) {
+    const observations = (demoWorkspaceSummary.observations ?? []).map((row) => ({
+      id: row.id,
+      company_id: "demo-company",
+      jobsite_id: row.jobsite_id ?? null,
+      title: row.title,
+      description: "Demo corrective action seeded for walkthrough.",
+      severity: "high",
+      category: row.category ?? "hazard",
+      status: row.status === "in_progress" ? "in_progress" : "open",
+      assigned_user_id: null,
+      due_at: row.due_at ?? null,
+      started_at: null,
+      closed_at: null,
+      manager_override_close: false,
+      manager_override_reason: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+    return NextResponse.json({ observations });
+  }
 
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,

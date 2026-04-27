@@ -5,6 +5,7 @@ import { canManageCompanyJsa } from "@/lib/companyFeatureAccess";
 import { getJobsiteAccessScope } from "@/lib/jobsiteAccess";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { buildJsaActivityFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,82 @@ export async function GET(request: Request) {
     requireAnyPermission: ["can_view_dashboards", "can_create_documents", "can_view_all_company_data"],
   });
   if ("error" in auth) return auth.error;
+  const isDemoRequest =
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase();
+  if (isDemoRequest) {
+    const { searchParams } = new URL(request.url);
+    const jsaId = searchParams.get("jsaId")?.trim() || "demo-jsa-1";
+    const jobsiteByJsa: Record<string, string> = {
+      "demo-jsa-1": "demo-jobsite-1",
+      "demo-jsa-2": "demo-jobsite-2",
+      "demo-jsa-3": "demo-jobsite-1",
+      "demo-jsa-4": "demo-jobsite-2",
+      "demo-jsa-5": "demo-jobsite-2",
+    };
+    const jobsiteId = jobsiteByJsa[jsaId] ?? "demo-jobsite-1";
+    return NextResponse.json({
+      activities: [
+        {
+          id: "demo-jsa-activity-1",
+          company_id: "demo-company",
+          jsa_id: jsaId,
+          jobsite_id: jobsiteId,
+          work_date: new Date().toISOString().slice(0, 10),
+          trade: "Structural Steel and Erection",
+          activity_name: "Crane-assisted steel beam placement",
+          area: "North core level 5",
+          crew_size: 6,
+          hazard_category: "struck_by",
+          hazard_description: "Line-of-fire exposure during picks.",
+          mitigation: "Exclusion zone, signal person, and tag-line control.",
+          permit_required: true,
+          permit_type: "Hot Work Permit",
+          planned_risk_level: "high",
+          status: "active",
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: "demo-jsa-activity-2",
+          company_id: "demo-company",
+          jsa_id: jsaId,
+          jobsite_id: jobsiteId,
+          work_date: new Date().toISOString().slice(0, 10),
+          trade: "Electrical",
+          activity_name: "Temporary power panel verification",
+          area: "East service corridor",
+          crew_size: 3,
+          hazard_category: "electrical",
+          hazard_description: "Potential exposure to energized conductors.",
+          mitigation: "LOTO verification, insulated tools, and tester confirmation.",
+          permit_required: false,
+          permit_type: null,
+          planned_risk_level: "medium",
+          status: "planned",
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: "demo-jsa-activity-3",
+          company_id: "demo-company",
+          jsa_id: jsaId,
+          jobsite_id: jobsiteId,
+          work_date: new Date().toISOString().slice(0, 10),
+          trade: "General",
+          activity_name: "End-of-shift housekeeping and egress clear-down",
+          area: "Access routes and staging pads",
+          crew_size: 4,
+          hazard_category: "housekeeping",
+          hazard_description: "Trip hazards from packaging and loose materials.",
+          mitigation: "Walkdown checklist and supervisor sign-off before handover.",
+          permit_required: false,
+          permit_type: null,
+          planned_risk_level: "low",
+          status: "completed",
+          updated_at: new Date().toISOString(),
+        },
+      ],
+    });
+  }
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
     userId: auth.user.id,

@@ -14,6 +14,7 @@ import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
 const supabase = getSupabaseBrowserClient();
+const isOfflineDesktop = process.env.NEXT_PUBLIC_OFFLINE_DESKTOP === "1";
 
 type DashboardLayoutResponse = {
   savedLayout: DashboardBlockId[] | null;
@@ -91,10 +92,14 @@ export function useDashboardLayout({ role }: { role: DashboardRole }) {
       const payload = (await response.json().catch(() => null)) as DashboardLayoutResponse | null;
 
       if (!response.ok || !payload) {
-        setMessage({
-          tone: "error",
-          text: payload?.error || "Dashboard layout could not be loaded.",
-        });
+        setMessage(
+          isOfflineDesktop
+            ? null
+            : {
+                tone: "error",
+                text: payload?.error || "Dashboard layout could not be loaded.",
+              }
+        );
         setLoading(false);
         return;
       }
@@ -102,10 +107,14 @@ export function useDashboardLayout({ role }: { role: DashboardRole }) {
       applyPayload(payload);
       setLoading(false);
     } catch {
-      setMessage({
-        tone: "error",
-        text: "Dashboard layout could not be loaded.",
-      });
+      setMessage(
+        isOfflineDesktop
+          ? null
+          : {
+              tone: "error",
+              text: "Dashboard layout could not be loaded.",
+            }
+      );
       setLoading(false);
     }
   }, [applyPayload]);

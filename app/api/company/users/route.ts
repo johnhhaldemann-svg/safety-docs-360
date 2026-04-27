@@ -17,6 +17,7 @@ import {
   normalizeAppRole,
   type AppRole,
 } from "@/lib/rbac";
+import { demoCompanyInvites, demoCompanyUsers } from "@/lib/demoWorkspace";
 
 export const runtime = "nodejs";
 
@@ -272,6 +273,32 @@ export async function GET(request: Request) {
 
   if ("error" in auth) {
     return auth.error;
+  }
+
+  if (auth.role === "sales_demo") {
+    return NextResponse.json({
+      users: demoCompanyUsers.map((user) => ({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: formatAppRole(user.role),
+        team: user.team || "Demo Workspace",
+        status: user.status,
+        created_at: null,
+        last_sign_in_at: null,
+      })),
+      invites: demoCompanyInvites.map((invite) => ({
+        id: invite.id,
+        email: invite.email,
+        role: invite.role,
+        status: formatAccountStatus(invite.status),
+        created_at: invite.created_at ?? null,
+      })),
+      scopeTeam: "Demo Workspace",
+      scopeCompanyId: "demo-company",
+      scopeCompanyName: "Summit Ridge Constructors",
+      viewerRole: auth.role,
+    });
   }
 
   const adminClient = createSupabaseAdminClient();

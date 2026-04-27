@@ -45,7 +45,6 @@ import {
 import { OWNER_MESSAGE_PRESETS, getOwnerMessagePreset } from "@/lib/ownerMessagePresets";
 import { buildCsepGenerationContext } from "@/lib/safety-intelligence/documentIntake";
 import type { ChecklistEvaluationResponse } from "@/lib/compliance/evaluation";
-import { ChecklistCoveragePanel } from "@/components/compliance/ChecklistCoveragePanel";
 import {
   useCompanyWorkspaceData,
   type CompanyJobsite,
@@ -302,6 +301,141 @@ const initialForm: CSEPForm = {
   continuous_improvement_text: "",
 };
 
+const OFFLINE_DEMO_EMAIL = "demo.20260425@safety360docs.local";
+const OFFLINE_DEMO_CSEP_PREFILL: Partial<CSEPForm> = {
+  jobsite_id: "demo-jobsite-1",
+  project_name: "North Tower",
+  project_number: "SR-1042",
+  project_address: "4100 Industrial Way, Austin, TX 78701",
+  governing_state: "TX",
+  project_delivery_type: "ground_up",
+  owner_client: "Summit Ridge Constructors",
+  owner_message_text:
+    "Demo-only project data. All names, contacts, operations, and controls are fictional for visual walkthrough.",
+  gc_cm: ["Summit Ridge Constructors"],
+  contractor_company: "Summit Ridge Field Services",
+  contractor_contact: "Jordan Lee",
+  contractor_phone: "555-0140",
+  contractor_email: "demo@safety360docs.com",
+  trade: "Structural Steel and Erection",
+  subTrade: "Steel Erection and Decking",
+  tasks: ["Hoisting and Rigging", "Steel Erection", "Welding and Cutting", "Work at Heights"],
+  scope_of_work:
+    "Install structural steel and decking, execute hot-work welding, and coordinate crane picks in an active multi-trade zone.",
+  site_specific_notes:
+    "Demo site rules: maintain exclusion zones under suspended loads, enforce controlled access near leading edges, and require pre-task lift briefings.",
+  emergency_procedures:
+    "Stop work, notify supervision via radio channel 1, call 911 for life-threatening events, and report all incidents in SafetyDocs360 before shift closeout.",
+  required_ppe: ["Hard Hat", "Safety Glasses", "High Visibility Vest", "Gloves", "Steel Toe Boots", "Fall Protection Harness"],
+  additional_permits: ["Hot Work Permit", "AWP/MEWP Permit", "LOTO Permit"],
+  selected_hazards: ["Falls", "Struck-by", "Caught-in/between", "Electrical"],
+  document_number: "CSEP-DEMO-20260425",
+  document_revision: "1.0",
+  prepared_by: "Jordan Lee",
+  reviewed_by: "Maria Chen",
+  approved_by: "Avery Patel",
+  roles_and_responsibilities_text:
+    "Foremen verify controls before each task; all crew members retain stop-work authority; competent persons release work restart after corrective actions.",
+  security_and_access_text:
+    "Controlled access zones established for hoisting and leading-edge work. Only authorized crew may enter active steel erection areas.",
+  health_and_wellness_text:
+    "Hydration breaks every two hours in hot conditions, fatigue checks before night work, and respiratory protection readiness for welding fume exposure.",
+  incident_reporting_and_investigation_text:
+    "Near misses and incidents are logged in-platform immediately. Supervisor-led investigation begins same shift with corrective action ownership assigned.",
+  training_and_instruction_text:
+    "Daily toolbox briefings cover crane picks, fall controls, hot-work fire watch, and emergency escalation paths.",
+  drug_and_alcohol_testing_text:
+    "Reasonable-cause and post-incident testing applies per site policy and applicable labor agreements.",
+  enforcement_and_corrective_action_text:
+    "Unsafe acts trigger immediate stop-work and documented corrective actions. Repeat violations escalate to removal from task assignment.",
+  recordkeeping_text:
+    "Permits, inspections, orientation records, and corrective actions are retained in SafetyDocs360 for audit and handoff.",
+  continuous_improvement_text:
+    "Weekly leadership review analyzes recurring hazards and updates task controls for the next work cycle.",
+};
+
+function buildOfflineDemoJobsiteScenario(jobsite: CompanyJobsite | undefined): Partial<CSEPForm> {
+  const name = (jobsite?.name ?? "").toLowerCase();
+
+  if (name.includes("warehouse")) {
+    return {
+      project_name: jobsite?.name || "Warehouse Retrofit",
+      project_number: jobsite?.projectNumber || "SR-2210",
+      project_address: jobsite?.location || "Round Rock, TX",
+      trade: "Electrical and Instrumentation",
+      subTrade: "Panel and distribution systems",
+      tasks: ["Electrical Work", "Energized Work Boundaries", "LOTO Activities", "Work at Heights"],
+      selected_hazards: ["Electrical", "Arc flash", "Falls", "Struck-by"],
+      additional_permits: ["LOTO Permit", "AWP/MEWP Permit", "Hot Work Permit"],
+      scope_of_work:
+        "Retrofit and replace electrical distribution panels with lockout verification and phased energization controls.",
+      site_specific_notes:
+        "Night shift work windows with controlled access around energized rooms and dedicated boundary spotters.",
+      emergency_procedures:
+        "Immediate de-energization where possible, isolate exposure area, call emergency services, and escalate through site incident chain.",
+      document_number: "CSEP-DEMO-WH-20260425",
+    };
+  }
+
+  if (name.includes("clinic")) {
+    return {
+      project_name: jobsite?.name || "South Clinic Buildout",
+      project_number: jobsite?.projectNumber || "SR-3097",
+      project_address: jobsite?.location || "San Marcos, TX",
+      trade: "General Construction",
+      subTrade: "Interior buildout and fit-off",
+      tasks: ["Material Handling", "Ladder Work", "Housekeeping", "Site Access Control"],
+      selected_hazards: ["Slips, trips, and falls", "Struck-by", "Ergonomic strain"],
+      additional_permits: ["Ladder Permit", "Motion Permit"],
+      required_ppe: ["Hard Hat", "Safety Glasses", "High Visibility Vest", "Gloves", "Steel Toe Boots"],
+      scope_of_work:
+        "Interior fit-out, material movement, and phased coordination with adjacent active healthcare areas.",
+      site_specific_notes:
+        "Maintain sterile boundary protections, preserve clear egress lanes, and coordinate deliveries with owner schedule windows.",
+      emergency_procedures:
+        "Stop work on any patient-area impact, notify supervisor and facility contact, then follow emergency escalation matrix.",
+      document_number: "CSEP-DEMO-CL-20260425",
+    };
+  }
+
+  return {
+    project_name: jobsite?.name || OFFLINE_DEMO_CSEP_PREFILL.project_name || "North Tower",
+    project_number: jobsite?.projectNumber || OFFLINE_DEMO_CSEP_PREFILL.project_number || "SR-1042",
+    project_address: jobsite?.location || OFFLINE_DEMO_CSEP_PREFILL.project_address || "Austin, TX",
+    trade: "Structural Steel and Erection",
+    subTrade: "Steel Erection and Decking",
+    tasks: ["Hoisting and Rigging", "Steel Erection", "Welding and Cutting", "Work at Heights"],
+    selected_hazards: ["Falls", "Struck-by", "Caught-in/between", "Electrical"],
+    additional_permits: ["Hot Work Permit", "AWP/MEWP Permit", "LOTO Permit"],
+    scope_of_work:
+      "Install structural steel and decking, execute hot-work welding, and coordinate crane picks in an active multi-trade zone.",
+    site_specific_notes:
+      "Demo site rules: maintain exclusion zones under suspended loads, enforce controlled access near leading edges, and require pre-task lift briefings.",
+    emergency_procedures:
+      "Stop work, notify supervision via radio channel 1, call 911 for life-threatening events, and report all incidents in SafetyDocs360 before shift closeout.",
+    document_number: "CSEP-DEMO-20260425",
+  };
+}
+
+function withOfflineDemoPrefill(form: CSEPForm): CSEPForm {
+  return {
+    ...form,
+    ...OFFLINE_DEMO_CSEP_PREFILL,
+    weather_requirements: {
+      ...form.weather_requirements,
+      monitoringSources: ["NOAA weather radar", "Site anemometer checks each shift"],
+      dailyReviewNotes:
+        "Pause crane picks for lightning alerts or sustained winds above manufacturer/site limits.",
+      heatControls: [
+        "Water, shade, and rest schedule with supervisor verification during elevated heat index windows.",
+      ],
+    },
+    selected_format_sections:
+      OFFLINE_DEMO_CSEP_PREFILL.selected_format_sections ?? form.selected_format_sections,
+    included_sections: OFFLINE_DEMO_CSEP_PREFILL.included_sections ?? form.included_sections,
+  };
+}
+
 function uniq(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
@@ -349,6 +483,9 @@ export default function CSEPPage() {
   );
   const [checklistLoading, setChecklistLoading] = useState(false);
   const [checklistError, setChecklistError] = useState("");
+  const [isOfflineDemoPrefillEnabled, setIsOfflineDemoPrefillEnabled] = useState(false);
+  const [csepHandoffComplete, setCsepHandoffComplete] = useState(false);
+  const [csepHandoffAt, setCsepHandoffAt] = useState<string | null>(null);
   const checklistRequestRef = useRef(0);
   const checklistAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -368,6 +505,11 @@ export default function CSEPPage() {
         if (!user) return;
 
         setUserId(user.id);
+        const userEmail = (user.email ?? "").trim().toLowerCase();
+        const isOfflineDemoUser =
+          userEmail === OFFLINE_DEMO_EMAIL ||
+          process.env.NEXT_PUBLIC_OFFLINE_DESKTOP === "1";
+        setIsOfflineDemoPrefillEnabled(isOfflineDemoUser);
 
         const sessionResult = await supabase.auth.getSession();
         const accessToken = sessionResult.data.session?.access_token;
@@ -394,6 +536,11 @@ export default function CSEPPage() {
         const companyState = meData?.user?.companyProfile?.state_region?.trim() ?? "";
         if (companyState) {
           setForm((prev) => (prev.governing_state ? prev : { ...prev, governing_state: companyState }));
+        }
+        if (isOfflineDemoUser) {
+          setForm((prev) => withOfflineDemoPrefill(prev));
+          setMessage("Offline demo mode: CSEP blocks prefilled with fictional visual data.");
+          setMessageTone("success");
         }
       } catch (error) {
         console.error("Unexpected auth error:", error);
@@ -896,8 +1043,12 @@ export default function CSEPPage() {
         return { ...prev, jobsite_id: "" };
       }
 
+      const scenario = isOfflineDemoPrefillEnabled
+        ? buildOfflineDemoJobsiteScenario(selectedJobsite)
+        : null;
       return {
         ...prev,
+        ...(scenario ?? {}),
         jobsite_id: selectedJobsite.id,
         project_name: selectedJobsite.name,
         project_number: selectedJobsite.projectNumber || prev.project_number,
@@ -1011,6 +1162,8 @@ export default function CSEPPage() {
     clearCompanyLogo();
     setOwnerMessagePresetId("");
     setAgreedToSubmissionTerms(false);
+    setCsepHandoffComplete(false);
+    setCsepHandoffAt(null);
     setMessage("");
     setSectionAiState({});
   }
@@ -1396,6 +1549,8 @@ export default function CSEPPage() {
         throw new Error(payload?.error || `Failed to submit ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}.`);
       }
 
+      setCsepHandoffComplete(true);
+      setCsepHandoffAt(new Date().toISOString());
       setMessageTone("success");
       setMessage(`${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} submitted successfully for admin review.`);
     } catch (error) {
@@ -1403,6 +1558,23 @@ export default function CSEPPage() {
       setMessage(error instanceof Error ? error.message : `Failed to submit ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE}.`);
     } finally {
       setSubmitLoading(false);
+    }
+  }
+
+  async function handleOpenDemoPackFolder() {
+    try {
+      const response = await fetch("/api/offline/demo-pack/open", { method: "POST" });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        throw new Error(payload?.error || "Could not open demo pack folder.");
+      }
+    } catch (error) {
+      setMessageTone("warning");
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not open demo pack folder."
+      );
     }
   }
 
@@ -1438,7 +1610,7 @@ export default function CSEPPage() {
                     unlockedTaskDrivenSections.length > 0
                   : index === 6
                     ? Boolean(previewState && previewIsCurrent && previewApproved)
-                    : previewReadyForSubmit,
+                    : csepHandoffComplete,
   }));
   const activeWorkflowCategory =
     workflowCategoryDefinition.find((category) => category.stepIndexes.includes(step)) ??
@@ -1488,15 +1660,19 @@ export default function CSEPPage() {
         description="Use the forward-only CSEP workflow: trade selection, sub-trade, selected sections, selectable tasks, intelligence enrichment, task-driven sections, draft review, then submission."
         actions={
           <div className="flex flex-wrap gap-2">
-            <StatusBadge label={form.trade || "Trade not set"} tone={form.trade ? "info" : "warning"} />
-            <StatusBadge
-              label={`${form.selected_format_sections.length} sections`}
-              tone={form.selected_format_sections.length ? "success" : "warning"}
-            />
-            <StatusBadge
-              label={`${form.tasks.length} tasks`}
-              tone={form.tasks.length ? "success" : "warning"}
-            />
+            {!isOfflineDemoPrefillEnabled ? (
+              <>
+                <StatusBadge label={form.trade || "Trade not set"} tone={form.trade ? "info" : "warning"} />
+                <StatusBadge
+                  label={`${form.selected_format_sections.length} sections`}
+                  tone={form.selected_format_sections.length ? "success" : "warning"}
+                />
+                <StatusBadge
+                  label={`${form.tasks.length} tasks`}
+                  tone={form.tasks.length ? "success" : "warning"}
+                />
+              </>
+            ) : null}
             <button
               type="button"
               onClick={resetBuilder}
@@ -1515,16 +1691,6 @@ export default function CSEPPage() {
       ) : null}
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
-
-      <ChecklistCoveragePanel
-        title="Checklist Coverage (CSEP)"
-        loading={checklistLoading}
-        error={checklistError}
-        data={checklistEvaluation}
-        onRefresh={() => {
-          void refreshChecklistEvaluation();
-        }}
-      />
 
       <SectionCard
         title="Builder Navigation"
@@ -2350,6 +2516,17 @@ export default function CSEPPage() {
                       >
                         {previewApproved && previewIsCurrent ? "Draft approved" : "Approve current draft"}
                       </button>
+                      {isOfflineDemoPrefillEnabled ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void handleOpenDemoPackFolder();
+                          }}
+                          className="inline-flex rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
+                        >
+                          Open demo documents folder
+                        </button>
+                      ) : null}
                     </div>
                     {!csepReady && !previewLoading ? (
                       <div className="mt-4">
@@ -2407,15 +2584,112 @@ export default function CSEPPage() {
 
               {step === 7 ? (
                 <div className="space-y-5">
-                  <LegalAcceptanceBlock checked={agreedToSubmissionTerms} onChange={setAgreedToSubmissionTerms} />
+                  {csepHandoffComplete ? (
+                    <div className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-b from-emerald-50/90 to-white p-6 shadow-sm">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                            Completed {CONTRACTOR_SAFETY_BLUEPRINT_TITLE}
+                          </div>
+                          <h3 className="mt-1 text-lg font-semibold text-[var(--app-text-strong)]">
+                            Handoff display — use for screen share or walkthrough
+                          </h3>
+                          <p className="mt-2 text-sm text-[var(--app-text)]">
+                            This CSEP is submitted. Below is a compact issued summary you can read aloud or show on the final slide.
+                            {csepHandoffAt ? (
+                              <span className="block pt-1 text-xs text-slate-600">
+                                Recorded: {new Date(csepHandoffAt).toLocaleString()}
+                              </span>
+                            ) : null}
+                          </p>
+                        </div>
+                        <StatusBadge label="Handoff ready" tone="success" />
+                      </div>
+                      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                        <InfoCard
+                          label="Project"
+                          value={form.project_name.trim() || "—"}
+                        />
+                        <InfoCard
+                          label="Document / reference"
+                          value={
+                            [form.document_number?.trim() || "—", form.project_number?.trim() ? `Project # ${form.project_number}` : null]
+                              .filter(Boolean)
+                              .join(" · ") || "—"
+                          }
+                        />
+                        <InfoCard
+                          label="Revision & issue"
+                          value={[form.document_revision?.trim() || "—", form.issue_date?.trim() || null]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        />
+                        <InfoCard
+                          label="Trade & sub-trade"
+                          value={
+                            (selectedTrade?.tradeLabel ?? form.trade) && (selectedTrade?.subTradeLabel ?? form.subTrade)
+                              ? `${selectedTrade?.tradeLabel ?? form.trade} — ${selectedTrade?.subTradeLabel ?? form.subTrade}`
+                              : "—"
+                          }
+                        />
+                        <InfoCard
+                          label="Owner / client"
+                          value={form.owner_client.trim() || "—"}
+                        />
+                        <InfoCard
+                          label="Contractor"
+                          value={form.contractor_company.trim() || "—"}
+                        />
+                      </div>
+                      {isOfflineDemoPrefillEnabled ? (
+                        <div className="mt-5 rounded-xl border border-emerald-100 bg-white/80 px-4 py-3 text-sm text-[var(--app-text)]">
+                          <span className="font-semibold text-[var(--app-text-strong)]">Offline demo pack:</span> a finished Word
+                          example is generated next to the project folder, e.g.{" "}
+                          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+                            …\safety360_offline_demo_pack\deliverables\North_Tower_Issued_CSEP_Summit_Ridge.docx
+                          </code>{" "}
+                          (use the same handoff you built with the desktop installer).
+                          <div className="mt-3">
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void handleOpenDemoPackFolder();
+                                }}
+                                className="inline-flex rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
+                              >
+                                Open demo documents folder
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={resetBuilder}
+                          className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
+                        >
+                          Start a new {CONTRACTOR_SAFETY_BLUEPRINT_TITLE} build
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {!csepHandoffComplete ? (
+                    <LegalAcceptanceBlock checked={agreedToSubmissionTerms} onChange={setAgreedToSubmissionTerms} />
+                  ) : (
+                    <InlineMessage tone="success">Terms, privacy, and waiver were accepted for this submission.</InlineMessage>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     <StatusBadge label={previewReadyForSubmit ? "Draft approved" : "Draft approval required"} tone={previewReadyForSubmit ? "success" : "warning"} />
                     <StatusBadge label={canSubmitDocuments ? "Submit access ready" : "Submit access missing"} tone={canSubmitDocuments ? "success" : "warning"} />
+                    {csepHandoffComplete ? <StatusBadge label="Submitted" tone="success" /> : null}
                     {previewHasBlockingCoverageGaps ? (
                       <StatusBadge label="Required gaps must be resolved" tone="warning" />
                     ) : null}
                   </div>
-                  {!previewReadyForSubmit ? (
+                  {!previewReadyForSubmit && !csepHandoffComplete ? (
                     <InlineMessage tone="warning">
                       Return to Step {reviewStepNumber} to generate, refresh, or approve the draft before submitting.
                     </InlineMessage>
@@ -2479,14 +2753,16 @@ export default function CSEPPage() {
                       </div>
                     </div>
                   ) : null}
-                  <button
-                    type="button"
-                    onClick={handleSubmitForReview}
-                    disabled={submitLoading || !agreedToSubmissionTerms || !canSubmitDocuments || !previewReadyForSubmit}
-                    className="rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] disabled:opacity-60"
-                  >
-                    {submitLoading ? "Submitting..." : "Submit for review"}
-                  </button>
+                  {!csepHandoffComplete ? (
+                    <button
+                      type="button"
+                      onClick={handleSubmitForReview}
+                      disabled={submitLoading || !agreedToSubmissionTerms || !canSubmitDocuments || !previewReadyForSubmit}
+                      className="rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] disabled:opacity-60"
+                    >
+                      {submitLoading ? "Submitting..." : "Submit for review"}
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
 

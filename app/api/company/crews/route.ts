@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { demoCrews } from "@/lib/demoWorkspace";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -22,6 +24,19 @@ export async function GET(request: Request) {
     ],
   });
   if ("error" in auth) return auth.error;
+  const isDemoRequest =
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase();
+  if (isDemoRequest) {
+    const { searchParams } = new URL(request.url);
+    const jobsiteId = String(searchParams.get("jobsiteId") ?? "").trim() || null;
+    const crews = demoCrews.map((crew) => ({
+      id: crew.id,
+      name: crew.name,
+      jobsiteId: jobsiteId,
+    }));
+    return NextResponse.json({ crews });
+  }
 
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,

@@ -7,11 +7,54 @@ import { parseSafetyFormSchema, validateAnswersAgainstSchema } from "@/lib/safet
 
 export const runtime = "nodejs";
 
+const DEMO_FORM_SUBMISSIONS = [
+  {
+    id: "demo-form-sub-1",
+    company_id: "demo-company",
+    version_id: "demo-form-ver-1",
+    jobsite_id: "demo-jobsite-1",
+    status: "submitted",
+    answers: {
+      crew_brief_complete: true,
+      work_area_inspected: true,
+      notes: "Morning steel deck briefing complete. Barricades reset before first pick.",
+    },
+    submitted_by: "demo-user-2",
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: "demo-form-sub-2",
+    company_id: "demo-company",
+    version_id: "demo-form-ver-2",
+    jobsite_id: "demo-jobsite-2",
+    status: "draft",
+    answers: {
+      permit_verified: true,
+      fire_watch_assigned: false,
+      fuel_sources_removed: true,
+    },
+    submitted_by: "demo-user-3",
+    created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
+    updated_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+  },
+];
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: ["can_create_documents", "can_view_all_company_data", "can_view_dashboards"],
   });
   if ("error" in auth) return auth.error;
+  const url = new URL(request.url);
+  const jobsiteId = url.searchParams.get("jobsiteId")?.trim() ?? "";
+  if (auth.role === "sales_demo") {
+    if (!jobsiteId) {
+      return NextResponse.json({ error: "jobsiteId is required." }, { status: 400 });
+    }
+    return NextResponse.json({
+      submissions: DEMO_FORM_SUBMISSIONS.filter((submission) => submission.jobsite_id === jobsiteId),
+    });
+  }
 
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
@@ -31,8 +74,6 @@ export async function GET(request: Request) {
     role: auth.role,
   });
 
-  const url = new URL(request.url);
-  const jobsiteId = url.searchParams.get("jobsiteId")?.trim() ?? "";
   if (!jobsiteId) {
     return NextResponse.json({ error: "jobsiteId is required." }, { status: 400 });
   }
@@ -58,6 +99,30 @@ export async function POST(request: Request) {
     requireAnyPermission: ["can_create_documents", "can_view_all_company_data"],
   });
   if ("error" in auth) return auth.error;
+  if (auth.role === "sales_demo") {
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    const jobsiteId = String(body?.jobsiteId ?? "").trim();
+    const versionId = String(body?.versionId ?? "").trim() || "demo-form-ver-1";
+    if (!jobsiteId) {
+      return NextResponse.json({ error: "Invalid jobsite." }, { status: 400 });
+    }
+    return NextResponse.json({
+      submission: {
+        id: `demo-form-sub-${Date.now()}`,
+        company_id: "demo-company",
+        version_id: versionId,
+        jobsite_id: jobsiteId,
+        status: body?.status === "submitted" ? "submitted" : "draft",
+        answers:
+          body?.answers && typeof body.answers === "object" && !Array.isArray(body.answers)
+            ? body.answers
+            : {},
+        submitted_by: "demo-user-1",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    });
+  }
 
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope } from "@/lib/jobsiteAccess";
+import { demoCompanyJobsiteRows } from "@/lib/demoWorkspace";
 
 export const runtime = "nodejs";
 
@@ -47,6 +48,14 @@ export async function GET(request: Request) {
 
   if ("error" in auth) {
     return auth.error;
+  }
+
+  if (auth.role === "sales_demo") {
+    return NextResponse.json({
+      jobsites: demoCompanyJobsiteRows,
+      scopeCompanyId: "demo-company",
+      scopeCompanyName: "Summit Ridge Constructors",
+    });
   }
 
   const companyScope = await getCompanyScope({

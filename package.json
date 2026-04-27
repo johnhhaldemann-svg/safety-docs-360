@@ -2,6 +2,7 @@
   "name": "safety_docs_360",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.cjs",
   "engines": {
     "node": ">=20.19.0"
   },
@@ -24,10 +25,16 @@
     "verify:release": "npm run lint && npm run test && npm run test:navigation && npm run test:links && node ./node_modules/typescript/bin/tsc --noEmit && npx playwright test tests/adoption.spec.ts --project=chromium",
     "stress:platform": "node scripts/stress-platform.mjs",
     "seed:csep-test": "node ./scripts/seed-csep-test-user.mjs",
+    "pack:offline-demo": "node ./scripts/write-offline-demo-pack.mjs",
     "build:bls-rates": "node ./scripts/build-bls-state-construction-rates.mjs",
     "streamlit:osha": "node ./scripts/run-osha-streamlit.mjs",
     "streamlit:osha:install": "node ./scripts/install-osha-streamlit-deps.mjs",
     "streamlit:osha:demo-data": "node ./scripts/run-demo-ipa-generator.mjs",
+    "desktop:build:web": "cross-env OFFLINE_DESKTOP=1 NEXT_PUBLIC_OFFLINE_DESKTOP=1 next build && node ./scripts/sync-next-standalone-assets.mjs",
+    "desktop:clean": "node ./scripts/clean-dist-desktop.mjs",
+    "desktop:build": "node ./scripts/clean-dist-desktop.mjs && npm run desktop:build:web && electron-builder --win nsis",
+    "desktop:build:handoff": "npm run desktop:build && node ./scripts/copy-desktop-installer-to-demo-pack.mjs && node ./scripts/write-offline-demo-pack.mjs",
+    "desktop:dev": "cross-env OFFLINE_DESKTOP=1 NEXT_PUBLIC_OFFLINE_DESKTOP=1 electron .",
     "supabase": "supabase",
     "db:push": "supabase db push --yes",
     "db:push:env": "node scripts/supabase-db-push-from-env.mjs",
@@ -52,6 +59,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.8.1",
+    "sharp": "^0.34.5",
     "sonner": "^2.0.7",
     "stripe": "^17.7.0",
     "xlsx": "^0.18.5"
@@ -63,11 +71,39 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12",
     "eslint": "^9",
     "eslint-config-next": "^16.2.1",
     "supabase": "^2.95.3",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.2"
+  },
+  "build": {
+    "appId": "com.safety360.docs.offline",
+    "productName": "SafetyDocs360 Offline Demo",
+    "files": [
+      "electron/**/*",
+      ".next/standalone/**/*",
+      ".next/static/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
+    "asarUnpack": [
+      ".next/standalone/**/*"
+    ],
+    "directories": {
+      "output": "dist-electron-out"
+    },
+    "artifactName": "SafetyDocs360-Offline-Demo-Setup-${version}.${ext}",
+    "win": {
+      "signAndEditExecutable": false,
+      "target": "nsis"
+    }
   }
 }

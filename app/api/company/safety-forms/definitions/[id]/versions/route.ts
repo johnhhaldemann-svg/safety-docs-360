@@ -16,6 +16,44 @@ function canManageForms(role: string) {
   );
 }
 
+const DEMO_FORM_VERSIONS = [
+  {
+    id: "demo-form-ver-1",
+    definition_id: "demo-form-def-1",
+    version: 3,
+    schema: {
+      fields: [
+        { id: "crew_brief_complete", label: "Crew brief complete", type: "checkbox", required: true },
+        { id: "work_area_inspected", label: "Work area inspected", type: "checkbox", required: true },
+        { id: "notes", label: "Shift notes", type: "text", required: false },
+      ],
+    },
+  },
+  {
+    id: "demo-form-ver-2",
+    definition_id: "demo-form-def-2",
+    version: 2,
+    schema: {
+      fields: [
+        { id: "permit_verified", label: "Permit verified", type: "checkbox", required: true },
+        { id: "fire_watch_assigned", label: "Fire watch assigned", type: "checkbox", required: true },
+        { id: "fuel_sources_removed", label: "Fuel sources removed", type: "checkbox", required: true },
+      ],
+    },
+  },
+  {
+    id: "demo-form-ver-3",
+    definition_id: "demo-form-def-3",
+    version: 1,
+    schema: {
+      fields: [
+        { id: "access_routes_clear", label: "Access routes clear", type: "checkbox", required: true },
+        { id: "high_risk_items", label: "High-risk items observed", type: "text", required: false },
+      ],
+    },
+  },
+];
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -24,6 +62,13 @@ export async function GET(
     requireAnyPermission: ["can_create_documents", "can_view_all_company_data", "can_view_dashboards"],
   });
   if ("error" in auth) return auth.error;
+  if (auth.role === "sales_demo") {
+    const { id: definitionId } = await params;
+    const versions = DEMO_FORM_VERSIONS.filter((version) => version.definition_id === definitionId).sort(
+      (a, b) => b.version - a.version
+    );
+    return NextResponse.json({ versions });
+  }
 
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
@@ -71,6 +116,28 @@ export async function POST(
   if ("error" in auth) return auth.error;
   if (!canManageForms(auth.role)) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+  if (auth.role === "sales_demo") {
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    const schema = parseSafetyFormSchema(body?.schema);
+    if (!schema) {
+      return NextResponse.json({ error: "schema with fields array is required." }, { status: 400 });
+    }
+    const { id: definitionId } = await params;
+    const currentMax = Math.max(
+      0,
+      ...DEMO_FORM_VERSIONS.filter((version) => version.definition_id === definitionId).map(
+        (version) => version.version
+      )
+    );
+    return NextResponse.json({
+      version: {
+        id: `demo-form-ver-${Date.now()}`,
+        definition_id: definitionId,
+        version: currentMax + 1,
+        schema,
+      },
+    });
   }
 
   const companyScope = await getCompanyScope({

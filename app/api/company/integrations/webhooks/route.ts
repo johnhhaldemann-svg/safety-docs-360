@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,23 @@ export async function GET(request: Request) {
     requirePermission: "can_manage_company_users",
   });
   if ("error" in auth) return auth.error;
+  const isDemoRequest =
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase();
+  if (isDemoRequest) {
+    return NextResponse.json({
+      webhooks: [
+        {
+          id: "demo-webhook-1",
+          company_id: "demo-company",
+          name: "Safety Demo Receiver",
+          target_url: "https://webhook.site/demo-safety360",
+          active: true,
+          secretPreview: "demo…hook",
+        },
+      ],
+    });
+  }
 
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
@@ -58,6 +76,26 @@ export async function POST(request: Request) {
     requirePermission: "can_manage_company_users",
   });
   if ("error" in auth) return auth.error;
+  const isDemoRequest =
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase();
+  if (isDemoRequest) {
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    return NextResponse.json({
+      webhook: {
+        id: `demo-webhook-${Date.now()}`,
+        company_id: "demo-company",
+        name: String(body?.name ?? "Demo webhook"),
+        target_url: String(body?.targetUrl ?? "https://webhook.site/demo-safety360"),
+        event_types: Array.isArray(body?.eventTypes) ? body?.eventTypes : ["ping"],
+        active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      secret: "demo-signing-secret",
+      note: "Demo webhook created. This environment does not deliver real outbound traffic.",
+    });
+  }
   if (!canManageIntegrations(auth.role)) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }

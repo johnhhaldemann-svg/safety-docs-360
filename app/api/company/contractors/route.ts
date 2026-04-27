@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { demoContractors } from "@/lib/demoWorkspace";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -22,6 +24,20 @@ export async function GET(request: Request) {
     ],
   });
   if ("error" in auth) return auth.error;
+  const isDemoRequest =
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase();
+  if (isDemoRequest) {
+    return NextResponse.json({
+      contractors: [
+        ...demoContractors,
+        { id: "demo-contractor-3", name: "Atlas Concrete Pumping" },
+        { id: "demo-contractor-4", name: "Summit Roofing & Cladding" },
+        { id: "demo-contractor-5", name: "Ironclad Scaffolding Services" },
+        { id: "demo-contractor-6", name: "Pacific Fire Protection" },
+      ],
+    });
+  }
 
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,

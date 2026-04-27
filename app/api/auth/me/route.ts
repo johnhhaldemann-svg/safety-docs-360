@@ -22,6 +22,8 @@ import {
 import { normalizeCompanySubscriptionStatus } from "@/lib/companySeats";
 import { planNameToWorkspaceProduct, type WorkspaceProduct } from "@/lib/workspaceProduct";
 import { serverLog } from "@/lib/serverLog";
+import { demoCompanyProfile } from "@/lib/demoWorkspace";
+import { isOfflineDesktopEnabled } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -498,6 +500,60 @@ async function handleAuthMeGet(request: Request) {
 
   if ("error" in auth) {
     return auth.error;
+  }
+
+  if (isOfflineDesktopEnabled()) {
+    return NextResponse.json(
+      {
+        user: {
+          id: auth.user.id,
+          email: auth.user.email ?? "demo@safety360docs.com",
+          linkedContractorId: null,
+          role: auth.role,
+          roleLabel: formatAppRole(auth.role),
+          team: auth.team,
+          companyId: "demo-company",
+          companyName: demoCompanyProfile.name ?? "Summit Ridge Constructors",
+          workspaceProduct: "full",
+          subscriptionStatus: normalizeCompanySubscriptionStatus("active"),
+          profile: {
+            userId: auth.user.id,
+            fullName: "SafetyDocs360 Demo",
+            preferredName: "Demo",
+            jobTitle: "Demo Account",
+            tradeSpecialty: "General Construction",
+            yearsExperience: 12,
+            phone: "",
+            city: "Austin",
+            stateRegion: "TX",
+            readinessStatus: "ready",
+            certifications: [],
+            specialties: [],
+            equipment: [],
+            bio: "Offline demo session",
+            photoUrl: "",
+            photoPath: "",
+          },
+          profileComplete: true,
+          companyProfile: demoCompanyProfile,
+          isAdmin: isAdminRole(auth.role),
+          permissions: auth.permissions,
+          permissionMap: auth.permissionMap,
+          accountStatus: "active",
+          pendingCompanySignupRequest: null,
+          acceptedTerms: true,
+          acceptedTermsAt: new Date().toISOString(),
+          termsVersion: TERMS_VERSION,
+          agreementCurrent: true,
+          requiredTermsVersion: TERMS_VERSION,
+        },
+      },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=15, stale-while-revalidate=45",
+        },
+      }
+    );
   }
 
   const initialCompanyScope = await getCompanyScope({

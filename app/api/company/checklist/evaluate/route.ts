@@ -93,20 +93,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const companyScope = await getCompanyScope({
-    supabase: auth.supabase,
-    userId: auth.user.id,
-    fallbackTeam: auth.team,
-    authUser: auth.user,
-  });
-
-  if (isCompanyRole(auth.role) && !companyScope.companyId) {
-    return NextResponse.json(
-      { error: "This account is not linked to a company workspace yet." },
-      { status: 400 }
-    );
-  }
-
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -124,6 +110,33 @@ export async function POST(request: Request) {
   const formShapeError = validateFormDataShape(body.formData);
   if (formShapeError) {
     return NextResponse.json({ error: formShapeError }, { status: 400 });
+  }
+
+  if (auth.role === "sales_demo") {
+    const formData = body.formData as Record<string, unknown>;
+    const baseEvidenceRows = mapChecklistEvidence(body.surface, formData);
+    const rows = buildChecklistMatrixRows(baseEvidenceRows);
+    const summary = summarizeChecklistRows(rows);
+    return NextResponse.json({
+      surface: body.surface,
+      sourcePolicy: `${buildChecklistSourcePolicyNote()} Offline demo mode uses static checklist evidence and does not query workspace records.`,
+      rows,
+      summary,
+    });
+  }
+
+  const companyScope = await getCompanyScope({
+    supabase: auth.supabase,
+    userId: auth.user.id,
+    fallbackTeam: auth.team,
+    authUser: auth.user,
+  });
+
+  if (isCompanyRole(auth.role) && !companyScope.companyId) {
+    return NextResponse.json(
+      { error: "This account is not linked to a company workspace yet." },
+      { status: 400 }
+    );
   }
 
   try {

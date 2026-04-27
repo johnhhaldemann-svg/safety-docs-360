@@ -6,6 +6,12 @@ import {
   getSupabaseServerUrl,
   getSupabaseServiceRoleKey,
 } from "@/lib/supabaseAdmin";
+import {
+  buildOfflineDemoSupabaseUser,
+  isOfflineDesktopEnabled,
+  isValidOfflineDemoToken,
+  readOfflineDemoTokenFromRequest,
+} from "@/lib/offlineDesktopSession";
 import { serverLog } from "@/lib/serverLog";
 
 export const APP_ROLES = [
@@ -893,6 +899,59 @@ export async function authorizeRequest(
   request: Request,
   options: AuthorizeOptions = {}
 ) {
+  if (isOfflineDesktopEnabled()) {
+    const token = readOfflineDemoTokenFromRequest(request);
+    if (!isValidOfflineDemoToken(token)) {
+      return {
+        error: NextResponse.json({ error: "Missing auth token." }, { status: 401 }),
+      };
+    }
+
+    const role = "sales_demo" as const;
+    const permissionMap = getPermissionMap(role);
+
+    if (options.requireAdmin && !isAdminRole(role)) {
+      return {
+        error: NextResponse.json({ error: "Admin access required." }, { status: 403 }),
+      };
+    }
+
+    if (
+      options.requirePermission &&
+      !permissionMap[options.requirePermission]
+    ) {
+      return {
+        error: NextResponse.json(
+          { error: "You do not have permission for this action." },
+          { status: 403 }
+        ),
+      };
+    }
+
+    if (
+      options.requireAnyPermission &&
+      !options.requireAnyPermission.some((permission) => permissionMap[permission])
+    ) {
+      return {
+        error: NextResponse.json(
+          { error: "You do not have permission for this action." },
+          { status: 403 }
+        ),
+      };
+    }
+
+    return {
+      // Offline-only paths should short-circuit before making DB calls.
+      supabase: {} as SupabaseClient,
+      user: buildOfflineDemoSupabaseUser(),
+      role,
+      team: "Demo Workspace",
+      accountStatus: "active" as const,
+      permissions: APP_PERMISSIONS.filter((permission) => permissionMap[permission]),
+      permissionMap,
+    };
+  }
+
   const supabaseUrl = getSupabaseServerUrl();
   const supabaseAnonKey = getSupabaseAnonKey();
   const supabaseServiceRoleKey = getSupabaseServiceRoleKey();

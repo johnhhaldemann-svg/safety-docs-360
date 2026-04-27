@@ -39,6 +39,30 @@ describe("assertCsepExportQuality", () => {
     expect(() => assertCsepExportQuality(model, { draft })).toThrow(/document_control_placement/i);
   });
 
+  it("blocks export when owner/sign-off/toc order is wrong", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const msg = model.frontMatterSections.find((s) => s.key === "message_from_owner")!;
+    const sign = model.frontMatterSections.find((s) => s.key === "sign_off_page")!;
+    const toc = model.frontMatterSections.find((s) => s.key === "table_of_contents")!;
+    model.frontMatterSections = [
+      toc,
+      sign,
+      msg,
+      ...model.frontMatterSections.filter(
+        (s) => !["message_from_owner", "sign_off_page", "table_of_contents"].includes(s.key)
+      ),
+    ];
+    expect(() => assertCsepExportQuality(model, { draft })).toThrow(/front_matter_order/i);
+  });
+
+  it("blocks export when selected permit triggers are missing from final text", () => {
+    const draft = minimalSteelDraft();
+    draft.ruleSummary.permitTriggers = ["Lift plan", "Special permit token 991ZZ"];
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    expect(() => assertCsepExportQuality(model, { draft })).toThrow(/permit_coverage/i);
+  });
+
   it("allows Appendix E when hot work / fire watch boilerplate repeats across many tasks", () => {
     const draft = minimalSteelDraft();
     const model = buildCsepRenderModelFromGeneratedDraft(draft);

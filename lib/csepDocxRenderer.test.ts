@@ -184,14 +184,14 @@ describe("csepDocxRenderer", () => {
       "scope",
       "top_10_risks",
       "trade_interaction_info",
-      "roles_and_responsibilities",
       "disciplinary_program",
       "union",
       "security_at_site",
       "hazcom",
       "iipp_emergency_response",
-      "work_attire_requirements",
       "hazards_and_controls",
+      "training_inspections_monitoring_recordkeeping",
+      "close_out_lessons_learned",
     ]);
     expect(model.sections.map((section) => section.key)).toEqual([]);
     expect(model.frontMatterSections.find((s) => s.key === "hazards_and_controls")?.numberLabel).toBeUndefined();
@@ -219,7 +219,7 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).not.toMatch(/7\.\d+\s+Struck-by or caught-in/);
   });
 
-  it("tags hazard–control style matrices for offset table rows (no 11.x.y.z per row)", () => {
+  it("normalizes hazard modules into Risk/Controls/Verification/Stop-Work/References slices", () => {
     const draft = createGeneratedDraft();
     draft.sectionMap.push({
       key: "steel_erection_hazard_control_matrix",
@@ -257,8 +257,12 @@ describe("csepDocxRenderer", () => {
       sourceSections: draft.sectionMap,
     });
     const haz = sections.find((s) => s.key === "hazards_and_controls");
-    const matrixSub = haz?.subsections.find((s) => s.table?.rows.length && s.tableRowsStyle);
-    expect(matrixSub?.tableRowsStyle).toBe("offset_lines");
+    const titles = (haz?.subsections ?? []).map((s) => s.title);
+    expect(titles.some((title) => /: Risk$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /: Required Controls$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /: How Controls Are Verified$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /: Stop-Work Triggers$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /: References$/i.test(title))).toBe(true);
   });
 
   it("renders Scope Summary tasks as offset lines without subsection numbers like 3.1.1", async () => {
@@ -288,6 +292,65 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).not.toContain("6.1.1");
   });
 
+  it("drops generic Project/Contractor Information blocks from Scope when no admin override is set", () => {
+    const draft = createGeneratedDraft();
+    draft.sectionMap.push(
+      {
+        key: "scope_project_information",
+        title: "Project Information",
+        body: "Project Name: Riverfront Tower",
+      },
+      {
+        key: "scope_contractor_information",
+        title: "Contractor Information",
+        body: "Contractor: ABC Steel",
+      }
+    );
+
+    const sections = buildCsepTemplateSections({
+      draft,
+      projectName: "Riverfront Tower",
+      contractorName: "ABC Steel",
+      tradeLabel: "Steel Erection",
+      subTradeLabel: "Decking",
+      taskTitles: ["Deck placement"],
+      sourceSections: draft.sectionMap,
+    });
+
+    const scopeSection = sections.find((section) => section.key === "scope");
+    const scopeTitles = (scopeSection?.subsections ?? []).map((sub) => sub.title.toLowerCase());
+    expect(scopeTitles.some((title) => title.includes("project information"))).toBe(false);
+    expect(scopeTitles.some((title) => title.includes("contractor information"))).toBe(false);
+  });
+
+  it("keeps hazard section numbering controlled and avoids high labels like 14.85", async () => {
+    const draft = createGeneratedDraft();
+    for (let index = 0; index < 40; index += 1) {
+      draft.sectionMap.push({
+        key: `task_module_extra_${index + 1}`,
+        title: `Task Module: Extra Hazard Program ${index + 1}`,
+        subsections: [
+          {
+            title: "Hazard Overview",
+            body: `Exposure narrative ${index + 1}.`,
+            bullets: [],
+          },
+          {
+            title: "Required Controls",
+            body: `Control narrative ${index + 1}.`,
+            bullets: [`Control step ${index + 1}`],
+          },
+        ],
+      });
+    }
+
+    const rendered = await renderGeneratedCsepDocx(draft);
+    const { documentXml } = await unzipDocx(rendered.body);
+    expect(documentXml).toContain("14. Hazards and Controls");
+    expect(documentXml).toContain("Extra Hazard Program 40");
+    expect(documentXml).not.toMatch(/14\.(?:8[0-9]|9[0-9]|1[0-9]{2})\s/);
+  });
+
   it("keeps one instance of each required section and supplies placeholders where needed", () => {
     const draft = createGeneratedDraft();
     const sections = buildCsepTemplateSections({
@@ -308,14 +371,14 @@ describe("csepDocxRenderer", () => {
       "scope",
       "top_10_risks",
       "trade_interaction_info",
-      "roles_and_responsibilities",
       "disciplinary_program",
       "union",
       "security_at_site",
       "hazcom",
       "iipp_emergency_response",
-      "work_attire_requirements",
       "hazards_and_controls",
+      "training_inspections_monitoring_recordkeeping",
+      "close_out_lessons_learned",
     ]);
     expect(
       sections.find((section) => section.key === "union")?.subsections[0]?.paragraphs?.[0]
@@ -377,6 +440,68 @@ describe("csepDocxRenderer", () => {
     expect(hazardText).not.toContain("Follow the project emergency response policy when a rescue is needed.");
   });
 
+  it("enforces section ownership boundaries and removes cross-section duplicate policy text", () => {
+    const draft = createGeneratedDraft();
+    draft.sectionMap.push(
+      {
+        key: "common_overlapping_trades",
+        title: "Common Overlapping Trades",
+        bullets: [
+          "Coordinate shared work areas and trade interfaces before crews start.",
+          "Maintain SDS access in the trailer.",
+          "Verify visitor badges at gate 2.",
+        ],
+      },
+      {
+        key: "security_and_access",
+        title: "Security and Access",
+        bullets: [
+          "Control worker access, visitors, deliveries, laydown, staging, and end-of-shift security.",
+          "Keep chemical inventory current for all products.",
+        ],
+      },
+      {
+        key: "hazcom_program",
+        title: "HazCom Program",
+        bullets: [
+          "Maintain SDS and label secondary containers.",
+          "Confirm trucking routes are barricaded.",
+        ],
+      },
+      {
+        key: "incident_reporting_and_investigation",
+        title: "IIPP / Emergency Response",
+        bullets: [
+          "Report incidents and coordinate emergency medical response.",
+          "Keep GHS/NFPA labels updated on all chemicals.",
+        ],
+      }
+    );
+
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const asText = (key: string) =>
+      (model.frontMatterSections.find((section) => section.key === key)?.subsections ?? [])
+        .flatMap((subsection) => [...(subsection.paragraphs ?? []), ...(subsection.items ?? [])])
+        .join(" ");
+
+    const tradeText = asText("trade_interaction_info");
+    expect(tradeText.length).toBeGreaterThan(0);
+    expect(tradeText).not.toMatch(/\bSDS\b/i);
+    expect(tradeText).not.toMatch(/\bbadge|visitor\b/i);
+
+    const securityText = asText("security_at_site");
+    expect(securityText.length).toBeGreaterThan(0);
+    expect(securityText).not.toMatch(/\bchemical inventory|GHS|NFPA|SDS\b/i);
+
+    const hazcomText = asText("hazcom");
+    expect(hazcomText.length).toBeGreaterThan(0);
+    expect(hazcomText).not.toMatch(/\btrucking|traffic control|laydown\b/i);
+
+    const iippText = asText("iipp_emergency_response");
+    expect(iippText.length).toBeGreaterThan(0);
+    expect(iippText).not.toMatch(/\bSDS|GHS|NFPA|chemical inventory\b/i);
+  });
+
   it("renders one table of contents and no duplicate revision-history block", async () => {
     const rendered = await renderGeneratedCsepDocx(createGeneratedDraft());
     const { documentXml, headerXml, footerXml } = await unzipDocx(rendered.body);
@@ -404,14 +529,14 @@ describe("csepDocxRenderer", () => {
       "6. Scope",
       "7. Top 10 Risks",
       "8. Trade Interaction Info",
-      "9. Roles and Responsibilities",
-      "10. Disciplinary Program",
-      "11. Union",
-      "12. Security at Site",
-      "13. HazCom",
-      "14. IIPP / Emergency Response",
-      "15. Work Attire Requirements",
-      "16. Hazards and Controls",
+      "9. Disciplinary Program",
+      "10. Union",
+      "11. Security at Site",
+      "12. HazCom",
+      "13. IIPP / Emergency Response",
+      "14. Hazards and Controls",
+      "15. Training, Inspections, Monitoring &amp; Recordkeeping",
+      "16. Close-Out / Lessons Learned",
       `${disclaimerOrdinal}. Disclaimer`,
     ];
 

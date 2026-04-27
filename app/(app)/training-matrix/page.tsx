@@ -89,6 +89,140 @@ type MatrixRow = {
   };
 };
 
+const OFFLINE_DEMO_REQUIREMENTS: Requirement[] = [
+  {
+    id: "demo-req-a",
+    title: "OSHA 10 (Foreman / Superintendent)",
+    sortOrder: 1,
+    matchKeywords: ["OSHA 10 Construction"],
+    matchFields: ["certifications"],
+    applyTrades: ["Structural Steel and Erection", "General Construction"],
+    applyPositions: ["Foreman", "Superintendent"],
+    applySubTrades: [],
+    applyTaskCodes: [],
+    renewalMonths: 60,
+  },
+  {
+    id: "demo-req-b",
+    title: "LOTO Authorized Worker",
+    sortOrder: 2,
+    matchKeywords: ["LOTO Authorized Worker", "Lockout/Tagout"],
+    matchFields: ["certifications"],
+    applyTrades: ["Electrical and Instrumentation"],
+    applyPositions: ["Electrician", "Foreman"],
+    applySubTrades: [],
+    applyTaskCodes: ["energized_work_boundaries"],
+    renewalMonths: 12,
+  },
+  {
+    id: "demo-req-c",
+    title: "First Aid / CPR",
+    sortOrder: 3,
+    matchKeywords: ["First Aid / CPR", "CPR"],
+    matchFields: ["certifications"],
+    applyTrades: ["Structural Steel and Erection", "Electrical and Instrumentation", "General Construction"],
+    applyPositions: ["Foreman", "Safety Manager", "Electrician", "Superintendent"],
+    applySubTrades: [],
+    applyTaskCodes: [],
+    renewalMonths: 24,
+  },
+];
+
+const OFFLINE_DEMO_ROWS: MatrixRow[] = [
+  {
+    userId: "offline-demo-1",
+    name: "Jordan Lee",
+    email: "demo.20260425@safety360docs.local",
+    role: "company_admin",
+    status: "Active",
+    cells: { "demo-req-a": "match", "demo-req-b": "na", "demo-req-c": "match" },
+    cellDetails: {
+      "demo-req-a": { state: "match", expiryStatus: "ok", matchedLabel: "OSHA 10 Construction" },
+      "demo-req-b": { state: "na" },
+      "demo-req-c": { state: "match", expiryStatus: "soon", matchedLabel: "First Aid / CPR" },
+    },
+    unmatchedCertifications: [],
+    certificationInventory: [
+      { name: "OSHA 10 Construction", expiresOn: "2027-08-12", daysUntilExpiry: 472, expiryStatus: "ok" },
+      { name: "First Aid / CPR", expiresOn: "2026-05-12", daysUntilExpiry: 15, expiryStatus: "soon" },
+    ],
+    profileFields: {
+      tradeSpecialty: "Structural Steel and Erection",
+      jobTitle: "Superintendent",
+      readinessStatus: "ready",
+      yearsExperience: 12,
+    },
+  },
+  {
+    userId: "offline-demo-2",
+    name: "Tyler Ruiz",
+    email: "tyler.ruiz@safety360docs.local",
+    role: "company_user",
+    status: "Active",
+    cells: { "demo-req-a": "na", "demo-req-b": "match", "demo-req-c": "match" },
+    cellDetails: {
+      "demo-req-a": { state: "na" },
+      "demo-req-b": { state: "match", expiryStatus: "soon", matchedLabel: "LOTO Authorized Worker" },
+      "demo-req-c": { state: "match", expiryStatus: "ok", matchedLabel: "First Aid / CPR" },
+    },
+    unmatchedCertifications: [],
+    certificationInventory: [
+      { name: "LOTO Authorized Worker", expiresOn: "2026-05-08", daysUntilExpiry: 11, expiryStatus: "soon" },
+      { name: "First Aid / CPR", expiresOn: "2026-10-02", daysUntilExpiry: 158, expiryStatus: "ok" },
+    ],
+    profileFields: {
+      tradeSpecialty: "Electrical and Instrumentation",
+      jobTitle: "Electrician",
+      readinessStatus: "travel_ready",
+      yearsExperience: 5,
+    },
+  },
+  {
+    userId: "offline-demo-3",
+    name: "Riley Morgan",
+    email: "riley.morgan@safety360docs.local",
+    role: "field_user",
+    status: "Active",
+    cells: { "demo-req-a": "gap", "demo-req-b": "na", "demo-req-c": "gap" },
+    cellDetails: {
+      "demo-req-a": { state: "gap", gapKeywords: ["OSHA 10 Construction"] },
+      "demo-req-b": { state: "na" },
+      "demo-req-c": { state: "gap", gapKeywords: ["First Aid / CPR"] },
+    },
+    unmatchedCertifications: [],
+    certificationInventory: [
+      { name: "OSHA 10 Construction", expiresOn: "2025-01-10", daysUntilExpiry: -473, expiryStatus: "expired" },
+    ],
+    profileFields: {
+      tradeSpecialty: "Structural Steel and Erection",
+      jobTitle: "Apprentice Ironworker",
+      readinessStatus: "limited",
+      yearsExperience: 1,
+    },
+  },
+];
+
+function buildOfflineDemoMatrixPayload(selectedTradeFilter: string) {
+  const filteredRows = selectedTradeFilter
+    ? OFFLINE_DEMO_ROWS.filter(
+        (row) => row.profileFields.tradeSpecialty.toLowerCase() === selectedTradeFilter.toLowerCase()
+      )
+    : OFFLINE_DEMO_ROWS;
+  return {
+    requirements: OFFLINE_DEMO_REQUIREMENTS,
+    rows: filteredRows,
+    filters: {
+      trades: [
+        "Structural Steel and Erection",
+        "Electrical and Instrumentation",
+        "General Construction",
+      ],
+      subTrades: [],
+      taskCodes: [{ value: "energized_work_boundaries", label: "Energized Work Boundaries" }],
+    } as MatrixFilters,
+  };
+}
+
 function normalizeCellState(v: unknown): MatrixCellState {
   if (v === true) return "match";
   if (v === false) return "gap";
@@ -671,6 +805,7 @@ function SchemaMigrationBanner({ onDismiss }: { onDismiss: () => void }) {
 }
 
 export default function TrainingMatrixPage() {
+  const isOfflineDemoUi = process.env.NEXT_PUBLIC_OFFLINE_DESKTOP === "1";
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [rows, setRows] = useState<MatrixRow[]>([]);
   const [filters, setFilters] = useState<MatrixFilters>({
@@ -751,6 +886,21 @@ export default function TrainingMatrixPage() {
   const loadMatrix = useCallback(async () => {
     setLoading(true);
     setMessage("");
+    if (isOfflineDemoUi) {
+      const demo = buildOfflineDemoMatrixPayload(selectedTradeFilter);
+      setRequirements(demo.requirements);
+      setRows(demo.rows);
+      setFilters(demo.filters);
+      setCanMutate(false);
+      setSchemaMigrationNeeded(false);
+      setWarning(null);
+      setDirectoryNotice(null);
+      setMessage("");
+      setMessageTone("neutral");
+      setLoading(false);
+      setWorkspaceDataLoaded(true);
+      return;
+    }
     try {
       const token = await getAccessToken();
       const params = new URLSearchParams();
@@ -807,9 +957,10 @@ export default function TrainingMatrixPage() {
       setRows(
         (data?.rows ?? []).map((row) => ({
           ...row,
-          cells: Object.fromEntries(
-            Object.entries(row.cells ?? {}).map(([k, v]) => [k, normalizeCellState(v)])
-          ),
+          cells: Object.entries(row.cells ?? {}).reduce<Record<string, MatrixCellState>>((acc, [k, v]) => {
+            acc[k] = normalizeCellState(v);
+            return acc;
+          }, {}),
           cellDetails: (row.cellDetails ?? {}) as Record<string, MatrixCellDetail>,
           certificationInventory: (row.certificationInventory ?? []) as CertificationInventoryItem[],
           profileFields: {
@@ -844,7 +995,7 @@ export default function TrainingMatrixPage() {
       setLoading(false);
       setWorkspaceDataLoaded(true);
     }
-  }, [selectedSubTradeFilter, selectedTaskCodeFilter, selectedTradeFilter]);
+  }, [isOfflineDemoUi, selectedSubTradeFilter, selectedTaskCodeFilter, selectedTradeFilter]);
 
   useEffect(() => {
     void loadMatrix();
@@ -1153,19 +1304,21 @@ export default function TrainingMatrixPage() {
         </div>
       </SectionCard>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <CompanyAiAssistPanel
-          surface="training_matrix"
-          title="Training assistant"
-          structuredContext={JSON.stringify({
-            requirements: requirements.length,
-            people: rows.length,
-            met: trackerStats?.met,
-            gap: trackerStats?.gap,
-          })}
-        />
-        <CompanyMemoryBankPanel />
-      </div>
+      {!isOfflineDemoUi ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <CompanyAiAssistPanel
+            surface="training_matrix"
+            title="Training assistant"
+            structuredContext={JSON.stringify({
+              requirements: requirements.length,
+              people: rows.length,
+              met: trackerStats?.met,
+              gap: trackerStats?.gap,
+            })}
+          />
+          <CompanyMemoryBankPanel />
+        </div>
+      ) : null}
 
       {schemaMigrationNeeded && !schemaMigrationBannerDismissed ? (
         <SchemaMigrationBanner onDismiss={dismissSchemaMigrationBanner} />

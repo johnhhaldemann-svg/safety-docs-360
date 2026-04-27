@@ -9,7 +9,7 @@ import {
   buildCsepTemplateSections,
   type CsepRenderModel,
   type CsepTemplateSection,
-} from "@/lib/csepDocxRenderer";
+} from "@/lib/csep/csep-renderer";
 import { CONTRACTOR_SAFETY_BLUEPRINT_TITLE } from "@/lib/safetyBlueprintLabels";
 import type { CsepWeatherSectionInput } from "@/types/csep-builder";
 import type { DocumentBuilderTextConfig, DocumentBuilderSectionTemplate } from "@/types/document-builder-text";

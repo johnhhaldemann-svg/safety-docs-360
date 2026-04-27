@@ -558,7 +558,8 @@ export default function AppLayout({
       if (
         userRole === "company_admin" ||
         userRole === "manager" ||
-        userRole === "safety_manager"
+        userRole === "safety_manager" ||
+        userRole === "sales_demo"
       ) {
         companyAllowedRoutes.push(
           "/companies",

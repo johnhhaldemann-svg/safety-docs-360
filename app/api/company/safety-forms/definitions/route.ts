@@ -16,11 +16,20 @@ function canManageForms(role: string) {
   );
 }
 
+const DEMO_FORM_DEFINITIONS = [
+  { id: "demo-form-def-1", title: "Daily Pre-Task Safety Check", active: true },
+  { id: "demo-form-def-2", title: "Hot Work Readiness Card", active: true },
+  { id: "demo-form-def-3", title: "Supervisor Walkthrough Checklist", active: true },
+];
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: ["can_create_documents", "can_view_all_company_data", "can_view_dashboards"],
   });
   if ("error" in auth) return auth.error;
+  if (auth.role === "sales_demo") {
+    return NextResponse.json({ definitions: DEMO_FORM_DEFINITIONS });
+  }
 
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
@@ -52,6 +61,25 @@ export async function POST(request: Request) {
   if ("error" in auth) return auth.error;
   if (!canManageForms(auth.role)) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+  if (auth.role === "sales_demo") {
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    const title = String(body?.title ?? "").trim() || "Demo safety form";
+    const schema = parseSafetyFormSchema(body?.initialSchema) ?? { fields: [] };
+    return NextResponse.json({
+      definition: {
+        id: `demo-form-def-${Date.now()}`,
+        company_id: "demo-company",
+        title,
+        active: body?.active !== false,
+      },
+      version: {
+        id: `demo-form-ver-${Date.now()}`,
+        definition_id: "demo-form-def-new",
+        version: 1,
+        schema,
+      },
+    });
   }
 
   const companyScope = await getCompanyScope({

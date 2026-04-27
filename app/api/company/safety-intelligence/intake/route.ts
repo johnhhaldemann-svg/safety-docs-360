@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeSafetyIntelligenceRequest, type SafetyIntelligenceAuthorized } from "@/lib/safety-intelligence/http";
 import { runSafetyIntakePipeline } from "@/lib/safety-intelligence/ingestion/service";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,33 @@ export async function POST(request: Request) {
   });
   if ("error" in auth) return auth.error;
   const resolved = auth as SafetyIntelligenceAuthorized;
+  const isDemoRequest =
+    resolved.role === "sales_demo" ||
+    (resolved.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase();
+  if (isDemoRequest) {
+    return NextResponse.json({
+      bucketRunId: `demo-bucket-run-${Date.now()}`,
+      bucket: {
+        id: "demo-bucket-1",
+        bucketCode: "steel_erection",
+        confidence: 0.96,
+      },
+      rules: {
+        permitTriggers: ["hot_work", "critical_lift"],
+        trainingRequirements: ["rigging_certification", "fall_protection"],
+      },
+      conflicts: {
+        hasConflict: true,
+        severity: "high",
+        items: [
+          {
+            code: "HOTWORK_FUEL_PROXIMITY",
+            rationale: "Fuel storage and hot work are in the same temporary zone.",
+          },
+        ],
+      },
+    });
+  }
   if (!resolved.companyScope.companyId) {
     return NextResponse.json({ error: "No company workspace linked." }, { status: 400 });
   }

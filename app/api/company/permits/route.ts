@@ -5,6 +5,7 @@ import { canManageCompanyPermits } from "@/lib/companyFeatureAccess";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { buildPermitFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
+import { demoPermitRows } from "@/lib/demoWorkspace";
 
 export const runtime = "nodejs";
 
@@ -79,6 +80,19 @@ export async function GET(request: Request) {
     ],
   });
   if ("error" in auth) return auth.error;
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get("status")?.trim().toLowerCase();
+  const requestedJobsiteId = searchParams.get("jobsiteId")?.trim() ?? "";
+  if (auth.role === "sales_demo") {
+    let permits = [...demoPermitRows];
+    if (status) {
+      permits = permits.filter((permit) => String(permit.status ?? "").toLowerCase() === status);
+    }
+    if (requestedJobsiteId) {
+      permits = permits.filter((permit) => String(permit.jobsite_id ?? "") === requestedJobsiteId);
+    }
+    return NextResponse.json({ permits });
+  }
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ permits: [] });
   const csepBlockGet = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
@@ -89,9 +103,6 @@ export async function GET(request: Request) {
     companyId: companyScope.companyId,
     role: auth.role,
   });
-  const { searchParams } = new URL(request.url);
-  const status = searchParams.get("status")?.trim().toLowerCase();
-  const requestedJobsiteId = searchParams.get("jobsiteId")?.trim() ?? "";
   if (requestedJobsiteId && !isJobsiteAllowed(requestedJobsiteId, jobsiteScope)) {
     return NextResponse.json({ permits: [] });
   }

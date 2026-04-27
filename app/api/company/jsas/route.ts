@@ -4,6 +4,8 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { canManageCompanyJsa } from "@/lib/companyFeatureAccess";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
+import { demoWorkspaceSummary } from "@/lib/demoWorkspace";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -30,6 +32,62 @@ export async function GET(request: Request) {
     ],
   });
   if ("error" in auth) return auth.error;
+  const isDemoRequest =
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase();
+  if (isDemoRequest) {
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get("status")?.trim().toLowerCase() || null;
+    const jsas = [
+      ...(demoWorkspaceSummary.daps ?? []).map((row) => ({
+        id: row.id,
+        company_id: "demo-company",
+        jobsite_id: row.jobsite_id ?? null,
+        title: row.title,
+        description: "Demo JSA for offline walkthrough.",
+        status: row.status === "open" ? "active" : row.status,
+        severity: "medium",
+        category: "corrective_action",
+        updated_at: new Date().toISOString(),
+      })),
+      {
+        id: "demo-jsa-3",
+        company_id: "demo-company",
+        jobsite_id: "demo-jobsite-1",
+        title: "Edge protection setup - level 8",
+        description: "Pre-task JSA for perimeter edge-control install.",
+        status: "draft",
+        severity: "high",
+        category: "fall_hazard",
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: "demo-jsa-4",
+        company_id: "demo-company",
+        jobsite_id: "demo-jobsite-2",
+        title: "Temporary power panel tie-in",
+        description: "Electrical coordination and lockout workflow.",
+        status: "active",
+        severity: "high",
+        category: "electrical_hazard",
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: "demo-jsa-5",
+        company_id: "demo-company",
+        jobsite_id: "demo-jobsite-2",
+        title: "Night shift material lift plan",
+        description: "Tower crane picks during reduced-visibility hours.",
+        status: "closed",
+        severity: "medium",
+        category: "corrective_action",
+        updated_at: new Date().toISOString(),
+      },
+    ];
+    return NextResponse.json({
+      jsas: status ? jsas.filter((item) => item.status === status) : jsas,
+    });
+  }
 
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,

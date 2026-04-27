@@ -32,7 +32,7 @@ import {
   type SurveyTestLayoutSectionKey,
 } from "@/lib/csepSurveyTest";
 import { buildLegacyCsepRenderModel } from "@/lib/csepLegacyDocx";
-import { renderCsepRenderModel, renderGeneratedCsepDocx } from "@/lib/csepDocxRenderer";
+import { renderCsepRenderModel, renderGeneratedCsepDocx } from "@/lib/csep/csep-renderer";
 import { DOCUMENT_DISCLAIMER_LINES } from "@/lib/legal";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";

@@ -3,7 +3,7 @@ import {
   CSEP_FORMAT_SECTION_OPTIONS,
   getCsepFormatDefinition,
 } from "@/lib/csepBuilder";
-import { renderGeneratedCsepDocx } from "@/lib/csepDocxRenderer";
+import { renderGeneratedCsepDocx } from "@/lib/csep/csep-renderer";
 import { normalizeGcCmPartnerEntries } from "@/lib/csepGcCmPartners";
 import {
   extractBuilderReviewDocumentText,

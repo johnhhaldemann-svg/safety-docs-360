@@ -46,6 +46,7 @@ import { Activity, AlertTriangle, GraduationCap, ScanLine } from "lucide-react";
 import Link from "next/link";
 
 const supabase = getSupabaseBrowserClient();
+const isOfflineDesktop = process.env.NEXT_PUBLIC_OFFLINE_DESKTOP === "1";
 
 function canLoadDashboardOverview(map: PermissionMap | null): boolean {
   if (!map) return true;
@@ -151,7 +152,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
       return;
     }
     if (!res.ok) {
-      setError("Prevention overview could not be loaded right now.");
+      setError(isOfflineDesktop ? null : "Prevention overview could not be loaded right now.");
       setOverview(null);
       setLoading(false);
       return;
@@ -160,7 +161,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
       const body = (await res.json()) as DashboardOverview;
       setOverview(body);
     } catch {
-      setError("Overview response was not valid JSON.");
+      setError(isOfflineDesktop ? null : "Overview response was not valid JSON.");
       setOverview(null);
     } finally {
       setLoading(false);

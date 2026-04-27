@@ -3,6 +3,7 @@ import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { demoCompanyJobsiteRows } from "@/lib/demoWorkspace";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,35 @@ function isMissingCompatView(message?: string | null) {
 function canManage(role: string) {
   return isAdminRole(role) || role === "company_admin" || role === "manager" || role === "safety_manager";
 }
+
+const demoReportRows = [
+  {
+    id: "demo-report-1",
+    company_id: "demo-company",
+    jobsite_id: "demo-jobsite-1",
+    title: "Daily safety summary",
+    report_type: "daily_report",
+    status: "published",
+    source_module: "operations",
+    file_path: "demo/reports/daily-safety-summary.md",
+    generated_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "demo-report-2",
+    company_id: "demo-company",
+    jobsite_id: "demo-jobsite-2",
+    title: "Forklift aisle near miss brief",
+    report_type: "end_of_day",
+    status: "published",
+    source_module: "eod_generator",
+    file_path: "demo/reports/forklift-near-miss-brief.md",
+    generated_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
 
 type ScopeContext = {
   auth: Exclude<Awaited<ReturnType<typeof authorizeRequest>>, { error: NextResponse }>;
@@ -268,12 +298,18 @@ export async function GET(request: Request) {
     ],
   });
   if ("error" in auth) return auth.error;
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get("status")?.trim().toLowerCase();
+  if (auth.role === "sales_demo") {
+    const reports = status
+      ? demoReportRows.filter((row) => String(row.status).toLowerCase() === status)
+      : demoReportRows;
+    return NextResponse.json({ reports });
+  }
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ reports: [] });
   const csepBlockGet = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
   if (csepBlockGet) return csepBlockGet;
-  const { searchParams } = new URL(request.url);
-  const status = searchParams.get("status")?.trim().toLowerCase();
   let query = auth.supabase
     .from("compat_company_reports")
     .select("*")
@@ -301,6 +337,46 @@ export async function POST(request: Request) {
   const auth = await authorizeRequest(request, { requireAnyPermission: ["can_view_all_company_data", "can_view_analytics"] });
   if ("error" in auth) return auth.error;
   if (!canManage(auth.role)) return NextResponse.json({ error: "Only company admins and managers can create reports." }, { status: 403 });
+  if (auth.role === "sales_demo") {
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    const reportType = String(body?.reportType ?? "daily_report").trim().toLowerCase();
+    const selectedJobsiteId = String(body?.jobsiteId ?? "").trim();
+    const fallbackJobsite = demoCompanyJobsiteRows[0]?.id ?? "demo-jobsite-1";
+    const report = {
+      id: `demo-report-${Date.now()}`,
+      company_id: "demo-company",
+      jobsite_id: selectedJobsiteId || fallbackJobsite,
+      title:
+        reportType === "weekly_summary"
+          ? "Weekly Safety Summary"
+          : reportType === "end_of_day"
+            ? "End-of-Day Safety Report"
+            : "Daily Safety Report",
+      report_type: reportType || "daily_report",
+      status: "published",
+      source_module: reportType === "end_of_day" ? "eod_generator" : "operations",
+      file_path: `demo/reports/${reportType || "daily"}-${Date.now()}.md`,
+      generated_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    return NextResponse.json({
+      success: true,
+      report,
+      generatedReport: {
+        ...report,
+        metrics: {
+          totals: { correctiveActions: 7, incidents: 2, permits: 2, daps: 2 },
+          status: { correctiveOpen: 3, correctiveClosed: 4, overdueActions: 1, sifIncidents: 1 },
+          kpis: { avgClosureHours: 18.5 },
+          topHazardCategories: [
+            { category: "fall_protection", count: 4 },
+            { category: "material_handling", count: 3 },
+          ],
+        },
+      },
+    });
+  }
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
   const csepBlockPost = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);

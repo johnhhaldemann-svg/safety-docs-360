@@ -21,6 +21,12 @@
 /.next/
 /out/
 
+# Electron desktop installer output (see scripts/desktop-electron-out-dir.mjs)
+/dist-desktop/
+/dist-electron-out/
+/dist-desktop.orphan-*/
+/dist-electron-out.orphan-*/
+
 # production
 /build
 

@@ -1,13 +1,17 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
 import { buildStructuredCsepDraft } from "@/lib/csepBuilder";
 import { getCsepExportValidationDetail, isCsepExportValidationError } from "@/lib/csepExportValidation";
-import { renderGeneratedCsepDocx } from "@/lib/csepDocxRenderer";
+import { renderGeneratedCsepDocx } from "@/lib/csep/csep-renderer";
+import { demoCompanyProfile } from "@/lib/demoWorkspace";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 import { authorizeRequest } from "@/lib/rbac";
 import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
 import { serverLog } from "@/lib/serverLog";
 import { ensureSafetyPlanGenerationContext } from "@/lib/safety-intelligence/documentIntake";
 import { runSafetyPlanDocumentPipeline } from "@/lib/safety-intelligence/documents/pipeline";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import type { JsonObject } from "@/types/safety-intelligence";
 
 export const runtime = "nodejs";
@@ -42,12 +46,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Project name and form data are required." }, { status: 400 });
     }
 
-    const companyScope = await getCompanyScope({
-      supabase: auth.supabase,
+    const isDemoCsepPreviewRequest =
+      auth.role === "sales_demo" ||
+      (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase();
+    const admin = createSupabaseAdminClient();
+    const supabase: SupabaseClient = isDemoCsepPreviewRequest
+      ? (admin ?? auth.supabase)
+      : auth.supabase;
+    if (isDemoCsepPreviewRequest && typeof supabase.from !== "function") {
+      return NextResponse.json(
+        {
+          error:
+            "Full CSEP preview uses the same generator as production. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the server environment (or use a normal cloud login session) so the draft pipeline can run.",
+        },
+        { status: 503 }
+      );
+    }
+
+    let companyScope = await getCompanyScope({
+      supabase,
       userId: auth.user.id,
       fallbackTeam: auth.team,
       authUser: auth.user,
     });
+    if (!companyScope.companyId && isDemoCsepPreviewRequest) {
+      companyScope = {
+        companyId: demoCompanyProfile.id,
+        companyName: demoCompanyProfile.name?.trim() || "Demo company",
+        source: "team_fallback",
+      } as unknown as Awaited<ReturnType<typeof getCompanyScope>>;
+    }
 
     if (!companyScope.companyId) {
       return NextResponse.json({ error: "No company workspace linked." }, { status: 400 });
@@ -68,7 +96,7 @@ export async function POST(request: Request) {
     generationContext.documentProfile.source = "csep_preview";
 
     const riskMemory = await buildRiskMemoryStructuredContext(
-      auth.supabase,
+      supabase,
       companyScope.companyId,
       {
         jobsiteId: generationContext.siteContext.jobsiteId ?? null,
@@ -84,7 +112,7 @@ export async function POST(request: Request) {
     });
 
     const pipeline = await runSafetyPlanDocumentPipeline({
-      supabase: auth.supabase,
+      supabase,
       actorUserId: auth.user.id,
       companyId: companyScope.companyId,
       jobsiteId: generationContext.siteContext.jobsiteId ?? null,

@@ -12,6 +12,7 @@ import { canManageCompanyIncidents } from "@/lib/companyFeatureAccess";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { buildIncidentFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
+import { demoIncidentRows } from "@/lib/demoWorkspace";
 
 export const runtime = "nodejs";
 
@@ -85,6 +86,18 @@ export async function GET(request: Request) {
     ],
   });
   if ("error" in auth) return auth.error;
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get("status")?.trim().toLowerCase();
+  if (auth.role === "sales_demo") {
+    const incidents = (status
+      ? demoIncidentRows.filter((incident) => String(incident.status ?? "").toLowerCase() === status)
+      : demoIncidentRows
+    ).map((incident) => ({
+      ...incident,
+      jobsite_id: "demo-jobsite-2",
+    }));
+    return NextResponse.json({ incidents });
+  }
   const companyScope = await getCompanyScope({ supabase: auth.supabase, userId: auth.user.id, fallbackTeam: auth.team, authUser: auth.user });
   if (!companyScope.companyId) return NextResponse.json({ incidents: [] });
   const csepBlockGet = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
@@ -95,8 +108,6 @@ export async function GET(request: Request) {
     companyId: companyScope.companyId,
     role: auth.role,
   });
-  const { searchParams } = new URL(request.url);
-  const status = searchParams.get("status")?.trim().toLowerCase();
   let query = auth.supabase
     .from("compat_company_incidents")
     .select("*")

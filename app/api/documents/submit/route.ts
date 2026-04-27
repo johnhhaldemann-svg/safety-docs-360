@@ -10,7 +10,7 @@ import { serverLog } from "@/lib/serverLog";
 import { ensureSafetyPlanGenerationContext } from "@/lib/safety-intelligence/documentIntake";
 import { runSafetyPlanDocumentPipeline } from "@/lib/safety-intelligence/documents/pipeline";
 import { renderSafetyPlanDocx } from "@/lib/safety-intelligence/documents/render";
-import { renderGeneratedCsepDocx } from "@/lib/csepDocxRenderer";
+import { renderGeneratedCsepDocx } from "@/lib/csep/csep-renderer";
 import { syncGeneratedTrainingRequirements } from "@/lib/safety-intelligence/trainingProgram";
 import { generateCsepDocx } from "@/app/api/csep/export/route";
 import { generatePshsepDocx } from "@/app/api/pshsep/export/route";
@@ -222,6 +222,21 @@ export async function POST(request: Request) {
         { error: "Authenticated user does not match submission payload." },
         { status: 403 }
       );
+    }
+
+    if (auth.role === "sales_demo") {
+      return NextResponse.json({
+        success: true,
+        offlineDemo: true,
+        document: {
+          id: `offline-doc-${Date.now()}`,
+          document_type,
+          project_name,
+          status: "submitted",
+          final_file_path: null,
+          draft_file_path: "offline/demo-preview.docx",
+        },
+      });
     }
 
     const [agreementResult, agreementConfig] = await Promise.all([

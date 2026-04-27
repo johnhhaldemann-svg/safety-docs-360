@@ -4,6 +4,7 @@
  */
 
 import { CSEP_APPENDIX_REGULATORY_REFERENCES_KEY } from "@/lib/csepRegulatoryReferenceIndex";
+import { CANONICAL_CSEP_SECTION_ORDER } from "@/lib/csep/csep-section-order";
 import type {
   CsepRenderModel,
   CsepTemplateSection,
@@ -78,23 +79,9 @@ const LOG_PREFIX = "[CSEP export quality]";
 /** Maximum total subsection rows in main body (Section 1–12 narrative); deep outlines hurt usability. */
 export const CSEP_EXPORT_MAX_MAIN_BODY_SUBSECTIONS = 120;
 
-const REQUIRED_FRONT_MATTER_KEYS: readonly string[] = [
-  "message_from_owner",
-  "sign_off_page",
-  "table_of_contents",
-  "purpose",
-  "scope",
-  "top_10_risks",
-  "trade_interaction_info",
-  "roles_and_responsibilities",
-  "disciplinary_program",
-  "union",
-  "security_at_site",
-  "hazcom",
-  "iipp_emergency_response",
-  "work_attire_requirements",
-  "hazards_and_controls",
-];
+const REQUIRED_FRONT_MATTER_KEYS: readonly string[] = CANONICAL_CSEP_SECTION_ORDER
+  .filter((section) => section.kind === "front_matter")
+  .map((section) => section.key);
 
 const TASK_MODULE_SECTION_KEY_PATTERN = /task_modules_reference|steel_task_modules_reference/i;
 
@@ -138,6 +125,18 @@ const STEEL_KEYWORD_GROUPS: readonly { id: string; pattern: RegExp }[] = [
     pattern: /\b(crane\s+permit|lift\s+plan|pick\s+plan|critical\s+lift|site\s+lift\s+plan)\b/i,
   },
 ];
+const COVER_REQUIRED_METADATA_LABELS = ["Project Name", "Project Address", "Contractor", "Date"] as const;
+const HAZCOM_REFERENCE_ALLOWLIST = [
+  "Follow the project Hazard Communication requirements defined in the HazCom section.",
+];
+const SECURITY_REFERENCE_ALLOWLIST = [
+  "Follow the project Security at Site requirements defined in the Security at Site section.",
+  "Follow the project-wide Site Access, Laydown, and Traffic Control requirements in the Security at Site section.",
+];
+const IIPP_REFERENCE_ALLOWLIST = [
+  "Follow the project IIPP / Emergency Response requirements defined in the IIPP / Emergency Response section.",
+];
+const MAX_HAZARD_MODULE_COUNT = 100;
 
 function templateSubsectionHasContent(subsection: CsepTemplateSubsection): boolean {
   return Boolean(
@@ -246,6 +245,170 @@ function checkDocumentControlPlacement(model: CsepRenderModel): string[] {
 function checkRequiredFrontMatter(model: CsepRenderModel): string[] {
   const keys = new Set(model.frontMatterSections.map((s) => s.key));
   return REQUIRED_FRONT_MATTER_KEYS.filter((k) => !keys.has(k)).map((k) => `Required front-matter section missing: "${k}".`);
+}
+
+function checkCoverPageBaseline(model: CsepRenderModel): string[] {
+  const issues: string[] = [];
+  if ((model.projectName ?? "").trim().length === 0) {
+    issues.push("Cover page baseline check failed: project name is empty.");
+  }
+  if ((model.statusLabel ?? "").trim().length === 0) {
+    issues.push("Cover page baseline check failed: status label is empty.");
+  }
+  const labels = new Set(model.coverMetadataRows.map((row) => row.label.trim()));
+  for (const label of COVER_REQUIRED_METADATA_LABELS) {
+    if (!labels.has(label)) {
+      issues.push(`Cover page baseline check failed: required metadata row "${label}" is missing.`);
+    }
+  }
+  return issues;
+}
+
+function checkFrontMatterOrder(model: CsepRenderModel): string[] {
+  const orderedKeys = model.frontMatterSections.map((section) => section.key);
+  const checkpoints = ["message_from_owner", "sign_off_page", "table_of_contents"];
+  const indexes = checkpoints.map((key) => orderedKeys.indexOf(key));
+  if (indexes.some((index) => index < 0)) return [];
+  if (!(indexes[0]! < indexes[1]! && indexes[1]! < indexes[2]!)) {
+    return [
+      "Front matter order invalid: Message from Owner, Sign-Off Page, and Table of Contents must appear in that sequence.",
+    ];
+  }
+  return [];
+}
+
+function checkScopeSectionCleanliness(model: CsepRenderModel): string[] {
+  const scope = model.frontMatterSections.find((section) => section.key === "scope");
+  if (!scope) return [];
+  const badSub = scope.subsections.find((subsection) =>
+    /\b(project information|contractor information)\b/i.test(subsection.title)
+  );
+  if (!badSub) return [];
+  return [
+    `Scope section includes disallowed administrative block "${badSub.title}". Scope should remain clean after section cleanup.`,
+  ];
+}
+
+function checkHazardModuleReasonableCount(model: CsepRenderModel): string[] {
+  const hazards = model.frontMatterSections.find((section) => section.key === "hazards_and_controls");
+  if (!hazards) return [];
+  const moduleCount = hazards.subsections.filter((subsection) => /:\s*Risk$/i.test(subsection.title)).length;
+  if (moduleCount <= MAX_HAZARD_MODULE_COUNT) return [];
+  return [
+    `Hazards and Controls contains ${moduleCount} hazard modules, exceeding reasonable limit ${MAX_HAZARD_MODULE_COUNT}.`,
+  ];
+}
+
+function checkDuplicateLadderAuthorizationBlocks(model: CsepRenderModel): string[] {
+  const hazards = model.frontMatterSections.find((section) => section.key === "hazards_and_controls");
+  if (!hazards) return [];
+  const ladderBlocks = hazards.subsections
+    .map((subsection) => normalizeHeadingKey(subsection.title))
+    .filter((title) => title.includes("ladder authorization program"));
+  if (ladderBlocks.length <= 1) return [];
+  return ["Duplicate Ladder Authorization Program hazard blocks detected."];
+}
+
+function checkDuplicatePpeAcrossHazards(model: CsepRenderModel): string[] {
+  const hazards = model.frontMatterSections.find((section) => section.key === "hazards_and_controls");
+  if (!hazards) return [];
+  const ppeLines = hazards.subsections
+    .flatMap((subsection) => [...(subsection.paragraphs ?? []), ...(subsection.items ?? [])])
+    .map((line) => line.trim())
+    .filter((line) => /\b(ppe|personal protective equipment|hard hat|safety glasses|hi[-\s]?vis|harness)\b/i.test(line))
+    .map((line) => normalizeHeadingKey(line))
+    .filter((line) => line.length >= 10);
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  ppeLines.forEach((line) => {
+    if (seen.has(line)) dupes.add(line);
+    seen.add(line);
+  });
+  if (!dupes.size) return [];
+  return [
+    `Duplicate PPE narrative detected across hazard modules (${dupes.size} duplicate line(s)); keep PPE references concise and non-repetitive.`,
+  ];
+}
+
+function sectionText(section: CsepTemplateSection): string[] {
+  return section.subsections.flatMap((subsection) => [
+    subsection.title,
+    ...(subsection.paragraphs ?? []),
+    ...(subsection.items ?? []),
+  ]);
+}
+
+function checkOwnedTopicIsolation(
+  model: CsepRenderModel,
+  ownerKey: string,
+  topicPattern: RegExp,
+  allowlist: string[]
+): string[] {
+  const allSections = [...model.frontMatterSections, ...model.sections];
+  const leaks: string[] = [];
+  for (const section of allSections) {
+    if (section.key === ownerKey) continue;
+    for (const line of sectionText(section)) {
+      if (!topicPattern.test(line)) continue;
+      if (allowlist.some((entry) => line.includes(entry))) continue;
+      leaks.push(`${section.title}: ${line.slice(0, 120)}`);
+      if (leaks.length >= 5) break;
+    }
+    if (leaks.length >= 5) break;
+  }
+  if (!leaks.length) return [];
+  return [`Topic ownership leak for "${ownerKey}" detected outside owner section: ${leaks.join(" | ")}`];
+}
+
+function checkPermitCoverageAndPlacement(model: CsepRenderModel, draft?: GeneratedSafetyPlanDraft): string[] {
+  if (!draft) return [];
+  const selectedPermits = Array.from(
+    new Set(
+      [
+        ...(draft.ruleSummary?.permitTriggers ?? []),
+        ...draft.operations.flatMap((op) => op.permitTriggers ?? []),
+      ]
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  );
+  if (!selectedPermits.length) return [];
+
+  const allSections = [...model.frontMatterSections, ...model.sections];
+  const sectionPermitCounts = allSections.map((section) => ({
+    key: section.key,
+    count: sectionText(section).reduce((sum, line) => sum + (/\bpermit|lift plan|pick plan|hot work\b/i.test(line) ? 1 : 0), 0),
+  }));
+  const sorted = [...sectionPermitCounts].sort((a, b) => b.count - a.count);
+  const primary = sorted[0];
+  if (!primary || primary.count === 0) {
+    return ["Selected permit triggers are present in draft input but no permit content appears in the export body."];
+  }
+  const noisySections = sorted.filter((entry) => entry.count > 0 && entry.key !== primary.key);
+  if (noisySections.length > 3) {
+    return [
+      `Permit content is scattered across too many sections (${1 + noisySections.length}); keep permits consolidated in one clean primary permit section and only brief relevant references elsewhere.`,
+    ];
+  }
+
+  const modelText = flattenModelText(model).toLowerCase();
+  const canonicalizePermit = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/\bpermit\b/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  const missing = selectedPermits.filter((permit) => {
+    const full = permit.toLowerCase();
+    const normalized = canonicalizePermit(permit);
+    if (full && modelText.includes(full)) return false;
+    if (normalized && modelText.includes(normalized)) return false;
+    return true;
+  });
+  if (missing.length) {
+    return [`Selected permit trigger(s) missing from export text: ${missing.join(", ")}.`];
+  }
+  return [];
 }
 
 function checkPpeDuplicates(model: CsepRenderModel): string[] {
@@ -450,10 +613,44 @@ export function assertCsepExportQuality(model: CsepRenderModel, options?: { draf
 
   add("toc_number_label", checkTocVsNumberLabels(model));
   add("toc_consistency", checkTocInternalConsistency(model));
+  add("cover_page_baseline", checkCoverPageBaseline(model));
+  add("front_matter_order", checkFrontMatterOrder(model));
   add("document_control_placement", checkDocumentControlPlacement(model));
   add("front_matter_required", checkRequiredFrontMatter(model));
+  add("scope_section_cleanliness", checkScopeSectionCleanliness(model));
+  add("hazard_module_count", checkHazardModuleReasonableCount(model));
+  add("ladder_authorization_duplicates", checkDuplicateLadderAuthorizationBlocks(model));
+  add("hazard_ppe_duplicates", checkDuplicatePpeAcrossHazards(model));
   add("ppe_duplicates", checkPpeDuplicates(model));
   add("internal_generator_language", checkInternalGeneratorLanguage(model));
+  add(
+    "hazcom_isolation",
+    checkOwnedTopicIsolation(
+      model,
+      "hazcom",
+      /\b(hazcom|hazard communication|sds|safety data sheet|chemical inventory|ghs|nfpa|secondary container)\b/i,
+      HAZCOM_REFERENCE_ALLOWLIST
+    )
+  );
+  add(
+    "security_isolation",
+    checkOwnedTopicIsolation(
+      model,
+      "security_at_site",
+      /\b(laydown|delivery|truck driver|trucking|worker access|visitor|badge|site entry|access control|restricted area)\b/i,
+      SECURITY_REFERENCE_ALLOWLIST
+    )
+  );
+  add(
+    "iipp_isolation",
+    checkOwnedTopicIsolation(
+      model,
+      "iipp_emergency_response",
+      /\b(rescue|incident reporting|fit[-\s]?for[-\s]?duty|drug|alcohol|medical response)\b/i,
+      IIPP_REFERENCE_ALLOWLIST
+    )
+  );
+  add("permit_coverage", checkPermitCoverageAndPlacement(model, options?.draft));
   add("task_module_empty", checkTaskModuleSafetyControls(model));
   add("regulatory_r_numbers", checkRegulatoryAppendixRNumbers(model));
   add("appendix_e_duplicate_controls", checkAppendixEDuplicateControls(model));
