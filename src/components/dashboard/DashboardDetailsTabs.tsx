@@ -2,7 +2,6 @@
 
 import * as Tabs from "@radix-ui/react-tabs";
 import type { ReactNode } from "react";
-import { SectionCard } from "@/src/components/dashboard/SectionCard";
 
 export const DASHBOARD_TAB_IDS = ["operations", "trends", "risks", "readiness", "system"] as const;
 
@@ -29,27 +28,35 @@ type DashboardDetailsTabsProps = {
 export function DashboardDetailsTabs({ activeTab, onTabChange, panels }: DashboardDetailsTabsProps) {
   return (
     <Tabs.Root value={activeTab} onValueChange={onTabChange} className="space-y-5">
-      <SectionCard
-        eyebrow="Dashboard sections"
-        title="Explore the details"
-        description="The score and priority queue stay visible above. Use these tabs for deeper operational review without turning the dashboard into one long report."
-        tone="panel"
-      >
-        <Tabs.List className="flex gap-2 overflow-x-auto rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-1.5 shadow-[var(--app-shadow-soft)]">
+      <section className="rounded-2xl border border-[var(--app-border)] bg-white/92 px-4 py-3 shadow-[var(--app-shadow-soft)] sm:px-5">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--app-muted)]">
+              Dashboard sections
+            </p>
+            <h2 className="mt-0.5 text-lg font-bold tracking-tight text-[var(--app-text-strong)]">
+              Explore the details
+            </h2>
+            <p className="mt-1 text-xs leading-relaxed text-[var(--app-muted)]">
+              {dashboardTabs.find((tab) => tab.value === activeTab)?.description}
+            </p>
+          </div>
+          <Tabs.List
+            aria-label="Dashboard detail sections"
+            className="flex min-w-0 gap-2 overflow-x-auto rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel-soft)] p-1.5"
+          >
           {dashboardTabs.map((tab) => (
             <Tabs.Trigger
               key={tab.value}
               value={tab.value}
-              className="min-w-max rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-[var(--app-text)] transition hover:bg-[var(--app-panel-soft)] data-[state=active]:bg-[var(--app-accent-primary)] data-[state=active]:text-white data-[state=active]:shadow-[var(--app-shadow-primary-button)]"
+              className="min-w-max rounded-xl px-3 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text)] transition hover:bg-white data-[state=active]:bg-[var(--app-accent-primary)] data-[state=active]:text-white data-[state=active]:shadow-[var(--app-shadow-primary-button)]"
             >
               {tab.label}
             </Tabs.Trigger>
           ))}
         </Tabs.List>
-        <p className="mt-3 text-xs leading-relaxed text-[var(--app-muted)]">
-          {dashboardTabs.find((tab) => tab.value === activeTab)?.description}
-        </p>
-      </SectionCard>
+        </div>
+      </section>
 
       {dashboardTabs.map((tab) => (
         <Tabs.Content key={tab.value} value={tab.value} className="space-y-6 outline-none">
