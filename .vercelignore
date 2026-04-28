@@ -8,6 +8,20 @@ playwright-global-setup.ts
 playwright-report/
 test-results/
 
+# Local installs and generated build artifacts
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# Desktop/Electron packaging output is local-only
+dist-desktop/
+dist-electron-out/
+dist-desktop.orphan-*/
+dist-electron-out.orphan-*/
+
 # Docs and automation (not bundled into the app)
 docs/
 .github/
