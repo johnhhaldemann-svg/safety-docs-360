@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, AlertTriangle, BarChart3, Gauge, ListChecks } from "lucide-react";
+import { Activity, AlertTriangle } from "lucide-react";
 import type {
   DashboardImprovementDriver,
   DashboardOverview,
@@ -13,7 +13,6 @@ import { SectionCard } from "@/src/components/dashboard/SectionCard";
 import { MetricCard } from "@/src/components/dashboard/MetricCard";
 import { StatusBadge } from "@/src/components/dashboard/StatusBadge";
 import { StatusBarChart } from "@/src/components/dashboard/StatusBarChart";
-import { ObservationDualLineChart } from "@/src/components/dashboard/ObservationDualLineChart";
 
 type PerformanceHubPanelProps = {
   overview: DashboardOverview;
@@ -91,12 +90,6 @@ export function PerformanceHubPanel({ overview, activeJobsites }: PerformanceHub
     value: item.score,
     tone: item.band,
   }));
-
-  const correctiveSegments = [
-    { key: "open", label: "Open", value: overview.correctiveActionStatus.open, tone: "yellow" as const },
-    { key: "overdue", label: "Overdue", value: overview.correctiveActionStatus.overdue, tone: "red" as const },
-    { key: "closed", label: "Closed", value: overview.correctiveActionStatus.closed, tone: "green" as const },
-  ];
 
   return (
     <div className="space-y-6" data-dashboard-hub="information">
@@ -184,65 +177,6 @@ export function PerformanceHubPanel({ overview, activeJobsites }: PerformanceHub
           ))}
         </div>
       </SectionCard>
-
-      <section className="grid gap-4 xl:grid-cols-2">
-        <SectionCard
-          eyebrow="Trend"
-          title="Observation activity"
-          description="Positive versus other observation movement for the selected window."
-          tone="elevated"
-        >
-          <ObservationDualLineChart
-            points={overview.observationTrend}
-            title="Observation mix"
-            description="A widening negative or other trend should trigger field verification."
-          />
-        </SectionCard>
-        <SectionCard
-          eyebrow="Closure"
-          title="Risk reduction"
-          description="Open, overdue, and closed corrective work. Closed items are only useful once verified in the field."
-          tone="elevated"
-        >
-          <StatusBarChart
-            segments={correctiveSegments}
-            title="Corrective action movement"
-            description="Status mix from the same overview service powering the rest of this hub."
-            showCompositionStrip
-          />
-        </SectionCard>
-      </section>
-
-      <div className="grid gap-3 text-sm md:grid-cols-3">
-        {[
-          {
-            icon: Gauge,
-            title: "Safety performance",
-            text: "High-risk exposure, incidents, near misses, and corrective-action posture.",
-          },
-          {
-            icon: ListChecks,
-            title: "Operational readiness",
-            text: "Permit, JSA, training, credential, and document readiness for current work.",
-          },
-          {
-            icon: BarChart3,
-            title: "Executive health",
-            text: "Trend quality, contractor posture, and data-source reliability for leadership review.",
-          },
-        ].map((item) => {
-          const Icon = item.icon;
-          return (
-            <div key={item.title} className="rounded-2xl border border-[var(--app-border)] bg-white/80 px-4 py-3 shadow-[0_8px_18px_rgba(76,108,161,0.05)]">
-              <div className="flex items-center gap-2 text-[var(--app-text-strong)]">
-                <Icon className="h-4 w-4 text-[var(--app-accent-primary)]" aria-hidden="true" />
-                <span className="font-semibold">{item.title}</span>
-              </div>
-              <p className="mt-1 text-xs leading-relaxed text-[var(--app-text)]">{item.text}</p>
-            </div>
-          );
-        })}
-      </div>
 
       {overview.engineHealth.some((item) => item.status !== "green") ? (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-950">

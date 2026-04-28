@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DashboardOverviewFiltersBar } from "@/components/dashboard/DashboardOverviewFiltersBar";
 import { InlineMessage } from "@/components/WorkspacePrimitives";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
@@ -21,6 +21,11 @@ import { DocumentReadinessPanel } from "@/src/components/dashboard/DocumentReadi
 import { EngineHealthPanel } from "@/src/components/dashboard/EngineHealthPanel";
 import { AiInsightsPanel } from "@/src/components/dashboard/AiInsightsPanel";
 import { DashboardDomainEmptyState } from "@/src/components/dashboard/DashboardDomainEmptyState";
+import {
+  DashboardDetailsTabs,
+  readDashboardTab,
+  type DashboardTabId,
+} from "@/src/components/dashboard/DashboardDetailsTabs";
 import { PerformanceHubPanel } from "@/src/components/dashboard/PerformanceHubPanel";
 import {
   EMERGING_THEMES_EMPTY,
@@ -107,10 +112,13 @@ function isActiveJobsite(status?: string | null): boolean {
 }
 
 export function DashboardOverviewShell({ workspace }: { workspace: DashboardDataState }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const activeTab = useMemo<DashboardTabId>(() => readDashboardTab(searchParams.get("tab")), [searchParams]);
 
   const allowed = useMemo(() => canLoadDashboardOverview(workspace.permissionMap), [workspace.permissionMap]);
 
@@ -122,6 +130,27 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         linkedContractorId: workspace.linkedContractorId,
       }),
     [workspace.linkedContractorId, workspace.permissionMap, workspace.userRole]
+  );
+
+  const overviewQuery = useMemo(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("tab");
+    return params.toString();
+  }, [searchParams]);
+
+  const selectTab = useCallback(
+    (value: string) => {
+      const tab = readDashboardTab(value);
+      const params = new URLSearchParams(searchParams.toString());
+      if (tab === "operations") {
+        params.delete("tab");
+      } else {
+        params.set("tab", tab);
+      }
+      const qs = params.toString();
+      router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
   );
 
   const load = useCallback(async () => {
@@ -136,7 +165,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
     }
     setLoading(true);
     setError(null);
-    const qs = searchParams.toString();
+    const qs = overviewQuery;
     const overviewUrl = `/api/dashboard/overview${qs ? `?${qs}` : ""}`;
     const res = await fetchWithTimeoutSafe(
       overviewUrl,
@@ -172,7 +201,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
     } finally {
       setLoading(false);
     }
-  }, [allowed, searchParams, workspace.companyWorkspaceLoaded, workspace.loading]);
+  }, [allowed, overviewQuery, workspace.companyWorkspaceLoaded, workspace.loading]);
 
   useEffect(() => {
     // Data fetch after workspace gate; `load` updates overview state when the response returns.
@@ -341,6 +370,12 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
 
       <PerformanceHubPanel overview={overview} activeJobsites={activeJobsites} />
 
+      <DashboardDetailsTabs
+        activeTab={activeTab}
+        onTabChange={selectTab}
+        panels={{
+          operations: (
+            <>
       <SectionCard
         eyebrow="Prevention snapshot"
         title="1. Current Safety Health"
@@ -443,7 +478,11 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           />
         )}
       </SectionCard>
+            </>
+          ),
 
+          trends: (
+            <>
       {overviewVisibility.showForecast ? (
       <SectionCard
         eyebrow="Forward view"
@@ -561,7 +600,11 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         ) : null}
       </SectionCard>
       )}
+            </>
+          ),
 
+          risks: (
+            <>
       {overviewVisibility.showCorrectiveCenter ? (
       <SectionCard
         eyebrow="Closure discipline"
@@ -614,6 +657,21 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
       </SectionCard>
       ) : null}
 
+      {overviewVisibility.showContractorScorecards ? (
+      <SectionCard
+        eyebrow="Partners on site"
+        title="6. Contractor Risk Scorecards"
+        tone="elevated"
+        description="Ranking from compliance documents and evaluations. Use scorecards to decide where contractor coordination or pre-task review is needed before shared high-risk work."
+      >
+        <ContractorRiskTable contractors={overview.contractorRiskScores} />
+      </SectionCard>
+      ) : null}
+            </>
+          ),
+
+          readiness: (
+            <>
       {overviewVisibility.showPermits ? (
       <SectionCard
         eyebrow="Permits and daily plans"
@@ -630,17 +688,6 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         <div className="mt-4">
           <PermitComplianceTable permits={overview.permitCompliance} jsaCompletionRate={overview.summary.jsaCompletionRate} />
         </div>
-      </SectionCard>
-      ) : null}
-
-      {overviewVisibility.showContractorScorecards ? (
-      <SectionCard
-        eyebrow="Partners on site"
-        title="6. Contractor Risk Scorecards"
-        tone="elevated"
-        description="Ranking from compliance documents and evaluations. Use scorecards to decide where contractor coordination or pre-task review is needed before shared high-risk work."
-      >
-        <ContractorRiskTable contractors={overview.contractorRiskScores} />
       </SectionCard>
       ) : null}
 
@@ -702,6 +749,11 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
       </SectionCard>
       ) : null}
 
+            </>
+          ),
+
+          system: (
+            <>
       {overviewVisibility.showAiInsights ? (
       <SectionCard
         eyebrow="Narrative review"
@@ -772,6 +824,10 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           </div>
         </SectionCard>
       ) : null}
+            </>
+          ),
+        }}
+      />
     </div>
   );
 }

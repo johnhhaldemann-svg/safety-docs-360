@@ -56,7 +56,7 @@ function overview(): DashboardOverview {
 }
 
 describe("PerformanceHubPanel", () => {
-  it("renders the main score, contributors, current operations, graphs, and drivers", () => {
+  it("renders the main score, contributors, current operations, and drivers", () => {
     const html = renderToStaticMarkup(<PerformanceHubPanel overview={overview()} activeJobsites={3} />);
 
     expect(html).toContain("Safety Performance Score");
@@ -66,7 +66,5 @@ describe("PerformanceHubPanel", () => {
     expect(html).toContain("Active jobsites");
     expect(html).toContain("Priority action queue");
     expect(html).toContain("Open high-risk items need field verification");
-    expect(html).toContain("Observation activity");
-    expect(html).toContain("Risk reduction");
   });
 });
