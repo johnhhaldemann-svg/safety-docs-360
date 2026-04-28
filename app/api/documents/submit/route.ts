@@ -197,6 +197,36 @@ function isGeneratedSafetyPlanDraft(value: unknown): value is GeneratedSafetyPla
   return Boolean(value) && typeof value === "object" && "sectionMap" in (value as Record<string, unknown>);
 }
 
+function withSubmittedCsepLogo(
+  draft: GeneratedSafetyPlanDraft,
+  formData: Record<string, unknown>
+): GeneratedSafetyPlanDraft {
+  const rawLogo = typeof formData.company_logo_data_url === "string"
+    ? formData.company_logo_data_url.trim()
+    : "";
+
+  if (!rawLogo.startsWith("data:image/")) {
+    return draft;
+  }
+
+  const builderSnapshot =
+    draft.builderSnapshot && typeof draft.builderSnapshot === "object"
+      ? (draft.builderSnapshot as Record<string, unknown>)
+      : {};
+
+  return {
+    ...draft,
+    builderSnapshot: {
+      ...builderSnapshot,
+      company_logo_data_url: rawLogo,
+      company_logo_file_name:
+        typeof formData.company_logo_file_name === "string"
+          ? formData.company_logo_file_name.trim()
+          : null,
+    },
+  };
+}
+
 export async function POST(request: Request) {
   let createdDocumentId: string | null = null;
   try {
@@ -379,7 +409,7 @@ export async function POST(request: Request) {
         );
       }
 
-      approvedPreviewDraft = previewRow.draft_json;
+      approvedPreviewDraft = withSubmittedCsepLogo(previewRow.draft_json, form_data);
       approvedPreviewBucketRunId =
         typeof previewRow.bucket_run_id === "string" && previewRow.bucket_run_id.trim()
           ? previewRow.bucket_run_id

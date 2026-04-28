@@ -52,6 +52,7 @@ import {
   sectionHasContent,
 } from "@/lib/csep/csep-dedupe-rules";
 import { CSEP_HAZARD_TEMPLATE_SLICES, buildHazardSliceTitle } from "@/lib/csep/csep-hazard-template";
+import { CSEP_REGULATORY_REFERENCE_INDEX } from "@/lib/csepRegulatoryReferenceIndex";
 import type { GeneratedSafetyPlanDraft, GeneratedSafetyPlanSection } from "@/types/safety-intelligence";
 
 export type CsepCoverMetadataRow = {
@@ -604,8 +605,11 @@ const GENERIC_SUBSECTION_TITLES = new Set(
     "program scope",
     "pre start verification",
     "required controls",
+    "how controls are met and verified",
     "how controls are verified",
     "permits and ppe",
+    "stop-work / hold-point triggers",
+    "stop work hold point triggers",
     "stop-work triggers",
     "stop work triggers",
     "verification and handoff",
@@ -908,6 +912,7 @@ function validateCsepRenderModel(model: CsepRenderModel) {
 
   numberedSections.forEach((section) => {
     const numberLabel = section.numberLabel?.trim() ?? "";
+    const isFlatProgramSection = usesFlatProgramOutline(section);
     if (!numberLabel) {
       // Unnumbered sections (explicit null numberLabel).
     } else if (seenNumbers.has(numberLabel)) {
@@ -920,7 +925,7 @@ function validateCsepRenderModel(model: CsepRenderModel) {
     section.subsections.forEach((subsection) => {
       const normalizedTitle = normalizeCompareToken(subsection.title);
       if (normalizedTitle) {
-        if (seenTitles.has(normalizedTitle)) {
+        if (!isFlatProgramSection && seenTitles.has(normalizedTitle)) {
           throw new Error(
             `CSEP export validation failed: duplicate subsection heading "${subsection.title}" under ${section.title}.`
           );
@@ -942,7 +947,9 @@ function validateCsepRenderModel(model: CsepRenderModel) {
       }
     });
 
-    validateNoRepeatedSentences(section);
+    if (!isFlatProgramSection) {
+      validateNoRepeatedSentences(section);
+    }
   });
 
   const visibleText = collectVisibleModelText(model);
@@ -1372,6 +1379,11 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
   const keyTitle = normalizeToken(`${section.key} ${section.title}`);
   const combined = sourceSearchText(section);
   const keyNorm = normalizeToken(section.key ?? "");
+  const fixedKey = FIXED_SECTION_DEFINITIONS.find((definition) => normalizeToken(definition.key) === keyNorm);
+  if (fixedKey) return fixedKey.key;
+  if (keyNorm.startsWith("program ")) {
+    return "hazard_control_modules";
+  }
 
   // --- 1) Explicit key routing (highest priority; avoids keyword bleed) ---
   // `normalizeToken` maps underscores to spaces — keys must match that form.
@@ -1384,31 +1396,33 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
     "project scope and trade specific activities",
   ]);
   if (SCOPE_SOURCE_KEYS.has(keyNorm)) {
-    return "scope";
+    return keyNorm === "project information" || keyNorm === "contractor information"
+      ? "project_and_contractor_information"
+      : "scope_of_work_section";
   }
   if (keyNorm === "common overlapping trades") {
-    return "trade_interaction_info";
+    return "trade_interaction_and_coordination";
   }
   if (keyNorm === "roles and responsibilities" || keyNorm === "roles_and_responsibilities") {
-    return "training_inspections_monitoring_recordkeeping";
+    return "roles_and_responsibilities";
   }
   if (keyNorm === "security and access" || keyNorm === "security and access control") {
-    return "security_at_site";
+    return "site_access_security_laydown_traffic_control";
   }
   if (keyNorm === "hazard communication" || keyNorm === "hazard communication program" || keyNorm === "hazcom program") {
-    return "hazcom";
+    return "hazard_communication_and_environmental_protection";
   }
   if (keyNorm === "enforcement and corrective action") {
-    return "disciplinary_program";
+    return "iipp_incident_reporting_corrective_action";
   }
   if (keyNorm === "work attire requirements" || keyNorm === "work_attire_requirements") {
-    return "hazards_and_controls";
+    return "ppe_and_work_attire";
   }
   if (keyNorm === "required ppe" || keyNorm === "personal protective equipment") {
-    return "hazards_and_controls";
+    return "ppe_and_work_attire";
   }
   if (keyNorm === "union" || keyNorm === "union requirements" || keyNorm === "labor provisions") {
-    return "union";
+    return "worker_conduct_fit_for_duty_disciplinary_program";
   }
   if (
     keyNorm === "company overview" ||
@@ -1416,7 +1430,7 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
     keyNorm === "message from owner" ||
     keyNorm === "owner message"
   ) {
-    return "message_from_owner";
+    return "owner_message";
   }
   if (
     keyNorm === "contractor iipp" ||
@@ -1440,15 +1454,17 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
       keyNorm === "checklists and inspections" ||
       keyNorm === "contractor monitoring audits and reporting"
     ) {
-      return "training_inspections_monitoring_recordkeeping";
+      return keyNorm === "training and instruction" ? "training_competency_and_certifications" : "inspections_audits_and_records";
     }
     if (keyNorm === "continuous improvement" || keyNorm === "project close out") {
-      return "close_out_lessons_learned";
+      return "project_closeout";
     }
-    return "iipp_emergency_response";
+    if (keyNorm === "emergency procedures" || keyNorm === "emergency preparedness and response") return "emergency_response_and_rescue";
+    if (keyNorm === "health and wellness" || keyNorm === "drug and alcohol testing" || keyNorm === "drug and alcohol") return "worker_conduct_fit_for_duty_disciplinary_program";
+    return "iipp_incident_reporting_corrective_action";
   }
   if (keyNorm === "sub tier contractor management" || keyNorm === "permits and forms") {
-    return "hazards_and_controls";
+    return keyNorm === "permits and forms" ? "required_permits_and_hold_points" : "trade_interaction_and_coordination";
   }
   if (
     keyNorm === "weather requirements and severe weather response" ||
@@ -1459,7 +1475,10 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
     keyNorm === "appendices and support library" ||
     keyNorm === "weather"
   ) {
-    return "hazards_and_controls";
+    if (keyNorm === "regulatory framework") return "regulatory_basis_and_references";
+    if (keyNorm === "environmental execution requirements") return "hazard_communication_and_environmental_protection";
+    if (keyNorm === "weather requirements and severe weather response" || keyNorm === "weather") return "emergency_response_and_rescue";
+    return "hazard_control_modules";
   }
 
   if (
@@ -1487,7 +1506,11 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
       "rescue",
     ])
   ) {
-    return "hazards_and_controls";
+    if (includesAny(keyTitle, ["task module", "activity hazard", "task hazard", "jsa"])) return "task_execution_modules";
+    if (includesAny(keyTitle, ["required ppe", "ppe"])) return "ppe_and_work_attire";
+    if (includesAny(keyTitle, ["additional permits", "permit"])) return "required_permits_and_hold_points";
+    if (includesAny(keyTitle, ["rescue"])) return "emergency_response_and_rescue";
+    return "hazard_control_modules";
   }
 
   if (includesAny(combined, ["table of contents", " index "])) {
@@ -1504,7 +1527,7 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
       "company overview",
     ])
   ) {
-    return "message_from_owner";
+    return "owner_message";
   }
 
   if (includesAny(combined, ["purpose", "how to use this plan", "plan use guidance"])) {
@@ -1526,7 +1549,9 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
       "project specific notes",
     ])
   ) {
-    return "scope";
+    return includesAny(keyTitle, ["project information", "contractor information"])
+      ? "project_and_contractor_information"
+      : "scope_of_work_section";
   }
 
   if (
@@ -1540,7 +1565,7 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
       "life saving rules",
     ])
   ) {
-    return "top_10_risks";
+    return "top_10_critical_risks";
   }
 
   if (
@@ -1556,11 +1581,11 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
       "coordination",
     ])
   ) {
-    return "trade_interaction_info";
+    return "trade_interaction_and_coordination";
   }
 
   if (includesAny(combined, ["roles and responsibilities", "roles & responsibilities", "safety roles and responsibilities"])) {
-    return "training_inspections_monitoring_recordkeeping";
+    return "roles_and_responsibilities";
   }
 
   if (
@@ -1586,12 +1611,16 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
     ])
   ) {
     if (includesAny(combined, ["recordkeeping", "training and instruction", "inspection", "monitoring", "audit"])) {
-      return "training_inspections_monitoring_recordkeeping";
+      return includesAny(combined, ["training and instruction"])
+        ? "training_competency_and_certifications"
+        : "inspections_audits_and_records";
     }
     if (includesAny(combined, ["continuous improvement", "close out", "close-out", "lessons learned", "project close out"])) {
-      return "close_out_lessons_learned";
+      return "project_closeout";
     }
-    return "iipp_emergency_response";
+    if (includesAny(combined, ["emergency response", "emergency procedures", "medical response"])) return "emergency_response_and_rescue";
+    if (includesAny(combined, ["health and wellness", "drug", "alcohol", "fit for duty"])) return "worker_conduct_fit_for_duty_disciplinary_program";
+    return "iipp_incident_reporting_corrective_action";
   }
 
   if (
@@ -1605,11 +1634,11 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
     ]) ||
     (includesAny(combined, ["enforcement", "corrective action"]) && !includesAny(combined, ["chemical", "hazcom", "hazard communication", "sds"]))
   ) {
-    return "disciplinary_program";
+    return "worker_conduct_fit_for_duty_disciplinary_program";
   }
 
   if (includesAny(combined, ["union", "collective bargaining", "cba ", "labor agreement"]) || keyTitle.includes("union")) {
-    return "union";
+    return "worker_conduct_fit_for_duty_disciplinary_program";
   }
 
   if (
@@ -1633,7 +1662,7 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
     ])
   ) {
     if (!includesAny(combined, ["it security", "data security", "chemical security", "cyber security"])) {
-      return "security_at_site";
+      return "site_access_security_laydown_traffic_control";
     }
   }
 
@@ -1649,10 +1678,10 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
     ]) ||
     (includesAny(combined, ["label", "chemical", "msds"]) && !includesAny(combined, ["price label", "package label for shipping"]))
   ) {
-    return "hazcom";
+    return "hazard_communication_and_environmental_protection";
   }
 
-  return "hazards_and_controls";
+  return "hazard_control_modules";
 }
 
 function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplateSubsection[] {
@@ -1734,7 +1763,7 @@ function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplate
     parentHeadingTitle
   ) {
     const mapsToTopRisks =
-      mapSourceSectionToFixedSection(source) === "top_10_risks" ||
+      mapSourceSectionToFixedSection(source) === "top_10_critical_risks" ||
       /^top[_\s-]*(10|ten)\s*risks?$/i.test(normalizeToken(source.key)) ||
       /^top[_\s-]*(10|ten)\s*risks?$/i.test(normalizeToken(source.title));
     const listLikeKeyNorms = new Set([
@@ -1976,19 +2005,17 @@ function createEmptyDraftContext(): GeneratedSafetyPlanDraft {
 
 function placeholderParagraphForSection(sectionKey: string) {
   switch (sectionKey) {
-    case "top_10_risks":
+    case "top_10_critical_risks":
       return "Project-specific information to be completed.";
-    case "trade_interaction_info":
+    case "trade_interaction_and_coordination":
       return "Project-specific coordination, overlap, access, and handoff information to be completed.";
-    case "union":
+    case "site_access_security_laydown_traffic_control":
       return "Project-specific information to be completed.";
-    case "security_at_site":
+    case "iipp_incident_reporting_corrective_action":
       return "Project-specific information to be completed.";
-    case "iipp_emergency_response":
-      return "Project-specific information to be completed.";
-    case "training_inspections_monitoring_recordkeeping":
+    case "training_competency_and_certifications":
       return "Project-specific training, inspection, monitoring, and recordkeeping requirements to be completed.";
-    case "close_out_lessons_learned":
+    case "project_closeout":
       return "Project-specific close-out and lessons learned requirements to be completed.";
     default:
       return "Project-specific information to be completed.";
@@ -2038,6 +2065,74 @@ function synthesizeCloseOutLessonsLearnedSubsections(): CsepTemplateSubsection[]
       paragraphs: [
         "At phase or project close-out, capture lessons learned, unresolved risks, and carry-forward actions to improve future planning and execution.",
       ],
+    },
+  ];
+}
+
+const HIGH_RISK_STEEL_PROGRAMS = [
+  "Leading Edge and Connector Work Program",
+  "Fall Rescue and Suspension Trauma Program",
+  "Controlled Decking Zone and Decking Access Program",
+  "Hoisting and Rigging Program",
+  "Multiple Lift Rigging Program",
+  "Structural Stability and Temporary Bracing Program",
+  "Column Anchorage and Initial Connection Program",
+  "Open Web Joist and Bridging Program",
+  "Falling Objects and Drop Zone Control Program",
+  "Weather, Wind, Lightning and Site Condition Program",
+];
+
+const HAZARD_CONTROL_MODULES = [
+  "Fall Exposure",
+  "Struck-By / Load Path / Swing Radius",
+  "Caught-In / Pinch Points",
+  "Crane, Rigging, and Suspended Loads",
+  "Structural Instability / Collapse",
+  "Column Anchorage",
+  "Open Web Joists and Bridging",
+  "Falling Objects / Dropped Materials",
+  "Hot Work / Welding / Cutting",
+  "Fire Prevention",
+  "Fumes / Ventilation",
+  "Electrical / Temporary Power",
+  "Mobile Equipment / Pedestrian Interface",
+  "Weather / Wind / Lightning",
+  "Heat / Cold Stress",
+  "Housekeeping / Slip, Trip, Fall",
+  "PPE Hazard Controls",
+];
+
+const TASK_EXECUTION_MODULES = [
+  "Receiving, Unloading, Inspecting, and Staging Steel",
+  "Sorting Members / Shakeout",
+  "Rigging and Crane Picks",
+  "Column Erection",
+  "Beam and Girder Setting",
+  "Initial Connections",
+  "Plumbing, Temporary Bracing, and Final Bolting",
+  "Field Welding, Cutting, and Shear Connectors",
+  "Metal Decking Installation",
+  "Opening and Perimeter Protection During Decking",
+  "Embeds / Plates / Miscellaneous Metals",
+  "Punch List / Detail Work",
+  "Touch-Up Painting / Coatings",
+];
+
+function synthesizeNamedModuleSubsections(names: readonly string[], fallback: string): CsepTemplateSubsection[] {
+  return names.map((title) => ({
+    title,
+    paragraphs: [`${title}: ${fallback}`],
+  }));
+}
+
+function synthesizeRegulatoryReferenceSubsections(): CsepTemplateSubsection[] {
+  return [
+    {
+      title: "OSHA / CFR Reference List",
+      table: {
+        columns: ["Reference", "Citation"],
+        rows: CSEP_REGULATORY_REFERENCE_INDEX.map((entry) => [entry.code, entry.citation]),
+      },
     },
   ];
 }
@@ -2377,7 +2472,7 @@ function synthesizeTopRiskSubsections(
   return [
     {
       title: "Top 10 Risks",
-      items: items.length ? items : [placeholderParagraphForSection("top_10_risks")],
+        items: items.length ? items : [placeholderParagraphForSection("top_10_critical_risks")],
       plainItemsStyle: "offset_lines",
     },
   ];
@@ -2416,7 +2511,7 @@ function synthesizeTradeInteractionSubsections(
         ? filtered
         : useSteelDefaults
           ? STEEL_TRADE_INTERACTION_DEFAULTS
-          : [placeholderParagraphForSection("trade_interaction_info")],
+          : [placeholderParagraphForSection("trade_interaction_and_coordination")],
     },
   ];
 }
@@ -2533,7 +2628,7 @@ function applySectionOwnershipFilter(
   sectionKey: string,
   subsections: CsepTemplateSubsection[]
 ): CsepTemplateSubsection[] {
-  if (sectionKey === "hazards_and_controls") {
+  if (sectionKey === "hazard_control_modules") {
     return subsections
       .map((sub) => {
         const keep = (value: string) => {
@@ -2759,10 +2854,10 @@ function hazardCategoryFromSubsectionTitle(title: string):
   if (/\b(required controls|minimum required controls|pre task setup|task scope and sequence|work execution|permits and ppe)\b/i.test(t)) {
     return "controls";
   }
-  if (/\b(how controls are verified|verification and handoff|pre start verification|responsibilities and training)\b/i.test(t)) {
+  if (/\b(how controls are met and verified|how controls are verified|verification and handoff|pre start verification|responsibilities and training)\b/i.test(t)) {
     return "verification";
   }
-  if (/\b(stop[-\s]?work triggers|stop work triggers|stop work escalation)\b/i.test(t)) {
+  if (/\b(stop[-\s]?work hold point triggers|stop[-\s]?work triggers|stop work triggers|stop work escalation)\b/i.test(t)) {
     return "stopWork";
   }
   if (/\b(references|applicable references)\b/i.test(t)) {
@@ -2774,7 +2869,7 @@ function hazardCategoryFromSubsectionTitle(title: string):
 function normalizeHazardModuleBlueprintSubsections(
   subsections: CsepTemplateSubsection[]
 ): CsepTemplateSubsection[] {
-  const groups = groupSubsectionsForFlatProgramOutline(subsections, "hazards_and_controls");
+  const groups = groupSubsectionsForFlatProgramOutline(subsections, "hazard_control_modules");
   const normalized: CsepTemplateSubsection[] = [];
 
   for (const group of groups) {
@@ -2874,22 +2969,22 @@ function buildSectionSubsections(
     dedupeTemplateSubsections(grouped.get(definition.key) ?? [])
   );
 
-  if (definition.key === "scope") {
+  if (definition.key === "scope_of_work_section") {
     subsections = sortScopeSubsectionsInProjectSetupOrder(
       pruneScopeAdministrativeSubsections(filterScopeTemplateSubsections(subsections), context)
     );
   }
-  if (definition.key === "security_at_site") {
+  if (definition.key === "site_access_security_laydown_traffic_control") {
     subsections = filterSecurityAtSiteSubsections(subsections);
   }
 
-  if (definition.key === "disciplinary_program") {
+  if (definition.key === "worker_conduct_fit_for_duty_disciplinary_program") {
     subsections = filterDisciplinaryTemplateSubsections(
       stripSharedContentAcrossSubsections(dedupeTemplateSubsections(subsections))
     );
   }
 
-  if (definition.key === "message_from_owner" && !hasMeaningfulSubsections(subsections)) {
+  if (definition.key === "owner_message" && !hasMeaningfulSubsections(subsections)) {
     const steelErection = isStructuralSteelOrDeckingScope(
       context.draft,
       context.tradeLabel,
@@ -2914,7 +3009,21 @@ function buildSectionSubsections(
     });
   }
 
-  if (definition.key === "scope" && !hasMeaningfulSubsections(subsections)) {
+  if (definition.key === "regulatory_basis_and_references") {
+    const existingText = subsections.flatMap((subsection) => [
+      ...(subsection.paragraphs ?? []),
+      ...(subsection.items ?? []),
+      ...(subsection.table?.rows.flatMap((row) => row) ?? []),
+    ]).join(" ");
+    if (!/\bR[1-9]\b/.test(existingText) || !/OSHA\s+29\s+CFR/i.test(existingText)) {
+      subsections = [
+        ...subsections,
+        ...synthesizeRegulatoryReferenceSubsections(),
+      ];
+    }
+  }
+
+  if (definition.key === "scope_of_work_section" && !hasMeaningfulSubsections(subsections)) {
     subsections = synthesizeScopeSubsections(
       context.draft,
       context.projectName,
@@ -2925,7 +3034,7 @@ function buildSectionSubsections(
     );
   }
 
-  if (definition.key === "top_10_risks") {
+  if (definition.key === "top_10_critical_risks") {
     const synthesized = synthesizeTopRiskSubsections(
       context.draft,
       context.tradeLabel,
@@ -2941,13 +3050,13 @@ function buildSectionSubsections(
     subsections = [
       {
         title: "Top 10 Risks",
-        items: merged.length ? merged : [placeholderParagraphForSection("top_10_risks")],
+        items: merged.length ? merged : [placeholderParagraphForSection("top_10_critical_risks")],
         plainItemsStyle: "offset_lines",
       },
     ];
   }
 
-  if (definition.key === "trade_interaction_info") {
+  if (definition.key === "trade_interaction_and_coordination") {
     const tradeCtx = { tradeLabel: context.tradeLabel, subTradeLabel: context.subTradeLabel };
     if (!hasMeaningfulSubsections(subsections)) {
       subsections = synthesizeTradeInteractionSubsections(context.draft, tradeCtx);
@@ -2962,55 +3071,60 @@ function buildSectionSubsections(
     subsections = applySectionOwnershipFilter(definition.key, subsections);
   }
 
-  if (definition.key === "hazcom" && !hasMeaningfulSubsections(subsections)) {
+  if (definition.key === "hazard_communication_and_environmental_protection" && !hasMeaningfulSubsections(subsections)) {
     subsections = synthesizeHazcomSubsections();
   }
-  if (definition.key === "hazcom") {
+  if (definition.key === "hazard_communication_and_environmental_protection") {
     subsections = applySectionOwnershipFilter(definition.key, subsections);
   }
 
-  if (definition.key === "iipp_emergency_response" && !hasMeaningfulSubsections(subsections)) {
+  if (definition.key === "iipp_incident_reporting_corrective_action" && !hasMeaningfulSubsections(subsections)) {
     subsections = synthesizeIippSubsections();
   }
-  if (definition.key === "iipp_emergency_response") {
+  if (definition.key === "iipp_incident_reporting_corrective_action") {
     subsections = applySectionOwnershipFilter(definition.key, subsections);
   }
 
-  if (definition.key === "union" && !hasMeaningfulSubsections(subsections)) {
-    subsections = [
-      {
-        title: "Union applicability",
-        paragraphs: [
-          "No craft-specific union, referral hall, or collective bargaining details were recorded for this CSEP. If a labor agreement or owner craft rule applies, add the agreement name, applicable crafts, and any site work rules in the final issued plan.",
-        ],
-      },
-    ];
+  if (definition.key === "high_risk_steel_erection_programs" && !hasMeaningfulSubsections(subsections)) {
+    subsections = synthesizeNamedModuleSubsections(
+      HIGH_RISK_STEEL_PROGRAMS,
+      "Apply this program when the activity is part of the active structural steel or decking scope; verify competent-person ownership, access control, permits, and stop-work triggers before work starts."
+    );
   }
 
-  if (definition.key === "hazards_and_controls") {
+  if (definition.key === "hazard_control_modules") {
     subsections = stripSharedContentAcrossSubsections(
       dedupeTemplateSubsections(subsections.map((subsection) => sanitizeHazardModuleSubsection(subsection)))
     );
-    const includesWorkAttire = subsections.some((sub) =>
-      /work attire|dress|clothing|sleeved|long pants/i.test(
-        `${sub.title} ${(sub.paragraphs ?? []).join(" ")} ${(sub.items ?? []).join(" ")}`
-      )
-    );
-    if (!includesWorkAttire) {
-      subsections = [...subsections, ...synthesizeWorkAttireSubsections()];
+    if (!hasMeaningfulSubsections(subsections)) {
+      subsections = synthesizeNamedModuleSubsections(
+        HAZARD_CONTROL_MODULES,
+        "Document the hazard-specific exposure, required controls, verification method, and stop-work trigger for this module."
+      );
     }
     subsections = normalizeHazardModuleBlueprintSubsections(subsections);
     subsections = applySectionOwnershipFilter(definition.key, subsections);
   }
 
-  if (definition.key === "security_at_site") {
+  if (definition.key === "task_execution_modules" && !hasMeaningfulSubsections(subsections)) {
+    subsections = synthesizeNamedModuleSubsections(
+      TASK_EXECUTION_MODULES,
+      "Document the task sequence, required hold points, crew coordination, and field verification for this execution module."
+    );
+  }
+
+  if (definition.key === "ppe_and_work_attire" && !hasMeaningfulSubsections(subsections)) {
+    subsections = synthesizeWorkAttireSubsections();
+  }
+
+  if (definition.key === "site_access_security_laydown_traffic_control") {
     subsections = applySectionOwnershipFilter(definition.key, subsections);
   }
 
-  if (definition.key === "training_inspections_monitoring_recordkeeping" && !hasMeaningfulSubsections(subsections)) {
+  if (definition.key === "training_competency_and_certifications" && !hasMeaningfulSubsections(subsections)) {
     subsections = synthesizeTrainingInspectionsMonitoringRecordkeepingSubsections();
   }
-  if (definition.key === "training_inspections_monitoring_recordkeeping") {
+  if (definition.key === "training_competency_and_certifications") {
     const steelScope = isStructuralSteelOrDeckingScope(
       context.draft,
       context.tradeLabel,
@@ -3034,7 +3148,7 @@ function buildSectionSubsections(
     }
   }
 
-  if (definition.key === "close_out_lessons_learned" && !hasMeaningfulSubsections(subsections)) {
+  if (definition.key === "project_closeout" && !hasMeaningfulSubsections(subsections)) {
     subsections = synthesizeCloseOutLessonsLearnedSubsections();
   }
 
@@ -3113,6 +3227,7 @@ export function buildCsepRenderModelFromGeneratedDraft(
     if (!looksLikeMatrix) return section;
     return {
       ...section,
+      key: "appendix_e_task_hazard_control_matrix",
       kind: "appendix",
       title: "Appendix E. Task-Hazard-Control Matrix",
     };
@@ -3192,6 +3307,17 @@ export function buildCsepRenderModelFromGeneratedDraft(
   for (const section of [...sanitizedSections, ...legacySanitizedSections]) {
     if (section.kind !== "appendix") continue;
     const nk = normalizeToken(section.key ?? "");
+    if (
+      ![
+        "appendix a forms and permit library",
+        "appendix b incident and investigation package",
+        "appendix c checklists and inspection sheets",
+        "appendix d field references maps and contact inserts",
+        "appendix e task hazard control matrix",
+      ].includes(nk)
+    ) {
+      continue;
+    }
     // End-matter document control is rendered once from `document_control_and_revision_history`;
     // drop legacy keys so revision metadata is not duplicated near the front or twice at the end.
     if (nk === "document control" || nk === "revision history") continue;
@@ -3900,8 +4026,6 @@ function displayOutlineSectionHeading(ordinal: number, section: CsepTemplateSect
 export type CsepOutlinePlanEntry =
   | { kind: "title_page"; ordinal: number }
   | { kind: "body_section"; ordinal: number; section: CsepTemplateSection }
-  | { kind: "attachments_divider"; ordinal: number }
-  | { kind: "appendices_divider"; ordinal: number }
   | { kind: "disclaimer"; ordinal: number };
 
 /**
@@ -3919,20 +4043,7 @@ export function buildCsepOutlinePlan(model: CsepRenderModel): CsepOutlinePlanEnt
   model.sections.forEach((section) => {
     entries.push({ kind: "body_section", ordinal: ordinal++, section });
   });
-  const documentControlSection = model.appendixSections.find(
-    (section) => section.key === "document_control_and_revision_history"
-  );
-  const attachmentSections = model.appendixSections.filter(
-    (section) => section.key !== "document_control_and_revision_history"
-  );
-  if (documentControlSection) {
-    entries.push({ kind: "body_section", ordinal: ordinal++, section: documentControlSection });
-  }
-  if (attachmentSections.length) {
-    entries.push({ kind: "attachments_divider", ordinal: ordinal++ });
-    entries.push({ kind: "appendices_divider", ordinal: ordinal++ });
-  }
-  attachmentSections.forEach((section) => {
+  model.appendixSections.forEach((section) => {
     entries.push({ kind: "body_section", ordinal: ordinal++, section });
   });
   entries.push({ kind: "disclaimer", ordinal: ordinal++ });
@@ -3945,10 +4056,6 @@ function formatOutlineTocLine(entry: CsepOutlinePlanEntry): string {
       return `${entry.ordinal}. Title Page`;
     case "body_section":
       return displayOutlineSectionHeading(entry.ordinal, entry.section);
-    case "attachments_divider":
-      return `${entry.ordinal}. Attachments`;
-    case "appendices_divider":
-      return `${entry.ordinal}. Appendices`;
     case "disclaimer":
       return `${entry.ordinal}. Disclaimer`;
   }
@@ -3967,7 +4074,7 @@ function outlineOrdinalForSectionKey(plan: CsepOutlinePlanEntry[], sectionKey: s
 
 function outlineOrdinalForKind(
   plan: CsepOutlinePlanEntry[],
-  kind: "attachments_divider" | "appendices_divider" | "disclaimer"
+  kind: "disclaimer"
 ): number {
   const hit = plan.find((e) => e.kind === kind);
   if (!hit) {
@@ -4000,7 +4107,9 @@ function shouldRenderSubheading(sectionTitle: string, subsection: CsepTemplateSu
 }
 
 const CSEP_SECTION_KEYS_WITH_FLAT_PROGRAM_OUTLINE = new Set<string>([
-  "hazards_and_controls",
+  "high_risk_steel_erection_programs",
+  "hazard_control_modules",
+  "task_execution_modules",
   CSEP_SAFETY_PROGRAM_REFERENCE_PACK_KEY,
 ]);
 const MAX_HAZARD_TOP_LEVEL_NUMBERED_ITEMS = 24;
@@ -4131,10 +4240,43 @@ function sliceLabelWithinProgramGroup(majorTitle: string, subsection: CsepTempla
   return raw;
 }
 
+function isNumberedProgramModuleSlice(title: string) {
+  const normalized = normalizeCompareToken(canonicalProgramModuleSliceLabel(title));
+  return (
+    normalized === "required controls" ||
+    normalized === "how controls are met and verified" ||
+    normalized === "stop work hold point triggers" ||
+    normalized === "applicable references"
+  );
+}
+
+function canonicalProgramModuleSliceLabel(title: string) {
+  const normalized = normalizeCompareToken(title);
+  if (normalized === "how controls are verified" || normalized === "verification and handoff") {
+    return "How controls are met and verified";
+  }
+  if (
+    normalized === "stop work hold point triggers" ||
+    normalized === "stop work triggers" ||
+    normalized === "stop work escalation"
+  ) {
+    return "Stop-work / hold-point triggers";
+  }
+  if (normalized === "references") {
+    return "Applicable references";
+  }
+  if (normalized === "required controls") return "Required controls";
+  if (normalized === "risk") return "Risk";
+  return title;
+}
+
 function appendFlatSubsectionContent(children: Paragraph[], subsection: CsepTemplateSubsection) {
   const paragraphSplit = splitStructuredSourceItems(subsection.paragraphs);
   const itemSplit = splitStructuredSourceItems(subsection.items);
   const structuredEntries = [...paragraphSplit.structured, ...itemSplit.structured];
+  const numberedProgramItems = isNumberedProgramModuleSlice(
+    stripExistingNumberPrefix(subsection.title).split(EM_DASH_TITLE_SPLIT).pop()?.split(": ").pop() ?? subsection.title
+  );
 
   appendIndentedParagraphs(children, paragraphSplit.plain, { left: INDENTS.childBodyLeft });
 
@@ -4163,7 +4305,7 @@ function appendFlatSubsectionContent(children: Paragraph[], subsection: CsepTemp
 
   itemSplit.plain.forEach((item, itemIndex) => {
     children.push(
-      bodyParagraph(item, {
+      bodyParagraph(numberedProgramItems ? `${itemIndex + 1}. ${item}` : item, {
         indent: { left: INDENTS.childBodyLeft },
         spacing: { before: itemIndex === 0 ? 100 : 50, after: 90, line: 276 },
       })
@@ -4199,7 +4341,7 @@ function renderSectionWithFlatProgramOutline(outlineOrdinal: number, section: Cs
     const majorTitle = majorProgramTitleForFlatGroup(group);
     const headingText = majorTitle || stripExistingNumberPrefix(group[0]!.title).trim() || "Program";
     const keepFlatNumbering =
-      section.key !== "hazards_and_controls" || nextTopLevelNumber <= MAX_HAZARD_TOP_LEVEL_NUMBERED_ITEMS;
+      section.key !== "hazard_control_modules" || nextTopLevelNumber <= MAX_HAZARD_TOP_LEVEL_NUMBERED_ITEMS;
     if (keepFlatNumbering) {
       children.push(
         numberedParagraph(`${basePrefix}.${nextTopLevelNumber}`, headingText, {
@@ -4220,8 +4362,9 @@ function renderSectionWithFlatProgramOutline(outlineOrdinal: number, section: Cs
     for (const subsection of group) {
       const slice = sliceLabelWithinProgramGroup(headingText, subsection);
       if (slice) {
+        const label = canonicalProgramModuleSliceLabel(slice);
         children.push(
-          bodyParagraph(slice, {
+          bodyParagraph(`${label}:`, {
             style: STYLE_IDS.subheading,
             indent: { left: INDENTS.childBodyLeft },
             spacing: { before: 200, after: 90, line: 276 },
@@ -4231,6 +4374,43 @@ function renderSectionWithFlatProgramOutline(outlineOrdinal: number, section: Cs
       appendFlatSubsectionContent(children, subsection);
     }
   }
+
+  return children;
+}
+
+function renderProgramModuleTemplateSection(outlineOrdinal: number, section: CsepTemplateSection) {
+  const children: Paragraph[] = [
+    sectionHeading(displayOutlineSectionHeading(outlineOrdinal, section), sectionHeadingTone(section)),
+  ];
+  if (section.descriptor?.trim()) {
+    children.push(sectionDescriptorParagraph(section.descriptor.trim()));
+  }
+
+  section.subsections.forEach((subsection) => {
+    const label = stripExistingNumberPrefix(subsection.title).trim();
+    if (!label) return;
+    children.push(
+      bodyParagraph(`${label}:`, {
+        style: STYLE_IDS.subheading,
+        spacing: { before: 180, after: 90, line: 276 },
+      })
+    );
+
+    if (normalizeCompareToken(label) === "risk") {
+      appendParagraphs(children, subsection.paragraphs);
+      return;
+    }
+
+    const items = uniqueItems([...(subsection.items ?? []), ...(subsection.paragraphs ?? [])]);
+    items.forEach((item, index) => {
+      children.push(
+        bodyParagraph(`${index + 1}. ${stripSourceNumberingLabel(item)}`, {
+          indent: { left: INDENTS.childBodyLeft },
+          spacing: { before: index === 0 ? 80 : 40, after: 90, line: 276 },
+        })
+      );
+    });
+  });
 
   return children;
 }
@@ -4331,6 +4511,10 @@ function createAppendicesDivider(ordinal: number) {
 }
 
 function renderSection(outlineOrdinal: number, section: CsepTemplateSection) {
+  if (section.key.startsWith("program_")) {
+    return renderProgramModuleTemplateSection(outlineOrdinal, section);
+  }
+
   if (usesFlatProgramOutline(section)) {
     return renderSectionWithFlatProgramOutline(outlineOrdinal, section);
   }
@@ -4506,7 +4690,7 @@ export async function createCsepDocument(model: CsepRenderModel) {
       children.push(pageBreakParagraph());
       return;
     }
-    if (section.key === "message_from_owner") {
+    if (section.key === "owner_message") {
       children.push(pageBreakParagraph());
     } else if (section.key === "sign_off_page") {
       children.push(pageBreakParagraph());
@@ -4534,28 +4718,7 @@ export async function createCsepDocument(model: CsepRenderModel) {
     children.push(...renderSection(outlineOrdinalForSectionKey(plan, section.key), section));
   });
 
-  const documentControlSection = model.appendixSections.find(
-    (section) => section.key === "document_control_and_revision_history"
-  );
-  const attachmentSections = model.appendixSections.filter(
-    (section) => section.key !== "document_control_and_revision_history"
-  );
-
-  if (documentControlSection) {
-    children.push(pageBreakParagraph());
-    children.push(
-      ...renderSection(outlineOrdinalForSectionKey(plan, documentControlSection.key), documentControlSection)
-    );
-  }
-
-  if (attachmentSections.length) {
-    children.push(pageBreakParagraph());
-    children.push(...createAttachmentsDivider(outlineOrdinalForKind(plan, "attachments_divider")));
-    children.push(pageBreakParagraph());
-    children.push(...createAppendicesDivider(outlineOrdinalForKind(plan, "appendices_divider")));
-  }
-
-  attachmentSections.forEach((section) => {
+  model.appendixSections.forEach((section) => {
     children.push(pageBreakParagraph());
     children.push(...renderSection(outlineOrdinalForSectionKey(plan, section.key), section));
   });

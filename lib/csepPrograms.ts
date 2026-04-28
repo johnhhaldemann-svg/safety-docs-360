@@ -9,6 +9,7 @@ import type {
   CSEPProgramConfig,
   CSEPProgramDefinition,
   CSEPProgramDefinitionContent,
+  CSEPProgramModule,
   CSEPProgramSection,
   CSEPProgramSelection,
   CSEPProgramSelectionInput,
@@ -103,12 +104,13 @@ function formatProgramParagraph(values: readonly string[], fallback?: string) {
   return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
-const PROGRAM_PARAGRAPH_SUBSECTION_TITLES = new Set([
-  "When It Applies",
-  "Responsibilities and Training",
-  "Minimum Required Controls",
-  "Related Tasks",
-]);
+const PROGRAM_MODULE_SUBSECTION_TITLES = {
+  risk: "Risk",
+  requiredControls: "Required controls",
+  verificationMethods: "How controls are met and verified",
+  stopWorkTriggers: "Stop-work / hold-point triggers",
+  applicableReferences: "Applicable references",
+} as const;
 
 function normalizeText(value: unknown, fallback: string) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -1717,15 +1719,6 @@ export function buildCsepProgramSelections(params: BuildSelectionsParams) {
   };
 }
 
-const FALL_WHEN_NOT_REQUIRED_LEAD =
-  "This program does not apply where employees are working from a fully protected walking/working surface and no fall exposure exists, including ground-level work, work behind compliant guardrails, or work areas where approved covers or barriers fully eliminate the fall hazard.";
-
-const FALL_WHEN_NOT_REQUIRED_BULLETS = [
-  "Ground-level work with no unprotected change in elevation.",
-  "Compliant, continuous edge protection (or approved barrier) for the path of travel.",
-  "Covered, secured, and marked openings where no lower-level fall exposure remains for the task.",
-];
-
 const FALL_CONTROL_LINES = {
   planning:
     "Verify the fall hazard, access method, anchorage plan, rescue path, and release authority before exposed work begins.",
@@ -1749,6 +1742,131 @@ function sentenceize(value: string) {
   const t = value.trim();
   if (!t) return t;
   return /[.!?]$/.test(t) ? t : `${t}.`;
+}
+
+function compactProgramText(value: string) {
+  return value
+    .replace(/\s+/g, " ")
+    .replace(/\s*â€”\s*/g, " - ")
+    .replace(/\s*—\s*/g, " - ")
+    .trim();
+}
+
+function moduleItems(values: readonly string[], fallback: readonly string[] = []) {
+  return dedupe([...values, ...fallback].map(compactProgramText).filter(Boolean)).map(sentenceize);
+}
+
+function moduleReferenceItems(values: readonly string[], fallback: readonly string[] = []) {
+  return dedupe([...values, ...fallback].map(compactProgramText).filter(Boolean));
+}
+
+function shortProgramReferences(oshaRefs: readonly string[], fallback: string) {
+  const references = formatApplicableReferenceBullets([...oshaRefs])
+    .map((reference) => reference.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  return references.length ? references : [fallback];
+}
+
+function summarizeProgramRisk(definition: CSEPProgramDefinition, fallback: string) {
+  const parts = moduleItems([definition.summary, ...definition.applicableWhen]).slice(0, 2);
+  return parts.join(" ") || fallback;
+}
+
+function buildVerificationMethods(
+  definition: CSEPProgramDefinition,
+  relatedTasks: string[],
+  fallbackVerifier = "Foreman or competent person"
+) {
+  const taskNote = relatedTasks.length
+    ? `Verification is tied to the daily pre-task plan for ${relatedTasks.join(", ")}.`
+    : "Verification is tied to the daily pre-task plan for the selected scope.";
+  return moduleItems(
+    [
+      `${fallbackVerifier} verifies required controls before work starts, when the work front moves, after weather or condition changes, and at shift turnover using the JHA, permit, inspection log, lift plan, rescue plan, daily pre-task plan, or direct field check.`,
+      ...definition.responsibilities,
+      ...definition.training,
+      ...definition.closeoutProcedures,
+      taskNote,
+    ],
+    []
+  ).slice(0, 6);
+}
+
+function buildProgramSubsections(module: CSEPProgramModule): CSEPProgramSection["subsections"] {
+  return [
+    {
+      title: PROGRAM_MODULE_SUBSECTION_TITLES.risk,
+      body: module.risk,
+      bullets: [],
+    },
+    {
+      title: PROGRAM_MODULE_SUBSECTION_TITLES.requiredControls,
+      bullets: module.requiredControls,
+    },
+    {
+      title: PROGRAM_MODULE_SUBSECTION_TITLES.verificationMethods,
+      bullets: module.verificationMethods,
+    },
+    {
+      title: PROGRAM_MODULE_SUBSECTION_TITLES.stopWorkTriggers,
+      bullets: module.stopWorkTriggers,
+    },
+    {
+      title: PROGRAM_MODULE_SUBSECTION_TITLES.applicableReferences,
+      bullets: module.applicableReferences,
+    },
+  ].filter((section) => Boolean(section.body?.trim()) || section.bullets.length > 0);
+}
+
+function createProgramModuleSection(params: {
+  selection: CSEPProgramSelection;
+  definition: CSEPProgramDefinition;
+  relatedTasks: string[];
+  riskFallback: string;
+  requiredControls: string[];
+  verificationMethods?: string[];
+  stopWorkTriggers: string[];
+  applicableReferences?: string[];
+}): CSEPProgramSection {
+  const programModule: CSEPProgramModule = {
+    title: params.definition.title,
+    risk: summarizeProgramRisk(params.definition, params.riskFallback),
+    requiredControls: moduleItems(params.requiredControls, [
+      "Maintain required controls throughout the task and adjust the plan when field conditions change.",
+    ]),
+    verificationMethods: params.verificationMethods?.length
+      ? moduleItems(params.verificationMethods)
+      : buildVerificationMethods(params.definition, params.relatedTasks),
+    stopWorkTriggers: moduleItems(params.stopWorkTriggers, [
+      "Stop work when required permits, competent-person verification, inspections, access controls, weather limits, or planned controls are missing, failed, or no longer match field conditions.",
+    ]),
+    applicableReferences:
+      params.applicableReferences?.length
+        ? moduleReferenceItems(params.applicableReferences)
+        : shortProgramReferences(params.definition.oshaRefs, "Site permit or authorization if required by scope."),
+  };
+
+  return {
+    key: `program_${getProgramSelectionKey(
+      params.selection.category,
+      params.selection.item,
+      params.selection.subtype
+    )}`,
+    category: params.selection.category,
+    item: params.selection.item,
+    subtype: params.selection.subtype ?? null,
+    title: programModule.title,
+    summary: params.definition.summary,
+    relatedTasks: params.relatedTasks,
+    programModule,
+    risk: programModule.risk,
+    requiredControls: programModule.requiredControls,
+    verificationMethods: programModule.verificationMethods,
+    stopWorkTriggers: programModule.stopWorkTriggers,
+    applicableReferences: programModule.applicableReferences,
+    subsections: buildProgramSubsections(programModule),
+  };
 }
 
 function buildFallProtectionGoverningProgramSection(
@@ -1784,53 +1902,35 @@ function buildFallProtectionGoverningProgramSection(
     stopBody = `${stopBody} ${addedStop.map(sentenceize).join(" ")}`.trim();
   }
 
-  const subsections: CSEPProgramSection["subsections"] = [
-    {
-      title: "Applicable References",
-      body: undefined,
-      bullets: formatApplicableReferenceBullets(definition.oshaRefs),
-    },
-    { title: "When Required", body: undefined, bullets: whenRequired },
-    { title: "When Not Required", body: FALL_WHEN_NOT_REQUIRED_LEAD, bullets: FALL_WHEN_NOT_REQUIRED_BULLETS },
-    { title: "Planning / Release for Work", body: planningBody, bullets: [] },
-    { title: "Inspection", body: FALL_CONTROL_LINES.inspection, bullets: [] },
-    { title: "Anchorage and Compatibility", body: FALL_CONTROL_LINES.anchorage, bullets: [] },
-    { title: "Tie-Off", body: FALL_CONTROL_LINES.tieOff, bullets: [] },
-    { title: "Fall Clearance", body: FALL_CONTROL_LINES.fallClearance, bullets: [] },
-    { title: "Leading Edge / Access Conditions", body: FALL_CONTROL_LINES.leadingEdge, bullets: [] },
-    { title: "Protection from Damage", body: FALL_CONTROL_LINES.damage, bullets: [] },
-    { title: "Training", body: trainingBody, bullets: [] },
-    { title: "Stop-Work", body: stopBody, bullets: [] },
-  ];
-
-  if (definition.controls.length) {
-    subsections.push({ title: "Site-Specific", body: undefined, bullets: definition.controls });
-  }
-  if (definition.workProcedures.length) {
-    subsections.push({
-      title: "Work Execution (additions)",
-      body: undefined,
-      bullets: definition.workProcedures,
-    });
-  }
-  if (relatedTasks.length) {
-    subsections.push({
-      title: "Related Tasks",
-      body: `Related tasks: ${relatedTasks.join(", ")}.`,
-      bullets: [],
-    });
-  }
-
-  return {
-    key: `program_${getProgramSelectionKey(selection.category, selection.item, selection.subtype)}`,
-    category: selection.category,
-    item: selection.item,
-    subtype: selection.subtype ?? null,
-    title: definition.title,
-    summary: definition.summary?.trim() ?? undefined,
+  return createProgramModuleSection({
+    selection,
+    definition,
     relatedTasks,
-    subsections,
-  };
+    riskFallback:
+      "Workers can be exposed to falls during elevated access, leading-edge work, incomplete decking, openings, and transitions where the planned fall controls are missing or no longer match field conditions.",
+    requiredControls: [
+      ...whenRequired,
+      planningBody,
+      FALL_CONTROL_LINES.inspection,
+      FALL_CONTROL_LINES.anchorage,
+      FALL_CONTROL_LINES.tieOff,
+      FALL_CONTROL_LINES.fallClearance,
+      FALL_CONTROL_LINES.leadingEdge,
+      FALL_CONTROL_LINES.damage,
+      ...definition.controls,
+      ...definition.workProcedures,
+    ],
+    verificationMethods: [
+      trainingBody,
+      "Foreman, competent person, or safety lead verifies anchor points, edge protection, equipment inspection, access, and rescue readiness before exposed work starts, when the work front moves, after weather changes, and at shift turnover using the JHA, fall protection inspection, rescue plan, or daily pre-task plan.",
+      ...(relatedTasks.length ? [`Verification is tied to the daily pre-task plan for ${relatedTasks.join(", ")}.`] : []),
+    ],
+    stopWorkTriggers: [stopBody],
+    applicableReferences: shortProgramReferences(
+      definition.oshaRefs,
+      "Fall protection plan, rescue plan, and site fall-protection permit if required."
+    ),
+  });
 }
 
 const HOT_WORK_PURPOSE_WHEN = `Use this program whenever welding, cutting, grinding, brazing, soldering, or other spark- or flame-producing work is performed. The core risk is fire from open flame, sparks, or hot metal igniting combustibles, coatings, or concealed materials—and fire spread to nearby work areas, floors, or occupancies.`;
@@ -1894,38 +1994,20 @@ function buildHotWorkGoverningProgramSection(
     stopBody = `${stopBody} ${definition.stopWorkProcedures.map(sentenceize).join(" ")}`.trim();
   }
 
-  const subsections: CSEPProgramSection["subsections"] = [
-    {
-      title: "Applicable References",
-      body: undefined,
-      bullets: formatApplicableReferenceBullets(definition.oshaRefs),
-    },
-    { title: "Purpose / When Required", body: purposeBody, bullets: [] },
-    { title: "Core Requirements", body: undefined, bullets: coreBullets },
-    { title: "Pre-Task Verification", body: preTaskBody, bullets: [] },
-    { title: "Work Controls", body: workBody, bullets: [] },
-    { title: "Fire Watch / Closeout", body: closeoutBody, bullets: [] },
-    { title: "Stop-Work / Reassessment", body: stopBody, bullets: [] },
-  ];
-
-  if (relatedTasks.length) {
-    subsections.push({
-      title: "Related Tasks",
-      body: `Related tasks: ${relatedTasks.join(", ")}.`,
-      bullets: [],
-    });
-  }
-
-  return {
-    key: `program_${getProgramSelectionKey(selection.category, selection.item, selection.subtype)}`,
-    category: selection.category,
-    item: selection.item,
-    subtype: selection.subtype ?? null,
-    title: definition.title,
-    summary: definition.summary?.trim() ?? undefined,
+  return createProgramModuleSection({
+    selection,
+    definition,
     relatedTasks,
-    subsections,
-  };
+    riskFallback: purposeBody,
+    requiredControls: [preTaskBody, workBody, closeoutBody, ...coreBullets],
+    verificationMethods: [
+      "Permit holder, foreman, or fire watch verifies the hot work permit, extinguisher access, combustible protection, ventilation, fire-watch coverage, and spark containment before ignition, when the work front moves, and before release using the permit, JHA, fire-watch log, or direct field check.",
+      ...definition.responsibilities,
+      ...definition.training,
+    ],
+    stopWorkTriggers: [stopBody],
+    applicableReferences: shortProgramReferences(definition.oshaRefs, "Hot work permit if required by site."),
+  });
 }
 
 function buildCompactProgramSection(
@@ -1939,39 +2021,24 @@ function buildCompactProgramSection(
     dedupe([...definition.responsibilities, ...definition.training])
   );
   const referenceParagraph = formatApplicableReferencesInline(definition.oshaRefs);
-  const relatedNote = relatedTasks.length
-    ? `Related tasks: ${relatedTasks.join(", ")}.`
-    : null;
 
-  const bodyParts = [
-    applicabilityParagraph,
-    controlsParagraph,
-    trainingParagraph,
-    referenceParagraph,
-    relatedNote,
-  ].filter((part): part is string => Boolean(part && part.trim()));
-
-  const body = bodyParts.join(" ");
-
-  return {
-    key: `program_${getProgramSelectionKey(selection.category, selection.item, selection.subtype)}`,
-    category: selection.category,
-    item: selection.item,
-    subtype: selection.subtype ?? null,
-    title: definition.title,
-    summary: definition.summary,
+  return createProgramModuleSection({
+    selection,
+    definition,
     relatedTasks,
-    subsections: body
-      ? [
-          {
-            // Include program title so merged sections (e.g. "14. Hazards and Controls") never repeat the same heading.
-            title: `Program controls — ${definition.title}`,
-            body,
-            bullets: [],
-          },
-        ]
-      : [],
-  };
+    riskFallback: applicabilityParagraph ?? definition.summary,
+    requiredControls: [
+      ...(controlsParagraph ? [controlsParagraph] : []),
+      ...definition.preTaskProcedures,
+      ...definition.workProcedures,
+    ],
+    verificationMethods: [
+      ...(trainingParagraph ? [trainingParagraph] : []),
+      ...buildVerificationMethods(definition, relatedTasks),
+    ],
+    stopWorkTriggers: definition.stopWorkProcedures,
+    applicableReferences: referenceParagraph ? [referenceParagraph] : undefined,
+  });
 }
 
 export function buildCsepProgramSection(
@@ -1982,9 +2049,6 @@ export function buildCsepProgramSection(
 ): CSEPProgramSection {
   const definition = resolveDefinition(selection, options?.definitions);
   const relatedTasks = dedupe(selection.relatedTasks);
-  const relatedTasksBody = relatedTasks.length
-    ? `These related tasks apply to this program scope: ${relatedTasks.join(", ")}.`
-    : "This program was included from the current CSEP selection set.";
 
   if (definition.category === "hazard" && definition.item === "Falls from height") {
     return buildFallProtectionGoverningProgramSection(selection, definition, relatedTasks);
@@ -1998,66 +2062,20 @@ export function buildCsepProgramSection(
     return buildCompactProgramSection(selection, definition, relatedTasks);
   }
 
-  const subsectionDefinitions = [
-    {
-      title: "When It Applies",
-      bullets: definition.applicableWhen,
-    },
-    {
-      title: "Applicable References",
-      bullets: formatApplicableReferenceBullets(definition.oshaRefs),
-    },
-    {
-      title: "Responsibilities and Training",
-      bullets: dedupe([...definition.responsibilities, ...definition.training]),
-    },
-    {
-      title: "Pre-Task Setup",
-      bullets: definition.preTaskProcedures,
-    },
-    {
-      title: "Work Execution",
-      bullets: definition.workProcedures,
-    },
-    {
-      title: "Stop-Work / Escalation",
-      bullets: definition.stopWorkProcedures,
-    },
-    {
-      title: "Post-Task / Closeout",
-      bullets: definition.closeoutProcedures,
-    },
-    {
-      title: "Minimum Required Controls",
-      bullets: definition.controls,
-    },
-    {
-      title: "Related Tasks",
-      body: relatedTasksBody,
-      bullets: [],
-    },
-  ];
-
-  return {
-    key: `program_${getProgramSelectionKey(selection.category, selection.item, selection.subtype)}`,
-    category: selection.category,
-    item: selection.item,
-    subtype: selection.subtype ?? null,
-    title: definition.title,
-    summary: definition.summary,
+  return createProgramModuleSection({
+    selection,
+    definition,
     relatedTasks,
-    subsections: subsectionDefinitions
-      .map((section) =>
-        PROGRAM_PARAGRAPH_SUBSECTION_TITLES.has(section.title)
-          ? {
-              title: section.title,
-              body: section.body ?? formatProgramParagraph(section.bullets),
-              bullets: [] as string[],
-            }
-          : section
-      )
-      .filter((section) => Boolean(section.body?.trim()) || section.bullets.length > 0),
-  };
+    riskFallback:
+      "Workers can be exposed when the selected task, permit, PPE, or hazard program is active and field conditions change before required controls are verified.",
+    requiredControls: [
+      ...definition.controls,
+      ...definition.preTaskProcedures,
+      ...definition.workProcedures,
+    ],
+    verificationMethods: buildVerificationMethods(definition, relatedTasks),
+    stopWorkTriggers: definition.stopWorkProcedures,
+  });
 }
 
 export function buildCsepProgramSections(

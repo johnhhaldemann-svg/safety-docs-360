@@ -171,6 +171,8 @@ function processTopLevelProgramSection(
 export function relocateSafetyProgramReferencePacks(
   sections: GeneratedSafetyPlanSection[]
 ): GeneratedSafetyPlanSection[] {
+  return sections;
+
   const packPieces: NonNullable<GeneratedSafetyPlanSection["subsections"]> = [];
   const seenFragmentTitles = new Set<string>();
 

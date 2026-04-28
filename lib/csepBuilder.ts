@@ -173,23 +173,23 @@ export const CSEP_BUILDER_BLOCK_TITLES = Object.fromEntries(
 
 const FRONT_MATTER_DEFINITIONS: readonly CsepFrontMatterDefinition[] = [
   {
-    key: "document_control",
+    key: "owner_message",
     kind: "front_matter",
     order: 0,
-    title: "0.0 Document Control",
-    shortTitle: "Document Control",
-    numberLabel: "0.0",
-    purpose: "Capture issue, revision, preparer/reviewer/approver, and document control metadata.",
-    aiEligible: false,
+    title: "Owner Message",
+    shortTitle: "Owner Message",
+    numberLabel: null,
+    purpose: "Project leadership commitment and safety expectations for this CSEP issue.",
+    aiEligible: true,
   },
   {
-    key: "revision_history",
+    key: "sign_off_page",
     kind: "front_matter",
     order: 1,
-    title: "0.1 Revision History",
-    shortTitle: "Revision History",
-    numberLabel: "0.1",
-    purpose: "Track issued versions and approval status for the active CSEP package.",
+    title: "Sign-Off Page",
+    shortTitle: "Sign-Off Page",
+    numberLabel: null,
+    purpose: "Required review and signature confirmations before field use.",
     aiEligible: false,
   },
   {
@@ -202,49 +202,33 @@ const FRONT_MATTER_DEFINITIONS: readonly CsepFrontMatterDefinition[] = [
     purpose: "List the numbered sections and appendix library.",
     aiEligible: false,
   },
-  {
-    key: "plan_use_guidance",
-    kind: "front_matter",
-    order: 3,
-    title: "How to Use This Plan",
-    shortTitle: "How to Use This Plan",
-    numberLabel: null,
-    purpose: "Explain how to navigate the package, front matter, and appendix references.",
-    aiEligible: true,
-  },
-  {
-    key: "definitions_and_abbreviations",
-    kind: "front_matter",
-    order: 4,
-    title: "Definitions and Abbreviations",
-    shortTitle: "Definitions and Abbreviations",
-    numberLabel: null,
-    purpose: "Capture key acronyms, labor terms, and project shorthand used throughout the document.",
-    aiEligible: true,
-  },
-  {
-    key: "incident_overview",
-    kind: "front_matter",
-    order: 5,
-    title: "Incident Overview",
-    shortTitle: "Incident Overview",
-    numberLabel: null,
-    purpose: "Provide the quick-reference incident trigger and escalation panel.",
-    aiEligible: true,
-  },
-  {
-    key: "life_saving_rules",
-    kind: "front_matter",
-    order: 6,
-    title: "Life-Saving Rules",
-    shortTitle: "Life-Saving Rules",
-    numberLabel: null,
-    purpose: "Provide the life-saving rules visual panel and stop-work cues.",
-    aiEligible: true,
-  },
 ] as const;
 
 const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
+  { key: "purpose", kind: "main", order: 10, title: "1. Purpose", shortTitle: "Purpose", numberLabel: "1", purpose: "Why the CSEP exists and how it governs project work.", aiEligible: true },
+  { key: "project_and_contractor_information", kind: "main", order: 11, title: "2. Project and Contractor Information", shortTitle: "Project and Contractor Information", numberLabel: "2", purpose: "Project identity, owner, GC / CM, jurisdiction, and contractor contacts.", aiEligible: true, legacyBlockKeys: ["project_information", "contractor_information"] },
+  { key: "scope_of_work_section", kind: "main", order: 12, title: "3. Scope of Work", shortTitle: "Scope of Work", numberLabel: "3", purpose: "Trade, sub-trade, task list, scope summary, exclusions, assumptions, and work sequence.", aiEligible: true, legacyBlockKeys: ["trade_summary", "scope_of_work", "site_specific_notes"] },
+  { key: "regulatory_basis_and_references", kind: "main", order: 13, title: "4. Regulatory Basis and References", shortTitle: "Regulatory Basis and References", numberLabel: "4", purpose: "Jurisdiction profile, authority references, and clean OSHA / CFR citation list.", aiEligible: true, legacyBlockKeys: ["osha_references"] },
+  { key: "top_10_critical_risks", kind: "main", order: 14, title: "5. Top 10 Critical Risks", shortTitle: "Top 10 Critical Risks", numberLabel: "5", purpose: "Highest project and steel erection exposures requiring leadership attention.", aiEligible: true, legacyBlockKeys: ["selected_hazards"] },
+  { key: "roles_and_responsibilities", kind: "main", order: 15, title: "6. Roles and Responsibilities", shortTitle: "Roles and Responsibilities", numberLabel: "6", purpose: "Role duties, authority, and key definitions for the project team.", aiEligible: true, legacyBlockKeys: ["roles_and_responsibilities"] },
+  { key: "trade_interaction_and_coordination", kind: "main", order: 16, title: "7. Trade Interaction and Coordination", shortTitle: "Trade Interaction and Coordination", numberLabel: "7", purpose: "Overlap planning, shared-area coordination, access handoffs, and conflict response.", aiEligible: true, legacyBlockKeys: ["common_overlapping_trades"] },
+  { key: "site_access_security_laydown_traffic_control", kind: "main", order: 17, title: "8. Site Access, Security, Laydown, and Traffic Control", shortTitle: "Site Access, Security, Laydown, and Traffic Control", numberLabel: "8", purpose: "Worker access, visitors, deliveries, truck routing, staging, traffic, and restricted areas.", aiEligible: true, legacyBlockKeys: ["security_and_access"] },
+  { key: "hazard_communication_and_environmental_protection", kind: "main", order: 18, title: "9. Hazard Communication and Environmental Protection", shortTitle: "Hazard Communication and Environmental Protection", numberLabel: "9", purpose: "SDS, labels, chemical inventory, spill tie-ins, waste, stormwater, dust, and nuisance controls.", aiEligible: true, legacyBlockKeys: ["hazard_communication"] },
+  { key: "emergency_response_and_rescue", kind: "main", order: 19, title: "10. Emergency Response and Rescue", shortTitle: "Emergency Response and Rescue", numberLabel: "10", purpose: "Emergency notifications, 911 response, rescue, EMS access, fire response, and sheltering.", aiEligible: true, legacyBlockKeys: ["emergency_procedures", "weather_requirements_and_severe_weather_response"] },
+  { key: "iipp_incident_reporting_corrective_action", kind: "main", order: 20, title: "11. IIPP / Incident Reporting / Corrective Action", shortTitle: "IIPP / Incident Reporting / Corrective Action", numberLabel: "11", purpose: "Incident and near-miss reporting, investigations, corrective actions, trends, and restart expectations.", aiEligible: true, legacyBlockKeys: ["incident_reporting_and_investigation", "enforcement_and_corrective_action"] },
+  { key: "worker_conduct_fit_for_duty_disciplinary_program", kind: "main", order: 21, title: "12. Worker Conduct, Fit-for-Duty, and Disciplinary Program", shortTitle: "Worker Conduct, Fit-for-Duty, and Disciplinary Program", numberLabel: "12", purpose: "Unsafe-act response, stop-work enforcement, impairment, fatigue, wellness, and discipline.", aiEligible: true, legacyBlockKeys: ["drug_and_alcohol_testing", "health_and_wellness"] },
+  { key: "training_competency_and_certifications", kind: "main", order: 22, title: "13. Training, Competency, and Certifications", shortTitle: "Training, Competency, and Certifications", numberLabel: "13", purpose: "Training records, certifications, qualified roles, and active-scope training requirements.", aiEligible: true, legacyBlockKeys: ["training_and_instruction"] },
+  { key: "required_permits_and_hold_points", kind: "main", order: 23, title: "14. Required Permits and Hold Points", shortTitle: "Required Permits and Hold Points", numberLabel: "14", purpose: "Permit triggers, hold points, verification, and closeout requirements.", aiEligible: true, appendixRefs: ["appendix_a_forms_and_permit_library"], legacyBlockKeys: ["additional_permits"] },
+  { key: "high_risk_steel_erection_programs", kind: "main", order: 24, title: "15. High-Risk Steel Erection Programs", shortTitle: "High-Risk Steel Erection Programs", numberLabel: "15", purpose: "Steel erection program modules for leading edge, decking, hoisting, stability, bracing, and weather.", aiEligible: true, legacyBlockKeys: ["selected_hazards", "activity_hazard_matrix"] },
+  { key: "hazard_control_modules", kind: "main", order: 25, title: "16. Hazard Control Modules", shortTitle: "Hazard Control Modules", numberLabel: "16", purpose: "Hazard-specific controls only, separated from task execution and project-wide policy.", aiEligible: true, legacyBlockKeys: ["selected_hazards", "activity_hazard_matrix"] },
+  { key: "task_execution_modules", kind: "main", order: 26, title: "17. Task Execution Modules", shortTitle: "Task Execution Modules", numberLabel: "17", purpose: "Task-specific work execution steps for structural steel and decking activities.", aiEligible: true, legacyBlockKeys: ["activity_hazard_matrix", "trade_summary"] },
+  { key: "ppe_and_work_attire", kind: "main", order: 27, title: "18. PPE and Work Attire", shortTitle: "PPE and Work Attire", numberLabel: "18", purpose: "Base PPE, task-specific PPE, welding PPE, fall protection equipment, and attire requirements.", aiEligible: true, legacyBlockKeys: ["required_ppe"] },
+  { key: "inspections_audits_and_records", kind: "main", order: 28, title: "19. Inspections, Audits, and Records", shortTitle: "Inspections, Audits, and Records", numberLabel: "19", purpose: "JHA / pre-task review, inspections, audits, permits, corrective action tracking, and records.", aiEligible: true, appendixRefs: ["appendix_c_checklists_and_inspection_sheets"], legacyBlockKeys: ["recordkeeping", "training_and_instruction"] },
+  { key: "project_closeout", kind: "main", order: 29, title: "20. Project Closeout", shortTitle: "Project Closeout", numberLabel: "20", purpose: "Corrective action closeout, permit closeout, turnover, lessons learned, and final documentation review.", aiEligible: true, legacyBlockKeys: ["continuous_improvement", "recordkeeping"] },
+  { key: "document_control_and_revision_history", kind: "main", order: 30, title: "21. Document Control and Revision History", shortTitle: "Document Control and Revision History", numberLabel: "21", purpose: "Issue control, revision status, and approval record for this CSEP package.", aiEligible: false },
+] as const;
+
+const LEGACY_FORMAT_SECTION_DEFINITIONS: readonly CsepFormatSectionDefinition[] = [
   {
     key: "company_overview_and_safety_philosophy",
     kind: "main",
@@ -490,6 +474,59 @@ const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
 ] as const;
 
 const APPENDIX_DEFINITIONS: readonly CsepAppendixDefinition[] = [
+  {
+    key: "appendix_a_forms_and_permit_library",
+    kind: "appendix",
+    order: 40,
+    title: "Appendix A. Forms and Permit Library",
+    shortTitle: "Forms and Permit Library",
+    numberLabel: "Appendix A",
+    purpose: "Permit, planning-form, and administrative document library.",
+    aiEligible: true,
+  },
+  {
+    key: "appendix_b_incident_and_investigation_package",
+    kind: "appendix",
+    order: 41,
+    title: "Appendix B. Incident and Investigation Package",
+    shortTitle: "Incident and Investigation Package",
+    numberLabel: "Appendix B",
+    purpose: "Incident-response, investigation, corrective-action, and closeout documents.",
+    aiEligible: true,
+  },
+  {
+    key: "appendix_c_checklists_and_inspection_sheets",
+    kind: "appendix",
+    order: 42,
+    title: "Appendix C. Checklists and Inspection Sheets",
+    shortTitle: "Checklists and Inspection Sheets",
+    numberLabel: "Appendix C",
+    purpose: "Recurring inspection and checklist library with trigger/frequency context.",
+    aiEligible: true,
+  },
+  {
+    key: "appendix_d_field_references_maps_and_contact_inserts",
+    kind: "appendix",
+    order: 43,
+    title: "Appendix D. Field References, Maps, and Contact Inserts",
+    shortTitle: "Field References, Maps, and Contact Inserts",
+    numberLabel: "Appendix D",
+    purpose: "Field-use maps, emergency contacts, clinic directions, and quick inserts.",
+    aiEligible: true,
+  },
+  {
+    key: "appendix_e_task_hazard_control_matrix",
+    kind: "appendix",
+    order: 44,
+    title: "Appendix E. Task-Hazard-Control Matrix",
+    shortTitle: "Task-Hazard-Control Matrix",
+    numberLabel: "Appendix E",
+    purpose: "Task, hazard, control, PPE, permit, and verification matrix.",
+    aiEligible: true,
+  },
+] as const;
+
+const LEGACY_APPENDIX_DEFINITIONS: readonly CsepFormatSectionDefinition[] = [
   {
     key: "appendix_a_forms_and_permit_library",
     kind: "appendix",
@@ -1619,64 +1656,64 @@ export function buildCsepCoverageAudit(input: CsepCoverageAuditInput): CsepCover
     findings.push(finding);
   };
 
-  if ((input.tasks?.length ?? 0) > 0 && !selectedSections.has("project_scope_and_trade_specific_activities")) {
+  if ((input.tasks?.length ?? 0) > 0 && !selectedSections.has("scope_of_work_section")) {
     pushFinding({
       key: "project_scope_required",
       severity: "required",
       title: "Project scope coverage missing",
       detail: "Selected tasks require the project scope section so work phases, interfaces, and high-risk activity callouts are visible.",
-      sectionKey: "project_scope_and_trade_specific_activities",
+      sectionKey: "scope_of_work_section",
     });
   }
 
-  if ((input.selectedPermits?.length ?? 0) > 0 && !selectedSections.has("permits_and_forms")) {
+  if ((input.selectedPermits?.length ?? 0) > 0 && !selectedSections.has("required_permits_and_hold_points")) {
     pushFinding({
       key: "permits_library_required",
       severity: "required",
       title: "Permit library coverage missing",
-      detail: "Selected permits should be surfaced in Section 16 and cross-referenced into Appendix A.",
-      sectionKey: "permits_and_forms",
+      detail: "Selected permits should be surfaced in Section 14 and cross-referenced into Appendix A.",
+      sectionKey: "required_permits_and_hold_points",
       appendixKey: "appendix_a_forms_and_permit_library",
     });
   }
 
-  if ((input.requiredPpe?.length ?? 0) > 0 && !selectedSections.has("personal_protective_equipment")) {
+  if ((input.requiredPpe?.length ?? 0) > 0 && !selectedSections.has("ppe_and_work_attire")) {
     pushFinding({
       key: "ppe_section_missing",
       severity: "warning",
       title: "PPE section not selected",
-      detail: "Required PPE is present in the builder inputs, but Section 7 is not available to show quick-reference PPE and inspection guidance.",
-      sectionKey: "personal_protective_equipment",
+      detail: "Required PPE is present in the builder inputs, but Section 18 is not available to show consolidated PPE and work-attire guidance.",
+      sectionKey: "ppe_and_work_attire",
     });
   }
 
-  if ((input.commonOverlappingTrades?.length ?? 0) > 0 && !selectedSections.has("sub_tier_contractor_management")) {
+  if ((input.commonOverlappingTrades?.length ?? 0) > 0 && !selectedSections.has("trade_interaction_and_coordination")) {
     pushFinding({
       key: "subtier_coordination_gap",
       severity: "warning",
       title: "Trade-interface oversight not visible",
-      detail: "Overlapping trade context exists, so Section 14 should stay in the package for coordination and lower-tier oversight language.",
-      sectionKey: "sub_tier_contractor_management",
+      detail: "Overlapping trade context exists, so Section 7 should stay in the package for coordination and overlap response language.",
+      sectionKey: "trade_interaction_and_coordination",
     });
   }
 
-  if (input.governingState?.trim() && !selectedSections.has("regulatory_framework")) {
+  if (input.governingState?.trim() && !selectedSections.has("regulatory_basis_and_references")) {
     pushFinding({
       key: "regulatory_matrix_missing",
       severity: "warning",
       title: "Regulatory framework missing",
-      detail: "A governing state was identified, but Section 18 is not available to show state, local, owner, and labor-framework requirements.",
-      sectionKey: "regulatory_framework",
+      detail: "A governing state was identified, but Section 4 is not available to show state, local, owner, and regulatory requirements.",
+      sectionKey: "regulatory_basis_and_references",
     });
   }
 
-  if (lowerHazards.length > 0 && !selectedSections.has("hse_elements_and_site_specific_hazard_analysis")) {
+  if (lowerHazards.length > 0 && !selectedSections.has("hazard_control_modules")) {
     pushFinding({
       key: "hazard_library_missing",
       severity: "required",
       title: "Hazard analysis library missing",
-      detail: "Selected hazards require Section 19 so the formatted CSEP still includes consistent hazard-module coverage.",
-      sectionKey: "hse_elements_and_site_specific_hazard_analysis",
+      detail: "Selected hazards require Section 16 so the formatted CSEP still includes consistent hazard-module coverage.",
+      sectionKey: "hazard_control_modules",
     });
   }
 
@@ -1686,25 +1723,25 @@ export function buildCsepCoverageAudit(input: CsepCoverageAuditInput): CsepCover
         item.includes(token)
       )
     ) &&
-    !selectedSections.has("emergency_preparedness_and_response")
+    !selectedSections.has("emergency_response_and_rescue")
   ) {
     pushFinding({
       key: "emergency_response_gap",
       severity: "warning",
       title: "Emergency-response tie-in recommended",
-      detail: "The active hazard profile suggests Section 6 should stay visible for rescue, evacuation, and emergency-response tie-ins.",
-      sectionKey: "emergency_preparedness_and_response",
+      detail: "The active hazard profile suggests Section 10 should stay visible for rescue, evacuation, and emergency-response tie-ins.",
+      sectionKey: "emergency_response_and_rescue",
       appendixKey: "appendix_d_field_references_maps_and_contact_inserts",
     });
   }
 
-  if ((input.programTitles?.length ?? 0) > 0 && !selectedSections.has("checklists_and_inspections")) {
+  if ((input.programTitles?.length ?? 0) > 0 && !selectedSections.has("inspections_audits_and_records")) {
     pushFinding({
       key: "checklist_reference_gap",
       severity: "info",
       title: "Checklist appendix can strengthen program enforcement",
-      detail: "Triggered programs were found. Section 17 and Appendix C can hold inspection/checklist references without crowding the body pages.",
-      sectionKey: "checklists_and_inspections",
+      detail: "Triggered programs were found. Section 19 and Appendix C can hold inspection/checklist references without crowding the body pages.",
+      sectionKey: "inspections_audits_and_records",
       appendixKey: "appendix_c_checklists_and_inspection_sheets",
     });
   }
@@ -1949,36 +1986,94 @@ function inferFormatSectionKey(section: GeneratedSafetyPlanSection): CsepFormatS
     return NORMALIZED_FORMAT_SECTION_KEY_LOOKUP[keyToken];
   }
 
+  if (combined.includes("document control") || combined.includes("revision history")) {
+    return "document_control_and_revision_history";
+  }
+  if (combined.includes("top 10") || combined.includes("top ten") || combined.includes("critical risk")) {
+    return "top_10_critical_risks";
+  }
+  if (combined.includes("project information") || combined.includes("contractor information")) {
+    return "project_and_contractor_information";
+  }
+  if (combined.includes("scope") || combined.includes("trade summary") || combined.includes("task list")) {
+    return "scope_of_work_section";
+  }
+  if (combined.includes("osha") || combined.includes("reference") || combined.includes("regulatory") || combined.includes("jurisdiction")) {
+    return "regulatory_basis_and_references";
+  }
+  if (combined.includes("overlap") || combined.includes("simultaneous") || combined.includes("coordination") || combined.includes("handoff")) {
+    return "trade_interaction_and_coordination";
+  }
+  if (combined.includes("security") || combined.includes("access") || combined.includes("laydown") || combined.includes("traffic") || combined.includes("delivery")) {
+    return "site_access_security_laydown_traffic_control";
+  }
+  if (combined.includes("hazcom") || combined.includes("hazard communication") || combined.includes("sds") || combined.includes("chemical") || combined.includes("environmental")) {
+    return "hazard_communication_and_environmental_protection";
+  }
+  if (combined.includes("emergency") || combined.includes("rescue") || combined.includes("evacuation") || combined.includes("911")) {
+    return "emergency_response_and_rescue";
+  }
+  if (combined.includes("incident") || combined.includes("near miss") || combined.includes("investigation") || combined.includes("corrective action") || combined.includes("iipp")) {
+    return "iipp_incident_reporting_corrective_action";
+  }
+  if (combined.includes("drug") || combined.includes("alcohol") || combined.includes("fit") || combined.includes("disciplin") || combined.includes("conduct")) {
+    return "worker_conduct_fit_for_duty_disciplinary_program";
+  }
+  if (combined.includes("training") || combined.includes("certification") || combined.includes("competency")) {
+    return "training_competency_and_certifications";
+  }
+  if (combined.includes("permit") || combined.includes("hold point")) {
+    return "required_permits_and_hold_points";
+  }
+  if (combined.includes("steel") && combined.includes("program")) {
+    return "high_risk_steel_erection_programs";
+  }
+  if (combined.includes("task execution") || combined.includes("task module")) {
+    return "task_execution_modules";
+  }
+  if (combined.includes("ppe") || combined.includes("personal protective") || combined.includes("work attire")) {
+    return "ppe_and_work_attire";
+  }
+  if (combined.includes("inspection") || combined.includes("audit") || combined.includes("record")) {
+    return "inspections_audits_and_records";
+  }
+  if (combined.includes("closeout") || combined.includes("close out") || combined.includes("lessons learned")) {
+    return "project_closeout";
+  }
+  if (combined.includes("hazard") || combined.includes("control") || combined.includes("program")) {
+    return "hazard_control_modules";
+  }
+
   if (combined.includes("role") || combined.includes("competent person")) return "roles_and_responsibilities";
   if (combined.includes("company overview") || combined.includes("safety philosophy")) {
-    return "company_overview_and_safety_philosophy";
+    return "purpose";
   }
-  if (combined.includes("security") || combined.includes("access")) return "security_and_access_control";
+  if (combined.includes("security") || combined.includes("access")) return "site_access_security_laydown_traffic_control";
   if (
     combined.includes("incident") ||
     combined.includes("drug") ||
     combined.includes("wellness") ||
     combined.includes("corrective")
   ) {
-    return "contractor_iipp";
+    return "iipp_incident_reporting_corrective_action";
   }
   if (combined.includes("meeting") || combined.includes("engagement") || combined.includes("toolbox")) {
-    return "contractor_safety_meetings_and_engagement";
+    return "training_competency_and_certifications";
   }
   if (combined.includes("audit") || combined.includes("monitoring") || combined.includes("reporting")) {
-    return "contractor_monitoring_audits_and_reporting";
+    return "inspections_audits_and_records";
   }
   if (combined.includes("sub tier") || combined.includes("subcontract") || combined.includes("lower tier")) {
-    return "sub_tier_contractor_management";
+    return "trade_interaction_and_coordination";
   }
   if (combined.includes("close out") || combined.includes("closeout") || combined.includes("demobil")) {
-    return "project_close_out";
+    return "project_closeout";
   }
   if (combined.includes("inspection") || combined.includes("checklist")) {
-    return "checklists_and_inspections";
+    return "inspections_audits_and_records";
   }
   if (combined.includes("environmental") || combined.includes("stormwater") || combined.includes("spill")) {
-    return "environmental_execution_requirements";
+    return "hazard_communication_and_environmental_protection";
   }
   if (
     combined.includes("hazcom") ||
@@ -1986,39 +2081,39 @@ function inferFormatSectionKey(section: GeneratedSafetyPlanSection): CsepFormatS
     combined.includes("sds") ||
     combined.includes("ghs")
   ) {
-    return "hazard_communication_program";
+    return "hazard_communication_and_environmental_protection";
   }
   if (combined.includes("emergency") || combined.includes("evacuation") || combined.includes("rescue")) {
-    return "emergency_preparedness_and_response";
+    return "emergency_response_and_rescue";
   }
   if (
     combined.includes("ppe") ||
     combined.includes("personal protective") ||
     combined.includes("fall protection")
   ) {
-    return "personal_protective_equipment";
+    return "ppe_and_work_attire";
   }
   if (combined.includes("training") || combined.includes("orientation") || combined.includes("competency")) {
-    return "contractor_safety_meetings_and_engagement";
+    return "training_competency_and_certifications";
   }
   if (combined.includes("weather") || combined.includes("storm") || combined.includes("lightning")) {
-    return "weather_requirements_and_severe_weather_response";
+    return "emergency_response_and_rescue";
   }
-  if (combined.includes("permit")) return "permits_and_forms";
+  if (combined.includes("permit")) return "required_permits_and_hold_points";
   if (combined.includes("osha") || combined.includes("reference") || combined.includes("regulatory")) {
-    return "regulatory_framework";
+    return "regulatory_basis_and_references";
   }
   if (combined.includes("hazard") || combined.includes("activity hazard") || combined.includes("program")) {
-    return "hse_elements_and_site_specific_hazard_analysis";
+    return "hazard_control_modules";
   }
   if (combined.includes("trade") || combined.includes("scope") || combined.includes("project information")) {
-    return "project_scope_and_trade_specific_activities";
+    return "scope_of_work_section";
   }
   if (combined.includes("contractor information") || combined.includes("policy")) {
-    return "company_overview_and_safety_philosophy";
+    return "project_and_contractor_information";
   }
 
-  return "safe_work_practices_and_trade_specific_procedures";
+  return "hazard_control_modules";
 }
 
 function buildStaticFrontMatterSections(
@@ -2027,45 +2122,36 @@ function buildStaticFrontMatterSections(
 ): GeneratedSafetyPlanSection[] {
   const aiAssemblyDecisions = draft.aiAssemblyDecisions ?? null;
 
-  const definitionsTable = {
-    columns: ["Term / Abbreviation", "Definition / Intended Use"],
-    rows: [
-      ["CBA", "Collective bargaining or labor-agreement language that may add project-specific safety expectations."],
-      ["CM/GC", "Construction manager / general contractor responsible for project-level coordination."],
-      ["Competent Person", "Qualified individual designated to identify hazards and take prompt corrective action."],
-      ["IIPP", "Injury and Illness Prevention Program requirements carried through this contractor package."],
-      ["JHA / PTP", "Job hazard analysis / pre-task planning tool used for activity-specific risk review."],
-    ],
-  };
-
   const formatSections = selectedFormatSectionKeys
     .map((key) => getCsepFormatDefinition(key))
     .filter(Boolean);
 
   return [
     {
-      key: "table_of_contents",
+      key: "owner_message",
       kind: "front_matter",
       order: 0,
+      title: "Owner Message",
+      layoutKey: "owner_message",
+      body:
+        cleanFinalText(aiAssemblyDecisions?.frontMatterGuidance) ??
+        "Project leadership expects all contractor work to be planned, coordinated, and executed in accordance with this CSEP.",
+    },
+    {
+      key: "sign_off_page",
+      kind: "front_matter",
+      order: 1,
+      title: "Sign-Off Page",
+      layoutKey: "sign_off_page",
+      body: "Issue this plan only after the responsible project and contractor representatives complete the required review and sign-off.",
+    },
+    {
+      key: "table_of_contents",
+      kind: "front_matter",
+      order: 2,
       title: "Table of Contents",
       layoutKey: "table_of_contents",
       bullets: formatSections.map((section) => section.title),
-    },
-    {
-      key: "plan_use_guidance",
-      kind: "front_matter",
-      order: 1,
-      title: "How to Use This Plan",
-      layoutKey: "plan_use_guidance",
-      body: cleanFinalText(aiAssemblyDecisions?.frontMatterGuidance) ?? "Use this plan as the field execution reference for the selected contractor scope and supporting attachments.",
-    },
-    {
-      key: "definitions_and_abbreviations",
-      kind: "front_matter",
-      order: 2,
-      title: "Definitions and Abbreviations",
-      layoutKey: "definitions_and_abbreviations",
-      table: definitionsTable,
     },
   ];
 }
@@ -2110,9 +2196,10 @@ function buildDocumentControlRevisionEndSection(
 
   return {
     key: "document_control_and_revision_history",
-    kind: "appendix",
-    order: 39,
-    title: "Document Control and Revision History",
+    kind: "main",
+    order: 30,
+    title: "21. Document Control and Revision History",
+    numberLabel: "21",
     layoutKey: "document_control_and_revision_history",
     body:
       "Current issue control, revision status, and approval record for this issued CSEP package.",
@@ -2325,19 +2412,11 @@ function buildAppendixLibrarySections(
                   ["Quick Inserts", "Field reference cards and worker-facing quick-use pages."],
                   ["Specialty References", hazardTitles.join(", ") || "Hazard-module references and project-specific field aids."],
                 ]
-              : definition.key === "appendix_safety_program_reference_pack"
+              : definition.key === "appendix_e_task_hazard_control_matrix"
                 ? [
-                    [
-                      "Program narratives",
-                      "Full procedure text for programs summarized in Hazards and Controls (issued export merges narratives here when applicable).",
-                    ],
-                    [
-                      "Field use",
-                      "Carry the Hazards and Controls summaries at the work face; use this appendix for training, audits, and detailed reference.",
-                    ],
+                    ["Matrix", "Task, hazard, control, PPE, permit, and verification matrix."],
+                    ["Field use", "Use the matrix as a task-facing reference after reviewing Sections 15 through 17."],
                   ]
-                : definition.key === "appendix_g_regulatory_references_r_index"
-                  ? CSEP_REGULATORY_REFERENCE_INDEX.map((entry) => [entry.code, entry.citation])
                   : [
                       ["Emergency Contacts", "Clinic directions, emergency ladder, and owner / GC contact inserts."],
                       ["Maps and Routes", "Site maps, shelter locations, access routes, and staging references."],
@@ -2351,7 +2430,7 @@ function buildAppendixLibrarySections(
       order: definition.order,
       title: definition.title,
       numberLabel: definition.numberLabel,
-      parentSectionKey: "appendices_and_support_library",
+      parentSectionKey: null,
       appendixKey: definition.key,
       layoutKey: "appendix_library",
       body: cleanFinalText(definition.purpose) ?? fallbackSectionBody(definition) ?? undefined,
@@ -2362,7 +2441,7 @@ function buildAppendixLibrarySections(
     };
   });
 
-  return [buildDocumentControlRevisionEndSection(draft), ...attachmentSections];
+  return attachmentSections;
 }
 
 function applyAiAssemblyDecisionsToStructuredSections(
@@ -2440,7 +2519,6 @@ export function buildStructuredCsepSectionMap(
       includedContent: builderSnapshot.includedContent,
     });
   const selectedFormatSectionSet = new Set<CsepFormatSectionKey>(resolvedSelectedFormatSectionKeys);
-  selectedFormatSectionSet.add("appendices_and_support_library");
   const selectedFormatSectionKeys = CSEP_FORMAT_SECTION_KEYS.filter((key) =>
     selectedFormatSectionSet.has(key)
   );
@@ -2485,8 +2563,8 @@ export function buildStructuredCsepSectionMap(
 
   const frontMatterSections = buildStaticFrontMatterSections(draft, selectedFormatSectionKeys);
   const mainSections: Array<GeneratedSafetyPlanSection | null> = selectedFormatSectionKeys.map((sectionKey) => {
-    if (options?.finalIssueMode && sectionKey === "appendices_and_support_library") {
-      return null;
+    if (sectionKey === "document_control_and_revision_history") {
+      return buildDocumentControlRevisionEndSection(draft);
     }
 
     const definition = getCsepFormatDefinition(sectionKey);
@@ -2518,14 +2596,14 @@ export function buildStructuredCsepSectionMap(
     const aiSectionDecision = aiAssemblyDecisions?.sectionDecisions?.[sectionKey]?.trim() ?? null;
     const fallbackBody = options?.finalIssueMode ? null : fallbackSectionBody(definition);
     const permitBullets =
-      sectionKey === "permits_and_forms"
+      sectionKey === "required_permits_and_hold_points"
         ? normalizePermitList([
             ...draft.ruleSummary.permitTriggers,
             ...combinedBullets,
           ])
         : combinedBullets;
     const projectScopeSummarySubsections =
-      sectionKey === "project_scope_and_trade_specific_activities"
+      sectionKey === "scope_of_work_section"
         ? buildProjectScopeSummarySubsections({
             bullets: permitBullets,
             table: combinedTables,
@@ -2543,11 +2621,11 @@ export function buildStructuredCsepSectionMap(
       isDuplicateStructuredText(resolvedBody, permitBullets) ? undefined : resolvedBody;
 
     const emergencyQuickReferenceSubsections =
-      sectionKey === "emergency_preparedness_and_response"
+      sectionKey === "emergency_response_and_rescue"
         ? buildOperationalQuickReferenceSubsections()
         : [];
     const securityLogisticsSubsections =
-      sectionKey === "security_and_access_control"
+      sectionKey === "site_access_security_laydown_traffic_control"
         ? buildSecurityLogisticsSubsections(draft, builderSnapshot)
         : [];
 
@@ -2596,7 +2674,7 @@ export function buildStructuredCsepSectionMap(
     } satisfies GeneratedSafetyPlanSection;
     if (
       options?.finalIssueMode &&
-      sectionKey === "emergency_preparedness_and_response" &&
+      sectionKey === "emergency_response_and_rescue" &&
       !nextSection.table &&
       !(nextSection.subsections?.length) &&
       !isMeaningfulFinalText(nextSection.body)

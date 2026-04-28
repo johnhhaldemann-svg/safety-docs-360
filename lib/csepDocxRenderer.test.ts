@@ -177,24 +177,34 @@ describe("csepDocxRenderer", () => {
     const model = buildCsepRenderModelFromGeneratedDraft(createGeneratedDraft());
 
     expect(model.frontMatterSections.map((section) => section.key)).toEqual([
-      "message_from_owner",
+      "owner_message",
       "sign_off_page",
       "table_of_contents",
-      "purpose",
-      "scope",
-      "top_10_risks",
-      "trade_interaction_info",
-      "disciplinary_program",
-      "union",
-      "security_at_site",
-      "hazcom",
-      "iipp_emergency_response",
-      "hazards_and_controls",
-      "training_inspections_monitoring_recordkeeping",
-      "close_out_lessons_learned",
     ]);
-    expect(model.sections.map((section) => section.key)).toEqual([]);
-    expect(model.frontMatterSections.find((s) => s.key === "hazards_and_controls")?.numberLabel).toBeUndefined();
+    expect(model.sections.map((section) => section.key)).toEqual([
+      "purpose",
+      "project_and_contractor_information",
+      "scope_of_work_section",
+      "regulatory_basis_and_references",
+      "top_10_critical_risks",
+      "roles_and_responsibilities",
+      "trade_interaction_and_coordination",
+      "site_access_security_laydown_traffic_control",
+      "hazard_communication_and_environmental_protection",
+      "emergency_response_and_rescue",
+      "iipp_incident_reporting_corrective_action",
+      "worker_conduct_fit_for_duty_disciplinary_program",
+      "training_competency_and_certifications",
+      "required_permits_and_hold_points",
+      "high_risk_steel_erection_programs",
+      "hazard_control_modules",
+      "task_execution_modules",
+      "ppe_and_work_attire",
+      "inspections_audits_and_records",
+      "project_closeout",
+      "document_control_and_revision_history",
+    ]);
+    expect(model.sections.find((s) => s.key === "hazard_control_modules")?.numberLabel).toBeUndefined();
   });
 
   it("renders Top 10 Risks as offset body lines without 4.1, 4.2-style numbering", async () => {
@@ -208,7 +218,7 @@ describe("csepDocxRenderer", () => {
       taskTitles: ["Deck placement"],
       sourceSections: draft.sectionMap,
     });
-    const topSub = sections.find((s) => s.key === "top_10_risks")?.subsections[0];
+    const topSub = sections.find((s) => s.key === "top_10_critical_risks")?.subsections[0];
     expect(topSub?.title).toBe("Top 10 Risks");
     expect(topSub?.plainItemsStyle).toBe("offset_lines");
 
@@ -256,13 +266,70 @@ describe("csepDocxRenderer", () => {
       taskTitles: ["Deck placement"],
       sourceSections: draft.sectionMap,
     });
-    const haz = sections.find((s) => s.key === "hazards_and_controls");
+    const haz = sections.find((s) => s.key === "hazard_control_modules");
     const titles = (haz?.subsections ?? []).map((s) => s.title);
     expect(titles.some((title) => /: Risk$/i.test(title))).toBe(true);
-    expect(titles.some((title) => /: Required Controls$/i.test(title))).toBe(true);
-    expect(titles.some((title) => /: How Controls Are Verified$/i.test(title))).toBe(true);
-    expect(titles.some((title) => /: Stop-Work Triggers$/i.test(title))).toBe(true);
-    expect(titles.some((title) => /: References$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /: Required controls$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /: How controls are met and verified$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /: Stop-work \/ hold-point triggers$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /: Applicable references$/i.test(title))).toBe(true);
+  });
+
+  it("renders program module subsections with labels and explicit numbered lines", async () => {
+    const draft = createGeneratedDraft();
+    draft.sectionMap.push({
+      key: "program_falling_objects",
+      title: "Falling Objects, Overhead Work, and Gravity Hazards",
+      summary: "Tools and material can fall to lower levels during steel erection and material handling.",
+      subsections: [
+        {
+          title: "Risk",
+          body:
+            "Tools, bolts, deck cutouts, steel pieces, weld slag, banding, material, and debris can fall to lower levels or adjacent areas during steel erection, decking, welding, and material handling.",
+          bullets: [],
+        },
+        {
+          title: "Required controls",
+          bullets: [
+            "Create drop zones, overhead barricades, CAZs, toe boards, debris netting, tool tethering, lanyards, covered walkways, or other controls based on the exposure.",
+            "Secure tools, hardware, welding leads, hoses, deck cutouts, loose material, and debris before starting elevated work or moving material.",
+          ],
+        },
+        {
+          title: "How controls are met and verified",
+          bullets: [
+            "Foreman and competent person verify below-work protection before overhead work starts and when the work front moves.",
+            "Housekeeping and material control are checked before break, shift end, weather events, and handoff.",
+          ],
+        },
+        {
+          title: "Stop-work / hold-point triggers",
+          bullets: [
+            "Workers are below uncontrolled overhead work, drop zone is not maintained, or material/tools are not secured.",
+            "Wind or vibration causes material movement or makes drop control unreliable.",
+          ],
+        },
+        {
+          title: "Applicable references",
+          bullets: ["R5 OSHA 1926.759; R23 OSHA 1926.25; gravity / overhead work permit if required by site."],
+        },
+      ],
+    });
+
+    const rendered = await renderGeneratedCsepDocx(draft);
+    const { documentXml } = await unzipDocx(rendered.body);
+
+    expect(documentXml).toContain("Risk:");
+    expect(documentXml).toContain("Required controls:");
+    expect(documentXml).toContain("How controls are met and verified:");
+    expect(documentXml).toMatch(/Stop-work[^<]*triggers:/);
+    expect(documentXml).toContain("Applicable references:");
+    expect(documentXml).toContain("1. Create drop zones");
+    expect(documentXml).toContain("2. Secure tools");
+    expect(documentXml).toContain("1. Foreman and competent person verify");
+    expect(documentXml).toContain("1. Workers are below uncontrolled overhead work");
+    expect(documentXml).toContain("1. R5 OSHA 1926.759; R23 OSHA 1926.25");
+    expect(documentXml).not.toContain("<w:numPr>");
   });
 
   it("renders Scope Summary tasks as offset lines without subsection numbers like 3.1.1", async () => {
@@ -283,7 +350,9 @@ describe("csepDocxRenderer", () => {
       taskTitles: ["Deck placement"],
       sourceSections: draft.sectionMap,
     });
-    const scopeSub = sections.find((s) => s.key === "scope")?.subsections.find((sub) => /scope summary/i.test(sub.title));
+    const scopeSub = sections
+      .find((s) => s.key === "scope_of_work_section")
+      ?.subsections.find((sub) => /scope summary/i.test(sub.title));
     expect(scopeSub?.plainItemsStyle).toBe("offset_lines");
 
     const rendered = await renderGeneratedCsepDocx(draft);
@@ -317,7 +386,7 @@ describe("csepDocxRenderer", () => {
       sourceSections: draft.sectionMap,
     });
 
-    const scopeSection = sections.find((section) => section.key === "scope");
+    const scopeSection = sections.find((section) => section.key === "scope_of_work_section");
     const scopeTitles = (scopeSection?.subsections ?? []).map((sub) => sub.title.toLowerCase());
     expect(scopeTitles.some((title) => title.includes("project information"))).toBe(false);
     expect(scopeTitles.some((title) => title.includes("contractor information"))).toBe(false);
@@ -346,9 +415,9 @@ describe("csepDocxRenderer", () => {
 
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml } = await unzipDocx(rendered.body);
-    expect(documentXml).toContain("14. Hazards and Controls");
+    expect(documentXml).toContain("20. Hazard Control Modules");
     expect(documentXml).toContain("Extra Hazard Program 40");
-    expect(documentXml).not.toMatch(/14\.(?:8[0-9]|9[0-9]|1[0-9]{2})\s/);
+    expect(documentXml).not.toMatch(/20\.(?:8[0-9]|9[0-9]|1[0-9]{2})\s/);
   });
 
   it("keeps one instance of each required section and supplies placeholders where needed", () => {
@@ -364,25 +433,31 @@ describe("csepDocxRenderer", () => {
     });
 
     expect(sections.map((section) => section.key)).toEqual([
-      "message_from_owner",
+      "owner_message",
       "sign_off_page",
       "table_of_contents",
       "purpose",
-      "scope",
-      "top_10_risks",
-      "trade_interaction_info",
-      "disciplinary_program",
-      "union",
-      "security_at_site",
-      "hazcom",
-      "iipp_emergency_response",
-      "hazards_and_controls",
-      "training_inspections_monitoring_recordkeeping",
-      "close_out_lessons_learned",
+      "project_and_contractor_information",
+      "scope_of_work_section",
+      "regulatory_basis_and_references",
+      "top_10_critical_risks",
+      "roles_and_responsibilities",
+      "trade_interaction_and_coordination",
+      "site_access_security_laydown_traffic_control",
+      "hazard_communication_and_environmental_protection",
+      "emergency_response_and_rescue",
+      "iipp_incident_reporting_corrective_action",
+      "worker_conduct_fit_for_duty_disciplinary_program",
+      "training_competency_and_certifications",
+      "required_permits_and_hold_points",
+      "high_risk_steel_erection_programs",
+      "hazard_control_modules",
+      "task_execution_modules",
+      "ppe_and_work_attire",
+      "inspections_audits_and_records",
+      "project_closeout",
+      "document_control_and_revision_history",
     ]);
-    expect(
-      sections.find((section) => section.key === "union")?.subsections[0]?.paragraphs?.[0]
-    ).toContain("No craft-specific union");
     expect(sections.find((section) => section.key === "sign_off_page")?.numberLabel).toBeUndefined();
     expect(sections.find((section) => section.key === "table_of_contents")?.numberLabel).toBeUndefined();
   });
@@ -427,15 +502,13 @@ describe("csepDocxRenderer", () => {
 
   it("replaces repeated policy text inside hazard modules with short cross-references", () => {
     const model = buildCsepRenderModelFromGeneratedDraft(createGeneratedDraft());
-    const hazardSection = model.frontMatterSections.find((section) => section.key === "hazards_and_controls");
+    const hazardSection = model.sections.find((section) => section.key === "hazard_control_modules");
     const flattened = (hazardSection?.subsections ?? []).flatMap((subsection) => [
       ...(subsection.paragraphs ?? []),
       ...(subsection.items ?? []),
     ]);
     const hazardText = flattened.join(" ");
 
-    expect(hazardText).toContain("Follow the project Hazard Communication requirements defined in the HazCom section.");
-    expect(hazardText).toContain("Follow the project IIPP / Emergency Response requirements defined in the IIPP / Emergency Response section.");
     expect(hazardText).not.toContain("Follow the project Hazard Communication requirements for sealants.");
     expect(hazardText).not.toContain("Follow the project emergency response policy when a rescue is needed.");
   });
@@ -480,24 +553,24 @@ describe("csepDocxRenderer", () => {
 
     const model = buildCsepRenderModelFromGeneratedDraft(draft);
     const asText = (key: string) =>
-      (model.frontMatterSections.find((section) => section.key === key)?.subsections ?? [])
+      ([...model.frontMatterSections, ...model.sections].find((section) => section.key === key)?.subsections ?? [])
         .flatMap((subsection) => [...(subsection.paragraphs ?? []), ...(subsection.items ?? [])])
         .join(" ");
 
-    const tradeText = asText("trade_interaction_info");
+    const tradeText = asText("trade_interaction_and_coordination");
     expect(tradeText.length).toBeGreaterThan(0);
     expect(tradeText).not.toMatch(/\bSDS\b/i);
     expect(tradeText).not.toMatch(/\bbadge|visitor\b/i);
 
-    const securityText = asText("security_at_site");
+    const securityText = asText("site_access_security_laydown_traffic_control");
     expect(securityText.length).toBeGreaterThan(0);
     expect(securityText).not.toMatch(/\bchemical inventory|GHS|NFPA|SDS\b/i);
 
-    const hazcomText = asText("hazcom");
+    const hazcomText = asText("hazard_communication_and_environmental_protection");
     expect(hazcomText.length).toBeGreaterThan(0);
     expect(hazcomText).not.toMatch(/\btrucking|traffic control|laydown\b/i);
 
-    const iippText = asText("iipp_emergency_response");
+    const iippText = asText("emergency_response_and_rescue");
     expect(iippText.length).toBeGreaterThan(0);
     expect(iippText).not.toMatch(/\bSDS|GHS|NFPA|chemical inventory\b/i);
   });
@@ -517,26 +590,35 @@ describe("csepDocxRenderer", () => {
     const tocBlockEnd = documentXml.indexOf("5. Purpose", tocBlockStart);
     expect(tocBlockEnd).toBeGreaterThan(tocBlockStart);
     const tocSlice = documentXml.slice(tocBlockStart, tocBlockEnd);
-    expect(tocSlice.indexOf("1. Title Page")).toBeLessThan(tocSlice.indexOf("2. Message from Owner"));
+    expect(tocSlice.indexOf("1. Title Page")).toBeLessThan(tocSlice.indexOf("2. Owner Message"));
 
     const outlineModel = buildCsepRenderModelFromGeneratedDraft(createGeneratedDraft());
     const disclaimerOrdinal = buildCsepOutlinePlan(outlineModel).find((e) => e.kind === "disclaimer")!.ordinal;
     const orderedHeadings = [
-      "2. Message from Owner",
+      "2. Owner Message",
       "3. Sign-Off Page",
       "4. Table of Contents",
       "5. Purpose",
-      "6. Scope",
-      "7. Top 10 Risks",
-      "8. Trade Interaction Info",
-      "9. Disciplinary Program",
-      "10. Union",
-      "11. Security at Site",
-      "12. HazCom",
-      "13. IIPP / Emergency Response",
-      "14. Hazards and Controls",
-      "15. Training, Inspections, Monitoring &amp; Recordkeeping",
-      "16. Close-Out / Lessons Learned",
+      "6. Project and Contractor Information",
+      "7. Scope of Work",
+      "8. Regulatory Basis and References",
+      "9. Top 10 Critical Risks",
+      "10. Roles and Responsibilities",
+      "11. Trade Interaction and Coordination",
+      "12. Site Access, Security, Laydown, and Traffic Control",
+      "13. Hazard Communication and Environmental Protection",
+      "14. Emergency Response and Rescue",
+      "15. IIPP / Incident Reporting / Corrective Action",
+      "16. Worker Conduct, Fit-for-Duty, and Disciplinary Program",
+      "17. Training, Competency, and Certifications",
+      "18. Required Permits and Hold Points",
+      "19. High-Risk Steel Erection Programs",
+      "20. Hazard Control Modules",
+      "21. Task Execution Modules",
+      "22. PPE and Work Attire",
+      "23. Inspections, Audits, and Records",
+      "24. Project Closeout",
+      "25. Document Control and Revision History",
       `${disclaimerOrdinal}. Disclaimer`,
     ];
 

@@ -93,20 +93,16 @@ describe("csepPrograms", () => {
     expect(permitRequiredSection.title).toBe("Permit-Required Confined Space Entry Program");
     expect(nonPermitSection.title).toBe("Non-Permit Confined Space Entry Program");
     expect(
-      permitRequiredSection.subsections.find((section) => section.title === "Pre-Task Setup")?.bullets
+      permitRequiredSection.requiredControls
     ).toContain("Complete the permit-required entry review, verify hazard isolation, and confirm attendant, entrant, and supervisor roles before entry begins.");
     expect(
-      nonPermitSection.subsections.find((section) => section.title === "Stop-Work / Escalation")?.bullets
+      nonPermitSection.stopWorkTriggers
     ).toContain("Stop work immediately if atmospheric concerns, engulfment potential, hazardous energy, or other permit-required conditions develop.");
     expect(
-      permitRequiredSection.subsections
-        .find((section) => section.title === "Minimum Required Controls")
-        ?.body
+      permitRequiredSection.requiredControls.join(" ")
     ).toContain("permit-required");
     expect(
-      nonPermitSection.subsections
-        .find((section) => section.title === "Minimum Required Controls")
-        ?.body
+      nonPermitSection.requiredControls.join(" ")
     ).toContain("non-permit");
   });
 
@@ -187,16 +183,11 @@ describe("csepPrograms", () => {
 
     expect(section.title).toBe("Custom Fall Program");
     expect(section.summary).toBe("Custom summary for review.");
-    expect(
-      section.subsections.find((subsection) => subsection.title === "Planning / Release for Work")
-        ?.body
-    ).toContain("Custom pre-task procedure");
-    expect(
-      section.subsections.find((subsection) => subsection.title === "Site-Specific")?.bullets
-    ).toEqual(expect.arrayContaining(["Custom control 1", "Custom control 2"]));
+    expect(section.requiredControls.join(" ")).toContain("Custom pre-task procedure");
+    expect(section.requiredControls).toEqual(expect.arrayContaining(["Custom control 1.", "Custom control 2."]));
   });
 
-  it("renders a consolidated hot work program with governing subsections in order", () => {
+  it("renders a consolidated hot work program with the reusable module fields in order", () => {
     const section = buildCsepProgramSection({
       category: "hazard",
       item: "Hot work / fire",
@@ -206,22 +197,17 @@ describe("csepPrograms", () => {
 
     expect(section.title).toBe("Hot Work Program");
     expect(section.subsections.map((s) => s.title)).toEqual([
-      "Applicable References",
-      "Purpose / When Required",
-      "Core Requirements",
-      "Pre-Task Verification",
-      "Work Controls",
-      "Fire Watch / Closeout",
-      "Stop-Work / Reassessment",
-      "Related Tasks",
+      "Risk",
+      "Required controls",
+      "How controls are met and verified",
+      "Stop-work / hold-point triggers",
+      "Applicable references",
     ]);
-    expect(section.subsections.find((s) => s.title === "Purpose / When Required")?.body).toMatch(
-      /spark|welding|fire/i
-    );
-    expect(section.subsections.find((s) => s.title === "Core Requirements")?.bullets.length).toBeGreaterThan(5);
+    expect(section.risk).toMatch(/spark|welding|fire/i);
+    expect(section.requiredControls.length).toBeGreaterThan(5);
   });
 
-  it("renders a consolidated fall-protection program with applicability subsections in order", () => {
+  it("renders a consolidated fall-protection program with the reusable module fields in order", () => {
     const section = buildCsepProgramSection({
       category: "hazard",
       item: "Falls from height",
@@ -230,23 +216,15 @@ describe("csepPrograms", () => {
     });
 
     expect(section.subsections.map((subsection) => subsection.title)).toEqual([
-      "Applicable References",
-      "When Required",
-      "When Not Required",
-      "Planning / Release for Work",
-      "Inspection",
-      "Anchorage and Compatibility",
-      "Tie-Off",
-      "Fall Clearance",
-      "Leading Edge / Access Conditions",
-      "Protection from Damage",
-      "Training",
-      "Stop-Work",
-      "Related Tasks",
+      "Risk",
+      "Required controls",
+      "How controls are met and verified",
+      "Stop-work / hold-point triggers",
+      "Applicable references",
     ]);
   });
 
-  it("lists related tasks in a Related Tasks subsection for the fall program", () => {
+  it("lists related tasks in verification methods for the fall program", () => {
     const section = buildCsepProgramSection({
       category: "hazard",
       item: "Falls from height",
@@ -255,8 +233,8 @@ describe("csepPrograms", () => {
     });
 
     expect(
-      section.subsections.find((subsection) => subsection.title === "Related Tasks")?.body
-    ).toContain("Related tasks: Unload steel, Sort members, Rigging.");
+      section.verificationMethods.join(" ")
+    ).toContain("Unload steel, Sort members, Rigging");
   });
 
   it("renders program metadata subsections as paragraph bodies across the CSEP", () => {
@@ -275,52 +253,75 @@ describe("csepPrograms", () => {
 
     expect(hazardSection.subsections).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          title: "Applicable References",
-          bullets: expect.arrayContaining(["R2"]),
-        }),
-        expect.objectContaining({
-          title: "When Not Required",
-          body: expect.stringMatching(/fully protected|ground-level/),
-        }),
-        expect.objectContaining({
-          title: "Inspection",
-          body: expect.stringMatching(/harness|Remove damaged/i),
-        }),
+        expect.objectContaining({ title: "Risk" }),
+        expect.objectContaining({ title: "Required controls" }),
+        expect.objectContaining({ title: "How controls are met and verified" }),
+        expect.objectContaining({ title: "Stop-work / hold-point triggers" }),
+        expect.objectContaining({ title: "Applicable references" }),
       ])
     );
+    expect(hazardSection.requiredControls.join(" ")).toMatch(/harness|Remove damaged/i);
+    expect(hazardSection.applicableReferences).toEqual(expect.arrayContaining(["R3"]));
 
     expect(section.subsections).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          title: "When It Applies",
-          body:
-            "Selected work occurs around moving equipment, haul routes, or active traffic interfaces.",
-          bullets: [],
-        }),
-        expect.objectContaining({
-          title: "Applicable References",
-          bullets: ["R10"],
-        }),
-        expect.objectContaining({
-          title: "Responsibilities and Training",
-          body:
-            "Supervision shall verify high-visibility apparel is worn in traffic-exposed work areas. Workers shall be trained on site traffic-control expectations and high-visibility requirements.",
-          bullets: [],
-        }),
-        expect.objectContaining({
-          title: "Minimum Required Controls",
-          body:
-            "Wear high-visibility garments that remain visible, clean, and in good condition. Replace garments that no longer provide effective visibility. Do not enter active traffic or equipment zones without the required visibility controls.",
-          bullets: [],
-        }),
-        expect.objectContaining({
-          title: "Related Tasks",
-          body: "These related tasks apply to this program scope: Unload steel, Sort members, Rigging.",
-          bullets: [],
-        }),
+        expect.objectContaining({ title: "Risk" }),
+        expect.objectContaining({ title: "Required controls" }),
+        expect.objectContaining({ title: "How controls are met and verified" }),
+        expect.objectContaining({ title: "Stop-work / hold-point triggers" }),
+        expect.objectContaining({ title: "Applicable references" }),
       ])
     );
+    expect(section.risk).toContain("Selected work occurs around moving equipment");
+    expect(section.applicableReferences).toEqual(["R2"]);
+    expect(section.requiredControls.join(" ")).toContain("Wear high-visibility garments");
+    expect(section.verificationMethods.join(" ")).toContain("Supervision shall verify high-visibility apparel");
+  });
+
+  it("uses the ProgramModule structure for every generated program and avoids legacy subsection names", () => {
+    const sections = buildCsepProgramSections([
+      {
+        category: "hazard",
+        item: "Falling objects",
+        relatedTasks: ["Overhead bolting"],
+        source: "selected",
+      },
+      {
+        category: "hazard",
+        item: "Hot work / fire",
+        relatedTasks: ["Welding"],
+        source: "selected",
+      },
+      {
+        category: "ppe",
+        item: "High Visibility Vest",
+        relatedTasks: ["Traffic control"],
+        source: "selected",
+      },
+    ]);
+
+    for (const section of sections) {
+      expect(section.programModule).toEqual(
+        expect.objectContaining({
+          title: section.title,
+          risk: expect.any(String),
+          requiredControls: expect.any(Array),
+          verificationMethods: expect.any(Array),
+          stopWorkTriggers: expect.any(Array),
+          applicableReferences: expect.any(Array),
+        })
+      );
+      expect(section.subsections.map((subsection) => subsection.title)).toEqual([
+        "Risk",
+        "Required controls",
+        "How controls are met and verified",
+        "Stop-work / hold-point triggers",
+        "Applicable references",
+      ]);
+      expect(section.subsections.map((subsection) => subsection.title)).not.toEqual(
+        expect.arrayContaining(["Minimum Required Controls", "Pre-Task Setup", "Stop-Work / Escalation"])
+      );
+    }
   });
 
   it("omits the separate Fall Protection Harness PPE program when the falls hazard program is selected", () => {
@@ -373,7 +374,11 @@ describe("csepPrograms", () => {
     ]);
     expect(onlyHazard).toHaveLength(1);
     expect(onlyHazard[0]?.subsections.map((s) => s.title)).toEqual([
-      "Program controls — Ladder Use Controls",
+      "Risk",
+      "Required controls",
+      "How controls are met and verified",
+      "Stop-work / hold-point triggers",
+      "Applicable references",
     ]);
   });
 

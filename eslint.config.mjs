@@ -1,4 +1,5 @@
 import { defineConfig, globalIgnores } from "eslint/config";
+import reactHooks from "eslint-plugin-react-hooks";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
@@ -6,6 +7,9 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    plugins: {
+      "react-hooks": reactHooks,
+    },
     rules: {
       "@typescript-eslint/no-unused-vars": [
         "warn",
@@ -39,6 +43,12 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    files: ["electron/**/*.cjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+  {
     files: ["lib/superadmin/runSystemHealthScan.ts", "lib/superadmin/platformInfrastructureHealth.ts"],
     rules: {
       // Supabase head-count queries use a fluent builder that is awkward to type precisely.
@@ -55,6 +65,7 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    "dist-electron-out/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

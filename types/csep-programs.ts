@@ -69,6 +69,15 @@ export type CSEPProgramConfig = {
   definitions: CSEPProgramDefinition[];
 };
 
+export type CSEPProgramModule = {
+  title: string;
+  risk: string;
+  requiredControls: string[];
+  verificationMethods: string[];
+  stopWorkTriggers: string[];
+  applicableReferences: string[];
+};
+
 export type CSEPProgramSection = {
   key: string;
   category: CSEPProgramCategory;
@@ -77,6 +86,12 @@ export type CSEPProgramSection = {
   title: string;
   summary: string;
   relatedTasks: string[];
+  programModule: CSEPProgramModule;
+  risk: string;
+  requiredControls: string[];
+  verificationMethods: string[];
+  stopWorkTriggers: string[];
+  applicableReferences: string[];
   subsections: Array<{
     title: string;
     body?: string;

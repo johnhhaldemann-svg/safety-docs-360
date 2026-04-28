@@ -353,6 +353,36 @@ const OFFLINE_DEMO_CSEP_PREFILL: Partial<CSEPForm> = {
     "Weekly leadership review analyzes recurring hazards and updates task controls for the next work cycle.",
 };
 
+const csepDerivedRequestPayloadKeys = [
+  "tradeItems",
+  "derivedHazards",
+  "derivedPermits",
+  "overlapPermitHints",
+  "priced_attachments",
+  "common_overlapping_trades",
+  "programSelections",
+  "tradeSummary",
+  "oshaRefs",
+] as const;
+
+function buildCompactCsepRequestFormData(
+  formData: Record<string, unknown>,
+  options: { includeLogo?: boolean } = {}
+) {
+  const compact = { ...formData };
+
+  csepDerivedRequestPayloadKeys.forEach((key) => {
+    delete compact[key];
+  });
+
+  if (!options.includeLogo) {
+    delete compact.company_logo_data_url;
+    delete compact.company_logo_file_name;
+  }
+
+  return compact;
+}
+
 function buildOfflineDemoJobsiteScenario(jobsite: CompanyJobsite | undefined): Partial<CSEPForm> {
   const name = (jobsite?.name ?? "").toLowerCase();
 
@@ -1419,9 +1449,7 @@ export default function CSEPPage() {
       }
 
       setPreviewLoading(true);
-      const previewFormData = { ...submissionFormData };
-      delete previewFormData.company_logo_data_url;
-      delete previewFormData.company_logo_file_name;
+      const previewFormData = buildCompactCsepRequestFormData(submissionFormData);
 
       const response = await fetch("/api/company/csep/preview", {
         method: "POST",
@@ -1524,6 +1552,9 @@ export default function CSEPPage() {
       }
 
       setSubmitLoading(true);
+      const submitFormData = buildCompactCsepRequestFormData(submissionFormData, {
+        includeLogo: true,
+      });
 
       const response = await fetch("/api/documents/submit", {
         method: "POST",
@@ -1536,7 +1567,7 @@ export default function CSEPPage() {
           project_name: form.project_name,
           generated_document_id: previewState.generatedDocumentId,
           builder_input_hash: previewState.builderInputHash,
-          form_data: submissionFormData,
+          form_data: submitFormData,
         }),
       });
 

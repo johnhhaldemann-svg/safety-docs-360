@@ -600,15 +600,25 @@ const CATALOG_PROGRAM_GROUPS: Array<{
   },
 ];
 
-function formatCatalogProgramSubsectionValue(
-  subsection: CSEPProgramSection["subsections"][number]
-) {
-  return [
-    ...(subsection.body?.trim() ? [subsection.body.trim()] : []),
-    ...(subsection.bullets ?? []).map((bullet) => bullet.trim()).filter(Boolean),
-  ]
-    .join(" ")
-    .trim();
+function appendProgramModule(children: Paragraph[], program: CSEPProgramSection) {
+  const programModule = program.programModule;
+
+  children.push(body("Risk:"));
+  children.push(body(programModule.risk));
+
+  const groups = [
+    ["Required controls", programModule.requiredControls],
+    ["How controls are met and verified", programModule.verificationMethods],
+    ["Stop-work / hold-point triggers", programModule.stopWorkTriggers],
+    ["Applicable references", programModule.applicableReferences],
+  ] as const;
+
+  groups.forEach(([label, items]) => {
+    children.push(body(`${label}:`));
+    items.forEach((item, index) => {
+      children.push(body(`${index + 1}. ${item}`));
+    });
+  });
 }
 
 function appendCatalogProgramGroups(
@@ -628,18 +638,7 @@ function appendCatalogProgramGroups(
     groupedPrograms.forEach((program, programIndex) => {
       const programPrefix = `${nextSectionNumber}.${programIndex + 1}`;
       children.push(heading2(`${programPrefix} ${program.title}`));
-      children.push(body(program.summary));
-
-      program.subsections.forEach((subsection, subsectionIndex) => {
-        const value = formatCatalogProgramSubsectionValue(subsection);
-        if (!value) return;
-        children.push(
-          createCsepLabeledParagraph(subsection.title, value, {
-            prefix: `${programPrefix}.${subsectionIndex + 1}`,
-            indentLeft: 240,
-          })
-        );
-      });
+      appendProgramModule(children, program);
     });
 
     nextSectionNumber += 1;
