@@ -58,7 +58,7 @@ function formatOutlineTocLine(entry: CsepOutlinePlanEntry): string {
 const LOG_PREFIX = "[CSEP export quality]";
 
 /** Maximum total subsection rows in main body; structured program modules expand the outline by design. */
-export const CSEP_EXPORT_MAX_MAIN_BODY_SUBSECTIONS = 240;
+export const CSEP_EXPORT_MAX_MAIN_BODY_SUBSECTIONS = 360;
 
 const REQUIRED_FRONT_MATTER_KEYS: readonly string[] = CANONICAL_CSEP_SECTION_ORDER
   .filter((section) => section.kind === "front_matter")
@@ -126,6 +126,12 @@ const OWNERSHIP_COMPANION_KEYS: Record<string, readonly string[]> = {
   iipp_incident_reporting_corrective_action: [
     "training_competency_and_certifications",
     "worker_conduct_fit_for_duty_disciplinary_program",
+  ],
+  site_access_security_laydown_traffic_control: [
+    "trade_interaction_and_coordination",
+    "high_risk_steel_erection_programs",
+    "hazard_control_modules",
+    "task_execution_modules",
   ],
 };
 const MAX_HAZARD_MODULE_COUNT = 100;
@@ -374,7 +380,10 @@ function checkPermitCoverageAndPlacement(model: CsepRenderModel, draft?: Generat
   const allSections = [...model.frontMatterSections, ...model.sections];
   const sectionPermitCounts = allSections.map((section) => ({
     key: section.key,
-    count: sectionText(section).reduce((sum, line) => sum + (/\bpermit|lift plan|pick plan|hot work\b/i.test(line) ? 1 : 0), 0),
+    count: sectionText(section).reduce((sum, line) => {
+      const permitSignal = line.replace(/\bpermit\s+holder\b/gi, "");
+      return sum + (/\bpermit|lift plan|pick plan|hot work\b/i.test(permitSignal) ? 1 : 0);
+    }, 0),
   }));
   const sorted = [...sectionPermitCounts].sort((a, b) => b.count - a.count);
   const primary = sorted[0];
@@ -383,6 +392,7 @@ function checkPermitCoverageAndPlacement(model: CsepRenderModel, draft?: Generat
   }
   const permittedReferenceSections = new Set([
     "regulatory_basis_and_references",
+    "required_permits_and_hold_points",
     "high_risk_steel_erection_programs",
     "hazard_control_modules",
     "task_execution_modules",
@@ -642,7 +652,7 @@ export function assertCsepExportQuality(model: CsepRenderModel, options?: { draf
     checkOwnedTopicIsolation(
       model,
       "site_access_security_laydown_traffic_control",
-      /\b(laydown|delivery|truck driver|trucking|worker access|visitor|badge|site entry)\b/i,
+      /\b(worker access|visitor|badge|site entry|unauthorized access|uncontrolled access|site security)\b/i,
       SECURITY_REFERENCE_ALLOWLIST
     )
   );

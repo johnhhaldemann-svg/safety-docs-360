@@ -1882,8 +1882,12 @@ export function buildCsepTemplateSections(
   }));
 }
 
+const REQUIRED_COVER_METADATA_ROW_LABELS = new Set(["Project Name", "Project Address", "Contractor", "Date"]);
+
 function meaningfulFieldRows(rows: CsepCoverMetadataRow[]) {
-  return rows.filter((row) => normalizeCompareToken(row.value) !== "n a");
+  return rows.filter(
+    (row) => REQUIRED_COVER_METADATA_ROW_LABELS.has(row.label) || normalizeCompareToken(row.value) !== "n a"
+  );
 }
 
 function hasMeaningfulSubsections(subsections: CsepTemplateSubsection[]) {
@@ -2869,7 +2873,13 @@ function hazardCategoryFromSubsectionTitle(title: string):
 function normalizeHazardModuleBlueprintSubsections(
   subsections: CsepTemplateSubsection[]
 ): CsepTemplateSubsection[] {
-  const groups = groupSubsectionsForFlatProgramOutline(subsections, "hazard_control_modules");
+  const groupedByTitle = new Map<string, CsepTemplateSubsection[]>();
+  for (const group of groupSubsectionsForFlatProgramOutline(subsections, "hazard_control_modules")) {
+    const hazardName = majorProgramTitleForFlatGroup(group).trim() || "Hazard Module";
+    const key = normalizeCompareToken(hazardName);
+    groupedByTitle.set(key, [...(groupedByTitle.get(key) ?? []), ...group]);
+  }
+  const groups = Array.from(groupedByTitle.values());
   const normalized: CsepTemplateSubsection[] = [];
 
   for (const group of groups) {
