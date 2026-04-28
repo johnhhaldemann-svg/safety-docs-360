@@ -53,8 +53,10 @@ function DomainStatus({
   expectedValues: string[];
   gap?: SafetyReviewGap;
 }) {
+  const statusTone = toneForGap(gap);
+
   return (
-    <div className="rounded-lg border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.92)] p-3">
+    <div className="rounded-xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.92)] p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-text)]">{label}</p>
@@ -68,10 +70,10 @@ function DomainStatus({
         </div>
         <StatusBadge
           label={gap ? "Gap" : currentValues.length ? "Mapped" : "Not expected"}
-          tone={toneForGap(gap)}
+          tone={statusTone}
         />
       </div>
-      <div className="mt-3 grid gap-2 lg:grid-cols-2">
+      <div className="mt-3 grid gap-2">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-text)]">Current output</p>
           {currentValues.length ? (
@@ -89,23 +91,25 @@ function DomainStatus({
             <p className="mt-1.5 text-xs text-[var(--app-text)]">No mapped output.</p>
           )}
         </div>
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-text)]">Expected context</p>
-          {expectedValues.length ? (
-            <ul className="mt-1.5 flex flex-wrap gap-1.5">
-              {expectedValues.map((value) => (
-                <li
-                  key={value}
-                  className="rounded-full bg-[rgba(217,164,65,0.14)] px-2 py-1 text-[10px] font-semibold text-[var(--semantic-warning)]"
-                >
-                  {humanizeCode(value)}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-1.5 text-xs text-[var(--app-text)]">No explicit expectation recorded.</p>
-          )}
-        </div>
+        {gap || expectedValues.length ? (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-text)]">Expected context</p>
+            {expectedValues.length ? (
+              <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                {expectedValues.map((value) => (
+                  <li
+                    key={value}
+                    className="rounded-full bg-[rgba(217,164,65,0.14)] px-2 py-1 text-[10px] font-semibold text-[var(--semantic-warning)]"
+                  >
+                    {humanizeCode(value)}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1.5 text-xs text-[var(--app-text)]">No explicit expectation recorded.</p>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -117,7 +121,7 @@ function ReviewRowCard({ row }: { row: SafetyReviewRow }) {
   const ppeGap = row.gaps.find((gap) => gap.domain === "ppe");
 
   return (
-    <article className="rounded-xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.94)] p-3 shadow-[var(--app-shadow-soft)]">
+    <article className="rounded-xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.94)] p-4 shadow-[var(--app-shadow-soft)]">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -128,8 +132,8 @@ function ReviewRowCard({ row }: { row: SafetyReviewRow }) {
           <h4 className="mt-2 truncate text-sm font-semibold text-[var(--app-text-strong)]">{row.taskTitle}</h4>
           <p className="mt-0.5 text-xs leading-5 text-[var(--app-text)]">
             {row.sourceLabel}
-            {row.taskCode ? ` · ${humanizeCode(row.taskCode)}` : ""}
-            {row.workAreaLabel ? ` · ${row.workAreaLabel}` : ""}
+            {row.taskCode ? ` - ${humanizeCode(row.taskCode)}` : ""}
+            {row.workAreaLabel ? ` - ${row.workAreaLabel}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -138,8 +142,8 @@ function ReviewRowCard({ row }: { row: SafetyReviewRow }) {
         </div>
       </div>
 
-      <details className="mt-3">
-        <summary className="cursor-pointer rounded-lg border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2 text-xs font-semibold text-[var(--app-text-strong)]">
+      <details className="mt-3 rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-2">
+        <summary className="cursor-pointer rounded-lg px-2 py-1.5 text-xs font-semibold text-[var(--app-text-strong)]">
           Inspect permit, training, and PPE coverage
         </summary>
         <div className="mt-3 grid gap-3 xl:grid-cols-3">
@@ -221,7 +225,7 @@ export function SafetyReviewPanel({
     <div id="safety-review" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--app-text)]">
-          Permit · Training · PPE coverage
+          Permit, Training, and PPE coverage
         </p>
         <ProvenanceBadge
           kind="rules"

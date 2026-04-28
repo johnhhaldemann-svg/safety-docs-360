@@ -251,7 +251,7 @@ export function SafetyIntelligenceWorkflow({
               {jobsiteId ? "Jobsite execution workflow" : "Company workflow"}
             </h1>
             <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--app-text)]">
-              Start with one work package, review rule-based coverage, then generate a draft. The detailed queue and diagnostics stay tucked away so this page feels like a workflow, not a report dump.
+              Start with one work package, review rule-based coverage, then generate a draft. Detailed queue and diagnostics stay grouped by stage so the page feels like a workflow, not a report dump.
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -273,29 +273,39 @@ export function SafetyIntelligenceWorkflow({
 
       {status ? <InlineMessage tone={status.tone}>{status.message}</InlineMessage> : null}
 
+      <ScopeSummary
+        scopedJobsiteId={scopedJobsiteId}
+        selectedJobsiteName={selectedJobsiteName}
+        latestDraft={latestDraft}
+        latestIntake={latestIntake}
+        generated={generated}
+        loading={loading}
+      />
+
       <Tabs.Root value={mainTab} onValueChange={setMainTab} className="space-y-4">
-        <Tabs.List className="flex flex-wrap gap-1.5 rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-1.5 shadow-[var(--app-shadow-soft)]">
+        <Tabs.List className="grid gap-2 rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-2 shadow-[var(--app-shadow-soft)] md:grid-cols-4">
           {(
             [
-              ["intake", "Intake"],
-              ["rules", "Rules & conflicts"],
-              ["generate", "Generate"],
-              ["review", "Review"],
+              ["intake", "Intake", latestDraft ? "Captured" : "Start here"],
+              ["rules", "Rules & conflicts", latestIntake ? "Evaluated" : "After intake"],
+              ["generate", "Generate", generated ? "Draft ready" : "Create draft"],
+              ["review", "Review", `${documents.length} queued`],
             ] as const
-          ).map(([value, label]) => (
+          ).map(([value, label, detail]) => (
             <Tabs.Trigger
               key={value}
               value={value}
-              className="rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-[var(--app-text)] transition data-[state=active]:bg-[var(--app-accent-primary)] data-[state=active]:text-white data-[state=active]:shadow-[var(--app-shadow-primary-button)]"
+              className="rounded-xl border border-transparent px-4 py-3 text-left transition data-[state=active]:border-[var(--app-accent-border-24)] data-[state=active]:bg-[var(--app-accent-primary)] data-[state=active]:text-white data-[state=active]:shadow-[var(--app-shadow-primary-button)]"
             >
-              {label}
+              <span className="block text-xs font-bold uppercase tracking-wide">{label}</span>
+              <span className="mt-1 block text-[11px] font-semibold opacity-75">{detail}</span>
             </Tabs.Trigger>
           ))}
         </Tabs.List>
 
         <WorkflowPath
           title="Workflow progress"
-          description="Four stages — complete intake before generating so outputs stay rule-grounded."
+          description="Four stages - complete intake before generating so outputs stay rule-grounded."
           steps={stages.map((stage) => ({
             label: stage.label,
             detail: stage.detail,
@@ -375,7 +385,7 @@ export function SafetyIntelligenceWorkflow({
             description="Generate after intake so the draft is tied to the rule context."
             aside={<StatusBadge label={generated ? "Ready" : "Draft"} tone={generated ? "success" : "info"} />}
           >
-            <DocumentGenerationPanel onGenerate={handleGenerate} generated={generated} />
+            <DocumentGenerationPanel onGenerate={handleGenerate} generated={generated} canGenerate={Boolean(latestDraft)} />
           </WorkflowPanel>
         </Tabs.Content>
 
@@ -388,11 +398,78 @@ export function SafetyIntelligenceWorkflow({
           >
             <AdminReviewQueue documents={documents} />
           </WorkflowPanel>
-          <WorkflowPanel eyebrow="Coverage" title="Permit · training · PPE review" description="Rule-based gap list for the current scope.">
+          <WorkflowPanel eyebrow="Coverage" title="Permit, training, and PPE review" description="Rule-based gap list for the current scope.">
             <SafetyReviewPanel review={review} loading={loading} />
           </WorkflowPanel>
         </Tabs.Content>
       </Tabs.Root>
+    </div>
+  );
+}
+
+function ScopeSummary({
+  scopedJobsiteId,
+  selectedJobsiteName,
+  latestDraft,
+  latestIntake,
+  generated,
+  loading,
+}: {
+  scopedJobsiteId: string | null;
+  selectedJobsiteName: string | null;
+  latestDraft: TradeTaskDraft | null;
+  latestIntake: IntakePayload | null;
+  generated: GeneratedDocumentPayload | null;
+  loading: boolean;
+}) {
+  const scopeLabel = scopedJobsiteId ? selectedJobsiteName ?? "Selected jobsite" : "All company work";
+  const statusLabel = loading
+    ? "Loading"
+    : generated
+      ? "Draft ready"
+      : latestIntake
+        ? "Rules evaluated"
+        : latestDraft
+          ? "Work captured"
+          : "Ready for intake";
+
+  return (
+    <section className="grid gap-3 rounded-2xl border border-[var(--app-border-strong)] bg-white/92 p-4 shadow-[var(--app-shadow-soft)] md:grid-cols-3">
+      <ScopeSummaryItem
+        label="Current scope"
+        value={scopeLabel}
+        detail={scopedJobsiteId ? "Jobsite workflow" : "Company-wide workflow"}
+      />
+      <ScopeSummaryItem
+        label="Latest work package"
+        value={latestDraft?.taskTitle || "No task captured"}
+        detail={latestDraft?.workAreaLabel || "Use Intake to begin"}
+      />
+      <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--app-text)]">Workflow status</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <StatusBadge label={statusLabel} tone={generated ? "success" : latestIntake ? "info" : "neutral"} />
+          <ProvenanceBadge kind={generated ? "hybrid" : "rules"} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ScopeSummaryItem({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--app-text)]">{label}</p>
+      <p className="mt-2 truncate text-sm font-bold text-[var(--app-text-strong)]">{value}</p>
+      <p className="mt-1 truncate text-xs text-[var(--app-muted)]">{detail}</p>
     </div>
   );
 }
@@ -411,7 +488,7 @@ function WorkflowPanel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-4 shadow-[var(--app-shadow-soft)]">
+    <section className="rounded-2xl border border-[var(--app-border-strong)] bg-white/94 p-4 shadow-[var(--app-shadow-soft)]">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           {eyebrow ? (
