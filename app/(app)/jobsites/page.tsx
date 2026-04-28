@@ -719,8 +719,25 @@ export default function JobsitesPage() {
                           }}
                           className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
                         >
-                          View Site
+                          Select Site
                         </button>
+
+                        {jobsite.source === "table" ? (
+                          <>
+                            <Link
+                              href={`/jobsites/${encodeURIComponent(jobsite.id)}/overview`}
+                              className="rounded-xl bg-sky-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-sky-700"
+                            >
+                              Open Jobsite
+                            </Link>
+                            <Link
+                              href={`/jobsites/${encodeURIComponent(jobsite.id)}/contractor-training`}
+                              className="rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-4 py-2.5 text-center text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/40"
+                            >
+                              Contractor Training
+                            </Link>
+                          </>
+                        ) : null}
 
                         {jobsite.source === "document_fallback" ? (
                           <button
@@ -864,9 +881,25 @@ export default function JobsitesPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-3">
+                    {selectedJobsite.source === "table" ? (
+                      <>
+                        <Link
+                          href={`/jobsites/${encodeURIComponent(selectedJobsite.id)}/overview`}
+                          className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
+                        >
+                          Open Jobsite
+                        </Link>
+                        <Link
+                          href={`/jobsites/${encodeURIComponent(selectedJobsite.id)}/contractor-training`}
+                          className="rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-4 py-2.5 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/40"
+                        >
+                          Contractor Training
+                        </Link>
+                      </>
+                    ) : null}
                     <Link
                       href="/submit"
-                      className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
+                      className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
                     >
                       Submit Site Document
                     </Link>
