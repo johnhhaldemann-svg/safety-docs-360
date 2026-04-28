@@ -131,6 +131,7 @@ export const companyManagerQuickLinks: NavItem[] = [
 
 export const companyUserQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Home Dashboard", short: "DB" },
+  { href: "/field-audits", label: "Field Audits", short: "FA" },
   { href: "/library", label: "Document Library", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
   { href: "/customer/billing", label: "Billing", short: "BL" },
@@ -266,6 +267,7 @@ export const companyAdminSideSections: NavSection[] = [
     title: "Field work",
     items: [
       { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
+      { href: "/field-audits", label: "Field Audits", short: "FA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
       { href: "/permits", label: "Permit Center", short: "PM" },
       { href: "/incidents", label: "Incident Log", short: "IN" },
@@ -319,6 +321,7 @@ export const companyManagerSideSections: NavSection[] = [
     title: "Field work",
     items: [
       { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
+      { href: "/field-audits", label: "Field Audits", short: "FA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
       { href: "/permits", label: "Permit Center", short: "PM" },
       { href: "/incidents", label: "Incident Log", short: "IN" },
@@ -374,6 +377,7 @@ export const companyUserSideSections: NavSection[] = [
   {
     title: "Field forms",
     items: [
+      { href: "/field-audits", label: "Field Audits", short: "FA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
       { href: "/submit", label: "Submit for Review", short: "SD" },
       { href: "/upload", label: "Upload Documents", short: "UF" },

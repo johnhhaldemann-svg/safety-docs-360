@@ -103,6 +103,18 @@ const JOBSITE_WORKSPACE_ROLES = new Set([
   "read_only",
 ]);
 
+const FIELD_AUDIT_WORKSPACE_ROLES = new Set([
+  "company_admin",
+  "manager",
+  "safety_manager",
+  "project_manager",
+  "field_supervisor",
+  "foreman",
+  "field_user",
+  "read_only",
+  "company_user",
+]);
+
 const NON_COMPANY_INTERNAL_ROLES = new Set([
   "internal_reviewer",
   "employee",
@@ -236,6 +248,15 @@ export function canAccessCompanyWorkspaceHref(
   }
   if (normalizedHref === "/incidents") {
     return canManageCompanyIncidents(role, permissionMap);
+  }
+  if (normalizedHref === "/field-audits") {
+    const normalized = normalizeRole(role);
+    return (
+      isAdminLikeRole(role) ||
+      isSalesDemoRole(role) ||
+      FIELD_AUDIT_WORKSPACE_ROLES.has(normalized) ||
+      Boolean(permissionMap?.can_view_dashboards || permissionMap?.can_view_all_company_data)
+    );
   }
   if (normalizedHref === "/jobsites") {
     return canAccessCompanyJobsites(role, permissionMap);

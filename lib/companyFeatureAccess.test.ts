@@ -99,6 +99,24 @@ describe("companyFeatureAccess", () => {
     expect(canAccessCompanyWorkspaceHref("/upload", "field_user", noDocumentAccess)).toBe(false);
   });
 
+  it("makes field audits available to every company workspace role", () => {
+    const roles = [
+      "company_admin",
+      "manager",
+      "safety_manager",
+      "project_manager",
+      "field_supervisor",
+      "foreman",
+      "field_user",
+      "read_only",
+      "company_user",
+    ];
+
+    for (const role of roles) {
+      expect(canAccessCompanyWorkspaceHref("/field-audits", role, buildPermissionMap()), role).toBe(true);
+    }
+  });
+
   it("allows sales demo accounts to showcase company workspace operators", () => {
     const demoPermissions = buildPermissionMap({
       can_create_documents: true,
