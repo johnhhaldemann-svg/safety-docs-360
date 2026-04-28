@@ -56,7 +56,7 @@ function overview(): DashboardOverview {
 }
 
 describe("PerformanceHubPanel", () => {
-  it("renders the main score, contributors, current operations, and drivers", () => {
+  it("renders the main score, contributors, current operations, and drivers in title case", () => {
     const html = renderToStaticMarkup(<PerformanceHubPanel overview={overview()} activeJobsites={3} />);
 
     expect(html).toContain("Safety Performance Score");
