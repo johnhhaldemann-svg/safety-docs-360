@@ -14,6 +14,12 @@ import {
   parseStringArray,
   sendContractorIntakeEmail,
 } from "@/lib/contractorTraining";
+import {
+  filterAllowedPositions,
+  filterAllowedTrades,
+  isAllowedConstructionPosition,
+  isAllowedConstructionTrade,
+} from "@/lib/constructionProfileOptions";
 
 export const runtime = "nodejs";
 
@@ -35,6 +41,19 @@ function asNullableString(value: unknown) {
 function asDateString(value: unknown) {
   const text = asString(value);
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function isRequirementInScope(
+  requirement: { apply_trades?: string[] | null; apply_positions?: string[] | null },
+  employee: Record<string, unknown>
+) {
+  const trades = Array.isArray(requirement.apply_trades) ? requirement.apply_trades : [];
+  const positions = Array.isArray(requirement.apply_positions) ? requirement.apply_positions : [];
+  const employeeTrade = String(employee.trade_specialty ?? "").trim();
+  const employeePosition = String(employee.job_title ?? "").trim();
+  const tradeApplies = trades.length === 0 || trades.includes(employeeTrade);
+  const positionApplies = positions.length === 0 || positions.includes(employeePosition);
+  return tradeApplies && positionApplies;
 }
 
 async function resolveScope(request: Request, jobsiteId: string) {
@@ -85,7 +104,7 @@ async function loadMatrix(db: any, companyId: string, jobsiteId: string) {
   const [requirementsResult, assignmentsResult, contractorsResult] = await Promise.all([
     db
       .from("jobsite_contractor_training_requirements")
-      .select("id, title, sort_order, created_at")
+      .select("id, title, sort_order, apply_trades, apply_positions, created_at")
       .eq("company_id", companyId)
       .eq("jobsite_id", jobsiteId)
       .order("sort_order", { ascending: true })
@@ -112,6 +131,8 @@ async function loadMatrix(db: any, companyId: string, jobsiteId: string) {
     id: string;
     title: string;
     sort_order: number;
+    apply_trades?: string[] | null;
+    apply_positions?: string[] | null;
   }>;
   const assignments = (assignmentsResult.data ?? []) as Array<{
     id: string;
@@ -172,6 +193,8 @@ async function loadMatrix(db: any, companyId: string, jobsiteId: string) {
       id: row.id,
       title: row.title,
       sortOrder: row.sort_order,
+      applyTrades: Array.isArray(row.apply_trades) ? row.apply_trades : [],
+      applyPositions: Array.isArray(row.apply_positions) ? row.apply_positions : [],
     })),
     contractors: ((contractorsResult.data ?? []) as Array<{ id: string; name: string }>).map((row) => ({
       id: row.id,
@@ -187,6 +210,7 @@ async function loadMatrix(db: any, companyId: string, jobsiteId: string) {
       );
       const cells = Object.fromEntries(
         requirements.map((requirement) => {
+          if (!isRequirementInScope(requirement, employee)) return [requirement.id, "na"];
           const record = recordByRequirement.get(requirement.id) ?? null;
           return [requirement.id, contractorTrainingStatus(record)];
         })
@@ -256,12 +280,18 @@ export async function POST(request: Request, { params }: { params: Promise<Param
     if (action === "addRequirement") {
       const title = normalizeTrainingTitle(asString(body?.title));
       if (!title) return NextResponse.json({ error: "title is required." }, { status: 400 });
+      const applyTrades = filterAllowedTrades(body?.applyTrades);
+      const applyPositions = filterAllowedPositions(body?.applyPositions);
+      if (applyTrades.length === 0) return NextResponse.json({ error: "Select at least one trade." }, { status: 400 });
+      if (applyPositions.length === 0) return NextResponse.json({ error: "Select at least one position." }, { status: 400 });
       const sortOrder = Number.isFinite(Number(body?.sortOrder)) ? Number(body?.sortOrder) : 0;
       const result = await scoped.db.from("jobsite_contractor_training_requirements").insert({
         company_id: companyId,
         jobsite_id: scoped.jobsite.id,
         title,
         sort_order: sortOrder,
+        apply_trades: applyTrades,
+        apply_positions: applyPositions,
         created_by: scoped.auth.user.id,
         updated_by: scoped.auth.user.id,
       });
@@ -298,8 +328,8 @@ export async function POST(request: Request, { params }: { params: Promise<Param
         phone,
         phone_normalized: phoneNormalized,
         contractor_company_name: asNullableString(body?.contractorCompanyName),
-        trade_specialty: asNullableString(body?.tradeSpecialty),
-        job_title: asNullableString(body?.jobTitle),
+        trade_specialty: isAllowedConstructionTrade(asString(body?.tradeSpecialty)) ? asString(body?.tradeSpecialty) : null,
+        job_title: isAllowedConstructionPosition(asString(body?.jobTitle)) ? asString(body?.jobTitle) : null,
         readiness_status: asString(body?.readinessStatus) || "ready",
         years_experience: Number.isFinite(Number(body?.yearsExperience)) ? Number(body?.yearsExperience) : null,
         certifications,
@@ -444,4 +474,3 @@ export async function POST(request: Request, { params }: { params: Promise<Param
     );
   }
 }
-

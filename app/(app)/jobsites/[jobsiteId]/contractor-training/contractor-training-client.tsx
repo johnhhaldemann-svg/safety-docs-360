@@ -10,12 +10,15 @@ import {
   StatusBadge,
   appButtonPrimaryClassName,
   appButtonSecondaryClassName,
+  appNativeSelectClassName,
 } from "@/components/WorkspacePrimitives";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { PROFILE_CERTIFICATION_GROUPS } from "@/lib/constructionProfileCertifications";
+import { CONSTRUCTION_POSITIONS, CONSTRUCTION_TRADES } from "@/lib/constructionProfileOptions";
 
 const supabase = getSupabaseBrowserClient();
 
-type Requirement = { id: string; title: string; sortOrder: number };
+type Requirement = { id: string; title: string; sortOrder: number; applyTrades: string[]; applyPositions: string[] };
 type Contractor = { id: string; name: string };
 type TrainingRecord = {
   id: string;
@@ -43,7 +46,7 @@ type Assignment = {
     certifications: string[];
     certificationExpirations: Record<string, string>;
   };
-  cells: Record<string, "missing" | "complete" | "expiring" | "expired">;
+  cells: Record<string, "missing" | "complete" | "expiring" | "expired" | "na">;
   records: TrainingRecord[];
 };
 type Payload = {
@@ -66,6 +69,7 @@ function statusLabel(status: string) {
   if (status === "complete") return "Complete";
   if (status === "expiring") return "Expiring";
   if (status === "expired") return "Expired";
+  if (status === "na") return "Out of scope";
   return "Missing";
 }
 
@@ -79,6 +83,8 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
   const [message, setMessage] = useState("");
   const [tone, setTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
   const [requirementTitle, setRequirementTitle] = useState("");
+  const [requirementTrade, setRequirementTrade] = useState("");
+  const [requirementPosition, setRequirementPosition] = useState("");
   const [employeeName, setEmployeeName] = useState("");
   const [employeeEmail, setEmployeeEmail] = useState("");
   const [employeePhone, setEmployeePhone] = useState("");
@@ -95,12 +101,14 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
   const archivedAssignments = assignments.filter((assignment) => assignment.status === "archived");
 
   const stats = useMemo(() => {
-    const totalChecks = activeAssignments.length * requirements.length;
+    let totalChecks = 0;
     let complete = 0;
     let attention = 0;
     for (const assignment of activeAssignments) {
       for (const requirement of requirements) {
         const status = assignment.cells[requirement.id] ?? "missing";
+        if (status === "na") continue;
+        totalChecks += 1;
         if (status === "complete") complete += 1;
         if (status === "missing" || status === "expired" || status === "expiring") attention += 1;
       }
@@ -158,10 +166,18 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
   async function addRequirement() {
     try {
       await postAction(
-        { action: "addRequirement", title: requirementTitle, sortOrder: requirements.length + 1 },
+        {
+          action: "addRequirement",
+          title: requirementTitle,
+          applyTrades: [requirementTrade],
+          applyPositions: [requirementPosition],
+          sortOrder: requirements.length + 1,
+        },
         "Requirement added."
       );
       setRequirementTitle("");
+      setRequirementTrade("");
+      setRequirementPosition("");
     } catch (error) {
       setTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to add requirement.");
@@ -271,14 +287,64 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
       {canManage ? (
         <div className="grid gap-6 lg:grid-cols-2">
           <SectionCard title="Add Requirement" description="Create the training columns for this jobsite.">
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <input
+            <div className="grid gap-3">
+              <label className="text-sm font-medium text-[var(--app-text-strong)]">
+                Training requirement
+                <select
                 value={requirementTitle}
-                onChange={(event) => setRequirementTitle(event.target.value)}
-                placeholder="Training name, e.g. Site Orientation"
-                className="min-w-0 flex-1 rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm"
-              />
-              <button type="button" onClick={() => void addRequirement()} className={appButtonPrimaryClassName}>
+                  onChange={(event) => setRequirementTitle(event.target.value)}
+                  className={`mt-1 w-full ${appNativeSelectClassName}`}
+                >
+                  <option value="">Select from profile certifications...</option>
+                  {PROFILE_CERTIFICATION_GROUPS.map((group) => (
+                    <optgroup key={group.title} label={group.title}>
+                      {group.items.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm font-medium text-[var(--app-text-strong)]">
+                  Trade
+                  <select
+                    value={requirementTrade}
+                    onChange={(event) => setRequirementTrade(event.target.value)}
+                    className={`mt-1 w-full ${appNativeSelectClassName}`}
+                  >
+                    <option value="">Select trade</option>
+                    {CONSTRUCTION_TRADES.map((trade) => (
+                      <option key={trade} value={trade}>
+                        {trade}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm font-medium text-[var(--app-text-strong)]">
+                  Position
+                  <select
+                    value={requirementPosition}
+                    onChange={(event) => setRequirementPosition(event.target.value)}
+                    className={`mt-1 w-full ${appNativeSelectClassName}`}
+                  >
+                    <option value="">Select position</option>
+                    {CONSTRUCTION_POSITIONS.map((position) => (
+                      <option key={position} value={position}>
+                        {position}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <button
+                type="button"
+                onClick={() => void addRequirement()}
+                disabled={!requirementTitle || !requirementTrade || !requirementPosition}
+                className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:opacity-50`}
+              >
                 <Plus className="h-4 w-4" aria-hidden />
                 Add
               </button>
@@ -299,8 +365,18 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
                 ))}
               </select>
               <input value={contractorCompanyName} onChange={(event) => setContractorCompanyName(event.target.value)} placeholder="Contractor company" className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm" />
-              <input value={tradeSpecialty} onChange={(event) => setTradeSpecialty(event.target.value)} placeholder="Trade" className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm" />
-              <input value={jobTitle} onChange={(event) => setJobTitle(event.target.value)} placeholder="Position" className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm sm:col-span-2" />
+              <select value={tradeSpecialty} onChange={(event) => setTradeSpecialty(event.target.value)} className={appNativeSelectClassName}>
+                <option value="">Select trade</option>
+                {CONSTRUCTION_TRADES.map((trade) => (
+                  <option key={trade} value={trade}>{trade}</option>
+                ))}
+              </select>
+              <select value={jobTitle} onChange={(event) => setJobTitle(event.target.value)} className={`${appNativeSelectClassName} sm:col-span-2`}>
+                <option value="">Select position</option>
+                {CONSTRUCTION_POSITIONS.map((position) => (
+                  <option key={position} value={position}>{position}</option>
+                ))}
+              </select>
               <button type="button" onClick={() => void addEmployee()} className={`${appButtonPrimaryClassName} sm:col-span-2`}>
                 <Plus className="h-4 w-4" aria-hidden />
                 Add Employee
@@ -324,6 +400,9 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
                   {requirements.map((requirement) => (
                     <th key={requirement.id} className="min-w-56 border-b border-slate-200 px-4 py-3 font-semibold text-slate-700">
                       {requirement.title}
+                      <span className="mt-1 block text-[11px] font-medium text-slate-500">
+                        {(requirement.applyPositions ?? []).join(", ") || "All positions"} / {(requirement.applyTrades ?? []).join(", ") || "All trades"}
+                      </span>
                     </th>
                   ))}
                   <th className="border-b border-slate-200 px-4 py-3 font-semibold text-slate-700">Actions</th>
@@ -351,10 +430,10 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
                       return (
                         <td key={requirement.id} className="px-4 py-4">
                           <div className="flex items-center gap-2">
-                            {status === "complete" ? <Check className="h-4 w-4 text-emerald-600" aria-hidden /> : <X className="h-4 w-4 text-amber-600" aria-hidden />}
+                            {status === "complete" ? <Check className="h-4 w-4 text-emerald-600" aria-hidden /> : status === "na" ? <X className="h-4 w-4 text-slate-400" aria-hidden /> : <X className="h-4 w-4 text-amber-600" aria-hidden />}
                             <StatusBadge label={statusLabel(status)} tone={statusTone(status)} />
                           </div>
-                          {canManage ? (
+                          {canManage && status !== "na" ? (
                             <div className="mt-3 grid gap-2">
                               <input
                                 type="date"
@@ -420,4 +499,3 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
     </div>
   );
 }
-

@@ -2,9 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Check, Plus, Save } from "lucide-react";
-import { InlineMessage, PageHero, SectionCard, appButtonPrimaryClassName } from "@/components/WorkspacePrimitives";
+import {
+  InlineMessage,
+  PageHero,
+  SectionCard,
+  appButtonPrimaryClassName,
+  appNativeSelectClassName,
+} from "@/components/WorkspacePrimitives";
+import { CONSTRUCTION_POSITIONS, CONSTRUCTION_TRADES } from "@/lib/constructionProfileOptions";
 
-type Requirement = { id: string; title: string; sort_order: number };
+type Requirement = { id: string; title: string; sort_order: number; apply_trades?: string[]; apply_positions?: string[] };
 type TrainingRecord = {
   requirement_id: string | null;
   title: string;
@@ -54,6 +61,13 @@ export default function ContractorTrainingIntakePage() {
   const [trainingDrafts, setTrainingDrafts] = useState<Record<string, { completedOn: string; expiresOn: string; notes: string }>>({});
 
   const requirements = payload.requirements ?? [];
+  const scopedRequirements = requirements.filter((requirement) => {
+    const trades = Array.isArray(requirement.apply_trades) ? requirement.apply_trades : [];
+    const positions = Array.isArray(requirement.apply_positions) ? requirement.apply_positions : [];
+    const tradeApplies = trades.length === 0 || trades.includes(tradeSpecialty);
+    const positionApplies = positions.length === 0 || positions.includes(jobTitle);
+    return tradeApplies && positionApplies;
+  });
   const records = useMemo(() => payload.records ?? [], [payload.records]);
 
   useEffect(() => {
@@ -104,7 +118,7 @@ export default function ContractorTrainingIntakePage() {
   async function submit() {
     setMessage("");
     try {
-      const trainingRecords = requirements.map((requirement) => {
+      const trainingRecords = scopedRequirements.map((requirement) => {
         const record = recordForRequirement(records, requirement.id);
         const draft = trainingDrafts[requirement.id] ?? {
           completedOn: record?.completed_on ?? "",
@@ -170,8 +184,22 @@ export default function ContractorTrainingIntakePage() {
                 <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm" />
                 <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone" className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm" />
                 <input value={contractorCompanyName} onChange={(event) => setContractorCompanyName(event.target.value)} placeholder="Contractor company" className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm" />
-                <input value={tradeSpecialty} onChange={(event) => setTradeSpecialty(event.target.value)} placeholder="Trade" className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm" />
-                <input value={jobTitle} onChange={(event) => setJobTitle(event.target.value)} placeholder="Position" className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm" />
+                <select value={tradeSpecialty} onChange={(event) => setTradeSpecialty(event.target.value)} className={appNativeSelectClassName}>
+                  <option value="">Select trade</option>
+                  {CONSTRUCTION_TRADES.map((trade) => (
+                    <option key={trade} value={trade}>
+                      {trade}
+                    </option>
+                  ))}
+                </select>
+                <select value={jobTitle} onChange={(event) => setJobTitle(event.target.value)} className={appNativeSelectClassName}>
+                  <option value="">Select position</option>
+                  {CONSTRUCTION_POSITIONS.map((position) => (
+                    <option key={position} value={position}>
+                      {position}
+                    </option>
+                  ))}
+                </select>
               </div>
             </SectionCard>
 
@@ -179,8 +207,10 @@ export default function ContractorTrainingIntakePage() {
               <div className="grid gap-4">
                 {requirements.length === 0 ? (
                   <InlineMessage>No jobsite training requirements have been configured yet.</InlineMessage>
+                ) : scopedRequirements.length === 0 ? (
+                  <InlineMessage>Select your trade and position to show required jobsite training.</InlineMessage>
                 ) : (
-                  requirements.map((requirement) => {
+                  scopedRequirements.map((requirement) => {
                     const record = recordForRequirement(records, requirement.id);
                     const draft = trainingDrafts[requirement.id] ?? {
                       completedOn: record?.completed_on ?? "",
@@ -251,4 +281,3 @@ export default function ContractorTrainingIntakePage() {
     </main>
   );
 }
-

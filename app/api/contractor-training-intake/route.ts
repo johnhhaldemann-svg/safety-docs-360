@@ -8,6 +8,7 @@ import {
   parseExpirationMap,
   parseStringArray,
 } from "@/lib/contractorTraining";
+import { isAllowedConstructionPosition, isAllowedConstructionTrade } from "@/lib/constructionProfileOptions";
 
 export const runtime = "nodejs";
 
@@ -79,7 +80,7 @@ export async function GET(request: Request) {
       .maybeSingle(),
     scoped.admin
       .from("jobsite_contractor_training_requirements")
-      .select("id, title, sort_order")
+      .select("id, title, sort_order, apply_trades, apply_positions")
       .eq("company_id", scoped.tokenRow.company_id)
       .eq("jobsite_id", scoped.tokenRow.jobsite_id)
       .order("sort_order", { ascending: true }),
@@ -144,8 +145,8 @@ export async function POST(request: Request) {
       phone: asNullableString(body?.phone),
       phone_normalized: normalizePhone(asNullableString(body?.phone)),
       contractor_company_name: asNullableString(body?.contractorCompanyName),
-      trade_specialty: asNullableString(body?.tradeSpecialty),
-      job_title: asNullableString(body?.jobTitle),
+      trade_specialty: isAllowedConstructionTrade(asString(body?.tradeSpecialty)) ? asString(body?.tradeSpecialty) : null,
+      job_title: isAllowedConstructionPosition(asString(body?.jobTitle)) ? asString(body?.jobTitle) : null,
       readiness_status: asString(body?.readinessStatus) || "ready",
       years_experience: Number.isFinite(Number(body?.yearsExperience)) ? Number(body?.yearsExperience) : null,
       certifications,
@@ -199,4 +200,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ success: true });
 }
-
