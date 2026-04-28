@@ -28,12 +28,12 @@ function synthesizeRagQuery(input: RawTaskInput, bucket: BucketedWorkItem): stri
 function truncateExcerpt(text: string, max: number): string {
   const t = text.replace(/\s+/g, " ").trim();
   if (t.length <= max) return t;
-  return `${t.slice(0, Math.max(1, max - 1)).trimEnd()}…`;
+  return `${t.slice(0, Math.max(1, max - 3)).trimEnd()}...`;
 }
 
 /**
- * Staged Smart Safety context: foundation → buckets/rules/conflicts (via buildAiReviewContext)
- * → memory snapshot → prevention logic → optional RAG excerpts.
+ * Staged Smart Safety context: foundation -> buckets/rules/conflicts (via buildAiReviewContext)
+ * -> memory snapshot -> prevention logic -> optional RAG excerpts.
  */
 export async function buildSmartSafetyAiReviewContext(params: {
   input: RawTaskInput;

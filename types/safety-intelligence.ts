@@ -597,7 +597,7 @@ export type SteelErectionPlan = {
   };
   workAttireAndTesting?: {
     attireRules?: string[];
-    /** Minimum project PPE for steel—listed separately from clothing (see ppeList). */
+    /** Minimum project PPE for steel - listed separately from clothing (see ppeList). */
     ppeList?: string[];
     drugTestingRules?: string[];
   };
@@ -705,7 +705,7 @@ export type RiskOutputRecord = {
   }>;
   forecastConflicts: string[];
   correctiveActions: string[];
-  /** Normalized 0–100 headline aligned with Risk Memory rollup when facet data exists. */
+  /** Normalized 0-100 headline aligned with Risk Memory rollup when facet data exists. */
   preventionScore?: PreventionScore | null;
   /** Canonical rollup from Risk Memory (authoritative when present). */
   canonicalRiskFromMemory?: { score: number; band: RiskBand; confidence?: number } | null;
@@ -735,7 +735,7 @@ export type SafetyMemorySnapshot = {
   documentQuality: { hints: string[] };
 };
 
-/** Deterministic “prevention logic” layer before LLM (diagram 3A). */
+/** Deterministic "prevention logic" layer before LLM (diagram 3A). */
 export type PreventionLogicResult = {
   missingControls: string[];
   permitRecommendations: string[];

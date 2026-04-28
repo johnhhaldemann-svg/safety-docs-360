@@ -1,6 +1,8 @@
 import type { BucketedWorkItem, RawTaskInput } from "@/types/safety-intelligence";
 import { buildBucketKey } from "@/lib/safety-intelligence/validation/buckets";
 
+export const BUCKET_SCHEMA_VERSION = 1 as const;
+
 export function buildBucketedWorkItem(input: RawTaskInput): BucketedWorkItem {
   return {
     bucketKey: buildBucketKey(input),
@@ -32,6 +34,7 @@ export function buildBucketedWorkItem(input: RawTaskInput): BucketedWorkItem {
     ppeRequirements: input.ppeRequirements ?? [],
     trainingRequirementCodes: input.trainingRequirementCodes ?? [],
     payload: {
+      bucketSchemaVersion: BUCKET_SCHEMA_VERSION,
       description: input.description ?? null,
       equipmentUsed: input.equipmentUsed ?? [],
       workConditions: input.workConditions ?? [],

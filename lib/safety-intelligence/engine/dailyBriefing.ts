@@ -43,7 +43,7 @@ export function buildDailyRiskBriefing(context: AiReviewContext): DailyRiskBrief
   const tasks = context.buckets.map((b) => b.taskTitle).filter(Boolean);
   const headline =
     tasks.length > 0
-      ? `Field briefing for: ${tasks.slice(0, 3).join("; ")}${tasks.length > 3 ? "…" : ""}`
+      ? `Field briefing for: ${tasks.slice(0, 3).join("; ")}${tasks.length > 3 ? "..." : ""}`
       : "Field safety briefing";
 
   const lines: DailyRiskBriefingLine[] = [

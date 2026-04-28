@@ -3,6 +3,7 @@ import { buildBucketedWorkItem } from "@/lib/safety-intelligence/buckets";
 import { STATIC_PLATFORM_RULE_TEMPLATES } from "@/lib/safety-intelligence/rules/catalog";
 import { evaluateRules } from "@/lib/safety-intelligence/rules";
 import { loadDbRuleTemplates } from "@/lib/safety-intelligence/rules/repository";
+import { parseCompanyBucketItemPeerRow } from "@/lib/safety-intelligence/validation/companyBucketPeers";
 import type {
   BucketedWorkItem,
   JsonObject,
@@ -476,6 +477,37 @@ async function loadLiveBucketReviewInputs(supabase: LiteClient, companyId: strin
   };
 }
 
+export function buildLiveSafetyReviewRows(params: {
+  bucketItems: BucketItemReviewRow[];
+  trainingMatrixRequirements: CompanyTrainingMatrixRequirementRow[];
+}) {
+  return sortRows(
+    params.bucketItems
+      .map((row) => ({ sourceRow: row, parsed: parseCompanyBucketItemPeerRow(row) }))
+      .filter((row): row is { sourceRow: BucketItemReviewRow; parsed: NonNullable<ReturnType<typeof parseCompanyBucketItemPeerRow>> } =>
+        Boolean(row.parsed)
+      )
+      .map(({ sourceRow, parsed }) => {
+        const rawInput = bucketToRawTaskInput(parsed.bucket);
+        const baselineBucket = buildBucketedWorkItem(rawInput);
+        const baselineRules = evaluateRules(rawInput, baselineBucket, STATIC_PLATFORM_RULE_TEMPLATES);
+        return buildSafetyReviewRow({
+          id: `live:${sourceRow.id}`,
+          source: "live",
+          scope: "jobsite",
+          sourceLabel: humanizeCode(sourceRow.source_module),
+          rawInput,
+          mergedRules: parsed.rules,
+          baselineRules,
+          applicableTrainingMatrixCodes: findApplicableTrainingMatrixCodes(
+            rawInput,
+            params.trainingMatrixRequirements
+          ),
+        });
+      })
+  );
+}
+
 export async function buildSafetyReviewPayload(params: {
   supabase: LiteClient;
   companyId: string;
@@ -495,29 +527,7 @@ export async function buildSafetyReviewPayload(params: {
       params.jobsiteId
     );
 
-    const rows = sortRows(
-      bucketItems
-        .filter((row) => row.bucket_payload)
-        .map((row) => {
-          const rawInput = bucketToRawTaskInput(row.bucket_payload as BucketedWorkItem);
-          const bucket = buildBucketedWorkItem(rawInput);
-          const mergedRules =
-            row.rule_results && typeof row.rule_results === "object"
-              ? (row.rule_results as RulesEvaluation)
-              : evaluateRules(rawInput, bucket, mergedTemplates);
-          const baselineRules = evaluateRules(rawInput, bucket, STATIC_PLATFORM_RULE_TEMPLATES);
-          return buildSafetyReviewRow({
-            id: `live:${row.id}`,
-            source: "live",
-            scope: "jobsite",
-            sourceLabel: humanizeCode(row.source_module),
-            rawInput,
-            mergedRules,
-            baselineRules,
-            applicableTrainingMatrixCodes: findApplicableTrainingMatrixCodes(rawInput, trainingMatrixRequirements),
-          });
-        })
-    );
+    const rows = buildLiveSafetyReviewRows({ bucketItems, trainingMatrixRequirements });
 
     const gaps = rows.flatMap((row) => row.gaps);
     return {

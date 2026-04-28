@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildSafetyReviewRow } from "@/lib/safety-intelligence/review";
+import { buildLiveSafetyReviewRows } from "@/lib/safety-intelligence/review";
+import { buildBucketedWorkItem } from "@/lib/safety-intelligence/buckets";
+import { evaluateRules } from "@/lib/safety-intelligence/rules";
 import type { RawTaskInput, RulesEvaluation } from "@/types/safety-intelligence";
 
 function buildRulesEvaluation(partial: Partial<RulesEvaluation> = {}): RulesEvaluation {
@@ -179,5 +182,70 @@ describe("buildSafetyReviewRow", () => {
       "training_removed_by_override",
       "ppe_removed_by_override",
     ]);
+  });
+});
+
+describe("buildLiveSafetyReviewRows", () => {
+  it("drops corrupt or mismatched persisted bucket peers before review", () => {
+    const bucket = buildBucketedWorkItem({
+      companyId: "company-1",
+      jobsiteId: "jobsite-1",
+      sourceModule: "manual",
+      sourceId: "valid-row",
+      taskTitle: "Welding",
+      hazardFamilies: ["hot_work"],
+      permitTriggers: ["hot_work_permit"],
+    });
+    const rules = evaluateRules(buildRawInput({ taskTitle: "Welding", hazardFamilies: ["hot_work"] }), bucket);
+    const otherBucket = buildBucketedWorkItem({
+      companyId: "company-1",
+      jobsiteId: "jobsite-1",
+      sourceModule: "manual",
+      sourceId: "other-row",
+      taskTitle: "Crane lift",
+    });
+    const otherRules = evaluateRules(buildRawInput({ taskTitle: "Crane lift" }), otherBucket);
+
+    const rows = buildLiveSafetyReviewRows({
+      bucketItems: [
+        {
+          id: "valid-row",
+          jobsite_id: "jobsite-1",
+          bucket_key: bucket.bucketKey,
+          source_module: "manual",
+          source_id: "valid-row",
+          bucket_payload: bucket,
+          rule_results: rules,
+        },
+        {
+          id: "missing-title",
+          jobsite_id: "jobsite-1",
+          bucket_key: "bad",
+          source_module: "manual",
+          source_id: "bad",
+          bucket_payload: {
+            bucketKey: "bad",
+            bucketType: "task_execution",
+            companyId: "company-1",
+            source: { module: "manual", id: "bad" },
+          } as any,
+          rule_results: rules,
+        },
+        {
+          id: "mismatch",
+          jobsite_id: "jobsite-1",
+          bucket_key: bucket.bucketKey,
+          source_module: "manual",
+          source_id: "mismatch",
+          bucket_payload: bucket,
+          rule_results: otherRules,
+        },
+      ],
+      trainingMatrixRequirements: [],
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.id).toBe("live:valid-row");
+    expect(rows[0]?.permitTriggers).toContain("hot_work_permit");
   });
 });

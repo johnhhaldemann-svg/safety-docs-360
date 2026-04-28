@@ -57,16 +57,16 @@ function documentQualityHints(input: RawTaskInput, bucket: BucketedWorkItem): st
   const hints: string[] = [];
   const desc = (input.description ?? "").trim();
   if (desc.length > 0 && desc.length < 40) {
-    hints.push("Task description is very short—expand steps, energy sources, and adjacent work.");
+    hints.push("Task description is very short - expand steps, energy sources, and adjacent work.");
   }
   if (desc.length === 0) {
     hints.push("Add a written task description so reviewers can verify hazards and controls.");
   }
   if ((bucket.hazardFamilies?.length ?? 0) === 0 && (input.hazardCategories?.length ?? 0) === 0) {
-    hints.push("No hazard families recorded—confirm hazard identification against the work package.");
+    hints.push("No hazard families recorded - confirm hazard identification against the work package.");
   }
   if ((bucket.requiredControls?.length ?? 0) === 0 && (input.requiredControls?.length ?? 0) === 0) {
-    hints.push("No explicit required controls on the work item—cross-check against trade standards.");
+    hints.push("No explicit required controls on the work item - cross-check against trade standards.");
   }
   return hints;
 }
@@ -106,7 +106,7 @@ export function buildPreventionLogicResult(params: {
   const trainingGaps =
     declaredTraining.length > 0
       ? declaredTraining.map((code) => `Verify training / competency recorded for: ${code.replace(/_/g, " ")}`)
-      : ["No explicit training codes on this item—validate role- and equipment-specific training."];
+      : ["No explicit training codes on this item - validate role- and equipment-specific training."];
 
   const repeatRiskPatterns = [
     ...riskMemoryPatterns(riskMemorySummary ?? null),

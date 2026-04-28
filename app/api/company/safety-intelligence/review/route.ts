@@ -10,9 +10,10 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error;
 
   const resolved = auth as SafetyIntelligenceAuthorized;
+  const userEmail = resolved.user?.email?.trim().toLowerCase() ?? "";
   const isDemoRequest =
     resolved.role === "sales_demo" ||
-    (resolved.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase();
+    userEmail === OFFLINE_DEMO_EMAIL.toLowerCase();
   if (isDemoRequest) {
     const url = new URL(request.url);
     const jobsiteId = url.searchParams.get("jobsiteId")?.trim() || null;
