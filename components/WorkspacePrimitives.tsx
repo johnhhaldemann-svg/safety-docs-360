@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight, Check, Minus } from "lucide-react";
+import { formatTitleCase } from "@/lib/formatTitleCase";
 
 /**
  * Use on native `<select>` elements in the authenticated app so the closed control and
@@ -45,6 +46,8 @@ export function PageHero({
   description: string;
   actions?: React.ReactNode;
 }) {
+  const displayTitle = formatTitleCase(title) || title;
+
   return (
     <section className="relative overflow-hidden rounded-3xl border border-[rgba(121,151,196,0.42)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.99)_0%,_rgba(239,246,255,0.98)_58%,_rgba(232,247,239,0.86)_100%)] p-6 shadow-[var(--app-shadow)] sm:p-8">
       <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,_var(--app-accent-primary)_0%,_var(--semantic-success)_54%,_var(--semantic-warning)_100%)]" />
@@ -52,7 +55,7 @@ export function PageHero({
         <div className="max-w-3xl">
           <p className={workspaceEyebrowClassName}>{eyebrow}</p>
           <h1 className="font-app-display mt-2 max-w-4xl text-3xl font-bold tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
-            {title}
+            {displayTitle}
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-[1.7] text-[var(--app-text)]">{description}</p>
         </div>
@@ -83,6 +86,8 @@ export function SectionCard({
   className?: string;
   contentClassName?: string;
 }) {
+  const displayTitle = formatTitleCase(title) || title;
+
   return (
     <section
       className={`relative overflow-hidden rounded-2xl p-6 ${getSurfaceToneClassName(tone)} ${className}`.trim()}
@@ -91,7 +96,7 @@ export function SectionCard({
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
-          <h2 className="text-xl font-bold text-[var(--app-text-strong)]">{title}</h2>
+          <h2 className="text-xl font-bold text-[var(--app-text-strong)]">{displayTitle}</h2>
           {description ? <p className="mt-1 text-sm leading-relaxed text-[var(--app-text)]">{description}</p> : null}
         </div>
         <div className="flex flex-wrap items-start gap-3 sm:justify-end">
@@ -178,6 +183,7 @@ export function EmptyState({
   primaryAction?: { label: string; onClick: () => void };
   children?: React.ReactNode;
 }) {
+  const displayTitle = formatTitleCase(title) || title;
   const textAlign = align === "left" ? "text-left" : "text-center";
   const iconBox =
     align === "left" ? "mb-4 flex h-11 w-11" : "mx-auto mb-4 flex h-11 w-11";
@@ -191,7 +197,7 @@ export function EmptyState({
         <Icon aria-hidden="true" className="h-5 w-5" />
       </div>
       {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
-      <p className="text-base font-semibold text-[var(--app-text-strong)]">{title}</p>
+      <p className="text-base font-semibold text-[var(--app-text-strong)]">{displayTitle}</p>
       <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
       {actionHref && actionLabel ? (
         <Link
@@ -223,9 +229,11 @@ export function StartChecklist({
   title: string;
   items: Array<{ label: string; done: boolean }>;
 }) {
+  const displayTitle = formatTitleCase(title) || title;
+
   return (
     <div className="rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(244,249,255,0.9)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
-      <h3 className="text-base font-semibold text-[var(--app-text-strong)]">{title}</h3>
+      <h3 className="text-base font-semibold text-[var(--app-text-strong)]">{displayTitle}</h3>
       <div className="mt-4 space-y-3">
         {items.map((item) => (
           <div
@@ -334,9 +342,11 @@ export function ActivityFeed({
     tone?: "neutral" | "success" | "warning" | "error" | "info";
   }>;
 }) {
+  const displayTitle = formatTitleCase(title) || title;
+
   return (
     <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.97)_0%,_rgba(241,247,255,0.94)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
-      <h3 className="text-base font-semibold text-[var(--app-text-strong)]">{title}</h3>
+      <h3 className="text-base font-semibold text-[var(--app-text-strong)]">{displayTitle}</h3>
       {description ? (
         <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
       ) : null}
@@ -349,7 +359,9 @@ export function ActivityFeed({
             <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-[var(--app-accent-primary)] opacity-55" />
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-sm font-semibold text-[var(--app-text-strong)]">{item.title}</p>
+                <p className="text-sm font-semibold text-[var(--app-text-strong)]">
+                  {formatTitleCase(item.title) || item.title}
+                </p>
                 <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{item.detail}</p>
               </div>
               <StatusBadge label={item.meta} tone={item.tone ?? "neutral"} />
@@ -375,9 +387,11 @@ export function WorkflowPath({
     complete?: boolean;
   }>;
 }) {
+  const displayTitle = formatTitleCase(title) || title;
+
   return (
     <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(241,247,255,0.9)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
-      <h3 className="text-base font-semibold text-[var(--app-text-strong)]">{title}</h3>
+      <h3 className="text-base font-semibold text-[var(--app-text-strong)]">{displayTitle}</h3>
       {description ? (
         <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
       ) : null}
@@ -431,11 +445,13 @@ export function MetricTile({
   detail: string;
   tone?: "panel" | "elevated" | "attention";
 }) {
+  const displayTitle = formatTitleCase(title) || title;
+
   return (
     <div className={`relative overflow-hidden rounded-2xl p-4 ${getSurfaceToneClassName(tone)}`}>
       <span className="absolute right-4 top-4 h-10 w-10 rounded-2xl border border-[var(--app-accent-surface-14)] bg-[var(--app-accent-primary-soft)]" aria-hidden="true" />
       {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
-      <p className="mt-1 text-sm font-medium text-[var(--app-text-strong)]">{title}</p>
+      <p className="mt-1 text-sm font-medium text-[var(--app-text-strong)]">{displayTitle}</p>
       <p className="mt-3 max-w-[80%] text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</p>
       <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{detail}</p>
     </div>
@@ -457,12 +473,14 @@ export function ActionTile({
   actionLabel: string;
   tone?: "panel" | "elevated" | "attention";
 }) {
+  const displayTitle = formatTitleCase(title) || title;
+
   return (
     <Link href={href} className={`group relative block overflow-hidden rounded-2xl p-4 transition hover:-translate-y-0.5 ${getSurfaceToneClassName(tone)}`}>
       <span className="absolute inset-y-4 left-0 w-1 rounded-r-full bg-[var(--app-accent-primary)] opacity-65" />
       {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
       <div className="mt-1 flex items-start justify-between gap-3">
-        <p className="text-base font-semibold text-[var(--app-text-strong)]">{title}</p>
+        <p className="text-base font-semibold text-[var(--app-text-strong)]">{displayTitle}</p>
         <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--app-border)] bg-white/80 text-[var(--app-accent-primary)] transition group-hover:translate-x-0.5">
           <ArrowRight aria-hidden="true" className="h-4 w-4" />
         </span>
@@ -488,6 +506,8 @@ export function WorkspaceScopedNav({
   tabs: Array<{ href: string; label: string }>;
   sticky?: boolean;
 }) {
+  const displayTitle = formatTitleCase(title) || title;
+
   return (
     <div
       className={cx(
@@ -499,7 +519,7 @@ export function WorkspaceScopedNav({
         {eyebrow}
       </div>
       <div className="mt-2 text-xl font-semibold tracking-tight text-[var(--app-text-strong)]">
-        {title}
+        {displayTitle}
       </div>
       <div className="mt-4 overflow-x-auto">
         <div className="inline-flex min-w-max gap-2">

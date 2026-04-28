@@ -52,7 +52,7 @@ test.describe("Accessibility (axe)", () => {
     await page.goto("/marketing");
     await page.waitForLoadState("domcontentloaded");
     await expectVisibleFocusRing(page, 'a[href="/login"]');
-    await expectVisibleFocusRing(page, 'a[href="/#platform"]');
+    await expectVisibleFocusRing(page, 'a[href="/company-signup"]');
   });
 
   test("login form controls show visible keyboard focus", async ({ page }) => {

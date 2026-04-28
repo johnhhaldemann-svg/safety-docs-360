@@ -258,7 +258,6 @@ export const companyAdminSideSections: NavSection[] = [
     items: [
       { href: "/company-users", label: "Team & Access", short: "US" },
       { href: "/company-contractors", label: "Contractor compliance", short: "CQ" },
-      { href: "/company-integrations", label: "Integrations", short: "IG" },
       { href: "/training-matrix", label: "Training Tracker", short: "TM" },
       { href: "/profile", label: "My Profile", short: "CP" },
     ],
@@ -268,8 +267,6 @@ export const companyAdminSideSections: NavSection[] = [
     items: [
       { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
-      { href: "/company-inductions", label: "Induction setup", short: "ID" },
-      { href: "/company-safety-forms", label: "Safety forms setup", short: "SF" },
       { href: "/permits", label: "Permit Center", short: "PM" },
       { href: "/incidents", label: "Incident Log", short: "IN" },
     ],
@@ -323,8 +320,6 @@ export const companyManagerSideSections: NavSection[] = [
     items: [
       { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
-      { href: "/company-inductions", label: "Induction setup", short: "ID" },
-      { href: "/company-safety-forms", label: "Safety forms setup", short: "SF" },
       { href: "/permits", label: "Permit Center", short: "PM" },
       { href: "/incidents", label: "Incident Log", short: "IN" },
     ],

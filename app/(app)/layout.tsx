@@ -571,10 +571,7 @@ export default function AppLayout({
           "/command-center",
           "/settings/risk-memory",
           "/reports",
-          "/company-inductions",
-          "/company-safety-forms",
-          "/company-contractors",
-          "/company-integrations"
+          "/company-contractors"
         );
       }
 
