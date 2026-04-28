@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { DashboardOverviewFiltersBar } from "@/components/dashboard/DashboardOverviewFiltersBar";
 import { InlineMessage } from "@/components/WorkspacePrimitives";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
+import { formatTitleCase } from "@/lib/formatTitleCase";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { getDashboardOverviewSectionVisibility } from "@/lib/dashboardVisibility";
 import type { PermissionMap } from "@/lib/rbac";
@@ -281,7 +282,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
   const activeJobsites = workspace.workspaceSummary.jobsites.filter((jobsite) =>
     isActiveJobsite(jobsite.status)
   ).length;
-  const companyName = workspace.companyProfile?.name?.trim() || workspace.userTeam || "Workspace";
+  const companyName = formatTitleCase(workspace.companyProfile?.name?.trim() || workspace.userTeam || "Workspace");
   const connectedSourceCount = overview.engineHealth.filter((item) => item.status === "green").length;
   const totalSourceCount = overview.engineHealth.length;
 
@@ -551,7 +552,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
       >
         {overviewVisibility.showEmergingThemes ? (
         <div>
-          <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Top emerging themes</h3>
+          <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Top Emerging Themes</h3>
           {topEmerging.length === 0 ? (
             <div className="mt-2">
               <DashboardDomainEmptyState
@@ -568,7 +569,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                   className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-2 text-sm"
                 >
                   <span className="font-medium text-[var(--app-text-strong)]">
-                    {i + 1}. {r.name}
+                    {i + 1}. {formatTitleCase(r.name) || r.name}
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="font-app-display font-bold text-[var(--app-text-strong)]">{r.count}</span>
@@ -594,14 +595,16 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         ) : null}
         {overviewVisibility.showEmergingThemes ? (
         <div className="mt-6">
-          <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Repeat observation categories</h3>
+          <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Repeat Observation Categories</h3>
           {obsCategories.length === 0 ? (
             <p className="mt-2 text-sm text-[var(--app-muted)]">No repeat observation categories for this period.</p>
           ) : (
             <ul className="mt-2 grid gap-2 sm:grid-cols-2">
               {obsCategories.slice(0, 8).map((c, i) => (
                 <li key={`${c.name}-${i}`} className="flex items-center justify-between rounded-xl border border-[var(--app-border)] bg-white/88 px-3 py-2 text-sm">
-                  <span className="truncate font-medium text-[var(--app-text-strong)]">{c.name}</span>
+                  <span className="truncate font-medium text-[var(--app-text-strong)]">
+                    {formatTitleCase(c.name) || c.name}
+                  </span>
                   <span className="font-app-display font-bold text-[var(--app-text-strong)]">{c.count}</span>
                 </li>
               ))}
@@ -640,7 +643,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         ) : null}
         {correctiveHasAnyActivity(overview.correctiveActionStatus) ? (
           <div className="mt-6">
-            <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Overdue items (requires field verification)</h3>
+            <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Overdue Items (Requires Field Verification)</h3>
             {overdueRows.length === 0 ? (
               <p className="mt-2 text-sm text-[var(--app-muted)]">
                 No overdue corrective actions require follow-up for this view.
@@ -650,7 +653,9 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                 {overdueRows.map((row) => (
                   <li key={row.id} className="flex flex-col gap-1 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                      <p className="font-medium text-[var(--app-text-strong)]">{(row.category ?? "Uncategorized").replace(/_/g, " ")}</p>
+                      <p className="font-medium text-[var(--app-text-strong)]">
+                        {formatTitleCase((row.category ?? "Uncategorized").replace(/_/g, " "))}
+                      </p>
                       <p className="text-xs text-[var(--app-muted)]">
                         {row.observation_type ? `${row.observation_type} · ` : null}
                         Due {row.due_at ? new Date(row.due_at).toLocaleDateString() : "—"}
@@ -778,13 +783,13 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           description="Each item states what changed, why it matters, who is affected, what to do next, and how the trend compares in this window."
         />
         <div className="mt-6 space-y-2">
-          <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Data sources needing attention</h3>
+          <h3 className="text-sm font-bold text-[var(--app-text-strong)]">Data Sources Needing Attention</h3>
           {disconnectedSources.length === 0 ? (
             <p className="text-sm text-[var(--app-muted)]">No disconnected modules flagged, or all sources responded.</p>
           ) : (
             <ul className="list-inside list-disc text-sm text-[var(--app-text)]">
               {disconnectedSources.map((e) => (
-                <li key={e.moduleName}>{e.moduleName}</li>
+                <li key={e.moduleName}>{formatTitleCase(e.moduleName) || e.moduleName}</li>
               ))}
             </ul>
           )}

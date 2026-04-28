@@ -6,6 +6,7 @@ import {
 import type { DashboardRole } from "@/lib/dashboardRole";
 import { CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL } from "@/lib/safetyBlueprintLabels";
 import { buildAdoptionChecklist } from "@/components/dashboard/onboardingChecklist";
+import { formatTitleCase } from "@/lib/formatTitleCase";
 import type {
   DashboardActionSection,
   DashboardBanner,
@@ -58,11 +59,13 @@ function formatDue(timestamp?: string | null) {
 }
 
 function documentTitle(document: DashboardDocument) {
-  return document.document_title ?? document.project_name ?? document.file_name ?? "Untitled document";
+  const title = document.document_title ?? document.project_name ?? document.file_name ?? "Untitled document";
+  return formatTitleCase(title) || title;
 }
 
 function getCompanyName(data: DashboardDataState) {
-  return data.companyProfile?.name?.trim() || data.userTeam || "your company";
+  const title = data.companyProfile?.name?.trim() || data.userTeam || "your company";
+  return formatTitleCase(title) || title;
 }
 
 function banner(data: DashboardDataState): DashboardBanner | undefined {
@@ -186,7 +189,7 @@ function dashboardGraphs(data: DashboardDataState) {
       "Top hazard categories by count in the current analytics window.",
       (data.analyticsSummary?.topHazardCategories ?? []).slice(0, 6).map((hazard) => ({
         id: hazard.category,
-        label: hazard.category.replace(/_/g, " "),
+        label: formatTitleCase(hazard.category.replace(/_/g, " ")),
         value: hazard.count,
         detail: `${hazard.count} current signal${hazard.count === 1 ? "" : "s"}`,
         tone: hazard.count >= 5 ? "warning" : "info",
@@ -204,7 +207,7 @@ function dashboardGraphs(data: DashboardDataState) {
       "Highest-risk jobsites ranked by combined incident, stop-work, and overdue action score.",
       (data.analyticsSummary?.jobsiteRiskScore ?? []).slice(0, 6).map((row) => ({
         id: row.jobsiteId,
-        label: jobsiteNames.get(row.jobsiteId) ?? "Unassigned jobsite",
+        label: formatTitleCase(jobsiteNames.get(row.jobsiteId) ?? "Unassigned jobsite"),
         value: row.score,
         detail: `${row.overdue} overdue - ${row.stopWork} stop-work - ${row.incidents} incidents`,
         tone: row.score >= 10 ? "error" : row.score >= 5 ? "warning" : "info",
@@ -300,7 +303,7 @@ function dashboardGraphs(data: DashboardDataState) {
       const rawItems: DashboardGraphItem[] = [
         {
           id: "sor-reports",
-          label: "SOR reports",
+          label: "SOR Reports",
           value: dm.sorReportsCount,
           detail: "company_sor_records",
           tone: "info",
@@ -314,14 +317,14 @@ function dashboardGraphs(data: DashboardDataState) {
         },
         {
           id: "near-miss-actions",
-          label: "Near miss (actions)",
+          label: "Near Miss (Actions)",
           value: dm.nearMissCorrectiveActionsCount,
           detail: "observation_type near_miss",
           tone: "warning",
         },
         {
           id: "near-miss-incidents",
-          label: "Near miss (incidents)",
+          label: "Near Miss (Incidents)",
           value: dm.incidentNearMissRecordsCount,
           detail: "category near_miss",
           tone: "warning",
@@ -366,7 +369,7 @@ function recentDocumentsItems(data: DashboardDataState) {
 function recentReportsItems(data: DashboardDataState) {
   return (data.analyticsSummary?.recentReports ?? []).map((report) => ({
     id: report.id,
-    title: report.title,
+    title: formatTitleCase(report.title) || report.title,
     detail: report.tag,
     meta: "Recent workspace submission",
     tone:
@@ -384,8 +387,10 @@ function riskItems(data: DashboardDataState) {
     .slice(0, 4)
     .map((row, index) => ({
       id: row.id ?? `obs-${index}`,
-      title: row.title?.trim() || row.category?.trim() || "Corrective action overdue",
-      detail: row.jobsite_id ? jobsiteNames.get(row.jobsite_id) ?? "Assigned jobsite" : "No jobsite assigned",
+      title: formatTitleCase(row.title?.trim() || row.category?.trim() || "Corrective action overdue"),
+      detail: row.jobsite_id
+        ? formatTitleCase(jobsiteNames.get(row.jobsite_id) ?? "Assigned jobsite")
+        : "No jobsite assigned",
       meta: formatDue(row.due_at),
       tone: "warning" as const,
     }));
@@ -395,8 +400,10 @@ function riskItems(data: DashboardDataState) {
     .slice(0, 4)
     .map((row, index) => ({
       id: row.id ?? `inc-${index}`,
-      title: row.title?.trim() || "Open incident",
-      detail: row.jobsite_id ? jobsiteNames.get(row.jobsite_id) ?? "Assigned jobsite" : "Company-wide follow-up",
+      title: formatTitleCase(row.title?.trim() || "Open incident"),
+      detail: row.jobsite_id
+        ? formatTitleCase(jobsiteNames.get(row.jobsite_id) ?? "Assigned jobsite")
+        : "Company-wide follow-up",
       meta:
         row.stop_work_status === "stop_work_active"
           ? "Stop-work active"
@@ -416,8 +423,10 @@ function riskItems(data: DashboardDataState) {
     .slice(0, 4)
     .map((row, index) => ({
       id: row.id ?? `permit-${index}`,
-      title: row.title?.trim() || "Active permit",
-      detail: row.jobsite_id ? jobsiteNames.get(row.jobsite_id) ?? "Assigned jobsite" : "No jobsite assigned",
+      title: formatTitleCase(row.title?.trim() || "Active permit"),
+      detail: row.jobsite_id
+        ? formatTitleCase(jobsiteNames.get(row.jobsite_id) ?? "Assigned jobsite")
+        : "No jobsite assigned",
       meta:
         row.stop_work_status === "stop_work_active"
           ? "Restriction in place"
@@ -440,7 +449,7 @@ function rankingItems(data: DashboardDataState, href = "/jobsites"): DashboardSu
 
   return (data.analyticsSummary?.jobsiteRiskScore ?? []).slice(0, 5).map((row) => ({
     id: row.jobsiteId,
-    label: jobsiteNames.get(row.jobsiteId) ?? "Unassigned jobsite",
+    label: formatTitleCase(jobsiteNames.get(row.jobsiteId) ?? "Unassigned jobsite"),
     value: `${row.score}`,
     note: `${row.overdue} overdue - ${row.stopWork} stop-work - ${row.incidents} incidents`,
     href,
@@ -452,7 +461,7 @@ function rankingItems(data: DashboardDataState, href = "/jobsites"): DashboardSu
 function hazardItems(data: DashboardDataState, href = "/analytics"): DashboardSummaryItem[] {
   return (data.analyticsSummary?.topHazardCategories ?? []).slice(0, 4).map((hazard) => ({
     id: hazard.category,
-    label: hazard.category.replace(/_/g, " "),
+    label: formatTitleCase(hazard.category.replace(/_/g, " ")),
     value: `${hazard.count}`,
     note: "Recurring hazard signal in the current review window.",
     href,
@@ -2009,8 +2018,8 @@ export function getFieldUserDashboardModel(data: DashboardDataState): DashboardV
     "Items from your visible field queue—submitted or assigned to you depending on workspace rules.",
     observations.slice(0, 8).map((row, index) => ({
       id: row.id ?? `obs-${index}`,
-      title: row.title?.trim() || row.category?.trim() || "Observation / corrective",
-      detail: row.jobsite_id ? jobsites(data).get(row.jobsite_id) ?? "Jobsite" : "Workspace",
+      title: formatTitleCase(row.title?.trim() || row.category?.trim() || "Observation / corrective"),
+      detail: row.jobsite_id ? formatTitleCase(jobsites(data).get(row.jobsite_id) ?? "Jobsite") : "Workspace",
       meta: overdue(row) ? formatDue(row.due_at) : (row.status ?? "open").replace(/_/g, " "),
       tone: overdue(row) ? ("warning" as const) : ("info" as const),
     })),

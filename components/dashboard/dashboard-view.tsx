@@ -21,6 +21,7 @@ import type {
 } from "@/components/dashboard/types";
 import { useDashboardLayout } from "@/components/dashboard/use-dashboard-layout";
 import { getDashboardSlotOptionIds } from "@/lib/dashboardLayout";
+import { formatTitleCase } from "@/lib/formatTitleCase";
 
 function renderFeedBlock(block: DashboardFeedBlock) {
   if (block.section.items.length === 0) {
@@ -57,7 +58,9 @@ function renderFeedBlock(block: DashboardFeedBlock) {
             <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-current opacity-70" />
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-[var(--app-text-strong)]">{item.title}</p>
+                <p className="text-sm font-semibold text-[var(--app-text-strong)]">
+                  {formatTitleCase(item.title) || item.title}
+                </p>
                 <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{item.detail}</p>
               </div>
               <StatusBadge label={item.meta} tone={item.tone ?? "neutral"} />
@@ -94,7 +97,9 @@ function renderActionBlock(block: DashboardActionBlock) {
             >
               <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-current opacity-70" />
               <div className="flex items-start justify-between gap-3">
-                <p className="text-sm font-semibold text-[var(--app-text-strong)]">{item.title}</p>
+                <p className="text-sm font-semibold text-[var(--app-text-strong)]">
+                  {formatTitleCase(item.title) || item.title}
+                </p>
                 <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--app-border)] bg-white/80 text-[var(--app-accent-primary)] transition group-hover:translate-x-0.5">
                   <span aria-hidden="true">-&gt;</span>
                 </span>
@@ -134,7 +139,9 @@ function renderSummaryBlock(block: DashboardSummaryBlock) {
                 <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-current opacity-70" />
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[var(--app-text-strong)]">{item.label}</p>
+                    <p className="text-sm font-semibold text-[var(--app-text-strong)]">
+                      {formatTitleCase(item.label) || item.label}
+                    </p>
                     <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{item.note}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
@@ -273,7 +280,9 @@ function renderGraphBlock(block: DashboardGraphBlock) {
                 <div key={item.id} className="flex items-start justify-between gap-3 rounded-xl border border-[var(--app-border-subtle)] bg-white/80 px-3 py-2">
                   <div className="flex items-center gap-2">
                     <span className={`h-2.5 w-2.5 rounded-full ${graphToneClassName(item.tone)}`} />
-                    <p className="text-sm font-semibold text-[var(--app-text-strong)]">{item.label}</p>
+                    <p className="text-sm font-semibold text-[var(--app-text-strong)]">
+                      {formatTitleCase(item.label) || item.label}
+                    </p>
                   </div>
                   <p className="text-sm font-bold text-[var(--app-text-strong)]">
                     {valueText} ({percent}%)
@@ -412,7 +421,7 @@ export function DashboardView({ model }: { model: DashboardViewModel }) {
                       const block = layout.availableBlocks.find((item) => item.id === blockId);
                       return (
                         <option key={blockId} value={blockId}>
-                          {block?.title ?? blockId}
+                          {formatTitleCase(block?.title ?? blockId)}
                         </option>
                       );
                     })}
