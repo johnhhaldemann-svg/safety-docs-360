@@ -42,7 +42,7 @@ const SECTION_LABELS: Record<string, string> = {
   field_feedback_loop: "Field Feedback Loop",
 };
 
-/** Card / diagram canonical order (bottom → top flow, then left-to-right outputs). */
+/** Card / diagram canonical order (bottom -> top flow, then left-to-right outputs). */
 const SECTION_DISPLAY_ORDER = [
   "data_foundation",
   "memory_buckets",
@@ -137,7 +137,7 @@ function SectionCardBlock({
             <div>
               <dt className="font-semibold uppercase tracking-wide text-[var(--app-text)]">Last check</dt>
               <dd className="text-sm text-[var(--app-text-strong)]">
-                {section.lastSuccessfulCheck ? new Date(section.lastSuccessfulCheck).toLocaleString() : "—"}
+                {section.lastSuccessfulCheck ? new Date(section.lastSuccessfulCheck).toLocaleString() : " - "}
               </dd>
             </div>
           </dl>
@@ -215,7 +215,7 @@ function FlowDiagram({
         className={`flex min-w-[40px] max-w-[56px] shrink-0 flex-col items-center justify-center self-center px-0.5 ${connectionArrowColor(st)}`}
       >
         <ArrowRight className="h-5 w-5 shrink-0" strokeWidth={2.2} aria-hidden />
-        <span className="text-center text-[8px] font-bold leading-tight">{edge?.label ?? "—"}</span>
+        <span className="text-center text-[8px] font-bold leading-tight">{edge?.label ?? " - "}</span>
       </div>
     );
   }
@@ -226,7 +226,7 @@ function FlowDiagram({
     return (
       <div className={`flex flex-col items-center py-0.5 ${connectionArrowColor(st)}`}>
         <ArrowUp className="h-6 w-6 shrink-0" strokeWidth={2.2} aria-hidden />
-        <span className="text-center text-[8px] font-bold leading-tight">{edge?.label ?? "—"}</span>
+        <span className="text-center text-[8px] font-bold leading-tight">{edge?.label ?? " - "}</span>
       </div>
     );
   }
@@ -250,7 +250,7 @@ function FlowDiagram({
           <Icon className="h-6 w-6 shrink-0" strokeWidth={2.2} aria-hidden />
         </div>
         <span className="text-center text-[8px] font-bold leading-tight">{caption}</span>
-        <span className="text-center text-[8px] font-semibold opacity-90">{edge?.label ?? "—"}</span>
+        <span className="text-center text-[8px] font-semibold opacity-90">{edge?.label ?? " - "}</span>
       </div>
     );
   }
@@ -291,13 +291,13 @@ function FlowDiagram({
               <LoopBackEdge
                 from="field_feedback_loop"
                 to="intelligence_engine"
-                caption="Feedback → engine"
+                caption="Feedback -> engine"
                 Icon={ArrowUpLeft}
               />
               <LoopBackEdge
                 from="field_feedback_loop"
                 to="memory_buckets"
-                caption="Feedback → memory"
+                caption="Feedback -> memory"
                 Icon={ArrowDownLeft}
               />
             </div>
@@ -314,7 +314,7 @@ function FlowDiagram({
         </div>
       </div>
       <p className="mt-4 text-center text-xs text-[var(--app-muted)]">
-        Layout follows the Smart Safety architecture: foundation → memory → prevention → intelligence, then deliverables
+        {"Layout follows the Smart Safety architecture: foundation -> memory -> prevention -> intelligence, then deliverables"}
         and field feedback (dashed arrows) closing the loop. Edge colors reflect aggregated check status from the API.
       </p>
     </div>
@@ -440,7 +440,7 @@ export default function SuperadminSystemHealthPage() {
               <h1 className="font-app-display text-2xl font-bold tracking-tight sm:text-3xl">Superadmin System Health</h1>
               <p className="mt-1 max-w-xl text-sm text-slate-200/90">
                 Read-only checks across database, storage, core routes, and key tables. Results are plain-language signals
-                with suggested fixes so prevention data stays trustworthy—field verification still owns the final call.
+                with suggested fixes so prevention data stays trustworthy - field verification still owns the final call.
               </p>
             </div>
           </div>
@@ -454,7 +454,7 @@ export default function SuperadminSystemHealthPage() {
       <PageHero
         eyebrow="Platform diagnostics"
         title="Prevention-ready platform signals"
-        description="Layered checks follow how data flows from foundation tables through memory, prevention logic, intelligence outputs, and field feedback. Use them to find missing controls in the stack—not as a substitute for jobsite verification."
+        description="Layered checks follow how data flows from foundation tables through memory, prevention logic, intelligence outputs, and field feedback. Use them to find missing controls in the stack - not as a substitute for jobsite verification."
         actions={
           <button type="button" className={appButtonPrimaryClassName} onClick={() => void load()} disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
@@ -470,7 +470,7 @@ export default function SuperadminSystemHealthPage() {
       {loading && !data ? (
         <div className="flex items-center justify-center gap-2 py-16 text-[var(--app-muted)]">
           <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
-          Running health checks…
+          Running health checks...
         </div>
       ) : null}
 
@@ -492,7 +492,7 @@ export default function SuperadminSystemHealthPage() {
               Each card is an independent probe. <strong className="font-semibold text-emerald-800">Green</strong> means
               working, <strong className="font-semibold text-amber-900">yellow</strong> usually means connected but empty
               or incomplete, <strong className="font-semibold text-red-900">red</strong> means broken or missing. Table
-              checks never insert data—they only run read-only row counts.
+              checks never insert data - they only run read-only row counts.
             </p>
             <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {(data.platformInfrastructure ?? []).map((c) => (
@@ -507,7 +507,7 @@ export default function SuperadminSystemHealthPage() {
               <div className="rounded-xl bg-slate-900 px-4 py-4 text-white lg:col-span-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Overall health score</p>
                 <p className="mt-1 font-app-display text-4xl font-bold">{data.healthScore}</p>
-                <p className="mt-1 text-xs text-slate-300">0–100 (weighted by check severity)</p>
+                <p className="mt-1 text-xs text-slate-300">0-100 (weighted by check severity)</p>
                 <p className={`mt-3 inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${statusBadgeClasses(data.overallStatus)}`}>
                   {formatStatusLabel(data.overallStatus)}
                 </p>
@@ -531,7 +531,7 @@ export default function SuperadminSystemHealthPage() {
             </div>
             <p className="mt-4 text-xs text-[var(--app-muted)]">
               Last scan: <strong className="text-[var(--app-text)]">{new Date(data.lastCheckedAt).toLocaleString()}</strong>
-              {" · "}
+              {" - "}
               Unknown checks: {data.summary.unknown}
             </p>
           </section>

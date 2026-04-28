@@ -27,11 +27,11 @@ async function headCount(
 }
 
 async function routeModuleLoads(
-  importPath: string,
+  loadModule: () => Promise<unknown>,
   label: string
 ): Promise<{ ok: boolean; message: string }> {
   try {
-    await import(importPath);
+    await loadModule();
     return { ok: true, message: `${label} module loads on the server.` };
   } catch (e) {
     return {
@@ -219,42 +219,42 @@ export async function buildPlatformInfrastructureChecks(
     }
   }
 
-  // 5–9 API route modules
-  const routes: { name: string; path: string; label: string; fix: string }[] = [
+  // 5-9 API route modules
+  const routes: { name: string; loadModule: () => Promise<unknown>; label: string; fix: string }[] = [
     {
       name: "dashboard API route",
-      path: "@/app/api/dashboard/overview/route",
+      loadModule: () => import("@/app/api/dashboard/overview/route"),
       label: "Dashboard overview API",
       fix: "Fix TypeScript/build errors under app/api/dashboard/overview/route.ts.",
     },
     {
       name: "document export route",
-      path: "@/app/api/documents/submit/route",
+      loadModule: () => import("@/app/api/documents/submit/route"),
       label: "Document submit / export pipeline",
       fix: "Fix imports and types in app/api/documents/submit/route.ts.",
     },
     {
       name: "CSEP export route",
-      path: "@/app/api/csep/export/route",
+      loadModule: () => import("@/app/api/csep/export/route"),
       label: "CSEP export API",
       fix: "Fix build errors in app/api/csep/export/route.ts.",
     },
     {
       name: "PSHSEP export route",
-      path: "@/app/api/pshsep/export/route",
+      loadModule: () => import("@/app/api/pshsep/export/route"),
       label: "PSHSEP export API",
       fix: "Fix build errors in app/api/pshsep/export/route.ts.",
     },
     {
       name: "AI review route",
-      path: "@/app/api/company/safety-intelligence/ai/review/route",
+      loadModule: () => import("@/app/api/company/safety-intelligence/ai/review/route"),
       label: "Safety Intelligence AI review API",
       fix: "Fix build errors in app/api/company/safety-intelligence/ai/review/route.ts.",
     },
   ];
 
   for (const r of routes) {
-    const { ok, message } = await routeModuleLoads(r.path, r.label);
+    const { ok, message } = await routeModuleLoads(r.loadModule, r.label);
     out.push(
       check(
         r.name,
@@ -266,7 +266,7 @@ export async function buildPlatformInfrastructureChecks(
     );
   }
 
-  // 10–17 Tables
+  // 10-17 Tables
   const tables: {
     name: string;
     table: string;
@@ -276,7 +276,7 @@ export async function buildPlatformInfrastructureChecks(
     {
       name: "observations table",
       table: "company_sor_records",
-      emptyHint: "No SOR / observation rows yet—normal for a brand-new tenant.",
+      emptyHint: "No SOR / observation rows yet - normal for a brand-new tenant.",
       existsHint: "If this table was renamed, update migrations and this health probe.",
     },
     {
@@ -294,37 +294,37 @@ export async function buildPlatformInfrastructureChecks(
     {
       name: "permits table",
       table: "company_permits",
-      emptyHint: "No permit rows—workflow may be unused.",
+      emptyHint: "No permit rows - workflow may be unused.",
       existsHint: "Verify company_permits migration is applied.",
     },
     {
       name: "JSA table",
       table: "company_jsas",
-      emptyHint: "No JSAs—field workflow may be unused.",
+      emptyHint: "No JSAs - field workflow may be unused.",
       existsHint: "Verify company_jsas migration is applied.",
     },
     {
       name: "training table",
       table: "company_training_requirements",
-      emptyHint: "No training requirement rows—matrix may not be configured.",
+      emptyHint: "No training requirement rows - matrix may not be configured.",
       existsHint: "Run training-requirements migrations if this table should exist.",
     },
     {
       name: "documents table",
       table: "documents",
-      emptyHint: "No document submission rows—submit flow may not have run in this environment.",
+      emptyHint: "No document submission rows - submit flow may not have run in this environment.",
       existsHint: "Verify the documents table and RLS/service grants.",
     },
     {
       name: "contractors table",
       table: "company_contractors",
-      emptyHint: "No contractor rows—directory may be empty.",
+      emptyHint: "No contractor rows - directory may be empty.",
       existsHint: "Verify company_contractors migration is applied.",
     },
     {
       name: "jobsites table",
       table: "company_jobsites",
-      emptyHint: "No jobsites—locations may not be provisioned yet.",
+      emptyHint: "No jobsites - locations may not be provisioned yet.",
       existsHint: "Verify company_jobsites migration is applied.",
     },
   ];

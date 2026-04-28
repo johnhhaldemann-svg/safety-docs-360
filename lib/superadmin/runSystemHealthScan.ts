@@ -133,7 +133,7 @@ const SYSTEM_HEALTH_EDGE_CHECKS: { from: string; to: string; checkNames: readonl
       "Ingestion failures (7 days)",
       "System error log (ingestion failures, all time)",
       "Bucket runs (feedback into SI)",
-      "Field feedback → Risk Memory snapshots",
+      "Field feedback -> Risk Memory snapshots",
       "Risk memory facets",
       "Company memory bank",
       "Company bucket items",
@@ -144,7 +144,7 @@ const SYSTEM_HEALTH_EDGE_CHECKS: { from: string; to: string; checkNames: readonl
     to: "intelligence_engine",
     checkNames: [
       "Bucket runs (feedback into SI)",
-      "Field feedback → Risk Memory snapshots",
+      "Field feedback -> Risk Memory snapshots",
       "Admin review queue (pending submissions)",
       "Safety Intelligence audit activity (24h)",
       "AI document review output",
@@ -371,7 +371,7 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
           roles.count > 0 ? "healthy" : "warning",
           roles.count > 0
             ? `${roles.count} role row(s) indexed.`
-            : "user_roles is empty—no users have persisted roles.",
+            : "user_roles is empty - no users have persisted roles.",
           roles.count > 0 ? null : "Provision at least one user role row for access control to function."
         )
   );
@@ -391,7 +391,7 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
           "User profiles table",
           profiles.count > 0 ? "healthy" : "warning",
           `${profiles.count} profile row(s).`,
-          profiles.count > 0 ? null : "Profiles may still work via metadata only—confirm onboarding writes user_profiles."
+          profiles.count > 0 ? null : "Profiles may still work via metadata only - confirm onboarding writes user_profiles."
         )
   );
 
@@ -412,7 +412,7 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
           "Risk memory facets",
           facets.count > 0 ? "healthy" : "warning",
           `${facets.count} facet row(s) in the rolling window tables.`,
-          facets.count > 0 ? null : "No facets yet—field signals may not be feeding Risk Memory."
+          facets.count > 0 ? null : "No facets yet - field signals may not be feeding Risk Memory."
         )
   );
 
@@ -438,7 +438,7 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
           "Safety data bucket (ingestion)",
           sdb.count > 0 ? "healthy" : "warning",
           `${sdb.count} ingested safety bucket row(s).`,
-          sdb.count === 0 ? "No Smart Safety intake rows yet—pipelines may be unused." : null
+          sdb.count === 0 ? "No Smart Safety intake rows yet - pipelines may be unused." : null
         )
   );
 
@@ -591,7 +591,7 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
           "Document submission (documents table)",
           docs.count > 0 ? "healthy" : "warning",
           `${docs.count} document submission row(s).`,
-          docs.count === 0 ? "No rows in documents—submit flow may be unused in this environment." : null
+          docs.count === 0 ? "No rows in documents - submit flow may be unused in this environment." : null
         )
   );
 
@@ -606,7 +606,7 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
           "Document download paths",
           pathCount > 0 ? "healthy" : "warning",
           `${draftPaths.count} with draft path, ${finalPaths.count} with final path.`,
-          pathCount === 0 ? "No file paths recorded—verify submit → storage upload path." : null
+          pathCount === 0 ? "No file paths recorded - verify submit -> storage upload path." : null
         )
   );
 
@@ -662,7 +662,7 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
           "Bucket runs (feedback into SI)",
           bucketRuns.count > 0 ? "healthy" : "warning",
           `${bucketRuns.count} bucket run(s) recorded.`,
-          bucketRuns.count === 0 ? "No bucket runs—Safety Intelligence may not have been exercised." : null
+          bucketRuns.count === 0 ? "No bucket runs - Safety Intelligence may not have been exercised." : null
         )
   );
 
@@ -670,9 +670,9 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
   recordsFeedback += riskSnaps.count;
   checksFeedback.push(
     riskSnaps.error
-      ? check("Field feedback → Risk Memory snapshots", "unknown", riskSnaps.error, null)
+      ? check("Field feedback -> Risk Memory snapshots", "unknown", riskSnaps.error, null)
       : check(
-          "Field feedback → Risk Memory snapshots",
+          "Field feedback -> Risk Memory snapshots",
           riskSnaps.count > 0 ? "healthy" : "warning",
           `${riskSnaps.count} rollup snapshot row(s) stored.`,
           riskSnaps.count === 0 ? "Cron rollup may not have run, or facets table is empty." : null
@@ -703,7 +703,7 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
           "Safety Intelligence audit activity (24h)",
           "healthy",
           `${siAudit.count} SI audit event(s) in the last 24 hours.`,
-          siAudit.count === 0 ? "No recent SI mutations logged—expected on idle staging." : null
+          siAudit.count === 0 ? "No recent SI mutations logged - expected on idle staging." : null
         )
   );
 
@@ -716,7 +716,7 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
           "JSA workflow (company_jsas)",
           jsa.count > 0 ? "healthy" : "warning",
           `${jsa.count} JSA record(s).`,
-          jsa.count === 0 ? "No JSAs yet—workflow may be unused." : null
+          jsa.count === 0 ? "No JSAs yet - workflow may be unused." : null
         )
   );
   recordsMemory += jsa.count;
@@ -755,7 +755,7 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
           "SOR / observation records",
           sor.count > 0 ? "healthy" : "warning",
           `${sor.count} SOR record(s).`,
-          sor.count === 0 ? "No SORs—observation loop may be idle." : null
+          sor.count === 0 ? "No SORs - observation loop may be idle." : null
         )
   );
   recordsMemory += sor.count;
