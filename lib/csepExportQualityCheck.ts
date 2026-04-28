@@ -268,8 +268,8 @@ function checkCoverPageBaseline(model: CsepRenderModel): string[] {
 
 function checkFrontMatterOrder(model: CsepRenderModel): string[] {
   const orderedKeys = model.frontMatterSections.map((section) => section.key);
-  const checkpoints = ["message_from_owner", "sign_off_page", "table_of_contents"];
-  const indexes = checkpoints.map((key) => orderedKeys.indexOf(key));
+  const ownerIndex = orderedKeys.findIndex((key) => key === "message_from_owner" || key === "owner_message");
+  const indexes = [ownerIndex, orderedKeys.indexOf("sign_off_page"), orderedKeys.indexOf("table_of_contents")];
   if (indexes.some((index) => index < 0)) return [];
   if (!(indexes[0]! < indexes[1]! && indexes[1]! < indexes[2]!)) {
     return [
@@ -532,19 +532,20 @@ function controlTextIsLegitimatelyReusableAcrossTasks(normalizedControl: string)
 }
 
 function checkAppendixEDuplicateControls(model: CsepRenderModel): string[] {
-  const appendix = model.appendixSections.find(
+  const appendices = model.appendixSections.filter(
     (s) =>
       /appendix[_\s]*e/i.test(s.key) ||
       /appendix\s+e/i.test(s.title) ||
       (/task/i.test(s.title) && /hazard/i.test(s.title) && /matrix/i.test(s.title))
   );
-  if (!appendix?.subsections.length) return [];
+  if (!appendices.length) return [];
 
+  for (const appendix of appendices) {
   for (const sub of appendix.subsections) {
     const table = sub.table;
     if (!table?.rows.length || table.rows.length < 3) continue;
 
-    const idx = matrixColumnIndex(table.columns, "Required Controls", "Controls", "Control", "Activity", "Task");
+    const idx = matrixColumnIndex(table.columns, "Required Controls", "Controls", "Control");
     const taskIdx = matrixColumnIndex(table.columns, "Activity", "Task", "Task title");
     if (idx < 0) continue;
 
@@ -569,6 +570,7 @@ function checkAppendixEDuplicateControls(model: CsepRenderModel): string[] {
         `Appendix E (task–hazard–control matrix): identical or near-identical long control text appears across multiple unrelated tasks — ${problems.slice(0, 5).join(" | ")}`,
       ];
     }
+  }
   }
   return [];
 }
@@ -618,6 +620,12 @@ export type CsepExportQualityIssue = {
  * is present so callers never return a DOCX buffer for a failed quality gate.
  */
 export function assertCsepExportQuality(model: CsepRenderModel, options?: { draft?: GeneratedSafetyPlanDraft }): void {
+  model = {
+    ...model,
+    frontMatterSections: model.frontMatterSections.filter(Boolean),
+    sections: model.sections.filter(Boolean),
+    appendixSections: model.appendixSections.filter(Boolean),
+  };
   const issues: CsepExportQualityIssue[] = [];
 
   const add = (code: string, messages: string[]) => {

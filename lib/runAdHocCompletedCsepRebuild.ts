@@ -531,6 +531,31 @@ function buildFallbackSections(
         .join(" ")
     );
 
+    const subsections =
+      key === "emergency_preparedness_and_response"
+        ? [
+            {
+              title: "Emergency Procedures",
+              body: body || null,
+              bullets: uniqueStrings([
+                "Notify the superintendent and project supervision immediately.",
+                "Move crews to the primary assembly point when evacuation or shelter instructions are issued.",
+              ]),
+            },
+          ]
+        : key === "permits_and_forms"
+          ? [
+              {
+                title: "Permits",
+                body: body || null,
+                bullets: uniqueStrings([
+                  "Confirm required permits before work starts.",
+                  "Keep permits available for field verification and closeout.",
+                ]),
+              },
+            ]
+          : undefined;
+
     return {
       key,
       kind: "main",
@@ -543,6 +568,7 @@ function buildFallbackSections(
         ...(matchingFinding?.whyItMatters ? [matchingFinding.whyItMatters] : []),
         ...(matchingFinding?.referenceSupport ? [matchingFinding.referenceSupport] : []),
       ]),
+      subsections,
     };
   });
 }

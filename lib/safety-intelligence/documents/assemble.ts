@@ -4153,6 +4153,31 @@ function buildCsepSelectedSections(params: {
     });
   }
 
+  if (selectedFormatSections.has("emergency_preparedness_and_response") || emergencyInput) {
+    const emergencyFormat = getCsepFormatDefinition("emergency_preparedness_and_response");
+    const emergencyBullets = emergencyInput
+      ? emergencyInput
+          .split(/\r?\n|;/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+    derivedFormatSections.push({
+      key: "emergency_preparedness_and_response",
+      title: emergencyFormat.title,
+      body: emergencyFormat.purpose ?? undefined,
+      subsections: [
+        {
+          title: "Emergency Procedures",
+          body: emergencyInput || "Complete emergency response procedures before issue.",
+          bullets: dedupe([
+            ...emergencyBullets,
+            ...(project.projectAddress ? [`Emergency response location: ${project.projectAddress}.`] : []),
+          ]),
+        },
+      ],
+    });
+  }
+
   if (selectedFormatSections.has("hazard_communication_program")) {
     const hazFormat = getCsepFormatDefinition("hazard_communication_program");
     derivedFormatSections.push({
@@ -4763,16 +4788,43 @@ export function buildGeneratedSafetyPlanDraft(params: DraftParams): GeneratedSaf
     {
       definitions: params.programDefinitions,
     }
-  ).map((section) => ({
-    key: section.key,
-    title: section.title,
-    summary: section.summary,
-    subsections: section.subsections.map((subsection) => ({
-      title: subsection.title,
+  ).map((section) => {
+    const relatedTasks = section.relatedTasks ?? [];
+    const subsections = section.subsections.map((subsection) => ({
+      title: subsection.title === "Applicable references" ? "Applicable References" : subsection.title,
       body: subsection.body,
       bullets: subsection.bullets,
-    })),
-  }));
+    }));
+    if (relatedTasks.length) {
+      subsections.push({
+        title: "Related Tasks",
+        body: `These related tasks apply to this program scope: ${relatedTasks.join(", ")}.`,
+        bullets: [],
+      });
+    }
+    if (section.key.startsWith("program_hazard__falls_from_height")) {
+      subsections.push(
+        {
+          title: "When Not Required",
+          body:
+            "Fall protection may not be required only when work is fully protected by compliant guardrails, performed at ground-level with no fall exposure, or otherwise confirmed by the competent person as outside the fall-exposure condition.",
+          bullets: [],
+        },
+        {
+          title: "Tie-Off",
+          body:
+            "Maintain 100% tie-off where required by the activity, site rules, or fall exposure, and verify anchorage, connector compatibility, and fall clearance before exposed work begins.",
+          bullets: [],
+        }
+      );
+    }
+    return {
+      key: section.key,
+      title: section.title,
+      summary: section.summary,
+      subsections,
+    };
+  });
   const oshaReferences = collectOshaReferences(
     params.generationContext,
     programSections,

@@ -21,7 +21,6 @@ import {
   normalizePermitList,
 } from "@/lib/csepFinalization";
 import { gcCmPartnersHaystack } from "@/lib/csepGcCmPartners";
-import { CSEP_REGULATORY_REFERENCE_INDEX } from "@/lib/csepRegulatoryReferenceIndex";
 import { CSEP_RESTART_AFTER_VERIFICATION, CSEP_STOP_WORK_UNIVERSAL_AUTHORITY } from "@/lib/csepStopWorkLanguage";
 
 type CsepFrontMatterDefinition = CsepFormatSectionDefinition & {
@@ -595,8 +594,22 @@ const LEGACY_APPENDIX_DEFINITIONS: readonly CsepFormatSectionDefinition[] = [
 export const CSEP_FORMAT_DEFINITIONS = [
   ...FRONT_MATTER_DEFINITIONS,
   ...FORMAT_SECTION_DEFINITIONS,
+  ...LEGACY_FORMAT_SECTION_DEFINITIONS,
   ...APPENDIX_DEFINITIONS,
+  ...LEGACY_APPENDIX_DEFINITIONS,
 ] as const;
+
+const ALL_FORMAT_SECTION_DEFINITIONS = [
+  ...LEGACY_FORMAT_SECTION_DEFINITIONS,
+  ...FORMAT_SECTION_DEFINITIONS,
+] as const;
+
+const ALL_FORMAT_SECTION_KEYS = ALL_FORMAT_SECTION_DEFINITIONS.map(
+  (definition) => definition.key as CsepFormatSectionKey
+) as readonly CsepFormatSectionKey[];
+const LEGACY_FORMAT_SECTION_KEY_SET = new Set<CsepFormatSectionKey>(
+  LEGACY_FORMAT_SECTION_DEFINITIONS.map((definition) => definition.key as CsepFormatSectionKey)
+);
 
 export const CSEP_FORMAT_DEFINITION_BY_KEY = Object.fromEntries(
   CSEP_FORMAT_DEFINITIONS.map((definition) => [definition.key, definition])
@@ -617,7 +630,7 @@ export const CSEP_FORMAT_SECTION_LABELS = Object.fromEntries(
 ) as Record<CsepFormatSectionKey, string>;
 
 export const CSEP_FORMAT_SECTION_TO_BLOCK_KEYS = Object.fromEntries(
-  FORMAT_SECTION_DEFINITIONS.map((definition) => [definition.key, definition.legacyBlockKeys ?? []])
+  ALL_FORMAT_SECTION_DEFINITIONS.map((definition) => [definition.key, definition.legacyBlockKeys ?? []])
 ) as Record<CsepFormatSectionKey, CsepBuilderBlockKey[]>;
 
 export const CSEP_BUILDER_AI_TEXT_FIELD_KEYS = [
@@ -1568,14 +1581,14 @@ export function resolveSelectedCsepFormatSectionKeys(params: {
   selectedFormatSections?: unknown;
   includedSections?: unknown;
   includedContent?: unknown;
-}) {
+}): CsepFormatSectionKey[] {
   const keys = new Set<CsepFormatSectionKey>();
 
   if (Array.isArray(params.selectedFormatSections)) {
     params.selectedFormatSections.forEach((value) => {
       if (typeof value !== "string") return;
       const trimmed = value.trim();
-      if ((CSEP_FORMAT_SECTION_KEYS as readonly string[]).includes(trimmed)) {
+      if ((ALL_FORMAT_SECTION_KEYS as readonly string[]).includes(trimmed)) {
         keys.add(trimmed as CsepFormatSectionKey);
       }
     });
@@ -1587,14 +1600,16 @@ export function resolveSelectedCsepFormatSectionKeys(params: {
   });
 
   if (legacyBlockKeys.length > 0) {
-    FORMAT_SECTION_DEFINITIONS.forEach((definition) => {
+    LEGACY_FORMAT_SECTION_DEFINITIONS.forEach((definition) => {
       if ((definition.legacyBlockKeys ?? []).some((key) => legacyBlockKeys.includes(key))) {
-        keys.add(definition.key);
+        keys.add(definition.key as CsepFormatSectionKey);
       }
     });
   }
 
-  return keys.size > 0 ? CSEP_FORMAT_SECTION_KEYS.filter((key) => keys.has(key)) : [...CSEP_FORMAT_SECTION_KEYS];
+  return keys.size > 0
+    ? ALL_FORMAT_SECTION_KEYS.filter((key) => keys.has(key))
+    : [...CSEP_FORMAT_SECTION_KEYS];
 }
 
 export function buildLegacyIncludedSectionLabelsFromFormatSections(
@@ -1778,7 +1793,7 @@ function stripExistingNumberPrefix(value: string) {
 }
 
 const NORMALIZED_FORMAT_SECTION_KEY_LOOKUP = Object.fromEntries(
-  CSEP_FORMAT_SECTION_KEYS.map((key) => [normalizeToken(key), key])
+  ALL_FORMAT_SECTION_KEYS.map((key) => [normalizeToken(key), key])
 ) as Record<string, CsepFormatSectionKey>;
 
 function uniqueNonEmpty(values: Array<string | null | undefined>) {
@@ -2116,43 +2131,129 @@ function inferFormatSectionKey(section: GeneratedSafetyPlanSection): CsepFormatS
   return "hazard_control_modules";
 }
 
+function resolveGroupedFormatSectionKey(
+  section: GeneratedSafetyPlanSection,
+  inferredKey: CsepFormatSectionKey,
+  selectedFormatSectionSet: ReadonlySet<CsepFormatSectionKey>
+): CsepFormatSectionKey {
+  if (!Array.from(selectedFormatSectionSet).some((key) => LEGACY_FORMAT_SECTION_KEY_SET.has(key))) {
+    return inferredKey;
+  }
+
+  const combined = `${normalizeToken(section.key)} ${normalizeToken(section.title)}`;
+
+  if (
+    inferredKey === "scope_of_work_section" &&
+    selectedFormatSectionSet.has("project_scope_and_trade_specific_activities")
+  ) {
+    return "project_scope_and_trade_specific_activities";
+  }
+  if (
+    inferredKey === "emergency_response_and_rescue" &&
+    selectedFormatSectionSet.has("emergency_preparedness_and_response")
+  ) {
+    return "emergency_preparedness_and_response";
+  }
+  if (
+    inferredKey === "ppe_and_work_attire" &&
+    selectedFormatSectionSet.has("personal_protective_equipment")
+  ) {
+    return "personal_protective_equipment";
+  }
+  if (
+    inferredKey === "required_permits_and_hold_points" &&
+    selectedFormatSectionSet.has("permits_and_forms")
+  ) {
+    return "permits_and_forms";
+  }
+  if (
+    (inferredKey === "hazard_control_modules" || inferredKey === "high_risk_steel_erection_programs") &&
+    selectedFormatSectionSet.has("hse_elements_and_site_specific_hazard_analysis")
+  ) {
+    return "hse_elements_and_site_specific_hazard_analysis";
+  }
+  if (
+    combined.includes("program ppe") &&
+    selectedFormatSectionSet.has("personal_protective_equipment")
+  ) {
+    return "personal_protective_equipment";
+  }
+  if (
+    combined.includes("program permit") &&
+    selectedFormatSectionSet.has("permits_and_forms")
+  ) {
+    return "permits_and_forms";
+  }
+  if (
+    combined.includes("program hazard") &&
+    selectedFormatSectionSet.has("hse_elements_and_site_specific_hazard_analysis")
+  ) {
+    return "hse_elements_and_site_specific_hazard_analysis";
+  }
+
+  return inferredKey;
+}
+
 function buildStaticFrontMatterSections(
   draft: GeneratedSafetyPlanDraft,
   selectedFormatSectionKeys: readonly CsepFormatSectionKey[]
 ): GeneratedSafetyPlanSection[] {
   const aiAssemblyDecisions = draft.aiAssemblyDecisions ?? null;
+  const usesLegacyFormat = selectedFormatSectionKeys.some((key) => LEGACY_FORMAT_SECTION_KEY_SET.has(key));
 
   const formatSections = selectedFormatSectionKeys
     .map((key) => getCsepFormatDefinition(key))
     .filter(Boolean);
 
+  const ownerMessage: GeneratedSafetyPlanSection = {
+    key: "owner_message",
+    kind: "front_matter",
+    order: 0,
+    title: "Owner Message",
+    layoutKey: "owner_message",
+    body:
+      cleanFinalText(aiAssemblyDecisions?.frontMatterGuidance) ??
+      "Project leadership expects all contractor work to be planned, coordinated, and executed in accordance with this CSEP.",
+  };
+  const signOffPage: GeneratedSafetyPlanSection = {
+    key: "sign_off_page",
+    kind: "front_matter",
+    order: 1,
+    title: "Sign-Off Page",
+    layoutKey: "sign_off_page",
+    body: "Issue this plan only after the responsible project and contractor representatives complete the required review and sign-off.",
+  };
+  const tableOfContents: GeneratedSafetyPlanSection = {
+    key: "table_of_contents",
+    kind: "front_matter",
+    order: 2,
+    title: "Table of Contents",
+    layoutKey: "table_of_contents",
+    bullets: formatSections.map((section) => section.title),
+  };
+
+  if (usesLegacyFormat) {
+    return [
+      tableOfContents,
+      {
+        key: "plan_use_guidance",
+        kind: "front_matter",
+        order: 3,
+        title: "Plan Use Guidance",
+        layoutKey: "plan_use_guidance",
+        body:
+          cleanFinalText(aiAssemblyDecisions?.frontMatterGuidance) ??
+          "Use this CSEP as the field-ready execution guide for the selected contractor scope.",
+      },
+      ownerMessage,
+      signOffPage,
+    ];
+  }
+
   return [
-    {
-      key: "owner_message",
-      kind: "front_matter",
-      order: 0,
-      title: "Owner Message",
-      layoutKey: "owner_message",
-      body:
-        cleanFinalText(aiAssemblyDecisions?.frontMatterGuidance) ??
-        "Project leadership expects all contractor work to be planned, coordinated, and executed in accordance with this CSEP.",
-    },
-    {
-      key: "sign_off_page",
-      kind: "front_matter",
-      order: 1,
-      title: "Sign-Off Page",
-      layoutKey: "sign_off_page",
-      body: "Issue this plan only after the responsible project and contractor representatives complete the required review and sign-off.",
-    },
-    {
-      key: "table_of_contents",
-      kind: "front_matter",
-      order: 2,
-      title: "Table of Contents",
-      layoutKey: "table_of_contents",
-      bullets: formatSections.map((section) => section.title),
-    },
+    ownerMessage,
+    signOffPage,
+    tableOfContents,
   ];
 }
 
@@ -2511,16 +2612,30 @@ export function buildStructuredCsepSectionMap(
   }
 ) {
   const builderSnapshot = asRecord(draft.builderSnapshot) ?? {};
+  const hasSnapshotFormatSelection = Array.isArray(builderSnapshot.selected_format_sections);
+  const legacyDraftSectionKeys = draft.sectionMap
+    .map((section) => section.key)
+    .filter((key): key is CsepFormatSectionKey =>
+      typeof key === "string" && LEGACY_FORMAT_SECTION_KEY_SET.has(key as CsepFormatSectionKey)
+    );
   const resolvedSelectedFormatSectionKeys =
     options?.selectedFormatSectionKeys ??
-    resolveSelectedCsepFormatSectionKeys({
+    (hasSnapshotFormatSelection
+      ? resolveSelectedCsepFormatSectionKeys({
       selectedFormatSections: builderSnapshot.selected_format_sections,
       includedSections: builderSnapshot.included_sections,
       includedContent: builderSnapshot.includedContent,
-    });
+        })
+      : legacyDraftSectionKeys.length > 0
+        ? legacyDraftSectionKeys
+        : resolveSelectedCsepFormatSectionKeys({
+            selectedFormatSections: builderSnapshot.selected_format_sections,
+            includedSections: builderSnapshot.included_sections,
+            includedContent: builderSnapshot.includedContent,
+          }));
   const selectedFormatSectionSet = new Set<CsepFormatSectionKey>(resolvedSelectedFormatSectionKeys);
-  const selectedFormatSectionKeys = CSEP_FORMAT_SECTION_KEYS.filter((key) =>
-    selectedFormatSectionSet.has(key)
+  const selectedFormatSectionKeys = ALL_FORMAT_SECTION_KEYS.filter((key) =>
+    selectedFormatSectionSet.has(key as CsepFormatSectionKey)
   );
   const grouped = new Map<CsepFormatSectionKey, GeneratedSafetyPlanSection[]>();
 
@@ -2528,7 +2643,11 @@ export function buildStructuredCsepSectionMap(
     .filter((section) => section.kind !== "front_matter" && section.kind !== "appendix")
     .filter((section) => normalizeToken(section.key ?? "") !== "project information")
     .forEach((section) => {
-      const formatKey = inferFormatSectionKey(section);
+      const formatKey = resolveGroupedFormatSectionKey(
+        section,
+        inferFormatSectionKey(section),
+        selectedFormatSectionSet
+      );
       if (!grouped.has(formatKey)) {
         grouped.set(formatKey, []);
       }
@@ -2603,7 +2722,7 @@ export function buildStructuredCsepSectionMap(
           ])
         : combinedBullets;
     const projectScopeSummarySubsections =
-      sectionKey === "scope_of_work_section"
+      sectionKey === "scope_of_work_section" || sectionKey === "project_scope_and_trade_specific_activities"
         ? buildProjectScopeSummarySubsections({
             bullets: permitBullets,
             table: combinedTables,
@@ -2621,7 +2740,7 @@ export function buildStructuredCsepSectionMap(
       isDuplicateStructuredText(resolvedBody, permitBullets) ? undefined : resolvedBody;
 
     const emergencyQuickReferenceSubsections =
-      sectionKey === "emergency_response_and_rescue"
+      sectionKey === "emergency_response_and_rescue" || sectionKey === "emergency_preparedness_and_response"
         ? buildOperationalQuickReferenceSubsections()
         : [];
     const securityLogisticsSubsections =
@@ -2685,15 +2804,35 @@ export function buildStructuredCsepSectionMap(
     return nextSection;
   });
   const appendixSections = buildAppendixLibrarySections(draft);
+  const usesLegacyFormat = selectedFormatSectionKeys.some((key) => LEGACY_FORMAT_SECTION_KEY_SET.has(key));
+  const legacyDocumentControlSection: GeneratedSafetyPlanSection[] =
+    usesLegacyFormat && !selectedFormatSectionSet.has("document_control_and_revision_history")
+      ? [buildDocumentControlRevisionEndSection(draft)]
+      : [];
+  const legacySupportLibrarySection: GeneratedSafetyPlanSection[] = usesLegacyFormat
+    ? [
+        {
+          key: "appendices_and_support_library",
+          kind: "main",
+          order: 29,
+          title: "20.0 Appendices and Support Library",
+          numberLabel: "20.0",
+          layoutKey: "appendices_and_support_library",
+          body:
+            "Appendices and support tools are maintained as controlled references for field execution, inspections, incident response, permits, and project-specific inserts.",
+          parentSectionKey: null,
+        },
+      ]
+    : [];
   const presentMainSections = mainSections.filter(
     (section): section is GeneratedSafetyPlanSection => Boolean(section)
   );
   const cleanedSections = options?.finalIssueMode
-    ? [...frontMatterSections, ...presentMainSections, ...appendixSections]
+    ? [...frontMatterSections, ...presentMainSections, ...legacySupportLibrarySection, ...legacyDocumentControlSection, ...appendixSections]
         .map((section) => cleanSectionForFinalIssue(section))
         .filter((section): section is GeneratedSafetyPlanSection => Boolean(section))
         .filter((section) => hasStructuredContent(section))
-    : [...frontMatterSections, ...presentMainSections, ...appendixSections];
+    : [...frontMatterSections, ...presentMainSections, ...legacySupportLibrarySection, ...legacyDocumentControlSection, ...appendixSections];
 
   return {
     sectionMap: cleanedSections,

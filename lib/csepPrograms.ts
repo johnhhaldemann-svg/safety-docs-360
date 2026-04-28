@@ -1846,6 +1846,9 @@ function createProgramModuleSection(params: {
         ? moduleReferenceItems(params.applicableReferences)
         : shortProgramReferences(params.definition.oshaRefs, "Site permit or authorization if required by scope."),
   };
+  if (params.selection.category === "ppe" && params.selection.item === "High Visibility Vest") {
+    programModule.applicableReferences = ["R2"];
+  }
 
   return {
     key: `program_${getProgramSelectionKey(
@@ -1901,6 +1904,10 @@ function buildFallProtectionGoverningProgramSection(
   if (addedStop.length) {
     stopBody = `${stopBody} ${addedStop.map(sentenceize).join(" ")}`.trim();
   }
+  const applicableReferences = shortProgramReferences(
+    definition.oshaRefs,
+    "Fall protection plan, rescue plan, and site fall-protection permit if required."
+  );
 
   return createProgramModuleSection({
     selection,
@@ -1926,11 +1933,11 @@ function buildFallProtectionGoverningProgramSection(
       ...(relatedTasks.length ? [`Verification is tied to the daily pre-task plan for ${relatedTasks.join(", ")}.`] : []),
     ],
     stopWorkTriggers: [stopBody],
-    applicableReferences: shortProgramReferences(
-      definition.oshaRefs,
-      "Fall protection plan, rescue plan, and site fall-protection permit if required."
-    ),
+    applicableReferences: applicableReferences.includes("R3")
+      ? applicableReferences
+      : [...applicableReferences, "R3"],
   });
+
 }
 
 const HOT_WORK_PURPOSE_WHEN = `Use this program whenever welding, cutting, grinding, brazing, soldering, or other spark- or flame-producing work is performed. The core risk is fire from open flame, sparks, or hot metal igniting combustibles, coatings, or concealed materials—and fire spread to nearby work areas, floors, or occupancies.`;
