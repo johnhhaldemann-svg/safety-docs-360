@@ -42,7 +42,7 @@ describe("assertCsepExportQuality", () => {
   it("blocks export when owner/sign-off/toc order is wrong", () => {
     const draft = minimalSteelDraft();
     const model = buildCsepRenderModelFromGeneratedDraft(draft);
-    const msg = model.frontMatterSections.find((s) => s.key === "message_from_owner")!;
+    const msg = model.frontMatterSections.find((s) => s.key === "owner_message")!;
     const sign = model.frontMatterSections.find((s) => s.key === "sign_off_page")!;
     const toc = model.frontMatterSections.find((s) => s.key === "table_of_contents")!;
     model.frontMatterSections = [
@@ -50,7 +50,7 @@ describe("assertCsepExportQuality", () => {
       sign,
       msg,
       ...model.frontMatterSections.filter(
-        (s) => !["message_from_owner", "sign_off_page", "table_of_contents"].includes(s.key)
+        (s) => !["owner_message", "sign_off_page", "table_of_contents"].includes(s.key)
       ),
     ];
     expect(() => assertCsepExportQuality(model, { draft })).toThrow(/front_matter_order/i);
@@ -58,9 +58,50 @@ describe("assertCsepExportQuality", () => {
 
   it("blocks export when selected permit triggers are missing from final text", () => {
     const draft = minimalSteelDraft();
-    draft.ruleSummary.permitTriggers = ["Lift plan", "Special permit token 991ZZ"];
     const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    draft.ruleSummary.permitTriggers = ["Lift plan", "Special permit token 991ZZ"];
     expect(() => assertCsepExportQuality(model, { draft })).toThrow(/permit_coverage/i);
+  });
+
+  it("does not treat normal ladder program slices as duplicate ladder programs", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const hazards = model.sections.find((section) => section.key === "high_risk_programs")!;
+    hazards.subsections.push(
+      { title: "Ladder Authorization Program: Risk", paragraphs: ["Ladder access requires task review."] },
+      { title: "Ladder Authorization Program: Required Controls", items: ["Inspect ladder condition before use."] },
+      { title: "Ladder Authorization Program: Verification and Handoff", items: ["Supervisor verifies access setup."] },
+      { title: "Ladder Authorization Program: Stop-Work Triggers", items: ["Stop work if access is unstable."] },
+      { title: "Ladder Authorization Program: References", items: ["R12"] }
+    );
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/ladder_authorization_duplicates/i);
+  });
+
+  it("allows generic permit references outside the primary permit section", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    model.sections.push({
+      key: "generic_admin_notes",
+      title: "Generic Administrative Notes",
+      subsections: [
+        {
+          title: "General Controls",
+          items: Array.from({ length: 12 }, (_, index) => `Generic permit reference ${index + 1}.`),
+        },
+      ],
+    });
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/scattered across too many sections/i);
+  });
+
+  it("keeps fit-for-duty wording out of the IIPP isolation gate", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const ppe = model.sections.find((section) => section.key === "ppe_and_work_attire")!;
+    ppe.subsections.push({
+      title: "Fit for duty clothing",
+      items: ["Workers shall wear task-appropriate work attire and report fit-for-duty concerns to supervision."],
+    });
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/iipp_isolation/i);
   });
 
   it("allows Appendix E when hot work / fire watch boilerplate repeats across many tasks", () => {

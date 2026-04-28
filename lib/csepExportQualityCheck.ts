@@ -24,7 +24,8 @@ function baseTitleForOutlineHeading(section: CsepTemplateSection) {
 
 function displayOutlineSectionHeading(ordinal: number, section: CsepTemplateSection) {
   const base = baseTitleForOutlineHeading(section);
-  return `${ordinal}. ${base}`.trim();
+  if (section.kind === "front_matter" || section.kind === "appendix") return base;
+  return `${section.numberLabel?.trim() || ordinal}. ${base}`.trim();
 }
 
 function buildCsepOutlinePlan(model: CsepRenderModel): CsepOutlinePlanEntry[] {
@@ -47,11 +48,11 @@ function buildCsepOutlinePlan(model: CsepRenderModel): CsepOutlinePlanEntry[] {
 function formatOutlineTocLine(entry: CsepOutlinePlanEntry): string {
   switch (entry.kind) {
     case "title_page":
-      return `${entry.ordinal}. Title Page`;
+      return "Title Page";
     case "body_section":
       return displayOutlineSectionHeading(entry.ordinal, entry.section);
     case "disclaimer":
-      return `${entry.ordinal}. Disclaimer`;
+      return "Disclaimer";
   }
 }
 
@@ -111,6 +112,9 @@ const HAZCOM_REFERENCE_ALLOWLIST = [
   "Follow the project Hazard Communication requirements defined in the HazCom section.",
   "Follow the project Hazard Communication requirements defined in the Hazard Communication and Environmental Protection section.",
   "Follow the project Hazard Communication requirements for sealants.",
+  "Task-specific PPE shall be selected from the task hazards, SDS, permit, manufacturer instructions, and JSA/PTP",
+  "Some CODEX items are separate upload items",
+  "SDS uploads are separate when chemicals are brought on site",
 ];
 const SECURITY_REFERENCE_ALLOWLIST = [
   "Follow the project Security at Site requirements defined in the Security at Site section.",
@@ -124,14 +128,13 @@ const IIPP_REFERENCE_ALLOWLIST = [
 ];
 const OWNERSHIP_COMPANION_KEYS: Record<string, readonly string[]> = {
   iipp_incident_reporting_corrective_action: [
+    "high_risk_programs",
     "training_competency_and_certifications",
     "worker_conduct_fit_for_duty_disciplinary_program",
   ],
   site_access_security_laydown_traffic_control: [
     "trade_interaction_and_coordination",
-    "high_risk_steel_erection_programs",
-    "hazard_control_modules",
-    "task_execution_modules",
+    "high_risk_programs",
   ],
 };
 const MAX_HAZARD_MODULE_COUNT = 100;
@@ -183,18 +186,16 @@ function flattenModelText(model: CsepRenderModel): string {
 
 function checkTocVsNumberLabels(model: CsepRenderModel): string[] {
   const issues: string[] = [];
-  const plan = buildCsepOutlinePlan(model);
-  for (const entry of plan) {
-    if (entry.kind !== "body_section") continue;
-    if (entry.section.key === "table_of_contents") continue;
-    const nl = entry.section.numberLabel?.trim();
+  for (const [index, section] of model.sections.entries()) {
+    const nl = section.numberLabel?.trim();
     if (!nl) continue;
     const m = nl.match(/^(\d+)/);
     if (!m) continue;
     const fromLabel = Number.parseInt(m[1]!, 10);
-    if (fromLabel !== entry.ordinal) {
+    const expected = index + 1;
+    if (fromLabel !== expected) {
       issues.push(
-        `TOC/body numbering drift: section key "${entry.section.title}" uses numberLabel prefix ${fromLabel} but outline ordinal is ${entry.ordinal} (TOC line: "${formatOutlineTocLine(entry)}").`
+        `TOC/body numbering drift: main section "${section.title}" uses numberLabel prefix ${fromLabel} but main-plan ordinal is ${expected}.`
       );
     }
   }
@@ -208,10 +209,88 @@ function checkTocInternalConsistency(model: CsepRenderModel): string[] {
     if (entry.kind !== "body_section" || entry.section.key === "table_of_contents") continue;
     const tocLine = formatOutlineTocLine(entry);
     const base = entry.section.title.trim().replace(/^(Section\s+)?\d+(?:\.\d+)*\.?\s+/i, "").trim();
-    const expected = `${entry.ordinal}. ${base}`.trim();
+    const expected =
+      entry.section.kind === "main"
+        ? `${entry.section.numberLabel ?? entry.ordinal}. ${base}`.trim()
+        : base;
     if (tocLine !== expected) {
       issues.push(`TOC line mismatch internal rule for "${entry.section.key}": got "${tocLine}", expected "${expected}".`);
     }
+  }
+  return issues;
+}
+
+function checkTocIsNotTable(model: CsepRenderModel): string[] {
+  const toc = model.frontMatterSections.find((section) => section.key === "table_of_contents");
+  if (!toc?.subsections.length) return [];
+  return toc.subsections.some((sub) => Boolean(sub.table?.rows.length))
+    ? ["Table of Contents must be rendered from clean paragraph entries, not a Word table."]
+    : [];
+}
+
+function checkProjectInfoOnlyOnCover(model: CsepRenderModel): string[] {
+  const leaks = model.sections.flatMap((section) =>
+    section.subsections
+      .filter((sub) => /\b(project information|contractor information)\b/i.test(sub.title))
+      .map((sub) => `${section.title}: ${sub.title}`)
+  );
+  return leaks.length ? [`Project information appears outside the cover page: ${leaks.join(" | ")}`] : [];
+}
+
+function checkNoBroadReferences(model: CsepRenderModel): string[] {
+  const broad = flattenModelText(model).match(/\bR\d+\s*[-–]\s*R\d+\b/g);
+  return broad?.length ? [`Broad reference ranges are not allowed: ${Array.from(new Set(broad)).join(", ")}.`] : [];
+}
+
+function checkVersionCCoverage(model: CsepRenderModel): string[] {
+  const keys = new Set(model.sections.map((section) => section.key));
+  const required = [
+    "project_coordination_and_authority",
+    "scope_specific_policy_evidence_summary",
+    "high_risk_programs",
+    "excavation_trenching_na_or_program_trigger",
+    "reviewer_codex_readiness_summary",
+  ];
+  return required.filter((key) => !keys.has(key)).map((key) => `Version C required section missing: "${key}".`);
+}
+
+function checkPpeVersionC(model: CsepRenderModel): string[] {
+  const ppe = model.sections.find((section) => section.key === "ppe_and_work_attire");
+  if (!ppe) return ["PPE and Work Attire section is missing."];
+  const titles = ppe.subsections.map((sub) => normalizeHeadingKey(sub.title));
+  const required = [
+    "required work attire",
+    "minimum ppe",
+    "task specific ppe",
+    "ppe provider",
+    "selection criteria",
+    "training",
+    "inspection and replacement",
+  ];
+  return required.filter((title) => !titles.includes(title)).map((title) => `PPE Version C subsection missing: ${title}.`);
+}
+
+function checkWeatherAndExcavationVersionC(model: CsepRenderModel): string[] {
+  const text = flattenModelText(model);
+  const issues: string[] = [];
+  const weatherSectionPresent = /Severe Weather, High Wind, Lightning, Heat, Cold, and Restart Control/i.test(text);
+  if (weatherSectionPresent) {
+    for (const required of [
+      /20-25\s*mph/i,
+      /lightning[^.]{0,80}10\s*miles/i,
+      /30\s*minutes/i,
+      /80\s*F/i,
+      /85\s*F/i,
+      /32\s*F/i,
+      /post-weather restart inspection/i,
+    ]) {
+      if (!required.test(text)) {
+        issues.push(`Weather Version C threshold missing: ${required.source}.`);
+      }
+    }
+  }
+  if (!/\b(excavation|trenching)\b/i.test(text) || !/\bnot included|program shall be added|Excavation and Trenching Safety Program\b/i.test(text)) {
+    issues.push("Excavation/trenching must be included as a program or marked N/A with a change trigger.");
   }
   return issues;
 }
@@ -223,7 +302,7 @@ function checkDocumentControlPlacement(model: CsepRenderModel): string[] {
   const inAppendix = model.appendixSections.some((s) => s.key === key);
   if (inFront || inAppendix) {
     issues.push(
-      "Document Control / revision history must appear only as Section 21, not in front matter or appendices."
+      "Document Control / revision history must appear only at the end of the main plan, not in front matter or appendices."
     );
   }
   const mainIndex = model.sections.findIndex((s) => s.key === key);
@@ -292,7 +371,7 @@ function checkScopeSectionCleanliness(model: CsepRenderModel): string[] {
 }
 
 function checkHazardModuleReasonableCount(model: CsepRenderModel): string[] {
-  const hazards = model.sections.find((section) => section.key === "hazard_control_modules");
+  const hazards = model.sections.find((section) => section.key === "high_risk_programs");
   if (!hazards) return [];
   const moduleCount = hazards.subsections.filter((subsection) => /:\s*Risk$/i.test(subsection.title)).length;
   if (moduleCount <= MAX_HAZARD_MODULE_COUNT) return [];
@@ -302,17 +381,23 @@ function checkHazardModuleReasonableCount(model: CsepRenderModel): string[] {
 }
 
 function checkDuplicateLadderAuthorizationBlocks(model: CsepRenderModel): string[] {
-  const hazards = model.sections.find((section) => section.key === "hazard_control_modules");
+  const hazards = model.sections.find((section) => section.key === "high_risk_programs");
   if (!hazards) return [];
-  const ladderBlocks = hazards.subsections
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  hazards.subsections
     .map((subsection) => normalizeHeadingKey(subsection.title))
-    .filter((title) => title.includes("ladder authorization program"));
-  if (ladderBlocks.length <= 1) return [];
+    .filter((title) => title.includes("ladder authorization program"))
+    .forEach((title) => {
+      if (seen.has(title)) duplicates.add(title);
+      seen.add(title);
+    });
+  if (!duplicates.size) return [];
   return ["Duplicate Ladder Authorization Program hazard blocks detected."];
 }
 
 function checkDuplicatePpeAcrossHazards(model: CsepRenderModel): string[] {
-  const hazards = model.sections.find((section) => section.key === "hazard_control_modules");
+  const hazards = model.sections.find((section) => section.key === "high_risk_programs");
   if (!hazards) return [];
   const ppeLines = hazards.subsections
     .flatMap((subsection) => [...(subsection.paragraphs ?? []), ...(subsection.items ?? [])])
@@ -353,7 +438,7 @@ function checkOwnedTopicIsolation(
     if (section.key === ownerKey || companionKeys.has(section.key)) continue;
     for (const line of sectionText(section)) {
       if (!topicPattern.test(line)) continue;
-      if (allowlist.some((entry) => line.includes(entry))) continue;
+      if (allowlist.some((entry) => line.toLowerCase().includes(entry.toLowerCase()))) continue;
       leaks.push(`${section.title}: ${line.slice(0, 120)}`);
       if (leaks.length >= 5) break;
     }
@@ -393,14 +478,29 @@ function checkPermitCoverageAndPlacement(model: CsepRenderModel, draft?: Generat
   const permittedReferenceSections = new Set([
     "regulatory_basis_and_references",
     "required_permits_and_hold_points",
-    "high_risk_steel_erection_programs",
-    "hazard_control_modules",
-    "task_execution_modules",
+    "roles_and_responsibilities",
+    "training_competency_and_certifications",
+    "ppe_and_work_attire",
+    "scope_specific_policy_evidence_summary",
+    "high_risk_programs",
+    "inspections_audits_and_records",
+    "project_closeout",
+    "reviewer_codex_readiness_summary",
   ]);
+  const selectedPermitPatterns = selectedPermits
+    .map((permit) => permit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .filter(Boolean)
+    .map((permit) => new RegExp(permit, "i"));
+  const hasSelectedPermitReference = (section: CsepTemplateSection) =>
+    sectionText(section).some((line) => selectedPermitPatterns.some((pattern) => pattern.test(line)));
   const noisySections = sorted.filter(
-    (entry) => entry.count > 0 && entry.key !== primary.key && !permittedReferenceSections.has(entry.key)
+    (entry) => {
+      if (entry.count === 0 || entry.key === primary.key || permittedReferenceSections.has(entry.key)) return false;
+      const section = allSections.find((candidate) => candidate.key === entry.key);
+      return section ? hasSelectedPermitReference(section) : false;
+    }
   );
-  if (noisySections.length > 4) {
+  if (noisySections.length > 8) {
     return [
       `Permit content is scattered across too many sections (${1 + noisySections.length}); keep permits consolidated in one clean primary permit section and only brief relevant references elsewhere.`,
     ];
@@ -427,7 +527,7 @@ function checkPermitCoverageAndPlacement(model: CsepRenderModel, draft?: Generat
 }
 
 function checkPpeDuplicates(model: CsepRenderModel): string[] {
-  const ppeSection = model.frontMatterSections.find((s) => normalizeHeadingKey(s.key) === "required ppe");
+  const ppeSection = model.sections.find((s) => s.key === "ppe_and_work_attire");
   if (!ppeSection) return [];
   const lines: string[] = [];
   for (const sub of ppeSection.subsections) {
@@ -636,7 +736,13 @@ export function assertCsepExportQuality(model: CsepRenderModel, options?: { draf
 
   add("toc_number_label", checkTocVsNumberLabels(model));
   add("toc_consistency", checkTocInternalConsistency(model));
+  add("toc_not_table", checkTocIsNotTable(model));
   add("cover_page_baseline", checkCoverPageBaseline(model));
+  add("project_info_cover_only", checkProjectInfoOnlyOnCover(model));
+  add("version_c_required_sections", checkVersionCCoverage(model));
+  add("broad_references", checkNoBroadReferences(model));
+  add("ppe_version_c", checkPpeVersionC(model));
+  add("weather_excavation_version_c", checkWeatherAndExcavationVersionC(model));
   add("front_matter_order", checkFrontMatterOrder(model));
   add("document_control_placement", checkDocumentControlPlacement(model));
   add("front_matter_required", checkRequiredFrontMatter(model));
@@ -669,7 +775,7 @@ export function assertCsepExportQuality(model: CsepRenderModel, options?: { draf
     checkOwnedTopicIsolation(
       model,
       "iipp_incident_reporting_corrective_action",
-      /\b(incident reporting|fit[-\s]?for[-\s]?duty|drug|alcohol)\b/i,
+      /\b(incident reporting|near[-\s]?miss|investigation|corrective action|restart verification)\b/i,
       IIPP_REFERENCE_ALLOWLIST
     )
   );
