@@ -158,6 +158,60 @@ export async function sendContractorIntakeEmail(params: {
   return { sent: true, warning: null };
 }
 
+export async function sendContractorIntakeSms(params: {
+  toPhone: string;
+  companyName: string;
+  jobsiteName: string;
+  intakeUrl: string;
+}) {
+  const accountSid = readEnv("TWILIO_ACCOUNT_SID");
+  const authToken = readEnv("TWILIO_AUTH_TOKEN");
+  const fromNumber = readEnv("TWILIO_FROM_NUMBER");
+  const messagingServiceSid = readEnv("TWILIO_MESSAGING_SERVICE_SID");
+  const toPhone = params.toPhone.trim();
+
+  if (!accountSid || !authToken || (!fromNumber && !messagingServiceSid)) {
+    return {
+      sent: false,
+      warning:
+        "Invite link created, but SMS delivery is not configured. Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER or TWILIO_MESSAGING_SERVICE_SID.",
+    };
+  }
+
+  const body = [
+    `${params.companyName} requested contractor training information for ${params.jobsiteName}.`,
+    params.intakeUrl,
+  ].join(" ");
+  const form = new URLSearchParams({
+    To: toPhone,
+    Body: body,
+  });
+  if (messagingServiceSid) {
+    form.set("MessagingServiceSid", messagingServiceSid);
+  } else if (fromNumber) {
+    form.set("From", fromNumber);
+  }
+
+  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: form.toString(),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    return {
+      sent: false,
+      warning: errorText.trim() || "Invite link created, but the SMS provider rejected the outgoing message.",
+    };
+  }
+
+  return { sent: true, warning: null };
+}
+
 export type ContractorTrainingRecord = {
   title: string;
   completed_on?: string | null;

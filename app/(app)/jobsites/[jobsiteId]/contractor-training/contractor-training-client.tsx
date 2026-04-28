@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Check, Mail, Plus, QrCode, Save, X } from "lucide-react";
+import { Archive, Check, MessageSquareText, Plus, Save, X } from "lucide-react";
 import {
   EmptyState,
   InlineMessage,
@@ -85,13 +85,7 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
   const [requirementTitle, setRequirementTitle] = useState("");
   const [requirementTrade, setRequirementTrade] = useState("");
   const [requirementPosition, setRequirementPosition] = useState("");
-  const [employeeName, setEmployeeName] = useState("");
-  const [employeeEmail, setEmployeeEmail] = useState("");
-  const [employeePhone, setEmployeePhone] = useState("");
-  const [contractorId, setContractorId] = useState("");
-  const [contractorCompanyName, setContractorCompanyName] = useState("");
-  const [tradeSpecialty, setTradeSpecialty] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
+  const [invitePhone, setInvitePhone] = useState("");
   const [trainingDrafts, setTrainingDrafts] = useState<Record<string, { completedOn: string; expiresOn: string; notes: string }>>({});
 
   const canManage = Boolean(payload.capabilities?.canManage);
@@ -184,33 +178,19 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
     }
   }
 
-  async function addEmployee() {
+  async function sendPhoneInvite() {
     try {
       await postAction(
         {
-          action: "addEmployee",
-          fullName: employeeName,
-          email: employeeEmail,
-          phone: employeePhone,
-          contractorId: contractorId || null,
-          contractorCompanyName,
-          tradeSpecialty,
-          jobTitle,
-          certifications: [],
-          certificationExpirations: {},
+          action: "inviteByPhone",
+          phone: invitePhone,
         },
-        "Contractor employee added."
+        "Invite sent."
       );
-      setEmployeeName("");
-      setEmployeeEmail("");
-      setEmployeePhone("");
-      setContractorId("");
-      setContractorCompanyName("");
-      setTradeSpecialty("");
-      setJobTitle("");
+      setInvitePhone("");
     } catch (error) {
       setTone("error");
-      setMessage(error instanceof Error ? error.message : "Failed to add contractor employee.");
+      setMessage(error instanceof Error ? error.message : "Failed to send contractor invite.");
     }
   }
 
@@ -264,7 +244,7 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
       <PageHero
         eyebrow="Jobsite contractor training"
         title="Contractor Training Matrix"
-        description="Track contractor employees, jobsite-specific training, expirations, and QR self-service intake without using the company employee training matrix."
+        description="Send secure phone invites, then let contractor employees fill out their own jobsite training intake without using the company employee training matrix."
       />
 
       {message ? <InlineMessage tone={tone}>{message}</InlineMessage> : null}
@@ -351,35 +331,23 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
             </div>
           </SectionCard>
 
-          <SectionCard title="Add Contractor Employee" description="Email or phone lets the app reuse prior training history.">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <input value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} placeholder="Full name" className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm" />
-              <input value={employeeEmail} onChange={(event) => setEmployeeEmail(event.target.value)} placeholder="Email" className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm" />
-              <input value={employeePhone} onChange={(event) => setEmployeePhone(event.target.value)} placeholder="Phone" className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm" />
-              <select value={contractorId} onChange={(event) => setContractorId(event.target.value)} className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm">
-                <option value="">Select contractor</option>
-                {(payload.contractors ?? []).map((contractor) => (
-                  <option key={contractor.id} value={contractor.id}>
-                    {contractor.name}
-                  </option>
-                ))}
-              </select>
-              <input value={contractorCompanyName} onChange={(event) => setContractorCompanyName(event.target.value)} placeholder="Contractor company" className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm" />
-              <select value={tradeSpecialty} onChange={(event) => setTradeSpecialty(event.target.value)} className={appNativeSelectClassName}>
-                <option value="">Select trade</option>
-                {CONSTRUCTION_TRADES.map((trade) => (
-                  <option key={trade} value={trade}>{trade}</option>
-                ))}
-              </select>
-              <select value={jobTitle} onChange={(event) => setJobTitle(event.target.value)} className={`${appNativeSelectClassName} sm:col-span-2`}>
-                <option value="">Select position</option>
-                {CONSTRUCTION_POSITIONS.map((position) => (
-                  <option key={position} value={position}>{position}</option>
-                ))}
-              </select>
-              <button type="button" onClick={() => void addEmployee()} className={`${appButtonPrimaryClassName} sm:col-span-2`}>
-                <Plus className="h-4 w-4" aria-hidden />
-                Add Employee
+          <SectionCard title="Send Contractor Invite" description="Enter only the contractor employee's phone number. They fill out their own profile, company, trade, position, and training from the secure intake link.">
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+              <input
+                value={invitePhone}
+                onChange={(event) => setInvitePhone(event.target.value)}
+                placeholder="Phone number"
+                inputMode="tel"
+                className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => void sendPhoneInvite()}
+                disabled={!invitePhone.trim()}
+                className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                <MessageSquareText className="h-4 w-4" aria-hidden />
+                Send Invite
               </button>
             </div>
           </SectionCard>
@@ -390,7 +358,7 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
         {loading ? (
           <InlineMessage>Loading contractor training...</InlineMessage>
         ) : activeAssignments.length === 0 ? (
-          <EmptyState title="No contractor employees" description="Add a contractor employee or send an intake link to start the matrix." />
+          <EmptyState title="No contractor employees" description="Send a phone invite to start the matrix. The contractor employee fills out their own profile and training." />
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-[var(--app-border-strong)] bg-white">
             <table className="min-w-full border-collapse text-left text-sm">
@@ -466,9 +434,8 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
                     <td className="px-4 py-4">
                       <div className="flex flex-col gap-2">
                         <button type="button" onClick={() => void sendIntake(assignment)} disabled={!canManage} className={appButtonSecondaryClassName}>
-                          <QrCode className="h-4 w-4" aria-hidden />
-                          <Mail className="h-4 w-4" aria-hidden />
-                          Send QR Intake
+                          <MessageSquareText className="h-4 w-4" aria-hidden />
+                          Resend Invite
                         </button>
                         <button type="button" onClick={() => void archiveAssignment(assignment)} disabled={!canManage} className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50">
                           <Archive className="h-4 w-4" aria-hidden />

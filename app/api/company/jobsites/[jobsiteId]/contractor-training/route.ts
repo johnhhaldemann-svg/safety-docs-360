@@ -12,7 +12,7 @@ import {
   normalizeTrainingTitle,
   parseExpirationMap,
   parseStringArray,
-  sendContractorIntakeEmail,
+  sendContractorIntakeSms,
 } from "@/lib/contractorTraining";
 import {
   filterAllowedPositions,
@@ -419,6 +419,87 @@ export async function POST(request: Request, { params }: { params: Promise<Param
         .eq("company_id", companyId)
         .eq("jobsite_id", scoped.jobsite.id);
       if (result.error) throw new Error(result.error.message);
+    } else if (action === "inviteByPhone") {
+      const phone = asNullableString(body?.phone);
+      const phoneNormalized = normalizePhone(phone);
+      if (!phone || !phoneNormalized) return NextResponse.json({ error: "Phone number is required." }, { status: 400 });
+
+      const existing = await scoped.db
+        .from("contractor_employee_profiles")
+        .select("id")
+        .eq("phone_normalized", phoneNormalized)
+        .maybeSingle();
+      if (existing.error) throw new Error(existing.error.message);
+
+      let employeeId = existing.data?.id ? String(existing.data.id) : "";
+      if (!employeeId) {
+        const insertProfile = await scoped.db
+          .from("contractor_employee_profiles")
+          .insert({
+            full_name: "Pending Contractor",
+            phone,
+            phone_normalized: phoneNormalized,
+            readiness_status: "onboarding",
+            created_by: scoped.auth.user.id,
+            updated_by: scoped.auth.user.id,
+          })
+          .select("id")
+          .single();
+        if (insertProfile.error) throw new Error(insertProfile.error.message);
+        employeeId = String(insertProfile.data?.id ?? "");
+      }
+      if (!employeeId || employeeId === "undefined") {
+        throw new Error("Failed to create contractor invite profile.");
+      }
+      if (existing.data?.id) {
+        const updateProfile = await scoped.db
+          .from("contractor_employee_profiles")
+          .update({ phone, phone_normalized: phoneNormalized, updated_by: scoped.auth.user.id })
+          .eq("id", employeeId);
+        if (updateProfile.error) throw new Error(updateProfile.error.message);
+      }
+
+      const assignmentResult = await scoped.db
+        .from("contractor_employee_jobsite_assignments")
+        .upsert(
+          {
+            company_id: companyId,
+            jobsite_id: scoped.jobsite.id,
+            contractor_id: null,
+            contractor_employee_id: employeeId,
+            status: "active",
+            archived_at: null,
+            created_by: scoped.auth.user.id,
+            updated_by: scoped.auth.user.id,
+          },
+          { onConflict: "company_id,jobsite_id,contractor_employee_id" }
+        )
+        .select("id")
+        .single();
+      if (assignmentResult.error) throw new Error(assignmentResult.error.message);
+
+      const token = generateIntakeToken();
+      const intakeUrl = buildContractorIntakeUrl(token);
+      if (!intakeUrl) return NextResponse.json({ error: "Set NEXT_PUBLIC_SITE_URL or SITE_URL to create intake links." }, { status: 500 });
+      const tokenInsert = await scoped.db.from("contractor_employee_intake_tokens").insert({
+        token_hash: hashIntakeToken(token),
+        company_id: companyId,
+        jobsite_id: scoped.jobsite.id,
+        assignment_id: assignmentResult.data.id,
+        contractor_employee_id: employeeId,
+        expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString(),
+        created_by: scoped.auth.user.id,
+      });
+      if (tokenInsert.error) throw new Error(tokenInsert.error.message);
+
+      const smsResult = await sendContractorIntakeSms({
+        toPhone: phone,
+        companyName: scoped.companyScope.companyName ?? "Your company",
+        jobsiteName: scoped.jobsite.name,
+        intakeUrl,
+      });
+      const payload = await loadMatrix(scoped.db, companyId, scoped.jobsite.id);
+      return NextResponse.json({ success: true, intakeUrl, ...smsResult, ...payload });
     } else if (action === "sendIntake") {
       const assignmentId = asString(body?.assignmentId);
       if (!assignmentId) return NextResponse.json({ error: "assignmentId is required." }, { status: 400 });
@@ -433,12 +514,12 @@ export async function POST(request: Request, { params }: { params: Promise<Param
       if (!assignmentResult.data) return NextResponse.json({ error: "Assignment not found." }, { status: 404 });
       const employeeResult = await scoped.db
         .from("contractor_employee_profiles")
-        .select("id, full_name, email")
+        .select("id, full_name, phone")
         .eq("id", assignmentResult.data.contractor_employee_id)
         .maybeSingle();
       if (employeeResult.error) throw new Error(employeeResult.error.message);
-      const employee = employeeResult.data as { id: string; full_name: string; email: string | null } | null;
-      if (!employee?.email) return NextResponse.json({ error: "This contractor employee needs an email before an intake link can be sent." }, { status: 400 });
+      const employee = employeeResult.data as { id: string; full_name: string; phone: string | null } | null;
+      if (!employee?.phone) return NextResponse.json({ error: "This contractor employee needs a phone number before an intake link can be sent." }, { status: 400 });
 
       const token = generateIntakeToken();
       const intakeUrl = buildContractorIntakeUrl(token);
@@ -453,14 +534,13 @@ export async function POST(request: Request, { params }: { params: Promise<Param
         created_by: scoped.auth.user.id,
       });
       if (tokenInsert.error) throw new Error(tokenInsert.error.message);
-      const emailResult = await sendContractorIntakeEmail({
-        toEmail: employee.email,
-        employeeName: employee.full_name,
+      const smsResult = await sendContractorIntakeSms({
+        toPhone: employee.phone,
         companyName: scoped.companyScope.companyName ?? "Your company",
         jobsiteName: scoped.jobsite.name,
         intakeUrl,
       });
-      return NextResponse.json({ success: true, intakeUrl, ...emailResult });
+      return NextResponse.json({ success: true, intakeUrl, ...smsResult });
     } else {
       return NextResponse.json({ error: "Unknown contractor training action." }, { status: 400 });
     }
