@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { DashboardOverviewFiltersBar } from "@/components/dashboard/DashboardOverviewFiltersBar";
 import { InlineMessage } from "@/components/WorkspacePrimitives";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
@@ -112,13 +112,11 @@ function isActiveJobsite(status?: string | null): boolean {
 }
 
 export function DashboardOverviewShell({ workspace }: { workspace: DashboardDataState }) {
-  const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const activeTab = useMemo<DashboardTabId>(() => readDashboardTab(searchParams.get("tab")), [searchParams]);
+  const [activeTab, setActiveTab] = useState<DashboardTabId>(() => readDashboardTab(searchParams.get("tab")));
 
   const allowed = useMemo(() => canLoadDashboardOverview(workspace.permissionMap), [workspace.permissionMap]);
 
@@ -141,17 +139,30 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
   const selectTab = useCallback(
     (value: string) => {
       const tab = readDashboardTab(value);
-      const params = new URLSearchParams(searchParams.toString());
+      setActiveTab(tab);
+      if (typeof window === "undefined") return;
+      const nextUrl = new URL(window.location.href);
       if (tab === "operations") {
-        params.delete("tab");
+        nextUrl.searchParams.delete("tab");
       } else {
-        params.set("tab", tab);
+        nextUrl.searchParams.set("tab", tab);
       }
-      const qs = params.toString();
-      router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+      window.history.replaceState(window.history.state, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
     },
-    [pathname, router, searchParams]
+    []
   );
+
+  useEffect(() => {
+    setActiveTab(readDashboardTab(searchParams.get("tab")));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const syncTabFromUrl = () => {
+      setActiveTab(readDashboardTab(new URLSearchParams(window.location.search).get("tab")));
+    };
+    window.addEventListener("popstate", syncTabFromUrl);
+    return () => window.removeEventListener("popstate", syncTabFromUrl);
+  }, []);
 
   const load = useCallback(async () => {
     if (!allowed) return;
