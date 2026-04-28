@@ -1,6 +1,7 @@
 import type { DocumentReadiness, TrafficLightStatus } from "@/src/lib/dashboard/types";
 import { DOCUMENTS_EMPTY } from "@/src/lib/dashboard/dashboardOverviewEmptyMessages";
 import { EmptyState } from "@/components/WorkspacePrimitives";
+import { formatTitleCase } from "@/lib/formatTitleCase";
 import { FileStack } from "lucide-react";
 import { StatusBadge } from "@/src/components/dashboard/StatusBadge";
 
@@ -40,12 +41,13 @@ export function DocumentReadinessPanel({
   overallStatusBand,
 }: DocumentReadinessPanelProps) {
   const total = ROWS.reduce((s, r) => s + Math.max(0, readiness[r.key]), 0);
+  const displayTitle = formatTitleCase(title) || title;
 
   if (total === 0) {
     return (
       <div className={className}>
         <div className="mb-3">
-          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
+          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{displayTitle}</h4>
           {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
         </div>
         <EmptyState align="left" icon={FileStack} title={emptyTitle} description={emptyDescription} />
@@ -57,7 +59,7 @@ export function DocumentReadinessPanel({
     <div className={`space-y-4 ${className}`.trim()}>
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
+          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{displayTitle}</h4>
           {overallStatusBand ? <StatusBadge label="Readiness" trafficLight={overallStatusBand} /> : null}
         </div>
         {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
@@ -80,7 +82,7 @@ export function DocumentReadinessPanel({
             >
               <dt className="flex items-center gap-2 font-medium text-[var(--app-text-strong)]">
                 <span className={`h-2 w-2 shrink-0 rounded-full ${r.tone}`} aria-hidden="true" />
-                {r.label}
+                {formatTitleCase(r.label) || r.label}
               </dt>
               <dd className="font-app-display font-bold text-[var(--app-text-strong)]">{v}</dd>
             </div>

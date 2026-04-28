@@ -3,6 +3,7 @@
 import type { TrafficLightStatus } from "@/src/lib/dashboard/types";
 import { CORRECTIVE_ACTIONS_EMPTY } from "@/src/lib/dashboard/dashboardOverviewEmptyMessages";
 import { EmptyState } from "@/components/WorkspacePrimitives";
+import { formatTitleCase } from "@/lib/formatTitleCase";
 import { LayoutList } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -58,12 +59,13 @@ export function StatusBarChart({
   emptyDescription = CORRECTIVE_ACTIONS_EMPTY.description,
 }: StatusBarChartProps) {
   const total = segments.reduce((s, x) => s + Math.max(0, x.value), 0);
+  const displayTitle = formatTitleCase(title) || title;
 
   if (segments.length === 0 || total === 0) {
     return (
       <div className={className}>
         <div className="mb-3">
-          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
+          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{displayTitle}</h4>
           {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
         </div>
         <EmptyState align="left" icon={LayoutList} title={emptyTitle} description={emptyDescription} />
@@ -73,7 +75,7 @@ export function StatusBarChart({
 
   const chartRows = segments.map((s) => ({
     key: s.key,
-    name: s.label,
+    name: formatTitleCase(s.label) || s.label,
     value: Math.max(0, s.value),
     tone: s.tone,
   }));
@@ -81,7 +83,7 @@ export function StatusBarChart({
   return (
     <div className={`space-y-4 ${className}`.trim()}>
       <div>
-        <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
+        <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{displayTitle}</h4>
         {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
       </div>
 

@@ -2,6 +2,7 @@ import type { PermitCompliance } from "@/src/lib/dashboard/types";
 import { PERMITS_EMPTY } from "@/src/lib/dashboard/dashboardOverviewEmptyMessages";
 import { permitComplianceRowBand, readinessPercentBand } from "@/src/lib/dashboard/dashboardStatusSemantics";
 import { EmptyState } from "@/components/WorkspacePrimitives";
+import { formatTitleCase } from "@/lib/formatTitleCase";
 import { ClipboardCheck } from "lucide-react";
 import { StatusBadge } from "@/src/components/dashboard/StatusBadge";
 
@@ -24,11 +25,13 @@ export function PermitComplianceTable({
   description = "Required versus completed permits by type, with gap counts. Treat missing rows as a missing control until documented before work continues.",
   className = "",
 }: PermitComplianceTableProps) {
+  const displayTitle = formatTitleCase(title) || title;
+
   if (permits.length === 0) {
     return (
       <div className={className}>
         <div className="mb-3">
-          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
+          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{displayTitle}</h4>
           {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
         </div>
         {jsaCompletionRate != null && jsaCompletionRate > 0 ? (
@@ -47,7 +50,7 @@ export function PermitComplianceTable({
     <div className={`space-y-3 ${className}`.trim()}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
+          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{displayTitle}</h4>
           {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
         </div>
         {jsaCompletionRate != null && jsaCompletionRate > 0 ? (
@@ -62,7 +65,7 @@ export function PermitComplianceTable({
         <table className="min-w-[520px] w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-[var(--app-border)] bg-[var(--app-panel)]">
-              <th className="px-4 py-3 font-semibold text-[var(--app-text-strong)]">Permit type</th>
+              <th className="px-4 py-3 font-semibold text-[var(--app-text-strong)]">Permit Type</th>
               <th className="px-4 py-3 font-semibold text-[var(--app-text-strong)]">Required</th>
               <th className="px-4 py-3 font-semibold text-[var(--app-text-strong)]">Completed</th>
               <th className="px-4 py-3 font-semibold text-[var(--app-text-strong)]">Missing</th>
@@ -73,7 +76,9 @@ export function PermitComplianceTable({
           <tbody>
             {permits.map((p, i) => (
               <tr key={`${p.permitType}-${i}`} className="border-b border-[var(--app-border-subtle)] last:border-0">
-                <td className="px-4 py-3 font-medium text-[var(--app-text-strong)]">{p.permitType}</td>
+                <td className="px-4 py-3 font-medium text-[var(--app-text-strong)]">
+                  {formatTitleCase(p.permitType.replace(/_/g, " ")) || p.permitType}
+                </td>
                 <td className="px-4 py-3 text-[var(--app-text)]">{p.required}</td>
                 <td className="px-4 py-3 text-[var(--app-text)]">{p.completed}</td>
                 <td className="px-4 py-3 text-[var(--app-text)]">{p.missing}</td>

@@ -5,6 +5,7 @@ import {
   contractorExposureBand,
 } from "@/src/lib/dashboard/dashboardStatusSemantics";
 import { EmptyState } from "@/components/WorkspacePrimitives";
+import { formatTitleCase } from "@/lib/formatTitleCase";
 import { Users } from "lucide-react";
 import { StatusBadge } from "@/src/components/dashboard/StatusBadge";
 
@@ -24,11 +25,13 @@ export function ContractorRiskTable({
   description = "Derived from open work, overdue items, observations, incidents, and compliance signals.",
   className = "",
 }: ContractorRiskTableProps) {
+  const displayTitle = formatTitleCase(title) || title;
+
   if (contractors.length === 0) {
     return (
       <div className={className}>
         <div className="mb-3">
-          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
+          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{displayTitle}</h4>
           {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
         </div>
         <EmptyState
@@ -44,7 +47,7 @@ export function ContractorRiskTable({
   return (
     <div className={`space-y-3 ${className}`.trim()}>
       <div>
-        <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
+        <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{displayTitle}</h4>
         {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
       </div>
       <div className="overflow-x-auto rounded-2xl border border-[var(--app-border-strong)] bg-white/92 shadow-[var(--app-shadow-soft)]">
@@ -65,7 +68,9 @@ export function ContractorRiskTable({
           <tbody>
             {contractors.map((c, i) => (
               <tr key={`${c.contractorName}-${i}`} className="border-b border-[var(--app-border-subtle)] last:border-0">
-                <td className="px-4 py-3 font-medium text-[var(--app-text-strong)]">{c.contractorName}</td>
+                <td className="px-4 py-3 font-medium text-[var(--app-text-strong)]">
+                  {formatTitleCase(c.contractorName) || c.contractorName}
+                </td>
                 <td className="px-4 py-3">
                   <span className="font-app-display font-bold text-[var(--app-text-strong)]">{Math.round(c.riskScore)}</span>
                 </td>

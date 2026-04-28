@@ -60,11 +60,11 @@ describe("PerformanceHubPanel", () => {
     const html = renderToStaticMarkup(<PerformanceHubPanel overview={overview()} activeJobsites={3} />);
 
     expect(html).toContain("Safety Performance Score");
-    expect(html).toContain("Score contributors");
-    expect(html).toContain("Safety performance");
-    expect(html).toContain("Operational command strip");
-    expect(html).toContain("Active jobsites");
-    expect(html).toContain("Priority action queue");
-    expect(html).toContain("Open high-risk items need field verification");
+    expect(html).toContain("Score Contributors");
+    expect(html).toContain("Safety Performance");
+    expect(html).toContain("Operational Command Strip");
+    expect(html).toContain("Active Jobsites");
+    expect(html).toContain("Priority Action Queue");
+    expect(html).toContain("Open High-Risk Items Need Field Verification");
   });
 });

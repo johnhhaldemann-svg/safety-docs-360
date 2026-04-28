@@ -9,6 +9,7 @@ import {
   buildDashboardImprovementDrivers,
   buildDashboardPerformanceScore,
 } from "@/src/lib/dashboard/performanceScore";
+import { formatTitleCase } from "@/lib/formatTitleCase";
 import { SectionCard } from "@/src/components/dashboard/SectionCard";
 import { MetricCard } from "@/src/components/dashboard/MetricCard";
 import { StatusBadge } from "@/src/components/dashboard/StatusBadge";
@@ -135,7 +136,9 @@ export function PerformanceHubPanel({ overview, activeJobsites }: PerformanceHub
                 <div className="relative overflow-hidden rounded-2xl border border-[var(--app-border)] bg-white/86 px-4 py-3 shadow-[0_8px_18px_rgba(76,108,161,0.05)]">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[var(--app-text-strong)]">{driver.title}</p>
+                      <p className="text-sm font-semibold text-[var(--app-text-strong)]">
+                        {formatTitleCase(driver.title) || driver.title}
+                      </p>
                       <p className="mt-1 text-xs leading-relaxed text-[var(--app-text)]">{driver.detail}</p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2">

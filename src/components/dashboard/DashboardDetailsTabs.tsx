@@ -2,6 +2,7 @@
 
 import * as Tabs from "@radix-ui/react-tabs";
 import type { ReactNode } from "react";
+import { formatTitleCase } from "@/lib/formatTitleCase";
 
 export const DASHBOARD_TAB_IDS = ["operations", "trends", "risks", "readiness", "system"] as const;
 
@@ -35,7 +36,7 @@ export function DashboardDetailsTabs({ activeTab, onTabChange, panels }: Dashboa
               Dashboard sections
             </p>
             <h2 className="mt-0.5 text-lg font-bold tracking-tight text-[var(--app-text-strong)]">
-              Explore the details
+              Explore the Details
             </h2>
             <p className="mt-1 text-xs leading-relaxed text-[var(--app-muted)]">
               {dashboardTabs.find((tab) => tab.value === activeTab)?.description}
@@ -51,7 +52,7 @@ export function DashboardDetailsTabs({ activeTab, onTabChange, panels }: Dashboa
               value={tab.value}
               className="min-w-max rounded-xl px-3 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text)] transition hover:bg-white data-[state=active]:bg-[var(--app-accent-primary)] data-[state=active]:text-white data-[state=active]:shadow-[var(--app-shadow-primary-button)]"
             >
-              {tab.label}
+              {formatTitleCase(tab.label) || tab.label}
             </Tabs.Trigger>
           ))}
         </Tabs.List>

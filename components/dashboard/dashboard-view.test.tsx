@@ -285,6 +285,36 @@ describe("DashboardView", () => {
     expect(html).toContain("Risk Reduction Graph");
   });
 
+  it("normalizes dashboard titles to title case", () => {
+    mockLayout("company_admin", [
+      "onboarding_checklist",
+      "priority_queue",
+      "metric_primary",
+      "metric_secondary",
+      "metric_tertiary",
+      "metric_quaternary",
+      "recent_documents",
+      "recent_reports",
+      "company_access",
+      "training_signal",
+    ]);
+    const html = renderToStaticMarkup(
+      <DashboardView
+        model={getCompanyAdminDashboardModel({
+          ...baseData,
+          workspaceProduct: "csep",
+          companyProfile: baseData.companyProfile
+            ? { ...baseData.companyProfile, name: "test" }
+            : baseData.companyProfile,
+        })}
+      />
+    );
+
+    expect(html).toContain("Test CSEP Workspace");
+    expect(html).toContain("Workspace Launch Checklist");
+    expect(html).toContain("Document Queue");
+  });
+
   it("renders risk_ranking and hazard_trends as bar charts in the default company layout", () => {
     mockLayout("company_admin");
     const html = renderToStaticMarkup(<DashboardView model={getCompanyAdminDashboardModel(baseData)} />);

@@ -2,6 +2,7 @@ import type { EngineHealthItem } from "@/src/lib/dashboard/types";
 import { ENGINE_HEALTH_ALL_CLEAR } from "@/src/lib/dashboard/dashboardOverviewEmptyMessages";
 import { engineAggregateBand } from "@/src/lib/dashboard/dashboardStatusSemantics";
 import { EmptyState, InlineMessage } from "@/components/WorkspacePrimitives";
+import { formatTitleCase } from "@/lib/formatTitleCase";
 import { Cpu } from "lucide-react";
 import { StatusBadge } from "@/src/components/dashboard/StatusBadge";
 import Link from "next/link";
@@ -35,11 +36,13 @@ export function EngineHealthPanel({
   description = "Live checks from the overview data service. Yellow means prevention signals may be incomplete; red needs attention before relying on this view for decisions.",
   className = "",
 }: EngineHealthPanelProps) {
+  const displayTitle = formatTitleCase(title) || title;
+
   if (items.length === 0) {
     return (
       <div className={className}>
         <div className="mb-3">
-          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
+          <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{displayTitle}</h4>
           {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
         </div>
         <EmptyState
@@ -58,7 +61,7 @@ export function EngineHealthPanel({
   return (
     <div className={`space-y-3 ${className}`.trim()}>
       <div>
-        <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{title}</h4>
+        <h4 className="text-sm font-bold text-[var(--app-text-strong)]">{displayTitle}</h4>
         {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -79,7 +82,9 @@ export function EngineHealthPanel({
           >
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-[var(--app-text-strong)]">{item.moduleName}</p>
+                <p className="text-sm font-semibold text-[var(--app-text-strong)]">
+                  {formatTitleCase(item.moduleName) || item.moduleName}
+                </p>
                 <StatusBadge label={statusLabel(item.status)} trafficLight={item.status} />
               </div>
               <p className="mt-1 text-xs leading-relaxed text-[var(--app-text)]">{item.message}</p>
