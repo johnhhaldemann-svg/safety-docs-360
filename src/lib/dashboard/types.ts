@@ -110,6 +110,29 @@ export type DashboardAiInsight = {
   href?: string;
 };
 
+export type DashboardPerformanceScore = {
+  value: number;
+  band: TrafficLightStatus;
+  label: string;
+  trend?: TrendDirection;
+  contributors: Array<{
+    key: string;
+    label: string;
+    score: number;
+    weight: number;
+    band: TrafficLightStatus;
+  }>;
+};
+
+export type DashboardImprovementDriver = {
+  id: string;
+  title: string;
+  detail: string;
+  severity: RiskSeverityBand | "info";
+  metric?: string;
+  href?: string;
+};
+
 /** Sample row for overdue corrective follow-up UI (subset of corrective columns). */
 export type OverdueCorrectiveSample = {
   id: string;
@@ -132,6 +155,8 @@ export type CredentialGapSummary = {
 
 export type DashboardOverview = {
   summary: DashboardSummary;
+  performanceScore?: DashboardPerformanceScore;
+  improvementDrivers?: DashboardImprovementDriver[];
   incidentTrend: TrendPoint[];
   observationTrend: TrendPoint[];
   correctiveActionStatus: CorrectiveActionStatus;

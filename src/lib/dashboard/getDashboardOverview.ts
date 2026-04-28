@@ -18,6 +18,10 @@ import type {
   TrendPoint,
 } from "./types";
 import { generateDashboardInsights, rulesInsightsToAiInsights } from "./generateDashboardInsights";
+import {
+  buildDashboardImprovementDrivers,
+  buildDashboardPerformanceScore,
+} from "./performanceScore";
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -170,7 +174,7 @@ function emptyOverview(params: {
   engineHealth: EngineHealthItem[];
   aiInsights: DashboardAiInsight[];
 }): DashboardOverview {
-  return {
+  const overview: DashboardOverview = {
     summary: emptySummary(),
     incidentTrend: [],
     observationTrend: [],
@@ -184,6 +188,11 @@ function emptyOverview(params: {
     overdueCorrectiveSamples: [],
     observationCategoryTop: [],
     credentialGaps: { expiredCredentials: 0, expiringSoonCredentials: 0 },
+  };
+  return {
+    ...overview,
+    performanceScore: buildDashboardPerformanceScore(overview),
+    improvementDrivers: buildDashboardImprovementDrivers(overview),
   };
 }
 
@@ -937,7 +946,7 @@ export async function getDashboardOverview(params?: {
     })
   );
 
-  return {
+  const overview: DashboardOverview = {
     summary,
     incidentTrend,
     observationTrend,
@@ -951,5 +960,11 @@ export async function getDashboardOverview(params?: {
     overdueCorrectiveSamples,
     observationCategoryTop,
     credentialGaps,
+  };
+
+  return {
+    ...overview,
+    performanceScore: buildDashboardPerformanceScore(overview),
+    improvementDrivers: buildDashboardImprovementDrivers(overview),
   };
 }

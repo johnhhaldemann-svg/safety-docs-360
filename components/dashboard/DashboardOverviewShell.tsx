@@ -21,6 +21,7 @@ import { DocumentReadinessPanel } from "@/src/components/dashboard/DocumentReadi
 import { EngineHealthPanel } from "@/src/components/dashboard/EngineHealthPanel";
 import { AiInsightsPanel } from "@/src/components/dashboard/AiInsightsPanel";
 import { DashboardDomainEmptyState } from "@/src/components/dashboard/DashboardDomainEmptyState";
+import { PerformanceHubPanel } from "@/src/components/dashboard/PerformanceHubPanel";
 import {
   EMERGING_THEMES_EMPTY,
   HEADLINE_HEALTH_EMPTY,
@@ -98,6 +99,11 @@ function outlookTone(o: ReturnType<typeof incidentOutlook>): "success" | "error"
   if (o === "improving") return "success";
   if (o === "worsening") return "error";
   return "neutral";
+}
+
+function isActiveJobsite(status?: string | null): boolean {
+  const normalized = (status ?? "").trim().toLowerCase();
+  return normalized === "active" || normalized === "planned" || normalized === "action needed";
 }
 
 export function DashboardOverviewShell({ workspace }: { workspace: DashboardDataState }) {
@@ -232,6 +238,12 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
   const disconnectedSources = overview.engineHealth.filter(
     (e) => e.status !== "green" && /not connected|missing|could not/i.test(e.message)
   );
+  const activeJobsites = workspace.workspaceSummary.jobsites.filter((jobsite) =>
+    isActiveJobsite(jobsite.status)
+  ).length;
+  const companyName = workspace.companyProfile?.name?.trim() || workspace.userTeam || "Workspace";
+  const connectedSourceCount = overview.engineHealth.filter((item) => item.status === "green").length;
+  const totalSourceCount = overview.engineHealth.length;
 
   const doc = overview.documentReadiness;
   const pipelineTotal = doc.draft + doc.submitted + doc.underReview + doc.approved + doc.rejected;
@@ -294,7 +306,31 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
     <div className="space-y-8">
       {filters}
       <div className="rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.98)_0%,_rgba(234,241,255,0.88)_100%)] px-4 py-4 text-sm text-[var(--app-text)] shadow-[var(--app-shadow-soft)] sm:px-6">
-        <p className="font-semibold text-[var(--app-text-strong)]">Prevention overview</p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--app-muted)]">
+              Dashboard information hub
+            </p>
+            <h2 className="mt-1 font-app-display text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">
+              {companyName}
+            </h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge
+              label={`${connectedSourceCount}/${totalSourceCount || 0} sources green`}
+              tone={connectedSourceCount === totalSourceCount ? "success" : "warning"}
+            />
+            <StatusBadge label={`${activeJobsites} active jobsites`} tone={activeJobsites > 0 ? "info" : "neutral"} />
+            <button
+              type="button"
+              onClick={() => void load()}
+              disabled={loading}
+              className="rounded-xl border border-[var(--app-border-strong)] bg-white/86 px-3 py-2 text-xs font-semibold text-[var(--app-text-strong)] shadow-sm transition hover:border-[var(--app-accent-border-28)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? "Refreshing..." : "Refresh hub"}
+            </button>
+          </div>
+        </div>
         <p className="mt-1 text-xs leading-relaxed text-[var(--app-muted)]">
           These tiles highlight where risk may be building and what requires field verification—not only what was reported.
           Data is loaded from{" "}
@@ -302,6 +338,8 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           company. Empty sections usually mean a source is not connected yet; the role-based dashboard below is unchanged.
         </p>
       </div>
+
+      <PerformanceHubPanel overview={overview} activeJobsites={activeJobsites} />
 
       <SectionCard
         eyebrow="Prevention snapshot"
