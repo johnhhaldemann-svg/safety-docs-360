@@ -1,8 +1,15 @@
 ﻿"use client";
 
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { InlineMessage, SectionCard, StatusBadge } from "@/components/WorkspacePrimitives";
+import {
+  InlineMessage,
+  SectionCard,
+  StatusBadge,
+  appButtonPrimaryClassName,
+  appButtonSecondaryClassName,
+} from "@/components/WorkspacePrimitives";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -33,6 +40,8 @@ type JobsiteRow = {
   project_number?: string | null;
   location?: string | null;
   status?: string;
+  project_manager?: string | null;
+  safety_lead?: string | null;
 };
 
 function labelize(value: string | null | undefined) {
@@ -143,8 +152,12 @@ export function JobsiteSurfaceClient({
 }
 
 function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null }) {
+  const jobsite = (payload?.jobsite as JobsiteRow | undefined) ?? null;
+  const overview = (payload?.overview as Record<string, unknown> | undefined) ?? {};
   const widgets = (payload?.widgets as Record<string, unknown> | undefined) ?? {};
   const incidents = (widgets.recentIncidents as Array<Record<string, unknown>> | undefined) ?? [];
+  const links = (payload?.links as Record<string, string> | undefined) ?? {};
+  const jobsiteId = String(jobsite?.id ?? "");
   const cards = [
     { label: "Work Planned Today", value: Number(widgets.workPlannedToday ?? 0) },
     { label: "Active Permits", value: Number(widgets.activePermits ?? 0) },
@@ -155,9 +168,116 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
     { label: "Closed Today", value: Number(widgets.closedToday ?? 0) },
     { label: "Recent Incidents", value: incidents.length },
   ];
+  const functionLinks = [
+    {
+      href: links.team ?? `/jobsites/${encodeURIComponent(jobsiteId)}/team`,
+      title: "Team",
+      detail: `${Number(overview.users ?? 0)} company user${Number(overview.users ?? 0) === 1 ? "" : "s"} in scope`,
+      action: "Manage people",
+    },
+    {
+      href: `/jobsites/${encodeURIComponent(jobsiteId)}/contractor-training`,
+      title: "Contractor Training",
+      detail: "Add contractor employees, send QR intake links, and track site-specific training",
+      action: "Open matrix",
+    },
+    {
+      href: links.jsa ?? `/jobsites/${encodeURIComponent(jobsiteId)}/jsa`,
+      title: "JSA",
+      detail: `${Number(overview.jsas ?? 0)} JSA record${Number(overview.jsas ?? 0) === 1 ? "" : "s"} for this site`,
+      action: "Open JSA",
+    },
+    {
+      href: links.permits ?? `/jobsites/${encodeURIComponent(jobsiteId)}/permits`,
+      title: "Permits",
+      detail: `${Number(overview.permits ?? 0)} permit record${Number(overview.permits ?? 0) === 1 ? "" : "s"}`,
+      action: "Open permits",
+    },
+    {
+      href: links.documents ?? `/jobsites/${encodeURIComponent(jobsiteId)}/documents`,
+      title: "Documents",
+      detail: `${Number(overview.documents ?? 0)} linked document${Number(overview.documents ?? 0) === 1 ? "" : "s"}`,
+      action: "Open documents",
+    },
+    {
+      href: links.liveView ?? `/jobsites/${encodeURIComponent(jobsiteId)}/live-view`,
+      title: "Live View",
+      detail: `${Number(overview.observations ?? 0)} observation${Number(overview.observations ?? 0) === 1 ? "" : "s"} and live field signals`,
+      action: "Open live view",
+    },
+    {
+      href: links.incidents ?? `/jobsites/${encodeURIComponent(jobsiteId)}/incidents`,
+      title: "Incidents",
+      detail: `${Number(overview.incidents ?? 0)} incident record${Number(overview.incidents ?? 0) === 1 ? "" : "s"}`,
+      action: "Open incidents",
+    },
+    {
+      href: links.reports ?? `/jobsites/${encodeURIComponent(jobsiteId)}/reports`,
+      title: "Reports",
+      detail: `${Number(overview.reports ?? 0)} report${Number(overview.reports ?? 0) === 1 ? "" : "s"} for this site`,
+      action: "Open reports",
+    },
+    {
+      href: links.analytics ?? `/jobsites/${encodeURIComponent(jobsiteId)}/analytics`,
+      title: "Analytics",
+      detail: "Review jobsite trends, safety signals, and operational performance",
+      action: "Open analytics",
+    },
+    {
+      href: `/jobsites/${encodeURIComponent(jobsiteId)}/safety-forms`,
+      title: "Safety Forms",
+      detail: "Open site inspections, checklists, and form submissions",
+      action: "Open forms",
+    },
+    {
+      href: `/jobsites/${encodeURIComponent(jobsiteId)}/toolbox`,
+      title: "Toolbox",
+      detail: "Plan and review toolbox sessions for this jobsite",
+      action: "Open toolbox",
+    },
+    {
+      href: `/jobsites/${encodeURIComponent(jobsiteId)}/inductions`,
+      title: "Inductions",
+      detail: "Manage site orientations and induction readiness",
+      action: "Open inductions",
+    },
+  ];
 
   return (
     <div className="space-y-5">
+      <div className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              Project Home
+            </div>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-100">
+              {jobsite?.name ?? "Jobsite"}
+            </h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <StatusBadge label={labelize(jobsite?.status ?? "active")} tone="success" />
+              {jobsite?.project_number ? <StatusBadge label={jobsite.project_number} tone="info" /> : null}
+              {jobsite?.location ? <StatusBadge label={jobsite.location} tone="neutral" /> : null}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href={`/jobsites/${encodeURIComponent(jobsiteId)}/contractor-training`} className={appButtonPrimaryClassName}>
+              Contractor Training
+            </Link>
+            <Link href={`/jobsites/${encodeURIComponent(jobsiteId)}/live-view`} className={appButtonSecondaryClassName}>
+              Live View
+            </Link>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <FieldCard label="Location" value={jobsite?.location ?? "No location listed"} />
+          <FieldCard label="Project number" value={jobsite?.project_number ?? "Not assigned"} />
+          <FieldCard label="Project manager" value={jobsite?.project_manager ?? "Not assigned"} />
+          <FieldCard label="Safety lead" value={jobsite?.safety_lead ?? "Not assigned"} />
+        </div>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
           <div key={card.label} className="rounded-xl border border-slate-700/80 bg-slate-950/50 p-4">
@@ -165,6 +285,41 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
             <div className="mt-2 text-3xl font-black text-slate-100">{card.value}</div>
           </div>
         ))}
+      </div>
+      <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-slate-100">Jobsite Functions</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Open the tools, records, and workflows scoped to this jobsite.
+            </p>
+          </div>
+          <Link href="/jobsites" className="text-sm font-semibold text-sky-300 hover:text-sky-200">
+            Back to all jobsites
+          </Link>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {functionLinks.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="group rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4 transition hover:-translate-y-0.5 hover:border-sky-500/60 hover:bg-slate-950"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h4 className="text-base font-bold text-slate-100">{item.title}</h4>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">{item.detail}</p>
+                </div>
+                <span className="shrink-0 rounded-xl border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-bold uppercase tracking-[0.14em] text-sky-300 transition group-hover:bg-sky-950/50">
+                  Open
+                </span>
+              </div>
+              <p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                {item.action}
+              </p>
+            </Link>
+          ))}
+        </div>
       </div>
       <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 p-4">
         <h3 className="text-sm font-semibold text-slate-100">Recent Incidents</h3>

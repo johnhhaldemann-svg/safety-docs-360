@@ -22,6 +22,8 @@ type SupabaseLike = {
             status: string | null;
             project_number: string | null;
             location: string | null;
+            project_manager?: string | null;
+            safety_lead?: string | null;
           } | null;
           error: { message?: string | null } | null;
         }>;
@@ -47,7 +49,7 @@ async function resolveJobsiteById(supabase: SupabaseLike, jobsiteId: string) {
 
   return supabase
     .from("company_jobsites")
-    .select("id, company_id, name, status, project_number, location")
+    .select("id, company_id, name, status, project_number, location, project_manager, safety_lead")
     .eq("id", jobsiteId)
     .maybeSingle();
 }
