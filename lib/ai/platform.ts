@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 /**
  * OpenAI-compatible HTTP base URL. Default hits OpenAI directly; set
  * OPENAI_BASE_URL=https://ai-gateway.vercel.sh/v1 to use Vercel AI Gateway.
@@ -22,6 +24,13 @@ export function resolveAiModelId(model: string): string {
   return trimmed;
 }
 
+export function resolveAiProvider(model: string): string {
+  const trimmed = model.trim();
+  if (!trimmed) return "unknown";
+  const provider = trimmed.split("/")[0]?.trim();
+  return trimmed.includes("/") && provider ? provider : "openai";
+}
+
 export function buildAiPromptHash(input: string): string {
-  return Buffer.from(input).toString("base64").slice(0, 32);
+  return createHash("sha256").update(input).digest("hex");
 }

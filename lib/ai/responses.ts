@@ -1,10 +1,20 @@
-import { buildAiPromptHash, getAiApiBaseUrl, resolveAiModelId } from "@/lib/ai/platform";
+import { buildAiPromptHash, getAiApiBaseUrl, resolveAiModelId, resolveAiProvider } from "@/lib/ai/platform";
 import { extractResponsesApiUsage, recordAiCall, type AiCallUsage } from "@/lib/ai/callLog";
+
+export type AiFallbackReason =
+  | "no_openai_api_key"
+  | "http_error"
+  | "exception"
+  | "empty_output_text"
+  | "invalid_json"
+  | null;
 
 export type AiExecutionMeta = {
   model: string | null;
+  provider: string | null;
   promptHash: string | null;
   fallbackUsed: boolean;
+  fallbackReason: AiFallbackReason;
   attempts: number;
   latencyMs: number;
   usage: AiCallUsage | null;
@@ -79,8 +89,10 @@ export async function requestAiResponsesText(params: {
   if (!apiKey) {
     const meta: AiExecutionMeta = {
       model: null,
+      provider: null,
       promptHash: null,
       fallbackUsed: true,
+      fallbackReason: "no_openai_api_key",
       attempts: 0,
       latencyMs: 0,
       usage: null,
@@ -89,17 +101,20 @@ export async function requestAiResponsesText(params: {
     recordAiCall({
       surface,
       model: null,
+      provider: null,
       promptHash: null,
       latencyMs: 0,
       status: "fallback",
       attempts: 0,
       fallbackUsed: true,
+      fallbackReason: "no_openai_api_key",
       errorMessage: "no_openai_api_key",
     });
     return { text: null, json: null, meta };
   }
 
   const model = resolveAiModelId(params.model);
+  const provider = resolveAiProvider(model);
   const promptHash = buildAiPromptHash(params.input);
   const maxAttempts = Math.max(1, params.maxAttempts ?? DEFAULT_MAX_ATTEMPTS);
 
@@ -133,8 +148,10 @@ export async function requestAiResponsesText(params: {
 
         const meta: AiExecutionMeta = {
           model,
+          provider,
           promptHash,
           fallbackUsed: true,
+          fallbackReason: "http_error",
           attempts: attempt,
           latencyMs: Date.now() - startedAt,
           usage: null,
@@ -143,12 +160,14 @@ export async function requestAiResponsesText(params: {
         recordAiCall({
           surface,
           model,
+          provider,
           promptHash,
           latencyMs: meta.latencyMs,
           status: "http_error",
           httpStatus: response.status,
           attempts: attempt,
           fallbackUsed: true,
+          fallbackReason: "http_error",
           errorMessage: `http_${response.status}`,
         });
         return { text: null, json: null, meta };
@@ -162,8 +181,10 @@ export async function requestAiResponsesText(params: {
 
       const meta: AiExecutionMeta = {
         model,
+        provider,
         promptHash,
         fallbackUsed,
+        fallbackReason: fallbackUsed ? "empty_output_text" : null,
         attempts: attempt,
         latencyMs,
         usage,
@@ -172,12 +193,14 @@ export async function requestAiResponsesText(params: {
       recordAiCall({
         surface,
         model,
+        provider,
         promptHash,
         latencyMs,
         status: fallbackUsed ? "fallback" : "ok",
         httpStatus: response.status,
         attempts: attempt,
         fallbackUsed,
+        fallbackReason: fallbackUsed ? "empty_output_text" : null,
         usage,
         errorMessage: fallbackUsed ? "empty_output_text" : null,
       });
@@ -191,8 +214,10 @@ export async function requestAiResponsesText(params: {
       }
       const meta: AiExecutionMeta = {
         model,
+        provider,
         promptHash,
         fallbackUsed: true,
+        fallbackReason: "exception",
         attempts: attempt,
         latencyMs: Date.now() - startedAt,
         usage: null,
@@ -201,12 +226,14 @@ export async function requestAiResponsesText(params: {
       recordAiCall({
         surface,
         model,
+        provider,
         promptHash,
         latencyMs: meta.latencyMs,
         status: "exception",
         httpStatus: lastHttpStatus,
         attempts: attempt,
         fallbackUsed: true,
+        fallbackReason: "exception",
         errorMessage: lastErrorMessage?.slice(0, 240) ?? "unknown_exception",
       });
       return { text: null, json: null, meta };
@@ -216,8 +243,10 @@ export async function requestAiResponsesText(params: {
   /** Unreachable; satisfies the type checker. */
   const meta: AiExecutionMeta = {
     model,
+    provider,
     promptHash,
     fallbackUsed: true,
+    fallbackReason: "exception",
     attempts: attempt,
     latencyMs: Date.now() - startedAt,
     usage: null,
@@ -270,6 +299,7 @@ export async function runStructuredAiJsonTask<T>(params: {
       meta: {
         ...response.meta,
         fallbackUsed: false,
+        fallbackReason: null,
       },
     };
   } catch {
@@ -280,6 +310,7 @@ export async function runStructuredAiJsonTask<T>(params: {
       meta: {
         ...response.meta,
         fallbackUsed: true,
+        fallbackReason: "invalid_json",
       },
     };
   }

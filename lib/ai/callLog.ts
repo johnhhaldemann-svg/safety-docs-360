@@ -19,12 +19,14 @@ export type AiCallUsage = {
 export type AiCallLogInput = {
   surface: string;
   model: string | null;
+  provider?: string | null;
   promptHash: string | null;
   latencyMs: number;
   status: "ok" | "fallback" | "http_error" | "exception";
   httpStatus?: number | null;
   attempts: number;
   fallbackUsed: boolean;
+  fallbackReason?: string | null;
   usage?: AiCallUsage | null;
   errorMessage?: string | null;
 };
@@ -36,10 +38,12 @@ export function recordAiCall(input: AiCallLogInput): void {
   serverLog("info", "ai_call", {
     surface: input.surface,
     model: input.model ?? null,
+    provider: input.provider ?? null,
     status: input.status,
     httpStatus: input.httpStatus ?? null,
     attempts: input.attempts,
     fallbackUsed: input.fallbackUsed,
+    fallbackReason: input.fallbackReason ?? null,
     latencyMs: input.latencyMs,
     promptTokens: input.usage?.promptTokens ?? null,
     completionTokens: input.usage?.completionTokens ?? null,

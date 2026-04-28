@@ -33,6 +33,8 @@ describe("requestAiResponsesText", () => {
     expect(result.text).toBeNull();
     expect(result.meta.fallbackUsed).toBe(true);
     expect(result.meta.model).toBeNull();
+    expect(result.meta.provider).toBeNull();
+    expect(result.meta.fallbackReason).toBe("no_openai_api_key");
     expect(result.meta.attempts).toBe(0);
     expect(result.meta.surface).toBe("test.surface");
   });
@@ -51,6 +53,8 @@ describe("requestAiResponsesText", () => {
     expect(result.text).toBeNull();
     expect(result.meta.fallbackUsed).toBe(true);
     expect(result.meta.model).toBe("gpt-4.1");
+    expect(result.meta.provider).toBe("openai");
+    expect(result.meta.fallbackReason).toBe("http_error");
     expect(result.meta.promptHash).toBeTruthy();
     expect(result.meta.attempts).toBe(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -80,6 +84,7 @@ describe("requestAiResponsesText", () => {
 
     expect(result.text).toBe("hi");
     expect(result.meta.fallbackUsed).toBe(false);
+    expect(result.meta.fallbackReason).toBeNull();
     expect(result.meta.attempts).toBe(2);
     expect(result.meta.usage).toEqual({ promptTokens: 10, completionTokens: 5, totalTokens: 15 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -99,6 +104,7 @@ describe("requestAiResponsesText", () => {
 
     expect(result.text).toBeNull();
     expect(result.meta.fallbackUsed).toBe(true);
+    expect(result.meta.fallbackReason).toBe("http_error");
     expect(result.meta.attempts).toBe(3);
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
@@ -142,6 +148,7 @@ describe("requestAiResponsesText", () => {
     expect(result.text).toBe("ok");
     expect(result.meta.attempts).toBe(2);
     expect(result.meta.fallbackUsed).toBe(false);
+    expect(result.meta.fallbackReason).toBeNull();
   });
 
   it("captures usage in meta", async () => {
@@ -195,6 +202,7 @@ describe("runStructuredAiJsonTask", () => {
 
     expect(result.parsed).toEqual({ ok: false });
     expect(result.meta.fallbackUsed).toBe(true);
+    expect(result.meta.fallbackReason).toBe("invalid_json");
   });
 
   it("returns parsed JSON and metadata on success", async () => {
@@ -218,6 +226,7 @@ describe("runStructuredAiJsonTask", () => {
 
     expect(result.parsed).toEqual({ ok: true, count: 2 });
     expect(result.meta.fallbackUsed).toBe(false);
+    expect(result.meta.fallbackReason).toBeNull();
     expect(result.meta.model).toBe("gpt-4.1");
     expect(result.meta.promptHash).toBeTruthy();
     expect(result.meta.surface).toBe("test.json");
