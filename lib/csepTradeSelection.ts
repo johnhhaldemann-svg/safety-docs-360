@@ -1,8 +1,13 @@
 import {
   CONSTRUCTION_TRADE_LABELS,
+  getSharedSubTradeDefinition,
   getSelectableSharedTasks,
   getSharedSubTradesForTrade,
   getSharedTradeDefinitionByLabel,
+  resolveSharedSubTradeCode,
+  type SharedSubTradeDefinition,
+  type SharedTaskDefinition,
+  type SharedTradeDefinition,
 } from "@/lib/sharedTradeTaxonomy";
 import { DEFAULT_CONFLICT_SEEDS } from "@/lib/safety-intelligence/conflicts/defaultPairs";
 import { csepDefaultPpeForKind, csepOshaRefsForKind, csepSummaryForKind } from "@/lib/csepTradeTemplates";
@@ -43,6 +48,90 @@ function includesAny(haystack: string, needles: readonly string[]) {
 
 function uniq(values: readonly string[]) {
   return [...new Set(values.filter(Boolean))];
+}
+
+function normalizeComparableLabel(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(/\s+/)
+    .filter((token) => token && token !== "and")
+    .join(" ");
+}
+
+function looksLikeSteelScope(tradeLabel: string, subTradeLabel?: string | null) {
+  const context = `${tradeLabel} ${subTradeLabel ?? ""}`.toLowerCase();
+  return (
+    /\bsteel\b/.test(context) ||
+    /\bironwork/.test(context) ||
+    context.includes("metal deck") ||
+    context.includes("ornamental metal")
+  );
+}
+
+function resolveSubTradeSelection(
+  trade: SharedTradeDefinition,
+  subTradeLabel?: string | null
+): SharedSubTradeDefinition | null {
+  if (!subTradeLabel) return null;
+
+  const resolvedCode = resolveSharedSubTradeCode(trade.code, subTradeLabel);
+  if (resolvedCode) {
+    return getSharedSubTradeDefinition(trade.code, resolvedCode);
+  }
+
+  const requested = normalizeComparableLabel(subTradeLabel);
+  return (
+    trade.subTrades.find((row) => normalizeComparableLabel(row.label) === requested) ??
+    null
+  );
+}
+
+function resolveRequestedTaskLabels(
+  requestedTaskLabels: readonly string[],
+  selectableTasks: readonly SharedTaskDefinition[],
+  params: { tradeLabel: string; subTradeLabel: string | null }
+) {
+  const selectableByLabel = new Map(
+    selectableTasks.map((task) => [normalizeComparableLabel(task.label), task.label])
+  );
+  const selectableLabels = new Set(selectableTasks.map((task) => task.label));
+  const selected: string[] = [];
+
+  const pushIfSelectable = (label: string) => {
+    if (!selectableLabels.has(label)) return;
+    selected.push(label);
+  };
+
+  const pushSteelAliases = (rawLabel: string) => {
+    if (!looksLikeSteelScope(params.tradeLabel, params.subTradeLabel)) return;
+    const normalized = normalizeComparableLabel(rawLabel);
+
+    if (/\b(hoisting rigging|rigging hoisting|crane hoisting|crane rigging)\b/.test(normalized)) {
+      ["Rigging", "Crane picks"].forEach(pushIfSelectable);
+    }
+    if (/\b(steel erection|structural steel erection|ironwork erection|erection work)\b/.test(normalized)) {
+      ["Column erection", "Beam setting", "Connecting", "Bolting", "Decking install"].forEach(pushIfSelectable);
+    }
+    if (/\b(welding cutting|weld cut|hot work)\b/.test(normalized)) {
+      ["Welding", "Cutting", "Grinding"].forEach(pushIfSelectable);
+    }
+    if (/\b(work at heights|work at height|fall protection|leading edge)\b/.test(normalized)) {
+      ["Column erection", "Beam setting", "Connecting", "Decking install"].forEach(pushIfSelectable);
+    }
+  };
+
+  for (const rawLabel of requestedTaskLabels) {
+    const direct = selectableByLabel.get(normalizeComparableLabel(rawLabel));
+    if (direct) {
+      selected.push(direct);
+    }
+    pushSteelAliases(rawLabel);
+  }
+
+  return uniq(selected);
 }
 
 const UTILITY_SCOPE_TOKENS = [
@@ -203,6 +292,12 @@ function deriveAdditionalOshaRefs(items: readonly CSEPRiskItem[]) {
       case "Crane lift hazards":
         refs.add("OSHA 1926 Subpart CC – Cranes and Derricks in Construction");
         break;
+      case "Falling objects":
+        refs.add("OSHA 1926.759 - Falling Object Protection");
+        break;
+      case "Structural instability and collapse":
+        refs.add("OSHA 1926 Subpart R - Steel Erection");
+        break;
       case "Electrical shock":
         refs.add("OSHA 1926 Subpart K – Electrical");
         break;
@@ -250,6 +345,130 @@ function buildDerivedSummary(items: readonly CSEPRiskItem[]) {
     parts.push("This selection emphasizes equipment movement and haul-route exposure rather than trenching or underground utility work.");
   }
   return parts.join(" ");
+}
+
+function steelRiskItem(
+  activity: string,
+  hazard: string,
+  risk: RiskLevel,
+  controls: string[],
+  permit = "None"
+): CSEPRiskItem {
+  return {
+    activity,
+    hazard,
+    risk,
+    controls,
+    permit,
+  };
+}
+
+function buildSteelRiskItems(
+  tradeLabel: string,
+  subTradeLabel: string | null,
+  taskLabels: readonly string[]
+) {
+  if (!looksLikeSteelScope(tradeLabel, subTradeLabel)) return [];
+
+  const items: CSEPRiskItem[] = [];
+  const push = (item: CSEPRiskItem) => items.push(item);
+
+  for (const taskLabel of taskLabels) {
+    const task = normalizeComparableLabel(taskLabel);
+    const isHoistingOrRigging =
+      /\b(rigging|crane picks|crane pick|hoist|pick)\b/.test(task);
+    const isColumnBeamOrConnecting =
+      /\b(column erection|beam setting|connecting|bolting)\b/.test(task);
+    const isDecking = /\b(decking install|deck install|decking)\b/.test(task);
+    const isReceiving = /\b(unload steel|sort members|receiving|staging)\b/.test(task);
+
+    if (isReceiving) {
+      push(
+        steelRiskItem(taskLabel, "Struck by equipment", "High", [
+          "Spotters",
+          "Controlled laydown routes",
+          "Equipment exclusion zones",
+        ], "Motion Permit")
+      );
+      push(
+        steelRiskItem(taskLabel, "Pinch / caught between and struck by", "High", [
+          "Hands clear of pinch points",
+          "Tag lines",
+          "Stable dunnage and blocking",
+        ], "Motion Permit")
+      );
+    }
+
+    if (isHoistingOrRigging || isColumnBeamOrConnecting) {
+      push(
+        steelRiskItem(taskLabel, "Crane lift hazards", "High", [
+          "Lift plan",
+          "Qualified rigger and signal person",
+          "Barricaded load path",
+        ], "Motion Permit")
+      );
+    }
+
+    if (isColumnBeamOrConnecting || isDecking) {
+      push(
+        steelRiskItem(taskLabel, "Falls from height", "High", [
+          "PFAS",
+          "Controlled decking zone controls",
+          "Rescue planning",
+        ], "Gravity Permit")
+      );
+      push(
+        steelRiskItem(taskLabel, "Structural instability and collapse", "High", [
+          "Erection sequence verification",
+          "Temporary bracing",
+          "Do not release hoisting gear until stability is verified",
+        ])
+      );
+    }
+
+    if (isHoistingOrRigging || isColumnBeamOrConnecting || isDecking || isReceiving) {
+      push(
+        steelRiskItem(taskLabel, "Falling objects", "High", [
+          "Drop zone control",
+          "Tool tethering",
+          "Secure loose material before release",
+        ], "Gravity Permit")
+      );
+      push(
+        steelRiskItem(taskLabel, "Environmental and site condition", "Medium", [
+          "Wind and lightning review",
+          "Stable crane and laydown support",
+          "Clear access routes",
+        ])
+      );
+    }
+
+    if (isColumnBeamOrConnecting) {
+      push(
+        steelRiskItem(taskLabel, "Pinch / caught between and struck by", "High", [
+          "Controlled landing",
+          "Hands clear during fit-up",
+          "Communication between connectors and operator",
+        ], "Motion Permit")
+      );
+    }
+  }
+
+  return items;
+}
+
+function mergeRiskItems(items: readonly CSEPRiskItem[]) {
+  const seen = new Set<string>();
+  const merged: CSEPRiskItem[] = [];
+
+  for (const item of items) {
+    const key = `${normalizeComparableLabel(item.activity)}|${normalizeComparableLabel(item.hazard)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+
+  return merged;
 }
 
 function profileForTask(
@@ -495,15 +714,23 @@ export function buildCsepTradeSelection(
   const trade = getSharedTradeDefinitionByLabel(tradeLabel);
   if (!trade) return null;
 
-  const subTrade = subTradeLabel ? trade.subTrades.find((row) => row.label === subTradeLabel) ?? null : null;
+  const subTrade = resolveSubTradeSelection(trade, subTradeLabel);
   const selectableTasks = subTrade ? getSelectableSharedTasks(trade.code, subTrade.code) : [];
   const requestedTaskLabels = uniq(taskLabels ?? []);
   const activeTaskLabels =
     subTrade && requestedTaskLabels.length > 0
-      ? selectableTasks.filter((task) => requestedTaskLabels.includes(task.label)).map((task) => task.label)
+      ? resolveRequestedTaskLabels(requestedTaskLabels, selectableTasks, {
+          tradeLabel: trade.label,
+          subTradeLabel: subTrade.label,
+        })
       : [];
 
-  const items = subTrade ? activeTaskLabels.map((taskLabel) => buildRiskItem(trade.label, subTrade.label, taskLabel)) : [];
+  const items = subTrade
+    ? mergeRiskItems([
+        ...activeTaskLabels.map((taskLabel) => buildRiskItem(trade.label, subTrade.label, taskLabel)),
+        ...buildSteelRiskItems(trade.label, subTrade.label, activeTaskLabels),
+      ])
+    : [];
   const derivedHazards = uniq(items.map((item) => item.hazard));
   const derivedPermitSet = new Set(items.map((item) => item.permit).filter((permit) => permit !== "None"));
   const hasExcavation = items.some((item) => item.hazard === "Excavation collapse");

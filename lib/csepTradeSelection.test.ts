@@ -52,6 +52,33 @@ describe("csepTradeSelection", () => {
     expect(selection?.derivedPermits).toEqual(["LOTO Permit"]);
   });
 
+  it("expands legacy steel task wording into full task-derived hazards", () => {
+    const selection = buildCsepTradeSelection(
+      "Structural Steel and Erection",
+      "Steel Erection and Decking",
+      ["Hoisting and Rigging", "Steel Erection", "Welding and Cutting", "Work at Heights"]
+    );
+
+    expect(selection).not.toBeNull();
+    expect(selection?.tradeLabel).toBe("Structural Steel / Metals");
+    expect(selection?.subTradeLabel).toBe("Steel erection / decking");
+    expect(selection?.items.length).toBeGreaterThan(4);
+    expect(selection?.derivedHazards).toEqual(
+      expect.arrayContaining([
+        "Crane lift hazards",
+        "Falls from height",
+        "Hot work / fire",
+        "Falling objects",
+        "Structural instability and collapse",
+        "Pinch / caught between and struck by",
+      ])
+    );
+    expect(selection?.derivedHazards.length).toBeGreaterThan(2);
+    expect(selection?.derivedPermits).toEqual(
+      expect.arrayContaining(["Hot Work Permit", "Motion Permit", "Gravity Permit"])
+    );
+  });
+
   it("does not auto-add trench permit language for heavy equipment tasks without excavation scope", () => {
     const selection = buildCsepTradeSelection(
       "Equipment / Heavy Civil Operations",

@@ -197,6 +197,54 @@ describe("document intake mappers", () => {
     ]);
   });
 
+  it("keeps steel task-derived hazards active when the builder has only two manual hazards", () => {
+    const context = buildCsepGenerationContext({
+      project_name: "Steel Campus",
+      projectDeliveryType: "ground_up",
+      trade: "Structural Steel and Erection",
+      subTrade: "Steel Erection and Decking",
+      tasks: ["Hoisting and Rigging", "Steel Erection", "Welding and Cutting", "Work at Heights"],
+      selected_hazards: ["Falls from height", "Crane lift hazards"],
+      additional_permits: ["Hot Work Permit"],
+      required_ppe: ["Hard Hat", "Fall Protection Harness"],
+    });
+
+    const selectedHazards = context.builderInstructions?.blockInputs.selected_hazards;
+    expect(selectedHazards).toEqual(
+      expect.arrayContaining([
+        "Falls from height",
+        "Crane lift hazards",
+        "Hot work / fire",
+        "Falling objects",
+        "Structural instability and collapse",
+        "Pinch / caught between and struck by",
+      ])
+    );
+    expect(Array.isArray(selectedHazards) ? selectedHazards.length : 0).toBeGreaterThan(2);
+    expect(context.programSelections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ category: "hazard", item: "Falls from height" }),
+        expect.objectContaining({ category: "hazard", item: "Crane lift hazards" }),
+        expect.objectContaining({ category: "hazard", item: "Hot work / fire" }),
+        expect.objectContaining({ category: "hazard", item: "Falling objects" }),
+      ])
+    );
+
+    const metadata = context.siteContext.metadata as Record<string, unknown>;
+    expect(metadata.steelHazardModuleTitles).toEqual(
+      expect.arrayContaining([
+        "Fall Exposure",
+        "Hoisting and Rigging",
+        "Falling Objects and Dropped Materials",
+      ])
+    );
+    expect(context.operations[0]?.metadata).toEqual(
+      expect.objectContaining({
+        selectedHazards: expect.arrayContaining(["Hot work / fire", "Falling objects"]),
+      })
+    );
+  });
+
   it("normalizes PESHEP legacy labels and derives expanded program coverage", () => {
     const context = buildPshsepGenerationContext({
       project_name: "West Plant",

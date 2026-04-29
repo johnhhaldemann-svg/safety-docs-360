@@ -325,7 +325,7 @@ describe("csepDocxRenderer", () => {
     expect(topRiskSlice).not.toContain('w:fill="FFF2CC"');
   });
 
-  it("keeps routine caution language as normal text outside standout sections", async () => {
+  it("keeps routine caution language normal while rendering attached-style laydown notes", async () => {
     const draft = createGeneratedDraft();
     draft.sectionMap.push(
       {
@@ -357,7 +357,7 @@ describe("csepDocxRenderer", () => {
     expect(siteAccessEnd).toBeGreaterThan(siteAccessStart);
     const siteAccessSlice = documentXml.slice(siteAccessStart, siteAccessEnd);
     expect(siteAccessSlice).toContain("Laydown Area Rule");
-    expect(siteAccessSlice).not.toContain('w:fill="FFF2CC"');
+    expect(siteAccessSlice).toContain('w:fill="FFF2CC"');
   });
 
   it("normalizes hazard modules into Risk/Controls/Verification/Stop-Work/References slices", () => {

@@ -571,6 +571,10 @@ export default function CSEPPage() {
   }, [form.subTrade, form.tasks, form.trade]);
 
   const derivedHazards = useMemo(() => selectedTrade?.derivedHazards ?? [], [selectedTrade]);
+  const effectiveSelectedHazards = useMemo(
+    () => uniq([...derivedHazards, ...form.selected_hazards]),
+    [derivedHazards, form.selected_hazards]
+  );
   const derivedPermits = useMemo(() => selectedTrade?.derivedPermits ?? [], [selectedTrade]);
   const overlapPermitHints = useMemo(() => selectedTrade?.overlapPermitHints ?? [], [selectedTrade]);
   const commonOverlappingTrades = useMemo(
@@ -579,9 +583,9 @@ export default function CSEPPage() {
   );
   const displayedTradeItems = useMemo(() => {
     if (!selectedTrade) return [];
-    if (form.selected_hazards.length === 0) return selectedTrade.items;
-    return selectedTrade.items.filter((item) => form.selected_hazards.includes(item.hazard));
-  }, [form.selected_hazards, selectedTrade]);
+    if (effectiveSelectedHazards.length === 0) return selectedTrade.items;
+    return selectedTrade.items.filter((item) => effectiveSelectedHazards.includes(item.hazard));
+  }, [effectiveSelectedHazards, selectedTrade]);
   const selectedPermitItems = useMemo(
     () => uniq([...form.additional_permits, ...derivedPermits, ...overlapPermitHints]),
     [derivedPermits, form.additional_permits, overlapPermitHints]
@@ -602,13 +606,13 @@ export default function CSEPPage() {
         trade: selectedTrade?.tradeLabel ?? form.trade,
         subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
         tasks: form.tasks,
-        selectedHazards: form.selected_hazards,
+        selectedHazards: effectiveSelectedHazards,
         derivedHazards,
         selectedPermits: selectedPermitItems,
       }),
     [
       derivedHazards,
-      form.selected_hazards,
+      effectiveSelectedHazards,
       form.subTrade,
       form.tasks,
       form.trade,
@@ -647,7 +651,7 @@ export default function CSEPPage() {
   const programSelectionState = useMemo(
     () =>
       buildCsepProgramSelections({
-        selectedHazards: form.selected_hazards,
+        selectedHazards: effectiveSelectedHazards,
         selectedPermits: selectedPermitItems,
         selectedPpe: form.required_ppe,
         tradeItems: displayedTradeItems,
@@ -656,9 +660,9 @@ export default function CSEPPage() {
       }),
     [
       displayedTradeItems,
+      effectiveSelectedHazards,
       form.program_subtype_selections,
       form.required_ppe,
-      form.selected_hazards,
       form.tasks,
       selectedPermitItems,
     ]
@@ -695,7 +699,7 @@ export default function CSEPPage() {
       trade: selectedTrade?.tradeLabel ?? form.trade,
       subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
       tradeItems: displayedTradeItems,
-      selected_hazards: form.selected_hazards,
+      selected_hazards: effectiveSelectedHazards,
       additional_permits: selectedPermitItems,
       required_ppe: form.required_ppe,
       overlapPermitHints,
@@ -704,6 +708,7 @@ export default function CSEPPage() {
     [
       commonOverlappingTrades,
       displayedTradeItems,
+      effectiveSelectedHazards,
       form,
       overlapPermitHints,
       selectedPermitItems,
@@ -777,7 +782,7 @@ export default function CSEPPage() {
     Boolean(form.project_delivery_type) &&
     Boolean(form.subTrade.trim()) &&
     form.tasks.length > 0 &&
-    form.selected_hazards.length > 0 &&
+    effectiveSelectedHazards.length > 0 &&
     missingProgramSubtypeGroups.length === 0;
   const taskDrivenStepNumber = workflowDefinition.findIndex((item) => item.title === "Task-driven sections") + 1;
   const reviewStepNumber = workflowDefinition.findIndex((item) => item.title === "Draft review") + 1;
@@ -805,6 +810,7 @@ export default function CSEPPage() {
   const submissionFormData = useMemo(
     () => ({
       ...form,
+      selected_hazards: effectiveSelectedHazards,
       gc_cm: form.gc_cm.map((line) => line.trim()).filter(Boolean),
       company_logo_data_url: companyLogoPreviewUrl,
       company_logo_file_name: companyLogoFileName,
@@ -885,6 +891,7 @@ export default function CSEPPage() {
       derivedHazards,
       derivedPermits,
       displayedTradeItems,
+      effectiveSelectedHazards,
       form,
       jurisdictionProfile.jurisdictionCode,
       jurisdictionProfile.jurisdictionPlanType,
@@ -916,7 +923,7 @@ export default function CSEPPage() {
           ? "Select at least one CSEP section for the final document layout."
           : form.tasks.length === 0
             ? `Pick at least one task to unlock task-driven sections in Step ${taskDrivenStepNumber}.`
-            : form.selected_hazards.length === 0
+            : effectiveSelectedHazards.length === 0
               ? "Review hazards in intelligence enrichment so the draft can include the right matrix and controls."
               : missingProgramSubtypeGroups.length > 0
                 ? "Finish the required program classifications in intelligence enrichment."
@@ -948,7 +955,7 @@ export default function CSEPPage() {
       trade: selectedTrade?.tradeLabel ?? form.trade,
       subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
       tasks: form.tasks,
-      selected_hazards: form.selected_hazards,
+      selected_hazards: effectiveSelectedHazards,
       required_ppe: form.required_ppe,
       selected_permits: selectedPermitItems,
       weather_requirements: form.weather_requirements,
@@ -966,6 +973,7 @@ export default function CSEPPage() {
     }),
     [
       checklistEvaluation,
+      effectiveSelectedHazards,
       form.contractor_company,
       form.contractor_contact,
       form.contractor_email,
@@ -979,7 +987,6 @@ export default function CSEPPage() {
       form.project_name,
       form.project_number,
       form.required_ppe,
-      form.selected_hazards,
       form.subTrade,
       form.tasks,
       form.trade,
@@ -1308,7 +1315,7 @@ export default function CSEPPage() {
           trade: selectedTrade?.tradeLabel ?? form.trade,
           subTrade: selectedTrade?.subTradeLabel ?? form.subTrade,
           tasks: form.tasks,
-          selected_hazards: form.selected_hazards,
+          selected_hazards: effectiveSelectedHazards,
           required_ppe: form.required_ppe,
           selected_permits: selectedPermitItems,
         },
@@ -1594,7 +1601,7 @@ export default function CSEPPage() {
     { label: "Sub-trade selected", done: Boolean(form.subTrade.trim()) },
     { label: "At least one section selected", done: form.selected_format_sections.length > 0 },
     { label: "At least one task selected", done: form.tasks.length > 0 },
-    { label: "Hazards selected", done: form.selected_hazards.length > 0 },
+    { label: "Hazards selected", done: effectiveSelectedHazards.length > 0 },
     { label: "Program classifications complete", done: missingProgramSubtypeGroups.length === 0 },
     { label: "Task-driven sections unlocked", done: form.tasks.length > 0 && unlockedTaskDrivenSections.length > 0 },
     { label: "Smart draft approved", done: previewReadyForSubmit },
@@ -1942,7 +1949,7 @@ export default function CSEPPage() {
                   <SectionBucket
                     title="Hazards to include"
                     items={toOptionGridItems(derivedHazards)}
-                    selectedItems={form.selected_hazards}
+                    selectedItems={effectiveSelectedHazards}
                     onToggle={(value) => toggleArrayValue("selected_hazards", value)}
                     onApplyAll={() => applyAllValues("selected_hazards", derivedHazards)}
                     onClearAll={() => clearAllValues("selected_hazards")}
@@ -2891,7 +2898,7 @@ export default function CSEPPage() {
             <InfoCard label="Trade" value={(selectedTrade?.tradeLabel ?? form.trade) || "Not selected"} />
             <InfoCard label="Sub-trade" value={(selectedTrade?.subTradeLabel ?? form.subTrade) || "Not selected"} />
             <InfoCard label="Tasks" value={form.tasks.length ? `${form.tasks.length} selected` : "None selected"} />
-            <InfoCard label="Hazards" value={form.selected_hazards.length ? `${form.selected_hazards.length} selected` : "None selected"} />
+            <InfoCard label="Hazards" value={effectiveSelectedHazards.length ? `${effectiveSelectedHazards.length} selected` : "None selected"} />
             <InfoCard label="Programs" value={autoPrograms.length ? `${autoPrograms.length} generated` : "None generated"} />
             <InfoCard
               label="Unlocked task-driven sections"

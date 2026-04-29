@@ -555,7 +555,7 @@ const RAW_SHARED_TRADES: RawTradeSeed[] = [
     label: "Structural Steel / Metals",
     fieldScope: "steel_erection",
     csepKind: "structural_steel_wood",
-    legacyLabels: ["Steel / Ironwork", "Steel Framing / Structural Steel"],
+    legacyLabels: ["Steel / Ironwork", "Steel Framing / Structural Steel", "Structural Steel and Erection"],
     aliases: ["ironworkers"],
     subTrades: [
       {

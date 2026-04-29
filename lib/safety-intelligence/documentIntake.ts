@@ -93,6 +93,22 @@ function slugify(value: string, fallback: string) {
   return next || fallback;
 }
 
+function uniqueNonEmptyStrings(values: readonly string[]) {
+  const out: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    const cleaned = value.trim();
+    if (!cleaned) continue;
+    const key = cleaned.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleaned);
+  }
+
+  return out;
+}
+
 function normalizePermitHint(value: string): PermitTriggerType[] {
   const token = value.trim().toLowerCase();
   if (!token) return [];
@@ -104,8 +120,8 @@ function normalizePermitHint(value: string): PermitTriggerType[] {
   if (token.includes("excavat") || token.includes("groundbreaking")) {
     return ["excavation_permit"];
   }
-  if (token.includes("lift") || token.includes("crane")) return ["lift_plan"];
-  if (token.includes("height") || token.includes("ladder") || token.includes("mewp")) {
+  if (token.includes("lift") || token.includes("crane") || token.includes("motion")) return ["lift_plan"];
+  if (token.includes("height") || token.includes("ladder") || token.includes("mewp") || token.includes("gravity")) {
     return ["elevated_work_notice"];
   }
   return [];
@@ -119,6 +135,9 @@ function normalizeHazardHint(value: string): HazardFamily[] {
   if (token.includes("excavat") || token.includes("trench")) return ["excavation", "collapse"];
   if (token.includes("confined")) return ["unknown"];
   if (token.includes("fall")) return ["fall"];
+  if (token.includes("falling object") || token.includes("dropped")) return ["overhead_work", "struck_by"];
+  if (token.includes("structural instability") || token.includes("collapse")) return ["collapse"];
+  if (token.includes("pinch") || token.includes("caught between")) return ["line_of_fire", "struck_by"];
   if (token.includes("crane") || token.includes("lift")) return ["overhead_work", "struck_by"];
   if (token.includes("chemical")) return ["fumes"];
   if (token.includes("struck")) return ["struck_by"];
@@ -643,6 +662,10 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
   const derivedHazards = asStringArray(formData.derivedHazards).length
     ? asStringArray(formData.derivedHazards)
     : tradeSelection?.derivedHazards ?? [];
+  const effectiveSelectedHazards = uniqueNonEmptyStrings([
+    ...derivedHazards,
+    ...selectedHazards,
+  ]);
   const derivedPermits = asStringArray(formData.derivedPermits).length
     ? asStringArray(formData.derivedPermits)
     : tradeSelection?.derivedPermits ?? [];
@@ -667,7 +690,7 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
   });
   const taskModuleAiContext = buildTaskModuleAiContext(taskModules);
   const hazardModules = getHazardModulesForCsepSelection({
-    selectedHazards,
+    selectedHazards: effectiveSelectedHazards,
     selectedPermits: selectedPermitInputs,
     taskNames: tasks,
     tradeLabel: tradeSelection?.tradeLabel ?? tradeLabel,
@@ -678,7 +701,7 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
     trade: tradeSelection?.tradeLabel ?? tradeLabel,
     subTrade: tradeSelection?.subTradeLabel ?? subTradeLabel,
     tasks,
-    selectedHazards,
+    selectedHazards: effectiveSelectedHazards,
     derivedHazards,
     selectedPermits: selectedPermitInputs,
   });
@@ -720,7 +743,7 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
     explicitProgramSelections.length > 0
       ? explicitProgramSelections
       : buildCsepProgramSelections({
-          selectedHazards,
+          selectedHazards: effectiveSelectedHazards,
           selectedPermits,
           selectedPpe: requiredPpe,
           tradeItems: tradeItems.map((item) => ({
@@ -740,7 +763,7 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
   });
   const steelTaskModuleAiContext = buildSteelErectionTaskModuleAiContext(steelTaskModules);
   const steelHazardModules = getSteelErectionHazardModulesForCsepSelection({
-    selectedHazards,
+    selectedHazards: effectiveSelectedHazards,
     selectedPermits: selectedPermitInputs,
     taskNames: tasks,
     tradeLabel: tradeSelection?.tradeLabel ?? tradeLabel,
@@ -751,7 +774,7 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
   );
   const steelProgramModules = getSteelErectionProgramModulesForCsepSelection({
     programSelections,
-    selectedHazards,
+    selectedHazards: effectiveSelectedHazards,
     selectedPermits: selectedPermitInputs,
     taskNames: tasks,
     tradeLabel: tradeSelection?.tradeLabel ?? tradeLabel,
@@ -762,7 +785,7 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
   );
   const derivedOperations = (tasks.length ? tasks : [scopeOfWork || tradeLabel || "project work"]).map(
     (taskTitle, index) => {
-      const riskItem = tradeSelection?.items.find((item) => item.activity === taskTitle);
+      const riskItems = tradeSelection?.items.filter((item) => item.activity === taskTitle) ?? [];
       return normalizeOperation({
         operationId: makeOperationId("csep", index, taskTitle),
         tradeCode: tradeSelection?.tradeCode ?? (tradeLabel ? slugify(tradeLabel, "trade") : null),
@@ -774,9 +797,15 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
         description: scopeOfWork || null,
         equipmentUsed: [],
         workConditions,
-        hazardHints: riskItem?.hazard ? normalizeHazardHint(riskItem.hazard) : [],
-        requiredControlHints: riskItem?.controls ?? [],
-        permitHints: riskItem?.permit ? normalizePermitHint(riskItem.permit) : [],
+        hazardHints: uniqueNonEmptyStrings(
+          riskItems.flatMap((item) => normalizeHazardHint(item.hazard))
+        ) as HazardFamily[],
+        requiredControlHints: uniqueNonEmptyStrings(
+          riskItems.flatMap((item) => item.controls)
+        ),
+        permitHints: uniqueNonEmptyStrings(
+          riskItems.flatMap((item) => normalizePermitHint(item.permit))
+        ) as PermitTriggerType[],
         ppeHints: requiredPpe,
         workAreaLabel: null,
         locationGrid: null,
@@ -788,7 +817,7 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
         metadata: {
           tradeSummary,
           oshaRefs,
-          selectedHazards,
+          selectedHazards: effectiveSelectedHazards,
           additionalPermits,
           pricedAttachments,
           programSelections,
@@ -811,7 +840,7 @@ export function buildCsepGenerationContext(formData: Record<string, unknown>): S
     tradeItems,
     tradeSummary,
     oshaRefs,
-    selectedHazards,
+    selectedHazards: effectiveSelectedHazards,
     derivedHazards,
     requiredPpe,
     additionalPermits,
