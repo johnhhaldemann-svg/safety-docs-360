@@ -13,13 +13,19 @@ type AuditCustomerUpdatePayload = {
   reportEmail?: string | null;
   contactName?: string | null;
   phone?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  stateRegion?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
   notes?: string | null;
   status?: "active" | "archived";
   archived?: boolean;
 };
 
 const CUSTOMER_SELECT =
-  "id, company_id, name, report_email, contact_name, phone, notes, status, created_at, updated_at, archived_at";
+  "id, company_id, name, report_email, contact_name, phone, address_line1, address_line2, city, state_region, postal_code, country, notes, status, created_at, updated_at, archived_at";
 
 function normalizeEmail(value?: string | null) {
   const email = (value ?? "").trim().toLowerCase();
@@ -111,6 +117,12 @@ export async function PATCH(request: Request, context: RouteContext) {
     ...(typeof reportEmail !== "undefined" ? { report_email: reportEmail } : {}),
     ...(typeof body?.contactName === "string" ? { contact_name: body.contactName.trim() || null } : {}),
     ...(typeof body?.phone === "string" ? { phone: body.phone.trim() || null } : {}),
+    ...(typeof body?.addressLine1 === "string" ? { address_line1: body.addressLine1.trim() || null } : {}),
+    ...(typeof body?.addressLine2 === "string" ? { address_line2: body.addressLine2.trim() || null } : {}),
+    ...(typeof body?.city === "string" ? { city: body.city.trim() || null } : {}),
+    ...(typeof body?.stateRegion === "string" ? { state_region: body.stateRegion.trim() || null } : {}),
+    ...(typeof body?.postalCode === "string" ? { postal_code: body.postalCode.trim() || null } : {}),
+    ...(typeof body?.country === "string" ? { country: body.country.trim() || null } : {}),
     ...(typeof body?.notes === "string" ? { notes: body.notes.trim() || null } : {}),
     ...(status ? { status } : {}),
     ...(typeof body?.archived === "boolean" || body?.status ? { archived_at: archived ? new Date().toISOString() : null } : {}),

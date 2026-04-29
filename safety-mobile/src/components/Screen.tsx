@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { theme } from "@/theme";
 
 export function Screen({
@@ -18,8 +18,17 @@ export function Screen({
   headerAside?: ReactNode;
 }) {
   return (
-    <View style={styles.root}>
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, footer ? styles.contentWithFooter : null]}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
+    >
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, footer ? styles.contentWithFooter : null]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <Text style={styles.kicker}>{eyebrow}</Text>
@@ -31,7 +40,7 @@ export function Screen({
         {children}
       </ScrollView>
       {footer ? <View style={styles.footer}>{footer}</View> : null}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

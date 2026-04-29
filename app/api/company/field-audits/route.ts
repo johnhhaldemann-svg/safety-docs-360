@@ -30,6 +30,7 @@ const MAX_OBSERVATIONS = 500;
 type SubmitBody = {
   jobsiteId?: string | null;
   auditCustomerId?: string | null;
+  auditCustomerLocationId?: string | null;
   auditDate?: string | null;
   auditors?: string | null;
   hoursBilled?: string | number | null;
@@ -200,7 +201,7 @@ export async function GET(request: Request) {
 
   let query = auth.supabase
     .from("company_jobsite_audits")
-    .select("id, company_id, jobsite_id, audit_date, auditors, selected_trade, template_source, status, score_summary, payload, ai_review_id, ai_review_status, ai_review_summary, created_at, updated_at, submitted_by")
+    .select("id, company_id, jobsite_id, audit_customer_id, audit_customer_location_id, audit_date, auditors, selected_trade, template_source, status, score_summary, payload, ai_review_id, ai_review_status, ai_review_summary, created_at, updated_at, submitted_by")
     .eq("company_id", companyScope.companyId)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -264,16 +265,56 @@ export async function POST(request: Request) {
   }
 
   const jobsiteId = cleanText(body.jobsiteId, 80) || null;
+  const auditCustomerId = cleanText(body.auditCustomerId, 80) || null;
+  const auditCustomerLocationId = cleanText(body.auditCustomerLocationId, 80) || null;
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
     userId: auth.user.id,
     companyId: companyScope.companyId,
     role: auth.role,
   });
-  if (!isJobsiteAllowed(jobsiteId, jobsiteScope)) {
+  if (jobsiteId && !isJobsiteAllowed(jobsiteId, jobsiteScope)) {
     return NextResponse.json({ error: "You can only submit audits for assigned jobsites." }, { status: 403 });
   }
   const writeSupabase = createSupabaseAdminClient() ?? auth.supabase;
+
+  let auditCustomerName: string | null = null;
+  let auditLocationName: string | null = null;
+  let auditLocationAddress: string | null = null;
+  if (auditCustomerId) {
+    const customerCheck = await writeSupabase
+      .from("company_audit_customers")
+      .select("id, name")
+      .eq("company_id", companyScope.companyId)
+      .eq("id", auditCustomerId)
+      .maybeSingle();
+    if (customerCheck.error) {
+      return NextResponse.json({ error: customerCheck.error.message || "Failed to validate audit customer." }, { status: 500 });
+    }
+    if (!customerCheck.data) {
+      return NextResponse.json({ error: "Select a valid audit customer." }, { status: 400 });
+    }
+    auditCustomerName = String(customerCheck.data.name ?? "");
+  }
+  if (auditCustomerLocationId) {
+    const locationCheck = await writeSupabase
+      .from("company_audit_customer_locations")
+      .select("id, audit_customer_id, name, location")
+      .eq("company_id", companyScope.companyId)
+      .eq("id", auditCustomerLocationId)
+      .maybeSingle();
+    if (locationCheck.error) {
+      return NextResponse.json({ error: locationCheck.error.message || "Failed to validate audit location." }, { status: 500 });
+    }
+    if (!locationCheck.data) {
+      return NextResponse.json({ error: "Select a valid audit job/location." }, { status: 400 });
+    }
+    if (auditCustomerId && locationCheck.data.audit_customer_id !== auditCustomerId) {
+      return NextResponse.json({ error: "This audit location does not belong to the selected customer." }, { status: 400 });
+    }
+    auditLocationName = String(locationCheck.data.name ?? "");
+    auditLocationAddress = typeof locationCheck.data.location === "string" ? locationCheck.data.location : null;
+  }
 
   const auditDate = validAuditDate(body.auditDate);
   if (auditDate === "invalid") {
@@ -325,6 +366,8 @@ export async function POST(request: Request) {
     .insert({
       company_id: companyScope.companyId,
       jobsite_id: jobsiteId,
+      audit_customer_id: auditCustomerId,
+      audit_customer_location_id: auditCustomerLocationId,
       audit_date: auditDate,
       auditors,
       selected_trade: selectedTrades.length > 0 ? selectedTrades.join(",") : selectedTrade,
@@ -334,6 +377,9 @@ export async function POST(request: Request) {
       payload: {
         ...body,
         hoursBilled,
+        auditCustomerName,
+        auditLocationName,
+        auditLocationAddress,
         aiFailedFindingBucket,
         normalizedAt: new Date().toISOString(),
         observationCount: normalized.observations.length,
@@ -476,7 +522,7 @@ export async function POST(request: Request) {
 
     const aiReview = await generateFieldAuditAiReview({
       auditId,
-      jobsiteName: String(jobsiteResult.data?.name ?? ""),
+      jobsiteName: auditLocationName || String(jobsiteResult.data?.name ?? ""),
       auditDate,
       auditors,
       selectedTrade: selectedTrades.length > 0 ? selectedTrades.join(",") : selectedTrade,

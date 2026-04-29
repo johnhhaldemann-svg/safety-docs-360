@@ -88,7 +88,7 @@ export const companyAdminQuickLinks: NavItem[] = [
   },
   { href: "/jobsites", label: "Job Sites", short: "JS" },
   {
-    href: "/jobsites#audit-customers",
+    href: "/audit-customers",
     label: "Audit Customers",
     short: "AC",
     description: "Customer companies, report emails, and linked audit jobsites.",
@@ -126,7 +126,7 @@ export const companyManagerQuickLinks: NavItem[] = [
   },
   { href: "/jobsites", label: "Job Sites", short: "JS" },
   {
-    href: "/jobsites#audit-customers",
+    href: "/audit-customers",
     label: "Audit Customers",
     short: "AC",
     description: "Customer companies, report emails, and linked audit jobsites.",
@@ -267,7 +267,7 @@ export const companyAdminSideSections: NavSection[] = [
       },
       { href: "/search", label: "Search", short: "SR" },
       { href: "/jobsites", label: "Job Sites", short: "JS" },
-      { href: "/jobsites#audit-customers", label: "Audit Customers", short: "AC" },
+      { href: "/audit-customers", label: "Audit Customers", short: "AC" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
     ],
   },
@@ -324,7 +324,7 @@ export const companyManagerSideSections: NavSection[] = [
       },
       { href: "/search", label: "Search", short: "SR" },
       { href: "/jobsites", label: "Job Sites", short: "JS" },
-      { href: "/jobsites#audit-customers", label: "Audit Customers", short: "AC" },
+      { href: "/audit-customers", label: "Audit Customers", short: "AC" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/purchases", label: "Purchases", short: "MP" },
       {

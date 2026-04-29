@@ -36,9 +36,8 @@ type Jobsite = {
   name: string;
   project_number?: string | null;
   location?: string | null;
+  report_email?: string | null;
   audit_customer_id?: string | null;
-  customer_company_name?: string | null;
-  customer_report_email?: string | null;
 };
 
 type AuditCustomer = {
@@ -51,6 +50,8 @@ type AuditCustomer = {
 type AuditListRow = {
   id: string;
   jobsite_id: string | null;
+  audit_customer_id?: string | null;
+  audit_customer_location_id?: string | null;
   audit_date: string | null;
   auditors: string | null;
   selected_trade: string;
@@ -211,7 +212,7 @@ export default function CompanyFieldAuditsPage() {
         fetch("/api/company/audit-customers", {
           headers: { Authorization: `Bearer ${session.access_token}` },
         }),
-        fetch("/api/company/jobsites", {
+        fetch("/api/company/audit-customer-locations", {
           headers: { Authorization: `Bearer ${session.access_token}` },
         }),
         fetch("/api/company/field-audits", {
@@ -221,13 +222,13 @@ export default function CompanyFieldAuditsPage() {
       const customersData = (await customersRes.json().catch(() => null)) as
         | { customers?: AuditCustomer[]; error?: string; warning?: string }
         | null;
-      const jobsitesData = (await jobsitesRes.json().catch(() => null)) as { jobsites?: Jobsite[]; error?: string } | null;
+      const jobsitesData = (await jobsitesRes.json().catch(() => null)) as { locations?: Jobsite[]; error?: string; warning?: string } | null;
       const auditsData = (await auditsRes.json().catch(() => null)) as { audits?: AuditListRow[]; error?: string; warning?: string } | null;
       if (!customersRes.ok) throw new Error(customersData?.error || customersData?.warning || "Failed to load audit customers.");
-      if (!jobsitesRes.ok) throw new Error(jobsitesData?.error || "Failed to load jobsites.");
+      if (!jobsitesRes.ok) throw new Error(jobsitesData?.error || jobsitesData?.warning || "Failed to load audit jobs.");
       if (!auditsRes.ok) throw new Error(auditsData?.error || auditsData?.warning || "Failed to load audits.");
       setAuditCustomers(customersData?.customers ?? []);
-      setJobsites(jobsitesData?.jobsites ?? []);
+      setJobsites(jobsitesData?.locations ?? []);
       setAudits(auditsData?.audits ?? []);
     } catch (error) {
       setMessageTone("error");
@@ -256,7 +257,7 @@ export default function CompanyFieldAuditsPage() {
   const selectedReportEmail =
     selectedCustomer?.report_email ||
     selectedJobsiteCustomer?.report_email ||
-    selectedJobsite?.customer_report_email ||
+    selectedJobsite?.report_email ||
     "";
 
   useEffect(() => {
@@ -315,8 +316,9 @@ export default function CompanyFieldAuditsPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          jobsiteId: jobsiteId || null,
+          jobsiteId: null,
           auditCustomerId: auditCustomerId || selectedJobsite?.audit_customer_id || null,
+          auditCustomerLocationId: jobsiteId || null,
           auditDate: auditDate || null,
           auditors,
           hoursBilled,
@@ -411,7 +413,7 @@ export default function CompanyFieldAuditsPage() {
       <PageHero
         eyebrow="Field work"
         title="Field audits"
-        description="Run trade-specific jobsite audits, capture observations, create corrective actions, and feed structured findings into Safety Intelligence."
+        description="Run trade-specific customer audits, capture observations, create corrective actions, and feed structured findings into Safety Intelligence."
         actions={
           <button
             type="button"
@@ -429,7 +431,7 @@ export default function CompanyFieldAuditsPage() {
 
       <SectionCard
         title="Audit header"
-        description="Choose the jobsite and trade before scoring. Drafts save locally until submitted."
+        description="Choose the audit customer, audit job/location, and trade before scoring. Drafts save locally until submitted."
         aside={
           <button type="button" onClick={clearDraft} className={appButtonSecondaryClassName} disabled={submitting}>
             Clear draft
@@ -456,13 +458,13 @@ export default function CompanyFieldAuditsPage() {
             </select>
           </label>
           <label className="block text-sm font-semibold text-slate-100">
-            Jobsite
+            Audit Job / Location
             <select
               value={jobsiteId}
               onChange={(event) => setJobsiteId(event.target.value)}
               className="mt-1.5 w-full rounded-xl border border-slate-600/80 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-50 [color-scheme:dark]"
             >
-              <option value="">No jobsite selected</option>
+              <option value="">No audit location selected</option>
               {filteredJobsites.map((jobsite) => (
                 <option key={jobsite.id} value={jobsite.id}>
                   {jobsite.name}
@@ -689,16 +691,16 @@ export default function CompanyFieldAuditsPage() {
             ) : (
               <div className="max-h-[520px] space-y-2 overflow-y-auto">
                 {audits.map((audit) => {
-                  const jobsite = jobsites.find((row) => row.id === audit.jobsite_id);
-                  const customer = jobsite?.audit_customer_id
-                    ? auditCustomers.find((row) => row.id === jobsite.audit_customer_id)
+                  const jobsite = jobsites.find((row) => row.id === (audit.audit_customer_location_id ?? audit.jobsite_id));
+                  const customer = (audit.audit_customer_id ?? jobsite?.audit_customer_id)
+                    ? auditCustomers.find((row) => row.id === (audit.audit_customer_id ?? jobsite?.audit_customer_id))
                     : null;
-                  const copyEmail = customer?.report_email || jobsite?.customer_report_email || "";
+                  const copyEmail = jobsite?.report_email || customer?.report_email || "";
                   return (
                     <div key={audit.id} className="rounded-xl border border-slate-700/80 bg-slate-950/50 p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-semibold text-slate-100">{jobsite?.name ?? "No jobsite"}</p>
+                          <p className="font-semibold text-slate-100">{jobsite?.name ?? "No audit location"}</p>
                           <p className="text-xs text-slate-400">
                             {audit.audit_date ?? new Date(audit.created_at).toLocaleDateString()} |{" "}
                             {tradeLabel(audit.selected_trade)}

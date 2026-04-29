@@ -19,6 +19,20 @@ export type MobileCompany = {
   jobsites: Jobsite[];
 };
 
+export type AuditCustomer = {
+  id: string;
+  name: string;
+  report_email?: string | null;
+};
+
+export type AuditLocation = {
+  id: string;
+  name: string;
+  status?: string | null;
+  audit_customer_id: string;
+  report_email?: string | null;
+};
+
 export type MobileMe = {
   user: {
     id: string;
@@ -31,6 +45,8 @@ export type MobileMe = {
   features: MobileFeature[];
   featureMap: Record<MobileFeature, boolean>;
   jobsites: Jobsite[];
+  auditCustomers?: AuditCustomer[];
+  auditLocations?: AuditLocation[];
   mobileCompanies?: MobileCompany[];
   dashboard: {
     openIssues: number;

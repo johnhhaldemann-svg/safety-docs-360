@@ -9,11 +9,17 @@ type AuditCustomerPayload = {
   reportEmail?: string | null;
   contactName?: string | null;
   phone?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  stateRegion?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
   notes?: string | null;
 };
 
 const CUSTOMER_SELECT =
-  "id, company_id, name, report_email, contact_name, phone, notes, status, created_at, updated_at, archived_at";
+  "id, company_id, name, report_email, contact_name, phone, address_line1, address_line2, city, state_region, postal_code, country, notes, status, created_at, updated_at, archived_at";
 
 function normalizeEmail(value?: string | null) {
   const email = (value ?? "").trim().toLowerCase();
@@ -123,6 +129,12 @@ export async function POST(request: Request) {
       report_email: reportEmail,
       contact_name: body?.contactName?.trim() || null,
       phone: body?.phone?.trim() || null,
+      address_line1: body?.addressLine1?.trim() || null,
+      address_line2: body?.addressLine2?.trim() || null,
+      city: body?.city?.trim() || null,
+      state_region: body?.stateRegion?.trim() || null,
+      postal_code: body?.postalCode?.trim() || null,
+      country: body?.country?.trim() || null,
       notes: body?.notes?.trim() || null,
       created_by: auth.user.id,
       updated_by: auth.user.id,

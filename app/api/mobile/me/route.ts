@@ -24,6 +24,18 @@ type MobileJobsiteRow = {
   status?: string | null;
   customer_company_name?: string | null;
 };
+type MobileAuditLocationRow = {
+  id: string;
+  name: string;
+  status?: string | null;
+  audit_customer_id: string;
+  report_email?: string | null;
+};
+type MobileAuditCustomerRow = {
+  id: string;
+  name: string;
+  report_email?: string | null;
+};
 
 function isMissingEntitlementTable(message?: string | null) {
   return (message ?? "").toLowerCase().includes("company_mobile_feature_entitlements");
@@ -85,22 +97,23 @@ async function countRows(
   return result.count ?? 0;
 }
 
-function buildMobileCompanies(params: {
-  companyId: string;
-  companyName: string;
-  jobsites: MobileJobsiteRow[];
+function buildAuditCompanies(params: {
+  customers: MobileAuditCustomerRow[];
+  locations: MobileAuditLocationRow[];
 }) {
   const groups = new Map<string, { id: string; name: string; jobsites: MobileJobsiteRow[] }>();
-  const fallbackName = params.companyName || "Company";
-  for (const jobsite of params.jobsites) {
-    const name = (jobsite.customer_company_name ?? "").trim() || fallbackName;
-    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || params.companyId;
-    const existing = groups.get(id) ?? { id, name, jobsites: [] };
-    existing.jobsites.push(jobsite);
-    groups.set(id, existing);
+  for (const customer of params.customers) {
+    groups.set(customer.id, { id: customer.id, name: customer.name, jobsites: [] });
   }
-  if (groups.size < 1) {
-    groups.set(params.companyId, { id: params.companyId, name: fallbackName, jobsites: [] });
+  for (const location of params.locations) {
+    const existing = groups.get(location.audit_customer_id);
+    if (!existing) continue;
+    existing.jobsites.push({
+      id: location.id,
+      name: location.name,
+      status: location.status,
+      customer_company_name: existing.name,
+    });
   }
   return [...groups.values()];
 }
@@ -301,6 +314,19 @@ export async function GET(request: Request) {
     jobsitesQuery = jobsitesQuery.in("id", jobsiteScope.jobsiteIds);
   }
 
+  const auditCustomersQuery = auth.supabase
+    .from("company_audit_customers")
+    .select("id, name, report_email")
+    .eq("company_id", companyScope.companyId)
+    .neq("status", "archived")
+    .order("name", { ascending: true });
+  const auditLocationsQuery = auth.supabase
+    .from("company_audit_customer_locations")
+    .select("id, name, status, audit_customer_id, report_email")
+    .eq("company_id", companyScope.companyId)
+    .neq("status", "archived")
+    .order("name", { ascending: true });
+
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   let issuesQuery = auth.supabase
     .from("company_corrective_actions")
@@ -360,6 +386,8 @@ export async function GET(request: Request) {
     recentAuditsResult,
     recentIssuesResult,
     recentJsasResult,
+    auditCustomersResult,
+    auditLocationsResult,
   ] = await Promise.all([
     jobsitesQuery,
     countRows(issuesQuery as unknown as Promise<CountResult>),
@@ -369,8 +397,12 @@ export async function GET(request: Request) {
     recentAuditsQuery,
     recentIssuesQuery,
     recentJsasQuery,
+    auditCustomersQuery,
+    auditLocationsQuery,
   ]);
   const jobsites = !jobsitesResult.error ? ((jobsitesResult.data ?? []) as MobileJobsiteRow[]) : [];
+  const auditCustomers = !auditCustomersResult.error ? ((auditCustomersResult.data ?? []) as MobileAuditCustomerRow[]) : [];
+  const auditLocations = !auditLocationsResult.error ? ((auditLocationsResult.data ?? []) as MobileAuditLocationRow[]) : [];
 
   return NextResponse.json({
     user: {
@@ -384,10 +416,11 @@ export async function GET(request: Request) {
     featureMap,
     features: visibleMobileFeatures(featureMap),
     jobsites,
-    mobileCompanies: buildMobileCompanies({
-      companyId: companyScope.companyId,
-      companyName: companyScope.companyName,
-      jobsites,
+    auditCustomers,
+    auditLocations,
+    mobileCompanies: buildAuditCompanies({
+      customers: auditCustomers,
+      locations: auditLocations,
     }),
     dashboard: {
       openIssues,

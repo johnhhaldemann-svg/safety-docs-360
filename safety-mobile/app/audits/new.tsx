@@ -9,7 +9,7 @@ import { createAudit, getAuditTemplates, getMe, signAudit, uploadAuditPhoto } fr
 import { pickPhotoFromCamera, pickPhotoFromLibrary } from "@/utils/photos";
 import type { ImagePickerAsset } from "expo-image-picker";
 import { theme } from "@/theme";
-import type { Jobsite, MobileCompany } from "@/types/mobile";
+import type { MobileCompany } from "@/types/mobile";
 
 type AuditStatus = "pass" | "fail" | "na";
 
@@ -49,16 +49,9 @@ function toTitleCase(value?: string | null) {
     .join(" ");
 }
 
-function buildMobileCompanies(companies?: MobileCompany[], jobsites?: Jobsite[], fallbackName?: string | null) {
+function buildMobileCompanies(companies?: MobileCompany[]) {
   if (companies && companies.length > 0) return companies;
-  const fallbackCompany = fallbackName || "Company";
-  return [
-    {
-      id: "company",
-      name: fallbackCompany,
-      jobsites: jobsites ?? [],
-    },
-  ];
+  return [];
 }
 
 function statusButtonActiveStyle(status: AuditStatus) {
@@ -110,9 +103,9 @@ export default function NewAuditScreen() {
     }
     return [...sectionMap.values()];
   }, [selectedTemplates]);
-  const mobileCompanies = useMemo(() => buildMobileCompanies(data?.mobileCompanies, data?.jobsites, data?.user.companyName), [data]);
+  const mobileCompanies = useMemo(() => buildMobileCompanies(data?.mobileCompanies), [data]);
   const selectedCompany = mobileCompanies.find((company) => company.id === selectedCompanyId) ?? mobileCompanies[0] ?? null;
-  const companyJobsites = selectedCompany?.jobsites ?? data?.jobsites ?? [];
+  const companyJobsites = selectedCompany?.jobsites ?? [];
   const selectedJobsite = companyJobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ?? companyJobsites[0] ?? null;
   const sectionCount = combinedSections.length;
   const activePage = Math.min(sectionPage, Math.max(combinedSections.length - 1, 0));
@@ -222,6 +215,9 @@ export default function NewAuditScreen() {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      if (!selectedCompany || !selectedJobsite) {
+        throw new Error("Select the audit customer and audit job/location before submitting.");
+      }
       const missingCorrectiveActions = Object.entries(statusMap)
         .filter(([, status]) => status === "fail")
         .map(([key]) => key)
@@ -230,8 +226,10 @@ export default function NewAuditScreen() {
         throw new Error("Corrective action is required for every failed audit item.");
       }
       const created = await createAudit({
-        auditedCompanyName: selectedCompany?.name ?? data?.user.companyName ?? null,
-        jobsiteId: selectedJobsite?.id ?? null,
+        auditCustomerId: selectedCompany?.id ?? null,
+        auditCustomerLocationId: selectedJobsite?.id ?? null,
+        auditedCompanyName: selectedCompany?.name ?? null,
+        jobsiteId: null,
         auditDate,
         auditors,
         hoursBilled,
@@ -292,7 +290,7 @@ export default function NewAuditScreen() {
           <View style={styles.cardHeaderRow}>
             <View>
               <Text style={styles.cardKicker}>Audit Header</Text>
-              <Text style={styles.cardTitle}>Jobsite & Billing</Text>
+              <Text style={styles.cardTitle}>Customer Location & Billing</Text>
             </View>
             <Text style={styles.reviewBadge}>Review Required</Text>
           </View>
@@ -309,8 +307,8 @@ export default function NewAuditScreen() {
             }}
           />
           <SelectionDropdown
-            label="Jobsite"
-            value={selectedJobsite?.name ?? "No assigned jobsite"}
+            label="Audit Job / Location"
+            value={selectedJobsite?.name ?? "No audit location"}
             open={jobsitePickerOpen}
             onToggle={() => setJobsitePickerOpen((open) => !open)}
             options={companyJobsites.map((jobsite) => ({ id: jobsite.id, label: jobsite.name, meta: jobsite.status ?? undefined }))}

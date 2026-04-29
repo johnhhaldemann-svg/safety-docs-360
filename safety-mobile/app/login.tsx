@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, StyleSheet, Text } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { Button, Field } from "@/components/Form";
 import { AppCard, StatusBanner } from "@/components/Enterprise";
 import { Screen } from "@/components/Screen";
@@ -27,20 +27,48 @@ export default function LoginScreen() {
   }
 
   return (
-    <Screen title="Secure Sign In" subtitle="Use your existing Safety360 Docs company account.">
-      <StatusBanner title="Login Required" detail="This app is public-listed, but field workflows require an approved platform account." tone="info" />
+    <Screen
+      title="Sign In"
+      subtitle="Use your existing Safety360 Docs company account."
+      footer={
+        <View style={styles.footerActions}>
+          <Button onPress={submit} disabled={loading}>
+            {loading ? "Signing In..." : "Sign In"}
+          </Button>
+        </View>
+      }
+    >
       <AppCard title="Company Field Access" eyebrow="Safety360 Field">
-        <Field label="Email" value={email} onChangeText={setEmail} placeholder="name@company.com" />
-        <Field label="Password" value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
-        <Button onPress={submit} disabled={loading}>
-          {loading ? "Signing In..." : "Sign In"}
-        </Button>
+        <Field
+          label="Email"
+          value={email}
+          onChangeText={setEmail}
+          placeholder="name@company.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="username"
+          returnKeyType="next"
+        />
+        <Field
+          label="Password"
+          value={password}
+          onChangeText={setPassword}
+          placeholder="Password"
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="password"
+          returnKeyType="done"
+        />
       </AppCard>
+      <StatusBanner title="Login Required" detail="Field workflows require an approved platform account." tone="info" />
       <Text style={styles.note}>Internet is required for version 1.</Text>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  footerActions: { gap: 10 },
   note: { color: theme.muted, fontSize: 13, textAlign: "center", fontWeight: "700" }
 });

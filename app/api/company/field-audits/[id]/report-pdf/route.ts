@@ -58,7 +58,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   const auditResult = await auth.supabase
     .from("company_jobsite_audits")
-    .select("id, company_id, jobsite_id, audit_date, auditors, selected_trade, status, score_summary, payload, ai_review_summary")
+    .select("id, company_id, jobsite_id, audit_customer_id, audit_customer_location_id, audit_date, auditors, selected_trade, status, score_summary, payload, ai_review_summary")
     .eq("company_id", companyScope.companyId)
     .eq("id", auditId)
     .maybeSingle();
@@ -98,12 +98,34 @@ export async function GET(request: Request, context: RouteContext) {
     );
   }
 
-  const customerResult = jobsiteResult.data?.audit_customer_id
+  const auditLocationResult = audit.audit_customer_location_id
+    ? await auth.supabase
+        .from("company_audit_customer_locations")
+        .select("id, name, audit_customer_id, report_email, location")
+        .eq("company_id", companyScope.companyId)
+        .eq("id", audit.audit_customer_location_id)
+        .maybeSingle()
+    : { data: null, error: null };
+
+  if (auditLocationResult.error) {
+    return NextResponse.json(
+      { error: auditLocationResult.error.message || "Failed to load audit location for report." },
+      { status: 500 }
+    );
+  }
+
+  const effectiveCustomerId =
+    (audit.audit_customer_id as string | null) ??
+    auditLocationResult.data?.audit_customer_id ??
+    jobsiteResult.data?.audit_customer_id ??
+    null;
+
+  const customerResult = effectiveCustomerId
     ? await auth.supabase
         .from("company_audit_customers")
         .select("id, name, report_email")
         .eq("company_id", companyScope.companyId)
-        .eq("id", jobsiteResult.data.audit_customer_id)
+        .eq("id", effectiveCustomerId)
         .maybeSingle()
     : { data: null, error: null };
 
@@ -131,7 +153,7 @@ export async function GET(request: Request, context: RouteContext) {
   const report = await generateFieldAuditReportPdf({
     companyName: companyScope.companyName || "Safety360 Docs",
     customerName: customerResult.data?.name ?? null,
-    jobsiteName: String(jobsiteResult.data?.name ?? "Jobsite"),
+    jobsiteName: String(auditLocationResult.data?.name ?? jobsiteResult.data?.name ?? "Audit location"),
     auditDate: (audit.audit_date as string | null) ?? null,
     auditors: (audit.auditors as string | null) ?? null,
     hoursBilled: getHoursBilled(audit.payload),

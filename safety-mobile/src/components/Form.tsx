@@ -1,5 +1,14 @@
 import { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View, type KeyboardTypeOptions } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type KeyboardTypeOptions,
+  type ReturnKeyTypeOptions,
+  type TextInputProps
+} from "react-native";
 import { theme } from "@/theme";
 
 export function Field({
@@ -10,6 +19,10 @@ export function Field({
   secureTextEntry,
   multiline,
   keyboardType,
+  autoCapitalize,
+  autoCorrect,
+  textContentType,
+  returnKeyType,
   editable = true
 }: {
   label: string;
@@ -19,6 +32,10 @@ export function Field({
   secureTextEntry?: boolean;
   multiline?: boolean;
   keyboardType?: KeyboardTypeOptions;
+  autoCapitalize?: TextInputProps["autoCapitalize"];
+  autoCorrect?: boolean;
+  textContentType?: TextInputProps["textContentType"];
+  returnKeyType?: ReturnKeyTypeOptions;
   editable?: boolean;
 }) {
   return (
@@ -32,6 +49,10 @@ export function Field({
         secureTextEntry={secureTextEntry}
         multiline={multiline}
         keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
+        textContentType={textContentType}
+        returnKeyType={returnKeyType}
         editable={editable}
         style={[styles.input, multiline ? styles.area : null]}
       />

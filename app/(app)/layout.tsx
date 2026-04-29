@@ -552,7 +552,7 @@ export default function AppLayout({
       }
 
       if (canAccessCompanyJobsites(userRole, permissionMap)) {
-        companyAllowedRoutes.push("/jobsites");
+        companyAllowedRoutes.push("/jobsites", "/audit-customers");
       }
 
       if (
@@ -564,6 +564,7 @@ export default function AppLayout({
         companyAllowedRoutes.push(
           "/companies",
           "/jobsites",
+          "/audit-customers",
           "/field-id-exchange",
           "/field-audits",
           "/safety-submit",

@@ -9,6 +9,50 @@ export const api = axios.create({
   timeout: 20000
 });
 
+let accessTokenCache: string | null = null;
+let refreshTokenCache: string | null = null;
+let refreshPromise: Promise<string | null> | null = null;
+
+export function setAuthTokens(accessToken: string | null, refreshToken?: string | null) {
+  accessTokenCache = accessToken;
+  if (typeof refreshToken !== "undefined") refreshTokenCache = refreshToken;
+  if (accessToken) api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
+  else delete api.defaults.headers.common.Authorization;
+}
+
+async function getStoredAccessToken() {
+  if (accessTokenCache) return accessTokenCache;
+  const token = await SecureStore.getItemAsync("access_token");
+  if (token) setAuthTokens(token);
+  return token;
+}
+
+async function getStoredRefreshToken() {
+  if (refreshTokenCache) return refreshTokenCache;
+  const token = await SecureStore.getItemAsync("refresh_token");
+  refreshTokenCache = token;
+  return token;
+}
+
+async function refreshAccessToken() {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    const refreshToken = await getStoredRefreshToken();
+    if (!refreshToken) return null;
+    const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken }, { timeout: 20000 });
+    const nextAccessToken = typeof data?.accessToken === "string" ? data.accessToken : null;
+    const nextRefreshToken = typeof data?.refreshToken === "string" ? data.refreshToken : refreshToken;
+    if (!nextAccessToken) return null;
+    await SecureStore.setItemAsync("access_token", nextAccessToken);
+    await SecureStore.setItemAsync("refresh_token", nextRefreshToken);
+    setAuthTokens(nextAccessToken, nextRefreshToken);
+    return nextAccessToken;
+  })().finally(() => {
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
 export function getApiErrorStatus(error: unknown) {
   if (typeof error === "object" && error && "status" in error && typeof (error as { status?: unknown }).status === "number") {
     return (error as { status: number }).status;
@@ -27,7 +71,7 @@ export function getFriendlyApiError(error: unknown, fallback = "Something went w
 }
 
 api.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync("access_token");
+  const token = await getStoredAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -36,7 +80,22 @@ api.interceptors.request.use(async (config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error?.config as
+      | (typeof error.config & { _retry?: boolean; headers?: Record<string, string> })
+      | undefined;
+    const status = error?.response?.status;
+    if (status === 401 && originalRequest && !originalRequest._retry) {
+      originalRequest._retry = true;
+      const nextToken = await refreshAccessToken().catch(() => null);
+      if (nextToken) {
+        originalRequest.headers = {
+          ...(originalRequest.headers ?? {}),
+          Authorization: `Bearer ${nextToken}`
+        };
+        return api(originalRequest);
+      }
+    }
     const data = error?.response?.data as { error?: unknown; message?: unknown } | undefined;
     const message = data?.error ?? data?.message;
     if (typeof message === "string" && message.trim()) {
@@ -45,6 +104,7 @@ api.interceptors.response.use(
       if (apiError.status === 401) {
         void SecureStore.deleteItemAsync("access_token");
         void SecureStore.deleteItemAsync("refresh_token");
+        setAuthTokens(null, null);
       }
       return Promise.reject(apiError);
     }
@@ -54,6 +114,7 @@ api.interceptors.response.use(
       if (apiError.status === 401) {
         void SecureStore.deleteItemAsync("access_token");
         void SecureStore.deleteItemAsync("refresh_token");
+        setAuthTokens(null, null);
       }
       return Promise.reject(apiError);
     }
