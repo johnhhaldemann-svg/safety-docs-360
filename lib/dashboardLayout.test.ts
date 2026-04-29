@@ -118,6 +118,25 @@ describe("dashboardLayout", () => {
     expect(availableBlockIds).toContain("graph_workspace_signals");
   });
 
+  it("starts safety manager and company admin defaults with action-oriented blocks", () => {
+    expect(getDashboardRoleDefaultLayout("safety_manager").slice(0, 6)).toEqual([
+      "priority_queue",
+      "incident_followups",
+      "permit_followups",
+      "risk_ranking",
+      "training_signal",
+      "recent_reports",
+    ]);
+    expect(getDashboardRoleDefaultLayout("company_admin").slice(0, 6)).toEqual([
+      "priority_queue",
+      "incident_followups",
+      "permit_followups",
+      "risk_ranking",
+      "training_signal",
+      "recent_reports",
+    ]);
+  });
+
   it("pinDashboardBlockToLayout leaves layout unchanged when the block is already present", () => {
     const availableBlockIds = getAvailableDashboardBlockIds({ role: "company_admin" });
     const layout = getDashboardRoleDefaultLayout("company_admin");

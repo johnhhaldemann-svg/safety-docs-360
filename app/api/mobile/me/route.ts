@@ -11,6 +11,13 @@ import {
 export const runtime = "nodejs";
 
 type CountResult = { count: number | null; error: { message?: string | null } | null };
+type RecentActivityRow = {
+  id: string;
+  label: string;
+  detail: string;
+  createdAt: string | null;
+  tone: "neutral" | "warning" | "success";
+};
 type MobileJobsiteRow = {
   id: string;
   name: string;
@@ -98,6 +105,38 @@ function buildMobileCompanies(params: {
   return [...groups.values()];
 }
 
+function toRecentActivityRows(params: {
+  audits: Array<{ id: string; status?: string | null; created_at?: string | null }>;
+  issues: Array<{ id: string; title?: string | null; status?: string | null; created_at?: string | null }>;
+  jsas: Array<{ id: string; title?: string | null; status?: string | null; created_at?: string | null }>;
+}): RecentActivityRow[] {
+  return [
+    ...params.audits.map((audit) => ({
+      id: `audit-${audit.id}`,
+      label: "Field Audit",
+      detail: `Audit ${String(audit.status ?? "submitted").replaceAll("_", " ")}`,
+      createdAt: audit.created_at ?? null,
+      tone: audit.status === "pending_review" ? "warning" : "success",
+    })),
+    ...params.issues.map((issue) => ({
+      id: `issue-${issue.id}`,
+      label: "Field Issue",
+      detail: issue.title?.trim() || `Issue ${String(issue.status ?? "open").replaceAll("_", " ")}`,
+      createdAt: issue.created_at ?? null,
+      tone: "neutral",
+    })),
+    ...params.jsas.map((jsa) => ({
+      id: `jsa-${jsa.id}`,
+      label: "JSA",
+      detail: jsa.title?.trim() || `JSA ${String(jsa.status ?? "active").replaceAll("_", " ")}`,
+      createdAt: jsa.created_at ?? null,
+      tone: "neutral",
+    })),
+  ]
+    .sort((left, right) => String(right.createdAt ?? "").localeCompare(String(left.createdAt ?? "")))
+    .slice(0, 5) as RecentActivityRow[];
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: [
@@ -156,6 +195,17 @@ export async function GET(request: Request) {
         activeJsas: 3,
         recentAudits: 2,
         assignedJobsites: 2,
+        pendingAuditReviews: 1,
+        lastSyncAt: new Date().toISOString(),
+        recentActivity: [
+          {
+            id: "demo-audit-activity",
+            label: "Field Audit",
+            detail: "Audit pending review",
+            createdAt: new Date().toISOString(),
+            tone: "warning",
+          },
+        ],
       },
     });
   }
@@ -190,6 +240,9 @@ export async function GET(request: Request) {
         activeJsas: 0,
         recentAudits: 0,
         assignedJobsites: 0,
+        pendingAuditReviews: 0,
+        lastSyncAt: new Date().toISOString(),
+        recentActivity: [],
       },
     });
   }
@@ -239,6 +292,9 @@ export async function GET(request: Request) {
           activeJsas: 0,
           recentAudits: 0,
           assignedJobsites: 0,
+          pendingAuditReviews: 0,
+          lastSyncAt: new Date().toISOString(),
+          recentActivity: [],
         },
       });
     }
@@ -261,18 +317,58 @@ export async function GET(request: Request) {
     .select("id", { count: "exact", head: true })
     .eq("company_id", companyScope.companyId)
     .gte("created_at", since);
+  let pendingAuditReviewsQuery = auth.supabase
+    .from("company_jobsite_audits")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyScope.companyId)
+    .eq("status", "pending_review");
+  let recentAuditsQuery = auth.supabase
+    .from("company_jobsite_audits")
+    .select("id, status, created_at")
+    .eq("company_id", companyScope.companyId)
+    .order("created_at", { ascending: false })
+    .limit(3);
+  let recentIssuesQuery = auth.supabase
+    .from("company_corrective_actions")
+    .select("id, title, status, created_at")
+    .eq("company_id", companyScope.companyId)
+    .order("created_at", { ascending: false })
+    .limit(3);
+  let recentJsasQuery = auth.supabase
+    .from("company_jsas")
+    .select("id, title, status, created_at")
+    .eq("company_id", companyScope.companyId)
+    .order("created_at", { ascending: false })
+    .limit(3);
 
   if (jobsiteScope.restricted) {
     issuesQuery = issuesQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
     jsasQuery = jsasQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
     auditsQuery = auditsQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
+    pendingAuditReviewsQuery = pendingAuditReviewsQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
+    recentAuditsQuery = recentAuditsQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
+    recentIssuesQuery = recentIssuesQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
+    recentJsasQuery = recentJsasQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
   }
 
-  const [jobsitesResult, openIssues, activeJsas, recentAudits] = await Promise.all([
+  const [
+    jobsitesResult,
+    openIssues,
+    activeJsas,
+    recentAudits,
+    pendingAuditReviews,
+    recentAuditsResult,
+    recentIssuesResult,
+    recentJsasResult,
+  ] = await Promise.all([
     jobsitesQuery,
     countRows(issuesQuery as unknown as Promise<CountResult>),
     countRows(jsasQuery as unknown as Promise<CountResult>),
     countRows(auditsQuery as unknown as Promise<CountResult>),
+    countRows(pendingAuditReviewsQuery as unknown as Promise<CountResult>),
+    recentAuditsQuery,
+    recentIssuesQuery,
+    recentJsasQuery,
   ]);
   const jobsites = !jobsitesResult.error ? ((jobsitesResult.data ?? []) as MobileJobsiteRow[]) : [];
 
@@ -298,6 +394,13 @@ export async function GET(request: Request) {
       activeJsas,
       recentAudits,
       assignedJobsites: jobsites.length,
+      pendingAuditReviews,
+      lastSyncAt: new Date().toISOString(),
+      recentActivity: toRecentActivityRows({
+        audits: !recentAuditsResult.error ? (recentAuditsResult.data ?? []) : [],
+        issues: !recentIssuesResult.error ? (recentIssuesResult.data ?? []) : [],
+        jsas: !recentJsasResult.error ? (recentJsasResult.data ?? []) : [],
+      }),
     },
   });
 }

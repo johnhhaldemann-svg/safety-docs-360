@@ -40,7 +40,7 @@ function trendLabel(trend: NonNullable<ReturnType<typeof buildDashboardPerforman
 }
 
 function readinessValue(value: number): string {
-  return Number.isFinite(value) && value > 0 ? `${Math.round(value)}%` : "-";
+  return Number.isFinite(value) && value > 0 ? `${Math.round(value)}%` : "Not enough data yet";
 }
 
 export function PerformanceHubPanel({ overview, activeJobsites }: PerformanceHubPanelProps) {

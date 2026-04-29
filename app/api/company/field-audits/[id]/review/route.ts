@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendCustomerAuditReportEmail } from "@/lib/auditReportEmail";
+import { generateFieldAuditReportPdf } from "@/lib/fieldAudits/reportPdf";
 import { getCompanyScope } from "@/lib/companyScope";
 import { isJobsiteAllowed, getJobsiteAccessScope } from "@/lib/jobsiteAccess";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
@@ -90,7 +91,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Audit access denied for this jobsite." }, { status: 403 });
   }
 
-  const nextStatus = decision === "approved" ? "submitted" : "archived";
+  const nextStatus = decision === "approved" ? "submitted" : "returned";
   const updateResult = await writeSupabase
     .from("company_jobsite_audits")
     .update({ status: nextStatus })
@@ -122,7 +123,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({
       success: true,
       audit: updateResult.data,
-      message: "Field audit rejected and archived.",
+      message: "Field audit sent back for corrections.",
     });
   }
 
@@ -177,6 +178,27 @@ export async function PATCH(request: Request, context: RouteContext) {
     .eq("audit_id", auditId)
     .order("created_at", { ascending: true });
 
+  const reportPdf = await generateFieldAuditReportPdf({
+    companyName: companyScope.companyName || "Safety360 Docs",
+    customerName: customerResult.data?.name ?? null,
+    jobsiteName: String(jobsiteResult.data?.name ?? "Jobsite"),
+    auditDate: (audit.audit_date as string | null) ?? null,
+    auditors: (audit.auditors as string | null) ?? null,
+    hoursBilled: getHoursBilled(audit.payload),
+    selectedTrade: (audit.selected_trade as string | null) ?? null,
+    scoreSummary:
+      audit.score_summary && typeof audit.score_summary === "object"
+        ? (audit.score_summary as Record<string, unknown>)
+        : {},
+    aiReviewSummary:
+      audit.ai_review_summary && typeof audit.ai_review_summary === "object"
+        ? (audit.ai_review_summary as Record<string, unknown>)
+        : null,
+    observations: observationsResult.data ?? [],
+    reviewerName: auth.user.email ?? null,
+    reportStatus: "approved",
+  });
+
   const emailResult = await sendCustomerAuditReportEmail({
     toEmail: recipientEmail,
     companyName: companyScope.companyName || "Safety360 Docs",
@@ -194,6 +216,10 @@ export async function PATCH(request: Request, context: RouteContext) {
         ? (audit.ai_review_summary as Record<string, unknown>)
         : null,
     observations: observationsResult.data ?? [],
+    pdfAttachment: {
+      filename: reportPdf.filename,
+      contentBase64: Buffer.from(reportPdf.bytes).toString("base64"),
+    },
   });
 
   const deliveryInsert = await writeSupabase
@@ -217,6 +243,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     audit: updateResult.data,
     customerEmailSent: emailResult.sent,
     customerEmail: recipientEmail,
+    pdfAttached: true,
+    pdfFilename: reportPdf.filename,
     delivery: deliveryInsert.data ?? null,
     warning:
       observationsResult.error?.message ||
@@ -224,7 +252,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       customerResult.error?.message ||
       ("warning" in emailResult ? emailResult.warning : null),
     message: emailResult.sent
-      ? "Field audit approved and customer report email sent."
+      ? "Field audit approved and finished PDF sent to the customer."
       : "Field audit approved, but the customer report email was not sent.",
   });
 }

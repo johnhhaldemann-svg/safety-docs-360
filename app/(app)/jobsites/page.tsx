@@ -146,7 +146,10 @@ export default function JobsitesPage() {
   }, []);
 
   useEffect(() => {
-    void loadAuditCustomers();
+    const timeoutId = window.setTimeout(() => {
+      void loadAuditCustomers();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [loadAuditCustomers]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -240,6 +243,15 @@ export default function JobsitesPage() {
     (jobsite) => jobsite.status === "Action needed"
   ).length;
   const archivedCount = jobsites.filter((jobsite) => jobsite.status === "Archived").length;
+  const linkedJobsiteCountByCustomer = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const jobsite of jobsites) {
+      if (!jobsite.auditCustomerId) continue;
+      counts.set(jobsite.auditCustomerId, (counts.get(jobsite.auditCustomerId) ?? 0) + 1);
+    }
+    return counts;
+  }, [jobsites]);
+  const unlinkedJobsitesCount = jobsites.filter((jobsite) => !jobsite.auditCustomerId).length;
 
   function updateComposer<K extends keyof ComposerState>(key: K, value: ComposerState[K]) {
     setComposer((current) => ({ ...current, [key]: value }));
@@ -247,6 +259,36 @@ export default function JobsitesPage() {
 
   function resetComposer(jobsite?: CompanyJobsite | null) {
     setComposer(jobsite ? createComposerFromJobsite(jobsite) : EMPTY_COMPOSER);
+  }
+
+  function focusCustomerFields() {
+    window.setTimeout(() => {
+      document.getElementById("jobsite-customer-company")?.focus();
+    }, 0);
+  }
+
+  function startAuditCustomerEntry() {
+    setSelectedJobsiteId("all");
+    setComposer({
+      ...EMPTY_COMPOSER,
+      customerCompanyName: "",
+      customerReportEmail: "",
+    });
+    setMessage(null);
+    focusCustomerFields();
+  }
+
+  function loadAuditCustomerIntoComposer(customer: AuditCustomer) {
+    setSelectedJobsiteId("all");
+    setComposer((current) => ({
+      ...current,
+      auditCustomerId: customer.id,
+      customerCompanyName: customer.name,
+      customerReportEmail: customer.report_email ?? "",
+    }));
+    setMessage(`Loaded ${customer.name} into the jobsite form.`);
+    setMessageTone("neutral");
+    focusCustomerFields();
   }
 
   async function handleCreateOrConvertJobsite() {
@@ -533,10 +575,110 @@ export default function JobsitesPage() {
         ))}
       </section>
 
+      <div id="audit-customers" className="scroll-mt-28">
+        <SectionCard
+          title="Audit Customer Directory"
+          description="Saved customer companies, report emails, and the jobsites connected to approved field audit delivery."
+          actions={
+            <button
+              type="button"
+              onClick={startAuditCustomerEntry}
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
+            >
+              Add Customer
+            </button>
+          }
+        >
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[
+              {
+                title: "Audit Customers",
+                value: String(auditCustomers.length),
+                note: "Saved report recipients",
+              },
+              {
+                title: "Linked Jobsites",
+                value: String(jobsites.length - unlinkedJobsitesCount),
+                note: "Sites using customer directory emails",
+              },
+              {
+                title: "Fallback Jobsites",
+                value: String(unlinkedJobsitesCount),
+                note: "Sites still using legacy customer fields",
+              },
+            ].map((card) => (
+              <div
+                key={card.title}
+                className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
+              >
+                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                  {card.title}
+                </div>
+                <div className="mt-3 text-3xl font-black tracking-tight text-white">
+                  {loading ? "-" : card.value}
+                </div>
+                <div className="mt-2 text-sm leading-6 text-slate-500">{card.note}</div>
+              </div>
+            ))}
+          </div>
+
+          {auditCustomers.length === 0 ? (
+            <EmptyState
+              title="No audit customers saved yet"
+              description="Create the first customer company and report email from this directory."
+              primaryAction={{ label: "Add Customer", onClick: startAuditCustomerEntry }}
+            />
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {auditCustomers.map((customer) => {
+                const linkedCount = linkedJobsiteCountByCustomer.get(customer.id) ?? 0;
+                return (
+                  <div
+                    key={customer.id}
+                    className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="truncate text-lg font-bold text-white">
+                            {customer.name}
+                          </h3>
+                          <StatusBadge
+                            label={`${linkedCount} site${linkedCount === 1 ? "" : "s"}`}
+                            tone={linkedCount > 0 ? "success" : "neutral"}
+                          />
+                        </div>
+                        <div className="mt-2 break-all text-sm font-semibold text-sky-200">
+                          {customer.report_email || "No report email saved"}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => loadAuditCustomerIntoComposer(customer)}
+                        className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+                      >
+                        Use Customer
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {unlinkedJobsitesCount > 0 ? (
+            <InlineMessage tone="warning">
+              {unlinkedJobsitesCount} jobsite{unlinkedJobsitesCount === 1 ? "" : "s"} still
+              use the legacy customer company and email fields.
+            </InlineMessage>
+          ) : null}
+        </SectionCard>
+      </div>
+
       <section className="grid gap-6 xl:grid-cols-[0.98fr_1.02fr]">
         <SectionCard
           title="Add or Convert a Jobsite"
-          description="Create a managed jobsite or turn a document-only project name into a real site record."
+          description="Create a managed jobsite, connect it to an audit customer, or turn a document-only project name into a real site record."
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <div>

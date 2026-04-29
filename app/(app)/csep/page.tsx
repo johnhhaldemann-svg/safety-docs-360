@@ -2799,37 +2799,65 @@ export default function CSEPPage() {
                       </div>
                     </div>
                   ) : null}
-                  {!csepHandoffComplete ? (
-                    <button
-                      type="button"
-                      onClick={handleSubmitForReview}
-                      disabled={submitLoading || !agreedToSubmissionTerms || !canSubmitDocuments || !previewReadyForSubmit}
-                      className="rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] disabled:opacity-60"
-                    >
-                      {submitLoading ? "Submitting..." : "Submit for review"}
-                    </button>
-                  ) : null}
                 </div>
               ) : null}
 
-              <div className="flex flex-wrap gap-3 border-t border-[var(--app-border)] pt-2">
-                <button
-                  type="button"
-                  onClick={() => setStep((current) => Math.max(0, current - 1))}
-                  disabled={step === 0}
-                  className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] disabled:opacity-50"
-                >
-                  Back
-                </button>
-                {step < workflowDefinition.length - 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => setStep((current) => current + 1)}
-                    disabled={!canProceed(step)}
-                    className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                  >
-                    Next step
-                  </button>
+              <div className="sticky bottom-3 z-20 -mx-2 mt-2 rounded-2xl border border-[var(--app-border-strong)] bg-white/95 px-3 py-3 shadow-xl shadow-slate-950/10 backdrop-blur supports-[backdrop-filter]:bg-white/85">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-text)]">
+                      Step {step + 1} of {workflowDefinition.length}
+                    </div>
+                    <div className="mt-1 truncate text-sm font-semibold text-[var(--app-text-strong)]">
+                      {workflowDefinition[step].title}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setStep((current) => Math.max(0, current - 1))}
+                      disabled={step === 0}
+                      className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-panel-muted)] disabled:opacity-50"
+                    >
+                      Back
+                    </button>
+                    {step < workflowDefinition.length - 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => setStep((current) => current + 1)}
+                        disabled={!canProceed(step)}
+                        className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] disabled:opacity-50"
+                      >
+                        Next step
+                      </button>
+                    ) : !csepHandoffComplete ? (
+                      <button
+                        type="button"
+                        onClick={handleSubmitForReview}
+                        disabled={submitLoading || !agreedToSubmissionTerms || !canSubmitDocuments || !previewReadyForSubmit}
+                        className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)] disabled:opacity-50"
+                      >
+                        {submitLoading ? "Submitting..." : "Submit for review"}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={resetBuilder}
+                        className="rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--app-accent-primary-hover)]"
+                      >
+                        Start new build
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {step < workflowDefinition.length - 1 && !canProceed(step) ? (
+                  <div className="mt-2 text-xs text-[var(--app-text)]">
+                    Next step unlocks after: <span className="font-semibold text-[var(--app-text-strong)]">{nextRequiredInput}</span>
+                  </div>
+                ) : step === workflowDefinition.length - 1 && !csepHandoffComplete && !previewReadyForSubmit ? (
+                  <div className="mt-2 text-xs text-[var(--app-text)]">
+                    Submit unlocks after the draft is current, approved, and the required terms are accepted.
+                  </div>
                 ) : null}
               </div>
             </fieldset>

@@ -20,6 +20,7 @@
     "build:android:prod": "eas build --platform android --profile production"
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
     "@tanstack/react-query": "^5.90.12",
     "axios": "^1.13.2",
     "expo": "~54.0.0",

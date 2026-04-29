@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { DashboardView } from "@/components/dashboard/dashboard-view";
 import {
+  buildDailyActionQueue,
   getCompanyAdminDashboardModel,
   getDefaultDashboardModel,
   getFieldSupervisorDashboardModel,
@@ -322,5 +323,46 @@ describe("DashboardView", () => {
     expect(html).toContain("Jobsite Health Ranking");
     expect(html).toContain("Hazard Trends");
     expect((html.match(/h-3 overflow-hidden rounded-full/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("ranks safety manager daily actions by stop-work/SIF before overdue and setup signals", () => {
+    const queue = buildDailyActionQueue({
+      ...baseData,
+      analyticsSummary: {
+        ...baseData.analyticsSummary,
+        companyDashboard: {
+          totalActiveJobsites: 1,
+          totalOpenObservations: 8,
+          totalHighRiskObservations: 4,
+          sifCount: 1,
+          averageClosureTimeHours: 10,
+          topHazardCategories: [],
+          openIncidents: 1,
+          observationPriorityBands: { high: 4, medium: 2, low: 2 },
+          dapCompletionToday: { completed: 0, total: 0, percent: 0 },
+        },
+      },
+      workspaceSummary: {
+        ...baseData.workspaceSummary,
+        permits: [
+          {
+            id: "permit-stop",
+            jobsite_id: "job-1",
+            title: "Confined space permit",
+            status: "active",
+            stop_work_status: "stop_work_active",
+          },
+          ...baseData.workspaceSummary.permits,
+        ],
+      },
+    });
+
+    expect(queue[0]?.id).toBe("permit-stop");
+    expect(queue.map((item) => item.id)).toEqual(
+      expect.arrayContaining(["obs-1", "high-risk-observations", "training-setup-backlog"])
+    );
+    expect(queue.findIndex((item) => item.id === "obs-1")).toBeLessThan(
+      queue.findIndex((item) => item.id === "training-setup-backlog")
+    );
   });
 });

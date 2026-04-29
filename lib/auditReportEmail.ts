@@ -76,6 +76,10 @@ export async function sendCustomerAuditReportEmail(params: {
   scoreSummary: Record<string, unknown>;
   aiReviewSummary?: Record<string, unknown> | null;
   observations: AuditReportEmailObservation[];
+  pdfAttachment?: {
+    filename: string;
+    contentBase64: string;
+  } | null;
 }) {
   const resendApiKey = readEnv("RESEND_API_KEY");
   const fromEmail = getAuditReportFromEmail();
@@ -129,7 +133,7 @@ export async function sendCustomerAuditReportEmail(params: {
       <div style="border:1px solid #dbeafe;border-radius:20px;padding:28px;background:#ffffff;">
         <p style="font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0369a1;font-weight:700;margin:0 0 10px;">Approved Field Audit Report</p>
         <h1 style="font-size:26px;line-height:1.2;margin:0 0 14px;">${safeJobsiteName}</h1>
-        <p style="margin:0 0 18px;color:#475569;">${safeCompanyName} approved this audit report and sent you a copy for your records.</p>
+        <p style="margin:0 0 18px;color:#475569;">${safeCompanyName} approved this audit report and sent you the finished PDF for your records.</p>
         <div style="border:1px solid #e2e8f0;border-radius:16px;padding:16px 18px;background:#f8fafc;margin-bottom:22px;">
           <p style="margin:0 0 8px;"><strong>Audit date:</strong> ${safeAuditDate}</p>
           <p style="margin:0 0 8px;"><strong>Auditor(s):</strong> ${safeAuditors}</p>
@@ -176,6 +180,7 @@ export async function sendCustomerAuditReportEmail(params: {
     aiEmailSummary.openingSummary ? `Reviewed summary: ${aiEmailSummary.openingSummary}` : null,
     "Findings summary:",
     findingsText,
+    params.pdfAttachment ? `Attached PDF: ${params.pdfAttachment.filename}` : null,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -192,6 +197,16 @@ export async function sendCustomerAuditReportEmail(params: {
       subject,
       html,
       text,
+      ...(params.pdfAttachment
+        ? {
+            attachments: [
+              {
+                filename: params.pdfAttachment.filename,
+                content: params.pdfAttachment.contentBase64,
+              },
+            ],
+          }
+        : {}),
     }),
   });
 

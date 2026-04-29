@@ -1,8 +1,9 @@
 import { router } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
 import { useState } from "react";
 import { Button, Field } from "@/components/Form";
+import { AppCard, MultiSelect, PhotoEvidenceButton, SelectionDropdown, StatusBanner } from "@/components/Enterprise";
 import { Screen } from "@/components/Screen";
 import { createJsa, createJsaActivity, getMe, signJsa, submitJsa, uploadJsaPhoto } from "@/api/mobile";
 import { pickPhotoFromCamera, pickPhotoFromLibrary } from "@/utils/photos";
@@ -165,9 +166,9 @@ export default function NewJsaScreen() {
 
   return (
     <Screen title="New JSA" subtitle="Build a field JSA and send it to admin review.">
+      <StatusBanner title="Admin Review Required" detail="Submitted JSAs sync to the platform for review and recordkeeping." tone="info" />
       <View style={styles.form}>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Job Details</Text>
+        <AppCard title="Job Details" eyebrow="Step 1">
           <Field label="JSA Title / Job Name" value={title} onChangeText={setTitle} />
           <SelectionDropdown
             label="Jobsite"
@@ -196,10 +197,9 @@ export default function NewJsaScreen() {
           <Field label="Crew Size" value={crewSize} onChangeText={setCrewSize} placeholder="6" />
           <Field label="Supervisor" value={supervisor} onChangeText={setSupervisor} placeholder="Supervisor name" />
           <Field label="Shift / Phase" value={shiftPhase} onChangeText={setShiftPhase} placeholder="Day shift, pre-task, lift setup" />
-        </View>
+        </AppCard>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Work Step & Controls</Text>
+        <AppCard title="Work Step & Controls" eyebrow="Step 2">
           <Field label="Work Step / Activity" value={activityName} onChangeText={setActivityName} multiline />
           <MultiSelect label="Hazard Tags" selected={hazardTags} options={HAZARD_OPTIONS} onToggle={(id) => toggleValue(setHazardTags, id)} />
           <Field label="Hazard Description" value={hazardDescription} onChangeText={setHazardDescription} multiline />
@@ -252,16 +252,15 @@ export default function NewJsaScreen() {
             />
           ) : null}
           <MultiSelect label="Required PPE" selected={ppeTags} options={PPE_OPTIONS} onToggle={(id) => toggleValue(setPpeTags, id)} />
-        </View>
+        </AppCard>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Evidence & Sign-Off</Text>
-          <Button onPress={addPhoto} variant="secondary">{photo ? "Photo selected" : "Add photo"}</Button>
+        <AppCard title="Evidence & Sign-Off" eyebrow="Final">
+          <PhotoEvidenceButton selected={Boolean(photo)} onPress={addPhoto} />
           <Field label="Signature" value={signature} onChangeText={setSignature} placeholder="Printed name" />
           <Button onPress={() => mutation.mutate()} disabled={mutation.isPending || !title || !activityName || hazardTags.length < 1 || !hazardDescription || !mitigation || ppeTags.length < 1 || !signature}>
             {mutation.isPending ? "Sending..." : "Send JSA For Review"}
           </Button>
-        </View>
+        </AppCard>
       </View>
     </Screen>
   );
@@ -273,71 +272,6 @@ function labelFor(options: Array<{ id: string; label: string }>, id: string) {
 
 function toggleValue(setter: (update: (current: string[]) => string[]) => void, id: string) {
   setter((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-}
-
-function SelectionDropdown({
-  label,
-  value,
-  open,
-  options,
-  onToggle,
-  onSelect,
-}: {
-  label: string;
-  value: string;
-  open: boolean;
-  options: Array<{ id: string; label: string; meta?: string }>;
-  onToggle: () => void;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <View style={styles.selectorGroup}>
-      <Text style={styles.selectorLabel}>{label}</Text>
-      <Pressable onPress={onToggle} style={styles.dropdownButton}>
-        <Text style={styles.dropdownTitle}>{value}</Text>
-        <Text style={styles.dropdownMeta}>{open ? "Tap to close" : "Tap to choose"}</Text>
-      </Pressable>
-      {open ? (
-        <View style={styles.dropdownPanel}>
-          {options.map((option) => (
-            <Pressable key={option.id} onPress={() => onSelect(option.id)} style={styles.optionRow}>
-              <Text style={styles.optionText}>{option.label}</Text>
-              {option.meta ? <Text style={styles.optionMeta}>{option.meta}</Text> : null}
-            </Pressable>
-          ))}
-          {options.length === 0 ? <Text style={styles.emptyText}>No options available.</Text> : null}
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-function MultiSelect({
-  label,
-  selected,
-  options,
-  onToggle,
-}: {
-  label: string;
-  selected: string[];
-  options: Array<{ id: string; label: string }>;
-  onToggle: (id: string) => void;
-}) {
-  return (
-    <View style={styles.selectorGroup}>
-      <Text style={styles.selectorLabel}>{label}</Text>
-      <View style={styles.chipRow}>
-        {options.map((option) => {
-          const active = selected.includes(option.id);
-          return (
-            <Pressable key={option.id} onPress={() => onToggle(option.id)} style={[styles.choiceChip, active ? styles.choiceChipActive : null]}>
-              <Text style={[styles.choiceChipText, active ? styles.choiceChipTextActive : null]}>{option.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
 }
 
 const styles = StyleSheet.create({

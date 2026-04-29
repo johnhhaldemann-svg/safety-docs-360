@@ -112,6 +112,99 @@ function isActiveJobsite(status?: string | null): boolean {
   return normalized === "active" || normalized === "planned" || normalized === "action needed";
 }
 
+type DailyCommandAction = {
+  id: string;
+  title: string;
+  detail: string;
+  href: string;
+  meta: string;
+  tone: "neutral" | "success" | "warning" | "error" | "info";
+};
+
+function isDailyCommandAction(item: DailyCommandAction | null): item is DailyCommandAction {
+  return item !== null;
+}
+
+function buildDailyCommandActions(params: {
+  overview: DashboardOverview;
+  missingPermitsTotal: number;
+  credentialGaps: { expiredCredentials: number; expiringSoonCredentials: number };
+  documentPipelineTotal: number;
+}): DailyCommandAction[] {
+  const { overview, missingPermitsTotal, credentialGaps, documentPipelineTotal } = params;
+  const highSeverityRisk = overview.topRisks.find(
+    (risk) => risk.severity === "critical" || risk.severity === "high"
+  );
+  const overdueSample = overview.overdueCorrectiveSamples?.[0];
+  const documentBacklog =
+    overview.documentReadiness.submitted +
+    overview.documentReadiness.underReview +
+    overview.documentReadiness.missingRequired +
+    overview.documentReadiness.expiringSoon;
+
+  const actions: Array<DailyCommandAction | null> = [
+    overview.summary.openHighRiskItems > 0
+      ? {
+          id: "open-high-risk",
+          title: "Verify high-risk work",
+          detail: highSeverityRisk
+            ? `${formatTitleCase(highSeverityRisk.name) || highSeverityRisk.name}: ${highSeverityRisk.recommendation}`
+            : "Open high-risk items need field verification before related work continues.",
+          href: "/field-id-exchange",
+          meta: `${overview.summary.openHighRiskItems} open`,
+          tone: "error" as const,
+        }
+      : null,
+    overview.summary.overdueCorrectiveActions > 0
+      ? {
+          id: "overdue-correctives",
+          title: "Close overdue correctives",
+          detail: overdueSample
+            ? `${formatTitleCase((overdueSample.category ?? "Corrective action").replace(/_/g, " "))} is past due.`
+            : "Past-due corrective actions are unresolved exposure until verified and closed.",
+          href: "/field-id-exchange",
+          meta: `${overview.summary.overdueCorrectiveActions} overdue`,
+          tone: "error" as const,
+        }
+      : null,
+    missingPermitsTotal > 0
+      ? {
+          id: "missing-permits",
+          title: "Resolve permit blockers",
+          detail: "Missing required permit coverage should be cleared before high-energy or regulated work proceeds.",
+          href: "/permits",
+          meta: `${missingPermitsTotal} missing`,
+          tone: "warning" as const,
+        }
+      : null,
+    credentialGaps.expiredCredentials > 0
+      ? {
+          id: "expired-credentials",
+          title: "Review expired credentials",
+          detail: "Expired credentials can block worker readiness for regulated or high-risk assignments.",
+          href: "/training-matrix",
+          meta: `${credentialGaps.expiredCredentials} expired`,
+          tone: "warning" as const,
+        }
+      : null,
+    documentBacklog > 0
+      ? {
+          id: "document-readiness",
+          title: "Clear document readiness",
+          detail:
+            documentPipelineTotal > 0
+              ? "Submitted, in-review, missing, or expiring documents are waiting on review."
+              : "Document readiness needs source records before the rate is meaningful.",
+          href: "/library",
+          meta: `${documentBacklog} item${documentBacklog === 1 ? "" : "s"}`,
+          tone: "info" as const,
+        }
+      : null,
+  ];
+
+  return actions.filter(isDailyCommandAction).slice(0, 3);
+}
+
 export function DashboardOverviewShell({ workspace }: { workspace: DashboardDataState }) {
   const searchParams = useSearchParams();
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
@@ -342,45 +435,111 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
     documentRateMeasured,
     doc
   );
+  const dailyActions = buildDailyCommandActions({
+    overview,
+    missingPermitsTotal,
+    credentialGaps: cred,
+    documentPipelineTotal: pipelineTotal,
+  });
 
   return (
     <div className="space-y-8">
       {filters}
-      <div className="rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.98)_0%,_rgba(234,241,255,0.88)_100%)] px-4 py-4 text-sm text-[var(--app-text)] shadow-[var(--app-shadow-soft)] sm:px-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <section className="rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.98)_0%,_rgba(240,246,255,0.88)_100%)] px-4 py-4 text-sm text-[var(--app-text)] shadow-[var(--app-shadow-soft)] sm:px-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--app-muted)]">
-              Dashboard information hub
+              Today&apos;s command view
             </p>
             <h2 className="mt-1 font-app-display text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">
               {companyName}
             </h2>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <StatusBadge
+                label={`${connectedSourceCount}/${totalSourceCount || 0} sources green`}
+                tone={connectedSourceCount === totalSourceCount ? "success" : "warning"}
+              />
+              <StatusBadge label={`${activeJobsites} active jobsites`} tone={activeJobsites > 0 ? "info" : "neutral"} />
+              <StatusBadge
+                label={`${overview.summary.openHighRiskItems} high-risk open`}
+                tone={overview.summary.openHighRiskItems > 0 ? "error" : "success"}
+              />
+              <StatusBadge
+                label={`${overview.summary.overdueCorrectiveActions} overdue`}
+                tone={overview.summary.overdueCorrectiveActions > 0 ? "error" : "success"}
+              />
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge
-              label={`${connectedSourceCount}/${totalSourceCount || 0} sources green`}
-              tone={connectedSourceCount === totalSourceCount ? "success" : "warning"}
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="w-fit rounded-xl border border-[var(--app-border-strong)] bg-white/86 px-3 py-2 text-xs font-semibold text-[var(--app-text-strong)] shadow-sm transition hover:border-[var(--app-accent-border-28)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "Refreshing..." : "Refresh hub"}
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+          <div className="rounded-2xl border border-[var(--app-border)] bg-white/88 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--app-muted)]">
+                  Top 3 actions today
+                </p>
+                <h3 className="mt-1 text-lg font-bold text-[var(--app-text-strong)]">Clear These First</h3>
+              </div>
+              <StatusBadge label={dailyActions.length ? `${dailyActions.length} active` : "Clear"} tone={dailyActions.length ? "warning" : "success"} />
+            </div>
+            {dailyActions.length > 0 ? (
+              <div className="mt-4 grid gap-3">
+                {dailyActions.map((action) => (
+                  <Link
+                    key={action.id}
+                    href={action.href}
+                    className="group rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3 transition hover:border-[var(--app-accent-border-28)]"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-[var(--app-text-strong)]">{action.title}</p>
+                        <p className="mt-1 text-xs leading-relaxed text-[var(--app-text)]">{action.detail}</p>
+                      </div>
+                      <StatusBadge label={action.meta} tone={action.tone} />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 rounded-xl border border-[var(--app-border-subtle)] bg-[var(--app-panel-soft)] px-3 py-3 text-sm text-[var(--app-text)]">
+                No high-priority daily actions are visible for this filter. Keep routine field verification active.
+              </p>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+            <MetricCard
+              label="Safety health"
+              value={overview.summary.safetyHealthScore}
+              hint="Composite prevention posture"
+              statusBand={healthCompositeBand}
             />
-            <StatusBadge label={`${activeJobsites} active jobsites`} tone={activeJobsites > 0 ? "info" : "neutral"} />
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={loading}
-              className="rounded-xl border border-[var(--app-border-strong)] bg-white/86 px-3 py-2 text-xs font-semibold text-[var(--app-text-strong)] shadow-sm transition hover:border-[var(--app-accent-border-28)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? "Refreshing..." : "Refresh hub"}
-            </button>
+            <MetricCard
+              label="Training readiness"
+              value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "Not enough data yet"}
+              valueMuted={!trainingMeasured}
+              statusBand={trainingSummaryBand}
+              hint={trainingMeasured ? "Training and credential rows are connected." : "Training or credential records are needed before this rate is meaningful."}
+            />
+            <MetricCard
+              label="Document readiness"
+              value={documentRateMeasured ? `${Math.round(overview.summary.documentReadinessRate)}%` : "Not enough data yet"}
+              valueMuted={!documentRateMeasured}
+              statusBand={documentSummaryBand}
+              hint={documentRateMeasured ? "Document workflow volume is connected." : "Document workflow records are needed before this rate is meaningful."}
+            />
           </div>
         </div>
-        <p className="mt-1 text-xs leading-relaxed text-[var(--app-muted)]">
-          These tiles highlight where risk may be building and what requires field verification—not only what was reported.
-          Data is loaded from{" "}
-          <code className="rounded bg-[var(--app-panel)] px-1 py-0.5 text-[11px]">/api/dashboard/overview</code> for your
-          company. Empty sections usually mean a source is not connected yet; the role-based dashboard below is unchanged.
-        </p>
-      </div>
-
-      <PerformanceHubPanel overview={overview} activeJobsites={activeJobsites} />
+      </section>
 
       <DashboardDetailsTabs
         activeTab={activeTab}
@@ -416,7 +575,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                 />
                 <MetricCard
                   label="Training readiness rate"
-                  value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "—"}
+                  value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "Not enough data yet"}
                   valueMuted={!trainingMeasured}
                   statusBand={trainingSummaryBand}
                   hint={
@@ -448,7 +607,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                 />
                 <MetricCard
                   label="Permit compliance rate"
-                  value={permitRateMeasured ? `${Math.round(overview.summary.permitComplianceRate)}%` : "—"}
+                  value={permitRateMeasured ? `${Math.round(overview.summary.permitComplianceRate)}%` : "Not enough data yet"}
                   valueMuted={!permitRateMeasured}
                   statusBand={permitSummaryBand}
                   hint={
@@ -459,7 +618,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                 />
                 <MetricCard
                   label="Training readiness rate"
-                  value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "—"}
+                  value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "Not enough data yet"}
                   valueMuted={!trainingMeasured}
                   statusBand={trainingSummaryBand}
                   hint={
@@ -470,7 +629,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                 />
                 <MetricCard
                   label="Document readiness rate"
-                  value={documentRateMeasured ? `${Math.round(overview.summary.documentReadinessRate)}%` : "—"}
+                  value={documentRateMeasured ? `${Math.round(overview.summary.documentReadinessRate)}%` : "Not enough data yet"}
                   valueMuted={!documentRateMeasured}
                   statusBand={documentSummaryBand}
                   hint={
@@ -844,6 +1003,27 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           ),
         }}
       />
+      <details className="group rounded-2xl border border-[var(--app-border)] bg-white/88 px-4 py-4 shadow-[var(--app-shadow-soft)] sm:px-5">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--app-muted)]">
+              Secondary analytics
+            </p>
+            <h2 className="mt-0.5 text-lg font-bold tracking-tight text-[var(--app-text-strong)]">
+              Performance Hub
+            </h2>
+          </div>
+          <span className="rounded-xl border border-[var(--app-border-strong)] bg-[var(--app-panel-soft)] px-3 py-2 text-xs font-semibold text-[var(--app-text)] group-open:hidden">
+            Show
+          </span>
+          <span className="hidden rounded-xl border border-[var(--app-border-strong)] bg-[var(--app-panel-soft)] px-3 py-2 text-xs font-semibold text-[var(--app-text)] group-open:inline-flex">
+            Hide
+          </span>
+        </summary>
+        <div className="mt-4">
+          <PerformanceHubPanel overview={overview} activeJobsites={activeJobsites} />
+        </div>
+      </details>
     </div>
   );
 }

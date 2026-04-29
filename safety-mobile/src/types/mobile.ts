@@ -37,6 +37,15 @@ export type MobileMe = {
     activeJsas: number;
     recentAudits: number;
     assignedJobsites: number;
+    pendingAuditReviews?: number;
+    lastSyncAt?: string;
+    recentActivity?: Array<{
+      id: string;
+      label: string;
+      detail: string;
+      createdAt: string | null;
+      tone: "neutral" | "warning" | "success";
+    }>;
   };
 };
 

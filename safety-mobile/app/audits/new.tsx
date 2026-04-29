@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useMemo, useState } from "react";
 import { Button, Field } from "@/components/Form";
+import { PhotoEvidenceButton, SelectionDropdown, StatusBanner } from "@/components/Enterprise";
 import { Screen } from "@/components/Screen";
 import { createAudit, getAuditTemplates, getMe, signAudit, uploadAuditPhoto } from "@/api/mobile";
 import { pickPhotoFromCamera, pickPhotoFromLibrary } from "@/utils/photos";
@@ -136,6 +137,19 @@ export default function NewAuditScreen() {
   const activeSectionPercent = activeSection?.items.length
     ? Math.round((activeSectionScored / activeSection.items.length) * 100)
     : 0;
+  const failedItems = useMemo(() => {
+    const rows: Array<{ key: string; label: string; action?: string }> = [];
+    for (const section of combinedSections) {
+      for (const item of section.items) {
+        const key = fieldItemKey(section.id, item.id);
+        if (statusMap[key] === "fail") {
+          rows.push({ key, label: item.label, action: correctiveActionsMap[key] });
+        }
+      }
+    }
+    return rows;
+  }, [combinedSections, correctiveActionsMap, statusMap]);
+  const totalPhotos = Object.values(photoCounts).reduce((total, count) => total + count, 0);
 
   function setRowStatus(key: string, status: AuditStatus) {
     setStatusMap((current) => ({ ...current, [key]: status }));
@@ -268,6 +282,11 @@ export default function NewAuditScreen() {
       subtitle="Complete the field checklist and send it to admin review."
       footer={sectionNav}
     >
+      <StatusBanner
+        title="AI + Admin Review"
+        detail="Submitted audits are reviewed by AI for summary/corrections, then approved by a company admin before customer delivery."
+        tone="info"
+      />
       <View style={styles.form}>
         <View style={styles.auditHeaderCard}>
           <View style={styles.cardHeaderRow}>
@@ -429,12 +448,7 @@ export default function NewAuditScreen() {
                       multiline
                     />
                   ) : null}
-                  <Pressable onPress={() => addPhoto(key)} style={styles.evidenceButton}>
-                    <Text style={styles.evidenceTitle}>Photo Evidence</Text>
-                    <Text style={styles.evidenceMeta}>
-                      {(photoCounts[key] ?? 0) > 0 ? `${photoCounts[key]} attached` : "Take photo or choose from phone"}
-                    </Text>
-                  </Pressable>
+                  <PhotoEvidenceButton count={photoCounts[key] ?? 0} onPress={() => addPhoto(key)} />
                 </View>
               );
             })}
@@ -451,7 +465,20 @@ export default function NewAuditScreen() {
               <ScoreMetric label="Pass" value={score.pass} />
               <ScoreMetric label="Fail" value={score.fail} danger />
               <ScoreMetric label="N/A" value={score.na} />
+              <ScoreMetric label="Photos" value={totalPhotos} />
             </View>
+            {failedItems.length > 0 ? (
+              <View style={styles.failedSummary}>
+                <Text style={styles.failedTitle}>Failed Items Requiring Admin Review</Text>
+                {failedItems.slice(0, 5).map((item) => (
+                  <Text key={item.key} style={styles.failedText}>
+                    {toTitleCase(item.label)} - {item.action?.trim() || "Corrective action required"}
+                  </Text>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.finalText}>No failed checklist items recorded.</Text>
+            )}
             <Field label="Signature" value={signature} onChangeText={setSignature} placeholder="Printed name" />
             <Button onPress={() => mutation.mutate()} disabled={mutation.isPending || !auditors || !signature || score.total < 1}>
               {mutation.isPending ? "Sending..." : "Send Audit for Review"}
@@ -475,43 +502,6 @@ function ScoreMetric({ label, value, danger }: { label: string; value: number; d
     <View style={styles.metric}>
       <Text style={[styles.metricValue, danger ? styles.metricDanger : null]}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function SelectionDropdown({
-  label,
-  value,
-  open,
-  options,
-  onToggle,
-  onSelect,
-}: {
-  label: string;
-  value: string;
-  open: boolean;
-  options: Array<{ id: string; label: string; meta?: string }>;
-  onToggle: () => void;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <View style={styles.selectorGroup}>
-      <Text style={styles.selectorLabel}>{label}</Text>
-      <Pressable onPress={onToggle} style={styles.dropdownButton}>
-        <Text style={styles.dropdownTitle}>{value}</Text>
-        <Text style={styles.dropdownMeta}>{open ? "Tap to close" : "Tap to choose"}</Text>
-      </Pressable>
-      {open ? (
-        <View style={styles.dropdownPanel}>
-          {options.map((option) => (
-            <Pressable key={option.id} onPress={() => onSelect(option.id)} style={styles.optionRow}>
-              <Text style={styles.optionText}>{option.label}</Text>
-              {option.meta ? <Text style={styles.optionMeta}>{toTitleCase(option.meta)}</Text> : null}
-            </Pressable>
-          ))}
-          {options.length === 0 ? <Text style={styles.emptyText}>No options available.</Text> : null}
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -577,6 +567,9 @@ const styles = StyleSheet.create({
   finalTitle: { color: theme.textStrong, fontSize: 18, fontWeight: "900" },
   finalText: { color: theme.muted, fontSize: 13, fontWeight: "700", lineHeight: 19 },
   finalSummary: { flexDirection: "row", gap: 8 },
+  failedSummary: { borderWidth: 1, borderColor: theme.warning, backgroundColor: theme.warningSoft, borderRadius: 9, padding: 11, gap: 6 },
+  failedTitle: { color: theme.warning, fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 },
+  failedText: { color: theme.textStrong, fontSize: 12, fontWeight: "800", lineHeight: 18 },
   item: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 8, padding: 12, gap: 10 },
   itemHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
   itemText: { color: theme.textStrong, fontSize: 15, fontWeight: "800", lineHeight: 21, flex: 1 },

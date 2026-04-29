@@ -5,7 +5,7 @@ import type {
   NormalizedFieldAuditObservation,
 } from "@/lib/fieldAudits/normalize";
 
-type LiteClient = SupabaseClient<any, "public", any>;
+type LiteClient = SupabaseClient;
 
 export type FieldAuditAiReview = {
   overallStatus: "ready_for_admin_review" | "needs_admin_attention" | "insufficient_context";

@@ -7,13 +7,15 @@ export function Screen({
   subtitle,
   children,
   eyebrow = "Safety360 Field",
-  footer
+  footer,
+  headerAside
 }: {
   title: string;
   subtitle?: string;
   children?: ReactNode;
   eyebrow?: string;
   footer?: ReactNode;
+  headerAside?: ReactNode;
 }) {
   return (
     <View style={styles.root}>
@@ -21,7 +23,7 @@ export function Screen({
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <Text style={styles.kicker}>{eyebrow}</Text>
-            <Text style={styles.envPill}>Online</Text>
+            {headerAside ?? <Text style={styles.envPill}>Online</Text>}
           </View>
           <Text style={styles.title}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
@@ -36,8 +38,8 @@ export function Screen({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.canvas },
   scroll: { flex: 1 },
-  content: { padding: 16, gap: 14 },
-  contentWithFooter: { paddingBottom: 112 },
+  content: { padding: 14, gap: 14 },
+  contentWithFooter: { paddingBottom: 116 },
   footer: {
     borderTopWidth: 1,
     borderTopColor: theme.borderStrong,
@@ -52,9 +54,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.borderStrong,
     backgroundColor: theme.surface,
-    borderRadius: 8,
-    padding: 16,
-    shadowColor: theme.shadow,
+    borderRadius: 10,
+    padding: 15,
+    shadowColor: theme.shadowStrong,
     shadowOpacity: 1,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
@@ -73,6 +75,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase"
   },
   kicker: { color: theme.primary, fontSize: 10, fontWeight: "900", letterSpacing: 1.5, textTransform: "uppercase", flexShrink: 1 },
-  title: { color: theme.textStrong, fontSize: 24, fontWeight: "900", flexShrink: 1 },
+  title: { color: theme.textStrong, fontSize: 22, fontWeight: "900", flexShrink: 1 },
   subtitle: { color: theme.text, fontSize: 14, lineHeight: 20, fontWeight: "600", flexShrink: 1 }
 });

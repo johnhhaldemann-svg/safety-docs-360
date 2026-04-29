@@ -444,6 +444,64 @@ function riskItems(data: DashboardDataState) {
   return { overdueItems, incidentItems, permitItems };
 }
 
+export function buildDailyActionQueue(data: DashboardDataState): DashboardFeedItem[] {
+  const risks = riskItems(data);
+  const highRiskCount =
+    data.analyticsSummary?.companyDashboard?.totalHighRiskObservations ??
+    data.analyticsSummary?.companyDashboard?.observationPriorityBands?.high ??
+    0;
+  const pendingDocuments = recentDocumentsItems(data).filter((item) => item.tone !== "success");
+  const pendingUsers = data.companyUsers.filter((user) => user.status === "Pending").length;
+  const setupBacklog = pendingUsers + data.companyInvites.length;
+  const activePermits = data.workspaceSummary.permits.filter((row) => active(row.status)).length;
+  const stopWorkOrSifItems = [...risks.permitItems, ...risks.incidentItems].filter((item) =>
+    /stop-work|sif|restriction|high-risk/i.test(`${item.meta} ${item.title} ${item.detail}`)
+  );
+  const standardPermitAndIncidentItems = [...risks.permitItems, ...risks.incidentItems].filter(
+    (item) => !stopWorkOrSifItems.some((priority) => priority.id === item.id)
+  );
+
+  return [
+    ...stopWorkOrSifItems,
+    ...risks.overdueItems,
+    ...(highRiskCount > 0
+      ? [
+          {
+            id: "high-risk-observations",
+            title: "Open high-risk observations",
+            detail: "High-priority observation signals require field verification before related work continues.",
+            meta: `${highRiskCount} item${highRiskCount === 1 ? "" : "s"}`,
+            tone: "error" as const,
+          },
+        ]
+      : []),
+    ...(setupBacklog > 0
+      ? [
+          {
+            id: "training-setup-backlog",
+            title: "Training setup signal",
+            detail: "Pending users or invites may affect readiness until the training matrix is fully connected.",
+            meta: `${setupBacklog} setup item${setupBacklog === 1 ? "" : "s"}`,
+            tone: "warning" as const,
+          },
+        ]
+      : []),
+    ...pendingDocuments.slice(0, 2),
+    ...(activePermits > stopWorkOrSifItems.length
+      ? [
+          {
+            id: "active-permit-readiness",
+            title: "Active permit readiness",
+            detail: "Open active permits should be reviewed for missing closure, restriction, or readiness details.",
+            meta: `${activePermits} active`,
+            tone: "info" as const,
+          },
+        ]
+      : []),
+    ...standardPermitAndIncidentItems,
+  ].slice(0, 8);
+}
+
 function rankingItems(data: DashboardDataState, href = "/jobsites"): DashboardSummaryItem[] {
   const jobsiteNames = jobsites(data);
 
@@ -579,11 +637,11 @@ function trainingItems(data: DashboardDataState, role: DashboardRole): Dashboard
     ...metricsRows,
     {
       id: "training-gap-proxy",
-      label: "Training gaps",
+      label: "Training setup signal",
       value: proxyTrainingGap > 0 ? `${proxyTrainingGap}` : "Clear",
       note:
         proxyTrainingGap > 0
-          ? "Temporary proxy based on unresolved invites and pending user setup."
+          ? "Setup signal based on unresolved invites and pending user setup until training records connect."
           : "No onboarding or invite backlog is visible right now.",
       href: trainingHref,
       tone: proxyTrainingGap > 0 ? "warning" : "success",
@@ -1272,12 +1330,12 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
     },
     {
       id: "training-expirations",
-      label: "Training gaps",
-      value: data.companyInvites.length > 0 ? `${data.companyInvites.length}` : "Pending sync",
+      label: "Training setup signal",
+      value: data.companyInvites.length > 0 ? `${data.companyInvites.length}` : "Not enough data yet",
       note:
         data.companyInvites.length > 0
-          ? "Invite backlog used as a temporary training coverage proxy."
-          : "Training expiration feed is not wired yet.",
+          ? "Invite backlog used as a setup signal until training coverage records connect."
+          : "Training expiration feed is not connected yet.",
       href: "/training-matrix",
       tone: data.companyInvites.length > 0 ? ("warning" as const) : ("info" as const),
     },
@@ -1336,25 +1394,25 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
           "Corrective actions already past due."
         ),
         metric(
-          "Training expirations",
-          data.companyInvites.length > 0 ? `${data.companyInvites.length}` : "Pending sync",
-          "Temporary proxy until the training expiration feed is wired."
+          "Training setup signal",
+          data.companyInvites.length > 0 ? `${data.companyInvites.length}` : "Not enough data yet",
+          "Invite backlog is a setup signal until the training expiration feed is connected."
         ),
       ],
       priorityQueue: feedSection(
-        "What needs attention now",
-        "The highest-risk backlog across approvals, incidents, and overdue corrective actions.",
-        [...risks.overdueItems, ...risks.incidentItems].slice(0, 6),
+        "Top actions today",
+        "Ranked by stop-work/SIF signals, overdue corrective work, high-risk observations, readiness blockers, and document or permit gaps.",
+        buildDailyActionQueue(data).slice(0, 6),
         {
           title: "Urgent items are clear",
-          description: "No overdue corrective actions or open incident escalations are visible right now.",
+          description: "No high-priority daily action signals are visible right now.",
           actionHref: "/analytics",
           actionLabel: "Open analytics",
         }
       ),
       nextActions: actionSection(
-        "What should this user do next",
-        "Start with the adoption path, then move into the highest-value daily operating workflows.",
+        "Unified action queue",
+        "Use these shortcuts after clearing the top daily queue.",
         [
           ...readinessActions,
           {
@@ -1519,7 +1577,7 @@ export function getSafetyManagerDashboardModel(data: DashboardDataState): Dashbo
     {
       id: "overdue-audits",
       label: "Overdue audits",
-      value: overdueCount > 0 ? `${overdueCount}` : "Pending sync",
+      value: overdueCount > 0 ? `${overdueCount}` : "Not enough data yet",
       note:
         overdueCount > 0
           ? "Overdue corrective actions currently visible in the company workspace."
@@ -1535,7 +1593,7 @@ export function getSafetyManagerDashboardModel(data: DashboardDataState): Dashbo
       eyebrow: "Safety manager dashboard",
       title: "Start with Command Center, then clear the queue",
       description:
-        "The safety manager path now starts with the operating hub, then moves into permits, incidents, documents, and training gaps.",
+        "The safety manager path starts with the daily queue, then moves into permits, incidents, documents, and training setup signals.",
       actions: [
         { label: "Open Command Center", href: "/command-center", variant: "primary" },
         { label: "Open permits", href: "/permits", variant: "secondary" },
@@ -1561,19 +1619,19 @@ export function getSafetyManagerDashboardModel(data: DashboardDataState): Dashbo
         ),
       ],
       priorityQueue: feedSection(
-        "What needs attention now",
-        "Highest-priority review items and overdue follow-ups in the safety queue.",
-        [...risks.overdueItems, ...risks.permitItems, ...risks.incidentItems].slice(0, 6),
+        "Top actions today",
+        "Ranked by stop-work/SIF signals, overdue corrective work, high-risk observations, readiness blockers, and document or permit gaps.",
+        buildDailyActionQueue(data).slice(0, 6),
         {
           title: "Your priority queue is clear",
-          description: "No overdue corrective actions, permit escalations, or open incidents are visible right now.",
+          description: "No high-priority daily action signals are visible right now.",
           actionHref: "/command-center",
           actionLabel: "Open command center",
         }
       ),
       nextActions: actionSection(
-        "What should this user do next",
-        "Start with the queue that clears the most risk and then move into recurring review work.",
+        "Unified action queue",
+        "Use these shortcuts after clearing the top daily queue.",
         [
           {
             title: "Open Command Center",
@@ -1601,8 +1659,8 @@ export function getSafetyManagerDashboardModel(data: DashboardDataState): Dashbo
             actionLabel: "Open incidents",
           },
           {
-            title: "Close training gaps",
-            description: "Open the training matrix and resolve gaps before the next shift or audit cycle.",
+            title: "Review training setup signals",
+            description: "Open the training matrix and resolve setup or coverage issues before the next shift or audit cycle.",
             href: "/training-matrix",
             actionLabel: "Open training matrix",
           },
@@ -1679,11 +1737,11 @@ export function getSafetyManagerDashboardModel(data: DashboardDataState): Dashbo
           },
           {
             id: "training-gaps",
-            label: "Training gaps",
-            value: data.companyInvites.length > 0 ? `${data.companyInvites.length}` : "Pending sync",
+            label: "Training setup signal",
+            value: data.companyInvites.length > 0 ? `${data.companyInvites.length}` : "Not enough data yet",
             note:
               data.companyInvites.length > 0
-                ? "Temporary proxy signal based on unresolved company invites and onboarding backlog."
+                ? "Setup signal based on unresolved company invites and onboarding backlog."
                 : "Training expiration feed is not connected yet.",
             href: "/training-matrix",
             tone: data.companyInvites.length > 0 ? "warning" : "info",

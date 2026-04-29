@@ -810,21 +810,24 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).toContain("Uses policy mapping, evidence language, and selective matrices for qualification review.");
     expect(documentXml).toContain('w:fill="D9EAF7"');
     expect(documentXml).toContain('w:fill="FFF2CC"');
+    expect(documentXml).toContain('w:fill="FCE4D6"');
     expect(documentXml).not.toContain("Imminent Danger");
-    expect(documentXml).not.toContain("Stop-Work Authority");
+    expect(documentXml).toContain("Stop-Work Authority");
     expect(documentXml).toContain("Minimum Training Rule");
     expect(documentXml).not.toContain('<w:gridCol w:w="100"/>');
-    expect(documentXml.split('w:fill="FCE4D6"').length - 1).toBe(0);
-    expect(documentXml.split('w:fill="FFF2CC"').length - 1).toBeLessThanOrEqual(1);
-    for (const fill of ['w:fill="FFF2CC"']) {
+    expect(documentXml).not.toContain("D63A34");
+    expect(documentXml.split('w:fill="FCE4D6"').length - 1).toBeGreaterThanOrEqual(1);
+    expect(documentXml.split('w:fill="FFF2CC"').length - 1).toBeGreaterThanOrEqual(1);
+    for (const fill of ['w:fill="FCE4D6"', 'w:fill="FFF2CC"']) {
       const calloutStart = documentXml.indexOf(fill);
       expect(calloutStart).toBeGreaterThan(-1);
       const calloutSlice = documentXml.slice(Math.max(0, calloutStart - 1600), calloutStart + 2200);
-      expect(calloutSlice).toContain('w:w="9000"');
-      expect(calloutSlice).toContain('w:w="180"');
-      expect(calloutSlice).toContain('w:line="240"');
-      expect(calloutSlice).toContain('<w:sz w:val="18"/>');
+      expect(calloutSlice).toContain("<w:pBdr>");
+      expect(calloutSlice).toContain('w:line="276"');
+      expect(calloutSlice).toContain('<w:sz w:val="20"/>');
     }
+    expect(documentXml).toContain('w:color="C00000"');
+    expect(documentXml).toContain('w:color="BF9000"');
     expect(documentXml).toContain("Training record / daily huddle");
     expect(documentXml).toContain("Field verification is documented");
     expect(footerXml).toContain("Version C - Reviewer / CODEX Evidence CSEP");

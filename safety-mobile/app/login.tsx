@@ -1,7 +1,8 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text } from "react-native";
 import { Button, Field } from "@/components/Form";
+import { AppCard, StatusBanner } from "@/components/Enterprise";
 import { Screen } from "@/components/Screen";
 import { login } from "@/api/mobile";
 import { saveSession } from "@/auth/session";
@@ -26,22 +27,20 @@ export default function LoginScreen() {
   }
 
   return (
-    <Screen title="Secure Sign In" subtitle="Use your existing Safety360Docs company account.">
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Company Field Access</Text>
+    <Screen title="Secure Sign In" subtitle="Use your existing Safety360 Docs company account.">
+      <StatusBanner title="Login Required" detail="This app is public-listed, but field workflows require an approved platform account." tone="info" />
+      <AppCard title="Company Field Access" eyebrow="Safety360 Field">
         <Field label="Email" value={email} onChangeText={setEmail} placeholder="name@company.com" />
         <Field label="Password" value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
         <Button onPress={submit} disabled={loading}>
           {loading ? "Signing In..." : "Sign In"}
         </Button>
-      </View>
+      </AppCard>
       <Text style={styles.note}>Internet is required for version 1.</Text>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { gap: 14, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 8, padding: 16 },
-  cardTitle: { color: theme.textStrong, fontSize: 16, fontWeight: "900" },
   note: { color: theme.muted, fontSize: 13, textAlign: "center", fontWeight: "700" }
 });

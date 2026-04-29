@@ -1,8 +1,9 @@
 import { router } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
 import { useState } from "react";
 import { Button, Field } from "@/components/Form";
+import { AppCard, PhotoEvidenceButton, SelectionDropdown, StatusBanner } from "@/components/Enterprise";
 import { Screen } from "@/components/Screen";
 import { createFieldIssue, getMe, uploadFieldIssuePhoto } from "@/api/mobile";
 import { pickPhotoFromCamera, pickPhotoFromLibrary } from "@/utils/photos";
@@ -115,9 +116,9 @@ export default function NewFieldIssueScreen() {
 
   return (
     <Screen title="New Field Issue" subtitle="Report a field issue and send it to admin review.">
+      <StatusBanner title="Platform-Matched Issue" detail="This shorter form keeps the platform dropdown values so reporting does not damage the data." tone="info" />
       <View style={styles.form}>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Issue Details</Text>
+        <AppCard title="Issue Details" eyebrow="Field Report">
           <Field label="Title" value={title} onChangeText={setTitle} />
           <SelectionDropdown
             label="Jobsite"
@@ -153,10 +154,9 @@ export default function NewFieldIssueScreen() {
               setOpenPicker(null);
             }}
           />
-        </View>
+        </AppCard>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Review & Assignment</Text>
+        <AppCard title="Review & Assignment" eyebrow="Platform Fields">
           <SelectionDropdown
             label="Observation Type"
             value={labelFor(OBSERVATION_TYPE_OPTIONS, observationType)}
@@ -195,15 +195,14 @@ export default function NewFieldIssueScreen() {
           ) : null}
           <Field label="Assigned User ID" value={assignedTo} onChangeText={setAssignedTo} placeholder="Optional platform user id" />
           <Field label="Due Date" value={dueDate} onChangeText={setDueDate} placeholder="YYYY-MM-DD" />
-        </View>
+        </AppCard>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Evidence</Text>
-          <Button onPress={addPhoto} variant="secondary">{photo ? "Photo selected" : "Add photo"}</Button>
+        <AppCard title="Evidence & Submit" eyebrow="Final">
+          <PhotoEvidenceButton selected={Boolean(photo)} onPress={addPhoto} />
           <Button onPress={() => mutation.mutate()} disabled={mutation.isPending || !title}>
             {mutation.isPending ? "Sending..." : "Send Issue For Review"}
           </Button>
-        </View>
+        </AppCard>
       </View>
     </Screen>
   );
@@ -211,43 +210,6 @@ export default function NewFieldIssueScreen() {
 
 function labelFor(options: Array<{ id: string; label: string }>, id: string) {
   return options.find((option) => option.id === id)?.label ?? id;
-}
-
-function SelectionDropdown({
-  label,
-  value,
-  open,
-  options,
-  onToggle,
-  onSelect,
-}: {
-  label: string;
-  value: string;
-  open: boolean;
-  options: Array<{ id: string; label: string; meta?: string }>;
-  onToggle: () => void;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <View style={styles.selectorGroup}>
-      <Text style={styles.selectorLabel}>{label}</Text>
-      <Pressable onPress={onToggle} style={styles.dropdownButton}>
-        <Text style={styles.dropdownTitle}>{value}</Text>
-        <Text style={styles.dropdownMeta}>{open ? "Tap to close" : "Tap to choose"}</Text>
-      </Pressable>
-      {open ? (
-        <View style={styles.dropdownPanel}>
-          {options.map((option) => (
-            <Pressable key={option.id} onPress={() => onSelect(option.id)} style={styles.optionRow}>
-              <Text style={styles.optionText}>{option.label}</Text>
-              {option.meta ? <Text style={styles.optionMeta}>{option.meta}</Text> : null}
-            </Pressable>
-          ))}
-          {options.length === 0 ? <Text style={styles.emptyText}>No options available.</Text> : null}
-        </View>
-      ) : null}
-    </View>
-  );
 }
 
 const styles = StyleSheet.create({

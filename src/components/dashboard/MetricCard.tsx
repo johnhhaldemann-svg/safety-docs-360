@@ -52,7 +52,7 @@ export function MetricCard({
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--app-muted)]">{displayLabel}</p>
         <div className="mt-1 flex flex-wrap items-end gap-2">
           <p
-            className={`font-app-display text-2xl font-bold tracking-tight sm:text-3xl ${
+            className={`font-app-display break-words text-2xl font-bold leading-tight tracking-tight sm:text-3xl ${
               valueMuted ? "text-[var(--app-muted)]" : "text-[var(--app-text-strong)]"
             }`}
           >

@@ -1,7 +1,7 @@
 "use client";
 
 import * as Tabs from "@radix-ui/react-tabs";
-import { ClipboardCheck, FileText, RefreshCw, Save, Search } from "lucide-react";
+import { ClipboardCheck, Eye, FileText, RefreshCw, RotateCcw, Save, Search, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FieldAuditChecklist } from "@/components/jobsite-audits/FieldAuditChecklist";
 import { ExcelTemplateByCategory } from "@/components/jobsite-audits/ExcelTemplateByCategory";
@@ -168,6 +168,7 @@ export default function CompanyFieldAuditsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [reviewingAuditId, setReviewingAuditId] = useState<string | null>(null);
+  const [previewingAuditId, setPreviewingAuditId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "error" | "warning">("neutral");
 
@@ -346,7 +347,35 @@ export default function CompanyFieldAuditsPage() {
     }
   }
 
-  async function approveAudit(auditId: string) {
+  async function openAuditPdf(auditId: string) {
+    setPreviewingAuditId(auditId);
+    setMessage("");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not signed in.");
+      const res = await fetch(`/api/company/field-audits/${auditId}/report-pdf`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error || "Could not open the audit PDF.");
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const opened = window.open(url, "_blank", "noopener,noreferrer");
+      if (!opened) throw new Error("Your browser blocked the PDF window. Allow popups for this site and try again.");
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Could not open the audit PDF.");
+    } finally {
+      setPreviewingAuditId(null);
+    }
+  }
+
+  async function reviewAudit(auditId: string, decision: "approved" | "rejected") {
     setReviewingAuditId(auditId);
     setMessage("");
     try {
@@ -360,10 +389,10 @@ export default function CompanyFieldAuditsPage() {
           Authorization: `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ decision: "approved" }),
+        body: JSON.stringify({ decision }),
       });
       const data = (await res.json().catch(() => null)) as
-        | { error?: string; message?: string; warning?: string; customerEmailSent?: boolean }
+        | { error?: string; message?: string; warning?: string; customerEmailSent?: boolean; pdfFilename?: string }
         | null;
       if (!res.ok) throw new Error(data?.error || "Audit review failed.");
       setMessageTone(data?.warning || data?.customerEmailSent === false ? "warning" : "success");
@@ -719,16 +748,37 @@ export default function CompanyFieldAuditsPage() {
                       {audit.status === "pending_review" ? (
                         <div className="mt-3 space-y-2">
                           <p className="text-xs text-slate-400">
-                            Customer copy: {copyEmail || "No customer email saved"}
+                            Customer PDF: {copyEmail || "No customer email saved"}
                           </p>
-                          <button
-                            type="button"
-                            onClick={() => void approveAudit(audit.id)}
-                            disabled={reviewingAuditId === audit.id}
-                            className="w-full rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-                          >
-                            {reviewingAuditId === audit.id ? "Approving..." : "Approve & email customer"}
-                          </button>
+                          <div className="grid gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void openAuditPdf(audit.id)}
+                              disabled={previewingAuditId === audit.id || reviewingAuditId === audit.id}
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-xs font-bold text-slate-100 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
+                            >
+                              <Eye className="h-4 w-4" />
+                              {previewingAuditId === audit.id ? "Opening PDF..." : "View Finished PDF"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void reviewAudit(audit.id, "approved")}
+                              disabled={reviewingAuditId === audit.id || previewingAuditId === audit.id}
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                            >
+                              <Send className="h-4 w-4" />
+                              {reviewingAuditId === audit.id ? "Reviewing..." : "Approve & Email PDF"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void reviewAudit(audit.id, "rejected")}
+                              disabled={reviewingAuditId === audit.id || previewingAuditId === audit.id}
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-400/60 bg-amber-950/40 px-3 py-2 text-xs font-bold text-amber-100 transition hover:bg-amber-900/60 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                              {reviewingAuditId === audit.id ? "Reviewing..." : "Send Back"}
+                            </button>
+                          </div>
                         </div>
                       ) : null}
                     </div>

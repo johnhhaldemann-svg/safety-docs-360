@@ -4,6 +4,7 @@ export const theme = {
   surface: "#ffffff",
   panel: "#edf3fb",
   panelSoft: "#f8fbff",
+  ink: "#0b1728",
   border: "rgba(94, 119, 154, 0.24)",
   borderStrong: "rgba(62, 89, 128, 0.34)",
   textStrong: "#11243a",
@@ -23,6 +24,8 @@ export const theme = {
   danger: "#b91c1c",
   dangerSoft: "#fde8e8",
   shadow: "#172d4d18",
+  shadowStrong: "#10233f22",
   slate: "#334155",
+  steel: "#475569",
   white: "#ffffff"
 };

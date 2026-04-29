@@ -4581,57 +4581,35 @@ function createCalloutParagraph(text: string, tone: CalloutTone, labelOverride?:
   const existingLabel = polished.match(/^([^:]{3,80}):\s+(.+)$/);
   const label = existingLabel?.[1] ?? labelOverride ?? (tone === "critical" ? "Stop-Work Authority" : "Important");
   const body = existingLabel?.[2] ?? polished;
-  const borderColor = tone === "critical" ? COLORS.accentRed : "D6A100";
-  const widthDxa = 9000;
-  const indentDxa = 180;
-  const fontSize = 18;
+  const borderColor = tone === "critical" ? "C00000" : "BF9000";
+  const fill = tone === "critical" ? COLORS.criticalFill : COLORS.importantFill;
 
-  return new Table({
-    width: { size: widthDxa, type: WidthType.DXA },
-    indent: { size: indentDxa, type: WidthType.DXA },
-    columnWidths: [widthDxa],
-    layout: TableLayoutType.FIXED,
-    borders: {
-      top: { style: BorderStyle.SINGLE, size: 6, color: borderColor },
-      bottom: { style: BorderStyle.SINGLE, size: 6, color: borderColor },
-      left: { style: BorderStyle.SINGLE, size: 12, color: borderColor },
-      right: { style: BorderStyle.SINGLE, size: 6, color: borderColor },
-      insideHorizontal: { style: BorderStyle.NONE, size: 0, color: borderColor },
-      insideVertical: { style: BorderStyle.NONE, size: 0, color: borderColor },
+  return new Paragraph({
+    keepLines: true,
+    keepNext: false,
+    spacing: { before: 120, after: 160, line: 276 },
+    shading: {
+      type: ShadingType.CLEAR,
+      color: "auto",
+      fill,
     },
-    rows: [
-      new TableRow({
-        cantSplit: true,
-        children: [
-          new TableCell({
-            width: { size: widthDxa, type: WidthType.DXA },
-            shading: {
-              type: ShadingType.CLEAR,
-              color: "auto",
-              fill: tone === "critical" ? COLORS.criticalFill : COLORS.importantFill,
-            },
-            margins: { top: 80, bottom: 80, left: 120, right: 120 },
-            children: [
-              new Paragraph({
-                style: STYLE_IDS.body,
-                spacing: { before: 0, after: 0, line: 240 },
-                children: [
-                  new TextRun({
-                    text: `${label}: `,
-                    bold: true,
-                    font: "Aptos",
-                    size: fontSize,
-                    color: tone === "critical" ? COLORS.accentRed : COLORS.deepBlue,
-                  }),
-                  new TextRun({ text: body, font: "Aptos", size: fontSize, color: COLORS.ink }),
-                ],
-              }),
-            ],
-          }),
-        ],
+    border: {
+      top: { style: BorderStyle.SINGLE, size: 8, space: 4, color: borderColor },
+      bottom: { style: BorderStyle.SINGLE, size: 8, space: 4, color: borderColor },
+      left: { style: BorderStyle.SINGLE, size: 8, space: 4, color: borderColor },
+      right: { style: BorderStyle.SINGLE, size: 8, space: 4, color: borderColor },
+    },
+    children: [
+      new TextRun({
+        text: `${label}: `,
+        bold: true,
+        font: "Aptos",
+        size: 20,
+        color: COLORS.ink,
       }),
+      new TextRun({ text: body, font: "Aptos", size: 20, color: COLORS.ink }),
     ],
-  }) as unknown as Paragraph;
+  });
 }
 
 function createCalloutBudget(sectionKey: string): CalloutBudget {
@@ -4647,9 +4625,18 @@ function createCalloutBudget(sectionKey: string): CalloutBudget {
 
 function sectionAllowsCalloutTone(sectionKey: string, tone: CalloutTone) {
   if (tone === "critical") {
-    return sectionKey === "high_risk_programs" || sectionKey === "emergency_response_and_rescue";
+    return (
+      sectionKey === "owner_message" ||
+      sectionKey === "high_risk_programs" ||
+      sectionKey === "emergency_response_and_rescue"
+    );
   }
-  return sectionKey === "training_competency_and_certifications" || sectionKey === "reviewer_codex_readiness_summary";
+  return (
+    sectionKey === "trade_interaction_and_coordination" ||
+    sectionKey === "site_access_security_laydown_traffic_control" ||
+    sectionKey === "training_competency_and_certifications" ||
+    sectionKey === "reviewer_codex_readiness_summary"
+  );
 }
 
 function maxCalloutsForSection(sectionKey: string, tone: CalloutTone) {
@@ -4702,7 +4689,7 @@ function calloutLabelForText(text: string, tone: CalloutTone, context?: CalloutC
   const normalized = `${context?.subsectionTitle ?? ""} ${text}`.toLowerCase();
   if (tone === "critical") {
     if (/\brescue readiness\b/.test(normalized)) return "Rescue Readiness";
-    if (/\bimminent danger\b/.test(normalized)) return "Imminent Danger";
+    if (/\bstop[-\s]?work\b|\bimminent danger\b/.test(normalized)) return "Stop-Work Authority";
     if (/\bcritical controls?\b|\bmissing controls?\b/.test(normalized)) return "Missing Critical Controls";
     return "Critical Safety Condition";
   }
@@ -4730,6 +4717,7 @@ function calloutToneForText(text: string, context?: CalloutContext): CalloutTone
   if (
     /^(rescue readiness|imminent danger|missing critical controls?)\s*:/.test(normalized) ||
     /\brescue readiness\b/.test(combined) ||
+    /\bstop[-\s]?work authority\b|\bstop work\b|\bstop-work\b/.test(combined) ||
     /\bimminent danger\b/.test(normalized) ||
     /\bmissing critical controls?\b/.test(normalized) ||
     /\bcritical controls?\s+(?:are\s+)?(?:missing|absent|not in place)\b/.test(normalized) ||
@@ -4791,10 +4779,7 @@ function sectionDescriptorParagraph(text: string) {
 }
 
 function sectionHeadingTone(section: CsepTemplateSection) {
-  const token = normalizeToken(`${section.title} ${section.key}`);
-  if (token.includes("incident") || token.includes("communication")) {
-    return COLORS.accentRed;
-  }
+  void section;
   return COLORS.titleBlue;
 }
 
@@ -5671,6 +5656,15 @@ function appendFlatSubsectionContent(
     const bodySegments = splitCsepDocxBodyIntoSegments(entry.body);
     const bodyText = bodySegments.join("\n\n").trim();
     const title = entry.title?.trim() ?? "";
+    const calloutText = title && bodyText ? `${title}: ${bodyText}` : title || bodyText;
+    const callout = maybeCreateCalloutParagraph(calloutText, {
+      ...context,
+      subsectionTitle: subsection.title,
+    });
+    if (callout) {
+      children.push(callout);
+      return;
+    }
     if (title && bodyText) {
       children.push(termDefinitionParagraph(title, bodyText));
     } else if (title) {
@@ -6034,6 +6028,17 @@ function renderSection(outlineOrdinal: number, section: CsepTemplateSection) {
 
     structuredEntries.forEach((entry, entryIndex) => {
       const bodySegments = splitCsepDocxBodyIntoSegments(entry.body);
+      const bodyText = bodySegments.join("\n\n").trim();
+      const calloutText = entry.title && bodyText ? `${entry.title}: ${bodyText}` : entry.title || bodyText;
+      const callout = maybeCreateCalloutParagraph(calloutText, {
+        budget: calloutBudget,
+        sectionKey: section.key,
+        subsectionTitle: subsection.title,
+      });
+      if (callout) {
+        children.push(callout);
+        return;
+      }
 
       if (distinctSubheading) {
         const childNumber = `${itemPrefixBase}.${entryIndex + 1}`;

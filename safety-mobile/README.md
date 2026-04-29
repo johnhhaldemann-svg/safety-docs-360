@@ -74,3 +74,28 @@ eas submit --platform ios
 ```
 
 For the first submission, use the Apple App Store Connect and Google Play Console dashboards manually if you want to inspect each privacy, data safety, screenshot, and metadata step.
+
+## Release Readiness Checklist
+
+Before a production store build, confirm:
+
+- `EXPO_PUBLIC_API_BASE_URL` points to `https://safety360docs.com/api/mobile`.
+- Login succeeds with a real company user.
+- Dashboard loads assigned jobsites, module access, counts, and recent activity.
+- JSA can submit with jobsite, trade, hazards, PPE, photo, and printed-name signoff.
+- Field Issue can submit with category, severity, observation type, SIF fields, due date, and photo.
+- Field Audit can submit with audited company, jobsite, trades, failed-item corrective action, photo, hours billed, and final signature.
+- Submitted audit appears in the platform Field Audits queue with AI/admin review status.
+- Company admin can approve the audit and send the customer report if a customer email is saved.
+- Wrong password, expired session, and slow connection show friendly messages.
+- iPhone and Android phone layouts fit without clipped text.
+
+Store materials to prepare:
+
+- App icon and splash assets.
+- App screenshots for iPhone and Android.
+- Support email.
+- Privacy policy URL.
+- App Store privacy answers.
+- Google Play Data Safety answers.
+- Demo login for app review if Apple/Google needs one.
