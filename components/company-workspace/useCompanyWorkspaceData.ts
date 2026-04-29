@@ -83,6 +83,8 @@ export type CompanyJobsite = {
   rawStatus: "planned" | "active" | "completed" | "archived";
   projectManager?: string | null;
   safetyLead?: string | null;
+  auditCustomerId?: string | null;
+  customerCompanyName?: string | null;
   customerReportEmail?: string | null;
   startDate?: string | null;
   endDate?: string | null;
@@ -118,6 +120,8 @@ type CompanyJobsiteRow = {
   status: string | null;
   project_manager: string | null;
   safety_lead: string | null;
+  audit_customer_id?: string | null;
+  customer_company_name?: string | null;
   customer_report_email?: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -504,6 +508,8 @@ export function useCompanyWorkspaceData() {
       source: "document_fallback" as const,
       projectManager: null,
       safetyLead: null,
+      auditCustomerId: null,
+      customerCompanyName: null,
       customerReportEmail: null,
       startDate: null,
       endDate: null,
@@ -543,6 +549,8 @@ export function useCompanyWorkspaceData() {
         rawStatus,
         projectManager: row.project_manager,
         safetyLead: row.safety_lead,
+        auditCustomerId: row.audit_customer_id ?? null,
+        customerCompanyName: row.customer_company_name ?? null,
         customerReportEmail: row.customer_report_email ?? null,
         startDate: row.start_date,
         endDate: row.end_date,

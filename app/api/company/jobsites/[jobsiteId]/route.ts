@@ -11,6 +11,8 @@ type JobsiteUpdatePayload = {
   status?: string;
   projectManager?: string;
   safetyLead?: string;
+  auditCustomerId?: string | null;
+  customerCompanyName?: string;
   customerReportEmail?: string;
   startDate?: string;
   endDate?: string;
@@ -41,7 +43,7 @@ function normalizeEmail(value?: string | null) {
 }
 
 const JOBSITE_SELECT =
-  "id, company_id, name, project_number, location, status, project_manager, safety_lead, customer_report_email, start_date, end_date, notes, created_at, updated_at, archived_at";
+  "id, company_id, name, project_number, location, status, project_manager, safety_lead, audit_customer_id, customer_company_name, customer_report_email, start_date, end_date, notes, created_at, updated_at, archived_at";
 
 export async function PATCH(
   request: Request,
@@ -115,6 +117,26 @@ export async function PATCH(
   if (customerReportEmail === "invalid") {
     return NextResponse.json({ error: "Enter a valid customer report email." }, { status: 400 });
   }
+  const auditCustomerId =
+    typeof body?.auditCustomerId === "string" ? body.auditCustomerId.trim() : body?.auditCustomerId === null ? null : undefined;
+  if (auditCustomerId) {
+    const customerCheck = await auth.supabase
+      .from("company_audit_customers")
+      .select("id")
+      .eq("company_id", companyScope.companyId)
+      .eq("id", auditCustomerId)
+      .maybeSingle();
+
+    if (customerCheck.error) {
+      return NextResponse.json(
+        { error: customerCheck.error.message || "Failed to validate the audit customer." },
+        { status: 500 }
+      );
+    }
+    if (!customerCheck.data) {
+      return NextResponse.json({ error: "Select a valid audit customer for this jobsite." }, { status: 400 });
+    }
+  }
 
   if (trimmedName) {
     const escapedName = trimmedName.replace(/[%_]/g, "\\$&");
@@ -167,6 +189,10 @@ export async function PATCH(
       : {}),
     ...(typeof body?.safetyLead === "string"
       ? { safety_lead: body.safetyLead.trim() || null }
+      : {}),
+    ...(typeof auditCustomerId !== "undefined" ? { audit_customer_id: auditCustomerId || null } : {}),
+    ...(typeof body?.customerCompanyName === "string"
+      ? { customer_company_name: body.customerCompanyName.trim() || null }
       : {}),
     ...(typeof customerReportEmail !== "undefined"
       ? { customer_report_email: customerReportEmail }

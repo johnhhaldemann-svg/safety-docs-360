@@ -10,6 +10,13 @@ export type Jobsite = {
   id: string;
   name: string;
   status?: string | null;
+  customer_company_name?: string | null;
+};
+
+export type MobileCompany = {
+  id: string;
+  name: string;
+  jobsites: Jobsite[];
 };
 
 export type MobileMe = {
@@ -24,6 +31,7 @@ export type MobileMe = {
   features: MobileFeature[];
   featureMap: Record<MobileFeature, boolean>;
   jobsites: Jobsite[];
+  mobileCompanies?: MobileCompany[];
   dashboard: {
     openIssues: number;
     activeJsas: number;

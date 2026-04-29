@@ -12,6 +12,10 @@ import {
   type FieldAuditTemplateSource,
   type NormalizedFieldAuditObservation,
 } from "@/lib/fieldAudits/normalize";
+import {
+  generateFieldAuditAiReview,
+  persistFieldAuditAiReview,
+} from "@/lib/fieldAudits/aiReview";
 import { runSafetyIntakePipeline } from "@/lib/safety-intelligence/ingestion/service";
 import {
   buildCorrectiveActionFacetRow,
@@ -25,6 +29,7 @@ const MAX_OBSERVATIONS = 500;
 
 type SubmitBody = {
   jobsiteId?: string | null;
+  auditCustomerId?: string | null;
   auditDate?: string | null;
   auditors?: string | null;
   hoursBilled?: string | number | null;
@@ -33,6 +38,7 @@ type SubmitBody = {
   templateSource?: FieldAuditTemplateSource | null;
   statusMap?: FieldAuditStatusMap;
   notesMap?: FieldAuditNotesMap;
+  correctiveActionsMap?: Record<string, string>;
   photoCounts?: FieldAuditPhotoCounts;
   evidenceMetadataByKey?: Record<string, unknown>;
 };
@@ -88,6 +94,9 @@ function buildCorrectiveActionInsert(params: {
       [
         params.observation.categoryLabel,
         params.observation.notes,
+        params.observation.correctiveActionRequired
+          ? `Required corrective action: ${params.observation.correctiveActionRequired}`
+          : null,
         `Source audit ${params.auditId}`,
       ]
         .filter(Boolean)
@@ -133,6 +142,7 @@ function buildAiObservationPayload(params: {
     summary,
     description:
       params.observation.notes ||
+      params.observation.correctiveActionRequired ||
       `${params.observation.itemLabel} was marked ${params.observation.status} during field audit ${params.auditId}.`,
     severity: params.observation.severity,
     trade: params.observation.tradeCode ?? params.selectedTrade,
@@ -190,7 +200,7 @@ export async function GET(request: Request) {
 
   let query = auth.supabase
     .from("company_jobsite_audits")
-    .select("id, company_id, jobsite_id, audit_date, auditors, selected_trade, template_source, status, score_summary, payload, created_at, updated_at, submitted_by")
+    .select("id, company_id, jobsite_id, audit_date, auditors, selected_trade, template_source, status, score_summary, payload, ai_review_id, ai_review_status, ai_review_summary, created_at, updated_at, submitted_by")
     .eq("company_id", companyScope.companyId)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -286,6 +296,7 @@ export async function POST(request: Request) {
     selectedTrades,
     statusMap: body.statusMap && typeof body.statusMap === "object" ? body.statusMap : {},
     notesMap: body.notesMap && typeof body.notesMap === "object" ? body.notesMap : {},
+    correctiveActionsMap: body.correctiveActionsMap && typeof body.correctiveActionsMap === "object" ? body.correctiveActionsMap : {},
     photoCounts: body.photoCounts && typeof body.photoCounts === "object" ? body.photoCounts : {},
   });
 
@@ -295,6 +306,19 @@ export async function POST(request: Request) {
   if (normalized.observations.length > MAX_OBSERVATIONS) {
     return NextResponse.json({ error: `A single audit can submit at most ${MAX_OBSERVATIONS} scored items.` }, { status: 400 });
   }
+  const aiFailedFindingBucket = normalized.observations
+    .filter((observation) => observation.status === "fail")
+    .map((observation) => ({
+      sourceKey: observation.sourceKey,
+      tradeCode: observation.tradeCode,
+      categoryCode: observation.categoryCode,
+      categoryLabel: observation.categoryLabel,
+      itemLabel: observation.itemLabel,
+      severity: observation.severity,
+      notes: observation.notes,
+      correctiveActionRequired: observation.correctiveActionRequired,
+      riskMemory: observation.riskMemory,
+    }));
 
   const auditInsert = await writeSupabase
     .from("company_jobsite_audits")
@@ -310,6 +334,7 @@ export async function POST(request: Request) {
       payload: {
         ...body,
         hoursBilled,
+        aiFailedFindingBucket,
         normalizedAt: new Date().toISOString(),
         observationCount: normalized.observations.length,
       },
@@ -366,6 +391,9 @@ export async function POST(request: Request) {
   const savedObservations = observationInsert.data ?? [];
   let correctiveActionsCreated = 0;
   let aiRecordsCreated = 0;
+  let aiReviewId: string | null = null;
+  let aiReviewStatus: "not_started" | "reviewed" | "fallback_reviewed" | "failed" = "not_started";
+  let aiReviewSummary: Record<string, unknown> | null = null;
   const ingestionErrors: string[] = [];
 
   for (const saved of savedObservations) {
@@ -436,12 +464,91 @@ export async function POST(request: Request) {
     }
   }
 
+  try {
+    const jobsiteResult = jobsiteId
+      ? await writeSupabase
+          .from("company_jobsites")
+          .select("id, name")
+          .eq("company_id", companyScope.companyId)
+          .eq("id", jobsiteId)
+          .maybeSingle()
+      : { data: null, error: null };
+
+    const aiReview = await generateFieldAuditAiReview({
+      auditId,
+      jobsiteName: String(jobsiteResult.data?.name ?? ""),
+      auditDate,
+      auditors,
+      selectedTrade: selectedTrades.length > 0 ? selectedTrades.join(",") : selectedTrade,
+      hoursBilled: typeof hoursBilled === "number" ? hoursBilled : null,
+      scoreSummary: normalized.scoreSummary,
+      observations: normalized.observations,
+    });
+
+    aiReviewSummary = {
+      ...aiReview.review,
+      meta: {
+        model: aiReview.meta.model,
+        provider: aiReview.meta.provider,
+        fallbackUsed: aiReview.meta.fallbackUsed,
+        fallbackReason: aiReview.meta.fallbackReason,
+        promptHash: aiReview.meta.promptHash,
+        reviewedAt: new Date().toISOString(),
+      },
+    };
+    aiReviewStatus = aiReview.meta.fallbackUsed ? "fallback_reviewed" : "reviewed";
+    aiReviewId = await persistFieldAuditAiReview({
+      supabase: writeSupabase,
+      companyId: companyScope.companyId,
+      jobsiteId,
+      auditId,
+      actorUserId: auth.user.id,
+      scoreSummary: normalized.scoreSummary,
+      observations: normalized.observations,
+      review: aiReview.review,
+      meta: aiReview.meta,
+    });
+
+    const payloadPatch =
+      auditInsert.data.payload && typeof auditInsert.data.payload === "object"
+        ? (auditInsert.data.payload as Record<string, unknown>)
+        : {};
+    const aiReviewUpdate = await writeSupabase
+      .from("company_jobsite_audits")
+      .update({
+        ai_review_id: aiReviewId,
+        ai_review_status: aiReviewStatus,
+        ai_review_summary: aiReviewSummary,
+        payload: {
+          ...payloadPatch,
+          aiReview: aiReviewSummary,
+        },
+      })
+      .eq("company_id", companyScope.companyId)
+      .eq("id", auditId);
+
+    if (aiReviewUpdate.error) {
+      ingestionErrors.push(aiReviewUpdate.error.message || "Audit AI review summary was created but not attached.");
+    }
+  } catch (error) {
+    aiReviewStatus = "failed";
+    ingestionErrors.push(error instanceof Error ? error.message : "Audit AI review failed.");
+    await writeSupabase
+      .from("company_jobsite_audits")
+      .update({ ai_review_status: "failed" })
+      .eq("company_id", companyScope.companyId)
+      .eq("id", auditId);
+  }
+
   return NextResponse.json({
     success: true,
     audit: auditInsert.data,
     observationCount: savedObservations.length,
     correctiveActionsCreated,
     aiRecordsCreated,
+    aiReviewId,
+    aiReviewStatus,
+    aiReviewSummary,
     ingestionErrors,
   });
 }

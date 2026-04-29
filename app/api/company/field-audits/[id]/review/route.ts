@@ -66,7 +66,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const writeSupabase = createSupabaseAdminClient() ?? auth.supabase;
   const auditResult = await auth.supabase
     .from("company_jobsite_audits")
-    .select("id, company_id, jobsite_id, audit_date, auditors, selected_trade, status, score_summary, payload")
+    .select("id, company_id, jobsite_id, audit_date, auditors, selected_trade, status, score_summary, payload, ai_review_id, ai_review_summary")
     .eq("company_id", companyScope.companyId)
     .eq("id", auditId)
     .maybeSingle();
@@ -106,6 +106,18 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
+  if (audit.ai_review_id) {
+    await writeSupabase
+      .from("company_ai_reviews")
+      .update({
+        status: decision === "approved" ? "approved" : "rejected",
+        approved_at: decision === "approved" ? new Date().toISOString() : null,
+        updated_by: auth.user.id,
+      })
+      .eq("id", audit.ai_review_id)
+      .eq("company_id", companyScope.companyId);
+  }
+
   if (decision === "rejected") {
     return NextResponse.json({
       success: true,
@@ -117,7 +129,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const jobsiteResult = audit.jobsite_id
     ? await auth.supabase
         .from("company_jobsites")
-        .select("id, name, customer_report_email")
+        .select("id, name, audit_customer_id, customer_report_email")
         .eq("company_id", companyScope.companyId)
         .eq("id", audit.jobsite_id)
         .maybeSingle()
@@ -134,13 +146,27 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
-  const recipientEmail = String(jobsiteResult.data?.customer_report_email ?? "").trim().toLowerCase();
+  const customerResult = jobsiteResult.data?.audit_customer_id
+    ? await auth.supabase
+        .from("company_audit_customers")
+        .select("id, name, report_email")
+        .eq("company_id", companyScope.companyId)
+        .eq("id", jobsiteResult.data.audit_customer_id)
+        .maybeSingle()
+    : { data: null, error: null };
+
+  const recipientEmail = String(
+    customerResult.data?.report_email ?? jobsiteResult.data?.customer_report_email ?? ""
+  )
+    .trim()
+    .toLowerCase();
   if (!recipientEmail) {
     return NextResponse.json({
       success: true,
       audit: updateResult.data,
       customerEmailSent: false,
-      message: "Field audit approved. No customer audit email is saved on this jobsite yet.",
+      warning: customerResult.error?.message || null,
+      message: "Field audit approved. No customer audit email is saved for this customer or jobsite yet.",
     });
   }
 
@@ -163,6 +189,10 @@ export async function PATCH(request: Request, context: RouteContext) {
       audit.score_summary && typeof audit.score_summary === "object"
         ? (audit.score_summary as Record<string, unknown>)
         : {},
+    aiReviewSummary:
+      audit.ai_review_summary && typeof audit.ai_review_summary === "object"
+        ? (audit.ai_review_summary as Record<string, unknown>)
+        : null,
     observations: observationsResult.data ?? [],
   });
 
@@ -191,6 +221,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     warning:
       observationsResult.error?.message ||
       deliveryInsert.error?.message ||
+      customerResult.error?.message ||
       ("warning" in emailResult ? emailResult.warning : null),
     message: emailResult.sent
       ? "Field audit approved and customer report email sent."

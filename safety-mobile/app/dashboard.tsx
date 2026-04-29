@@ -48,7 +48,7 @@ export default function DashboardScreen() {
   return (
     <Screen title="Field Command Center" subtitle={data.user.companyName || data.user.team}>
       <View style={styles.summary}>
-        <View>
+        <View style={styles.summaryBody}>
           <Text style={styles.summaryKicker}>Today</Text>
           <Text style={styles.summaryTitle}>Ready For Field Work</Text>
           <Text style={styles.summarySub}>Login required, online sync, admin review on submit</Text>
@@ -186,22 +186,25 @@ function TileIcon({ name }: { name: TileIconName }) {
 
 const styles = StyleSheet.create({
   summary: {
+    width: "100%",
     borderWidth: 1,
     borderColor: theme.borderStrong,
     backgroundColor: theme.surface,
     borderRadius: 8,
-    padding: 16,
+    padding: 14,
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center"
+    alignItems: "flex-start",
+    gap: 10
   },
+  summaryBody: { flex: 1, minWidth: 0 },
   summaryKicker: { color: theme.primary, fontSize: 11, fontWeight: "900", letterSpacing: 1.4, textTransform: "uppercase" },
-  summaryTitle: { color: theme.textStrong, fontSize: 18, fontWeight: "900", marginTop: 4 },
-  summarySub: { color: theme.muted, fontSize: 12, fontWeight: "700", marginTop: 4 },
-  summaryMeta: { color: theme.muted, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  summaryTitle: { color: theme.textStrong, fontSize: 17, fontWeight: "900", marginTop: 4, flexShrink: 1 },
+  summarySub: { color: theme.muted, fontSize: 12, fontWeight: "700", marginTop: 4, flexShrink: 1, lineHeight: 17 },
+  summaryMeta: { color: theme.muted, fontSize: 11, fontWeight: "900", textTransform: "uppercase", flexShrink: 0, textAlign: "right", maxWidth: 82 },
   stats: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  stat: { width: "48%", borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 8, padding: 14 },
-  statValue: { color: theme.textStrong, fontSize: 28, fontWeight: "900" },
+  stat: { flexGrow: 1, flexBasis: "46%", minWidth: 0, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 8, padding: 14 },
+  statValue: { color: theme.textStrong, fontSize: 27, fontWeight: "900" },
   statLabel: { color: theme.muted, fontWeight: "800", marginTop: 4, textTransform: "uppercase", fontSize: 11 },
   opsPanel: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 8, padding: 14, gap: 10 },
   opsTitle: { color: theme.textStrong, fontWeight: "900", fontSize: 14 },
@@ -211,10 +214,10 @@ const styles = StyleSheet.create({
   actions: { gap: 10 },
   tile: { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.borderStrong, borderRadius: 8, padding: 14, flexDirection: "row", alignItems: "center", gap: 12 },
   tileAccent: { width: 44, height: 44, borderRadius: 8, backgroundColor: theme.primarySoft, alignItems: "center", justifyContent: "center" },
-  tileBody: { flex: 1, gap: 3 },
-  tileText: { color: theme.textStrong, fontWeight: "900", fontSize: 16 },
-  tileMeta: { color: theme.muted, fontWeight: "700", fontSize: 12 },
-  tileArrow: { color: theme.primary, fontSize: 28, fontWeight: "700" },
+  tileBody: { flex: 1, minWidth: 0, gap: 3 },
+  tileText: { color: theme.textStrong, fontWeight: "900", fontSize: 16, flexShrink: 1 },
+  tileMeta: { color: theme.muted, fontWeight: "700", fontSize: 12, flexShrink: 1 },
+  tileArrow: { color: theme.primary, fontSize: 28, fontWeight: "700", flexShrink: 0 },
   links: { gap: 8, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 8, padding: 10 },
   link: { color: theme.primary, fontWeight: "900", paddingVertical: 8 },
   jobsitePanel: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 8, padding: 14, gap: 10 },

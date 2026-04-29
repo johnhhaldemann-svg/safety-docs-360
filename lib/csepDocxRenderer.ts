@@ -2859,12 +2859,24 @@ function buildCodexRequirements() {
 }
 
 function synthesizeRegulatoryReferenceSubsections(): CsepTemplateSubsection[] {
+  const compactRows: string[][] = [];
+  for (let index = 0; index < CSEP_REGULATORY_REFERENCE_INDEX.length; index += 2) {
+    const left = CSEP_REGULATORY_REFERENCE_INDEX[index];
+    const right = CSEP_REGULATORY_REFERENCE_INDEX[index + 1];
+    compactRows.push([
+      left?.code ?? "",
+      left?.citation ?? "",
+      right?.code ?? "",
+      right?.citation ?? "",
+    ]);
+  }
+
   return [
     {
-      title: "OSHA / CFR Reference List",
+      title: "Condensed OSHA / CFR Reference Register",
       table: {
-        columns: ["Reference", "Citation"],
-        rows: CSEP_REGULATORY_REFERENCE_INDEX.map((entry) => [entry.code, entry.citation]),
+        columns: ["Ref", "Citation", "Ref", "Citation"],
+        rows: compactRows,
       },
     },
   ];

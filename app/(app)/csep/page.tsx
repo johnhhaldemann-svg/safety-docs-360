@@ -9,7 +9,6 @@ import {
   SectionCard,
   StartChecklist,
   StatusBadge,
-  WorkflowPath,
   appNativeSelectClassName,
 } from "@/components/WorkspacePrimitives";
 import {
@@ -37,6 +36,10 @@ import {
 } from "@/lib/csepEnrichmentPricing";
 import { buildCsepTradeSelection, getCsepTradeOptions } from "@/lib/csepTradeSelection";
 import { getJurisdictionStateOptions, resolveBuilderJurisdiction } from "@/lib/jurisdictionStandards/catalog";
+import {
+  CSEP_REGULATORY_REFERENCE_INDEX,
+  mapOshaRefStringsToSortedRCodes,
+} from "@/lib/csepRegulatoryReferenceIndex";
 import type { PermissionMap } from "@/lib/rbac";
 import {
   CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL,
@@ -198,25 +201,6 @@ const workflowDefinition = [
   {
     title: "Submit document",
     detail: "Accept the terms and submit the approved CSEP into review.",
-  },
-];
-
-const workflowCategoryDefinition = [
-  {
-    title: "Setup",
-    stepIndexes: [0, 1] as number[],
-  },
-  {
-    title: "Scope",
-    stepIndexes: [2, 3] as number[],
-  },
-  {
-    title: "Build",
-    stepIndexes: [4, 5] as number[],
-  },
-  {
-    title: "Review & Submit",
-    stepIndexes: [6, 7] as number[],
   },
 ];
 
@@ -1639,9 +1623,14 @@ export default function CSEPPage() {
                     ? Boolean(previewState && previewIsCurrent && previewApproved)
                     : csepHandoffComplete,
   }));
-  const activeWorkflowCategory =
-    workflowCategoryDefinition.find((category) => category.stepIndexes.includes(step)) ??
-    workflowCategoryDefinition[0];
+  const selectedReferenceCodes = mapOshaRefStringsToSortedRCodes(selectedTrade?.oshaRefs ?? []);
+  const selectedReferenceRows = (
+    selectedReferenceCodes.length
+      ? CSEP_REGULATORY_REFERENCE_INDEX.filter((entry) => selectedReferenceCodes.includes(entry.code))
+      : CSEP_REGULATORY_REFERENCE_INDEX
+  ).slice(0, selectedReferenceCodes.length ? undefined : 6);
+  const completedStepCount = workflowSteps.filter((item) => item.complete).length;
+  const progressPercent = Math.round((completedStepCount / workflowDefinition.length) * 100);
 
   function canProceed(currentStep: number) {
     if (currentStep === 0) return Boolean(form.trade.trim()) && Boolean(form.project_delivery_type);
@@ -1684,9 +1673,9 @@ export default function CSEPPage() {
       <PageHero
         eyebrow="Builder Workspace"
         title={CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL}
-        description="Use the forward-only CSEP workflow: trade selection, sub-trade, selected sections, selectable tasks, intelligence enrichment, task-driven sections, draft review, then submission."
+        description="Build the plan in one guided flow: choose the work, confirm the controls, fill the project details, then generate and submit the draft."
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {!isOfflineDemoPrefillEnabled ? (
               <>
                 <StatusBadge label={form.trade || "Trade not set"} tone={form.trade ? "info" : "warning"} />
@@ -1719,54 +1708,74 @@ export default function CSEPPage() {
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 
-      <SectionCard
-        title="Builder Navigation"
-        description="Move through the builder by main category first, then the active subcategory."
-      >
-        <div className="space-y-5">
-          <div className="flex flex-wrap gap-3 border-b border-[var(--app-border)] pb-4">
-            {workflowCategoryDefinition.map((category) => {
-              const isActive = category.stepIndexes.includes(step);
-              return (
-                <button
-                  key={category.title}
-                  type="button"
-                  onClick={() => goToStep(category.stepIndexes[0] ?? 0)}
-                  className={`border-b-2 px-1 pb-2 text-sm font-semibold transition ${
-                    isActive
-                      ? "border-[var(--app-accent-primary)] text-[var(--app-accent-primary)]"
-                      : "border-transparent text-[var(--app-text)] hover:border-[var(--app-border-strong)] hover:text-[var(--app-text-strong)]"
-                  }`}
-                >
-                  {category.title}
-                </button>
-              );
-            })}
+      <div className="rounded-xl border border-[var(--app-border-strong)] bg-white shadow-sm">
+        <div className="grid gap-0 xl:grid-cols-[15rem_minmax(0,1fr)]">
+          <div className="border-b border-[var(--app-border)] px-5 py-4 xl:border-b-0 xl:border-r">
+            <div className="flex items-center justify-between gap-3 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-text)]">
+              <span>Build status</span>
+              <span className="text-[var(--app-text-strong)]">{progressPercent}%</span>
+            </div>
+            <div className="mt-3 h-1.5 rounded-full bg-[var(--app-panel-muted)]">
+              <div
+                className="h-1.5 rounded-full bg-[var(--app-accent-primary)] transition-all"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="mt-3 text-xs leading-5 text-[var(--app-text)]">
+              {completedStepCount} of {workflowDefinition.length} complete. Next:{" "}
+              <span className="font-semibold text-[var(--app-text-strong)]">{nextRequiredInput}</span>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {activeWorkflowCategory.stepIndexes.map((stepIndex) => {
-              const stepItem = workflowDefinition[stepIndex];
+
+          <div className="flex min-w-0 gap-2 overflow-x-auto px-4 py-3">
+            {workflowSteps.map((stepItem, stepIndex) => {
               const isActive = stepIndex === step;
               return (
                 <button
-                  key={`${activeWorkflowCategory.title}-${stepItem.title}`}
+                  key={`builder-step-${stepItem.label}`}
                   type="button"
                   onClick={() => goToStep(stepIndex)}
-                  className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                  className={`flex min-w-[10.25rem] items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
                     isActive
-                      ? "border-[var(--app-accent-primary)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]"
-                      : "border-[var(--app-border)] bg-white text-[var(--app-text)] hover:border-[var(--app-border-strong)] hover:text-[var(--app-text-strong)]"
+                      ? "border-[var(--app-accent-primary)] bg-white text-[var(--app-text-strong)] shadow-sm ring-1 ring-[var(--app-accent-primary)]"
+                      : stepItem.complete
+                        ? "border-emerald-200 bg-white text-[var(--app-text-strong)] hover:border-emerald-300"
+                        : "border-[var(--app-border)] bg-[var(--app-panel)] text-[var(--app-text)] hover:border-[var(--app-border-strong)] hover:bg-white"
                   }`}
                 >
-                  {stepItem.title}
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-black ${
+                      isActive
+                        ? "border-[var(--app-accent-primary)] bg-[var(--app-accent-primary)] text-white"
+                        : stepItem.complete
+                          ? "border-emerald-600 bg-emerald-600 text-white"
+                          : "border-[var(--app-border)] bg-white text-[var(--app-text-strong)]"
+                    }`}
+                  >
+                    {stepIndex + 1}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold leading-5">{stepItem.label}</span>
+                    <span
+                      className={`mt-0.5 block truncate text-[11px] font-medium ${
+                        isActive
+                          ? "text-[var(--app-accent-primary)]"
+                          : stepItem.complete
+                            ? "text-emerald-700"
+                            : "text-[var(--app-text)]"
+                      }`}
+                    >
+                      {stepItem.complete ? "Complete" : isActive ? "Current" : "Locked until ready"}
+                    </span>
+                  </span>
                 </button>
               );
             })}
           </div>
         </div>
-      </SectionCard>
+      </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">
           <SectionCard
             title={`Step ${step + 1}: ${workflowDefinition[step].title}`}
@@ -1868,16 +1877,13 @@ export default function CSEPPage() {
                     title="Section dependency guide"
                     description="This step only controls which sections appear in the final draft. Task-driven sections open later after tasks are selected."
                   >
-                    <div className="space-y-3">
+                    <div className="grid gap-2 md:grid-cols-2">
                       {selectedSectionStatuses.map((section) => (
-                        <InfoCard
+                        <CompactStatusRow
                           key={`dependency-${section.value}`}
                           label={section.label}
-                          value={
-                            section.included
-                              ? `${section.dependency}.`
-                              : "Excluded from the draft."
-                          }
+                          value={section.included ? section.dependency : "Excluded"}
+                          tone={section.included ? "info" : "neutral"}
                         />
                       ))}
                     </div>
@@ -1979,7 +1985,20 @@ export default function CSEPPage() {
                     }
                     emptyLabel="Select a trade path and task set to reveal permit pricing and add-on pricing."
                   />
-                  <InfoCard label="OSHA references" value={(selectedTrade?.oshaRefs ?? []).join(" | ") || "None loaded yet"} />
+                  <ReferenceSummaryCard
+                    title="Condensed OSHA / CFR references"
+                    description={
+                      selectedReferenceCodes.length
+                        ? "Only the references matched to the selected trade path are shown here and carried compactly into the draft."
+                        : "Choose a trade path to narrow the reference list. Showing the core register for now."
+                    }
+                    rows={selectedReferenceRows}
+                    footer={
+                      selectedReferenceCodes.length
+                        ? `${selectedReferenceCodes.length} active reference${selectedReferenceCodes.length === 1 ? "" : "s"}`
+                        : "Core register preview"
+                    }
+                  />
                   <InfoCard label="Auto-generated programs" value={autoPrograms.join(" | ") || "None triggered yet"} />
                   <InfoCard
                     label="Common overlapping trades"
@@ -2818,11 +2837,25 @@ export default function CSEPPage() {
         </div>
 
         <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-          <WorkflowPath
-            title="Forward-only workflow"
-            description="The builder now stays task-first: choose the section layout early, unlock task-driven content after tasks, then review and submit without doubling back."
-            steps={workflowSteps}
-          />
+          <SectionCard title="Build Summary" description="Current inputs and gate status for this CSHEP package.">
+            <div className="grid gap-2">
+              <CompactStatusRow
+                label="Current step"
+                value={`${step + 1}. ${workflowDefinition[step].title}`}
+                tone="info"
+              />
+              <CompactStatusRow
+                label="Next gate"
+                value={nextRequiredInput}
+                tone={canProceed(step) ? "info" : "neutral"}
+              />
+              <CompactStatusRow
+                label="Draft status"
+                value={previewReadyForSubmit ? "Approved" : previewState ? "Review needed" : "Not generated"}
+                tone={previewReadyForSubmit ? "info" : "neutral"}
+              />
+            </div>
+          </SectionCard>
           <StartChecklist title="Readiness checklist" items={readinessChecklist} />
           <SectionCard title="Builder snapshot" description="Live view of what the generator has assembled so far.">
             <InfoCard label="Next required input" value={nextRequiredInput} />
@@ -2848,16 +2881,13 @@ export default function CSEPPage() {
             title="Selected document layout"
             description="Each included section shows whether it is ready now, task-driven, or tied to hazards/program setup."
           >
-            <div className="space-y-3">
+            <div className="grid gap-2">
               {selectedSectionStatuses.map((section) => (
-                <InfoCard
+                <CompactStatusRow
                   key={section.value}
                   label={section.label}
-                  value={
-                    section.included
-                      ? `${section.dependency}.`
-                      : "Excluded from the draft."
-                  }
+                  value={section.included ? section.dependency : "Excluded"}
+                  tone={section.included ? "info" : "neutral"}
                 />
               ))}
             </div>
@@ -3020,11 +3050,11 @@ function OptionGrid({
           ) : null}
         </div>
       ) : null}
-      <div className="grid gap-3">
+      <div className="grid gap-2 md:grid-cols-2">
         {items.map((item) => (
           <label
             key={item.value}
-            className="flex items-start gap-3 rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] px-4 py-4"
+            className="flex items-start gap-3 rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-3"
           >
             <input
               type="checkbox"
@@ -3036,7 +3066,7 @@ function OptionGrid({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium text-[var(--app-text-strong)]">{item.label}</span>
                 {item.badge ? (
-                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-[var(--app-text-strong)]">
+                  <span className="rounded-full bg-[var(--app-panel-muted)] px-2.5 py-1 text-xs font-semibold text-[var(--app-text-strong)]">
                     {item.badge}
                   </span>
                 ) : null}
@@ -3057,6 +3087,65 @@ function InfoCard({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-3">
       <div className="text-sm font-semibold text-[var(--app-text-strong)]">{label}</div>
       <div className="mt-1 text-sm text-[var(--app-text)]">{value}</div>
+    </div>
+  );
+}
+
+function CompactStatusRow({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: "neutral" | "info";
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--app-border)] bg-white px-3 py-2">
+      <div className="min-w-0 truncate text-sm font-medium text-[var(--app-text-strong)]">{label}</div>
+      <span
+        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+          tone === "info"
+            ? "bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]"
+            : "bg-[var(--app-panel-muted)] text-[var(--app-text)]"
+        }`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function ReferenceSummaryCard({
+  title,
+  description,
+  rows,
+  footer,
+}: {
+  title: string;
+  description: string;
+  rows: readonly { code: string; citation: string }[];
+  footer: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel)] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-[var(--app-text-strong)]">{title}</div>
+          <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{description}</p>
+        </div>
+        <StatusBadge label={footer} tone="info" />
+      </div>
+      <div className="mt-4 grid gap-2 md:grid-cols-2">
+        {rows.map((entry) => (
+          <div key={entry.code} className="rounded-xl border border-[var(--app-border)] bg-white px-3 py-2">
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-[var(--app-accent-primary)]">
+              {entry.code}
+            </div>
+            <div className="mt-1 text-xs leading-5 text-[var(--app-text)]">{entry.citation}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

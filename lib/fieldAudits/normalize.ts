@@ -16,6 +16,7 @@ import { normalizePrimaryHazardCode } from "@/lib/riskMemory/taxonomy";
 export type FieldAuditRowStatus = "pass" | "fail" | "na";
 export type FieldAuditStatusMap = Record<string, FieldAuditRowStatus | "">;
 export type FieldAuditNotesMap = Record<string, string>;
+export type FieldAuditCorrectiveActionsMap = Record<string, string>;
 export type FieldAuditPhotoCounts = Record<string, number>;
 export type FieldAuditTemplateSource = "field" | "hs" | "env" | "mixed" | "built_in";
 export type FieldAuditSeverity = "low" | "medium" | "high" | "critical";
@@ -35,6 +36,7 @@ export type NormalizedFieldAuditObservation = {
   photoCount: number;
   evidenceMetadata: Record<string, unknown>;
   riskMemory: Record<string, unknown>;
+  correctiveActionRequired: string | null;
 };
 
 export type FieldAuditScoreSummary = {
@@ -146,6 +148,7 @@ function buildRiskMemory(params: {
   status: FieldAuditRowStatus;
   severity: FieldAuditSeverity;
   notes: string | null;
+  correctiveActionRequired?: string | null;
 }) {
   return {
     trade: params.tradeCode,
@@ -162,12 +165,14 @@ function buildRiskMemory(params: {
     ppeStatus: params.status === "fail" && (params.categoryLabel ?? "").toLowerCase().includes("ppe")
       ? "deficient"
       : "unknown",
-    correctiveActionStatus: params.status === "fail" ? "open" : null,
+      correctiveActionStatus: params.status === "fail" ? "open" : null,
+      correctiveActionRequired: params.correctiveActionRequired ?? null,
     details: {
       auditStatus: params.status,
       auditCategory: params.categoryLabel,
       auditItem: params.itemLabel,
       auditNotes: params.notes,
+      correctiveActionRequired: params.correctiveActionRequired ?? null,
     },
   };
 }
@@ -177,6 +182,7 @@ export function normalizeFieldAuditPayload(params: {
   selectedTrades?: string[];
   statusMap: FieldAuditStatusMap;
   notesMap?: FieldAuditNotesMap;
+  correctiveActionsMap?: FieldAuditCorrectiveActionsMap;
   photoCounts?: FieldAuditPhotoCounts;
 }): NormalizedFieldAuditPayload {
   const selectedTrade = cleanString(params.selectedTrade) ?? "general_contractor";
@@ -189,6 +195,7 @@ export function normalizeFieldAuditPayload(params: {
     .join(",") || selectedTrade;
   const observations: NormalizedFieldAuditObservation[] = [];
   const notesMap = params.notesMap ?? {};
+  const correctiveActionsMap = params.correctiveActionsMap ?? {};
   const photoCounts = params.photoCounts ?? {};
   const seenFieldKeys = new Set<string>();
 
@@ -201,6 +208,7 @@ export function normalizeFieldAuditPayload(params: {
         const status = cleanStatus(params.statusMap[key]);
         if (!status) continue;
         const notes = cleanString(notesMap[key]);
+        const correctiveActionRequired = status === "fail" ? cleanString(correctiveActionsMap[key]) : null;
         const severity = severityFor({
           status,
           critical: item.critical,
@@ -224,6 +232,7 @@ export function normalizeFieldAuditPayload(params: {
             oshaRef: item.oshaRef ?? null,
             critical: Boolean(item.critical),
             selectedTrades,
+            correctiveActionRequired,
           },
           riskMemory: buildRiskMemory({
             tradeCode,
@@ -232,7 +241,9 @@ export function normalizeFieldAuditPayload(params: {
             status,
             severity,
             notes,
+            correctiveActionRequired,
           }),
+          correctiveActionRequired,
         });
       }
     }
@@ -250,6 +261,7 @@ export function normalizeFieldAuditPayload(params: {
         if (!status) return;
         const itemLabel = excelItemLabel(row);
         const notes = cleanString(notesMap[key]);
+        const correctiveActionRequired = status === "fail" ? cleanString(correctiveActionsMap[key]) : null;
         const severity = severityFor({ status, categoryLabel: label, itemLabel });
         observations.push({
           sourceKey: key,
@@ -264,7 +276,7 @@ export function normalizeFieldAuditPayload(params: {
           severity,
           notes,
           photoCount: positiveInteger(photoCounts[key]),
-          evidenceMetadata: { row },
+          evidenceMetadata: { row, correctiveActionRequired },
           riskMemory: buildRiskMemory({
             tradeCode,
             categoryLabel: label,
@@ -272,7 +284,9 @@ export function normalizeFieldAuditPayload(params: {
             status,
             severity,
             notes,
+            correctiveActionRequired,
           }),
+          correctiveActionRequired,
         });
       });
     });

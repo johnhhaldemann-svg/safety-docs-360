@@ -8,6 +8,7 @@ import { createAudit, getAuditTemplates, getMe, signAudit, uploadAuditPhoto } fr
 import { pickPhotoFromCamera, pickPhotoFromLibrary } from "@/utils/photos";
 import type { ImagePickerAsset } from "expo-image-picker";
 import { theme } from "@/theme";
+import type { Jobsite, MobileCompany } from "@/types/mobile";
 
 type AuditStatus = "pass" | "fail" | "na";
 
@@ -47,6 +48,24 @@ function toTitleCase(value?: string | null) {
     .join(" ");
 }
 
+function buildMobileCompanies(companies?: MobileCompany[], jobsites?: Jobsite[], fallbackName?: string | null) {
+  if (companies && companies.length > 0) return companies;
+  const fallbackCompany = fallbackName || "Company";
+  return [
+    {
+      id: "company",
+      name: fallbackCompany,
+      jobsites: jobsites ?? [],
+    },
+  ];
+}
+
+function statusButtonActiveStyle(status: AuditStatus) {
+  if (status === "pass") return styles.statusButtonPass;
+  if (status === "fail") return styles.statusButtonFail;
+  return styles.statusButtonNa;
+}
+
 export default function NewAuditScreen() {
   const { data } = useQuery({ queryKey: ["me"], queryFn: getMe });
   const { data: templates = [] } = useQuery<AuditTemplate[]>({
@@ -56,10 +75,15 @@ export default function NewAuditScreen() {
   const [auditors, setAuditors] = useState("");
   const [auditDate, setAuditDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [hoursBilled, setHoursBilled] = useState("");
+  const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
+  const [selectedJobsiteId, setSelectedJobsiteId] = useState("");
+  const [jobsitePickerOpen, setJobsitePickerOpen] = useState(false);
   const [selectedTrades, setSelectedTrades] = useState<string[]>(["general_contractor"]);
   const [tradePickerOpen, setTradePickerOpen] = useState(false);
   const [statusMap, setStatusMap] = useState<Record<string, AuditStatus>>({});
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
+  const [correctiveActionsMap, setCorrectiveActionsMap] = useState<Record<string, string>>({});
   const [photoCounts, setPhotoCounts] = useState<Record<string, number>>({});
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [sectionPage, setSectionPage] = useState(0);
@@ -85,6 +109,10 @@ export default function NewAuditScreen() {
     }
     return [...sectionMap.values()];
   }, [selectedTemplates]);
+  const mobileCompanies = useMemo(() => buildMobileCompanies(data?.mobileCompanies, data?.jobsites, data?.user.companyName), [data]);
+  const selectedCompany = mobileCompanies.find((company) => company.id === selectedCompanyId) ?? mobileCompanies[0] ?? null;
+  const companyJobsites = selectedCompany?.jobsites ?? data?.jobsites ?? [];
+  const selectedJobsite = companyJobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ?? companyJobsites[0] ?? null;
   const sectionCount = combinedSections.length;
   const activePage = Math.min(sectionPage, Math.max(combinedSections.length - 1, 0));
   const activeSection = combinedSections[activePage];
@@ -180,8 +208,16 @@ export default function NewAuditScreen() {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      const missingCorrectiveActions = Object.entries(statusMap)
+        .filter(([, status]) => status === "fail")
+        .map(([key]) => key)
+        .filter((key) => !correctiveActionsMap[key]?.trim());
+      if (missingCorrectiveActions.length > 0) {
+        throw new Error("Corrective action is required for every failed audit item.");
+      }
       const created = await createAudit({
-        jobsiteId: data?.jobsites[0]?.id ?? null,
+        auditedCompanyName: selectedCompany?.name ?? data?.user.companyName ?? null,
+        jobsiteId: selectedJobsite?.id ?? null,
         auditDate,
         auditors,
         hoursBilled,
@@ -191,6 +227,7 @@ export default function NewAuditScreen() {
         status: "pending_review",
         statusMap,
         notesMap,
+        correctiveActionsMap,
         photoCounts
       });
       const id = created?.audit?.id;
@@ -240,7 +277,29 @@ export default function NewAuditScreen() {
             </View>
             <Text style={styles.reviewBadge}>Review Required</Text>
           </View>
-          <Field label="Jobsite" value={data?.jobsites[0]?.name ?? "No assigned jobsite"} onChangeText={() => undefined} editable={false} />
+          <SelectionDropdown
+            label="Company Being Audited"
+            value={selectedCompany?.name ?? "No company available"}
+            open={companyPickerOpen}
+            onToggle={() => setCompanyPickerOpen((open) => !open)}
+            options={mobileCompanies.map((company) => ({ id: company.id, label: company.name }))}
+            onSelect={(id) => {
+              setSelectedCompanyId(id);
+              setSelectedJobsiteId("");
+              setCompanyPickerOpen(false);
+            }}
+          />
+          <SelectionDropdown
+            label="Jobsite"
+            value={selectedJobsite?.name ?? "No assigned jobsite"}
+            open={jobsitePickerOpen}
+            onToggle={() => setJobsitePickerOpen((open) => !open)}
+            options={companyJobsites.map((jobsite) => ({ id: jobsite.id, label: jobsite.name, meta: jobsite.status ?? undefined }))}
+            onSelect={(id) => {
+              setSelectedJobsiteId(id);
+              setJobsitePickerOpen(false);
+            }}
+          />
           <Field label="Audit Date" value={auditDate} onChangeText={setAuditDate} placeholder="YYYY-MM-DD" />
           <Field label="Auditor(s)" value={auditors} onChangeText={setAuditors} placeholder="Names, comma-separated" />
           <Field label="Hours Billed" value={hoursBilled} onChangeText={setHoursBilled} placeholder="0.00" keyboardType="decimal-pad" />
@@ -343,7 +402,10 @@ export default function NewAuditScreen() {
                       <Pressable
                         key={status}
                         onPress={() => setRowStatus(key, status)}
-                        style={[styles.statusButton, selected === status ? styles.statusButtonActive : null]}
+                        style={[
+                          styles.statusButton,
+                          selected === status ? statusButtonActiveStyle(status) : null
+                        ]}
                       >
                         <Text style={selected === status ? styles.statusTextActive : styles.statusText}>{status.toUpperCase()}</Text>
                       </Pressable>
@@ -355,6 +417,15 @@ export default function NewAuditScreen() {
                       value={notesMap[key] ?? ""}
                       onChangeText={(value) => setNotesMap((current) => ({ ...current, [key]: value }))}
                       placeholder="Observation detail, immediate action, responsible party"
+                      multiline
+                    />
+                  ) : null}
+                  {selected === "fail" ? (
+                    <Field
+                      label="Required Corrective Action"
+                      value={correctiveActionsMap[key] ?? ""}
+                      onChangeText={(value) => setCorrectiveActionsMap((current) => ({ ...current, [key]: value }))}
+                      placeholder="What must be corrected, who owns it, and when it is due"
                       multiline
                     />
                   ) : null}
@@ -408,10 +479,49 @@ function ScoreMetric({ label, value, danger }: { label: string; value: number; d
   );
 }
 
+function SelectionDropdown({
+  label,
+  value,
+  open,
+  options,
+  onToggle,
+  onSelect,
+}: {
+  label: string;
+  value: string;
+  open: boolean;
+  options: Array<{ id: string; label: string; meta?: string }>;
+  onToggle: () => void;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <View style={styles.selectorGroup}>
+      <Text style={styles.selectorLabel}>{label}</Text>
+      <Pressable onPress={onToggle} style={styles.dropdownButton}>
+        <Text style={styles.dropdownTitle}>{value}</Text>
+        <Text style={styles.dropdownMeta}>{open ? "Tap to close" : "Tap to choose"}</Text>
+      </Pressable>
+      {open ? (
+        <View style={styles.dropdownPanel}>
+          {options.map((option) => (
+            <Pressable key={option.id} onPress={() => onSelect(option.id)} style={styles.optionRow}>
+              <Text style={styles.optionText}>{option.label}</Text>
+              {option.meta ? <Text style={styles.optionMeta}>{toTitleCase(option.meta)}</Text> : null}
+            </Pressable>
+          ))}
+          {options.length === 0 ? <Text style={styles.emptyText}>No options available.</Text> : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   form: { gap: 12 },
   group: { gap: 8 },
   label: { color: theme.textStrong, fontSize: 13, fontWeight: "800" },
+  selectorGroup: { gap: 7 },
+  selectorLabel: { color: theme.textStrong, fontSize: 13, fontWeight: "900" },
   auditHeaderCard: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 8, padding: 14, gap: 12 },
   cardHeaderRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
   cardKicker: { color: theme.primary, fontSize: 10, fontWeight: "900", letterSpacing: 1.2, textTransform: "uppercase" },
@@ -422,6 +532,10 @@ const styles = StyleSheet.create({
   dropdownTitle: { color: theme.textStrong, fontSize: 15, fontWeight: "900" },
   dropdownMeta: { color: theme.muted, fontSize: 12, fontWeight: "700", marginTop: 3 },
   dropdownPanel: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.panelSoft, borderRadius: 12, padding: 8, gap: 6 },
+  optionRow: { borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 10, gap: 2 },
+  optionText: { color: theme.textStrong, fontWeight: "900", fontSize: 13 },
+  optionMeta: { color: theme.muted, fontWeight: "700", fontSize: 11 },
+  emptyText: { color: theme.muted, fontWeight: "700", padding: 8 },
   tradeRow: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 10 },
   tradeRowActive: { borderColor: theme.primary, backgroundColor: theme.primarySoft },
   tradeRowText: { flex: 1 },
@@ -471,6 +585,9 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: "row", gap: 8 },
   statusButton: { flex: 1, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 9, paddingVertical: 9, alignItems: "center" },
   statusButtonActive: { borderColor: theme.primary, backgroundColor: theme.primary },
+  statusButtonPass: { borderColor: theme.success, backgroundColor: theme.success },
+  statusButtonFail: { borderColor: theme.danger, backgroundColor: theme.danger },
+  statusButtonNa: { borderColor: theme.primary, backgroundColor: theme.primary },
   statusText: { color: theme.text, fontWeight: "900", fontSize: 12 },
   statusTextActive: { color: theme.white, fontWeight: "900", fontSize: 12 },
   evidenceButton: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.panelSoft, borderRadius: 8, padding: 12, gap: 4 },

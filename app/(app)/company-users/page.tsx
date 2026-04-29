@@ -376,6 +376,49 @@ export default function CompanyUsersPage() {
       }, {}),
     [jobsites]
   );
+  const openUserManager = useCallback(
+    (user: CompanyUser) => {
+      setEditingUser(user);
+      setEditRole(user.role);
+      setEditAssignments(assignmentMap[user.id] ?? []);
+      setEditStatus(
+        user.status === "Pending" ? "Pending" : user.status === "Suspended" ? "Suspended" : "Active"
+      );
+    },
+    [assignmentMap]
+  );
+  const getAssignmentSummary = useCallback(
+    (user: CompanyUser) => {
+      if (!roleNeedsAssignments(user.role)) {
+        return {
+          label: "Company-wide access",
+          detail: "Can access all jobsites through their role.",
+          tone: "success" as const,
+        };
+      }
+
+      const assignedIds = assignmentMap[user.id] ?? [];
+      if (assignedIds.length === 0) {
+        return {
+          label: "No jobsites assigned",
+          detail: "Assign at least one jobsite so this field-scoped user can work in the right place.",
+          tone: "warning" as const,
+        };
+      }
+
+      const visibleNames = assignedIds
+        .map((id) => jobsiteNameById[id] ?? "Unknown jobsite")
+        .slice(0, 2);
+      const overflowCount = Math.max(0, assignedIds.length - visibleNames.length);
+
+      return {
+        label: `${assignedIds.length} jobsite${assignedIds.length === 1 ? "" : "s"} assigned`,
+        detail: `${visibleNames.join(", ")}${overflowCount > 0 ? ` +${overflowCount} more` : ""}`,
+        tone: "info" as const,
+      };
+    },
+    [assignmentMap, jobsiteNameById]
+  );
 
   const stats = useMemo(
     () => [
@@ -561,27 +604,25 @@ export default function CompanyUsersPage() {
         return;
       }
 
-      if (roleNeedsAssignments(editRole)) {
-        const assignmentResponse = await fetch("/api/company/jobsite-assignments", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            userId: editingUser.id,
-            jobsiteIds: editAssignments,
-          }),
-        });
-        const assignmentData = (await assignmentResponse.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        if (!assignmentResponse.ok) {
-          setMessageTone("error");
-          setMessage(assignmentData?.error || "User updated, but jobsite assignment update failed.");
-          setSaveLoading(false);
-          return;
-        }
+      const assignmentResponse = await fetch("/api/company/jobsite-assignments", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: editingUser.id,
+          jobsiteIds: roleNeedsAssignments(editRole) ? editAssignments : [],
+        }),
+      });
+      const assignmentData = (await assignmentResponse.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      if (!assignmentResponse.ok) {
+        setMessageTone("error");
+        setMessage(assignmentData?.error || "User updated, but jobsite assignment update failed.");
+        setSaveLoading(false);
+        return;
       }
 
       setEditingUser(null);
@@ -1027,12 +1068,7 @@ export default function CompanyUsersPage() {
                       Approve
                     </button>
                     <button
-                      onClick={() => {
-                        setEditingUser(user);
-                        setEditRole(user.role);
-                        setEditAssignments(assignmentMap[user.id] ?? []);
-                        setEditStatus("Pending");
-                      }}
+                      onClick={() => openUserManager(user)}
                       className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
                     >
                       Review
@@ -1076,61 +1112,65 @@ export default function CompanyUsersPage() {
           />
         ) : (
           <div className="grid gap-4">
-            {filteredActiveUsers.map((user) => (
-              <div key={user.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-100">{user.name}</p>
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${roleClasses(
-                          user.role
-                        )}`}
-                      >
-                        {user.role}
-                      </span>
-                      <StatusBadge label={user.status} tone={statusTone(user.status)} />
+            {filteredActiveUsers.map((user) => {
+              const assignmentSummary = getAssignmentSummary(user);
+              return (
+                <div key={user.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-100">{user.name}</p>
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${roleClasses(
+                            user.role
+                          )}`}
+                        >
+                          {user.role}
+                        </span>
+                        <StatusBadge label={user.status} tone={statusTone(user.status)} />
+                      </div>
+                      <p className="mt-1 text-sm text-slate-500">{user.email}</p>
+                      <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
+                        <span>Company: {user.team}</span>
+                        <span>Last seen {formatRelative(user.last_sign_in_at)}</span>
+                      </div>
                     </div>
-                    <p className="mt-1 text-sm text-slate-500">{user.email}</p>
-                    <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
-                      <span>Company: {user.team}</span>
-                      <span>Last seen {formatRelative(user.last_sign_in_at)}</span>
+
+                    <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-900/80 px-4 py-3 xl:w-80">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Jobsite access
+                        </span>
+                        <StatusBadge label={assignmentSummary.label} tone={assignmentSummary.tone} />
+                      </div>
+                      <p className="mt-2 text-sm leading-5 text-slate-400">{assignmentSummary.detail}</p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 xl:justify-end">
+                      <button
+                        onClick={() => openUserManager(user)}
+                        className="rounded-xl border border-sky-400/70 px-4 py-2.5 text-sm font-semibold text-sky-100 transition hover:bg-sky-950/50"
+                      >
+                        {roleNeedsAssignments(user.role) ? "Assign jobsites" : "Manage access"}
+                      </button>
+                      <Link
+                        href={getProfileHref(user.id)}
+                        className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
+                      >
+                        View Profile
+                      </Link>
                     </div>
                   </div>
-
-                  <button
-                    onClick={() => {
-                      setEditingUser(user);
-                      setEditRole(user.role);
-                        setEditAssignments(assignmentMap[user.id] ?? []);
-                      setEditStatus(
-                        user.status === "Pending"
-                          ? "Pending"
-                          : user.status === "Suspended"
-                            ? "Suspended"
-                            : "Active"
-                      );
-                    }}
-                    className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
-                  >
-                    Manage
-                  </button>
-                  <Link
-                    href={getProfileHref(user.id)}
-                    className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
-                  >
-                    View Profile
-                  </Link>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </SectionCard>
 
       <SectionCard
-        title="4. Jobsite Assignments"
-        description="At-a-glance view of which users are assigned to each active jobsite."
+        title="4. Assign Users To Jobsites"
+        description="Field-scoped roles only see the jobsites selected here. Company-wide roles automatically see every jobsite."
       >
         {loading ? (
           <InlineMessage>Loading assignment matrix...</InlineMessage>
@@ -1140,8 +1180,14 @@ export default function CompanyUsersPage() {
             description="Invite and activate users to start assigning jobsites."
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className={jobsiteTableLayout.table}>
+          <div className="grid gap-4">
+            <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-950">
+              Use <span className="font-semibold">Assign jobsites</span> to pick the exact sites for Project Managers,
+              Field Supervisors, Foremen, Field Users, Read Only users, and Company Users. Company Admins,
+              Operations Managers, and Safety Managers do not need individual site picks.
+            </div>
+            <div className="overflow-x-auto">
+              <table className={jobsiteTableLayout.table}>
               <thead className="bg-slate-950/50">
                 <tr>
                   <th className={jobsiteTableLayout.th}>User</th>
@@ -1192,28 +1238,18 @@ export default function CompanyUsersPage() {
                       </td>
                       <td className={`${jobsiteTableLayout.td} text-right`}>
                         <button
-                          onClick={() => {
-                            setEditingUser(user);
-                            setEditRole(user.role);
-                            setEditAssignments(assignmentMap[user.id] ?? []);
-                            setEditStatus(
-                              user.status === "Pending"
-                                ? "Pending"
-                                : user.status === "Suspended"
-                                  ? "Suspended"
-                                  : "Active"
-                            );
-                          }}
+                          onClick={() => openUserManager(user)}
                           className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-950/50"
                         >
-                          Manage
+                          {roleNeedsAssignments(user.role) ? "Assign" : "Manage"}
                         </button>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
         )}
       </SectionCard>
@@ -1250,12 +1286,7 @@ export default function CompanyUsersPage() {
                     </div>
 
                     <button
-                      onClick={() => {
-                        setEditingUser(user);
-                        setEditRole(user.role);
-                        setEditAssignments(assignmentMap[user.id] ?? []);
-                        setEditStatus("Suspended");
-                      }}
+                      onClick={() => openUserManager(user)}
                       className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
                     >
                       Manage
@@ -1275,12 +1306,12 @@ export default function CompanyUsersPage() {
       ) : null}
 
       {editingUser ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 [color-scheme:dark]">
-          <div className="w-full max-w-lg rounded-3xl border border-slate-700/80 bg-slate-900/95 p-6 shadow-2xl [color-scheme:dark]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4 [color-scheme:dark]">
+          <div className="w-full max-w-4xl rounded-3xl border border-slate-700/80 bg-slate-900/95 p-6 shadow-2xl [color-scheme:dark]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
-                  Manage Team Member
+                  Manage Access And Jobsites
                 </p>
                 <h3 className="mt-2 text-2xl font-bold text-slate-100">{editingUser.name}</h3>
                 <p className="mt-1 text-sm text-slate-500">{editingUser.email}</p>
@@ -1293,79 +1324,126 @@ export default function CompanyUsersPage() {
               </button>
             </div>
 
-            <div className="mt-6 grid gap-4">
-              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm text-slate-400">
-                Company scope: <span className="font-semibold text-slate-100">{scopeCompanyName}</span>
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="edit-member-role" className="text-xs font-semibold text-slate-500">
-                  Role (user type)
-                </label>
-                <select
-                  id="edit-member-role"
-                  value={editRole}
-                  onChange={(e) => setEditRole(e.target.value)}
-                  className={`w-full ${appNativeSelectClassName} py-3`}
-                >
-                  {roleOptions.map((role) => (
-                    <option key={role}>{role}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="edit-member-status" className="text-xs font-semibold text-slate-500">
-                  Status
-                </label>
-                <select
-                  id="edit-member-status"
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value)}
-                  className={`w-full ${appNativeSelectClassName} py-3`}
-                >
-                  <option>Pending</option>
-                  <option>Active</option>
-                  <option>Suspended</option>
-                </select>
-              </div>
-              {roleNeedsAssignments(editRole) ? (
-                <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-100">
-                    Assigned Jobsites
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    For this role, limit which jobsites they see below. In-app features still follow the role type and
-                    your company subscription.
-                  </p>
-                  <div className="mt-3 grid max-h-44 gap-2 overflow-y-auto">
-                    {jobsites.length < 1 ? (
-                      <p className="text-xs text-slate-500">No jobsites available yet.</p>
-                    ) : (
-                      jobsites.map((jobsite) => {
-                        const checked = editAssignments.includes(jobsite.id);
-                        return (
-                          <label
-                            key={jobsite.id}
-                            className="flex items-center gap-2 text-sm text-slate-300"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(event) => {
-                                setEditAssignments((current) =>
-                                  event.target.checked
-                                    ? [...current, jobsite.id]
-                                    : current.filter((value) => value !== jobsite.id)
-                                );
-                              }}
-                            />
-                            <span>{jobsite.name}</span>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
+            <div className="mt-6 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+              <div className="grid content-start gap-4">
+                <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm text-slate-400">
+                  Company scope: <span className="font-semibold text-slate-100">{scopeCompanyName}</span>
                 </div>
-              ) : null}
+                <div className="grid gap-2">
+                  <label htmlFor="edit-member-role" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Role controls app permissions
+                  </label>
+                  <select
+                    id="edit-member-role"
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value)}
+                    className={`w-full ${appNativeSelectClassName} py-3`}
+                  >
+                    {roleOptions.map((role) => (
+                      <option key={role}>{role}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs leading-5 text-slate-500">
+                    Field-scoped roles need jobsite picks. Company-wide roles automatically get every jobsite.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <label htmlFor="edit-member-status" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Account status
+                  </label>
+                  <select
+                    id="edit-member-status"
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value)}
+                    className={`w-full ${appNativeSelectClassName} py-3`}
+                  >
+                    <option>Pending</option>
+                    <option>Active</option>
+                    <option>Suspended</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-100">Jobsite access</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Select the jobsites this person should see when their role is field-scoped.
+                    </p>
+                  </div>
+                  {roleNeedsAssignments(editRole) ? (
+                    <StatusBadge
+                      label={`${editAssignments.length} selected`}
+                      tone={editAssignments.length > 0 ? "info" : "warning"}
+                    />
+                  ) : (
+                    <StatusBadge label="All jobsites" tone="success" />
+                  )}
+                </div>
+
+                {roleNeedsAssignments(editRole) ? (
+                  <>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditAssignments(jobsites.map((jobsite) => jobsite.id))}
+                        className="rounded-xl border border-sky-400/70 px-3 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-950/50"
+                      >
+                        Select all jobsites
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditAssignments([])}
+                        className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-900/90"
+                      >
+                        Clear selected
+                      </button>
+                    </div>
+                    <div className="mt-4 grid max-h-72 gap-2 overflow-y-auto pr-1">
+                      {jobsites.length < 1 ? (
+                        <p className="text-xs text-slate-500">No jobsites available yet.</p>
+                      ) : (
+                        jobsites.map((jobsite) => {
+                          const checked = editAssignments.includes(jobsite.id);
+                          return (
+                            <label
+                              key={jobsite.id}
+                              className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl border px-3 py-3 text-sm transition ${
+                                checked
+                                  ? "border-sky-400/70 bg-sky-950/40 text-slate-100"
+                                  : "border-slate-700/80 bg-slate-900/80 text-slate-300 hover:border-slate-500"
+                              }`}
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate font-semibold">{jobsite.name}</span>
+                                <span className="mt-1 block text-xs text-slate-500">{jobsite.status}</span>
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => {
+                                  setEditAssignments((current) =>
+                                    event.target.checked
+                                      ? Array.from(new Set([...current, jobsite.id]))
+                                      : current.filter((value) => value !== jobsite.id)
+                                  );
+                                }}
+                              />
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-950/30 px-4 py-3 text-sm leading-6 text-emerald-100">
+                    {editRole} is a company-wide role, so this person will have access to every jobsite in{" "}
+                    <span className="font-semibold">{scopeCompanyName}</span>. To limit them to specific jobsites,
+                    change their role to Project Manager, Field Supervisor, Foreman, Field User, Read Only, or Company User.
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="mt-6 flex flex-wrap justify-end gap-3">

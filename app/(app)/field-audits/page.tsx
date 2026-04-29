@@ -36,7 +36,16 @@ type Jobsite = {
   name: string;
   project_number?: string | null;
   location?: string | null;
+  audit_customer_id?: string | null;
+  customer_company_name?: string | null;
   customer_report_email?: string | null;
+};
+
+type AuditCustomer = {
+  id: string;
+  name: string;
+  report_email?: string | null;
+  status?: string | null;
 };
 
 type AuditListRow = {
@@ -46,6 +55,22 @@ type AuditListRow = {
   auditors: string | null;
   selected_trade: string;
   status?: string | null;
+  ai_review_status?: string | null;
+  ai_review_summary?: {
+    overallStatus?: string;
+    executiveSummary?: string;
+    correctedReportSummary?: string;
+    adminReviewNotes?: string[];
+    requiredCorrections?: string[];
+    emailSummary?: {
+      openingSummary?: string;
+      findingHighlights?: string[];
+    };
+    meta?: {
+      fallbackUsed?: boolean;
+      fallbackReason?: string | null;
+    };
+  } | null;
   payload?: { hoursBilled?: number | string | null } | null;
   score_summary: {
     total?: number;
@@ -65,10 +90,12 @@ type SubmitResponse = {
   observationCount?: number;
   correctiveActionsCreated?: number;
   aiRecordsCreated?: number;
+  aiReviewStatus?: string;
   ingestionErrors?: string[];
 };
 
 type Draft = {
+  auditCustomerId: string;
   jobsiteId: string;
   auditDate: string;
   auditors: string;
@@ -81,6 +108,7 @@ type Draft = {
 
 function emptyDraft(): Draft {
   return {
+    auditCustomerId: "",
     jobsiteId: "",
     auditDate: new Date().toISOString().slice(0, 10),
     auditors: "",
@@ -123,6 +151,7 @@ export default function CompanyFieldAuditsPage() {
   const hsSectionTitles = useMemo(() => deriveExcelSectionLabels(hsSections, "hs"), [hsSections]);
   const envSectionTitles = useMemo(() => deriveExcelSectionLabels(envSections, "env"), [envSections]);
 
+  const [auditCustomerId, setAuditCustomerId] = useState("");
   const [jobsiteId, setJobsiteId] = useState("");
   const [auditDate, setAuditDate] = useState("");
   const [auditors, setAuditors] = useState("");
@@ -133,6 +162,7 @@ export default function CompanyFieldAuditsPage() {
   const [photoCounts, setPhotoCounts] = useState<FieldAuditPhotoCounts>({});
   const [query, setQuery] = useState("");
   const [excelWorkbook, setExcelWorkbook] = useState<"hs" | "env">("hs");
+  const [auditCustomers, setAuditCustomers] = useState<AuditCustomer[]>([]);
   const [jobsites, setJobsites] = useState<Jobsite[]>([]);
   const [audits, setAudits] = useState<AuditListRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,6 +173,7 @@ export default function CompanyFieldAuditsPage() {
 
   useEffect(() => {
     const draft = loadDraft();
+    setAuditCustomerId(draft.auditCustomerId);
     setJobsiteId(draft.jobsiteId);
     setAuditDate(draft.auditDate);
     setAuditors(draft.auditors);
@@ -155,6 +186,7 @@ export default function CompanyFieldAuditsPage() {
 
   useEffect(() => {
     const draft: Draft = {
+      auditCustomerId,
       jobsiteId,
       auditDate,
       auditors,
@@ -165,7 +197,7 @@ export default function CompanyFieldAuditsPage() {
       photoCounts,
     };
     window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  }, [auditDate, auditors, hoursBilled, jobsiteId, notesMap, photoCounts, selectedTrade, statusMap]);
+  }, [auditCustomerId, auditDate, auditors, hoursBilled, jobsiteId, notesMap, photoCounts, selectedTrade, statusMap]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -174,7 +206,10 @@ export default function CompanyFieldAuditsPage() {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Not signed in.");
-      const [jobsitesRes, auditsRes] = await Promise.all([
+      const [customersRes, jobsitesRes, auditsRes] = await Promise.all([
+        fetch("/api/company/audit-customers", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }),
         fetch("/api/company/jobsites", {
           headers: { Authorization: `Bearer ${session.access_token}` },
         }),
@@ -182,10 +217,15 @@ export default function CompanyFieldAuditsPage() {
           headers: { Authorization: `Bearer ${session.access_token}` },
         }),
       ]);
+      const customersData = (await customersRes.json().catch(() => null)) as
+        | { customers?: AuditCustomer[]; error?: string; warning?: string }
+        | null;
       const jobsitesData = (await jobsitesRes.json().catch(() => null)) as { jobsites?: Jobsite[]; error?: string } | null;
       const auditsData = (await auditsRes.json().catch(() => null)) as { audits?: AuditListRow[]; error?: string; warning?: string } | null;
+      if (!customersRes.ok) throw new Error(customersData?.error || customersData?.warning || "Failed to load audit customers.");
       if (!jobsitesRes.ok) throw new Error(jobsitesData?.error || "Failed to load jobsites.");
       if (!auditsRes.ok) throw new Error(auditsData?.error || auditsData?.warning || "Failed to load audits.");
+      setAuditCustomers(customersData?.customers ?? []);
       setJobsites(jobsitesData?.jobsites ?? []);
       setAudits(auditsData?.audits ?? []);
     } catch (error) {
@@ -200,7 +240,30 @@ export default function CompanyFieldAuditsPage() {
     void loadData();
   }, [loadData]);
 
+  const selectedCustomer = auditCustomers.find((customer) => customer.id === auditCustomerId);
+  const filteredJobsites = useMemo(
+    () =>
+      auditCustomerId
+        ? jobsites.filter((jobsite) => jobsite.audit_customer_id === auditCustomerId)
+        : jobsites,
+    [auditCustomerId, jobsites]
+  );
   const selectedJobsite = jobsites.find((jobsite) => jobsite.id === jobsiteId);
+  const selectedJobsiteCustomer = selectedJobsite?.audit_customer_id
+    ? auditCustomers.find((customer) => customer.id === selectedJobsite.audit_customer_id)
+    : null;
+  const selectedReportEmail =
+    selectedCustomer?.report_email ||
+    selectedJobsiteCustomer?.report_email ||
+    selectedJobsite?.customer_report_email ||
+    "";
+
+  useEffect(() => {
+    if (!jobsiteId || !auditCustomerId) return;
+    if (!filteredJobsites.some((jobsite) => jobsite.id === jobsiteId)) {
+      setJobsiteId("");
+    }
+  }, [auditCustomerId, filteredJobsites, jobsiteId]);
   const normalized = useMemo(
     () => normalizeFieldAuditPayload({ selectedTrade, statusMap, notesMap, photoCounts }),
     [notesMap, photoCounts, selectedTrade, statusMap]
@@ -223,6 +286,7 @@ export default function CompanyFieldAuditsPage() {
 
   function clearDraft() {
     const draft = emptyDraft();
+    setAuditCustomerId("");
     setJobsiteId("");
     setAuditDate(draft.auditDate);
     setAuditors("");
@@ -251,6 +315,7 @@ export default function CompanyFieldAuditsPage() {
         },
         body: JSON.stringify({
           jobsiteId: jobsiteId || null,
+          auditCustomerId: auditCustomerId || selectedJobsite?.audit_customer_id || null,
           auditDate: auditDate || null,
           auditors,
           hoursBilled,
@@ -266,7 +331,7 @@ export default function CompanyFieldAuditsPage() {
       if (!res.ok) throw new Error(data?.error || "Submit failed.");
       setMessageTone((data?.ingestionErrors?.length ?? 0) > 0 ? "warning" : "success");
       setMessage(
-        `Audit sent for admin review with ${data?.observationCount ?? 0} observations, ${data?.correctiveActionsCreated ?? 0} corrective actions, and ${data?.aiRecordsCreated ?? 0} AI records.`
+        `Audit sent for admin review with ${data?.observationCount ?? 0} observations, ${data?.correctiveActionsCreated ?? 0} corrective actions, ${data?.aiRecordsCreated ?? 0} AI records, and an ${data?.aiReviewStatus === "failed" ? "AI review that needs attention" : "AI review summary"}.`
       );
       window.localStorage.removeItem(DRAFT_KEY);
       setStatusMap({});
@@ -342,7 +407,25 @@ export default function CompanyFieldAuditsPage() {
           </button>
         }
       >
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="block text-sm font-semibold text-slate-100">
+            Customer company
+            <select
+              value={auditCustomerId}
+              onChange={(event) => {
+                setAuditCustomerId(event.target.value);
+                setJobsiteId("");
+              }}
+              className="mt-1.5 w-full rounded-xl border border-slate-600/80 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-50 [color-scheme:dark]"
+            >
+              <option value="">No customer selected</option>
+              {auditCustomers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="block text-sm font-semibold text-slate-100">
             Jobsite
             <select
@@ -351,7 +434,7 @@ export default function CompanyFieldAuditsPage() {
               className="mt-1.5 w-full rounded-xl border border-slate-600/80 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-50 [color-scheme:dark]"
             >
               <option value="">No jobsite selected</option>
-              {jobsites.map((jobsite) => (
+              {filteredJobsites.map((jobsite) => (
                 <option key={jobsite.id} value={jobsite.id}>
                   {jobsite.name}
                 </option>
@@ -391,6 +474,9 @@ export default function CompanyFieldAuditsPage() {
             </select>
           </label>
         </div>
+        <p className="mt-3 text-xs font-medium text-slate-400">
+          Customer copy: {selectedReportEmail || "No customer report email saved yet"}
+        </p>
       </SectionCard>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -575,6 +661,10 @@ export default function CompanyFieldAuditsPage() {
               <div className="max-h-[520px] space-y-2 overflow-y-auto">
                 {audits.map((audit) => {
                   const jobsite = jobsites.find((row) => row.id === audit.jobsite_id);
+                  const customer = jobsite?.audit_customer_id
+                    ? auditCustomers.find((row) => row.id === jobsite.audit_customer_id)
+                    : null;
+                  const copyEmail = customer?.report_email || jobsite?.customer_report_email || "";
                   return (
                     <div key={audit.id} className="rounded-xl border border-slate-700/80 bg-slate-950/50 p-3">
                       <div className="flex items-start justify-between gap-3">
@@ -600,11 +690,36 @@ export default function CompanyFieldAuditsPage() {
                         <span className="rounded-full bg-slate-900 px-2 py-1">
                           {audit.payload?.hoursBilled ?? "--"} hours
                         </span>
+                        <span className="rounded-full bg-blue-950/70 px-2 py-1 text-blue-100">
+                          AI: {(audit.ai_review_status ?? "not_started").replaceAll("_", " ")}
+                        </span>
                       </div>
+                      {audit.ai_review_summary?.executiveSummary ? (
+                        <div className="mt-3 rounded-xl border border-blue-400/30 bg-blue-950/30 p-3">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-200">
+                            AI Review Summary
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-slate-100">
+                            {audit.ai_review_summary.executiveSummary}
+                          </p>
+                          {audit.ai_review_summary.requiredCorrections?.length ? (
+                            <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-amber-100">
+                              {audit.ai_review_summary.requiredCorrections.slice(0, 3).map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : null}
+                          {audit.ai_review_summary.meta?.fallbackUsed ? (
+                            <p className="mt-2 text-[11px] text-blue-200/80">
+                              Deterministic fallback used. Admin review is still required.
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {audit.status === "pending_review" ? (
                         <div className="mt-3 space-y-2">
                           <p className="text-xs text-slate-400">
-                            Customer copy: {jobsite?.customer_report_email || "No customer email saved"}
+                            Customer copy: {copyEmail || "No customer email saved"}
                           </p>
                           <button
                             type="button"

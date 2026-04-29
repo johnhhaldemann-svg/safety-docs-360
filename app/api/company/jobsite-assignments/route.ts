@@ -144,33 +144,36 @@ export async function PUT(request: Request) {
   if (!roleResult.data) {
     return NextResponse.json({ error: "Target user is not in this company." }, { status: 404 });
   }
-  if (!roleNeedsJobsiteAssignments(roleResult.data.role)) {
+  const needsJobsiteAssignments = roleNeedsJobsiteAssignments(roleResult.data.role);
+  if (!needsJobsiteAssignments && jobsiteIds.length > 0) {
     return NextResponse.json(
-      { error: "This role has company-wide access and does not require jobsite assignments." },
+      { error: "This role has company-wide access. Clear jobsite assignments or choose a field-scoped role." },
       { status: 400 }
     );
   }
 
-  const validJobsitesResult = await auth.supabase
-    .from("company_jobsites")
-    .select("id")
-    .eq("company_id", companyScope.companyId)
-    .in("id", jobsiteIds.length > 0 ? jobsiteIds : ["00000000-0000-0000-0000-000000000000"]);
-  if (jobsiteIds.length > 0 && validJobsitesResult.error) {
-    return NextResponse.json(
-      { error: validJobsitesResult.error.message || "Failed to validate jobsite assignments." },
-      { status: 500 }
+  if (jobsiteIds.length > 0) {
+    const validJobsitesResult = await auth.supabase
+      .from("company_jobsites")
+      .select("id")
+      .eq("company_id", companyScope.companyId)
+      .in("id", jobsiteIds);
+    if (validJobsitesResult.error) {
+      return NextResponse.json(
+        { error: validJobsitesResult.error.message || "Failed to validate jobsite assignments." },
+        { status: 500 }
+      );
+    }
+    const validIds = new Set(
+      ((validJobsitesResult.data as Array<{ id: string }> | null) ?? []).map((row) => row.id)
     );
-  }
-  const validIds = new Set(
-    ((validJobsitesResult.data as Array<{ id: string }> | null) ?? []).map((row) => row.id)
-  );
-  const invalidIds = jobsiteIds.filter((id) => !validIds.has(id));
-  if (invalidIds.length > 0) {
-    return NextResponse.json(
-      { error: "One or more jobsites are invalid for this company scope." },
-      { status: 400 }
-    );
+    const invalidIds = jobsiteIds.filter((id) => !validIds.has(id));
+    if (invalidIds.length > 0) {
+      return NextResponse.json(
+        { error: "One or more jobsites are invalid for this company scope." },
+        { status: 400 }
+      );
+    }
   }
 
   const deleteResult = await auth.supabase

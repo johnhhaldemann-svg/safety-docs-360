@@ -33,6 +33,30 @@ function getScoreValue(score: Record<string, unknown>, key: string) {
   return typeof value === "number" ? value : 0;
 }
 
+function getNestedString(record: Record<string, unknown> | null | undefined, key: string) {
+  const value = record?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function getEmailSummary(summary: Record<string, unknown> | null | undefined) {
+  const emailSummary =
+    summary?.emailSummary && typeof summary.emailSummary === "object"
+      ? (summary.emailSummary as Record<string, unknown>)
+      : null;
+  const highlights = Array.isArray(emailSummary?.findingHighlights)
+    ? emailSummary.findingHighlights.filter(
+        (item): item is string => typeof item === "string" && item.trim().length > 0
+      )
+    : [];
+  return {
+    openingSummary:
+      getNestedString(emailSummary, "openingSummary") ||
+      getNestedString(summary, "correctedReportSummary") ||
+      getNestedString(summary, "executiveSummary"),
+    findingHighlights: highlights,
+  };
+}
+
 export type AuditReportEmailObservation = {
   item_label?: string | null;
   category_label?: string | null;
@@ -50,6 +74,7 @@ export async function sendCustomerAuditReportEmail(params: {
   hoursBilled?: number | null;
   selectedTrade: string | null;
   scoreSummary: Record<string, unknown>;
+  aiReviewSummary?: Record<string, unknown> | null;
   observations: AuditReportEmailObservation[];
 }) {
   const resendApiKey = readEnv("RESEND_API_KEY");
@@ -75,12 +100,18 @@ export async function sendCustomerAuditReportEmail(params: {
   const compliance = formatPercent(params.scoreSummary.compliancePercent);
   const findingCount = getScoreValue(params.scoreSummary, "fail");
   const scoredCount = getScoreValue(params.scoreSummary, "total");
+  const aiEmailSummary = getEmailSummary(params.aiReviewSummary);
   const topFindings = params.observations
     .filter((observation) => observation.status === "fail")
     .slice(0, 12);
 
   const findingsHtml =
-    topFindings.length > 0
+    aiEmailSummary.findingHighlights.length > 0
+      ? aiEmailSummary.findingHighlights
+          .slice(0, 12)
+          .map((finding) => `<li style="margin:0 0 14px;">${escapeHtml(finding)}</li>`)
+          .join("")
+      : topFindings.length > 0
       ? topFindings
           .map((finding) => {
             const title = escapeHtml(finding.item_label || "Finding");
@@ -107,6 +138,14 @@ export async function sendCustomerAuditReportEmail(params: {
           <p style="margin:0 0 8px;"><strong>Findings:</strong> ${findingCount} of ${scoredCount} scored items</p>
           <p style="margin:0;"><strong>Hours billed:</strong> ${safeHoursBilled}</p>
         </div>
+        ${
+          aiEmailSummary.openingSummary
+            ? `<div style="border:1px solid #bfdbfe;border-radius:16px;padding:16px 18px;background:#eff6ff;margin-bottom:22px;">
+          <p style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#1d4ed8;font-weight:700;margin:0 0 8px;">Reviewed Summary</p>
+          <p style="margin:0;">${escapeHtml(aiEmailSummary.openingSummary)}</p>
+        </div>`
+            : ""
+        }
         <h2 style="font-size:18px;margin:0 0 12px;">Findings Summary</h2>
         <ul style="padding-left:20px;margin:0;">${findingsHtml}</ul>
       </div>
@@ -114,7 +153,9 @@ export async function sendCustomerAuditReportEmail(params: {
   `.trim();
 
   const findingsText =
-    topFindings.length > 0
+    aiEmailSummary.findingHighlights.length > 0
+      ? aiEmailSummary.findingHighlights.map((finding) => `- ${finding}`).join("\n")
+      : topFindings.length > 0
       ? topFindings
           .map(
             (finding) =>
@@ -132,9 +173,12 @@ export async function sendCustomerAuditReportEmail(params: {
     `Compliance: ${compliance}`,
     `Findings: ${findingCount} of ${scoredCount} scored items`,
     `Hours billed: ${typeof params.hoursBilled === "number" ? params.hoursBilled : "Not specified"}`,
+    aiEmailSummary.openingSummary ? `Reviewed summary: ${aiEmailSummary.openingSummary}` : null,
     "Findings summary:",
     findingsText,
-  ].join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",

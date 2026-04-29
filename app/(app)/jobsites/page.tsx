@@ -2,7 +2,7 @@
 
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityFeed,
   EmptyState,
@@ -30,6 +30,8 @@ type ComposerState = {
   status: "planned" | "active" | "completed" | "archived";
   projectManager: string;
   safetyLead: string;
+  auditCustomerId: string;
+  customerCompanyName: string;
   customerReportEmail: string;
   startDate: string;
   endDate: string;
@@ -43,6 +45,8 @@ const EMPTY_COMPOSER: ComposerState = {
   status: "planned",
   projectManager: "",
   safetyLead: "",
+  auditCustomerId: "",
+  customerCompanyName: "",
   customerReportEmail: "",
   startDate: "",
   endDate: "",
@@ -66,12 +70,21 @@ function createComposerFromJobsite(jobsite: CompanyJobsite): ComposerState {
     status: jobsite.rawStatus,
     projectManager: jobsite.projectManager || "",
     safetyLead: jobsite.safetyLead || "",
+    auditCustomerId: jobsite.auditCustomerId || "",
+    customerCompanyName: jobsite.customerCompanyName || "",
     customerReportEmail: jobsite.customerReportEmail || "",
     startDate: jobsite.startDate || "",
     endDate: jobsite.endDate || "",
     notes: jobsite.notes || "",
   };
 }
+
+type AuditCustomer = {
+  id: string;
+  name: string;
+  report_email?: string | null;
+  status?: string | null;
+};
 
 async function fetchWithTimeout(
   input: RequestInfo | URL,
@@ -110,9 +123,34 @@ export default function JobsitesPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<MessageTone>("neutral");
   const [saving, setSaving] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
   const [updatingJobsiteId, setUpdatingJobsiteId] = useState<string | null>(null);
+  const [auditCustomers, setAuditCustomers] = useState<AuditCustomer[]>([]);
+
+  const loadAuditCustomers = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+    if (!accessToken) {
+      setAuditCustomers([]);
+      return;
+    }
+    const response = await fetchWithTimeout("/api/company/audit-customers", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const payload = (await response.json().catch(() => null)) as
+      | { customers?: AuditCustomer[]; error?: string }
+      | null;
+    if (response.ok) setAuditCustomers(payload?.customers ?? []);
+  }, []);
+
+  useEffect(() => {
+    void loadAuditCustomers();
+  }, [loadAuditCustomers]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
+  const selectedAuditCustomer = auditCustomers.find((customer) => customer.id === composer.auditCustomerId);
 
   const filteredJobsites = useMemo(() => {
     return jobsites.filter((jobsite) => {
@@ -127,12 +165,14 @@ export default function JobsitesPage() {
           jobsite.projectNumber,
           jobsite.projectManager || "",
           jobsite.safetyLead || "",
+          auditCustomers.find((customer) => customer.id === jobsite.auditCustomerId)?.name || "",
+          jobsite.customerCompanyName || "",
           jobsite.customerReportEmail || "",
         ].some((value) => value.toLowerCase().includes(normalizedSearch));
 
       return matchesStatus && matchesSearch;
     });
-  }, [jobsites, normalizedSearch, statusFilter]);
+  }, [auditCustomers, jobsites, normalizedSearch, statusFilter]);
 
   const selectedJobsite = useMemo(() => {
     if (selectedJobsiteId !== "all") {
@@ -144,6 +184,11 @@ export default function JobsitesPage() {
   const selectedJobsiteVisibleInFilters = Boolean(
     selectedJobsite && filteredJobsites.some((jobsite) => jobsite.id === selectedJobsite.id)
   );
+  const selectedLinkedCustomer = selectedJobsite?.auditCustomerId
+    ? auditCustomers.find((customer) => customer.id === selectedJobsite.auditCustomerId)
+    : null;
+  const selectedCustomerName = selectedLinkedCustomer?.name || selectedJobsite?.customerCompanyName || "Not set";
+  const selectedCustomerEmail = selectedLinkedCustomer?.report_email || selectedJobsite?.customerReportEmail || "Not set";
 
   const selectedJobsiteDocuments = useMemo(() => {
     if (!selectedJobsite) return [];
@@ -225,8 +270,9 @@ export default function JobsitesPage() {
         return;
       }
 
-      const response = await fetchWithTimeout("/api/company/jobsites", {
-        method: "POST",
+      const updatingManagedJobsite = selectedJobsite?.source === "table" && selectedJobsiteId !== "all";
+      const response = await fetchWithTimeout(updatingManagedJobsite ? `/api/company/jobsites/${selectedJobsite.id}` : "/api/company/jobsites", {
+        method: updatingManagedJobsite ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
@@ -238,6 +284,8 @@ export default function JobsitesPage() {
           status: composer.status,
           projectManager: composer.projectManager,
           safetyLead: composer.safetyLead,
+          auditCustomerId: composer.auditCustomerId || null,
+          customerCompanyName: composer.customerCompanyName,
           customerReportEmail: composer.customerReportEmail,
           startDate: composer.startDate,
           endDate: composer.endDate,
@@ -257,7 +305,7 @@ export default function JobsitesPage() {
 
       setMessage(payload?.message || "Jobsite saved.");
       setMessageTone("success");
-      const nextSelectedId = payload?.jobsite?.id ?? "all";
+      const nextSelectedId = payload?.jobsite?.id ?? selectedJobsiteId;
       resetComposer();
       await reload();
       setSelectedJobsiteId(nextSelectedId);
@@ -271,6 +319,71 @@ export default function JobsitesPage() {
       setMessageTone("error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveAuditCustomer() {
+    if (!composer.customerCompanyName.trim()) {
+      setMessage("Customer company name is required.");
+      setMessageTone("error");
+      return;
+    }
+
+    setSavingCustomer(true);
+    setMessage(null);
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        setMessage("You need to be signed in to save a customer. Try refreshing the page.");
+        setMessageTone("error");
+        return;
+      }
+
+      const response = await fetchWithTimeout("/api/company/audit-customers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          name: composer.customerCompanyName,
+          reportEmail: composer.customerReportEmail,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; message?: string; customer?: AuditCustomer }
+        | null;
+
+      if (!response.ok) {
+        setMessage(payload?.error || "Failed to save the audit customer.");
+        setMessageTone("error");
+        return;
+      }
+
+      const savedCustomer = payload?.customer;
+      if (savedCustomer) {
+        setAuditCustomers((current) => [
+          ...current.filter((customer) => customer.id !== savedCustomer.id),
+          savedCustomer,
+        ].sort((a, b) => a.name.localeCompare(b.name)));
+        updateComposer("auditCustomerId", savedCustomer.id);
+      }
+      setMessage(payload?.message || "Audit customer saved.");
+      setMessageTone("success");
+    } catch (error) {
+      console.error("Failed to save audit customer:", error);
+      setMessage(
+        error instanceof Error && error.name === "AbortError"
+          ? "Customer save timed out. Please try again."
+          : "The audit customer could not be saved right now."
+      );
+      setMessageTone("error");
+    } finally {
+      setSavingCustomer(false);
     }
   }
 
@@ -529,6 +642,52 @@ export default function JobsitesPage() {
             </div>
             <div>
               <label
+                htmlFor="jobsite-audit-customer"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
+              >
+                Audit Customer
+              </label>
+              <select
+                id="jobsite-audit-customer"
+                value={composer.auditCustomerId}
+                onChange={(event) => {
+                  const customerId = event.target.value;
+                  const customer = auditCustomers.find((item) => item.id === customerId);
+                  setComposer((current) => ({
+                    ...current,
+                    auditCustomerId: customerId,
+                    customerCompanyName: customer?.name ?? current.customerCompanyName,
+                    customerReportEmail: customer?.report_email ?? current.customerReportEmail,
+                  }));
+                }}
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
+              >
+                <option value="">No saved customer</option>
+                {auditCustomers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="jobsite-customer-company"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
+              >
+                Customer Company
+              </label>
+              <input
+                id="jobsite-customer-company"
+                type="text"
+                value={composer.customerCompanyName}
+                onChange={(event) => updateComposer("customerCompanyName", event.target.value)}
+                placeholder="Customer or GC being audited"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              />
+            </div>
+            <div>
+              <label
                 htmlFor="jobsite-customer-report-email"
                 className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
               >
@@ -542,6 +701,14 @@ export default function JobsitesPage() {
                 placeholder="customer@example.com"
                 className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
               />
+              <button
+                type="button"
+                onClick={() => void handleSaveAuditCustomer()}
+                disabled={savingCustomer || !composer.customerCompanyName.trim()}
+                className="mt-2 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-3 py-2 text-xs font-bold text-emerald-200 transition hover:bg-emerald-900/40 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-900 disabled:text-slate-500"
+              >
+                {savingCustomer ? "Saving customer..." : selectedAuditCustomer ? "Save as New Customer" : "Save Customer"}
+              </button>
             </div>
             <div>
               <label
@@ -687,6 +854,9 @@ export default function JobsitesPage() {
               filteredJobsites.map((jobsite) => {
                 const selected = selectedJobsite?.id === jobsite.id;
                 const siteInviteCount = companyInvites.length;
+                const linkedCustomer = auditCustomers.find((customer) => customer.id === jobsite.auditCustomerId);
+                const customerName = linkedCustomer?.name || jobsite.customerCompanyName || "Not set";
+                const customerEmail = linkedCustomer?.report_email || jobsite.customerReportEmail || "Not set";
 
                 return (
                   <div
@@ -719,9 +889,10 @@ export default function JobsitesPage() {
                         <div className="grid gap-2 text-sm text-slate-400 sm:grid-cols-2">
                           <div>Location: {jobsite.location || companyLocation}</div>
                           <div>Project #: {jobsite.projectNumber || "Not assigned"}</div>
+                          <div>Customer Company: {customerName}</div>
                           <div>Project Manager: {jobsite.projectManager || "Not set"}</div>
                           <div>Safety Lead: {jobsite.safetyLead || "Not set"}</div>
-                          <div>Customer Audit Email: {jobsite.customerReportEmail || "Not set"}</div>
+                          <div>Customer Audit Email: {customerEmail}</div>
                           <div>Pending Docs: {jobsite.pendingDocuments}</div>
                           <div>Total Docs: {jobsite.totalDocuments}</div>
                         </div>
@@ -937,6 +1108,14 @@ export default function JobsitesPage() {
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
                     <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Customer Company
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-100">
+                      {selectedCustomerName}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                       Project Manager
                     </div>
                     <div className="mt-2 text-sm font-semibold text-slate-100">
@@ -956,7 +1135,7 @@ export default function JobsitesPage() {
                       Customer Audit Email
                     </div>
                     <div className="mt-2 text-sm font-semibold text-slate-100">
-                      {selectedJobsite.customerReportEmail || "Not set"}
+                      {selectedCustomerEmail}
                     </div>
                   </div>
                   <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">

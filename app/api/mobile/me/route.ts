@@ -11,6 +11,12 @@ import {
 export const runtime = "nodejs";
 
 type CountResult = { count: number | null; error: { message?: string | null } | null };
+type MobileJobsiteRow = {
+  id: string;
+  name: string;
+  status?: string | null;
+  customer_company_name?: string | null;
+};
 
 function isMissingEntitlementTable(message?: string | null) {
   return (message ?? "").toLowerCase().includes("company_mobile_feature_entitlements");
@@ -72,6 +78,26 @@ async function countRows(
   return result.count ?? 0;
 }
 
+function buildMobileCompanies(params: {
+  companyId: string;
+  companyName: string;
+  jobsites: MobileJobsiteRow[];
+}) {
+  const groups = new Map<string, { id: string; name: string; jobsites: MobileJobsiteRow[] }>();
+  const fallbackName = params.companyName || "Company";
+  for (const jobsite of params.jobsites) {
+    const name = (jobsite.customer_company_name ?? "").trim() || fallbackName;
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || params.companyId;
+    const existing = groups.get(id) ?? { id, name, jobsites: [] };
+    existing.jobsites.push(jobsite);
+    groups.set(id, existing);
+  }
+  if (groups.size < 1) {
+    groups.set(params.companyId, { id: params.companyId, name: fallbackName, jobsites: [] });
+  }
+  return [...groups.values()];
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: [
@@ -110,8 +136,20 @@ export async function GET(request: Request) {
       featureMap,
       features: visibleMobileFeatures(featureMap),
       jobsites: [
-        { id: "demo-jobsite-1", name: "Summit Ridge Tower" },
-        { id: "demo-jobsite-2", name: "West Yard Expansion" },
+        { id: "demo-jobsite-1", name: "Summit Ridge Tower", customer_company_name: "Summit Ridge Development" },
+        { id: "demo-jobsite-2", name: "West Yard Expansion", customer_company_name: "West Yard Logistics" },
+      ],
+      mobileCompanies: [
+        {
+          id: "summit-ridge-development",
+          name: "Summit Ridge Development",
+          jobsites: [{ id: "demo-jobsite-1", name: "Summit Ridge Tower", customer_company_name: "Summit Ridge Development" }],
+        },
+        {
+          id: "west-yard-logistics",
+          name: "West Yard Logistics",
+          jobsites: [{ id: "demo-jobsite-2", name: "West Yard Expansion", customer_company_name: "West Yard Logistics" }],
+        },
       ],
       dashboard: {
         openIssues: 4,
@@ -146,6 +184,7 @@ export async function GET(request: Request) {
       featureMap,
       features: visibleMobileFeatures(featureMap),
       jobsites: [],
+      mobileCompanies: [],
       dashboard: {
         openIssues: 0,
         activeJsas: 0,
@@ -177,7 +216,7 @@ export async function GET(request: Request) {
 
   let jobsitesQuery = auth.supabase
     .from("company_jobsites")
-    .select("id, name, status")
+    .select("id, name, status, customer_company_name")
     .eq("company_id", companyScope.companyId)
     .order("name", { ascending: true });
   if (jobsiteScope.restricted) {
@@ -194,6 +233,7 @@ export async function GET(request: Request) {
         featureMap,
         features: visibleMobileFeatures(featureMap),
         jobsites: [],
+        mobileCompanies: [],
         dashboard: {
           openIssues: 0,
           activeJsas: 0,
@@ -234,6 +274,7 @@ export async function GET(request: Request) {
     countRows(jsasQuery as unknown as Promise<CountResult>),
     countRows(auditsQuery as unknown as Promise<CountResult>),
   ]);
+  const jobsites = !jobsitesResult.error ? ((jobsitesResult.data ?? []) as MobileJobsiteRow[]) : [];
 
   return NextResponse.json({
     user: {
@@ -246,12 +287,17 @@ export async function GET(request: Request) {
     },
     featureMap,
     features: visibleMobileFeatures(featureMap),
-    jobsites: !jobsitesResult.error ? jobsitesResult.data ?? [] : [],
+    jobsites,
+    mobileCompanies: buildMobileCompanies({
+      companyId: companyScope.companyId,
+      companyName: companyScope.companyName,
+      jobsites,
+    }),
     dashboard: {
       openIssues,
       activeJsas,
       recentAudits,
-      assignedJobsites: !jobsitesResult.error ? (jobsitesResult.data ?? []).length : 0,
+      assignedJobsites: jobsites.length,
     },
   });
 }

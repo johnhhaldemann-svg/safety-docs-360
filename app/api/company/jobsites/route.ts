@@ -13,6 +13,8 @@ type JobsitePayload = {
   status?: string;
   projectManager?: string;
   safetyLead?: string;
+  auditCustomerId?: string | null;
+  customerCompanyName?: string;
   customerReportEmail?: string;
   startDate?: string;
   endDate?: string;
@@ -42,7 +44,7 @@ function normalizeEmail(value?: string | null) {
 }
 
 const JOBSITE_SELECT =
-  "id, company_id, name, project_number, location, status, project_manager, safety_lead, customer_report_email, start_date, end_date, notes, created_at, updated_at, archived_at";
+  "id, company_id, name, project_number, location, status, project_manager, safety_lead, audit_customer_id, customer_company_name, customer_report_email, start_date, end_date, notes, created_at, updated_at, archived_at";
 
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
@@ -108,6 +110,8 @@ export async function GET(request: Request) {
           ...row,
           project_manager: null,
           safety_lead: null,
+          audit_customer_id: null,
+          customer_company_name: null,
           customer_report_email: null,
           archived_at: row.status === "archived" ? row.updated_at : null,
         })),
@@ -193,6 +197,8 @@ export async function POST(request: Request) {
   const location = body?.location?.trim() ?? "";
   const projectManager = body?.projectManager?.trim() ?? "";
   const safetyLead = body?.safetyLead?.trim() ?? "";
+  const auditCustomerId = body?.auditCustomerId?.trim() ?? "";
+  const customerCompanyName = body?.customerCompanyName?.trim() ?? "";
   const customerReportEmail = normalizeEmail(body?.customerReportEmail);
   const startDate = body?.startDate?.trim() ?? "";
   const endDate = body?.endDate?.trim() ?? "";
@@ -204,6 +210,24 @@ export async function POST(request: Request) {
   }
   if (customerReportEmail === "invalid") {
     return NextResponse.json({ error: "Enter a valid customer report email." }, { status: 400 });
+  }
+  if (auditCustomerId) {
+    const customerCheck = await auth.supabase
+      .from("company_audit_customers")
+      .select("id")
+      .eq("company_id", companyScope.companyId)
+      .eq("id", auditCustomerId)
+      .maybeSingle();
+
+    if (customerCheck.error) {
+      return NextResponse.json(
+        { error: customerCheck.error.message || "Failed to validate the audit customer." },
+        { status: 500 }
+      );
+    }
+    if (!customerCheck.data) {
+      return NextResponse.json({ error: "Select a valid audit customer for this jobsite." }, { status: 400 });
+    }
   }
 
   const escapedName = name.replace(/[%_]/g, "\\$&");
@@ -247,6 +271,8 @@ export async function POST(request: Request) {
       status,
       project_manager: projectManager || null,
       safety_lead: safetyLead || null,
+      audit_customer_id: auditCustomerId || null,
+      customer_company_name: customerCompanyName || null,
       customer_report_email: customerReportEmail,
       start_date: startDate || null,
       end_date: endDate || null,

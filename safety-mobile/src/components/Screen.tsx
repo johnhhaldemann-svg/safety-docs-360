@@ -36,13 +36,13 @@ export function Screen({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.canvas },
   scroll: { flex: 1 },
-  content: { padding: 18, gap: 16 },
+  content: { padding: 16, gap: 14 },
   contentWithFooter: { paddingBottom: 112 },
   footer: {
     borderTopWidth: 1,
     borderTopColor: theme.borderStrong,
     backgroundColor: "rgba(255,255,255,0.96)",
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 18
   },
@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
     borderColor: theme.borderStrong,
     backgroundColor: theme.surface,
     borderRadius: 8,
-    padding: 18,
+    padding: 16,
     shadowColor: theme.shadow,
     shadowOpacity: 1,
     shadowRadius: 14,
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textTransform: "uppercase"
   },
-  kicker: { color: theme.primary, fontSize: 11, fontWeight: "900", letterSpacing: 1.6, textTransform: "uppercase" },
-  title: { color: theme.textStrong, fontSize: 26, fontWeight: "900" },
-  subtitle: { color: theme.text, fontSize: 14, lineHeight: 20, fontWeight: "600" }
+  kicker: { color: theme.primary, fontSize: 10, fontWeight: "900", letterSpacing: 1.5, textTransform: "uppercase", flexShrink: 1 },
+  title: { color: theme.textStrong, fontSize: 24, fontWeight: "900", flexShrink: 1 },
+  subtitle: { color: theme.text, fontSize: 14, lineHeight: 20, fontWeight: "600", flexShrink: 1 }
 });
