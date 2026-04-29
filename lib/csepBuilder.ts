@@ -213,14 +213,14 @@ const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
   { key: "trade_interaction_and_coordination", kind: "main", order: 16, title: "7. Trade Interaction and Coordination", shortTitle: "Trade Interaction and Coordination", numberLabel: "7", purpose: "Overlap planning, shared-area coordination, access handoffs, and conflict response.", aiEligible: true, legacyBlockKeys: ["common_overlapping_trades"] },
   { key: "site_access_security_laydown_traffic_control", kind: "main", order: 17, title: "8. Site Access, Security, Laydown, and Traffic Control", shortTitle: "Site Access, Security, Laydown, and Traffic Control", numberLabel: "8", purpose: "Worker access, visitors, deliveries, truck routing, staging, traffic, and restricted areas.", aiEligible: true, legacyBlockKeys: ["security_and_access"] },
   { key: "hazard_communication_and_environmental_protection", kind: "main", order: 18, title: "9. Hazard Communication and Environmental Protection", shortTitle: "Hazard Communication and Environmental Protection", numberLabel: "9", purpose: "SDS, labels, chemical inventory, spill tie-ins, waste, stormwater, dust, and nuisance controls.", aiEligible: true, legacyBlockKeys: ["hazard_communication"] },
-  { key: "emergency_response_and_rescue", kind: "main", order: 19, title: "10. Emergency Response and Rescue", shortTitle: "Emergency Response and Rescue", numberLabel: "10", purpose: "Emergency notifications, 911 response, rescue, EMS access, fire response, and sheltering.", aiEligible: true, legacyBlockKeys: ["emergency_procedures", "weather_requirements_and_severe_weather_response"] },
-  { key: "iipp_incident_reporting_corrective_action", kind: "main", order: 20, title: "11. IIPP / Incident Reporting / Corrective Action", shortTitle: "IIPP / Incident Reporting / Corrective Action", numberLabel: "11", purpose: "Incident and near-miss reporting, investigations, corrective actions, trends, and restart expectations.", aiEligible: true, legacyBlockKeys: ["incident_reporting_and_investigation", "enforcement_and_corrective_action"] },
+  { key: "emergency_response_and_rescue", kind: "main", order: 19, title: "10. Emergency Response and Rescue", shortTitle: "Emergency Response and Rescue", numberLabel: "10", purpose: "Emergency notifications, 911 response, rescue, EMS access, fire response, and sheltering.", aiEligible: true, appendixRefs: ["appendix_d_field_references_maps_and_contact_inserts"], legacyBlockKeys: ["emergency_procedures", "weather_requirements_and_severe_weather_response"] },
+  { key: "iipp_incident_reporting_corrective_action", kind: "main", order: 20, title: "11. IIPP / Incident Reporting / Corrective Action", shortTitle: "IIPP / Incident Reporting / Corrective Action", numberLabel: "11", purpose: "Incident and near-miss reporting, investigations, corrective actions, trends, and restart expectations.", aiEligible: true, appendixRefs: ["appendix_b_incident_and_investigation_package"], legacyBlockKeys: ["incident_reporting_and_investigation", "enforcement_and_corrective_action"] },
   { key: "worker_conduct_fit_for_duty_disciplinary_program", kind: "main", order: 21, title: "12. Worker Conduct, Fit-for-Duty, and Disciplinary Program", shortTitle: "Worker Conduct, Fit-for-Duty, and Disciplinary Program", numberLabel: "12", purpose: "Unsafe-act response, stop-work enforcement, impairment, fatigue, wellness, and discipline.", aiEligible: true, legacyBlockKeys: ["drug_and_alcohol_testing", "health_and_wellness"] },
   { key: "training_competency_and_certifications", kind: "main", order: 22, title: "13. Training, Competency, and Certifications", shortTitle: "Training, Competency, and Certifications", numberLabel: "13", purpose: "Training records, certifications, qualified roles, and active-scope training requirements.", aiEligible: true, legacyBlockKeys: ["training_and_instruction"] },
   { key: "required_permits_and_hold_points", kind: "main", order: 23, title: "14. Required Permits and Hold Points", shortTitle: "Required Permits and Hold Points", numberLabel: "14", purpose: "Permit triggers, hold points, verification, and closeout requirements.", aiEligible: true, appendixRefs: ["appendix_a_forms_and_permit_library"], legacyBlockKeys: ["additional_permits"] },
   { key: "ppe_and_work_attire", kind: "main", order: 24, title: "15. PPE and Work Attire", shortTitle: "PPE and Work Attire", numberLabel: "15", purpose: "Work attire, minimum PPE, task-specific PPE, provider responsibilities, selection, training, inspection, and replacement.", aiEligible: true, legacyBlockKeys: ["required_ppe"] },
-  { key: "scope_specific_policy_evidence_summary", kind: "main", order: 25, title: "16. Scope-Specific Policy Evidence Summary", shortTitle: "Scope-Specific Policy Evidence Summary", numberLabel: "16", purpose: "Reviewer-facing matrix showing where scope policy requirements are addressed in this CSEP.", aiEligible: false, legacyBlockKeys: ["selected_hazards", "activity_hazard_matrix", "required_ppe", "incident_reporting_and_investigation", "training_and_instruction"] },
-  { key: "high_risk_programs", kind: "main", order: 26, title: "17. High-Risk Programs", shortTitle: "High-Risk Programs", numberLabel: "17", purpose: "Triggered written procedures for major hazards, task controls, verification, stop-work triggers, and records.", aiEligible: true, legacyBlockKeys: ["selected_hazards", "activity_hazard_matrix"] },
+  { key: "scope_specific_policy_evidence_summary", kind: "main", order: 25, title: "16. Scope-Specific Policy Evidence Summary", shortTitle: "Scope-Specific Policy Evidence Summary", numberLabel: "16", purpose: "Reviewer-facing matrix showing where scope policy requirements are addressed in this CSEP.", aiEligible: false, appendixRefs: ["appendix_e_task_hazard_control_matrix"], legacyBlockKeys: ["selected_hazards", "activity_hazard_matrix", "required_ppe", "incident_reporting_and_investigation", "training_and_instruction"] },
+  { key: "high_risk_programs", kind: "main", order: 26, title: "17. High-Risk Programs", shortTitle: "High-Risk Programs", numberLabel: "17", purpose: "Triggered written procedures for major hazards, task controls, verification, stop-work triggers, and records.", aiEligible: true, appendixRefs: ["appendix_e_task_hazard_control_matrix"], legacyBlockKeys: ["selected_hazards", "activity_hazard_matrix"] },
   { key: "excavation_trenching_na_or_program_trigger", kind: "main", order: 27, title: "18. Excavation / Trenching N/A or Program Trigger", shortTitle: "Excavation / Trenching N/A or Program Trigger", numberLabel: "18", purpose: "Excavation and trenching status for this CSEP, including change-trigger requirements when the scope changes.", aiEligible: false, legacyBlockKeys: ["selected_hazards", "additional_permits"] },
   { key: "inspections_audits_and_records", kind: "main", order: 28, title: "19. Inspections, Audits, and Records", shortTitle: "Inspections, Audits, and Records", numberLabel: "19", purpose: "JHA / pre-task review, inspections, audits, permits, corrective action tracking, and records.", aiEligible: true, appendixRefs: ["appendix_c_checklists_and_inspection_sheets"], legacyBlockKeys: ["recordkeeping", "training_and_instruction"] },
   { key: "project_closeout", kind: "main", order: 29, title: "20. Project Closeout", shortTitle: "Project Closeout", numberLabel: "20", purpose: "Corrective action closeout, permit closeout, turnover, lessons learned, and final documentation review.", aiEligible: true, legacyBlockKeys: ["continuous_improvement", "recordkeeping"] },
@@ -2608,11 +2608,10 @@ function hasStructuredContent(section: GeneratedSafetyPlanSection | null | undef
   );
 }
 
-export function buildStructuredCsepSectionMap(
+function resolveSelectedCsepFormatSectionKeysForDraft(
   draft: GeneratedSafetyPlanDraft,
   options?: {
     selectedFormatSectionKeys?: readonly CsepFormatSectionKey[];
-    finalIssueMode?: boolean;
   }
 ) {
   const builderSnapshot = asRecord(draft.builderSnapshot) ?? {};
@@ -2622,13 +2621,13 @@ export function buildStructuredCsepSectionMap(
     .filter((key): key is CsepFormatSectionKey =>
       typeof key === "string" && LEGACY_FORMAT_SECTION_KEY_SET.has(key as CsepFormatSectionKey)
     );
-  const resolvedSelectedFormatSectionKeys =
-    options?.selectedFormatSectionKeys ??
+
+  return options?.selectedFormatSectionKeys ??
     (hasSnapshotFormatSelection
       ? resolveSelectedCsepFormatSectionKeys({
-      selectedFormatSections: builderSnapshot.selected_format_sections,
-      includedSections: builderSnapshot.included_sections,
-      includedContent: builderSnapshot.includedContent,
+          selectedFormatSections: builderSnapshot.selected_format_sections,
+          includedSections: builderSnapshot.included_sections,
+          includedContent: builderSnapshot.includedContent,
         })
       : legacyDraftSectionKeys.length > 0
         ? legacyDraftSectionKeys
@@ -2637,6 +2636,97 @@ export function buildStructuredCsepSectionMap(
             includedSections: builderSnapshot.included_sections,
             includedContent: builderSnapshot.includedContent,
           }));
+}
+
+function hasExplicitCsepPlanSelection(
+  draft: GeneratedSafetyPlanDraft,
+  options?: {
+    selectedFormatSectionKeys?: readonly CsepFormatSectionKey[];
+    finalIssueMode?: boolean;
+  }
+) {
+  const builderSnapshot = asRecord(draft.builderSnapshot) ?? {};
+
+  return Boolean(
+    options?.finalIssueMode ||
+      options?.selectedFormatSectionKeys ||
+      Array.isArray(builderSnapshot.selected_format_sections) ||
+      Array.isArray(builderSnapshot.included_sections) ||
+      builderSnapshot.includedContent
+  );
+}
+
+function buildSelectedAppendixKeySet(selectedFormatSectionKeys: readonly CsepFormatSectionKey[]) {
+  const appendixKeys = new Set<CsepAppendixKey>();
+
+  selectedFormatSectionKeys.forEach((sectionKey) => {
+    const definition = getCsepFormatDefinition(sectionKey);
+    (definition?.appendixRefs ?? []).forEach((appendixKey) => appendixKeys.add(appendixKey));
+  });
+
+  return appendixKeys;
+}
+
+function getSectionAppendixKey(section: GeneratedSafetyPlanSection) {
+  const knownAppendixKeys = new Set<string>([
+    ...APPENDIX_DEFINITIONS.map((definition) => definition.key),
+    ...LEGACY_APPENDIX_DEFINITIONS.map((definition) => definition.key),
+  ]);
+  const explicitKey = section.appendixKey?.trim();
+  const sectionKey = section.key?.trim();
+
+  if (explicitKey && knownAppendixKeys.has(explicitKey)) return explicitKey as CsepAppendixKey;
+  if (sectionKey && knownAppendixKeys.has(sectionKey)) return sectionKey as CsepAppendixKey;
+  return null;
+}
+
+function filterAppendixSectionsToSelectedPlan(
+  sections: readonly GeneratedSafetyPlanSection[],
+  selectedFormatSectionKeys: readonly CsepFormatSectionKey[]
+) {
+  const selectedAppendixKeys = buildSelectedAppendixKeySet(selectedFormatSectionKeys);
+
+  return sections.filter((section) => {
+    const appendixKey = getSectionAppendixKey(section);
+    return Boolean(appendixKey && selectedAppendixKeys.has(appendixKey));
+  });
+}
+
+function filterStructuredCsepSectionsToSelectedPlan(
+  sections: readonly GeneratedSafetyPlanSection[],
+  selectedFormatSectionKeys: readonly CsepFormatSectionKey[]
+) {
+  const selectedFormatSectionSet = new Set<CsepFormatSectionKey>(selectedFormatSectionKeys);
+
+  return sections.filter((section) => {
+    if (section.kind === "front_matter") return true;
+    if (section.kind === "appendix") {
+      return filterAppendixSectionsToSelectedPlan([section], selectedFormatSectionKeys).length > 0;
+    }
+
+    const directKey = section.layoutKey ?? section.key;
+    if (typeof directKey === "string" && selectedFormatSectionSet.has(directKey as CsepFormatSectionKey)) {
+      return true;
+    }
+
+    const inferredKey = resolveGroupedFormatSectionKey(
+      section,
+      inferFormatSectionKey(section),
+      selectedFormatSectionSet
+    );
+    return selectedFormatSectionSet.has(inferredKey);
+  });
+}
+
+export function buildStructuredCsepSectionMap(
+  draft: GeneratedSafetyPlanDraft,
+  options?: {
+    selectedFormatSectionKeys?: readonly CsepFormatSectionKey[];
+    finalIssueMode?: boolean;
+  }
+) {
+  const builderSnapshot = asRecord(draft.builderSnapshot) ?? {};
+  const resolvedSelectedFormatSectionKeys = resolveSelectedCsepFormatSectionKeysForDraft(draft, options);
   const selectedFormatSectionSet = new Set<CsepFormatSectionKey>(resolvedSelectedFormatSectionKeys);
   const selectedFormatSectionKeys = ALL_FORMAT_SECTION_KEYS.filter((key) =>
     selectedFormatSectionSet.has(key as CsepFormatSectionKey)
@@ -2807,7 +2897,10 @@ export function buildStructuredCsepSectionMap(
 
     return nextSection;
   });
-  const appendixSections = buildAppendixLibrarySections(draft);
+  const appendixSections = filterAppendixSectionsToSelectedPlan(
+    buildAppendixLibrarySections(draft),
+    selectedFormatSectionKeys
+  );
   const usesLegacyFormat = selectedFormatSectionKeys.some((key) => LEGACY_FORMAT_SECTION_KEY_SET.has(key));
   const legacyDocumentControlSection: GeneratedSafetyPlanSection[] =
     usesLegacyFormat && !selectedFormatSectionSet.has("document_control_and_revision_history")
@@ -2861,17 +2954,21 @@ export function buildStructuredCsepDraft(
     draft.sectionMap.some((section) => section.kind === "main")
   ) {
     const builderSnapshot = asRecord(draft.builderSnapshot) ?? {};
+    const selectedFormatSectionKeys = resolveSelectedCsepFormatSectionKeysForDraft(draft, options);
     const structuredSectionMap = applyAiAssemblyDecisionsToStructuredSections(
       draft.sectionMap,
       draft.aiAssemblyDecisions,
       { finalIssueMode: options?.finalIssueMode }
     );
+    const planScopedSectionMap = hasExplicitCsepPlanSelection(draft, options)
+      ? filterStructuredCsepSectionsToSelectedPlan(structuredSectionMap, selectedFormatSectionKeys)
+      : structuredSectionMap;
     const finalSectionMap = options?.finalIssueMode
-      ? structuredSectionMap
+      ? planScopedSectionMap
           .map((section) => cleanSectionForFinalIssue(section))
           .filter((section): section is GeneratedSafetyPlanSection => Boolean(section))
           .filter((section) => hasStructuredContent(section))
-      : structuredSectionMap;
+      : planScopedSectionMap;
     return {
       ...draft,
       sectionMap: finalSectionMap,
@@ -2879,13 +2976,7 @@ export function buildStructuredCsepDraft(
       coverageAudit:
         draft.coverageAudit ??
         buildCsepCoverageAudit({
-          selectedFormatSectionKeys:
-            options?.selectedFormatSectionKeys ??
-            resolveSelectedCsepFormatSectionKeys({
-              selectedFormatSections: builderSnapshot.selected_format_sections,
-              includedSections: builderSnapshot.included_sections,
-              includedContent: builderSnapshot.includedContent,
-            }),
+          selectedFormatSectionKeys,
           selectedHazards: draft.ruleSummary.hazardCategories,
           selectedPermits: draft.ruleSummary.permitTriggers,
           requiredPpe: draft.ruleSummary.ppeRequirements,

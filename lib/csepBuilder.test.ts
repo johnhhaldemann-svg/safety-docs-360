@@ -1066,6 +1066,237 @@ Use this draft weather overlay:
     expect(JSON.stringify(structured.sectionMap)).not.toContain("Keep this section concise");
   });
 
+  it("removes unselected main sections and appendices from generated final issues", () => {
+    const structured = buildStructuredCsepDraft(
+      {
+        documentType: "csep",
+        projectDeliveryType: "ground_up",
+        title: "Focused CSEP",
+        documentControl: null,
+        aiAssemblyDecisions: null,
+        projectOverview: {
+          projectName: "Focused Project",
+          contractorCompany: "ABC Steel",
+        },
+        operations: [],
+        ruleSummary: {
+          permitTriggers: ["Hot Work Permit"],
+          ppeRequirements: [],
+          requiredControls: [],
+          hazardCategories: ["Steel erection"],
+          siteRestrictions: [],
+          prohibitedEquipment: [],
+          trainingRequirements: [],
+          weatherRestrictions: [],
+        },
+        conflictSummary: {
+          total: 0,
+          intraDocument: 0,
+          external: 0,
+          highestSeverity: "none",
+          items: [],
+        },
+        riskSummary: {
+          score: 0,
+          band: "low",
+          priorities: [],
+        },
+        trainingProgram: {
+          rows: [],
+          summaryTrainingTitles: [],
+        },
+        narrativeSections: {},
+        sectionMap: [
+          {
+            key: "purpose",
+            kind: "main",
+            order: 10,
+            title: "1. Purpose",
+            layoutKey: "purpose",
+            body: "Purpose body.",
+          },
+          {
+            key: "high_risk_programs",
+            kind: "main",
+            order: 26,
+            title: "17. High-Risk Programs",
+            layoutKey: "high_risk_programs",
+            body: "High-risk body that was not selected.",
+          },
+        ],
+        builderSnapshot: {
+          selected_format_sections: ["purpose"],
+        },
+        provenance: {},
+      } as any,
+      { finalIssueMode: true }
+    );
+
+    const keys = structured.sectionMap.map((section) => section.key);
+    expect(keys).toContain("purpose");
+    expect(keys).not.toContain("high_risk_programs");
+    expect(keys.some((key) => key.startsWith("appendix_"))).toBe(false);
+  });
+
+  it("filters already structured final issues back to the selected builder plan", () => {
+    const structured = buildStructuredCsepDraft(
+      {
+        documentType: "csep",
+        projectDeliveryType: "ground_up",
+        title: "Structured Focused CSEP",
+        documentControl: null,
+        aiAssemblyDecisions: null,
+        projectOverview: {
+          projectName: "Focused Project",
+        },
+        operations: [],
+        ruleSummary: {
+          permitTriggers: [],
+          ppeRequirements: [],
+          requiredControls: [],
+          hazardCategories: [],
+          siteRestrictions: [],
+          prohibitedEquipment: [],
+          trainingRequirements: [],
+          weatherRestrictions: [],
+        },
+        conflictSummary: {
+          total: 0,
+          intraDocument: 0,
+          external: 0,
+          highestSeverity: "none",
+          items: [],
+        },
+        riskSummary: {
+          score: 0,
+          band: "low",
+          priorities: [],
+        },
+        trainingProgram: {
+          rows: [],
+          summaryTrainingTitles: [],
+        },
+        narrativeSections: {},
+        sectionMap: [
+          {
+            key: "table_of_contents",
+            kind: "front_matter",
+            order: 2,
+            title: "Table of Contents",
+            layoutKey: "table_of_contents",
+            body: "Contents.",
+          },
+          {
+            key: "purpose",
+            kind: "main",
+            order: 10,
+            title: "1. Purpose",
+            numberLabel: "1",
+            layoutKey: "purpose",
+            body: "Selected purpose.",
+          },
+          {
+            key: "high_risk_programs",
+            kind: "main",
+            order: 26,
+            title: "17. High-Risk Programs",
+            numberLabel: "17",
+            layoutKey: "high_risk_programs",
+            body: "Unselected high-risk program.",
+          },
+          {
+            key: "appendix_e_task_hazard_control_matrix",
+            kind: "appendix",
+            order: 44,
+            title: "Appendix E. Task-Hazard-Control Matrix",
+            numberLabel: "Appendix E",
+            appendixKey: "appendix_e_task_hazard_control_matrix",
+            layoutKey: "appendix_library",
+            body: "Unselected matrix.",
+          },
+        ],
+        coverageAudit: null,
+        builderSnapshot: {
+          selected_format_sections: ["purpose"],
+        },
+        provenance: {},
+      } as any,
+      { finalIssueMode: true }
+    );
+
+    const keys = structured.sectionMap.map((section) => section.key);
+    expect(keys).toContain("table_of_contents");
+    expect(keys).toContain("purpose");
+    expect(keys).not.toContain("high_risk_programs");
+    expect(keys).not.toContain("appendix_e_task_hazard_control_matrix");
+  });
+
+  it("keeps only appendices implied by selected plan sections", () => {
+    const structured = buildStructuredCsepDraft(
+      {
+        documentType: "csep",
+        projectDeliveryType: "ground_up",
+        title: "Permit CSEP",
+        documentControl: null,
+        aiAssemblyDecisions: null,
+        projectOverview: {
+          projectName: "Permit Project",
+        },
+        operations: [],
+        ruleSummary: {
+          permitTriggers: ["Hot Work Permit"],
+          ppeRequirements: [],
+          requiredControls: [],
+          hazardCategories: [],
+          siteRestrictions: [],
+          prohibitedEquipment: [],
+          trainingRequirements: [],
+          weatherRestrictions: [],
+        },
+        conflictSummary: {
+          total: 0,
+          intraDocument: 0,
+          external: 0,
+          highestSeverity: "none",
+          items: [],
+        },
+        riskSummary: {
+          score: 0,
+          band: "low",
+          priorities: [],
+        },
+        trainingProgram: {
+          rows: [],
+          summaryTrainingTitles: [],
+        },
+        narrativeSections: {},
+        sectionMap: [
+          {
+            key: "required_permits_and_hold_points",
+            kind: "main",
+            order: 23,
+            title: "14. Required Permits and Hold Points",
+            layoutKey: "required_permits_and_hold_points",
+            body: "Permit body.",
+          },
+        ],
+        builderSnapshot: {
+          selected_format_sections: ["required_permits_and_hold_points"],
+        },
+        provenance: {},
+      } as any,
+      { finalIssueMode: true }
+    );
+
+    const keys = structured.sectionMap.map((section) => section.key);
+    expect(keys).toContain("required_permits_and_hold_points");
+    expect(keys).toContain("appendix_a_forms_and_permit_library");
+    expect(keys).not.toContain("appendix_b_incident_and_investigation_package");
+    expect(keys).not.toContain("appendix_c_checklists_and_inspection_sheets");
+    expect(keys).not.toContain("appendix_d_field_references_maps_and_contact_inserts");
+    expect(keys).not.toContain("appendix_e_task_hazard_control_matrix");
+  });
+
   it("renders incident overview as numbered subsections with example and notification paragraphs", () => {
     const structured = buildStructuredCsepDraft({
       documentType: "csep",

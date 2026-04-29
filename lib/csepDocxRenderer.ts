@@ -191,17 +191,18 @@ const COLORS = {
   white: "FFFFFF",
   gray: "7A7A7A",
   border: "1F4E78",
+  calloutBorder: "BFBFBF",
 } as const;
 
 const INDENTS = {
-  numberedLeft: 180,
-  numberedHanging: 180,
-  childLeft: 540,
-  childHanging: 240,
-  childBodyLeft: 780,
-  grandchildLeft: 900,
-  grandchildHanging: 240,
-  grandchildBodyLeft: 1140,
+  numberedLeft: 0,
+  numberedHanging: 0,
+  childLeft: 0,
+  childHanging: 0,
+  childBodyLeft: 0,
+  grandchildLeft: 0,
+  grandchildHanging: 0,
+  grandchildBodyLeft: 0,
 } as const;
 
 const CSEP_VERSION_C_REFERENCE_MAP = [
@@ -984,10 +985,6 @@ function collectVisibleModelText(model: CsepRenderModel): VisibleModelTextEntry[
     ...model.coverMetadataRows.map((row) => ({
       label: `Cover metadata: ${row.label}`,
       value: row.value,
-    })),
-    ...model.approvalLines.map((value, index) => ({
-      label: `Approval line ${index + 1}`,
-      value,
     })),
     ...model.revisionHistory.flatMap((row, index) => [
       { label: `Revision history ${index + 1}: revision`, value: row.revision },
@@ -2913,11 +2910,13 @@ function synthesizeSignOffSubsections(): CsepTemplateSubsection[] {
         "Issue this plan only after the responsible project and contractor representatives have completed the required sign-off.",
       ],
       table: {
-        columns: ["Reviewer / Approver", "Role", "Signature", "Date"],
+        columns: ["Reviewer / Approver", "Printed Name", "Signature", "Date"],
         rows: [
-          ["Project Manager / Competent Person", "Contractor field authority", "", ""],
-          ["Corporate Safety Director", "Company safety approval", "", ""],
-          ["Owner / GC / CM Representative", "Project acceptance / coordination", "", ""],
+          ["Project Manager / Superintendent", "", "", ""],
+          ["Competent Person", "", "", ""],
+          ["Corporate Safety Director", "", "", ""],
+          ["GC / CM Representative", "", "", ""],
+          ["Owner / Client Representative, if required", "", "", ""],
         ],
       },
     },
@@ -4495,6 +4494,47 @@ function createTitlePageTable(rows: Array<{ label: string; value: string }>) {
   });
 }
 
+function createSignOffTable() {
+  const columnWidths = [2340, 2340, 2340, 2340];
+  const rows = [
+    "Project Manager / Superintendent",
+    "Competent Person",
+    "Corporate Safety Director",
+    "GC / CM Representative",
+    "Owner / Client Representative, if required",
+  ];
+
+  return new Table({
+    width: { size: 9360, type: WidthType.DXA },
+    columnWidths,
+    layout: TableLayoutType.FIXED,
+    borders: {
+      top: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+      bottom: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+      left: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+      right: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+      insideHorizontal: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+      insideVertical: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+    },
+    rows: [
+      new TableRow({
+        tableHeader: true,
+        children: ["Reviewer / Approver", "Printed Name", "Signature", "Date"].map((column, index) =>
+          tableCell(column, { header: true, widthDxa: columnWidths[index] })
+        ),
+      }),
+      ...rows.map((label) =>
+        new TableRow({
+          cantSplit: true,
+          children: columnWidths.map((width, index) =>
+            tableCell(index === 0 ? label : "", { titlePage: true, widthDxa: width })
+          ),
+        })
+      ),
+    ],
+  });
+}
+
 function distributeColumnWidths(weights: number[], total = 9360) {
   const weightTotal = weights.reduce((sum, weight) => sum + weight, 0) || weights.length || 1;
   const widths = weights.map((weight) => Math.max(720, Math.floor((total * weight) / weightTotal)));
@@ -4581,7 +4621,6 @@ function createCalloutParagraph(text: string, tone: CalloutTone, labelOverride?:
   const existingLabel = polished.match(/^([^:]{3,80}):\s+(.+)$/);
   const label = existingLabel?.[1] ?? labelOverride ?? (tone === "critical" ? "Stop-Work Authority" : "Important");
   const body = existingLabel?.[2] ?? polished;
-  const borderColor = tone === "critical" ? "C00000" : "BF9000";
   const fill = tone === "critical" ? COLORS.criticalFill : COLORS.importantFill;
 
   return new Paragraph({
@@ -4594,10 +4633,10 @@ function createCalloutParagraph(text: string, tone: CalloutTone, labelOverride?:
       fill,
     },
     border: {
-      top: { style: BorderStyle.SINGLE, size: 8, space: 4, color: borderColor },
-      bottom: { style: BorderStyle.SINGLE, size: 8, space: 4, color: borderColor },
-      left: { style: BorderStyle.SINGLE, size: 8, space: 4, color: borderColor },
-      right: { style: BorderStyle.SINGLE, size: 8, space: 4, color: borderColor },
+      top: { style: BorderStyle.SINGLE, size: 6, space: 4, color: COLORS.calloutBorder },
+      bottom: { style: BorderStyle.SINGLE, size: 6, space: 4, color: COLORS.calloutBorder },
+      left: { style: BorderStyle.SINGLE, size: 6, space: 4, color: COLORS.calloutBorder },
+      right: { style: BorderStyle.SINGLE, size: 6, space: 4, color: COLORS.calloutBorder },
     },
     children: [
       new TextRun({
@@ -4789,6 +4828,7 @@ function numberedParagraph(
   options?: {
     indent?: { left?: number; hanging?: number };
     spacing?: { before?: number; after?: number; line?: number };
+    emphasize?: boolean;
   }
 ) {
   return makeParagraph(
@@ -4796,12 +4836,14 @@ function numberedParagraph(
       new TextRun({
         text: `${numberLabel} `,
         font: "Aptos",
+        bold: options?.emphasize,
         size: 20,
         color: COLORS.ink,
       }),
       new TextRun({
         text: polishCsepDocxNarrativeText(text),
         font: "Aptos",
+        bold: options?.emphasize,
         size: 20,
         color: COLORS.ink,
       }),
@@ -4939,23 +4981,9 @@ function labeledFieldParagraph(
   );
 }
 
-function approvalSignatureAsParagraphs(lines: string[]) {
-  const out: Paragraph[] = [];
-
-  lines.forEach((line) => {
-    const label = line.includes(":") ? line.split(":")[0].trim() : line.trim();
-    out.push(
-      labeledFieldParagraph(label || "Approver", "________________________________  Date: ________________")
-    );
-  });
-
-  return out;
-}
-
 function createCover(model: CsepRenderModel) {
   const tradeLine = finalValueOrNA(model.tradeLabel ?? "");
   const subTradeLine = finalValueOrNA(model.subTradeLabel ?? "");
-  const taskSummary = model.titlePageTaskSummary?.trim() ? model.titlePageTaskSummary.trim() : "N/A";
   const projectLocation = model.titlePageProjectLocation?.trim()
     ? model.titlePageProjectLocation.trim()
     : finalValueOrNA("");
@@ -4965,19 +4993,15 @@ function createCover(model: CsepRenderModel) {
       : "N/A";
 
   const titlePageRows: Array<{ label: string; value: string }> = [
-    { label: "Document title", value: "Contractor Safety & Environmental Plan (CSEP)" },
-    { label: "Project name", value: finalValueOrNA(model.projectName) },
-    { label: "Project address", value: projectLocation },
+    { label: "Project", value: finalValueOrNA(model.projectName) },
+    { label: "Project Address", value: projectLocation },
     { label: "Contractor", value: finalValueOrNA(model.contractorName) },
-    { label: "Trade", value: tradeLine },
-    { label: "Sub-trade", value: subTradeLine },
-    { label: "Active tasks", value: taskSummary },
-    { label: "Owner / client", value: model.coverMetadataRows.find((row) => row.label === "Owner / Client")?.value ?? "N/A" },
+    { label: "Trade / Sub-trade", value: [tradeLine, subTradeLine].filter((value) => value && value !== "N/A").join(" - ") || "N/A" },
     { label: "GC / CM", value: model.coverMetadataRows.find((row) => row.label === "GC / CM")?.value ?? "N/A" },
-    { label: "Governing state", value: governingState },
-    { label: "Issue date", value: finalValueOrNA(model.issueLabel) },
+    { label: "Owner / Client", value: model.coverMetadataRows.find((row) => row.label === "Owner / Client")?.value ?? "N/A" },
+    { label: "Governing State", value: governingState },
+    { label: "Issue Date", value: finalValueOrNA(model.issueLabel) },
     { label: "Revision", value: model.coverMetadataRows.find((row) => row.label === "Revision")?.value ?? "1.0" },
-    { label: "Prepared by", value: finalValueOrNA(model.preparedBy) },
   ];
 
   const coverChildren: Paragraph[] = [
@@ -5108,26 +5132,6 @@ function createCover(model: CsepRenderModel) {
       }
     )
   );
-
-  // Approval block. Reframed so it reads as an intentional pre-issue approval
-  // placeholder rather than an unresolved draft artifact.
-  coverChildren.push(
-    bodyParagraph("Approval Block — Required Before Field Issue", {
-      style: STYLE_IDS.subheading,
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 200, after: 90 },
-    })
-  );
-  coverChildren.push(
-    bodyParagraph(
-      "The signatures below confirm that this CSEP has been reviewed against the project scope, site rules, and applicable regulatory requirements prior to field use.",
-      {
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 160 },
-      }
-    )
-  );
-  coverChildren.push(...approvalSignatureAsParagraphs(model.approvalLines));
 
   return coverChildren;
 }
@@ -5734,6 +5738,7 @@ function renderSectionWithFlatProgramOutline(outlineOrdinal: number, section: Cs
         numberedParagraph(`${basePrefix}.${nextTopLevelNumber}`, headingText, {
           indent: { left: INDENTS.childLeft, hanging: INDENTS.childHanging },
           spacing: { before: nextTopLevelNumber === 1 ? 120 : 260, after: 160, line: 276 },
+          emphasize: true,
         })
       );
     } else {
@@ -5866,6 +5871,19 @@ function renderHighRiskProgramsSection(outlineOrdinal: number, section: CsepTemp
   return children;
 }
 
+function renderSignOffPageSection(outlineOrdinal: number, section: CsepTemplateSection) {
+  return [
+    sectionHeading(displayOutlineSectionHeading(outlineOrdinal, section), sectionHeadingTone(section)),
+    bodyParagraph(
+      "The signatures below confirm that this CSEP has been reviewed against the project scope, site rules, applicable regulatory requirements, and project-specific high-risk work before field use.",
+      {
+        spacing: { after: 300, line: 276 },
+      }
+    ),
+    createSignOffTable() as unknown as Paragraph,
+  ];
+}
+
 function appendParagraphs(children: Paragraph[], paragraphs?: string[], context?: CalloutContext) {
   (paragraphs ?? []).forEach((paragraph) => {
     const callout = maybeCreateCalloutParagraph(paragraph, context);
@@ -5965,6 +5983,9 @@ function createAppendicesDivider(ordinal: number) {
 }
 
 function renderSection(outlineOrdinal: number, section: CsepTemplateSection) {
+  if (section.key === "sign_off_page") {
+    return renderSignOffPageSection(outlineOrdinal, section);
+  }
   if (section.key === "high_risk_programs") {
     return renderHighRiskProgramsSection(outlineOrdinal, section);
   }
@@ -6006,6 +6027,7 @@ function renderSection(outlineOrdinal: number, section: CsepTemplateSection) {
         numberedParagraph(subsectionLabel, stripExistingNumberPrefix(subsection.title), {
           indent: { left: INDENTS.childLeft, hanging: INDENTS.childHanging },
           spacing: { before: 240, after: 160, line: 276 },
+          emphasize: true,
         })
       );
     }

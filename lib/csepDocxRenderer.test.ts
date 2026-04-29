@@ -808,6 +808,8 @@ describe("csepDocxRenderer", () => {
     expect(stylesXml).toContain('w:styleId="CsepSectionHeading"');
     expect(documentXml).toContain("Version C - Reviewer / CODEX Evidence Format");
     expect(documentXml).toContain("Uses policy mapping, evidence language, and selective matrices for qualification review.");
+    expect(documentXml).toContain("Printed Name");
+    expect(documentXml).not.toContain("Approval Block");
     expect(documentXml).toContain('w:fill="D9EAF7"');
     expect(documentXml).toContain('w:fill="FFF2CC"');
     expect(documentXml).toContain('w:fill="FCE4D6"');
@@ -826,8 +828,9 @@ describe("csepDocxRenderer", () => {
       expect(calloutSlice).toContain('w:line="276"');
       expect(calloutSlice).toContain('<w:sz w:val="20"/>');
     }
-    expect(documentXml).toContain('w:color="C00000"');
-    expect(documentXml).toContain('w:color="BF9000"');
+    expect(documentXml).not.toContain('w:color="C00000"');
+    expect(documentXml).not.toContain('w:color="BF9000"');
+    expect(documentXml).toContain('w:color="BFBFBF"');
     expect(documentXml).toContain("Training record / daily huddle");
     expect(documentXml).toContain("Field verification is documented");
     expect(footerXml).toContain("Version C - Reviewer / CODEX Evidence CSEP");
