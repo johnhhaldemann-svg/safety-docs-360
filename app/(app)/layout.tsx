@@ -565,6 +565,7 @@ export default function AppLayout({
           "/companies",
           "/jobsites",
           "/field-id-exchange",
+          "/field-audits",
           "/safety-submit",
           "/safety-intelligence",
           "/analytics",
@@ -577,6 +578,16 @@ export default function AppLayout({
 
       if (canManageCompanyJsa(userRole, permissionMap)) {
         companyAllowedRoutes.push("/jsa");
+      }
+
+      if (
+        userRole === "project_manager" ||
+        userRole === "field_supervisor" ||
+        userRole === "foreman" ||
+        userRole === "field_user" ||
+        userRole === "company_user"
+      ) {
+        companyAllowedRoutes.push("/field-id-exchange", "/field-audits");
       }
 
       if (canManageCompanyPermits(userRole, permissionMap)) {
@@ -592,7 +603,7 @@ export default function AppLayout({
       }
 
       if (canSubmitCompanyDocuments(permissionMap)) {
-        companyAllowedRoutes.push("/submit", "/safety-submit");
+        companyAllowedRoutes.push("/submit", "/safety-submit", "/field-audits");
       }
 
       if (canBuildCompanyDocuments(permissionMap)) {

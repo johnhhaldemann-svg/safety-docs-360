@@ -291,7 +291,7 @@ function formatUserPickLabel(u: CompanyUserPickRow) {
   return n || em || `User ${u.id.slice(0, 8)}…`;
 }
 
-export function JsaWorkspace() {
+export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
   const [records, setRecords] = useState<JsaRecordRow[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [newTitle, setNewTitle] = useState("");
@@ -325,7 +325,7 @@ export function JsaWorkspace() {
       const response = await fetch("/api/company/jsas", { headers });
       const data = (await response.json().catch(() => null)) as { jsas?: JsaRecordRow[]; error?: string } | null;
       if (!response.ok) throw new Error(data?.error || "Failed to load JSAs.");
-      const list = data?.jsas ?? [];
+      const list = (data?.jsas ?? []).filter((record) => !jobsiteId || record.jobsite_id === jobsiteId);
       setRecords(list);
       setSelectedId((prev) => {
         if (prev && list.some((r) => r.id === prev)) return prev;
@@ -336,7 +336,7 @@ export function JsaWorkspace() {
       setRecords([]);
     }
     setLoading(false);
-  }, []);
+  }, [jobsiteId]);
 
   const loadActivitiesForDap = useCallback(async (jsaId: string) => {
     if (!jsaId) {
@@ -368,6 +368,13 @@ export function JsaWorkspace() {
   useEffect(() => {
     void loadRecords();
   }, [loadRecords]);
+
+  useEffect(() => {
+    if (jobsiteId) {
+      setNewJobsiteId(jobsiteId);
+      setSelectedJobsiteId((current) => current || jobsiteId);
+    }
+  }, [jobsiteId]);
 
   const loadDirectoryLists = useCallback(async () => {
     setDirectoryHint("");
@@ -427,11 +434,11 @@ export function JsaWorkspace() {
       setAuditDate(r.work_date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
     } else {
       setJobSiteName("");
-      setSelectedJobsiteId("");
+      setSelectedJobsiteId(jobsiteId ?? "");
       setOverlay(defaultOverlay());
       setSteps([]);
     }
-  }, [selectedId, records]);
+  }, [selectedId, records, jobsiteId]);
 
   useEffect(() => {
     if (selectedId) void loadActivitiesForDap(selectedId);
@@ -1124,10 +1131,10 @@ export function JsaWorkspace() {
               </p>
               <div className="mt-4">
                 <Link
-                  href="/dashboard"
+                  href={jobsiteId ? `/jobsites/${encodeURIComponent(jobsiteId)}` : "/dashboard"}
                   className="inline-flex rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/15"
                 >
-                  Back to dashboard
+                  {jobsiteId ? "Back to jobsite" : "Back to dashboard"}
                 </Link>
               </div>
             </div>
@@ -1210,6 +1217,7 @@ export function JsaWorkspace() {
                     if (site) setNewTitle((t) => (t.trim() ? t : site.name));
                   }}
                   className={`${inputClass} mt-1`}
+                  disabled={Boolean(jobsiteId)}
                 >
                   <option value="">Select jobsite…</option>
                   {jobsites.map((j) => (
@@ -1305,6 +1313,7 @@ export function JsaWorkspace() {
                         if (site) setJobSiteName((t) => (t.trim() ? t : site.name));
                       }}
                       className={`${inputClass} mt-1`}
+                      disabled={Boolean(jobsiteId)}
                     >
                       <option value="">None — custom title only</option>
                       {jobsites.map((j) => (

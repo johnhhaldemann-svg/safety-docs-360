@@ -174,54 +174,67 @@ function buildRiskMemory(params: {
 
 export function normalizeFieldAuditPayload(params: {
   selectedTrade: string;
+  selectedTrades?: string[];
   statusMap: FieldAuditStatusMap;
   notesMap?: FieldAuditNotesMap;
   photoCounts?: FieldAuditPhotoCounts;
 }): NormalizedFieldAuditPayload {
   const selectedTrade = cleanString(params.selectedTrade) ?? "general_contractor";
-  const tradeCode = resolveSharedTradeCode(selectedTrade) ?? selectedTrade;
+  const selectedTrades = Array.isArray(params.selectedTrades) && params.selectedTrades.length > 0
+    ? params.selectedTrades.map((trade) => cleanString(trade)).filter((trade): trade is string => Boolean(trade))
+    : [selectedTrade];
+  const tradeCode = selectedTrades
+    .map((trade) => resolveSharedTradeCode(trade) ?? trade)
+    .filter(Boolean)
+    .join(",") || selectedTrade;
   const observations: NormalizedFieldAuditObservation[] = [];
   const notesMap = params.notesMap ?? {};
   const photoCounts = params.photoCounts ?? {};
+  const seenFieldKeys = new Set<string>();
 
-  for (const section of getFieldAuditSectionsForTrade(selectedTrade)) {
-    for (const item of section.items) {
-      const key = fieldItemKey(section.id, item.id);
-      const status = cleanStatus(params.statusMap[key]);
-      if (!status) continue;
-      const notes = cleanString(notesMap[key]);
-      const severity = severityFor({
-        status,
-        critical: item.critical,
-        categoryLabel: section.title,
-        itemLabel: item.label,
-      });
-      observations.push({
-        sourceKey: key,
-        templateSource: "field",
-        tradeCode,
-        subTradeCode: null,
-        taskCode: null,
-        categoryCode: categoryCode(section.id),
-        categoryLabel: section.title,
-        itemLabel: item.label,
-        status,
-        severity,
-        notes,
-        photoCount: positiveInteger(photoCounts[key]),
-        evidenceMetadata: {
-          oshaRef: item.oshaRef ?? null,
-          critical: Boolean(item.critical),
-        },
-        riskMemory: buildRiskMemory({
+  for (const trade of selectedTrades) {
+    for (const section of getFieldAuditSectionsForTrade(trade)) {
+      for (const item of section.items) {
+        const key = fieldItemKey(section.id, item.id);
+        if (seenFieldKeys.has(key)) continue;
+        seenFieldKeys.add(key);
+        const status = cleanStatus(params.statusMap[key]);
+        if (!status) continue;
+        const notes = cleanString(notesMap[key]);
+        const severity = severityFor({
+          status,
+          critical: item.critical,
+          categoryLabel: section.title,
+          itemLabel: item.label,
+        });
+        observations.push({
+          sourceKey: key,
+          templateSource: "field",
           tradeCode,
+          subTradeCode: null,
+          taskCode: null,
+          categoryCode: categoryCode(section.id),
           categoryLabel: section.title,
           itemLabel: item.label,
           status,
           severity,
           notes,
-        }),
-      });
+          photoCount: positiveInteger(photoCounts[key]),
+          evidenceMetadata: {
+            oshaRef: item.oshaRef ?? null,
+            critical: Boolean(item.critical),
+            selectedTrades,
+          },
+          riskMemory: buildRiskMemory({
+            tradeCode,
+            categoryLabel: section.title,
+            itemLabel: item.label,
+            status,
+            severity,
+            notes,
+          }),
+        });
+      }
     }
   }
 

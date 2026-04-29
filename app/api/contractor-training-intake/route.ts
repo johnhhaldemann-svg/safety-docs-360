@@ -182,15 +182,56 @@ export async function POST(request: Request) {
     }
   }
 
+  const existingCertRecords = await scoped.admin
+    .from("contractor_employee_training_records")
+    .select("id, title")
+    .eq("contractor_employee_id", scoped.tokenRow.contractor_employee_id)
+    .is("requirement_id", null);
+  if (existingCertRecords.error) {
+    return NextResponse.json({ error: existingCertRecords.error.message || "Failed to load certification records." }, { status: 500 });
+  }
+  const submittedCertTitles = new Set(certifications.map((cert) => normalizeTrainingTitle(cert)).filter(Boolean));
+  const staleCertRecordIds = ((existingCertRecords.data ?? []) as Array<{ id: string; title: string | null }>)
+    .filter((record) => !submittedCertTitles.has(normalizeTrainingTitle(record.title ?? "")))
+    .map((record) => record.id);
+  if (staleCertRecordIds.length > 0) {
+    const removeStale = await scoped.admin
+      .from("contractor_employee_training_records")
+      .delete()
+      .in("id", staleCertRecordIds);
+    if (removeStale.error) {
+      return NextResponse.json({ error: removeStale.error.message || "Failed to remove old certification records." }, { status: 500 });
+    }
+  }
+
   for (const cert of certifications) {
     const title = normalizeTrainingTitle(cert);
     if (!title) continue;
-    await scoped.admin.from("contractor_employee_training_records").insert({
+    const existing = await scoped.admin
+      .from("contractor_employee_training_records")
+      .select("id")
+      .eq("contractor_employee_id", scoped.tokenRow.contractor_employee_id)
+      .is("requirement_id", null)
+      .eq("title", title)
+      .maybeSingle();
+    if (existing.error) {
+      return NextResponse.json({ error: existing.error.message || "Failed to check certification record." }, { status: 500 });
+    }
+    const certPayload = {
       contractor_employee_id: scoped.tokenRow.contractor_employee_id,
       title,
       completed_on: null,
       expires_on: certificationExpirations[title] ?? null,
-    });
+    };
+    const saveCert = existing.data?.id
+      ? await scoped.admin
+          .from("contractor_employee_training_records")
+          .update(certPayload)
+          .eq("id", existing.data.id)
+      : await scoped.admin.from("contractor_employee_training_records").insert(certPayload);
+    if (saveCert.error) {
+      return NextResponse.json({ error: saveCert.error.message || "Failed to save certification record." }, { status: 500 });
+    }
   }
 
   await scoped.admin

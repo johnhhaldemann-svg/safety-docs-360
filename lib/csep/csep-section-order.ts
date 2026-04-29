@@ -31,10 +31,10 @@ export const CANONICAL_CSEP_SECTION_ORDER: CanonicalCsepSectionDefinition[] = [
     descriptor: "Why the CSEP exists and how it governs project work.",
   },
   {
-    key: "project_and_contractor_information",
+    key: "project_coordination_and_authority",
     kind: "main",
-    title: "Project and Contractor Information",
-    descriptor: "Project identity, owner, GC / CM, jurisdiction, and contractor contacts.",
+    title: "Project Coordination and Authority",
+    descriptor: "Project authority, owner / GC / CM coordination, permit approval paths, and controlling-contractor verification.",
   },
   {
     key: "scope_of_work_section",
@@ -109,28 +109,28 @@ export const CANONICAL_CSEP_SECTION_ORDER: CanonicalCsepSectionDefinition[] = [
     descriptor: "Permit triggers, hold points, verification, and closeout requirements.",
   },
   {
-    key: "high_risk_steel_erection_programs",
-    kind: "main",
-    title: "High-Risk Steel Erection Programs",
-    descriptor: "Steel erection program modules for leading edge, decking, hoisting, stability, bracing, and weather.",
-  },
-  {
-    key: "hazard_control_modules",
-    kind: "main",
-    title: "Hazard Control Modules",
-    descriptor: "Hazard-specific controls only, separated from task execution and project-wide policy.",
-  },
-  {
-    key: "task_execution_modules",
-    kind: "main",
-    title: "Task Execution Modules",
-    descriptor: "Task-specific work execution steps for structural steel and decking activities.",
-  },
-  {
     key: "ppe_and_work_attire",
     kind: "main",
     title: "PPE and Work Attire",
-    descriptor: "Base PPE, task-specific PPE, welding PPE, fall protection equipment, and attire requirements.",
+    descriptor: "Work attire, minimum PPE, task-specific PPE, provider responsibilities, selection, training, inspection, and replacement.",
+  },
+  {
+    key: "scope_specific_policy_evidence_summary",
+    kind: "main",
+    title: "Scope-Specific Policy Evidence Summary",
+    descriptor: "Reviewer-facing matrix showing where scope policy requirements are addressed in this CSEP.",
+  },
+  {
+    key: "high_risk_programs",
+    kind: "main",
+    title: "High-Risk Programs",
+    descriptor: "Triggered written procedures for major hazards, task controls, verification, stop-work triggers, and records.",
+  },
+  {
+    key: "excavation_trenching_na_or_program_trigger",
+    kind: "main",
+    title: "Excavation / Trenching N/A or Program Trigger",
+    descriptor: "Excavation and trenching status for this CSEP, including change-trigger requirements when the scope changes.",
   },
   {
     key: "inspections_audits_and_records",
@@ -143,6 +143,12 @@ export const CANONICAL_CSEP_SECTION_ORDER: CanonicalCsepSectionDefinition[] = [
     kind: "main",
     title: "Project Closeout",
     descriptor: "Corrective action closeout, permit closeout, turnover, lessons learned, and final documentation review.",
+  },
+  {
+    key: "reviewer_codex_readiness_summary",
+    kind: "main",
+    title: "Reviewer / CODEX Readiness Summary",
+    descriptor: "Reviewer-facing matrix identifying where CSEP content addresses CODEX-style requirements and which items remain separate uploads.",
   },
   {
     key: "document_control_and_revision_history",

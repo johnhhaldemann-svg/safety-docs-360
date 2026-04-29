@@ -53,6 +53,13 @@ yarn-error.log*
 !.env.example
 .env.vercel.sync.tmp
 
+# Expo mobile app
+/safety-mobile/node_modules/
+/safety-mobile/.expo/
+/safety-mobile/dist/
+/safety-mobile/.env
+/safety-mobile/.expo-start*.log
+
 # vercel
 .vercel
 

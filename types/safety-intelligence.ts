@@ -506,6 +506,74 @@ export type GeneratedSafetyPlanSection = {
   } | null;
 };
 
+export type CsepProjectInfo = {
+  projectName: string;
+  address: string;
+  owner: string;
+  gcCm: string[];
+  contractor: string;
+  trade: string;
+  subtrade: string;
+  tasks: string[];
+  governingState: string;
+  issueDate: string;
+  revision: string;
+  preparedBy: string;
+};
+
+export type CsepTask = {
+  taskNumber: string;
+  taskName: string;
+  taskDescription: string;
+  taskHazards: string[];
+  taskControls: string[];
+  taskPermits: string[];
+  taskTraining: string[];
+  taskReferences: string[];
+};
+
+export type CsepTradeInterface = {
+  tradeName: string;
+  howItInterferes: string;
+  controlMethod: string;
+  references: string[];
+};
+
+export type CsepHighRiskProgram = {
+  name: string;
+  risk: string[];
+  appliesWhen: string[];
+  minimumTraining: string[];
+  permitsHoldPoints: string[];
+  stepByStepControls: string[];
+  verification: string[];
+  stopWorkTriggers: string[];
+  requiredRecords: string[];
+  references: string[];
+};
+
+export type CsepReference = {
+  code: string;
+  title: string;
+  appliesToKeywords: string[];
+};
+
+export type CsepCodexRequirement = {
+  requirementName: string;
+  addressedBy: string;
+  documentLocation: string;
+  separateUploadNeeded: boolean;
+};
+
+export type CsepStructuredData = {
+  projectInfo: CsepProjectInfo;
+  tasks: CsepTask[];
+  tradeInterfaces: CsepTradeInterface[];
+  highRiskPrograms: CsepHighRiskProgram[];
+  references: CsepReference[];
+  codexRequirements: CsepCodexRequirement[];
+};
+
 export type SafetyPlanTrainingProgramRow = {
   operationId: string;
   tradeCode?: string | null;
@@ -681,6 +749,7 @@ export type GeneratedSafetyPlanDraft = {
   narrativeSections: Record<string, string>;
   sectionMap: GeneratedSafetyPlanSection[];
   coverageAudit?: CsepCoverageAudit | null;
+  structuredCsepData?: CsepStructuredData | null;
   builderSnapshot?: JsonObject | null;
   provenance: JsonObject;
 };

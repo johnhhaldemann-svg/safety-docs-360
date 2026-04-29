@@ -36,7 +36,7 @@ export const CSEP_FRONT_MATTER_KEYS = [
 
 export const CSEP_FORMAT_SECTION_KEYS = [
   "purpose",
-  "project_and_contractor_information",
+  "project_coordination_and_authority",
   "scope_of_work_section",
   "regulatory_basis_and_references",
   "top_10_critical_risks",
@@ -49,12 +49,13 @@ export const CSEP_FORMAT_SECTION_KEYS = [
   "worker_conduct_fit_for_duty_disciplinary_program",
   "training_competency_and_certifications",
   "required_permits_and_hold_points",
-  "high_risk_steel_erection_programs",
-  "hazard_control_modules",
-  "task_execution_modules",
   "ppe_and_work_attire",
+  "scope_specific_policy_evidence_summary",
+  "high_risk_programs",
+  "excavation_trenching_na_or_program_trigger",
   "inspections_audits_and_records",
   "project_closeout",
+  "reviewer_codex_readiness_summary",
   "document_control_and_revision_history",
 ] as const;
 
@@ -68,6 +69,10 @@ export const CSEP_APPENDIX_KEYS = [
 
 export type CsepFrontMatterKey = (typeof CSEP_FRONT_MATTER_KEYS)[number];
 export type LegacyCsepFormatSectionKey =
+  | "project_and_contractor_information"
+  | "high_risk_steel_erection_programs"
+  | "hazard_control_modules"
+  | "task_execution_modules"
   | "company_overview_and_safety_philosophy"
   | "project_scope_and_trade_specific_activities"
   | "security_and_access_control"

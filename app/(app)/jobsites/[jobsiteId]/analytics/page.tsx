@@ -11,7 +11,7 @@ export default async function JobsiteAnalyticsPage({
       jobsiteId={jobsiteId}
       surface="analytics"
       title="Jobsite Analytics"
-      description="Scoped analytics payload for this jobsite."
+      description="Operational safety metrics, risk signals, and trend indicators for this jobsite."
     />
   );
 }

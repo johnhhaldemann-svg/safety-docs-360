@@ -1,7 +1,6 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import {
-  buildCsepOutlinePlan,
   buildCsepRenderModelFromGeneratedDraft,
   buildCsepTemplateSections,
   buildHazardFlatProgramGroupsForTest,
@@ -173,7 +172,7 @@ function createGeneratedDraft(): GeneratedSafetyPlanDraft {
 }
 
 describe("csepDocxRenderer", () => {
-  it("builds the CSEP in fixed order with hazards as the last narrative front-matter block before appendices", () => {
+  it("builds the Version C CSEP in fixed reviewer-navigation order", () => {
     const model = buildCsepRenderModelFromGeneratedDraft(createGeneratedDraft());
 
     expect(model.frontMatterSections.map((section) => section.key)).toEqual([
@@ -183,7 +182,7 @@ describe("csepDocxRenderer", () => {
     ]);
     expect(model.sections.map((section) => section.key)).toEqual([
       "purpose",
-      "project_and_contractor_information",
+      "project_coordination_and_authority",
       "scope_of_work_section",
       "regulatory_basis_and_references",
       "top_10_critical_risks",
@@ -196,15 +195,17 @@ describe("csepDocxRenderer", () => {
       "worker_conduct_fit_for_duty_disciplinary_program",
       "training_competency_and_certifications",
       "required_permits_and_hold_points",
-      "high_risk_steel_erection_programs",
-      "hazard_control_modules",
-      "task_execution_modules",
       "ppe_and_work_attire",
+      "scope_specific_policy_evidence_summary",
+      "high_risk_programs",
+      "excavation_trenching_na_or_program_trigger",
       "inspections_audits_and_records",
       "project_closeout",
+      "reviewer_codex_readiness_summary",
       "document_control_and_revision_history",
     ]);
-    expect(model.sections.find((s) => s.key === "hazard_control_modules")?.numberLabel).toBeUndefined();
+    expect(model.sections.find((s) => s.key === "purpose")?.numberLabel).toBe("1");
+    expect(model.sections.find((s) => s.key === "document_control_and_revision_history")?.numberLabel).toBe("22");
   });
 
   it("renders Top 10 Risks as offset body lines without 4.1, 4.2-style numbering", async () => {
@@ -266,13 +267,13 @@ describe("csepDocxRenderer", () => {
       taskTitles: ["Deck placement"],
       sourceSections: draft.sectionMap,
     });
-    const haz = sections.find((s) => s.key === "hazard_control_modules");
+    const haz = sections.find((s) => s.key === "high_risk_programs");
     const titles = (haz?.subsections ?? []).map((s) => s.title);
-    expect(titles.some((title) => /: Risk$/i.test(title))).toBe(true);
-    expect(titles.some((title) => /: Required controls$/i.test(title))).toBe(true);
-    expect(titles.some((title) => /: How controls are met and verified$/i.test(title))).toBe(true);
-    expect(titles.some((title) => /: Stop-work \/ hold-point triggers$/i.test(title))).toBe(true);
-    expect(titles.some((title) => /: Applicable references$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /\.1 Risk$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /\.5 Step-by-step control process$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /\.6 How controls are verified$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /\.7 Stop-work \/ hold-point triggers$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /\.9 Applicable references$/i.test(title))).toBe(true);
   });
 
   it("renders program module subsections with labels and explicit numbered lines", async () => {
@@ -319,16 +320,19 @@ describe("csepDocxRenderer", () => {
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml } = await unzipDocx(rendered.body);
 
-    expect(documentXml).toContain("Risk:");
-    expect(documentXml).toContain("Required controls:");
-    expect(documentXml).toContain("How controls are met and verified:");
-    expect(documentXml).toMatch(/Stop-work[^<]*triggers:/);
-    expect(documentXml).toContain("Applicable references:");
-    expect(documentXml).toContain("1. Create drop zones");
-    expect(documentXml).toContain("2. Secure tools");
-    expect(documentXml).toContain("1. Foreman and competent person verify");
-    expect(documentXml).toContain("1. Workers are below uncontrolled overhead work");
-    expect(documentXml).toContain("1. R5 OSHA 1926.759; R23 OSHA 1926.25");
+    expect(documentXml).toContain("17.1.1 Risk");
+    expect(documentXml).toContain("17.1.3 Minimum training / authorization");
+    expect(documentXml).toContain("17.1.5 Step-by-step control process");
+    expect(documentXml).toContain("17.1.6 How controls are verified");
+    expect(documentXml).toMatch(/17\.1\.7 Stop-work[^<]*hold-point triggers/);
+    expect(documentXml).toContain("17.1.9 Applicable references");
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const firstStepBlock = model.sections
+      .find((section) => section.key === "high_risk_programs")
+      ?.subsections.find((subsection) => /17\.1\.5 Step-by-step control process/.test(subsection.title));
+    expect(firstStepBlock?.items?.length).toBeGreaterThanOrEqual(8);
+    expect(firstStepBlock?.items?.length).toBeLessThanOrEqual(12);
+    expect(documentXml).toContain("R2, R3, R12, R16");
     expect(documentXml).not.toContain("<w:numPr>");
   });
 
@@ -352,13 +356,13 @@ describe("csepDocxRenderer", () => {
     });
     const scopeSub = sections
       .find((s) => s.key === "scope_of_work_section")
-      ?.subsections.find((sub) => /scope summary/i.test(sub.title));
+      ?.subsections.find((sub) => /active tasks/i.test(sub.title));
     expect(scopeSub?.plainItemsStyle).toBe("offset_lines");
 
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml } = await unzipDocx(rendered.body);
-    expect(documentXml).toContain("Unload steel");
-    expect(documentXml).not.toContain("6.1.1");
+    expect(documentXml).toContain("Deck placement");
+    expect(documentXml).not.toContain("3.1.1");
   });
 
   it("drops generic Project/Contractor Information blocks from Scope when no admin override is set", () => {
@@ -392,7 +396,7 @@ describe("csepDocxRenderer", () => {
     expect(scopeTitles.some((title) => title.includes("contractor information"))).toBe(false);
   });
 
-  it("keeps hazard section numbering controlled and avoids high labels like 14.85", async () => {
+  it("keeps high-risk section numbering controlled and avoids high labels like 17.85", async () => {
     const draft = createGeneratedDraft();
     for (let index = 0; index < 40; index += 1) {
       draft.sectionMap.push({
@@ -415,9 +419,9 @@ describe("csepDocxRenderer", () => {
 
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml } = await unzipDocx(rendered.body);
-    expect(documentXml).toContain("20. Hazard Control Modules");
-    expect(documentXml).toContain("Extra Hazard Program 40");
-    expect(documentXml).not.toMatch(/20\.(?:8[0-9]|9[0-9]|1[0-9]{2})\s/);
+    expect(documentXml).toContain("17. High-Risk Programs");
+    expect(documentXml).toContain("17.1 Fall Protection and Fall Rescue");
+    expect(documentXml).not.toMatch(/17\.(?:8[0-9]|9[0-9]|1[0-9]{2})\s/);
   });
 
   it("keeps one instance of each required section and supplies placeholders where needed", () => {
@@ -437,7 +441,7 @@ describe("csepDocxRenderer", () => {
       "sign_off_page",
       "table_of_contents",
       "purpose",
-      "project_and_contractor_information",
+      "project_coordination_and_authority",
       "scope_of_work_section",
       "regulatory_basis_and_references",
       "top_10_critical_risks",
@@ -450,16 +454,17 @@ describe("csepDocxRenderer", () => {
       "worker_conduct_fit_for_duty_disciplinary_program",
       "training_competency_and_certifications",
       "required_permits_and_hold_points",
-      "high_risk_steel_erection_programs",
-      "hazard_control_modules",
-      "task_execution_modules",
       "ppe_and_work_attire",
+      "scope_specific_policy_evidence_summary",
+      "high_risk_programs",
+      "excavation_trenching_na_or_program_trigger",
       "inspections_audits_and_records",
       "project_closeout",
+      "reviewer_codex_readiness_summary",
       "document_control_and_revision_history",
     ]);
-    expect(sections.find((section) => section.key === "sign_off_page")?.numberLabel).toBeUndefined();
-    expect(sections.find((section) => section.key === "table_of_contents")?.numberLabel).toBeUndefined();
+    expect(sections.find((section) => section.key === "sign_off_page")?.numberLabel).toBeNull();
+    expect(sections.find((section) => section.key === "table_of_contents")?.numberLabel).toBeNull();
   });
 
   it("groups catalog program subsections so one program maps to one flat outline bucket in hazards", () => {
@@ -500,9 +505,9 @@ describe("csepDocxRenderer", () => {
     expect(groups[1]).toHaveLength(1);
   });
 
-  it("replaces repeated policy text inside hazard modules with short cross-references", () => {
+  it("replaces repeated policy text inside high-risk modules with short cross-references", () => {
     const model = buildCsepRenderModelFromGeneratedDraft(createGeneratedDraft());
-    const hazardSection = model.sections.find((section) => section.key === "hazard_control_modules");
+    const hazardSection = model.sections.find((section) => section.key === "high_risk_programs");
     const flattened = (hazardSection?.subsections ?? []).flatMap((subsection) => [
       ...(subsection.paragraphs ?? []),
       ...(subsection.items ?? []),
@@ -580,46 +585,45 @@ describe("csepDocxRenderer", () => {
     const { documentXml, headerXml, footerXml } = await unzipDocx(rendered.body);
 
     expect(documentXml).toContain("Title Page");
-    expect(documentXml.match(/Table of Contents/g)?.length ?? 0).toBe(1);
+    expect(documentXml.match(/Table of Contents/g)?.length ?? 0).toBe(2);
     // Legacy builder used "0.1 Revision History" as a free-standing section; the
     // export may still mention "Revision History" inside combined appendix titles.
     expect(documentXml).not.toContain("0.1 Revision History");
 
-    const tocBlockStart = documentXml.indexOf("4. Table of Contents");
+    const tocBlockStart = documentXml.indexOf("Table of Contents");
     expect(tocBlockStart).toBeGreaterThan(-1);
-    const tocBlockEnd = documentXml.indexOf("5. Purpose", tocBlockStart);
+    const tocBlockEnd = documentXml.indexOf("1. Purpose", tocBlockStart);
     expect(tocBlockEnd).toBeGreaterThan(tocBlockStart);
     const tocSlice = documentXml.slice(tocBlockStart, tocBlockEnd);
-    expect(tocSlice.indexOf("1. Title Page")).toBeLessThan(tocSlice.indexOf("2. Owner Message"));
+    expect(tocSlice.indexOf("Title Page")).toBeLessThan(tocSlice.indexOf("Owner Safety Message"));
 
-    const outlineModel = buildCsepRenderModelFromGeneratedDraft(createGeneratedDraft());
-    const disclaimerOrdinal = buildCsepOutlinePlan(outlineModel).find((e) => e.kind === "disclaimer")!.ordinal;
     const orderedHeadings = [
-      "2. Owner Message",
-      "3. Sign-Off Page",
-      "4. Table of Contents",
-      "5. Purpose",
-      "6. Project and Contractor Information",
-      "7. Scope of Work",
-      "8. Regulatory Basis and References",
-      "9. Top 10 Critical Risks",
-      "10. Roles and Responsibilities",
-      "11. Trade Interaction and Coordination",
-      "12. Site Access, Security, Laydown, and Traffic Control",
-      "13. Hazard Communication and Environmental Protection",
-      "14. Emergency Response and Rescue",
-      "15. IIPP / Incident Reporting / Corrective Action",
-      "16. Worker Conduct, Fit-for-Duty, and Disciplinary Program",
-      "17. Training, Competency, and Certifications",
-      "18. Required Permits and Hold Points",
-      "19. High-Risk Steel Erection Programs",
-      "20. Hazard Control Modules",
-      "21. Task Execution Modules",
-      "22. PPE and Work Attire",
-      "23. Inspections, Audits, and Records",
-      "24. Project Closeout",
-      "25. Document Control and Revision History",
-      `${disclaimerOrdinal}. Disclaimer`,
+      "Owner Safety Message",
+      "Sign-Off Page",
+      "Table of Contents",
+      "1. Purpose",
+      "2. Project Coordination and Authority",
+      "3. Scope of Work",
+      "4. Regulatory Basis and References",
+      "5. Top 10 Critical Risks",
+      "6. Roles and Responsibilities",
+      "7. Trade Interaction and Coordination",
+      "8. Site Access, Security, Laydown, and Traffic Control",
+      "9. Hazard Communication and Environmental Protection",
+      "10. Emergency Response and Rescue",
+      "11. IIPP / Incident Reporting / Corrective Action",
+      "12. Worker Conduct, Fit-for-Duty, and Disciplinary Program",
+      "13. Training, Competency, and Certifications",
+      "14. Required Permits and Hold Points",
+      "15. PPE and Work Attire",
+      "16. Scope-Specific Policy Evidence Summary",
+      "17. High-Risk Programs",
+      "18. Excavation / Trenching N/A or Program Trigger",
+      "19. Inspections, Audits, and Records",
+      "20. Project Closeout",
+      "21. Reviewer / CODEX Readiness Summary",
+      "22. Document Control and Revision History",
+      "Disclaimer",
     ];
 
     let lastIndex = -1;
@@ -630,8 +634,27 @@ describe("csepDocxRenderer", () => {
     }
 
     expect(headerXml).toBe("");
-    expect(footerXml).toContain("Safety360Docs");
-    expect(footerXml).toContain("ABC Steel");
-    expect(footerXml).toContain("PAGE");
+    expect(footerXml).toContain("Version C - Reviewer / CODEX Evidence CSEP");
+    expect(footerXml).toContain("Page");
+  });
+
+  it("mirrors the reviewer evidence visual style for fonts, tables, and callouts", async () => {
+    const rendered = await renderGeneratedCsepDocx(createGeneratedDraft());
+    const zip = await JSZip.loadAsync(rendered.body);
+    const documentXml = await zip.file("word/document.xml")!.async("string");
+    const stylesXml = await zip.file("word/styles.xml")!.async("string");
+    const footerXml = zip.file("word/footer1.xml")
+      ? await zip.file("word/footer1.xml")!.async("string")
+      : "";
+
+    expect(stylesXml).toContain("Aptos");
+    expect(stylesXml).toContain('w:styleId="CsepSectionHeading"');
+    expect(documentXml).toContain("Version C - Reviewer / CODEX Evidence Format");
+    expect(documentXml).toContain("Uses policy mapping, evidence language, and selective matrices for qualification review.");
+    expect(documentXml).toContain('w:fill="D9EAF7"');
+    expect(documentXml).toContain('w:fill="FCE4D6"');
+    expect(documentXml).toContain('w:fill="FFF2CC"');
+    expect(documentXml).toContain("Stop-Work Authority");
+    expect(footerXml).toContain("Version C - Reviewer / CODEX Evidence CSEP");
   });
 });

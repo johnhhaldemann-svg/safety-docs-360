@@ -296,7 +296,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
       expect.arrayContaining([
         expect.objectContaining({
           title: "Applicable References",
-          bullets: ["R10"],
+          bullets: ["R11"],
         }),
         expect.objectContaining({
           title: "Related Tasks",
@@ -1181,7 +1181,7 @@ describe("buildGeneratedSafetyPlanDraft", () => {
     expect(taskModulesSection?.bullets).toBeUndefined();
     expect(taskModulesSection?.subsections?.length).toBeGreaterThan(0);
     expect(jurisdictionProfile?.body).toContain(
-      "Wisconsin state-specific building, environmental, and permit requirements may apply"
+      "Federal R12"
     );
     expect(jurisdictionProfile?.bullets).toEqual(
       expect.arrayContaining([

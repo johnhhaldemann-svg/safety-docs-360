@@ -1,0 +1,38 @@
+{
+  "name": "safety-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "eas:login": "eas login",
+    "eas:whoami": "eas whoami",
+    "eas:configure": "eas build:configure",
+    "eas:device": "eas device:create",
+    "build:ios:dev": "eas build --platform ios --profile development",
+    "build:ios:prod": "eas build --platform ios --profile production",
+    "build:android:prod": "eas build --platform android --profile production"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.12",
+    "axios": "^1.13.2",
+    "expo": "~54.0.0",
+    "expo-image-picker": "~17.0.8",
+    "expo-location": "~19.0.7",
+    "expo-router": "~6.0.15",
+    "expo-secure-store": "~15.0.8",
+    "react": "19.1.0",
+    "react-hook-form": "^7.68.0",
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2"
+  }
+}

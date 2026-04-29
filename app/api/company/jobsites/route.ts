@@ -13,6 +13,7 @@ type JobsitePayload = {
   status?: string;
   projectManager?: string;
   safetyLead?: string;
+  customerReportEmail?: string;
   startDate?: string;
   endDate?: string;
   notes?: string;
@@ -33,6 +34,15 @@ function isMissingJobsitesTable(message?: string | null) {
 function isDuplicateNameViolation(code?: string | null, message?: string | null) {
   return code === "23505" && (message ?? "").toLowerCase().includes("company_jobsites");
 }
+
+function normalizeEmail(value?: string | null) {
+  const email = (value ?? "").trim().toLowerCase();
+  if (!email) return null;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "invalid";
+}
+
+const JOBSITE_SELECT =
+  "id, company_id, name, project_number, location, status, project_manager, safety_lead, customer_report_email, start_date, end_date, notes, created_at, updated_at, archived_at";
 
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
@@ -77,9 +87,7 @@ export async function GET(request: Request) {
    */
   const tableResult = await auth.supabase
     .from("company_jobsites")
-    .select(
-      "id, company_id, name, project_number, location, status, project_manager, safety_lead, start_date, end_date, notes, created_at, updated_at, archived_at"
-    )
+    .select(JOBSITE_SELECT)
     .eq("company_id", companyScope.companyId)
     .order("updated_at", { ascending: false });
 
@@ -100,6 +108,7 @@ export async function GET(request: Request) {
           ...row,
           project_manager: null,
           safety_lead: null,
+          customer_report_email: null,
           archived_at: row.status === "archived" ? row.updated_at : null,
         })),
         error: null,
@@ -184,6 +193,7 @@ export async function POST(request: Request) {
   const location = body?.location?.trim() ?? "";
   const projectManager = body?.projectManager?.trim() ?? "";
   const safetyLead = body?.safetyLead?.trim() ?? "";
+  const customerReportEmail = normalizeEmail(body?.customerReportEmail);
   const startDate = body?.startDate?.trim() ?? "";
   const endDate = body?.endDate?.trim() ?? "";
   const notes = body?.notes?.trim() ?? "";
@@ -191,6 +201,9 @@ export async function POST(request: Request) {
 
   if (!name) {
     return NextResponse.json({ error: "Jobsite name is required." }, { status: 400 });
+  }
+  if (customerReportEmail === "invalid") {
+    return NextResponse.json({ error: "Enter a valid customer report email." }, { status: 400 });
   }
 
   const escapedName = name.replace(/[%_]/g, "\\$&");
@@ -234,6 +247,7 @@ export async function POST(request: Request) {
       status,
       project_manager: projectManager || null,
       safety_lead: safetyLead || null,
+      customer_report_email: customerReportEmail,
       start_date: startDate || null,
       end_date: endDate || null,
       notes: notes || null,
@@ -241,9 +255,7 @@ export async function POST(request: Request) {
       updated_by: auth.user.id,
       archived_at: status === "archived" ? new Date().toISOString() : null,
     })
-    .select(
-      "id, company_id, name, project_number, location, status, project_manager, safety_lead, start_date, end_date, notes, created_at, updated_at, archived_at"
-    )
+    .select(JOBSITE_SELECT)
     .single();
 
   if (insertResult.error) {

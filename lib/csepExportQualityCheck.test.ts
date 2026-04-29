@@ -126,6 +126,19 @@ describe("assertCsepExportQuality", () => {
     expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/hazcom_isolation|iipp_isolation/i);
   });
 
+  it("allows roles and responsibilities to assign corrective-action ownership", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const roles = model.sections.find((section) => section.key === "roles_and_responsibilities")!;
+    roles.subsections.push({
+      title: "Core Responsibilities",
+      items: [
+        "Own implementation of this CSEP, staffing, sequencing, permit readiness, and coordination with the incident-reporting and corrective-action process.",
+      ],
+    });
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/iipp_isolation/i);
+  });
+
   it("allows repeated Appendix E baseline fire-watch and fall-protection controls", () => {
     const draft = minimalSteelDraft();
     const model = buildCsepRenderModelFromGeneratedDraft(draft);

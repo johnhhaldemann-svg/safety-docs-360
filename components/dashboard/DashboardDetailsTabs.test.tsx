@@ -18,7 +18,7 @@ describe("DashboardDetailsTabs", () => {
       />
     );
 
-    expect(html).toContain("Explore the details");
+    expect(html).toContain("Explore the Details");
     expect(html).toContain("Operations");
     expect(html).toContain("Trends");
     expect(html).toContain("Risks");

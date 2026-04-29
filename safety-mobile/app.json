@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Safety360 Field",
+    "slug": "safety360docs",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "safety360field",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.safety360docs.field",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.safety360docs.field",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-image-picker",
+      "expo-location"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "66993d47-cdaa-44fc-8553-daa634b632a9"
+      }
+    },
+    "owner": "safety360docs"
+  }
+}

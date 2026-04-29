@@ -27,7 +27,9 @@ type SubmitBody = {
   jobsiteId?: string | null;
   auditDate?: string | null;
   auditors?: string | null;
+  hoursBilled?: string | number | null;
   selectedTrade?: string | null;
+  selectedTrades?: string[] | null;
   templateSource?: FieldAuditTemplateSource | null;
   statusMap?: FieldAuditStatusMap;
   notesMap?: FieldAuditNotesMap;
@@ -42,6 +44,13 @@ function validAuditDate(value: unknown) {
 
 function cleanText(value: unknown, max = 1000) {
   return String(value ?? "").trim().slice(0, max);
+}
+
+function normalizeHoursBilled(value: unknown) {
+  if (value === null || typeof value === "undefined" || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(String(value).trim());
+  if (!Number.isFinite(parsed) || parsed < 0) return "invalid";
+  return Math.round(parsed * 100) / 100;
 }
 
 function normalizeTemplateSource(value: unknown): FieldAuditTemplateSource {
@@ -181,7 +190,7 @@ export async function GET(request: Request) {
 
   let query = auth.supabase
     .from("company_jobsite_audits")
-    .select("id, company_id, jobsite_id, audit_date, auditors, selected_trade, template_source, status, score_summary, created_at, updated_at, submitted_by")
+    .select("id, company_id, jobsite_id, audit_date, auditors, selected_trade, template_source, status, score_summary, payload, created_at, updated_at, submitted_by")
     .eq("company_id", companyScope.companyId)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -262,9 +271,19 @@ export async function POST(request: Request) {
   }
 
   const selectedTrade = cleanText(body.selectedTrade, 120) || "general_contractor";
+  const selectedTrades = Array.isArray(body.selectedTrades)
+    ? body.selectedTrades.map((trade) => cleanText(trade, 120)).filter(Boolean)
+    : [];
   const auditors = cleanText(body.auditors, 1000);
+  const hoursBilled = normalizeHoursBilled(body.hoursBilled);
+  if (hoursBilled === "invalid") {
+    return NextResponse.json({ error: "hoursBilled must be a positive number." }, { status: 400 });
+  }
+  const requestedStatus = cleanText((body as Record<string, unknown>).status, 40);
+  const auditStatus = requestedStatus === "pending_review" ? "pending_review" : "submitted";
   const normalized = normalizeFieldAuditPayload({
     selectedTrade,
+    selectedTrades,
     statusMap: body.statusMap && typeof body.statusMap === "object" ? body.statusMap : {},
     notesMap: body.notesMap && typeof body.notesMap === "object" ? body.notesMap : {},
     photoCounts: body.photoCounts && typeof body.photoCounts === "object" ? body.photoCounts : {},
@@ -284,12 +303,13 @@ export async function POST(request: Request) {
       jobsite_id: jobsiteId,
       audit_date: auditDate,
       auditors,
-      selected_trade: selectedTrade,
+      selected_trade: selectedTrades.length > 0 ? selectedTrades.join(",") : selectedTrade,
       template_source: normalizeTemplateSource(body.templateSource),
-      status: "submitted",
+      status: auditStatus,
       score_summary: normalized.scoreSummary,
       payload: {
         ...body,
+        hoursBilled,
         normalizedAt: new Date().toISOString(),
         observationCount: normalized.observations.length,
       },

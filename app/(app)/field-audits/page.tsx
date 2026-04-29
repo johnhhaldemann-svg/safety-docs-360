@@ -36,6 +36,7 @@ type Jobsite = {
   name: string;
   project_number?: string | null;
   location?: string | null;
+  customer_report_email?: string | null;
 };
 
 type AuditListRow = {
@@ -44,6 +45,8 @@ type AuditListRow = {
   audit_date: string | null;
   auditors: string | null;
   selected_trade: string;
+  status?: string | null;
+  payload?: { hoursBilled?: number | string | null } | null;
   score_summary: {
     total?: number;
     pass?: number;
@@ -70,6 +73,7 @@ type Draft = {
   auditDate: string;
   auditors: string;
   selectedTrade: string;
+  hoursBilled: string;
   statusMap: FieldAuditStatusMap;
   notesMap: FieldAuditNotesMap;
   photoCounts: FieldAuditPhotoCounts;
@@ -81,6 +85,7 @@ function emptyDraft(): Draft {
     auditDate: new Date().toISOString().slice(0, 10),
     auditors: "",
     selectedTrade: "general_contractor",
+    hoursBilled: "",
     statusMap: {},
     notesMap: {},
     photoCounts: {},
@@ -122,6 +127,7 @@ export default function CompanyFieldAuditsPage() {
   const [auditDate, setAuditDate] = useState("");
   const [auditors, setAuditors] = useState("");
   const [selectedTrade, setSelectedTrade] = useState("general_contractor");
+  const [hoursBilled, setHoursBilled] = useState("");
   const [statusMap, setStatusMap] = useState<FieldAuditStatusMap>({});
   const [notesMap, setNotesMap] = useState<FieldAuditNotesMap>({});
   const [photoCounts, setPhotoCounts] = useState<FieldAuditPhotoCounts>({});
@@ -131,6 +137,7 @@ export default function CompanyFieldAuditsPage() {
   const [audits, setAudits] = useState<AuditListRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [reviewingAuditId, setReviewingAuditId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "error" | "warning">("neutral");
 
@@ -140,6 +147,7 @@ export default function CompanyFieldAuditsPage() {
     setAuditDate(draft.auditDate);
     setAuditors(draft.auditors);
     setSelectedTrade(draft.selectedTrade);
+    setHoursBilled(draft.hoursBilled);
     setStatusMap(draft.statusMap);
     setNotesMap(draft.notesMap);
     setPhotoCounts(draft.photoCounts);
@@ -151,12 +159,13 @@ export default function CompanyFieldAuditsPage() {
       auditDate,
       auditors,
       selectedTrade,
+      hoursBilled,
       statusMap,
       notesMap,
       photoCounts,
     };
     window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  }, [auditDate, auditors, jobsiteId, notesMap, photoCounts, selectedTrade, statusMap]);
+  }, [auditDate, auditors, hoursBilled, jobsiteId, notesMap, photoCounts, selectedTrade, statusMap]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -218,6 +227,7 @@ export default function CompanyFieldAuditsPage() {
     setAuditDate(draft.auditDate);
     setAuditors("");
     setSelectedTrade(draft.selectedTrade);
+    setHoursBilled("");
     setStatusMap({});
     setNotesMap({});
     setPhotoCounts({});
@@ -243,8 +253,10 @@ export default function CompanyFieldAuditsPage() {
           jobsiteId: jobsiteId || null,
           auditDate: auditDate || null,
           auditors,
+          hoursBilled,
           selectedTrade,
           templateSource: "mixed",
+          status: "pending_review",
           statusMap,
           notesMap,
           photoCounts,
@@ -254,7 +266,7 @@ export default function CompanyFieldAuditsPage() {
       if (!res.ok) throw new Error(data?.error || "Submit failed.");
       setMessageTone((data?.ingestionErrors?.length ?? 0) > 0 ? "warning" : "success");
       setMessage(
-        `Audit saved with ${data?.observationCount ?? 0} observations, ${data?.correctiveActionsCreated ?? 0} corrective actions, and ${data?.aiRecordsCreated ?? 0} AI records.`
+        `Audit sent for admin review with ${data?.observationCount ?? 0} observations, ${data?.correctiveActionsCreated ?? 0} corrective actions, and ${data?.aiRecordsCreated ?? 0} AI records.`
       );
       window.localStorage.removeItem(DRAFT_KEY);
       setStatusMap({});
@@ -266,6 +278,37 @@ export default function CompanyFieldAuditsPage() {
       setMessage(error instanceof Error ? error.message : "Submit failed.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function approveAudit(auditId: string) {
+    setReviewingAuditId(auditId);
+    setMessage("");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not signed in.");
+      const res = await fetch(`/api/company/field-audits/${auditId}/review`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ decision: "approved" }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; message?: string; warning?: string; customerEmailSent?: boolean }
+        | null;
+      if (!res.ok) throw new Error(data?.error || "Audit review failed.");
+      setMessageTone(data?.warning || data?.customerEmailSent === false ? "warning" : "success");
+      setMessage(data?.warning || data?.message || "Audit approved.");
+      await loadData();
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Audit review failed.");
+    } finally {
+      setReviewingAuditId(null);
     }
   }
 
@@ -500,6 +543,18 @@ export default function CompanyFieldAuditsPage() {
                 <p className="text-2xl font-black text-slate-50">{score.photoCount}</p>
               </div>
             </div>
+            <label className="mt-4 block text-sm font-semibold text-slate-100">
+              Hours billed
+              <input
+                type="number"
+                min="0"
+                step="0.25"
+                value={hoursBilled}
+                onChange={(event) => setHoursBilled(event.target.value)}
+                placeholder="0.00"
+                className="mt-1.5 w-full rounded-xl border border-slate-600/80 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-50 placeholder:text-slate-500"
+              />
+            </label>
             <button
               type="button"
               onClick={() => void submitAudit()}
@@ -507,7 +562,7 @@ export default function CompanyFieldAuditsPage() {
               className={`mt-4 w-full ${appButtonPrimaryClassName}`}
             >
               <Save className="h-4 w-4" />
-              {submitting ? "Submitting..." : "Submit audit"}
+              {submitting ? "Submitting..." : "Send audit for review"}
             </button>
           </SectionCard>
 
@@ -534,12 +589,33 @@ export default function CompanyFieldAuditsPage() {
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-300">
                         <span className="rounded-full bg-slate-900 px-2 py-1">
+                          {(audit.status ?? "submitted").replaceAll("_", " ")}
+                        </span>
+                        <span className="rounded-full bg-slate-900 px-2 py-1">
                           {audit.score_summary?.compliancePercent ?? "--"}% compliance
                         </span>
                         <span className="rounded-full bg-slate-900 px-2 py-1">
                           {audit.score_summary?.fail ?? 0} findings
                         </span>
+                        <span className="rounded-full bg-slate-900 px-2 py-1">
+                          {audit.payload?.hoursBilled ?? "--"} hours
+                        </span>
                       </div>
+                      {audit.status === "pending_review" ? (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-xs text-slate-400">
+                            Customer copy: {jobsite?.customer_report_email || "No customer email saved"}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => void approveAudit(audit.id)}
+                            disabled={reviewingAuditId === audit.id}
+                            className="w-full rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                          >
+                            {reviewingAuditId === audit.id ? "Approving..." : "Approve & email customer"}
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}

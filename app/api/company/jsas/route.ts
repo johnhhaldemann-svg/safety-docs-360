@@ -13,6 +13,7 @@ const JSA_STATUSES = new Set(["draft", "submitted", "active", "closed"]);
 
 function normalizeJsaStatus(input: unknown, fallback = "draft") {
   const value = String(input ?? "").trim().toLowerCase();
+  if (value === "pending_review") return "pending_review";
   if (value === "submitted") return "active";
   return JSA_STATUSES.has(value) ? value : fallback;
 }

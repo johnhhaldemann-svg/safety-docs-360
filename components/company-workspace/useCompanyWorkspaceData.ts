@@ -83,6 +83,7 @@ export type CompanyJobsite = {
   rawStatus: "planned" | "active" | "completed" | "archived";
   projectManager?: string | null;
   safetyLead?: string | null;
+  customerReportEmail?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   notes?: string | null;
@@ -117,6 +118,7 @@ type CompanyJobsiteRow = {
   status: string | null;
   project_manager: string | null;
   safety_lead: string | null;
+  customer_report_email?: string | null;
   start_date: string | null;
   end_date: string | null;
   notes: string | null;
@@ -502,6 +504,7 @@ export function useCompanyWorkspaceData() {
       source: "document_fallback" as const,
       projectManager: null,
       safetyLead: null,
+      customerReportEmail: null,
       startDate: null,
       endDate: null,
       notes: null,
@@ -540,6 +543,7 @@ export function useCompanyWorkspaceData() {
         rawStatus,
         projectManager: row.project_manager,
         safetyLead: row.safety_lead,
+        customerReportEmail: row.customer_report_email ?? null,
         startDate: row.start_date,
         endDate: row.end_date,
         notes: row.notes,

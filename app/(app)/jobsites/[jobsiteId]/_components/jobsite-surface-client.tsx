@@ -44,6 +44,8 @@ type JobsiteRow = {
   safety_lead?: string | null;
 };
 
+type SurfaceRow = Record<string, unknown> & { id?: string | null };
+
 function labelize(value: string | null | undefined) {
   const raw = String(value ?? "").trim();
   if (!raw) return "Not set";
@@ -58,6 +60,24 @@ function formatDateTime(value: string | null | undefined) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(parsed);
+}
+
+function rowText(row: SurfaceRow, keys: string[], fallback = "Not set") {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    if (typeof value === "boolean") return value ? "Yes" : "No";
+  }
+  return fallback;
+}
+
+function rowDate(row: SurfaceRow, keys: string[]) {
+  return formatDateTime(rowText(row, keys, ""));
+}
+
+function surfaceRows(payload: Record<string, unknown> | null, key: string) {
+  return (((payload?.[key] as SurfaceRow[] | undefined) ?? []) as SurfaceRow[]).filter(Boolean);
 }
 
 export function JobsiteSurfaceClient({
@@ -142,10 +162,23 @@ export function JobsiteSurfaceClient({
       {!loading && !error && surface === "permits" ? (
         <PermitSurface payload={payload} />
       ) : null}
-      {!loading && !error && surface !== "overview" && surface !== "permits" ? (
-        <pre className="overflow-auto rounded-xl border border-slate-700/80 bg-slate-950/50 p-4 text-xs text-slate-300">
-          {JSON.stringify(payload, null, 2)}
-        </pre>
+      {!loading && !error && surface === "documents" ? (
+        <DocumentsSurface payload={payload} jobsiteId={jobsiteId} />
+      ) : null}
+      {!loading && !error && surface === "reports" ? (
+        <ReportsSurface payload={payload} />
+      ) : null}
+      {!loading && !error && surface === "incidents" ? (
+        <IncidentsSurface payload={payload} />
+      ) : null}
+      {!loading && !error && surface === "team" ? (
+        <TeamSurface payload={payload} />
+      ) : null}
+      {!loading && !error && surface === "analytics" ? (
+        <AnalyticsSurface payload={payload} />
+      ) : null}
+      {!loading && !error && !["overview", "permits", "documents", "reports", "incidents", "team", "analytics"].includes(surface) ? (
+        <InlineMessage tone="warning">This jobsite surface is still being prepared.</InlineMessage>
       ) : null}
     </SectionCard>
   );
@@ -427,6 +460,247 @@ function PermitSurface({ payload }: { payload: Record<string, unknown> | null })
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function DocumentsSurface({ payload, jobsiteId }: { payload: Record<string, unknown> | null; jobsiteId: string }) {
+  const jobsite = (payload?.jobsite as JobsiteRow | undefined) ?? null;
+  const documents = surfaceRows(payload, "documents");
+  const ready = documents.filter((doc) => rowText(doc, ["final_file_path", "file_path", "public_url"], "")).length;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Scoped documents" value={documents.length} />
+        <StatCard label="Ready files" value={ready} />
+        <StatCard label="Pending review" value={documents.filter((doc) => rowText(doc, ["status"], "").toLowerCase().includes("review")).length} />
+        <StatCard label="Jobsite records" value={documents.length} />
+      </div>
+
+      <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 p-4">
+        <div className="text-xs uppercase tracking-[0.25em] text-slate-500">Jobsite</div>
+        <div className="mt-1 text-sm font-semibold text-slate-100">{jobsite?.name ?? "Unknown jobsite"}</div>
+        <div className="mt-1 text-xs text-slate-500">
+          {jobsite?.project_number ? `${jobsite.project_number} · ` : ""}
+          {jobsite?.location ?? "No location listed"}
+        </div>
+      </div>
+
+      {documents.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-700/80 bg-slate-950/40 p-6">
+          <h3 className="text-base font-bold text-slate-100">No documents linked to this jobsite yet.</h3>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+            Documents appear here when their project name matches this jobsite. Upload or generate a document and assign it to this project to keep the site file organized.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link href="/upload" className={appButtonPrimaryClassName}>Upload document</Link>
+            <Link href={`/jobsites/${encodeURIComponent(jobsiteId)}/reports`} className={appButtonSecondaryClassName}>View reports</Link>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {documents.map((doc, index) => {
+            const id = rowText(doc, ["id"], `document-${index}`);
+            const filePath = rowText(doc, ["final_file_path", "file_path"], "");
+            return (
+              <article key={id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-100">
+                      {rowText(doc, ["title", "name", "document_title"], "Untitled document")}
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {rowText(doc, ["document_type", "category", "type"], "Document")} · Updated {rowDate(doc, ["updated_at", "created_at"])}
+                    </p>
+                  </div>
+                  <StatusBadge label={labelize(rowText(doc, ["status"], "available"))} tone="info" />
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <FieldCard label="Project" value={rowText(doc, ["project_name"], jobsite?.name ?? "Not assigned")} />
+                  <FieldCard label="Owner" value={rowText(doc, ["owner_name", "submitted_by", "user_id"])} />
+                  <FieldCard label="Created" value={rowDate(doc, ["created_at"])} />
+                  <FieldCard label="File" value={filePath ? "Available" : "Not uploaded"} />
+                </div>
+                {filePath || id ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Link
+                      href={`/api/documents/download/${encodeURIComponent(id)}`}
+                      className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-sky-500/40"
+                    >
+                      Download
+                    </Link>
+                    <Link
+                      href="/library"
+                      className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-sky-500/40"
+                    >
+                      Open library
+                    </Link>
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReportsSurface({ payload }: { payload: Record<string, unknown> | null }) {
+  const jobsite = (payload?.jobsite as JobsiteRow | undefined) ?? null;
+  const reports = surfaceRows(payload, "reports");
+  const published = reports.filter((report) => rowText(report, ["status"], "").toLowerCase() === "published").length;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Reports" value={reports.length} />
+        <StatCard label="Published" value={published} />
+        <StatCard label="Drafts" value={reports.filter((report) => rowText(report, ["status"], "").toLowerCase() === "draft").length} />
+        <StatCard label="Generated" value={reports.filter((report) => rowText(report, ["generated_at"], "")).length} />
+      </div>
+      {reports.length === 0 ? (
+        <InlineMessage tone="warning">No reports have been generated for {jobsite?.name ?? "this jobsite"} yet.</InlineMessage>
+      ) : (
+        <div className="space-y-3">
+          {reports.map((report, index) => (
+            <article key={rowText(report, ["id"], `report-${index}`)} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-100">{rowText(report, ["title"], "Untitled report")}</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {labelize(rowText(report, ["report_type"], "report"))} · {labelize(rowText(report, ["source_module"], "workspace"))}
+                  </p>
+                </div>
+                <StatusBadge
+                  label={labelize(rowText(report, ["status"], "draft"))}
+                  tone={rowText(report, ["status"], "").toLowerCase() === "published" ? "success" : "info"}
+                />
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <FieldCard label="Generated" value={rowDate(report, ["generated_at", "created_at"])} />
+                <FieldCard label="Updated" value={rowDate(report, ["updated_at"])} />
+                <FieldCard label="File" value={rowText(report, ["file_path"], "Not exported")} />
+                <FieldCard label="Jobsite" value={jobsite?.name ?? "Scoped jobsite"} />
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IncidentsSurface({ payload }: { payload: Record<string, unknown> | null }) {
+  const incidents = surfaceRows(payload, "incidents");
+  const open = incidents.filter((incident) => rowText(incident, ["status"], "").toLowerCase() !== "closed").length;
+  const sif = incidents.filter((incident) => rowText(incident, ["sif_flag", "sif_potential"], "") === "Yes").length;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Incidents" value={incidents.length} />
+        <StatCard label="Open" value={open} />
+        <StatCard label="Closed" value={incidents.length - open} />
+        <StatCard label="SIF flagged" value={sif} />
+      </div>
+      {incidents.length === 0 ? (
+        <InlineMessage tone="warning">No incidents or near misses are recorded for this jobsite.</InlineMessage>
+      ) : (
+        <div className="space-y-3">
+          {incidents.map((incident, index) => (
+            <article key={rowText(incident, ["id"], `incident-${index}`)} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-100">{rowText(incident, ["title"], "Incident")}</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {labelize(rowText(incident, ["incident_type", "category"], "incident"))} · {labelize(rowText(incident, ["severity"], "not set"))}
+                  </p>
+                </div>
+                <StatusBadge label={labelize(rowText(incident, ["status"], "open"))} tone={rowText(incident, ["status"], "").toLowerCase() === "closed" ? "neutral" : "warning"} />
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <FieldCard label="Occurred" value={rowDate(incident, ["occurred_at", "created_at"])} />
+                <FieldCard label="Escalation" value={labelize(rowText(incident, ["escalation_level"], "none"))} />
+                <FieldCard label="Stop work" value={labelize(rowText(incident, ["stop_work_status"], "normal"))} />
+                <FieldCard label="Updated" value={rowDate(incident, ["updated_at"])} />
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeamSurface({ payload }: { payload: Record<string, unknown> | null }) {
+  const jobsite = (payload?.jobsite as JobsiteRow | undefined) ?? null;
+  const users = surfaceRows(payload, "users");
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Company users" value={users.length} />
+        <StatCard label="Managers" value={users.filter((user) => rowText(user, ["role"], "").toLowerCase().includes("manager")).length} />
+        <StatCard label="Admins" value={users.filter((user) => rowText(user, ["role"], "").toLowerCase().includes("admin")).length} />
+        <StatCard label="Assigned site" value={jobsite?.id ? 1 : 0} />
+      </div>
+      {users.length === 0 ? (
+        <InlineMessage tone="warning">No team members are visible for this jobsite.</InlineMessage>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {users.map((user, index) => (
+            <article key={rowText(user, ["id"], `user-${index}`)} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <h3 className="text-sm font-semibold text-slate-100">{rowText(user, ["name", "full_name", "email"], "Team member")}</h3>
+              <p className="mt-1 text-xs text-slate-500">{rowText(user, ["email"], "No email listed")}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <StatusBadge label={labelize(rowText(user, ["role", "team"], "member"))} tone="info" />
+                <StatusBadge label={labelize(rowText(user, ["status"], "active"))} tone="success" />
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AnalyticsSurface({ payload }: { payload: Record<string, unknown> | null }) {
+  const analytics = ((payload?.analytics as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
+  const riskRows = ((analytics.jobsiteRiskScore as SurfaceRow[] | undefined) ?? []) as SurfaceRow[];
+  const currentRisk = riskRows[0];
+  const cards = [
+    { label: "Risk score rows", value: riskRows.length },
+    { label: "Open findings", value: Number(analytics.openDeficiencies ?? analytics.openFindings ?? 0) },
+    { label: "Incidents", value: Number(analytics.incidents ?? analytics.incidentCount ?? 0) },
+    { label: "Permits", value: Number(analytics.permits ?? analytics.permitCount ?? 0) },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => <StatCard key={card.label} label={card.label} value={Number.isFinite(card.value) ? card.value : 0} />)}
+      </div>
+      {currentRisk ? (
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-100">Current jobsite risk signal</h3>
+              <p className="mt-1 text-xs text-slate-500">Latest scoped analytics result for this project.</p>
+            </div>
+            <StatusBadge label={rowText(currentRisk, ["riskLevel", "risk_level", "level"], "Risk tracked")} tone="warning" />
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <FieldCard label="Score" value={rowText(currentRisk, ["score", "riskScore", "risk_score"], "Not scored")} />
+            <FieldCard label="Trend" value={rowText(currentRisk, ["trend"], "Not set")} />
+            <FieldCard label="Drivers" value={rowText(currentRisk, ["drivers", "topDriver"], "Not listed")} />
+            <FieldCard label="Updated" value={rowDate(currentRisk, ["updated_at", "created_at"])} />
+          </div>
+        </div>
+      ) : (
+        <InlineMessage tone="warning">No analytics rows are available for this jobsite yet.</InlineMessage>
       )}
     </div>
   );

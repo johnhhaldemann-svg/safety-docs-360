@@ -30,6 +30,7 @@ type ComposerState = {
   status: "planned" | "active" | "completed" | "archived";
   projectManager: string;
   safetyLead: string;
+  customerReportEmail: string;
   startDate: string;
   endDate: string;
   notes: string;
@@ -42,6 +43,7 @@ const EMPTY_COMPOSER: ComposerState = {
   status: "planned",
   projectManager: "",
   safetyLead: "",
+  customerReportEmail: "",
   startDate: "",
   endDate: "",
   notes: "",
@@ -64,6 +66,7 @@ function createComposerFromJobsite(jobsite: CompanyJobsite): ComposerState {
     status: jobsite.rawStatus,
     projectManager: jobsite.projectManager || "",
     safetyLead: jobsite.safetyLead || "",
+    customerReportEmail: jobsite.customerReportEmail || "",
     startDate: jobsite.startDate || "",
     endDate: jobsite.endDate || "",
     notes: jobsite.notes || "",
@@ -124,6 +127,7 @@ export default function JobsitesPage() {
           jobsite.projectNumber,
           jobsite.projectManager || "",
           jobsite.safetyLead || "",
+          jobsite.customerReportEmail || "",
         ].some((value) => value.toLowerCase().includes(normalizedSearch));
 
       return matchesStatus && matchesSearch;
@@ -234,6 +238,7 @@ export default function JobsitesPage() {
           status: composer.status,
           projectManager: composer.projectManager,
           safetyLead: composer.safetyLead,
+          customerReportEmail: composer.customerReportEmail,
           startDate: composer.startDate,
           endDate: composer.endDate,
           notes: composer.notes,
@@ -524,6 +529,22 @@ export default function JobsitesPage() {
             </div>
             <div>
               <label
+                htmlFor="jobsite-customer-report-email"
+                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
+              >
+                Customer Audit Email
+              </label>
+              <input
+                id="jobsite-customer-report-email"
+                type="email"
+                value={composer.customerReportEmail}
+                onChange={(event) => updateComposer("customerReportEmail", event.target.value)}
+                placeholder="customer@example.com"
+                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              />
+            </div>
+            <div>
+              <label
                 htmlFor="jobsite-start-date"
                 className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
               >
@@ -700,6 +721,7 @@ export default function JobsitesPage() {
                           <div>Project #: {jobsite.projectNumber || "Not assigned"}</div>
                           <div>Project Manager: {jobsite.projectManager || "Not set"}</div>
                           <div>Safety Lead: {jobsite.safetyLead || "Not set"}</div>
+                          <div>Customer Audit Email: {jobsite.customerReportEmail || "Not set"}</div>
                           <div>Pending Docs: {jobsite.pendingDocuments}</div>
                           <div>Total Docs: {jobsite.totalDocuments}</div>
                         </div>
@@ -927,6 +949,14 @@ export default function JobsitesPage() {
                     </div>
                     <div className="mt-2 text-sm font-semibold text-slate-100">
                       {selectedJobsite.safetyLead || "Not assigned yet"}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Customer Audit Email
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-100">
+                      {selectedJobsite.customerReportEmail || "Not set"}
                     </div>
                   </div>
                   <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">

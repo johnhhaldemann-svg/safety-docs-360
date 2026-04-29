@@ -8,31 +8,52 @@ import {
 } from "@/lib/csepRegulatoryReferenceIndex";
 
 describe("csepRegulatoryReferenceIndex", () => {
-  it("defines R1 through R9 with the expected subparts", () => {
-    const codes = CSEP_REGULATORY_REFERENCE_INDEX.slice(0, 9).map((e) => e.code);
-    expect(codes).toEqual(["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9"]);
-    expect(CSEP_REGULATORY_REFERENCE_INDEX[1]?.citation).toContain("Subpart M");
-    expect(CSEP_REGULATORY_REFERENCE_INDEX[8]?.citation).toContain("1926.59");
+  it("defines the Version C R1 through R17 reference map", () => {
+    const codes = CSEP_REGULATORY_REFERENCE_INDEX.map((e) => e.code);
+    expect(codes).toEqual([
+      "R1",
+      "R2",
+      "R3",
+      "R4",
+      "R5",
+      "R6",
+      "R7",
+      "R8",
+      "R9",
+      "R10",
+      "R11",
+      "R12",
+      "R13",
+      "R14",
+      "R15",
+      "R16",
+      "R17",
+    ]);
+    expect(CSEP_REGULATORY_REFERENCE_INDEX[0]?.citation).toContain("Subpart R");
+    expect(CSEP_REGULATORY_REFERENCE_INDEX[9]?.citation).toContain("Hazard Communication");
   });
 
   it("maps common program definition strings to stable R-codes", () => {
     expect(mapOshaRefLineToRCode("OSHA 1926 Subpart M - Fall Protection")).toBe("R2");
-    expect(mapOshaRefLineToRCode("OSHA 1926 Subpart J - Fire Protection and Prevention")).toBe("R5");
-    expect(mapOshaRefLineToRCode("OSHA 1926 Subpart K - Electrical")).toBe("R11");
-    expect(mapOshaRefLineToRCode("OSHA 1926.59 - Hazard Communication")).toBe("R9");
+    expect(mapOshaRefLineToRCode("OSHA 1926 Subpart J - Fire Protection and Prevention")).toBe("R4");
+    expect(mapOshaRefLineToRCode("OSHA 1926 Subpart CC - Cranes and Derricks")).toBe("R6");
+    expect(mapOshaRefLineToRCode("OSHA 1926.59 - Hazard Communication")).toBe("R10");
+    expect(mapOshaRefLineToRCode("Project-specific permit and owner rule")).toBe("R12");
+    expect(mapOshaRefLineToRCode("OSHA 1904 recordkeeping")).toBe("R16");
+    expect(mapOshaRefLineToRCode("Severe weather lightning wind heat cold controls")).toBe("R17");
   });
 
   it("dedupes and sorts R-codes", () => {
     expect(mapOshaRefStringsToSortedRCodes(["OSHA 1926 Subpart M", "OSHA 1926 Subpart M", "OSHA 1926 Subpart E"])).toEqual([
       "R2",
-      "R10",
+      "R11",
     ]);
   });
 
   it("formats applicable reference bullets as R-numbers only", () => {
     expect(formatApplicableReferenceBullets(["OSHA 1926 Subpart M - Fall Protection", "OSHA 1926 Subpart X"])).toEqual([
       "R2",
-      "R6",
+      "R8",
     ]);
   });
 

@@ -61,10 +61,10 @@ describe("Reorganized tab strips (release contracts)", () => {
 
   it("Safety Intelligence workflow lists four main stages", () => {
     const src = readFileSync(join(REPO_ROOT, "components/safety-intelligence/SafetyIntelligenceWorkflow.tsx"), "utf8");
-    expect(src).toContain('["intake", "Intake"]');
-    expect(src).toContain('["rules", "Rules & conflicts"]');
-    expect(src).toContain('["generate", "Generate"]');
-    expect(src).toContain('["review", "Review"]');
+    expect(src).toContain('["intake", "Intake",');
+    expect(src).toContain('["rules", "Rules & conflicts",');
+    expect(src).toContain('["generate", "Generate",');
+    expect(src).toContain('["review", "Review",');
   });
 
   it("JSA workspace lists four top-level tabs", () => {

@@ -78,14 +78,95 @@ function findRecord(assignment: Assignment, requirementId: string) {
   return assignment.records.find((record) => record.requirement_id === requirementId) ?? null;
 }
 
+function MultiPickField({
+  label,
+  placeholder,
+  options,
+  selected,
+  onChange,
+  selectAllLabel,
+  allSelectedLabel,
+  emptyLabel,
+}: {
+  label: string;
+  placeholder: string;
+  options: readonly string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  selectAllLabel: string;
+  allSelectedLabel: string;
+  emptyLabel: string;
+}) {
+  const availableOptions = options.filter((option) => !selected.includes(option));
+  const allSelected =
+    options.length > 0 &&
+    selected.length === options.length &&
+    options.every((option) => selected.includes(option));
+
+  return (
+    <div className="text-sm font-medium text-[var(--app-text-strong)]">
+      <div className="flex items-center justify-between gap-3">
+        <span>{label}</span>
+        <button
+          type="button"
+          onClick={() => onChange([...options])}
+          disabled={allSelected}
+          className="rounded-lg px-2 py-1 text-xs font-semibold text-[var(--app-accent-primary)] transition hover:bg-[var(--app-accent-primary-soft)] disabled:cursor-not-allowed disabled:text-[var(--app-text-muted)] disabled:hover:bg-transparent"
+        >
+          {allSelected ? allSelectedLabel : selectAllLabel}
+        </button>
+      </div>
+      <select
+        key={`${label}-${selected.join("|")}`}
+        defaultValue=""
+        onChange={(event) => {
+          const value = event.target.value;
+          if (!value) return;
+          onChange([...selected, value]);
+        }}
+        className={`mt-1 w-full ${appNativeSelectClassName}`}
+      >
+        <option value="">{placeholder}</option>
+        {availableOptions.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+      {selected.length > 0 ? (
+        <ul className="mt-2 flex flex-wrap gap-2" aria-label={`Selected ${label.toLowerCase()}`}>
+          {selected.map((item) => (
+            <li
+              key={item}
+              className="inline-flex max-w-full items-center gap-1 rounded-lg border border-[var(--app-border)] bg-white px-2.5 py-1 text-xs font-medium text-[var(--app-text-strong)]"
+            >
+              <span className="truncate">{item}</span>
+              <button
+                type="button"
+                className="shrink-0 rounded px-0.5 text-[var(--app-text)] hover:bg-[var(--app-panel-muted)] hover:text-[var(--app-text-strong)]"
+                aria-label={`Remove ${item}`}
+                onClick={() => onChange(selected.filter((option) => option !== item))}
+              >
+                x
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-xs font-normal text-[var(--app-text)]">{emptyLabel}</p>
+      )}
+    </div>
+  );
+}
+
 export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
   const [payload, setPayload] = useState<Payload>({});
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [tone, setTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
   const [requirementTitle, setRequirementTitle] = useState("");
-  const [requirementTrade, setRequirementTrade] = useState("");
-  const [requirementPosition, setRequirementPosition] = useState("");
+  const [requirementTrades, setRequirementTrades] = useState<string[]>([]);
+  const [requirementPositions, setRequirementPositions] = useState<string[]>([]);
   const [invitePhone, setInvitePhone] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [trainingDrafts, setTrainingDrafts] = useState<Record<string, { completedOn: string; expiresOn: string; notes: string }>>({});
@@ -167,15 +248,15 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
         {
           action: "addRequirement",
           title: requirementTitle,
-          applyTrades: [requirementTrade],
-          applyPositions: [requirementPosition],
+          applyTrades: requirementTrades,
+          applyPositions: requirementPositions,
           sortOrder: requirements.length + 1,
         },
         "Requirement added."
       );
       setRequirementTitle("");
-      setRequirementTrade("");
-      setRequirementPosition("");
+      setRequirementTrades([]);
+      setRequirementPositions([]);
     } catch (error) {
       setTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to add requirement.");
@@ -294,41 +375,31 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
                 </select>
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm font-medium text-[var(--app-text-strong)]">
-                  Trade
-                  <select
-                    value={requirementTrade}
-                    onChange={(event) => setRequirementTrade(event.target.value)}
-                    className={`mt-1 w-full ${appNativeSelectClassName}`}
-                  >
-                    <option value="">Select trade</option>
-                    {CONSTRUCTION_TRADES.map((trade) => (
-                      <option key={trade} value={trade}>
-                        {trade}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-sm font-medium text-[var(--app-text-strong)]">
-                  Position
-                  <select
-                    value={requirementPosition}
-                    onChange={(event) => setRequirementPosition(event.target.value)}
-                    className={`mt-1 w-full ${appNativeSelectClassName}`}
-                  >
-                    <option value="">Select position</option>
-                    {CONSTRUCTION_POSITIONS.map((position) => (
-                      <option key={position} value={position}>
-                        {position}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <MultiPickField
+                  label="Trades"
+                  placeholder="Add a trade"
+                  options={CONSTRUCTION_TRADES}
+                  selected={requirementTrades}
+                  onChange={setRequirementTrades}
+                  selectAllLabel="Select all trades"
+                  allSelectedLabel="All trades selected"
+                  emptyLabel="No trades selected yet."
+                />
+                <MultiPickField
+                  label="Positions"
+                  placeholder="Add a position"
+                  options={CONSTRUCTION_POSITIONS}
+                  selected={requirementPositions}
+                  onChange={setRequirementPositions}
+                  selectAllLabel="Select all positions"
+                  allSelectedLabel="All positions selected"
+                  emptyLabel="No positions selected yet."
+                />
               </div>
               <button
                 type="button"
                 onClick={() => void addRequirement()}
-                disabled={!requirementTitle || !requirementTrade || !requirementPosition}
+                disabled={!requirementTitle || requirementTrades.length === 0 || requirementPositions.length === 0}
                 className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 <Plus className="h-4 w-4" aria-hidden />

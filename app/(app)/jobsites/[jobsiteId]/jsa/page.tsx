@@ -1,4 +1,4 @@
-import { JobsiteSurfaceClient } from "../_components/jobsite-surface-client";
+import { JsaWorkspace } from "@/components/jsa/JsaWorkspace";
 
 export default async function JobsiteJsaPage({
   params,
@@ -6,12 +6,5 @@ export default async function JobsiteJsaPage({
   params: Promise<{ jobsiteId: string }>;
 }) {
   const { jobsiteId } = await params;
-  return (
-    <JobsiteSurfaceClient
-      jobsiteId={jobsiteId}
-      surface="jsa"
-      title="Jobsite JSA"
-      description="Scoped job safety analyses and planned activities for this jobsite."
-    />
-  );
+  return <JsaWorkspace jobsiteId={jobsiteId} />;
 }

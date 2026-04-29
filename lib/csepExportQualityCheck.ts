@@ -134,6 +134,7 @@ const OWNERSHIP_COMPANION_KEYS: Record<string, readonly string[]> = {
   iipp_incident_reporting_corrective_action: [
     "emergency_response_and_rescue",
     "high_risk_programs",
+    "roles_and_responsibilities",
     "training_competency_and_certifications",
     "worker_conduct_fit_for_duty_disciplinary_program",
   ],

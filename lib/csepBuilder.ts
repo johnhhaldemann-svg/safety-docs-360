@@ -205,7 +205,7 @@ const FRONT_MATTER_DEFINITIONS: readonly CsepFrontMatterDefinition[] = [
 
 const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
   { key: "purpose", kind: "main", order: 10, title: "1. Purpose", shortTitle: "Purpose", numberLabel: "1", purpose: "Why the CSEP exists and how it governs project work.", aiEligible: true },
-  { key: "project_and_contractor_information", kind: "main", order: 11, title: "2. Project and Contractor Information", shortTitle: "Project and Contractor Information", numberLabel: "2", purpose: "Project identity, owner, GC / CM, jurisdiction, and contractor contacts.", aiEligible: true, legacyBlockKeys: ["project_information", "contractor_information"] },
+  { key: "project_coordination_and_authority", kind: "main", order: 11, title: "2. Project Coordination and Authority", shortTitle: "Project Coordination and Authority", numberLabel: "2", purpose: "Project authority, owner / GC / CM coordination, permit approval paths, and controlling-contractor verification.", aiEligible: true, legacyBlockKeys: ["project_information", "contractor_information"] },
   { key: "scope_of_work_section", kind: "main", order: 12, title: "3. Scope of Work", shortTitle: "Scope of Work", numberLabel: "3", purpose: "Trade, sub-trade, task list, scope summary, exclusions, assumptions, and work sequence.", aiEligible: true, legacyBlockKeys: ["trade_summary", "scope_of_work", "site_specific_notes"] },
   { key: "regulatory_basis_and_references", kind: "main", order: 13, title: "4. Regulatory Basis and References", shortTitle: "Regulatory Basis and References", numberLabel: "4", purpose: "Jurisdiction profile, authority references, and clean OSHA / CFR citation list.", aiEligible: true, legacyBlockKeys: ["osha_references"] },
   { key: "top_10_critical_risks", kind: "main", order: 14, title: "5. Top 10 Critical Risks", shortTitle: "Top 10 Critical Risks", numberLabel: "5", purpose: "Highest project and steel erection exposures requiring leadership attention.", aiEligible: true, legacyBlockKeys: ["selected_hazards"] },
@@ -218,13 +218,14 @@ const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
   { key: "worker_conduct_fit_for_duty_disciplinary_program", kind: "main", order: 21, title: "12. Worker Conduct, Fit-for-Duty, and Disciplinary Program", shortTitle: "Worker Conduct, Fit-for-Duty, and Disciplinary Program", numberLabel: "12", purpose: "Unsafe-act response, stop-work enforcement, impairment, fatigue, wellness, and discipline.", aiEligible: true, legacyBlockKeys: ["drug_and_alcohol_testing", "health_and_wellness"] },
   { key: "training_competency_and_certifications", kind: "main", order: 22, title: "13. Training, Competency, and Certifications", shortTitle: "Training, Competency, and Certifications", numberLabel: "13", purpose: "Training records, certifications, qualified roles, and active-scope training requirements.", aiEligible: true, legacyBlockKeys: ["training_and_instruction"] },
   { key: "required_permits_and_hold_points", kind: "main", order: 23, title: "14. Required Permits and Hold Points", shortTitle: "Required Permits and Hold Points", numberLabel: "14", purpose: "Permit triggers, hold points, verification, and closeout requirements.", aiEligible: true, appendixRefs: ["appendix_a_forms_and_permit_library"], legacyBlockKeys: ["additional_permits"] },
-  { key: "high_risk_steel_erection_programs", kind: "main", order: 24, title: "15. High-Risk Steel Erection Programs", shortTitle: "High-Risk Steel Erection Programs", numberLabel: "15", purpose: "Steel erection program modules for leading edge, decking, hoisting, stability, bracing, and weather.", aiEligible: true, legacyBlockKeys: ["selected_hazards", "activity_hazard_matrix"] },
-  { key: "hazard_control_modules", kind: "main", order: 25, title: "16. Hazard Control Modules", shortTitle: "Hazard Control Modules", numberLabel: "16", purpose: "Hazard-specific controls only, separated from task execution and project-wide policy.", aiEligible: true, legacyBlockKeys: ["selected_hazards", "activity_hazard_matrix"] },
-  { key: "task_execution_modules", kind: "main", order: 26, title: "17. Task Execution Modules", shortTitle: "Task Execution Modules", numberLabel: "17", purpose: "Task-specific work execution steps for structural steel and decking activities.", aiEligible: true, legacyBlockKeys: ["activity_hazard_matrix", "trade_summary"] },
-  { key: "ppe_and_work_attire", kind: "main", order: 27, title: "18. PPE and Work Attire", shortTitle: "PPE and Work Attire", numberLabel: "18", purpose: "Base PPE, task-specific PPE, welding PPE, fall protection equipment, and attire requirements.", aiEligible: true, legacyBlockKeys: ["required_ppe"] },
+  { key: "ppe_and_work_attire", kind: "main", order: 24, title: "15. PPE and Work Attire", shortTitle: "PPE and Work Attire", numberLabel: "15", purpose: "Work attire, minimum PPE, task-specific PPE, provider responsibilities, selection, training, inspection, and replacement.", aiEligible: true, legacyBlockKeys: ["required_ppe"] },
+  { key: "scope_specific_policy_evidence_summary", kind: "main", order: 25, title: "16. Scope-Specific Policy Evidence Summary", shortTitle: "Scope-Specific Policy Evidence Summary", numberLabel: "16", purpose: "Reviewer-facing matrix showing where scope policy requirements are addressed in this CSEP.", aiEligible: false, legacyBlockKeys: ["selected_hazards", "activity_hazard_matrix", "required_ppe", "incident_reporting_and_investigation", "training_and_instruction"] },
+  { key: "high_risk_programs", kind: "main", order: 26, title: "17. High-Risk Programs", shortTitle: "High-Risk Programs", numberLabel: "17", purpose: "Triggered written procedures for major hazards, task controls, verification, stop-work triggers, and records.", aiEligible: true, legacyBlockKeys: ["selected_hazards", "activity_hazard_matrix"] },
+  { key: "excavation_trenching_na_or_program_trigger", kind: "main", order: 27, title: "18. Excavation / Trenching N/A or Program Trigger", shortTitle: "Excavation / Trenching N/A or Program Trigger", numberLabel: "18", purpose: "Excavation and trenching status for this CSEP, including change-trigger requirements when the scope changes.", aiEligible: false, legacyBlockKeys: ["selected_hazards", "additional_permits"] },
   { key: "inspections_audits_and_records", kind: "main", order: 28, title: "19. Inspections, Audits, and Records", shortTitle: "Inspections, Audits, and Records", numberLabel: "19", purpose: "JHA / pre-task review, inspections, audits, permits, corrective action tracking, and records.", aiEligible: true, appendixRefs: ["appendix_c_checklists_and_inspection_sheets"], legacyBlockKeys: ["recordkeeping", "training_and_instruction"] },
   { key: "project_closeout", kind: "main", order: 29, title: "20. Project Closeout", shortTitle: "Project Closeout", numberLabel: "20", purpose: "Corrective action closeout, permit closeout, turnover, lessons learned, and final documentation review.", aiEligible: true, legacyBlockKeys: ["continuous_improvement", "recordkeeping"] },
-  { key: "document_control_and_revision_history", kind: "main", order: 30, title: "21. Document Control and Revision History", shortTitle: "Document Control and Revision History", numberLabel: "21", purpose: "Issue control, revision status, and approval record for this CSEP package.", aiEligible: false },
+  { key: "reviewer_codex_readiness_summary", kind: "main", order: 30, title: "21. Reviewer / CODEX Readiness Summary", shortTitle: "Reviewer / CODEX Readiness Summary", numberLabel: "21", purpose: "Reviewer-facing matrix identifying where CSEP content addresses CODEX-style requirements and separate upload items.", aiEligible: false, legacyBlockKeys: ["recordkeeping", "hazard_communication", "required_ppe", "training_and_instruction"] },
+  { key: "document_control_and_revision_history", kind: "main", order: 31, title: "22. Document Control and Revision History", shortTitle: "Document Control and Revision History", numberLabel: "22", purpose: "Issue control, revision status, and approval record for this CSEP package.", aiEligible: false },
 ] as const;
 
 const LEGACY_FORMAT_SECTION_DEFINITIONS: readonly CsepFormatSectionDefinition[] = [
@@ -1594,11 +1595,14 @@ export function resolveSelectedCsepFormatSectionKeys(params: {
     });
   }
 
+  if (keys.size > 0) {
+    return ALL_FORMAT_SECTION_KEYS.filter((key) => keys.has(key));
+  }
+
   const legacyBlockKeys = normalizeSelectedCsepBlockKeys({
     includedSections: params.includedSections,
     includedContent: params.includedContent,
   });
-
   if (legacyBlockKeys.length > 0) {
     LEGACY_FORMAT_SECTION_DEFINITIONS.forEach((definition) => {
       if ((definition.legacyBlockKeys ?? []).some((key) => legacyBlockKeys.includes(key))) {
@@ -1722,13 +1726,13 @@ export function buildCsepCoverageAudit(input: CsepCoverageAuditInput): CsepCover
     });
   }
 
-  if (lowerHazards.length > 0 && !selectedSections.has("hazard_control_modules")) {
+  if (lowerHazards.length > 0 && !selectedSections.has("high_risk_programs")) {
     pushFinding({
       key: "hazard_library_missing",
       severity: "required",
       title: "Hazard analysis library missing",
-      detail: "Selected hazards require Section 16 so the formatted CSEP still includes consistent hazard-module coverage.",
-      sectionKey: "hazard_control_modules",
+      detail: "Selected hazards require the High-Risk Programs section so the formatted CSEP includes written procedural coverage.",
+      sectionKey: "high_risk_programs",
     });
   }
 
@@ -2008,7 +2012,7 @@ function inferFormatSectionKey(section: GeneratedSafetyPlanSection): CsepFormatS
     return "top_10_critical_risks";
   }
   if (combined.includes("project information") || combined.includes("contractor information")) {
-    return "project_and_contractor_information";
+    return "project_coordination_and_authority";
   }
   if (combined.includes("scope") || combined.includes("trade summary") || combined.includes("task list")) {
     return "scope_of_work_section";
@@ -2041,10 +2045,10 @@ function inferFormatSectionKey(section: GeneratedSafetyPlanSection): CsepFormatS
     return "required_permits_and_hold_points";
   }
   if (combined.includes("steel") && combined.includes("program")) {
-    return "high_risk_steel_erection_programs";
+    return "high_risk_programs";
   }
   if (combined.includes("task execution") || combined.includes("task module")) {
-    return "task_execution_modules";
+    return "high_risk_programs";
   }
   if (combined.includes("ppe") || combined.includes("personal protective") || combined.includes("work attire")) {
     return "ppe_and_work_attire";
@@ -2056,7 +2060,7 @@ function inferFormatSectionKey(section: GeneratedSafetyPlanSection): CsepFormatS
     return "project_closeout";
   }
   if (combined.includes("hazard") || combined.includes("control") || combined.includes("program")) {
-    return "hazard_control_modules";
+    return "high_risk_programs";
   }
 
   if (combined.includes("role") || combined.includes("competent person")) return "roles_and_responsibilities";
@@ -2119,16 +2123,16 @@ function inferFormatSectionKey(section: GeneratedSafetyPlanSection): CsepFormatS
     return "regulatory_basis_and_references";
   }
   if (combined.includes("hazard") || combined.includes("activity hazard") || combined.includes("program")) {
-    return "hazard_control_modules";
+    return "high_risk_programs";
   }
   if (combined.includes("trade") || combined.includes("scope") || combined.includes("project information")) {
     return "scope_of_work_section";
   }
   if (combined.includes("contractor information") || combined.includes("policy")) {
-    return "project_and_contractor_information";
+    return "project_coordination_and_authority";
   }
 
-  return "hazard_control_modules";
+  return "high_risk_programs";
 }
 
 function resolveGroupedFormatSectionKey(
@@ -2167,7 +2171,7 @@ function resolveGroupedFormatSectionKey(
     return "permits_and_forms";
   }
   if (
-    (inferredKey === "hazard_control_modules" || inferredKey === "high_risk_steel_erection_programs") &&
+    inferredKey === "high_risk_programs" &&
     selectedFormatSectionSet.has("hse_elements_and_site_specific_hazard_analysis")
   ) {
     return "hse_elements_and_site_specific_hazard_analysis";

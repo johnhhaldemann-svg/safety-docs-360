@@ -11,6 +11,7 @@ export const PUBLIC_ROUTES = [
   "/privacy",
   "/liability-waiver",
   "/company-signup",
+  "/contractor-training-intake",
 ] as const;
 
 /**
@@ -79,6 +80,7 @@ export const AUTH_APP_DYNAMIC_ROUTES = [
   `/jobsites/${id}/overview`,
   `/jobsites/${id}/analytics`,
   `/jobsites/${id}/documents`,
+  `/jobsites/${id}/contractor-training`,
   `/jobsites/${id}/jsa`,
   `/jobsites/${id}/incidents`,
   `/jobsites/${id}/live-view`,

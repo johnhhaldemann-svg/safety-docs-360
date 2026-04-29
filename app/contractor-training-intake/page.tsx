@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Plus, Save } from "lucide-react";
+import { Check, Plus, Save, X } from "lucide-react";
 import {
   InlineMessage,
   PageHero,
@@ -10,6 +10,7 @@ import {
   appNativeSelectClassName,
 } from "@/components/WorkspacePrimitives";
 import { CONSTRUCTION_POSITIONS, CONSTRUCTION_TRADES } from "@/lib/constructionProfileOptions";
+import { PROFILE_CERTIFICATION_GROUPS } from "@/lib/constructionProfileCertifications";
 
 type Requirement = { id: string; title: string; sort_order: number; apply_trades?: string[]; apply_positions?: string[] };
 type TrainingRecord = {
@@ -113,6 +114,15 @@ export default function ContractorTrainingIntakePage() {
     }
     setCertName("");
     setCertExpiresOn("");
+  }
+
+  function removeCertification(title: string) {
+    setCertifications((current) => current.filter((item) => item !== title));
+    setCertificationExpirations((current) => {
+      const next = { ...current };
+      delete next[title];
+      return next;
+    });
   }
 
   async function submit() {
@@ -243,7 +253,22 @@ export default function ContractorTrainingIntakePage() {
 
             <SectionCard title="Additional Certifications">
               <div className="grid gap-3 sm:grid-cols-[1fr_12rem_auto]">
-                <input value={certName} onChange={(event) => setCertName(event.target.value)} placeholder="Certification name" className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm" />
+                <select value={certName} onChange={(event) => setCertName(event.target.value)} className={appNativeSelectClassName}>
+                  <option value="">Select certification</option>
+                  {PROFILE_CERTIFICATION_GROUPS.map((group) => {
+                    const available = group.items.filter((item) => !certifications.includes(item));
+                    if (available.length === 0) return null;
+                    return (
+                      <optgroup key={group.title} label={group.title}>
+                        {available.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                </select>
                 <input type="date" value={certExpiresOn} onChange={(event) => setCertExpiresOn(event.target.value)} className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm" />
                 <button type="button" onClick={addCertification} className={appButtonPrimaryClassName}>
                   <Plus className="h-4 w-4" aria-hidden />
@@ -253,9 +278,19 @@ export default function ContractorTrainingIntakePage() {
               {certifications.length > 0 ? (
                 <ul className="mt-4 flex flex-wrap gap-2 text-sm">
                   {certifications.map((certification) => (
-                    <li key={certification} className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
-                      {certification}
-                      {certificationExpirations[certification] ? ` / ${certificationExpirations[certification]}` : ""}
+                    <li key={certification} className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+                      <span className="truncate">
+                        {certification}
+                        {certificationExpirations[certification] ? ` / ${certificationExpirations[certification]}` : ""}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeCertification(certification)}
+                        className="rounded-full p-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-900"
+                        aria-label={`Remove ${certification}`}
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden />
+                      </button>
                     </li>
                   ))}
                 </ul>

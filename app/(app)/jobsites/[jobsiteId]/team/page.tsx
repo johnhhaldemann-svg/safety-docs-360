@@ -11,7 +11,7 @@ export default async function JobsiteTeamPage({
       jobsiteId={jobsiteId}
       surface="team"
       title="Jobsite Team"
-      description="Scoped team payload for this jobsite."
+      description="Company users, managers, and safety roles visible for this jobsite."
     />
   );
 }

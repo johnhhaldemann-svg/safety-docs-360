@@ -1,0 +1,23 @@
+export const theme = {
+  canvas: "#f4f8ff",
+  canvasSoft: "#eef5ff",
+  surface: "#ffffff",
+  panel: "#eef4fc",
+  panelSoft: "#f8fbff",
+  border: "rgba(111, 138, 177, 0.28)",
+  borderStrong: "rgba(84, 114, 158, 0.38)",
+  textStrong: "#16324f",
+  text: "#23415f",
+  muted: "#4f647b",
+  primary: "#2563eb",
+  primaryHover: "#1d4ed8",
+  primarySoft: "#eaf1ff",
+  success: "#2e9e5b",
+  successSoft: "#e7f6ec",
+  warning: "#d9a441",
+  warningSoft: "#fff4db",
+  danger: "#d9534f",
+  dangerSoft: "#fdecec",
+  shadow: "#3d5e9414",
+  white: "#ffffff"
+};

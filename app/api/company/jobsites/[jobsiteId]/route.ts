@@ -11,6 +11,7 @@ type JobsiteUpdatePayload = {
   status?: string;
   projectManager?: string;
   safetyLead?: string;
+  customerReportEmail?: string;
   startDate?: string;
   endDate?: string;
   notes?: string;
@@ -33,9 +34,18 @@ function isDuplicateNameViolation(code?: string | null, message?: string | null)
   return code === "23505" && (message ?? "").toLowerCase().includes("company_jobsites");
 }
 
+function normalizeEmail(value?: string | null) {
+  const email = (value ?? "").trim().toLowerCase();
+  if (!email) return null;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "invalid";
+}
+
+const JOBSITE_SELECT =
+  "id, company_id, name, project_number, location, status, project_manager, safety_lead, customer_report_email, start_date, end_date, notes, created_at, updated_at, archived_at";
+
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ jobsiteId: string }> }
 ) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: ["can_manage_company_users", "can_view_all_company_data", "can_view_analytics"],
@@ -45,7 +55,7 @@ export async function PATCH(
     return auth.error;
   }
 
-  const { id } = await params;
+  const { jobsiteId } = await params;
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
     userId: auth.user.id,
@@ -70,7 +80,7 @@ export async function PATCH(
   const existingResult = await auth.supabase
     .from("company_jobsites")
     .select("id, company_id")
-    .eq("id", id)
+    .eq("id", jobsiteId)
     .eq("company_id", companyScope.companyId)
     .maybeSingle();
 
@@ -100,6 +110,11 @@ export async function PATCH(
   if (typeof body?.name === "string" && !trimmedName) {
     return NextResponse.json({ error: "Jobsite name cannot be empty." }, { status: 400 });
   }
+  const customerReportEmail =
+    typeof body?.customerReportEmail === "string" ? normalizeEmail(body.customerReportEmail) : undefined;
+  if (customerReportEmail === "invalid") {
+    return NextResponse.json({ error: "Enter a valid customer report email." }, { status: 400 });
+  }
 
   if (trimmedName) {
     const escapedName = trimmedName.replace(/[%_]/g, "\\$&");
@@ -108,7 +123,7 @@ export async function PATCH(
       .select("id", { count: "exact", head: true })
       .eq("company_id", companyScope.companyId)
       .ilike("name", escapedName)
-      .neq("id", id);
+      .neq("id", jobsiteId);
 
     if (duplicateCheck.error) {
       if (isMissingJobsitesTable(duplicateCheck.error.message)) {
@@ -153,6 +168,9 @@ export async function PATCH(
     ...(typeof body?.safetyLead === "string"
       ? { safety_lead: body.safetyLead.trim() || null }
       : {}),
+    ...(typeof customerReportEmail !== "undefined"
+      ? { customer_report_email: customerReportEmail }
+      : {}),
     ...(typeof body?.startDate === "string" ? { start_date: body.startDate.trim() || null } : {}),
     ...(typeof body?.endDate === "string" ? { end_date: body.endDate.trim() || null } : {}),
     ...(typeof body?.notes === "string" ? { notes: body.notes.trim() || null } : {}),
@@ -164,11 +182,9 @@ export async function PATCH(
   const updateResult = await auth.supabase
     .from("company_jobsites")
     .update(updateValues)
-    .eq("id", id)
+    .eq("id", jobsiteId)
     .eq("company_id", companyScope.companyId)
-    .select(
-      "id, company_id, name, project_number, location, status, project_manager, safety_lead, start_date, end_date, notes, created_at, updated_at, archived_at"
-    )
+    .select(JOBSITE_SELECT)
     .single();
 
   if (updateResult.error) {

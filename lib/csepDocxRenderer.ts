@@ -9,7 +9,13 @@ import {
   PageNumber,
   Packer,
   Paragraph,
+  ShadingType,
+  Table,
+  TableCell,
+  TableLayoutType,
+  TableRow,
   TextRun,
+  WidthType,
 } from "docx";
 import { DOCUMENT_DISCLAIMER_LINES } from "@/lib/legal";
 import {
@@ -19,7 +25,6 @@ import {
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildStructuredCsepDraft } from "@/lib/csepBuilder";
-import { getProjectSpecificSafetyNotesNarrativeBody } from "@/lib/csepSiteSpecificNotes";
 import {
   buildCsepPpeSectionBulletsFromCombined,
   cleanFinalText,
@@ -28,7 +33,6 @@ import {
   normalizeFinalExportText,
   normalizeHazardList,
   normalizePermitList,
-  normalizePpeList,
 } from "@/lib/csepFinalization";
 import { polishCsepDocxNarrativeText, splitCsepDocxBodyIntoSegments } from "@/lib/csepDocxNarrativePolish";
 import {
@@ -53,7 +57,14 @@ import {
 } from "@/lib/csep/csep-dedupe-rules";
 import { CSEP_HAZARD_TEMPLATE_SLICES, buildHazardSliceTitle } from "@/lib/csep/csep-hazard-template";
 import { CSEP_REGULATORY_REFERENCE_INDEX } from "@/lib/csepRegulatoryReferenceIndex";
-import type { GeneratedSafetyPlanDraft, GeneratedSafetyPlanSection } from "@/types/safety-intelligence";
+import type {
+  CsepStructuredData,
+  CsepTask,
+  CsepTradeInterface,
+  CsepHighRiskProgram,
+  GeneratedSafetyPlanDraft,
+  GeneratedSafetyPlanSection,
+} from "@/types/safety-intelligence";
 
 export type CsepCoverMetadataRow = {
   label: string;
@@ -166,12 +177,19 @@ const STYLE_IDS = {
 
 const COLORS = {
   ink: "1F1F1F",
-  titleBlue: "365F91",
-  headingBlue: "4F81BD",
+  titleBlue: "202020",
+  headingBlue: "202020",
+  subtitleGold: "B88700",
+  navy: "17365D",
   deepBlue: "17365D",
   accentRed: "D63A34",
+  criticalFill: "FCE4D6",
+  importantFill: "FFF2CC",
+  evidenceHeaderFill: "D9EAF7",
+  titlePageFill: "FFFFFF",
+  white: "FFFFFF",
   gray: "7A7A7A",
-  border: "C6D4E1",
+  border: "1F4E78",
 } as const;
 
 const INDENTS = {
@@ -184,6 +202,37 @@ const INDENTS = {
   grandchildHanging: 240,
   grandchildBodyLeft: 1140,
 } as const;
+
+const CSEP_VERSION_C_REFERENCE_MAP = [
+  { code: "R1", title: "Steel erection", appliesToKeywords: ["steel", "decking", "connector", "column", "bracing"] },
+  { code: "R2", title: "Fall protection", appliesToKeywords: ["fall", "edge", "opening", "harness", "rescue"] },
+  { code: "R3", title: "Fall rescue", appliesToKeywords: ["rescue", "suspension trauma", "fall arrest"] },
+  { code: "R4", title: "Hot work", appliesToKeywords: ["welding", "cutting", "grinding", "hot work", "fire watch"] },
+  { code: "R5", title: "Equipment and traffic", appliesToKeywords: ["equipment", "traffic", "vehicle", "delivery"] },
+  { code: "R6", title: "Rigging", appliesToKeywords: ["rigging", "crane", "hoist", "pick", "lift"] },
+  { code: "R7", title: "MEWP", appliesToKeywords: ["mewp", "aerial lift", "boom lift", "scissor lift"] },
+  { code: "R8", title: "Ladders", appliesToKeywords: ["ladder"] },
+  { code: "R9", title: "Scaffolds", appliesToKeywords: ["scaffold"] },
+  { code: "R10", title: "HazCom", appliesToKeywords: ["hazcom", "chemical", "sds", "label"] },
+  { code: "R11", title: "PPE", appliesToKeywords: ["ppe", "glove", "hard hat", "eye", "boot"] },
+  { code: "R12", title: "Project rules", appliesToKeywords: ["project", "owner", "gc", "cm", "permit", "authority", "coordination"] },
+  { code: "R13", title: "Manufacturer", appliesToKeywords: ["manufacturer", "equipment manual", "rated capacity"] },
+  { code: "R14", title: "Hand and power tools", appliesToKeywords: ["hand tool", "power tool", "tool"] },
+  { code: "R15", title: "Excavation", appliesToKeywords: ["excavation", "trench", "digging", "utility"] },
+  { code: "R16", title: "Recordkeeping", appliesToKeywords: ["record", "document", "log", "inspection", "training record"] },
+  { code: "R17", title: "Weather", appliesToKeywords: ["weather", "wind", "lightning", "heat", "cold", "storm", "tornado"] },
+] as const;
+
+const CSEP_EVIDENCE_TABLE_KEYS = new Set([
+  "sign_off_page",
+  "training_competency_and_certifications",
+  "required_permits_and_hold_points",
+  "scope_specific_policy_evidence_summary",
+  "reviewer_codex_readiness_summary",
+  "document_control_and_revision_history",
+  "appendix_a_forms_and_permit_library",
+  "appendix_e_task_hazard_control_matrix",
+]);
 
 const FIXED_SECTION_DEFINITIONS: FixedSectionDefinition[] = [...CANONICAL_CSEP_SECTION_ORDER];
 
@@ -227,6 +276,148 @@ function uniqueItems(values: Array<string | null | undefined>) {
 function joinDisplayValues(values: Array<string | null | undefined>, fallback = "N/A") {
   const normalized = uniqueValues(values);
   return normalized.length ? normalized.join(" / ") : fallback;
+}
+
+function referencesForText(value: string, fallback: string[] = ["R12"]) {
+  const hay = normalizeToken(value);
+  const matches = CSEP_VERSION_C_REFERENCE_MAP
+    .filter((entry) => entry.appliesToKeywords.some((keyword) => hay.includes(normalizeToken(keyword))))
+    .map((entry) => entry.code);
+  return uniqueItems(matches.length ? matches : fallback).slice(0, 5);
+}
+
+function withReferences(sentence: string, refs: string[] = referencesForText(sentence)) {
+  const clean = polishCsepDocxNarrativeText(sentence.replace(/\s+R\d+(?:\s*,\s*R\d+)*/g, "").trim());
+  const selected = uniqueItems(refs).slice(0, 5);
+  return `${clean.replace(/[.]\s*$/, "")}. ${selected.join(", ")}`;
+}
+
+function builderString(snapshot: Record<string, unknown> | null, key: string) {
+  const value = snapshot?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function getDraftBuilderSnapshot(draft: GeneratedSafetyPlanDraft) {
+  return draft.builderSnapshot && typeof draft.builderSnapshot === "object"
+    ? (draft.builderSnapshot as Record<string, unknown>)
+    : null;
+}
+
+function governingStateForDraft(draft: GeneratedSafetyPlanDraft) {
+  const provenanceRecord = draft.provenance as Record<string, unknown>;
+  const builderSnap = getDraftBuilderSnapshot(draft);
+  return (
+    (typeof provenanceRecord.governingState === "string" && provenanceRecord.governingState.trim()) ||
+    builderString(builderSnap, "governing_state") ||
+    "N/A"
+  );
+}
+
+function taskDescriptionForOperation(operation: GeneratedSafetyPlanDraft["operations"][number]) {
+  const explicit =
+    typeof (operation as { description?: unknown }).description === "string"
+      ? String((operation as { description?: unknown }).description).trim()
+      : "";
+  if (explicit) return explicit;
+  return summarizeProjectScopeEntry(operation.taskTitle) ?? `${operation.taskTitle} is part of the active work scope and shall be planned before field execution.`;
+}
+
+function summarizeProjectScopeEntry(title: string) {
+  const normalizedTitle = normalizeToken(title);
+  const summaries: Record<string, string> = {
+    "unload steel": "Receive steel deliveries, control unloading zones, verify load condition, and move members into the approved laydown area.",
+    "sort members": "Organize steel by erection sequence, member identification, access needs, and stability requirements.",
+    rigging: "Select, inspect, and use rigging gear to safely lift and position materials.",
+    "crane picks": "Plan and execute crane lifts with controlled load paths, communications, and exclusion zones.",
+    "column erection": "Set, align, anchor, and stabilize structural columns during initial steel installation.",
+    "beam setting": "Lift and place beams into position for connection and structural framing progress.",
+    connecting: "Receive hoisted members at connection points, align fit-up, install initial fasteners, and communicate release conditions.",
+    bolting: "Install and tighten structural bolts to required connection standards.",
+    welding: "Perform structural welding under approved procedures, hot-work controls, and fire prevention requirements.",
+    cutting: "Cut steel with hot-work controls, spark containment, and protected access below or adjacent to the work.",
+    grinding: "Grind welds, edges, or steel surfaces with spark control, eye/face protection, and exposure controls.",
+    "decking install": "Place and secure metal decking while maintaining fall protection, CDZ boundaries, and controlled access below.",
+  };
+  return summaries[normalizedTitle] ?? `${title} is part of the active work scope and shall be planned before field execution.`;
+}
+
+function buildCsepTasks(draft: GeneratedSafetyPlanDraft): CsepTask[] {
+  const operations = draft.operations.length
+    ? draft.operations
+    : uniqueValues(draft.projectOverview.schedule ? [] : []).map((task, index) => ({
+        operationId: `task-${index + 1}`,
+        taskTitle: task,
+        equipmentUsed: [],
+        workConditions: [],
+        hazardCategories: [],
+        permitTriggers: [],
+        ppeRequirements: [],
+        requiredControls: [],
+        siteRestrictions: [],
+        prohibitedEquipment: [],
+        conflicts: [],
+      } as GeneratedSafetyPlanDraft["operations"][number]));
+
+  return operations.map((operation, index) => {
+    const haystack = [
+      operation.taskTitle,
+      ...(operation.hazardCategories ?? []),
+      ...(operation.requiredControls ?? []),
+      ...(operation.permitTriggers ?? []),
+      ...(operation.equipmentUsed ?? []),
+      ...(operation.workConditions ?? []),
+    ].join(" ");
+    return {
+      taskNumber: `3.3.${index + 1}`,
+      taskName: operation.taskTitle,
+      taskDescription: taskDescriptionForOperation(operation),
+      taskHazards: uniqueItems(operation.hazardCategories ?? []),
+      taskControls: uniqueItems(operation.requiredControls ?? []),
+      taskPermits: normalizePermitList(operation.permitTriggers ?? []),
+      taskTraining: uniqueItems([
+        ...(draft.ruleSummary.trainingRequirements ?? []),
+        ...(operation.hazardCategories ?? []).filter((item) => /fall|rigging|crane|hot work|mewp|ladder/i.test(item)),
+      ]),
+      taskReferences: referencesForText(haystack),
+    };
+  });
+}
+
+function buildCsepStructuredData(draft: GeneratedSafetyPlanDraft): CsepStructuredData {
+  if (draft.structuredCsepData) return draft.structuredCsepData;
+  const builderSnap = getDraftBuilderSnapshot(draft);
+  const trade = joinDisplayValues(draft.operations.map((operation) => operation.tradeLabel), "N/A");
+  const subtrade = joinDisplayValues(draft.operations.map((operation) => operation.subTradeLabel), "N/A");
+  const tasks = buildCsepTasks(draft);
+  const gcCm = normalizeGcCmPartnerEntries(draft.projectOverview.gcCm);
+  const revision = builderString(builderSnap, "document_revision") || "1.0";
+  const issueDate = builderString(builderSnap, "issue_date") || todayIssueLabel();
+  const preparedBy =
+    builderString(builderSnap, "prepared_by") ||
+    cleanFinalText(draft.projectOverview.contractorCompany) ||
+    "Authorized Contractor Representative";
+
+  return {
+    projectInfo: {
+      projectName: finalValueOrNA(draft.projectOverview.projectName),
+      address: finalValueOrNA(draft.projectOverview.projectAddress || draft.projectOverview.location),
+      owner: finalPartyValueOrNA(draft.projectOverview.ownerClient),
+      gcCm,
+      contractor: finalValueOrNA(draft.projectOverview.contractorCompany),
+      trade,
+      subtrade,
+      tasks: tasks.map((task) => task.taskName),
+      governingState: governingStateForDraft(draft),
+      issueDate,
+      revision,
+      preparedBy,
+    },
+    tasks,
+    tradeInterfaces: buildTradeInterfaces(draft),
+    highRiskPrograms: buildTriggeredHighRiskPrograms(draft, tasks),
+    references: CSEP_VERSION_C_REFERENCE_MAP.map((entry) => ({ ...entry, appliesToKeywords: [...entry.appliesToKeywords] })),
+    codexRequirements: buildCodexRequirements(),
+  };
 }
 
 function sanitizeGeneratedText(value?: string | null) {
@@ -758,7 +949,7 @@ function validateNoRepeatedSentences(section: CsepTemplateSection) {
       ...(subsection.items ?? []),
     ]
       .map(normalizeCompareToken)
-      .filter(Boolean);
+      .filter((value): value is string => Boolean(value) && !/^r\d+(?: r\d+)*$/i.test(value));
 
     for (const sentence of sentences) {
       if (seen.has(sentence)) {
@@ -933,7 +1124,10 @@ function validateCsepRenderModel(model: CsepRenderModel) {
         seenTitles.add(normalizedTitle);
       }
 
-      if (!subsectionHasContent(subsection)) {
+      const isProgramHeadingOnly =
+        (section.key === "high_risk_programs" || section.key === "excavation_trenching_na_or_program_trigger") &&
+        /^\d+\.\d+\s+\S/.test(subsection.title ?? "");
+      if (!isProgramHeadingOnly && !subsectionHasContent(subsection)) {
         throw new Error(
           `CSEP export validation failed: subsection "${subsection.title || section.title}" is empty.`
         );
@@ -947,7 +1141,7 @@ function validateCsepRenderModel(model: CsepRenderModel) {
       }
     });
 
-    if (!isFlatProgramSection) {
+    if (!isFlatProgramSection && section.key !== "high_risk_programs") {
       validateNoRepeatedSentences(section);
     }
   });
@@ -1382,7 +1576,7 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
   const fixedKey = FIXED_SECTION_DEFINITIONS.find((definition) => normalizeToken(definition.key) === keyNorm);
   if (fixedKey) return fixedKey.key;
   if (keyNorm.startsWith("program ")) {
-    return "hazard_control_modules";
+    return "high_risk_programs";
   }
 
   // --- 1) Explicit key routing (highest priority; avoids keyword bleed) ---
@@ -1397,7 +1591,7 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
   ]);
   if (SCOPE_SOURCE_KEYS.has(keyNorm)) {
     return keyNorm === "project information" || keyNorm === "contractor information"
-      ? "project_and_contractor_information"
+      ? "project_coordination_and_authority"
       : "scope_of_work_section";
   }
   if (keyNorm === "common overlapping trades") {
@@ -1478,7 +1672,7 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
     if (keyNorm === "regulatory framework") return "regulatory_basis_and_references";
     if (keyNorm === "environmental execution requirements") return "hazard_communication_and_environmental_protection";
     if (keyNorm === "weather requirements and severe weather response" || keyNorm === "weather") return "emergency_response_and_rescue";
-    return "hazard_control_modules";
+    return "high_risk_programs";
   }
 
   if (
@@ -1506,11 +1700,11 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
       "rescue",
     ])
   ) {
-    if (includesAny(keyTitle, ["task module", "activity hazard", "task hazard", "jsa"])) return "task_execution_modules";
+    if (includesAny(keyTitle, ["task module", "activity hazard", "task hazard", "jsa"])) return "high_risk_programs";
     if (includesAny(keyTitle, ["required ppe", "ppe"])) return "ppe_and_work_attire";
     if (includesAny(keyTitle, ["additional permits", "permit"])) return "required_permits_and_hold_points";
     if (includesAny(keyTitle, ["rescue"])) return "emergency_response_and_rescue";
-    return "hazard_control_modules";
+    return "high_risk_programs";
   }
 
   if (includesAny(combined, ["table of contents", " index "])) {
@@ -1550,7 +1744,7 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
     ])
   ) {
     return includesAny(keyTitle, ["project information", "contractor information"])
-      ? "project_and_contractor_information"
+      ? "project_coordination_and_authority"
       : "scope_of_work_section";
   }
 
@@ -1681,7 +1875,7 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
     return "hazard_communication_and_environmental_protection";
   }
 
-  return "hazard_control_modules";
+  return "high_risk_programs";
 }
 
 function toTemplateSubsections(source: GeneratedSafetyPlanSection): CsepTemplateSubsection[] {
@@ -1870,6 +2064,10 @@ export function buildCsepTemplateSections(
     title: definition.title,
     descriptor: definition.descriptor,
     kind: definition.kind,
+    numberLabel:
+      definition.kind === "main"
+        ? String(FIXED_SECTION_DEFINITIONS.filter((entry) => entry.kind === "main").findIndex((entry) => entry.key === definition.key) + 1)
+        : null,
     subsections: buildSectionSubsections(definition, grouped, {
       draft: params.draft ?? createEmptyDraftContext(),
       projectName: params.projectName,
@@ -2036,6 +2234,290 @@ function synthesizeWorkAttireSubsections(): CsepTemplateSubsection[] {
   ];
 }
 
+function synthesizePpeVersionCSubsections(
+  draft: GeneratedSafetyPlanDraft,
+  existing: CsepTemplateSubsection[]
+): CsepTemplateSubsection[] {
+  const ppe = dedupePpeItemsForExport([
+    ...draft.ruleSummary.ppeRequirements,
+    ...draft.operations.flatMap((operation) => operation.ppeRequirements ?? []),
+    ...existing.flatMap((sub) => [...(sub.items ?? []), ...(sub.paragraphs ?? [])]),
+  ]);
+  const minimumPpe = ppe.length ? ppe.join(", ") : "hard hat, safety glasses, high-visibility garment, gloves appropriate to the task, safety-toe footwear, and any project-required baseline PPE";
+  return [
+    {
+      title: "Required Work Attire",
+      paragraphs: [withReferences("Workers shall report in work attire suitable for construction conditions, weather, climbing, material handling, and the site dress code", ["R11", "R12"])],
+      items: [...CSEP_WORK_ATTIRE_DEFAULT_BULLETS.map((item) => withReferences(item, ["R11", "R12"]))],
+    },
+    {
+      title: "Minimum PPE",
+      paragraphs: [withReferences(`Minimum PPE for this CSEP includes ${minimumPpe}`, ["R11", "R12"])],
+    },
+    {
+      title: "Task-Specific PPE",
+      paragraphs: [withReferences("Task-specific PPE shall be selected from the task hazards, SDS, permit, manufacturer instructions, and JSA/PTP for the active work", ["R10", "R11", "R12", "R13"])],
+    },
+    {
+      title: "PPE Provider",
+      paragraphs: [withReferences("The employer shall provide required protective equipment except personal clothing or personal items specifically allowed by company and project policy; no worker may be assigned exposed work until required PPE is available and serviceable", ["R11", "R12"])],
+    },
+    {
+      title: "Selection Criteria",
+      paragraphs: [withReferences("PPE selection shall consider impact, cut, puncture, chemical, heat, electrical, fall, visibility, weather, and manufacturer limitations for the task", ["R10", "R11", "R13", "R17"])],
+    },
+    {
+      title: "Training",
+      paragraphs: [withReferences("Workers shall be trained on when PPE is required, how to wear it, limitations, inspection, care, storage, and replacement before assignment", ["R11", "R12", "R16"])],
+    },
+    {
+      title: "Inspection and Replacement",
+      paragraphs: [withReferences("Damaged, contaminated, expired, modified, or unsuitable PPE shall be removed from service and replaced before the worker resumes exposed work", ["R11", "R12", "R16"])],
+    },
+  ];
+}
+
+function synthesizeTrainingMatrixSubsections(
+  draft: GeneratedSafetyPlanDraft,
+  existing: CsepTemplateSubsection[]
+): CsepTemplateSubsection[] {
+  const exposures = uniqueItems([
+    ...draft.operations.map((operation) => operation.taskTitle),
+    ...draft.ruleSummary.hazardCategories,
+  ]).join("; ") || "Selected scope";
+  return [
+    {
+      title: "Training Matrix",
+      table: {
+        columns: ["Role / Position", "Minimum Required Training", "Task Exposure", "Verification", "Frequency"],
+        rows: [
+          ["Foreman / Superintendent", "Project orientation; CSEP review; JSA/PTP; stop-work authority", exposures, "Sign-in / supervisor verification", "Before mobilization and when scope changes"],
+          ["Competent Person", "Competent-person designation for assigned exposures", exposures, "Designation record / field verification", "Before assigned oversight"],
+          ["Ironworker / Steel Erector", "Fall protection; steel erection task briefing; hazard recognition", exposures, "Training record / daily huddle", "Before task and as conditions change"],
+          ["Connector / Decking Crew", "Connector/decking authorization; CDZ; fall rescue awareness", "Leading edge / decking / connector work", "Authorization record", "Before special-task work"],
+          ["Qualified Rigger / Signal Person", "Rigging; signaling; lift plan / pick plan communication", "Crane picks / material handling", "Qualification record", "Before lifting assignment"],
+          ["MEWP Operator", "MEWP operator training and equipment authorization", "MEWP / aerial lift access", "Operator card / equipment authorization", "Before operation"],
+          ["Welder / Fire Watch", "Hot work permit; fire watch; extinguisher use; HazCom tie-in", "Welding / cutting / grinding", "Permit and training record", "Before hot work"],
+          ["Rescue Personnel", "Rescue plan, equipment, communication, and role assignment", "Fall rescue / emergency response", "Rescue briefing / drill record", "Before rescue responsibility"],
+        ],
+      },
+    },
+    {
+      title: "Minimum Training Rule",
+      paragraphs: [
+        withReferences(
+          "No worker shall be assigned to connector work, decking, rigging, signaling, hot work, MEWP operation, scaffold use, fall rescue responsibility, or other special-task work until the required training, qualification, authorization, or competent-person verification has been documented",
+          ["R12", "R16"]
+        ),
+      ],
+    },
+    ...existing.filter((sub) => !sub.table),
+  ];
+}
+
+function synthesizePermitHoldPointSubsections(
+  draft: GeneratedSafetyPlanDraft,
+  existing: CsepTemplateSubsection[]
+): CsepTemplateSubsection[] {
+  const permits = normalizePermitList([
+    ...draft.ruleSummary.permitTriggers,
+    ...draft.operations.flatMap((operation) => operation.permitTriggers ?? []),
+  ]);
+  const rows = (permits.length ? permits : ["Daily JSA / PTP", "Lift plan / pick plan when lifting is selected"]).map((permit) => [
+    permit,
+    referencesForText(permit).join(", "),
+    "Foreman verifies permit or hold-point release before work starts and when conditions change.",
+    "Project permit log / JSA / lift plan / inspection record",
+  ]);
+  return [
+    {
+      title: "Required Permits and Hold Points",
+      table: {
+        columns: ["Permit / Hold Point", "Trigger", "Release Requirement", "Record"],
+        rows,
+      },
+    },
+    {
+      title: "Permit Readiness Rule",
+      paragraphs: [withReferences("Work shall not begin or restart when a required permit, rescue plan, lift plan, competent-person inspection, or owner / GC / CM approval is missing or expired", ["R12", "R16"])],
+    },
+    ...existing.filter((sub) => !sub.table),
+  ];
+}
+
+function synthesizeScopePolicyEvidenceSummarySubsections(): CsepTemplateSubsection[] {
+  return [
+    {
+      title: "Scope-Specific CODEX Evidence Summary",
+      table: {
+        columns: ["Scope Policy / Requirement", "How This CSEP Addresses It", "Where to Review"],
+        rows: [
+          ["Fall Protection", "Fall protection, fall rescue, leading edge, and stop-work controls are included when triggered.", "High-Risk Programs; PPE; Emergency Response"],
+          ["Hand / Power Tools", "Tool use is tied to access control, inspection, PPE, and R14 references.", "High-Risk Programs; Appendix E"],
+          ["Ladder Safety", "Ladder and access controls are included when ladder or access tasks are selected.", "High-Risk Programs; Training Matrix"],
+          ["Trenching / Excavation", "Excavation is either a triggered program or N/A with a required change trigger.", "Excavation / Trenching N/A or Program Trigger"],
+          ["HazCom", "SDS location, chemical inventory, secondary labels, training, and responsible person are addressed.", "HazCom and Environmental Protection"],
+          ["PPE", "Provider, selection, training, maintenance, and replacement language is included.", "PPE and Work Attire"],
+          ["Incident Reporting", "Reporting and investigation steps are included with Appendix B support.", "IIPP / Incident Reporting / Corrective Action; Appendix B"],
+          ["Corrective Action", "Corrective action ownership, verification, and restart expectations are addressed.", "IIPP / Incident Reporting / Corrective Action"],
+          ["HSE Orientation", "Orientation and special-task verification are summarized in the training matrix.", "Training, Competency, and Certifications"],
+          ["Severe Weather", "Wind, lightning, heat, cold, storm/tornado, shelter, restart, and inspection thresholds are included when triggered.", "High-Risk Programs; Emergency Response"],
+        ],
+      },
+    },
+  ];
+}
+
+function programToSubsections(program: CsepHighRiskProgram, index: number): CsepTemplateSubsection[] {
+  const prefix = `17.${index + 1}`;
+  return [
+    { title: `${prefix} ${program.name}`, paragraphs: [] },
+    { title: `${prefix}.1 Risk`, paragraphs: program.risk },
+    { title: `${prefix}.2 When this program applies`, paragraphs: program.appliesWhen },
+    { title: `${prefix}.3 Minimum training / authorization`, items: program.minimumTraining },
+    { title: `${prefix}.4 Required permits / hold points`, items: program.permitsHoldPoints },
+    { title: `${prefix}.5 Step-by-step control process`, items: program.stepByStepControls },
+    { title: `${prefix}.6 How controls are verified`, items: program.verification },
+    { title: `${prefix}.7 Stop-work / hold-point triggers`, items: program.stopWorkTriggers },
+    { title: `${prefix}.8 Required records`, items: program.requiredRecords },
+    { title: `${prefix}.9 Applicable references`, items: [program.references.join(", ")] },
+  ];
+}
+
+function synthesizeHighRiskProgramSubsections(
+  draft: GeneratedSafetyPlanDraft,
+  existing: CsepTemplateSubsection[]
+): CsepTemplateSubsection[] {
+  const data = buildCsepStructuredData(draft);
+  const generated = data.highRiskPrograms.flatMap(programToSubsections);
+  if (generated.length) return generated;
+  return hasMeaningfulSubsections(existing)
+    ? normalizeHazardModuleBlueprintSubsections(existing)
+    : synthesizeNamedModuleSubsections(
+        ["Triggered High-Risk Program"],
+        "No major high-risk trigger was identified from the selected tasks; verify scope before issue. R12, R16"
+      );
+}
+
+function synthesizeExcavationSubsections(draft: GeneratedSafetyPlanDraft): CsepTemplateSubsection[] {
+  if (hasExcavationScope(draft)) {
+    const program = makeProgram("Excavation and Trenching Safety Program", ["R15", "R12", "R16"], buildCsepTasks(draft).map((task) => task.taskName));
+    return programToSubsections(program, 0).map((sub) => ({
+      ...sub,
+      title: sub.title.replace(/^17\./, "18."),
+    }));
+  }
+  return [
+    {
+      title: "Excavation / Trenching N/A",
+      paragraphs: [
+        withReferences("Excavation and trenching are not included in the planned structural steel / metals / steel erection / decking scope covered by this CSEP", ["R15"]),
+        withReferences("If the scope changes to include digging, entering a trench or excavation, daylighting, underground utility exposure, or work adjacent to an excavation greater than four feet, an excavation / trenching program shall be added before the work begins", ["R15", "R12"]),
+      ],
+    },
+  ];
+}
+
+function synthesizeReviewerCodexReadinessSubsections(draft: GeneratedSafetyPlanDraft): CsepTemplateSubsection[] {
+  const data = buildCsepStructuredData(draft);
+  return [
+    {
+      title: "Reviewer / CODEX Readiness Summary",
+      paragraphs: [
+        "This matrix helps a reviewer locate CSEP evidence quickly. Some CODEX items are separate upload items and are not fully replaced by the CSEP, including OSHA 300A logs, the complete company safety program, example forms, scope-specific policies, and chemical inventory / SDS files when chemicals are brought on site.",
+      ],
+      table: {
+        columns: ["Reviewer Item", "How Addressed", "Location / Evidence"],
+        rows: data.codexRequirements.map((item) => [
+          item.requirementName,
+          `${item.addressedBy}${item.separateUploadNeeded ? " Separate upload may be required." : ""}`,
+          item.documentLocation,
+        ]),
+      },
+    },
+  ];
+}
+
+function synthesizeInspectionsAuditsRecordsSubsections(): CsepTemplateSubsection[] {
+  return [
+    {
+      title: "Inspections, Audits, and Records",
+      paragraphs: [
+        withReferences("Inspections, audits, permits, training records, incident reports, corrective actions, and restart verifications shall be maintained in a review-ready format", ["R12", "R16"]),
+        withReferences("The foreman or competent person shall verify critical controls before work starts, when conditions change, after weather events, and before restart after a stop-work condition", ["R12", "R16", "R17"]),
+      ],
+    },
+  ];
+}
+
+function buildAppendixAFormsIndexSection(): CsepTemplateSection {
+  return {
+    key: "appendix_a_forms_and_permit_library",
+    title: "Appendix A. Forms and Permit Library",
+    kind: "appendix",
+    numberLabel: null,
+    descriptor: "Permit, planning-form, and administrative document library.",
+    subsections: [
+      {
+        title: "Forms Index",
+        table: {
+          columns: ["Form / Permit", "Purpose", "Used For"],
+          rows: [
+            ["Daily JSA / PTP", "Daily hazard review and worker briefing", "All active work"],
+            ["Hot Work Permit", "Ignition-source authorization and fire-watch controls", "Welding, cutting, grinding"],
+            ["Lift Plan / Pick Plan", "Crane, hoisting, rigging, and load-path review", "Crane picks and material handling"],
+            ["Fall Protection / Rescue Plan", "Fall prevention and post-fall response readiness", "Elevated work and decking"],
+            ["Incident Report", "Initial event capture and notification", "Injury, near miss, property, environmental events"],
+            ["Corrective Action Log", "Action owner, due date, and closure verification", "Findings, incidents, audits"],
+            ["Training / Orientation Sign-In", "Attendance and competency verification", "Orientation and special-task training"],
+          ],
+        },
+      },
+    ],
+    closingTagline: null,
+  };
+}
+
+function buildAppendixETaskHazardMatrixSection(tasks: CsepTask[]): CsepTemplateSection {
+  const rows = (tasks.length ? tasks : [
+    {
+      taskNumber: "3.3.1",
+      taskName: "Confirm selected task",
+      taskDescription: "Confirm selected task before field use.",
+      taskHazards: ["To be verified"],
+      taskControls: ["To be verified"],
+      taskPermits: ["None identified"],
+      taskTraining: ["Project orientation"],
+      taskReferences: ["R12", "R16"],
+    },
+  ]).map((task) => [
+    `${task.taskNumber} ${task.taskName}`,
+    task.taskDescription,
+    task.taskHazards.join(", ") || "N/A",
+    task.taskControls.join(", ") || "N/A",
+    task.taskPermits.join(", ") || "None identified",
+    task.taskTraining.join(", ") || "Project orientation / JSA",
+    task.taskReferences.join(", ") || "R12",
+  ]);
+  return {
+    key: "appendix_e_task_hazard_control_matrix",
+    title: "Appendix E. Task-Hazard-Control Matrix",
+    kind: "appendix",
+    numberLabel: null,
+    descriptor: "Task, hazard, control, permit, training, and reference matrix reused from the structured scope task data.",
+    subsections: [
+      {
+        title: "Task-Hazard-Control Matrix",
+        table: {
+          columns: ["Task", "Description", "Hazards", "Controls", "Permits", "Training", "References"],
+          rows,
+        },
+      },
+    ],
+    closingTagline: null,
+  };
+}
+
 function synthesizeTrainingInspectionsMonitoringRecordkeepingSubsections(): CsepTemplateSubsection[] {
   return [
     {
@@ -2129,6 +2611,216 @@ function synthesizeNamedModuleSubsections(names: readonly string[], fallback: st
   }));
 }
 
+function buildTradeInterfaces(draft: GeneratedSafetyPlanDraft): CsepTradeInterface[] {
+  const conflictItems = uniqueItems([
+    ...draft.operations.flatMap((operation) => operation.conflicts ?? []),
+    ...draft.conflictSummary.items.flatMap((item) => [
+      item.rationale,
+      ...item.requiredMitigations,
+      item.resequencingSuggestion ?? "",
+    ]),
+  ]);
+  const base: CsepTradeInterface[] = [
+    {
+      tradeName: "Concrete / Masonry",
+      howItInterferes:
+        "May affect anchor rods, base plates, embeds, bearing surfaces, concrete strength notification, and access release.",
+      controlMethod:
+        "Control by verifying base conditions, anchor layout, embedded plates, concrete notification, and release status before steel erection begins.",
+      references: ["R1", "R12"],
+    },
+    {
+      tradeName: "Electrical / Utilities",
+      howItInterferes:
+        "May create overhead-line exposure, temporary-power interfaces, energized equipment, lighting conflicts, or utility clearance issues.",
+      controlMethod:
+        "Control by identifying utilities, maintaining clearance, coordinating shutdowns where required, and restricting work where energized exposure is not controlled.",
+      references: ["R12"],
+    },
+  ];
+  const conflictRows = conflictItems.slice(0, 4).map((item, index) => ({
+    tradeName: index === 0 ? "Adjacent Trades / Shared Work Areas" : `Coordination Interface ${index + 1}`,
+    howItInterferes: item,
+    controlMethod:
+      "Control by assigning the foreman-to-foreman communication path, confirming access windows, and holding work when shared-area controls are not clear.",
+    references: ["R12"],
+  }));
+  return conflictRows.length ? [...base, ...conflictRows] : base;
+}
+
+function hasExcavationScope(draft: GeneratedSafetyPlanDraft) {
+  const hay = [
+    ...draft.operations.flatMap((operation) => [
+      operation.taskTitle,
+      ...(operation.hazardCategories ?? []),
+      ...(operation.permitTriggers ?? []),
+      ...(operation.requiredControls ?? []),
+    ]),
+    ...(draft.ruleSummary.hazardCategories ?? []),
+    ...(draft.ruleSummary.permitTriggers ?? []),
+  ].join(" ");
+  return /\b(excavat|trench|digging|ground disturbance|utility daylight|below[-\s]?grade)\b/i.test(hay);
+}
+
+function hasWeatherSensitiveScope(draft: GeneratedSafetyPlanDraft) {
+  const hay = [
+    ...draft.operations.flatMap((operation) => [
+      operation.taskTitle,
+      ...(operation.equipmentUsed ?? []),
+      ...(operation.workConditions ?? []),
+      ...(operation.hazardCategories ?? []),
+    ]),
+    ...(draft.ruleSummary.weatherRestrictions ?? []),
+  ].join(" ");
+  return /\b(exterior|outdoor|steel|deck|roof|crane|mewp|aerial|elevated|material handling|hoist|wind|weather)\b/i.test(hay);
+}
+
+function makeProgram(name: string, refs: string[], taskNames: string[], overrides?: Partial<CsepHighRiskProgram>): CsepHighRiskProgram {
+  const scope = taskNames.length ? taskNames.join(", ") : "the selected task scope";
+  return {
+    name,
+    risk: overrides?.risk ?? [
+      withReferences(`${name} can expose workers to severe injury when the planned controls are missing, misunderstood, or defeated by changing field conditions`, refs),
+      withReferences(`The main failure modes include uncontrolled access, poor communication, missing verification, and continuing work after the task no longer matches the reviewed plan`, refs),
+    ],
+    appliesWhen: overrides?.appliesWhen ?? [
+      withReferences(`This program applies when ${scope} creates the exposure controlled by ${name}`, refs),
+      withReferences("It also applies when adjacent trades, weather, access changes, equipment changes, or owner / GC / CM requirements add a related hold point", ["R12", ...refs].slice(0, 5)),
+    ],
+    minimumTraining: overrides?.minimumTraining ?? [
+      withReferences("Workers shall receive task-specific orientation before assignment", ["R12", "R16"]),
+      withReferences("Supervision shall verify competent-person or qualified-person coverage where required", ["R12", "R16"]),
+      withReferences("Special-task workers shall be authorized for the equipment, permit, or exposure assigned", ["R12", "R16"]),
+    ],
+    permitsHoldPoints: overrides?.permitsHoldPoints ?? [
+      withReferences("Required permits, plans, and owner / GC / CM hold points shall be completed before work starts", ["R12"]),
+      withReferences("The foreman shall verify that permit conditions still match the work location, crew, equipment, and sequence before release", ["R12", "R16"]),
+      withReferences("Work shall not proceed when the required approval path is unclear or not documented", ["R12"]),
+    ],
+    stepByStepControls: overrides?.stepByStepControls ?? [
+      withReferences("Review the task, location, crew assignments, adjacent work, and expected sequence during the pre-task plan", refs),
+      withReferences("Confirm the competent person, qualified person, permit holder, or authorized operator assigned to the work", ["R12", "R16"]),
+      withReferences("Inspect required equipment, access, PPE, tools, and work surfaces before the task starts", refs),
+      withReferences("Set boundaries, barricades, communication methods, and access restrictions before exposure is created", refs),
+      withReferences("Verify required permits, lift plans, rescue plans, inspection logs, and manufacturer limits before release", ["R12", "R13", "R16"]),
+      withReferences("Start work only after affected workers understand the hazards, controls, stop-work triggers, and handoff conditions", refs),
+      withReferences("Maintain controls continuously while the work front moves, materials are handled, or adjacent conditions change", refs),
+      withReferences("Pause and re-brief the crew when weather, equipment, sequence, access, or trade interfaces change", ["R12", "R17"]),
+      withReferences("Document inspection, permit, training, and corrective action records needed to prove control verification", ["R12", "R16"]),
+    ],
+    verification: overrides?.verification ?? [
+      withReferences("The foreman or competent person verifies controls before work starts and when the work front moves", ["R12", "R16", ...refs].slice(0, 5)),
+      withReferences("Field verification is documented through the JSA/PTP, permit, inspection checklist, lift plan, rescue plan, or sign-in record as applicable", ["R12", "R16"]),
+      withReferences("Supervision verifies corrective actions before restart after a stop-work condition", ["R12", "R16"]),
+    ],
+    stopWorkTriggers: overrides?.stopWorkTriggers ?? [
+      withReferences("Stop work when required controls, permits, inspections, access controls, or trained personnel are missing", ["R12", ...refs].slice(0, 5)),
+      withReferences("Stop work when field conditions no longer match the reviewed plan or manufacturer limits", ["R13", ...refs].slice(0, 5)),
+      withReferences("Stop work when weather, adjacent trades, unstable material, or unclear communication creates uncontrolled exposure", ["R12", "R17", ...refs].slice(0, 5)),
+    ],
+    requiredRecords: overrides?.requiredRecords ?? [
+      withReferences("Maintain JSA/PTP records, permits, inspection checklists, training verification, sign-ins, corrective actions, and approval records according to company and project requirements", ["R12", "R16"]),
+    ],
+    references: uniqueItems(refs),
+  };
+}
+
+function buildWeatherProgram(taskNames: string[]) {
+  return makeProgram("Severe Weather, High Wind, Lightning, Heat, Cold, and Restart Control", ["R17", "R12", "R16"], taskNames, {
+    risk: [
+      withReferences("Weather can change crane capacity, load control, elevated access, worker heat/cold exposure, and the stability of unsecured materials", ["R17"]),
+      withReferences("Wind, lightning, heat, cold, storms, and tornado warnings can quickly turn normal exterior work into an imminent-danger condition if work continues without reassessment", ["R17", "R12"]),
+    ],
+    stepByStepControls: [
+      withReferences("Review the daily forecast during the morning huddle and identify weather-sensitive work, including steel erection, sheeting, scaffolds, MEWPs, elevated platforms, roofing, cranes, and material handling", ["R17", "R12"]),
+      withReferences("Update the JSA/PTP when weather affects access, equipment limits, heat/cold exposure, load control, or work sequencing", ["R17", "R16"]),
+      withReferences("Evaluate steel erection, sheeting, scaffolds, MEWPs, and elevated platforms when sustained winds reach 20-25 mph or when gusts affect control", ["R17"]),
+      withReferences("Stop crane operations per manufacturer limits, the lift plan, project restrictions, or any unsafe wind condition", ["R17", "R13", "R6", "R12"]),
+      withReferences("Stop outdoor work and move workers to shelter when lightning is within 10 miles", ["R17"]),
+      withReferences("Resume lightning-affected work only after clearance and 30 minutes after the last lightning strike within the radius", ["R17", "R12"]),
+      withReferences("Start heat controls above 80 F ambient temperature or heat index above 85 F, including water, shade, monitoring, and rest adjustments", ["R17"]),
+      withReferences("Start cold stress controls at 32 F and below, escalating at 10 F, 0 F, and -5 F with warming, dry PPE, and exposure-duration controls", ["R17"]),
+      withReferences("Stop crane, lift, and elevated work during severe storm or tornado watches when directed by project leadership, manufacturer limits, or unsafe observed conditions", ["R17", "R12"]),
+      withReferences("Fully stop work and shelter during warnings, then require a post-weather restart inspection before work resumes", ["R17", "R12", "R16"]),
+    ],
+    verification: [
+      withReferences("The foreman verifies the daily weather review and JSA/PTP update before weather-sensitive work begins", ["R17", "R16"]),
+      withReferences("The competent person verifies elevated surfaces, crane setup, access, materials, and barricades after weather stoppage", ["R17", "R12", "R16"]),
+      withReferences("Restart is documented only after affected controls, communications, and work areas are rechecked", ["R17", "R16"]),
+    ],
+    stopWorkTriggers: [
+      withReferences("Lightning within 10 miles triggers outdoor work stoppage and shelter", ["R17"]),
+      withReferences("Unsafe wind, manufacturer wind limits, unstable materials, or lift-plan restrictions trigger stop work for cranes, MEWPs, elevated work, and steel/decking activities", ["R17", "R13", "R6"]),
+      withReferences("Severe storm or tornado warnings trigger full stop, shelter, and accountability", ["R17", "R12"]),
+    ],
+  });
+}
+
+function buildTriggeredHighRiskPrograms(draft: GeneratedSafetyPlanDraft, tasks: CsepTask[]) {
+  const hay = [
+    ...tasks.flatMap((task) => [
+      task.taskName,
+      task.taskDescription,
+      ...task.taskHazards,
+      ...task.taskControls,
+      ...task.taskPermits,
+    ]),
+    ...draft.operations.flatMap((operation) => [...(operation.equipmentUsed ?? []), ...(operation.workConditions ?? [])]),
+  ].join(" ");
+  const taskNames = tasks.map((task) => task.taskName);
+  const programs: CsepHighRiskProgram[] = [];
+  const add = (program: CsepHighRiskProgram) => {
+    if (!programs.some((entry) => normalizeCompareToken(entry.name) === normalizeCompareToken(program.name))) {
+      programs.push(program);
+    }
+  };
+
+  if (/\b(steel|deck|decking|connector|leading edge|fall|elevated|roof)\b/i.test(hay)) {
+    add(makeProgram("Fall Protection and Fall Rescue", ["R2", "R3", "R12", "R16"], taskNames));
+    add(makeProgram("Leading Edge, Connector Work, and Controlled Decking Zone", ["R1", "R2", "R12"], taskNames));
+    add(makeProgram("Structural Stability, Temporary Bracing, Column Anchorage, and Initial Connections", ["R1", "R6", "R12", "R16"], taskNames));
+  }
+  if (/\b(rigging|crane|pick|hoist|lift plan|suspended load)\b/i.test(hay)) {
+    add(makeProgram("Hoisting, Rigging, Crane Picks, and Multiple Lift Control", ["R6", "R13", "R12", "R16"], taskNames));
+    add(makeProgram("Dropped Object / Overhead Work / Controlled Access Zone", ["R1", "R2", "R6", "R12"], taskNames));
+  }
+  if (/\b(weld|cutting|grinding|hot work|torch|fire watch)\b/i.test(hay)) {
+    add(makeProgram("Hot Work, Welding, Cutting, and Fire Prevention", ["R4", "R10", "R12", "R16"], taskNames));
+  }
+  if (/\b(mewp|aerial lift|boom lift|scissor lift)\b/i.test(hay)) {
+    add(makeProgram("MEWP, Ladder, Hand Tool, and Access Control", ["R7", "R8", "R14", "R12"], taskNames));
+  } else if (/\b(ladder|hand tool|power tool|tool)\b/i.test(hay)) {
+    add(makeProgram("MEWP, Ladder, Hand Tool, and Access Control", ["R8", "R14", "R12"], taskNames));
+  }
+  if (hasWeatherSensitiveScope(draft)) {
+    add(buildWeatherProgram(taskNames));
+  }
+  if (hasExcavationScope(draft)) {
+    add(makeProgram("Excavation and Trenching Safety Program", ["R15", "R12", "R16"], taskNames));
+  }
+  return programs;
+}
+
+function buildCodexRequirements() {
+  return [
+    { requirementName: "OSHA 300A logs", addressedBy: "Referenced as a separate upload item", documentLocation: "Reviewer / CODEX Readiness Summary", separateUploadNeeded: true },
+    { requirementName: "Complete safety program", addressedBy: "This CSEP summarizes project controls but does not replace the full company program", documentLocation: "Reviewer / CODEX Readiness Summary", separateUploadNeeded: true },
+    { requirementName: "Corrective action policy", addressedBy: "IIPP / Incident Reporting / Corrective Action", documentLocation: "Section 11", separateUploadNeeded: false },
+    { requirementName: "Defined safety responsibilities", addressedBy: "Roles and Responsibilities", documentLocation: "Section 6", separateUploadNeeded: false },
+    { requirementName: "Incident reporting and investigation", addressedBy: "Incident steps and Appendix B package", documentLocation: "Section 11 / Appendix B", separateUploadNeeded: false },
+    { requirementName: "HazCom", addressedBy: "SDS, inventory, labels, training, responsible person", documentLocation: "Section 9", separateUploadNeeded: false },
+    { requirementName: "HSE orientation", addressedBy: "Training, Competency, and Certifications", documentLocation: "Section 13", separateUploadNeeded: false },
+    { requirementName: "PPE", addressedBy: "Provider, selection, training, inspection, replacement", documentLocation: "Section 15", separateUploadNeeded: false },
+    { requirementName: "Fall protection", addressedBy: "High-risk fall protection and rescue program", documentLocation: "Section 17", separateUploadNeeded: false },
+    { requirementName: "Ladder safety", addressedBy: "High-risk access control or policy evidence summary", documentLocation: "Section 16 / 17", separateUploadNeeded: false },
+    { requirementName: "Hand/power tools", addressedBy: "Policy evidence and high-risk access/tool program", documentLocation: "Section 16 / 17", separateUploadNeeded: false },
+    { requirementName: "Excavation/trenching N/A or trigger", addressedBy: "N/A/change-trigger or full program", documentLocation: "Section 18", separateUploadNeeded: false },
+    { requirementName: "Forms", addressedBy: "Forms and permit library", documentLocation: "Appendix A", separateUploadNeeded: true },
+    { requirementName: "SDS / chemical inventory", addressedBy: "HazCom requires location/inventory; SDS uploads are separate when chemicals are brought on site", documentLocation: "Section 9", separateUploadNeeded: true },
+    { requirementName: "Training records", addressedBy: "Training matrix and recordkeeping requirements", documentLocation: "Section 13 / Section 19", separateUploadNeeded: true },
+  ];
+}
+
 function synthesizeRegulatoryReferenceSubsections(): CsepTemplateSubsection[] {
   return [
     {
@@ -2171,6 +2863,14 @@ function synthesizeSignOffSubsections(): CsepTemplateSubsection[] {
         "The signatures below confirm that this CSEP has been reviewed against the project scope, site rules, and applicable regulatory requirements prior to field use.",
         "Issue this plan only after the responsible project and contractor representatives have completed the required sign-off.",
       ],
+      table: {
+        columns: ["Reviewer / Approver", "Role", "Signature", "Date"],
+        rows: [
+          ["Project Manager / Competent Person", "Contractor field authority", "", ""],
+          ["Corporate Safety Director", "Company safety approval", "", ""],
+          ["Owner / GC / CM Representative", "Project acceptance / coordination", "", ""],
+        ],
+      },
     },
   ];
 }
@@ -2189,6 +2889,22 @@ function synthesizePurposeSubsections(
       paragraphs: [
         `This CSEP establishes the project-specific safety and environmental requirements that govern work on ${projectLabel}.`,
         second,
+      ],
+    },
+  ];
+}
+
+function synthesizeProjectCoordinationSubsections(draft: GeneratedSafetyPlanDraft): CsepTemplateSubsection[] {
+  const data = buildCsepStructuredData(draft);
+  const gcCm = formatGcCmPartnersForExport(data.projectInfo.gcCm);
+  return [
+    {
+      title: "Project Coordination and Authority",
+      paragraphs: [
+        withReferences("Project information is maintained on the title page to avoid duplication and conflicting information in the body of the plan", ["R12"]),
+        withReferences("The contractor shall verify the current controlling contractor, GC / CM, owner representative, project safety authority, emergency contact process, and permit approval process before mobilization", ["R12"]),
+        withReferences("If more than one GC / CM, program partner, or owner representative has active authority, all parties shall be included in coordination, permit approval, access control, and hold-point communication", ["R12"]),
+        withReferences(`Current coordination parties shown on the cover page include owner / client ${data.projectInfo.owner} and GC / CM ${gcCm}`, ["R12"]),
       ],
     },
   ];
@@ -2220,6 +2936,7 @@ function synthesizeScopeSubsections(
   _taskTitles: string[]
 ): CsepTemplateSubsection[] {
   const steelErectionScope = isStructuralSteelOrDeckingScope(draft, tradeLabel, subTradeLabel);
+  const data = buildCsepStructuredData(draft);
   const tradeSummary = [tradeLabel, subTradeLabel].filter((value) => value && value !== "N/A").join(" / ");
   const scopeSummaryParts = [
     contractorName !== "N/A" ? `Contractor: ${contractorName}` : null,
@@ -2229,13 +2946,15 @@ function synthesizeScopeSubsections(
       : null,
   ].filter((value): value is string => Boolean(value));
 
-  const taskLine = _taskTitles.length
-    ? `Selected tasks: ${_taskTitles.join("; ")}.`
-    : "Selected tasks: confirm against the issued builder snapshot before field use.";
+  const taskRows = data.tasks.length
+    ? data.tasks.map((task) => `${task.taskNumber} ${task.taskName}  ${task.taskDescription}`)
+    : _taskTitles.map((title, index) => `3.3.${index + 1} ${title}  ${summarizeProjectScopeEntry(title) ?? "Task description to be confirmed before field use."}`);
 
   const scopeParagraphs = [
     ...scopeSummaryParts,
-    taskLine,
+    data.tasks.length
+      ? `The active tasks below define the work package used to build the high-risk programs and Appendix E matrix.`
+      : "Selected tasks shall be confirmed against the issued builder snapshot before field use.",
   ]
     .filter((value): value is string => Boolean(value))
     .join(" ")
@@ -2246,6 +2965,11 @@ function synthesizeScopeSubsections(
     {
       title: "Scope summary",
       paragraphs: [scopeParagraphs || "Project-specific information to be completed."],
+    },
+    {
+      title: "Active Tasks",
+      items: taskRows.length ? taskRows : ["3.3.1 Confirm selected tasks  Confirm selected tasks against the issued builder snapshot before field use."],
+      plainItemsStyle: "offset_lines",
     },
   ];
 }
@@ -2591,7 +3315,7 @@ function synthesizeRolesAndResponsibilitiesSubsections(context: {
     {
       title: "GC / CM / Controlling Contractor Interface",
       paragraphs: [
-        `Provides site-wide orientation, hazard communication integration, emergency response coordination, and rules for shared spaces, traffic, and hot work where the GC/CM is the controlling entity. Confirms contractor plans align with the site safety plan and interfaces on multi-employer exposures. Contractor supervision remains responsible for crew execution and subcontractor oversight.`,
+        `Provides site-wide orientation, shared emergency coordination, and rules for shared spaces, traffic, and hot work where the GC/CM is the controlling entity. Confirms contractor plans align with the site safety plan and interfaces on multi-employer exposures. Contractor supervision remains responsible for crew execution and subcontractor oversight.`,
       ],
     },
   ];
@@ -2632,7 +3356,7 @@ function applySectionOwnershipFilter(
   sectionKey: string,
   subsections: CsepTemplateSubsection[]
 ): CsepTemplateSubsection[] {
-  if (sectionKey === "hazard_control_modules") {
+  if (sectionKey === "high_risk_programs") {
     return subsections
       .map((sub) => {
         const keep = (value: string) => {
@@ -3019,6 +3743,10 @@ function buildSectionSubsections(
     });
   }
 
+  if (definition.key === "project_coordination_and_authority") {
+    subsections = synthesizeProjectCoordinationSubsections(context.draft);
+  }
+
   if (definition.key === "regulatory_basis_and_references") {
     const existingText = subsections.flatMap((subsection) => [
       ...(subsection.paragraphs ?? []),
@@ -3033,8 +3761,8 @@ function buildSectionSubsections(
     }
   }
 
-  if (definition.key === "scope_of_work_section" && !hasMeaningfulSubsections(subsections)) {
-    subsections = synthesizeScopeSubsections(
+  if (definition.key === "scope_of_work_section") {
+    const synthesizedScope = synthesizeScopeSubsections(
       context.draft,
       context.projectName,
       context.contractorName,
@@ -3042,6 +3770,15 @@ function buildSectionSubsections(
       context.subTradeLabel,
       context.taskTitles
     );
+    if (!hasMeaningfulSubsections(subsections)) {
+      subsections = synthesizedScope;
+    } else {
+      const existingTitles = new Set(subsections.map((subsection) => normalizeCompareToken(subsection.title ?? "")));
+      subsections = [
+        ...subsections,
+        ...synthesizedScope.filter((subsection) => !existingTitles.has(normalizeCompareToken(subsection.title ?? ""))),
+      ];
+    }
   }
 
   if (definition.key === "top_10_critical_risks") {
@@ -3064,6 +3801,10 @@ function buildSectionSubsections(
         plainItemsStyle: "offset_lines",
       },
     ];
+  }
+
+  if (definition.key === "roles_and_responsibilities" && !hasMeaningfulSubsections(subsections)) {
+    subsections = synthesizeRolesAndResponsibilitiesSubsections(context);
   }
 
   if (definition.key === "trade_interaction_and_coordination") {
@@ -3095,44 +3836,35 @@ function buildSectionSubsections(
     subsections = applySectionOwnershipFilter(definition.key, subsections);
   }
 
-  if (definition.key === "high_risk_steel_erection_programs" && !hasMeaningfulSubsections(subsections)) {
-    subsections = synthesizeNamedModuleSubsections(
-      HIGH_RISK_STEEL_PROGRAMS,
-      "Apply this program when the activity is part of the active structural steel or decking scope; verify competent-person ownership, access control, permits, and stop-work triggers before work starts."
-    );
-  }
-
-  if (definition.key === "hazard_control_modules") {
+  if (definition.key === "high_risk_programs") {
     subsections = stripSharedContentAcrossSubsections(
       dedupeTemplateSubsections(subsections.map((subsection) => sanitizeHazardModuleSubsection(subsection)))
     );
-    if (!hasMeaningfulSubsections(subsections)) {
-      subsections = synthesizeNamedModuleSubsections(
-        HAZARD_CONTROL_MODULES,
-        "Document the hazard-specific exposure, required controls, verification method, and stop-work trigger for this module."
-      );
-    }
-    subsections = normalizeHazardModuleBlueprintSubsections(subsections);
-    subsections = applySectionOwnershipFilter(definition.key, subsections);
+    subsections = synthesizeHighRiskProgramSubsections(context.draft, subsections);
   }
 
-  if (definition.key === "task_execution_modules" && !hasMeaningfulSubsections(subsections)) {
-    subsections = synthesizeNamedModuleSubsections(
-      TASK_EXECUTION_MODULES,
-      "Document the task sequence, required hold points, crew coordination, and field verification for this execution module."
-    );
+  if (definition.key === "excavation_trenching_na_or_program_trigger") {
+    subsections = synthesizeExcavationSubsections(context.draft);
   }
 
-  if (definition.key === "ppe_and_work_attire" && !hasMeaningfulSubsections(subsections)) {
-    subsections = synthesizeWorkAttireSubsections();
+  if (definition.key === "ppe_and_work_attire") {
+    subsections = synthesizePpeVersionCSubsections(context.draft, subsections);
+  }
+
+  if (definition.key === "scope_specific_policy_evidence_summary") {
+    subsections = synthesizeScopePolicyEvidenceSummarySubsections();
+  }
+
+  if (definition.key === "reviewer_codex_readiness_summary") {
+    subsections = synthesizeReviewerCodexReadinessSubsections(context.draft);
   }
 
   if (definition.key === "site_access_security_laydown_traffic_control") {
     subsections = applySectionOwnershipFilter(definition.key, subsections);
   }
 
-  if (definition.key === "training_competency_and_certifications" && !hasMeaningfulSubsections(subsections)) {
-    subsections = synthesizeTrainingInspectionsMonitoringRecordkeepingSubsections();
+  if (definition.key === "training_competency_and_certifications") {
+    subsections = synthesizeTrainingMatrixSubsections(context.draft, subsections);
   }
   if (definition.key === "training_competency_and_certifications") {
     const steelScope = isStructuralSteelOrDeckingScope(
@@ -3156,6 +3888,14 @@ function buildSectionSubsections(
         },
       ];
     }
+  }
+
+  if (definition.key === "required_permits_and_hold_points") {
+    subsections = synthesizePermitHoldPointSubsections(context.draft, subsections);
+  }
+
+  if (definition.key === "inspections_audits_and_records" && !hasMeaningfulSubsections(subsections)) {
+    subsections = synthesizeInspectionsAuditsRecordsSubsections();
   }
 
   if (definition.key === "project_closeout" && !hasMeaningfulSubsections(subsections)) {
@@ -3204,9 +3944,18 @@ function configuredCompanyNameFromDraft(draft: GeneratedSafetyPlanDraft): string
 /** Cover metadata rows already shown on the structured title page block. */
 const COVER_METADATA_ON_TITLE_PAGE = new Set([
   "Project Name",
+  "Project Number",
   "Project Address",
   "Governing State",
   "Contractor",
+  "Trade",
+  "Sub-trade",
+  "Active Tasks",
+  "Owner / Client",
+  "GC / CM",
+  "Issue Date",
+  "Revision",
+  "Prepared By",
   "Date",
 ]);
 
@@ -3215,6 +3964,7 @@ export function buildCsepRenderModelFromGeneratedDraft(
   options?: { footerCompanyName?: string | null }
 ): CsepRenderModel {
   const structuredDraft = buildStructuredCsepDraft(draft, { finalIssueMode: true });
+  const structuredData = buildCsepStructuredData(structuredDraft);
   const draftHasStructuredKinds = draft.sectionMap.some((section) =>
     ["front_matter", "main", "appendix"].includes(section.kind ?? "")
   );
@@ -3258,20 +4008,9 @@ export function buildCsepRenderModelFromGeneratedDraft(
     cleanFinalText(structuredDraft.documentControl?.reviewedBy) ||
     cleanFinalText(draft.projectOverview.contractorCompany) ||
     preparedBy;
-  const projectName = finalValueOrNA(draft.projectOverview.projectName);
-  const projectAddress = finalValueOrNA(draft.projectOverview.projectAddress);
-  const provenanceRecord = draft.provenance as Record<string, unknown>;
-  const governingFromProvenance =
-    typeof provenanceRecord.governingState === "string" ? provenanceRecord.governingState.trim() : "";
-  const builderSnap =
-    draft.builderSnapshot && typeof draft.builderSnapshot === "object"
-      ? (draft.builderSnapshot as Record<string, unknown>)
-      : null;
-  const governingFromSnapshot =
-    builderSnap && typeof builderSnap.governing_state === "string"
-      ? String(builderSnap.governing_state).trim()
-      : "";
-  const governingStateRaw = governingFromProvenance || governingFromSnapshot;
+  const projectName = structuredData.projectInfo.projectName;
+  const projectAddress = structuredData.projectInfo.address;
+  const governingStateRaw = structuredData.projectInfo.governingState === "N/A" ? "" : structuredData.projectInfo.governingState;
   const titlePageProjectLocation = finalValueOrNA(
     (draft.projectOverview.projectAddress?.trim() && draft.projectOverview.projectAddress.trim()) ||
       (draft.projectOverview.location?.trim() && draft.projectOverview.location.trim()) ||
@@ -3285,16 +4024,20 @@ export function buildCsepRenderModelFromGeneratedDraft(
     { label: "Project Name", value: projectName },
     { label: "Project Number", value: finalValueOrNA(draft.projectOverview.projectNumber) },
     { label: "Project Address", value: projectAddress },
-    ...(governingStateRaw ? [{ label: "Governing State", value: governingStateRaw }] : []),
-    { label: "Owner / Client", value: finalPartyValueOrNA(draft.projectOverview.ownerClient) },
+    { label: "Contractor", value: structuredData.projectInfo.contractor },
+    { label: "Trade", value: structuredData.projectInfo.trade },
+    { label: "Sub-trade", value: structuredData.projectInfo.subtrade },
+    { label: "Active Tasks", value: structuredData.projectInfo.tasks.join("; ") || "N/A" },
+    { label: "Owner / Client", value: structuredData.projectInfo.owner },
     {
-      label: "GC / CM / program partners (list all with site safety or logistics authority)",
-      value: formatGcCmPartnersForExport(normalizeGcCmPartnerEntries(draft.projectOverview.gcCm)),
+      label: "GC / CM",
+      value: formatGcCmPartnersForExport(structuredData.projectInfo.gcCm),
     },
-    { label: "Contractor", value: contractorName },
+    ...(governingStateRaw ? [{ label: "Governing State", value: governingStateRaw }] : []),
     { label: "Prepared By", value: preparedBy },
+    { label: "Issue Date", value: issueLabel },
     { label: "Date", value: issueLabel },
-    { label: "Revision", value: structuredDraft.documentControl?.revision || "1.0" },
+    { label: "Revision", value: structuredData.projectInfo.revision },
   ]);
   const orderedSections = buildCsepTemplateSections({
     draft,
@@ -3338,7 +4081,14 @@ export function buildCsepRenderModelFromGeneratedDraft(
   }
   const appendixSections = appendixSourceSections
     .sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
-    .map(toTemplateSection);
+    .map(toTemplateSection)
+    .map((section) =>
+      section.key === "appendix_e_task_hazard_control_matrix"
+        ? buildAppendixETaskHazardMatrixSection(structuredData.tasks)
+        : section.key === "appendix_a_forms_and_permit_library"
+          ? buildAppendixAFormsIndexSection()
+          : section
+    );
 
   return {
     projectName,
@@ -3408,8 +4158,8 @@ function bodyParagraph(
     [
       new TextRun({
         text: polishCsepDocxNarrativeText(text),
-        font: "Calibri",
-        size: 21,
+        font: "Aptos",
+        size: 20,
         color: COLORS.ink,
       }),
     ],
@@ -3422,14 +4172,186 @@ function bodyParagraph(
   );
 }
 
+function tableCell(
+  text: string,
+  options?: { header?: boolean; titlePage?: boolean; emphasize?: boolean; widthDxa?: number }
+) {
+  const border = { style: BorderStyle.SINGLE, size: 4, color: COLORS.border };
+  return new TableCell({
+    width: options?.widthDxa ? { size: options.widthDxa, type: WidthType.DXA } : undefined,
+    shading: {
+      type: ShadingType.CLEAR,
+      color: "auto",
+      fill: options?.header ? COLORS.evidenceHeaderFill : COLORS.titlePageFill,
+    },
+    borders: options?.titlePage && !options.emphasize
+      ? {
+          top: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+          bottom: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+          left: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+          right: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+        }
+      : { top: border, bottom: border, left: border, right: border },
+    margins: { top: 80, bottom: 80, left: 90, right: 90 },
+    children: [
+      makeParagraph([
+        new TextRun({
+          text: polishCsepDocxNarrativeText(text),
+          font: "Aptos",
+          bold: options?.header || options?.emphasize,
+          size: 20,
+          color: COLORS.ink,
+        }),
+      ]),
+    ],
+  });
+}
+
+function createTitlePageTable(rows: Array<{ label: string; value: string }>) {
+  return new Table({
+    width: { size: 9360, type: WidthType.DXA },
+    layout: TableLayoutType.FIXED,
+    borders: {
+      top: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+      bottom: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+      left: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+      right: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+      insideHorizontal: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+      insideVertical: { style: BorderStyle.NONE, size: 0, color: COLORS.white },
+    },
+    rows: rows.map(
+      (row, index) =>
+        new TableRow({
+          cantSplit: true,
+          children: [
+            tableCell(row.label, { titlePage: true, emphasize: index === 0, widthDxa: 4680 }),
+            tableCell(row.value, { titlePage: true, emphasize: index === 0, widthDxa: 4680 }),
+          ],
+        })
+    ),
+  });
+}
+
+function createDocxTable(table: NonNullable<GeneratedSafetyPlanSection["table"]>) {
+  const columns = table.columns.length ? table.columns : ["Field", "Value"];
+  const rows = table.rows.length ? table.rows : [["N/A", "N/A"]];
+  return new Table({
+    width: { size: 9360, type: WidthType.DXA },
+    layout: TableLayoutType.FIXED,
+    borders: {
+      top: { style: BorderStyle.SINGLE, size: 4, color: COLORS.border },
+      bottom: { style: BorderStyle.SINGLE, size: 4, color: COLORS.border },
+      left: { style: BorderStyle.SINGLE, size: 4, color: COLORS.border },
+      right: { style: BorderStyle.SINGLE, size: 4, color: COLORS.border },
+      insideHorizontal: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
+      insideVertical: { style: BorderStyle.SINGLE, size: 2, color: COLORS.border },
+    },
+    rows: [
+      new TableRow({
+        tableHeader: true,
+        children: columns.map((column) => tableCell(column, { header: true, widthDxa: Math.floor(9360 / columns.length) })),
+      }),
+      ...rows.map((row) =>
+        new TableRow({
+          cantSplit: true,
+          children: columns.map((_, index) => tableCell(row[index] ?? "N/A", { widthDxa: Math.floor(9360 / columns.length) })),
+        })
+      ),
+    ],
+  });
+}
+
+function createCalloutParagraph(text: string, tone: "critical" | "important") {
+  const polished = polishCsepDocxNarrativeText(text);
+  const existingLabel = polished.match(/^([^:]{3,80}):\s+(.+)$/);
+  const label = existingLabel?.[1] ?? (tone === "critical" ? "Stop-Work Authority" : "Important");
+  const body = existingLabel?.[2] ?? polished;
+  const borderColor = tone === "critical" ? COLORS.accentRed : "D6A100";
+
+  return new Table({
+    width: { size: 9360, type: WidthType.DXA },
+    layout: TableLayoutType.FIXED,
+    borders: {
+      top: { style: BorderStyle.SINGLE, size: 8, color: borderColor },
+      bottom: { style: BorderStyle.SINGLE, size: 8, color: borderColor },
+      left: { style: BorderStyle.SINGLE, size: 16, color: borderColor },
+      right: { style: BorderStyle.SINGLE, size: 8, color: borderColor },
+      insideHorizontal: { style: BorderStyle.NONE, size: 0, color: borderColor },
+      insideVertical: { style: BorderStyle.NONE, size: 0, color: borderColor },
+    },
+    rows: [
+      new TableRow({
+        cantSplit: true,
+        children: [
+          new TableCell({
+            width: { size: 9360, type: WidthType.DXA },
+            shading: {
+              type: ShadingType.CLEAR,
+              color: "auto",
+              fill: tone === "critical" ? COLORS.criticalFill : COLORS.importantFill,
+            },
+            margins: { top: 120, bottom: 120, left: 160, right: 160 },
+            children: [
+              new Paragraph({
+                style: STYLE_IDS.body,
+                spacing: { before: 0, after: 0, line: 276 },
+                children: [
+                  new TextRun({
+                    text: `${label}: `,
+                    bold: true,
+                    font: "Aptos",
+                    size: 20,
+                    color: tone === "critical" ? COLORS.accentRed : COLORS.deepBlue,
+                  }),
+                  new TextRun({ text: body, font: "Aptos", size: 20, color: COLORS.ink }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  }) as unknown as Paragraph;
+}
+
+function calloutToneForText(text: string): "critical" | "important" | null {
+  const normalized = text.toLowerCase();
+  if (
+    /\bstop[- ]work\b/.test(normalized) ||
+    /\brescue readiness\b/.test(normalized) ||
+    /\bimminent danger\b/.test(normalized) ||
+    /\bshall not (begin|resume)\b/.test(normalized) ||
+    /\bmissing (rescue|permit|controls?|training|equipment)\b/.test(normalized) ||
+    /\bunsafe lift\b/.test(normalized) ||
+    /\bunstable structure\b/.test(normalized) ||
+    /\bsevere weather\b/.test(normalized)
+  ) {
+    return "critical";
+  }
+  if (
+    /\bminimum training rule\b/.test(normalized) ||
+    /\blaydown area rule\b/.test(normalized) ||
+    /\bno informal field changes\b/.test(normalized) ||
+    /\bimportant\b/.test(normalized) ||
+    /\bhold point\b/.test(normalized) ||
+    /\btraining\b/.test(normalized) ||
+    /\bverified?\b/.test(normalized) ||
+    /\bdocumented?\b/.test(normalized) ||
+    /\brequired records?\b/.test(normalized)
+  ) {
+    return "important";
+  }
+  return null;
+}
+
 function sectionHeading(text: string, color: string = COLORS.titleBlue) {
   return makeParagraph(
     [
       new TextRun({
         text,
-        font: "Calibri",
+        font: "Aptos",
         bold: true,
-        size: 28,
+        size: 32,
         color,
       }),
     ],
@@ -3446,7 +4368,7 @@ function sectionDescriptorParagraph(text: string) {
     [
       new TextRun({
         text: polishCsepDocxNarrativeText(text),
-        font: "Calibri",
+        font: "Aptos",
         italics: true,
         size: 20,
         color: COLORS.gray,
@@ -3480,14 +4402,14 @@ function numberedParagraph(
     [
       new TextRun({
         text: `${numberLabel} `,
-        font: "Calibri",
-        size: 21,
+        font: "Aptos",
+        size: 20,
         color: COLORS.ink,
       }),
       new TextRun({
         text: polishCsepDocxNarrativeText(text),
-        font: "Calibri",
-        size: 21,
+        font: "Aptos",
+        size: 20,
         color: COLORS.ink,
       }),
     ],
@@ -3506,15 +4428,15 @@ function termDefinitionParagraph(term: string, definition: string) {
     [
       new TextRun({
         text: `${polishedTerm}: `,
-        font: "Calibri",
+        font: "Aptos",
         bold: true,
-        size: 21,
+        size: 20,
         color: COLORS.ink,
       }),
       new TextRun({
         text: polishedDefinition,
-        font: "Calibri",
-        size: 21,
+        font: "Aptos",
+        size: 20,
         color: COLORS.ink,
       }),
     ],
@@ -3525,37 +4447,33 @@ function termDefinitionParagraph(term: string, definition: string) {
 }
 
 function createRunningFooter(footerCompanyName: string, contractorName: string) {
+  void footerCompanyName;
+  void contractorName;
   return new Footer({
     children: [
       makeParagraph(
         [
           new TextRun({
-            text: `${footerCompanyName}  |  ${contractorName}  |  `,
-            font: "Calibri",
-            size: 18,
-            color: COLORS.gray,
-          }),
-          new TextRun({
-            text: "Page ",
-            font: "Calibri",
+            text: "Version C - Reviewer / CODEX Evidence CSEP | Page ",
+            font: "Aptos",
             size: 18,
             color: COLORS.gray,
           }),
           new TextRun({
             children: [PageNumber.CURRENT],
-            font: "Calibri",
+            font: "Aptos",
             size: 18,
             color: COLORS.gray,
           }),
           new TextRun({
             text: " of ",
-            font: "Calibri",
+            font: "Aptos",
             size: 18,
             color: COLORS.gray,
           }),
           new TextRun({
             children: [PageNumber.TOTAL_PAGES],
-            font: "Calibri",
+            font: "Aptos",
             size: 18,
             color: COLORS.gray,
           }),
@@ -3601,7 +4519,7 @@ function labeledFieldParagraph(
     valueRuns.push(
       new TextRun({
         text: polishCsepDocxNarrativeText(line),
-        font: "Calibri",
+        font: "Aptos",
         size: 20,
         color: COLORS.ink,
       })
@@ -3613,7 +4531,7 @@ function labeledFieldParagraph(
       new TextRun({
         text: `${label}: `,
         bold: true,
-        font: "Calibri",
+        font: "Aptos",
         size: 20,
         color: COLORS.deepBlue,
       }),
@@ -3656,54 +4574,28 @@ function createCover(model: CsepRenderModel) {
   const titlePageRows: Array<{ label: string; value: string }> = [
     { label: "Document title", value: "Contractor Safety & Environmental Plan (CSEP)" },
     { label: "Project name", value: finalValueOrNA(model.projectName) },
+    { label: "Project address", value: projectLocation },
+    { label: "Contractor", value: finalValueOrNA(model.contractorName) },
     { label: "Trade", value: tradeLine },
     { label: "Sub-trade", value: subTradeLine },
-    { label: "Tasks", value: taskSummary },
-    { label: "Issue date", value: finalValueOrNA(model.issueLabel) },
-    { label: "Project location", value: projectLocation },
-    { label: "Contractor", value: finalValueOrNA(model.contractorName) },
+    { label: "Active tasks", value: taskSummary },
+    { label: "Owner / client", value: model.coverMetadataRows.find((row) => row.label === "Owner / Client")?.value ?? "N/A" },
+    { label: "GC / CM", value: model.coverMetadataRows.find((row) => row.label === "GC / CM")?.value ?? "N/A" },
     { label: "Governing state", value: governingState },
+    { label: "Issue date", value: finalValueOrNA(model.issueLabel) },
+    { label: "Revision", value: model.coverMetadataRows.find((row) => row.label === "Revision")?.value ?? "1.0" },
+    { label: "Prepared by", value: finalValueOrNA(model.preparedBy) },
   ];
 
   const coverChildren: Paragraph[] = [
-    subtleDivider(),
-    bodyParagraph("Title Page", {
-      style: STYLE_IDS.subheading,
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 140 },
-    }),
-    makeParagraph(
-      [
-        new TextRun({
-          text: "CONTRACTOR SAFETY & ENVIRONMENTAL PLAN (CSEP)",
-          font: "Calibri Light",
-          bold: true,
-          size: 32,
-          color: COLORS.titleBlue,
-        }),
-      ],
-      {
-        style: STYLE_IDS.coverTitle,
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 200 },
-      }
-    ),
+    new Paragraph({ spacing: { before: 260, after: 40 }, children: [] }),
   ];
-
-  titlePageRows.forEach((row) => {
-    coverChildren.push(
-      labeledFieldParagraph(row.label, row.value, {
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 88, line: 276 },
-      })
-    );
-  });
 
   if (model.coverLogo) {
     coverChildren.push(
       new Paragraph({
         alignment: AlignmentType.CENTER,
-        spacing: { before: 120, after: 220 },
+        spacing: { before: 60, after: 220 },
         children: [
           new ImageRun({
             type: model.coverLogo.type,
@@ -3717,6 +4609,63 @@ function createCover(model: CsepRenderModel) {
       })
     );
   }
+
+  coverChildren.push(
+    makeParagraph(
+      [
+        new TextRun({
+          text: "CONTRACTOR SAFETY & ENVIRONMENTAL PLAN (CSEP)",
+          font: "Aptos",
+          bold: true,
+          size: 38,
+          color: COLORS.titleBlue,
+        }),
+      ],
+      {
+        style: STYLE_IDS.coverTitle,
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 220 },
+      }
+    ),
+    makeParagraph(
+      [
+        new TextRun({
+          text: "Version C - Reviewer / CODEX Evidence Format",
+          font: "Aptos",
+          bold: true,
+          size: 28,
+          color: COLORS.subtitleGold,
+        }),
+      ],
+      {
+        style: STYLE_IDS.coverSubtitle,
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 140 },
+      }
+    ),
+    makeParagraph(
+      [
+        new TextRun({
+          text: "Uses policy mapping, evidence language, and selective matrices for qualification review.",
+          font: "Aptos",
+          italics: true,
+          size: 24,
+          color: COLORS.ink,
+        }),
+      ],
+      {
+        style: STYLE_IDS.coverSubtitle,
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 160 },
+      }
+    ),
+    bodyParagraph([tradeLine, subTradeLine].filter((value) => value && value !== "N/A").join(" / ") || "N/A", {
+      alignment: AlignmentType.CENTER,
+      style: STYLE_IDS.coverMeta,
+      spacing: { after: 360, line: 276 },
+    }),
+    createTitlePageTable(titlePageRows) as unknown as Paragraph
+  );
 
   model.coverSubtitleLines
     .filter(
@@ -3755,6 +4704,17 @@ function createCover(model: CsepRenderModel) {
       );
     });
   }
+
+  coverChildren.push(
+    bodyParagraph(
+      "Prepared as a presentation draft for review. Replace placeholder logo and project data before final field issue.",
+      {
+        alignment: AlignmentType.CENTER,
+        style: STYLE_IDS.coverSubtitle,
+        spacing: { before: 180, after: 180, line: 276 },
+      }
+    )
+  );
 
   // Approval block. Reframed so it reads as an intentional pre-issue approval
   // placeholder rather than an unresolved draft artifact.
@@ -4024,13 +4984,18 @@ function buildStructuredTableRow(
 
 /** Strip only numeric outline prefixes; keep "Appendix A. …" titles intact for outline headings. */
 function baseTitleForOutlineHeading(section: CsepTemplateSection) {
-  return section.title.trim().replace(/^(Section\s+)?\d+(?:\.\d+)*\.?\s+/i, "").trim();
+  const base = section.title.trim().replace(/^(Section\s+)?\d+(?:\.\d+)*\.?\s+/i, "").trim();
+  return section.key === "owner_message" ? "Owner Safety Message" : base;
 }
 
 /** Section heading text using contiguous outline ordinals (same source as TOC). */
 function displayOutlineSectionHeading(ordinal: number, section: CsepTemplateSection) {
   const base = baseTitleForOutlineHeading(section);
-  return `${ordinal}. ${base}`.trim();
+  if (section.kind === "front_matter" || section.kind === "appendix") {
+    return base;
+  }
+  const number = section.numberLabel?.trim() || String(ordinal);
+  return `${number}. ${base}`.trim();
 }
 
 export type CsepOutlinePlanEntry =
@@ -4063,11 +5028,11 @@ export function buildCsepOutlinePlan(model: CsepRenderModel): CsepOutlinePlanEnt
 function formatOutlineTocLine(entry: CsepOutlinePlanEntry): string {
   switch (entry.kind) {
     case "title_page":
-      return `${entry.ordinal}. Title Page`;
+      return "Title Page";
     case "body_section":
       return displayOutlineSectionHeading(entry.ordinal, entry.section);
     case "disclaimer":
-      return `${entry.ordinal}. Disclaimer`;
+      return "Disclaimer";
   }
 }
 
@@ -4094,7 +5059,7 @@ function outlineOrdinalForKind(
 }
 
 function sectionPrefix(_section: CsepTemplateSection, outlineOrdinal: number) {
-  return String(outlineOrdinal);
+  return _section.numberLabel?.trim() || String(outlineOrdinal);
 }
 
 function isDistinctSubheading(sectionTitle: string, subsectionTitle: string) {
@@ -4117,9 +5082,6 @@ function shouldRenderSubheading(sectionTitle: string, subsection: CsepTemplateSu
 }
 
 const CSEP_SECTION_KEYS_WITH_FLAT_PROGRAM_OUTLINE = new Set<string>([
-  "high_risk_steel_erection_programs",
-  "hazard_control_modules",
-  "task_execution_modules",
   CSEP_SAFETY_PROGRAM_REFERENCE_PACK_KEY,
 ]);
 const MAX_HAZARD_TOP_LEVEL_NUMBERED_ITEMS = 24;
@@ -4425,12 +5387,54 @@ function renderProgramModuleTemplateSection(outlineOrdinal: number, section: Cse
   return children;
 }
 
+function renderHighRiskProgramsSection(outlineOrdinal: number, section: CsepTemplateSection) {
+  const children: Paragraph[] = [
+    sectionHeading(displayOutlineSectionHeading(outlineOrdinal, section), sectionHeadingTone(section)),
+  ];
+  if (section.descriptor?.trim()) {
+    children.push(sectionDescriptorParagraph(section.descriptor.trim()));
+  }
+  section.subsections.forEach((subsection) => {
+    const title = subsection.title.trim();
+    if (title) {
+      children.push(
+        bodyParagraph(title, {
+          style: STYLE_IDS.subheading,
+          spacing: { before: /^\d+\.\d+\s+/.test(title) ? 260 : 140, after: 90, line: 276 },
+        })
+      );
+    }
+    (subsection.paragraphs ?? []).forEach((paragraph) => {
+      const tone = calloutToneForText(paragraph);
+      children.push(
+        tone
+          ? createCalloutParagraph(paragraph, tone)
+          : bodyParagraph(paragraph, { indent: { left: INDENTS.childBodyLeft }, spacing: { after: 120, line: 276 } })
+      );
+    });
+    (subsection.items ?? []).forEach((item, index) => {
+      const tone = calloutToneForText(item);
+      const rendered = tone
+        ? createCalloutParagraph(item, tone)
+        : bodyParagraph(`${index + 1}. ${stripSourceNumberingLabel(item)}`, {
+            indent: { left: INDENTS.childBodyLeft },
+            spacing: { after: 90, line: 276 },
+          });
+      children.push(rendered);
+    });
+  });
+  return children;
+}
+
 function appendParagraphs(children: Paragraph[], paragraphs?: string[]) {
   (paragraphs ?? []).forEach((paragraph) => {
+    const tone = calloutToneForText(paragraph);
     children.push(
-      bodyParagraph(stripSourceNumberingLabel(paragraph), {
-        spacing: { after: 140, line: 276 },
-      })
+      tone
+        ? createCalloutParagraph(stripSourceNumberingLabel(paragraph), tone)
+        : bodyParagraph(stripSourceNumberingLabel(paragraph), {
+            spacing: { after: 140, line: 276 },
+          })
     );
   });
 }
@@ -4441,11 +5445,14 @@ function appendIndentedParagraphs(
   indent: { left?: number; hanging?: number }
 ) {
   (paragraphs ?? []).forEach((paragraph) => {
+    const tone = calloutToneForText(paragraph);
     children.push(
-      bodyParagraph(stripSourceNumberingLabel(paragraph), {
-        indent,
-        spacing: { after: 150, line: 276 },
-      })
+      tone
+        ? createCalloutParagraph(stripSourceNumberingLabel(paragraph), tone)
+        : bodyParagraph(stripSourceNumberingLabel(paragraph), {
+            indent,
+            spacing: { after: 150, line: 276 },
+          })
     );
   });
 }
@@ -4477,28 +5484,26 @@ function pageBreakParagraph() {
 function createContents(model: CsepRenderModel) {
   const plan = buildCsepOutlinePlan(model);
   const tableOfContentsSection = model.frontMatterSections.find((section) => section.key === "table_of_contents");
-  const tocEntry = plan.find(
-    (e): e is Extract<CsepOutlinePlanEntry, { kind: "body_section" }> =>
-      e.kind === "body_section" && e.section.key === "table_of_contents"
+  const frontMatter = ["Title Page", ...model.frontMatterSections
+    .filter((section) => section.key !== "table_of_contents")
+    .map((section) => baseTitleForOutlineHeading(section)), "Table of Contents"];
+  const mainPlan = model.sections.map((section) =>
+    formatOutlineTocLine(plan.find((entry) => entry.kind === "body_section" && entry.section.key === section.key)!)
   );
-  const tocHeading =
-    tableOfContentsSection && tocEntry
-      ? displayOutlineSectionHeading(tocEntry.ordinal, tableOfContentsSection)
-      : "Table of Contents";
-  const entries = plan
-    .filter((entry) => !(entry.kind === "body_section" && entry.section.key === "table_of_contents"))
-    .map((entry) => formatOutlineTocLine(entry));
+  const appendices = model.appendixSections.map((section) => baseTitleForOutlineHeading(section));
 
   return [
-    sectionHeading(tocHeading),
+    sectionHeading("Table of Contents"),
     ...(tableOfContentsSection?.descriptor?.trim()
       ? [sectionDescriptorParagraph(tableOfContentsSection.descriptor.trim())]
       : []),
-    ...entries.map((entry) =>
-      bodyParagraph(entry, {
-        style: STYLE_IDS.contentsEntry,
-      })
-    ),
+    bodyParagraph("Front Matter", { style: STYLE_IDS.subheading }),
+    ...frontMatter.map((entry) => bodyParagraph(entry, { style: STYLE_IDS.contentsEntry })),
+    bodyParagraph("Main Plan", { style: STYLE_IDS.subheading, spacing: { before: 120, after: 60 } }),
+    ...mainPlan.map((entry) => bodyParagraph(entry, { style: STYLE_IDS.contentsEntry, indent: { left: 240 } })),
+    bodyParagraph("Appendices", { style: STYLE_IDS.subheading, spacing: { before: 120, after: 60 } }),
+    ...appendices.map((entry) => bodyParagraph(entry, { style: STYLE_IDS.contentsEntry })),
+    bodyParagraph("Disclaimer", { style: STYLE_IDS.contentsEntry }),
   ];
 }
 
@@ -4521,6 +5526,9 @@ function createAppendicesDivider(ordinal: number) {
 }
 
 function renderSection(outlineOrdinal: number, section: CsepTemplateSection) {
+  if (section.key === "high_risk_programs") {
+    return renderHighRiskProgramsSection(outlineOrdinal, section);
+  }
   if (section.key.startsWith("program_")) {
     return renderProgramModuleTemplateSection(outlineOrdinal, section);
   }
@@ -4612,6 +5620,11 @@ function renderSection(outlineOrdinal: number, section: CsepTemplateSection) {
     });
 
     itemSplit.plain.forEach((item, itemIndex) => {
+      const calloutTone = calloutToneForText(item);
+      if (calloutTone) {
+        children.push(createCalloutParagraph(item, calloutTone));
+        return;
+      }
       if (subsection.plainItemsStyle === "offset_lines") {
         children.push(
           bodyParagraph(item, {
@@ -4639,6 +5652,10 @@ function renderSection(outlineOrdinal: number, section: CsepTemplateSection) {
     });
 
     if (subsection.table?.rows.length) {
+      if (CSEP_EVIDENCE_TABLE_KEYS.has(section.key)) {
+        children.push(createDocxTable(subsection.table) as unknown as Paragraph);
+        return;
+      }
       if (isFieldValueTable(subsection.table)) {
         appendFieldValueTableParagraphs(
           children,
@@ -4693,7 +5710,7 @@ export async function createCsepDocument(model: CsepRenderModel) {
 
   const frontMatterKeys = new Set(model.frontMatterSections.map((section) => section.key));
 
-  model.frontMatterSections.forEach((section, index) => {
+  model.frontMatterSections.forEach((section) => {
     if (section.key === "table_of_contents") {
       children.push(pageBreakParagraph());
       children.push(...createContents(model));
@@ -4708,10 +5725,6 @@ export async function createCsepDocument(model: CsepRenderModel) {
       children.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
     }
     children.push(...renderSection(outlineOrdinalForSectionKey(plan, section.key), section));
-    if (section.key === "sign_off_page") {
-      children.push(new Paragraph({ children: [] }));
-      children.push(...approvalSignatureAsParagraphs(model.approvalLines));
-    }
   });
 
   if (model.frontMatterSections.length && !frontMatterKeys.has("table_of_contents")) {
@@ -4744,8 +5757,8 @@ export async function createCsepDocument(model: CsepRenderModel) {
       default: {
         document: {
           run: {
-            font: "Calibri",
-            size: 21,
+            font: "Aptos",
+            size: 20,
             color: COLORS.ink,
           },
           paragraph: {
@@ -4767,8 +5780,8 @@ export async function createCsepDocument(model: CsepRenderModel) {
             },
           },
           run: {
-            font: "Calibri",
-            size: 21,
+            font: "Aptos",
+            size: 20,
             color: COLORS.ink,
           },
         },
@@ -4783,9 +5796,9 @@ export async function createCsepDocument(model: CsepRenderModel) {
             },
           },
           run: {
-            font: "Calibri Light",
+            font: "Aptos",
             bold: true,
-            size: 32,
+            size: 40,
             color: COLORS.titleBlue,
           },
         },
@@ -4799,9 +5812,9 @@ export async function createCsepDocument(model: CsepRenderModel) {
             },
           },
           run: {
-            font: "Calibri",
+            font: "Aptos",
             italics: true,
-            size: 21,
+            size: 24,
             color: COLORS.gray,
           },
         },
@@ -4815,8 +5828,8 @@ export async function createCsepDocument(model: CsepRenderModel) {
             },
           },
           run: {
-            font: "Calibri",
-            size: 21,
+            font: "Aptos",
+            size: 20,
             color: COLORS.ink,
           },
         },
@@ -4830,9 +5843,9 @@ export async function createCsepDocument(model: CsepRenderModel) {
             },
           },
           run: {
-            font: "Calibri",
+            font: "Aptos",
             bold: true,
-            size: 28,
+            size: 32,
             color: COLORS.titleBlue,
           },
         },
@@ -4846,7 +5859,7 @@ export async function createCsepDocument(model: CsepRenderModel) {
             },
           },
           run: {
-            font: "Calibri",
+            font: "Aptos",
             italics: true,
             size: 20,
             color: COLORS.gray,
@@ -4862,9 +5875,9 @@ export async function createCsepDocument(model: CsepRenderModel) {
             },
           },
           run: {
-            font: "Calibri",
+            font: "Aptos",
             bold: true,
-            size: 24,
+            size: 26,
             color: COLORS.headingBlue,
           },
         },
@@ -4877,8 +5890,8 @@ export async function createCsepDocument(model: CsepRenderModel) {
             },
           },
           run: {
-            font: "Calibri",
-            size: 21,
+            font: "Aptos",
+            size: 20,
             color: COLORS.ink,
           },
         },

@@ -165,6 +165,25 @@ describe("csepBuilder", () => {
     );
   });
 
+  it("does not merge legacy included labels into explicit Version C selections", () => {
+    expect(
+      resolveSelectedCsepFormatSectionKeys({
+        selectedFormatSections: ["purpose", "high_risk_programs"],
+        includedSections: [
+          "Project Information",
+          "Contractor Information",
+          "Selected Hazards",
+          "Activity / Hazard Matrix",
+          "Required PPE",
+        ],
+        includedContent: {
+          osha_references: true,
+          security_and_access: true,
+        },
+      })
+    ).toEqual(["purpose", "high_risk_programs"]);
+  });
+
   it("parses storm section JSON wrapped in assistant prose", () => {
     expect(
       parseCsepStormSectionAiResponse(`

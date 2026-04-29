@@ -11,7 +11,7 @@ export default async function JobsiteDocumentsPage({
       jobsiteId={jobsiteId}
       surface="documents"
       title="Jobsite Documents"
-      description="Scoped documents payload for this jobsite."
+      description="Project documents, generated reports, and site files linked to this jobsite."
     />
   );
 }
