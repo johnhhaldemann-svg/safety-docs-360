@@ -63,22 +63,23 @@ export function Button({
 
 export const styles = StyleSheet.create({
   group: { gap: 7 },
-  label: { color: theme.textStrong, fontSize: 13, fontWeight: "800" },
+  label: { color: theme.textStrong, fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.6 },
   input: {
     borderWidth: 1,
     borderColor: theme.borderStrong,
-    backgroundColor: "rgba(255,255,255,0.98)",
+    backgroundColor: theme.surface,
     color: theme.textStrong,
-    borderRadius: 10,
+    borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
-    fontSize: 16
+    fontSize: 15,
+    fontWeight: "600"
   },
   area: { minHeight: 110, textAlignVertical: "top" },
-  button: { borderRadius: 10, paddingVertical: 14, alignItems: "center" },
+  button: { borderRadius: 8, paddingVertical: 14, alignItems: "center" },
   primary: { backgroundColor: theme.primary },
   secondary: { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.borderStrong },
   disabled: { opacity: 0.55 },
-  primaryText: { color: theme.white, fontWeight: "900", textTransform: "uppercase" },
-  secondaryText: { color: theme.textStrong, fontWeight: "800" }
+  primaryText: { color: theme.white, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 },
+  secondaryText: { color: theme.textStrong, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }
 });

@@ -259,20 +259,45 @@ function appendNumberedParagraphs(prefix: string, items: string[]) {
   return items.map((item, index) => numberedParagraph(`${prefix}.${index + 1}`, item));
 }
 
+const MAX_EMBEDDED_IMAGE_BYTES = 5 * 1024 * 1024;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function formStringValue(form: PSHSEPInput, flatKey: string, emergencyMapKey?: string) {
+  const direct = form[flatKey];
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+
+  const emergencyMap = isRecord(form.emergency_map) ? form.emergency_map : null;
+  const nested = emergencyMapKey && emergencyMap ? emergencyMap[emergencyMapKey] : null;
+  return typeof nested === "string" && nested.trim() ? nested.trim() : "";
+}
+
 function parseBase64Image(dataUrl: string) {
-  const [header, base64] = dataUrl.split(",");
+  const match = /^data:image\/(png|jpe?g|gif);base64,([a-z0-9+/=\s]+)$/i.exec(dataUrl.trim());
+  if (!match) return null;
 
   let type: "png" | "jpg" | "gif" = "png";
 
-  if (header.includes("image/jpeg") || header.includes("image/jpg")) {
+  if (match[1].toLowerCase() === "jpeg" || match[1].toLowerCase() === "jpg") {
     type = "jpg";
-  } else if (header.includes("image/gif")) {
+  } else if (match[1].toLowerCase() === "gif") {
     type = "gif";
   }
 
+  const base64 = match[2].replace(/\s/g, "");
+  if (!base64) return null;
+
+  const approximateBytes = Math.floor((base64.length * 3) / 4);
+  if (approximateBytes > MAX_EMBEDDED_IMAGE_BYTES) return null;
+
+  const buffer = Buffer.from(base64, "base64");
+  if (!buffer.byteLength || buffer.byteLength > MAX_EMBEDDED_IMAGE_BYTES) return null;
+
   return {
     type,
-    buffer: Buffer.from(base64, "base64"),
+    buffer,
   };
 }
 
@@ -282,6 +307,7 @@ function optionalCoverLogoParagraph(companyLogoDataUrl: unknown): Paragraph | nu
   }
   try {
     const image = parseBase64Image(companyLogoDataUrl.trim());
+    if (!image) return null;
     return new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { after: 200 },
@@ -1022,6 +1048,11 @@ function program_EmergencyActionMedicalResponse(
   form: PSHSEPInput,
   builderTextConfig: DocumentBuilderTextConfig | null | undefined
 ) {
+  const aedLocation = formStringValue(form, "aedLocation", "aed_location") || "Not Specified";
+  const firstAidLocation =
+    formStringValue(form, "firstAidLocation", "first_aid_location") || "Not Specified";
+  const siteMap = formStringValue(form, "siteMap", "site_map");
+  const siteMapImage = siteMap ? parseBase64Image(siteMap) : null;
   const sectionKey = "emergency_action_medical_response_evacuation";
   const purpose = getSiteBuilderChild(builderTextConfig, sectionKey, "purpose");
   const emergencyCommunication = getSiteBuilderChild(
@@ -1078,28 +1109,26 @@ function program_EmergencyActionMedicalResponse(
         emergencyMedicalResources?.paragraphs[0]?.includes("AED Location:")
           ? emergencyMedicalResources.paragraphs[0].replace(
               "Not Specified",
-              String(form.aedLocation || "Not Specified")
+              aedLocation
             )
-          : `AED Location: ${form.aedLocation || "Not Specified"}`,
+          : `AED Location: ${aedLocation}`,
         emergencyMedicalResources?.paragraphs[1]?.includes("First Aid Station Location:")
           ? emergencyMedicalResources.paragraphs[1].replace(
               "Not Specified",
-              String(form.firstAidLocation || "Not Specified")
+              firstAidLocation
             )
-          : `First Aid Station Location: ${form.firstAidLocation || "Not Specified"}`,
+          : `First Aid Station Location: ${firstAidLocation}`,
       ]
     ),
 
-...(form.siteMap
+...(siteMapImage
   ? [
       (() => {
-        const image = parseBase64Image(form.siteMap as string);
-
         return new Paragraph({
           children: [
             new ImageRun({
-              type: image.type,
-              data: image.buffer,
+              type: siteMapImage.type,
+              data: siteMapImage.buffer,
               transformation: {
                 width: 500,
                 height: 300,
@@ -4376,4 +4405,3 @@ export async function POST(req: Request) {
 /* ------------------------------------------------ */
 /* OPTIONAL: KEEP EXTRA PROGRAMS WITHOUT LINT NOISE */
 /* ------------------------------------------------ */
-

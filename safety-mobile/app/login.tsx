@@ -26,12 +26,13 @@ export default function LoginScreen() {
   }
 
   return (
-    <Screen title="Log in" subtitle="Use your existing Safety360Docs account. No public signup in this first version.">
+    <Screen title="Secure Sign In" subtitle="Use your existing Safety360Docs company account.">
       <View style={styles.card}>
+        <Text style={styles.cardTitle}>Company Field Access</Text>
         <Field label="Email" value={email} onChangeText={setEmail} placeholder="name@company.com" />
         <Field label="Password" value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
         <Button onPress={submit} disabled={loading}>
-          {loading ? "Logging in..." : "Log in"}
+          {loading ? "Signing In..." : "Sign In"}
         </Button>
       </View>
       <Text style={styles.note}>Internet is required for version 1.</Text>
@@ -40,6 +41,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: { gap: 14, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 14, padding: 16 },
-  note: { color: theme.muted, fontSize: 13, textAlign: "center" }
+  card: { gap: 14, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 8, padding: 16 },
+  cardTitle: { color: theme.textStrong, fontSize: 16, fontWeight: "900" },
+  note: { color: theme.muted, fontSize: 13, textAlign: "center", fontWeight: "700" }
 });

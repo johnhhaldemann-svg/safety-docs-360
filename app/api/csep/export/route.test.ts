@@ -204,8 +204,10 @@ describe("legacy CSEP DOCX export", () => {
     expect(stylesXml).toContain("Aptos");
     expect(stylesXml).toContain("202020");
     expect(documentXml).toContain('w:fill="D9EAF7"');
-    expect(documentXml).toContain('w:fill="FCE4D6"');
     expect(documentXml).toContain('w:fill="FFF2CC"');
+    expect(documentXml).not.toContain("Stop-Work Authority");
+    expect(documentXml.split('w:fill="FCE4D6"').length - 1).toBe(0);
+    expect(documentXml.split('w:fill="FFF2CC"').length - 1).toBeLessThanOrEqual(1);
     expect(headerXml).toBe("");
     expect(footerXml).toContain("Version C - Reviewer / CODEX Evidence CSEP");
     expect(footerXml).toContain("Page");

@@ -31,8 +31,8 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 14, padding: 16, gap: 14 },
-  row: { gap: 4 },
-  label: { color: theme.muted, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
-  value: { color: theme.textStrong, fontSize: 15, fontWeight: "700" }
+  card: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 8, padding: 16, gap: 14 },
+  row: { gap: 4, borderBottomWidth: 1, borderBottomColor: theme.border, paddingBottom: 10 },
+  label: { color: theme.muted, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.8 },
+  value: { color: theme.textStrong, fontSize: 15, fontWeight: "800" }
 });

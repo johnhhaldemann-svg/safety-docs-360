@@ -129,6 +129,7 @@ type DraftableAnswerField =
   | "chemical_storage_text";
 
 const LS_KEY = "pshsep_universal_v3";
+const MAX_BUILDER_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
 const supabase = getSupabaseBrowserClient();
 const jurisdictionStateOptions = getJurisdictionStateOptions();
 
@@ -539,6 +540,21 @@ const initialAnswers: Answers = {
   chemical_storage_text: "",
 };
 
+function loadInitialAnswers(): Answers {
+  if (typeof window === "undefined") return initialAnswers;
+
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return initialAnswers;
+    return normalizePshsepBuilderFormData({
+      ...initialAnswers,
+      ...JSON.parse(raw),
+    }) as Answers;
+  } catch {
+    return initialAnswers;
+  }
+}
+
 function toggleItem(values: string[], item: string) {
   return values.includes(item)
     ? values.filter((current) => current !== item)
@@ -561,7 +577,7 @@ function buildJobsiteOversightText(jobsite: CompanyJobsite) {
 export default function PESHEPUniversalPage() {
   const { jobsites, loading: jobsitesLoading } = useCompanyWorkspaceData();
   const [step, setStep] = useState(0);
-  const [answers, setAnswers] = useState<Answers>(initialAnswers);
+  const [answers, setAnswers] = useState<Answers>(loadInitialAnswers);
   const [siteMap, setSiteMap] = useState("");
   const [aedLocation, setAedLocation] = useState("");
   const [firstAidLocation, setFirstAidLocation] = useState("");
@@ -633,22 +649,6 @@ export default function PESHEPUniversalPage() {
         setAuthLoading(false);
       }
     })();
-  }, []);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        setAnswers(
-          normalizePshsepBuilderFormData({
-            ...initialAnswers,
-            ...JSON.parse(raw),
-          }) as Answers
-        );
-      }
-    } catch {
-      // Ignore saved-state errors.
-    }
   }, []);
 
   useEffect(() => {
@@ -1081,6 +1081,18 @@ export default function PESHEPUniversalPage() {
   function handleSiteMapUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setMessageTone("warning");
+      setMessage("Upload the emergency map as an image file so it can be embedded in the DOCX.");
+      e.currentTarget.value = "";
+      return;
+    }
+    if (file.size > MAX_BUILDER_IMAGE_UPLOAD_BYTES) {
+      setMessageTone("warning");
+      setMessage("Emergency map image must be 5 MB or smaller.");
+      e.currentTarget.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onloadend = () => setSiteMap(reader.result as string);
     reader.readAsDataURL(file);
@@ -1089,6 +1101,18 @@ export default function PESHEPUniversalPage() {
   function handleCompanyLogoChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setMessageTone("warning");
+      setMessage("Upload the company logo as an image file.");
+      event.currentTarget.value = "";
+      return;
+    }
+    if (file.size > MAX_BUILDER_IMAGE_UPLOAD_BYTES) {
+      setMessageTone("warning");
+      setMessage("Company logo image must be 5 MB or smaller.");
+      event.currentTarget.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       setCompanyLogoPreviewUrl(typeof reader.result === "string" ? reader.result : null);
@@ -1717,7 +1741,7 @@ export default function PESHEPUniversalPage() {
                   />
                   <label className="block">
                     <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Emergency Map Upload</div>
-                    <input type="file" accept="image/*,.pdf" onChange={handleSiteMapUpload} className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm" />
+                    <input type="file" accept="image/*" onChange={handleSiteMapUpload} className="w-full rounded-2xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm" />
                   </label>
                   {siteMap ? (
                     <Image
