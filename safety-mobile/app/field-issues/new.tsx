@@ -1,12 +1,13 @@
 import { router } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Alert, StyleSheet, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { useState } from "react";
 import { Button, Field } from "@/components/Form";
 import { Screen } from "@/components/Screen";
 import { createFieldIssue, getMe, uploadFieldIssuePhoto } from "@/api/mobile";
 import { pickPhoto } from "@/utils/photos";
 import type { ImagePickerAsset } from "expo-image-picker";
+import { theme } from "@/theme";
 
 export default function NewFieldIssueScreen() {
   const { data } = useQuery({ queryKey: ["me"], queryFn: getMe });
@@ -58,23 +59,38 @@ export default function NewFieldIssueScreen() {
   return (
     <Screen title="New Field Issue" subtitle="Matches the platform observation and corrective-action fields.">
       <View style={styles.form}>
-        <Field label="Title" value={title} onChangeText={setTitle} />
-        <Field label="Jobsite" value={data?.jobsites[0]?.name ?? "No assigned jobsite"} onChangeText={() => undefined} editable={false} />
-        <Field label="Description" value={description} onChangeText={setDescription} multiline />
-        <Field label="Severity" value={severity} onChangeText={setSeverity} placeholder="low, medium, high, critical" />
-        <Field label="Category" value={category} onChangeText={setCategory} placeholder="hazard, ppe, housekeeping" />
-        <Field label="Observation type" value={observationType} onChangeText={setObservationType} placeholder="negative or positive" />
-        <Field label="SIF potential" value={sifPotential} onChangeText={setSifPotential} placeholder="yes or no" />
-        <Field label="SIF category" value={sifCategory} onChangeText={setSifCategory} placeholder="fall, electrical, struck_by" />
-        <Field label="Assigned user id" value={assignedTo} onChangeText={setAssignedTo} placeholder="Optional platform user id" />
-        <Field label="Due date" value={dueDate} onChangeText={setDueDate} placeholder="YYYY-MM-DD" />
-        <Button onPress={addPhoto} variant="secondary">{photo ? "Photo selected" : "Take photo"}</Button>
-        <Button onPress={() => mutation.mutate()} disabled={mutation.isPending || !title}>
-          {mutation.isPending ? "Sending..." : "Send Issue for Review"}
-        </Button>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Issue Details</Text>
+          <Field label="Title" value={title} onChangeText={setTitle} />
+          <Field label="Jobsite" value={data?.jobsites[0]?.name ?? "No assigned jobsite"} onChangeText={() => undefined} editable={false} />
+          <Field label="Description" value={description} onChangeText={setDescription} multiline />
+          <Field label="Severity" value={severity} onChangeText={setSeverity} placeholder="low, medium, high, critical" />
+          <Field label="Category" value={category} onChangeText={setCategory} placeholder="hazard, ppe, housekeeping" />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Review & Assignment</Text>
+          <Field label="Observation Type" value={observationType} onChangeText={setObservationType} placeholder="negative or positive" />
+          <Field label="SIF Potential" value={sifPotential} onChangeText={setSifPotential} placeholder="yes or no" />
+          <Field label="SIF Category" value={sifCategory} onChangeText={setSifCategory} placeholder="fall, electrical, struck_by" />
+          <Field label="Assigned User ID" value={assignedTo} onChangeText={setAssignedTo} placeholder="Optional platform user id" />
+          <Field label="Due Date" value={dueDate} onChangeText={setDueDate} placeholder="YYYY-MM-DD" />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Evidence</Text>
+          <Button onPress={addPhoto} variant="secondary">{photo ? "Photo Selected" : "Take Photo"}</Button>
+          <Button onPress={() => mutation.mutate()} disabled={mutation.isPending || !title}>
+            {mutation.isPending ? "Sending..." : "Send Issue For Review"}
+          </Button>
+        </View>
       </View>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({ form: { gap: 12 } });
+const styles = StyleSheet.create({
+  form: { gap: 12 },
+  card: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 8, padding: 14, gap: 12 },
+  cardTitle: { color: theme.textStrong, fontSize: 16, fontWeight: "900" }
+});

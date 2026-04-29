@@ -8,6 +8,8 @@ import { useTableDensity } from "@/hooks/useTableDensity";
 import { simpleDataTableLayout } from "@/lib/tableDensityLayout";
 import {
   ActivityFeed,
+  appButtonPrimaryClassName,
+  appButtonSecondaryClassName,
   appNativeSelectClassName,
   EmptyState,
   InlineMessage,
@@ -721,7 +723,8 @@ export default function CompanyUsersPage() {
         title="Workforce Operations"
         description={`Each person’s role (user type) determines what they can do in the app. Your company’s subscription sets which products and tiers the workspace uses overall. Jobsite titles on each person’s Construction profile are separate.`}
         actions={
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex w-full flex-col gap-3 lg:items-end">
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             <TableDensityToggle
               value={density}
               onChange={setDensity}
@@ -729,26 +732,27 @@ export default function CompanyUsersPage() {
             />
             <Link
               href="/training-matrix"
-              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-950/50"
+              className={`${appButtonSecondaryClassName} min-w-[9.5rem]`}
             >
               Training matrix
             </Link>
             <Link
               href="/billing"
-              className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-5 py-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
+              className={`${appButtonSecondaryClassName} min-w-[8.5rem]`}
             >
               Billing hub
             </Link>
             <Link
               href="/purchases"
-              className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-5 py-3 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/15"
+              className={`${appButtonSecondaryClassName} min-w-[8.5rem]`}
             >
               Buy credits
             </Link>
+            </div>
             <button
               onClick={handleInvite}
               disabled={inviteLoading || !inviteEmail.trim()}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
+              className={`${appButtonPrimaryClassName} w-full sm:w-auto disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:hover:translate-y-0 disabled:hover:bg-slate-200`}
             >
               {inviteLoading ? "Sending Invite..." : "Invite Employee"}
             </button>

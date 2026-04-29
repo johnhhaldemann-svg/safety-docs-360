@@ -208,7 +208,92 @@ describe("csepDocxRenderer", () => {
     expect(model.sections.find((s) => s.key === "document_control_and_revision_history")?.numberLabel).toBe("22");
   });
 
-  it("renders Top 10 Risks as offset body lines without 4.1, 4.2-style numbering", async () => {
+  it("renders Purpose as a full body paragraph", async () => {
+    const model = buildCsepRenderModelFromGeneratedDraft(createGeneratedDraft());
+    const purposeParagraph = model.sections
+      .find((section) => section.key === "purpose")
+      ?.subsections.flatMap((subsection) => subsection.paragraphs ?? [])[0];
+
+    expect(purposeParagraph).toContain("It defines how planning, supervision, permits, training, inspections");
+    expect(purposeParagraph?.length ?? 0).toBeGreaterThan(220);
+    expect(purposeParagraph?.split(/[.!?]\s+/).filter(Boolean).length ?? 0).toBeGreaterThanOrEqual(3);
+
+    const rendered = await renderGeneratedCsepDocx(createGeneratedDraft());
+    const { documentXml } = await unzipDocx(rendered.body);
+    const purposeStart = documentXml.lastIndexOf("1. Purpose");
+    const purposeEnd = documentXml.indexOf("2. Project Coordination and Authority", purposeStart);
+    expect(purposeStart).toBeGreaterThan(-1);
+    expect(purposeEnd).toBeGreaterThan(purposeStart);
+    const purposeSlice = documentXml.slice(purposeStart, purposeEnd);
+    expect(purposeSlice).toContain("It defines how planning, supervision, permits, training, inspections");
+    expect(purposeSlice).toContain("daily JSA/PTP process");
+  });
+
+  it("centralizes required IIPP program elements in Section 11", async () => {
+    const draft = createGeneratedDraft();
+    draft.sectionMap.push(
+      {
+        key: "code_of_safe_practices",
+        title: "Code of Safe Practices",
+        body: "Post the code at the jobsite office and provide it to supervisory employees.",
+      },
+      {
+        key: "toolbox_tailgate_meetings",
+        title: "Toolbox / Tailgate Meetings",
+        body: "Conduct toolbox meetings at least every 10 working days and keep attendance records.",
+      },
+      {
+        key: "employee_access_to_iipp",
+        title: "Employee Access to the IIPP",
+        body: "Employees may request a copy of the IIPP and receive access within five business days.",
+      }
+    );
+
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const iipp = model.sections.find((section) => section.key === "iipp_incident_reporting_corrective_action");
+    const expectedTitles = [
+      "Company Safety Policy and Scope",
+      "Responsible Persons",
+      "Employee Compliance System",
+      "Safety Communication",
+      "Hazard Identification and Jobsite Inspections",
+      "Accident, Incident, Near-Miss, and Exposure Investigation",
+      "Hazard Correction Procedures",
+      "Training and Instruction",
+      "Employee Access to the IIPP",
+      "Recordkeeping",
+      "Written Code of Safe Practices",
+      "Toolbox / Tailgate Safety Meetings",
+      "Supervisor Safety Meetings",
+      "Emergency Procedures",
+      "Hazard-Specific Programs or Appendices",
+    ];
+    expect(iipp?.subsections.map((subsection) => subsection.title)).toEqual(expectedTitles);
+
+    const iippText = iipp?.subsections
+      .flatMap((subsection) => [...(subsection.paragraphs ?? []), ...(subsection.items ?? [])])
+      .join(" ") ?? "";
+    expect(iippText).toMatch(/management is committed to providing a safe and healthy workplace/i);
+    expect(iippText).toContain("Cal/OSHA");
+    expect(iippText).toContain("at least every 10 working days");
+    expect(iippText).toContain("within five business days");
+    expect(iippText).toContain("Post the code at the jobsite office");
+
+    const otherSectionText = model.sections
+      .filter((section) => section.key !== "iipp_incident_reporting_corrective_action")
+      .flatMap((section) =>
+        section.subsections.flatMap((subsection) => [
+          subsection.title,
+          ...(subsection.paragraphs ?? []),
+          ...(subsection.items ?? []),
+        ])
+      )
+      .join(" ");
+    expect(otherSectionText).not.toContain("Post the code at the jobsite office");
+    expect(otherSectionText).not.toContain("within five business days");
+  });
+
+  it("renders Top 10 Risks as numbered hazard lines without red/yellow callout boxes", async () => {
     const draft = createGeneratedDraft();
     const sections = buildCsepTemplateSections({
       draft,
@@ -221,13 +306,58 @@ describe("csepDocxRenderer", () => {
     });
     const topSub = sections.find((s) => s.key === "top_10_critical_risks")?.subsections[0];
     expect(topSub?.title).toBe("Top 10 Risks");
-    expect(topSub?.plainItemsStyle).toBe("offset_lines");
+    expect(topSub?.plainItemsStyle).toBe("ordered_lines");
 
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml } = await unzipDocx(rendered.body);
-    expect(documentXml).toContain("Falls while decking");
-    expect(documentXml).not.toMatch(/7\.\d+\s+Falls while decking/);
-    expect(documentXml).not.toMatch(/7\.\d+\s+Struck-by or caught-in/);
+    const topRiskStart = documentXml.lastIndexOf("5. Top 10 Critical Risks");
+    const topRiskEnd = documentXml.indexOf("6. Roles and Responsibilities", topRiskStart);
+    expect(topRiskStart).toBeGreaterThan(-1);
+    expect(topRiskEnd).toBeGreaterThan(topRiskStart);
+    const topRiskSlice = documentXml.slice(topRiskStart, topRiskEnd);
+
+    expect(topRiskSlice).toContain("1. Falls while decking");
+    expect(topRiskSlice).toContain("2. Struck-by or caught-in");
+    expect(topRiskSlice).toContain("10. Congested picks and landings");
+    expect(topRiskSlice).not.toMatch(/5\.1\.\d+\s+Falls while decking/);
+    expect(topRiskSlice).not.toMatch(/5\.1\.\d+\s+Struck-by or caught-in/);
+    expect(topRiskSlice).not.toContain('w:fill="FCE4D6"');
+    expect(topRiskSlice).not.toContain('w:fill="FFF2CC"');
+  });
+
+  it("keeps routine caution language as normal text outside standout sections", async () => {
+    const draft = createGeneratedDraft();
+    draft.sectionMap.push(
+      {
+        key: "site_access_security_laydown_traffic_control",
+        title: "Laydown Area Rule",
+        body: "Laydown Area Rule: Store steel only in the assigned laydown area and keep truck routes open for emergency and delivery access.",
+      },
+      {
+        key: "scope_of_work",
+        title: "Scope Summary",
+        body: "Missing critical controls should be corrected through the daily plan before work continues.",
+      }
+    );
+
+    const rendered = await renderGeneratedCsepDocx(draft);
+    const { documentXml } = await unzipDocx(rendered.body);
+
+    const scopeStart = documentXml.lastIndexOf("3. Scope of Work");
+    const scopeEnd = documentXml.indexOf("4. Regulatory Basis and References", scopeStart);
+    expect(scopeStart).toBeGreaterThan(-1);
+    expect(scopeEnd).toBeGreaterThan(scopeStart);
+    const scopeSlice = documentXml.slice(scopeStart, scopeEnd);
+    expect(scopeSlice).toContain("Missing critical controls should be corrected");
+    expect(scopeSlice).not.toContain('w:fill="FCE4D6"');
+
+    const siteAccessStart = documentXml.lastIndexOf("8. Site Access, Security, Laydown, and Traffic Control");
+    const siteAccessEnd = documentXml.indexOf("9. Hazard Communication and Environmental Protection", siteAccessStart);
+    expect(siteAccessStart).toBeGreaterThan(-1);
+    expect(siteAccessEnd).toBeGreaterThan(siteAccessStart);
+    const siteAccessSlice = documentXml.slice(siteAccessStart, siteAccessEnd);
+    expect(siteAccessSlice).toContain("Laydown Area Rule");
+    expect(siteAccessSlice).not.toContain('w:fill="FFF2CC"');
   });
 
   it("normalizes hazard modules into Risk/Controls/Verification/Stop-Work/References slices", () => {
@@ -336,8 +466,28 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).not.toContain("<w:numPr>");
   });
 
-  it("renders Scope Summary tasks as offset lines without subsection numbers like 3.1.1", async () => {
+  it("renders task names once in Active Tasks with descriptions, not as a duplicate Scope Summary list", async () => {
     const draft = createGeneratedDraft();
+    draft.operations = [
+      {
+        ...draft.operations[0]!,
+        operationId: "op-unload",
+        taskTitle: "Unload steel",
+        requiredControls: ["Delivery exclusion zone", "Stable dunnage"],
+      },
+      {
+        ...draft.operations[0]!,
+        operationId: "op-rigging",
+        taskTitle: "Rigging",
+        requiredControls: ["Rigging inspection", "Qualified rigger verification"],
+      },
+      {
+        ...draft.operations[0]!,
+        operationId: "op-crane-picks",
+        taskTitle: "Crane picks",
+        requiredControls: ["Lift plan review", "Controlled load path"],
+      },
+    ];
     draft.sectionMap.unshift({
       key: "scope_of_work",
       title: "Scope Summary",
@@ -354,14 +504,20 @@ describe("csepDocxRenderer", () => {
       taskTitles: ["Deck placement"],
       sourceSections: draft.sectionMap,
     });
-    const scopeSub = sections
-      .find((s) => s.key === "scope_of_work_section")
-      ?.subsections.find((sub) => /active tasks/i.test(sub.title));
-    expect(scopeSub?.plainItemsStyle).toBe("offset_lines");
+    const scopeSection = sections.find((s) => s.key === "scope_of_work_section");
+    const summarySub = scopeSection?.subsections.find((sub) => /scope summary/i.test(sub.title));
+    expect(summarySub?.items ?? []).toEqual([]);
+    expect(summarySub?.paragraphs).toContain("Self-performed structural steel for this phase.");
+
+    const activeTasksSub = scopeSection?.subsections.find((sub) => /active tasks/i.test(sub.title));
+    expect(activeTasksSub?.plainItemsStyle).toBe("offset_lines");
+    expect(activeTasksSub?.items?.join(" ")).toContain("Receive steel deliveries");
+    expect(activeTasksSub?.items?.join(" ")).toContain("Select, inspect, and use rigging gear");
 
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml } = await unzipDocx(rendered.body);
-    expect(documentXml).toContain("Deck placement");
+    expect(documentXml).toContain("Unload steel");
+    expect(documentXml).toContain("Receive steel deliveries");
     expect(documentXml).not.toContain("3.1.1");
   });
 
@@ -633,6 +789,7 @@ describe("csepDocxRenderer", () => {
       lastIndex = nextIndex;
     }
 
+    expect(documentXml).not.toContain('<w:spacing w:before="160" w:after="80"/>');
     expect(headerXml).toBe("");
     expect(footerXml).toContain("Version C - Reviewer / CODEX Evidence CSEP");
     expect(footerXml).toContain("Page");
@@ -652,9 +809,24 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).toContain("Version C - Reviewer / CODEX Evidence Format");
     expect(documentXml).toContain("Uses policy mapping, evidence language, and selective matrices for qualification review.");
     expect(documentXml).toContain('w:fill="D9EAF7"');
-    expect(documentXml).toContain('w:fill="FCE4D6"');
     expect(documentXml).toContain('w:fill="FFF2CC"');
-    expect(documentXml).toContain("Stop-Work Authority");
+    expect(documentXml).not.toContain("Imminent Danger");
+    expect(documentXml).not.toContain("Stop-Work Authority");
+    expect(documentXml).toContain("Minimum Training Rule");
+    expect(documentXml).not.toContain('<w:gridCol w:w="100"/>');
+    expect(documentXml.split('w:fill="FCE4D6"').length - 1).toBe(0);
+    expect(documentXml.split('w:fill="FFF2CC"').length - 1).toBeLessThanOrEqual(1);
+    for (const fill of ['w:fill="FFF2CC"']) {
+      const calloutStart = documentXml.indexOf(fill);
+      expect(calloutStart).toBeGreaterThan(-1);
+      const calloutSlice = documentXml.slice(Math.max(0, calloutStart - 1600), calloutStart + 2200);
+      expect(calloutSlice).toContain('w:w="9000"');
+      expect(calloutSlice).toContain('w:w="180"');
+      expect(calloutSlice).toContain('w:line="240"');
+      expect(calloutSlice).toContain('<w:sz w:val="18"/>');
+    }
+    expect(documentXml).toContain("Training record / daily huddle");
+    expect(documentXml).toContain("Field verification is documented");
     expect(footerXml).toContain("Version C - Reviewer / CODEX Evidence CSEP");
   });
 });

@@ -130,6 +130,7 @@ const IIPP_REFERENCE_ALLOWLIST = [
 const OWNERSHIP_COMPANION_KEYS: Record<string, readonly string[]> = {
   hazard_communication_and_environmental_protection: [
     "emergency_response_and_rescue",
+    "iipp_incident_reporting_corrective_action",
   ],
   iipp_incident_reporting_corrective_action: [
     "emergency_response_and_rescue",

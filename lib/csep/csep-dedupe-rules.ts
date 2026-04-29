@@ -16,7 +16,7 @@ export const CSEP_SECTION_OWNERSHIP_PATTERNS = {
   emergency_response_and_rescue:
     /\b(emergency response|rescue|medical response|ems|911|evacuation|shelter|fire response|suspension trauma)\b/i,
   iipp_incident_reporting_corrective_action:
-    /\b(incident reporting|near[-\s]?miss|investigation|corrective action|restart|scene protection|trend)\b/i,
+    /\b(iipp|injury and illness prevention|company safety policy|management commitment|covered operations|covered jobsites|responsible persons?|authority and responsibility|employee compliance|safe work practices|recognition|coaching|retraining|disciplin|safety communication|hazard report|anonymous reporting|non[-\s]?retaliation|hazard identification|jobsite inspections?|periodic inspections?|new hazards?|accident|incident reporting|near[-\s]?miss|exposure investigation|root cause|corrective action|hazard correction|imminent hazard|restart|scene protection|trend|training and instruction|training requirements?|employee access|authorized representative|five business days|recordkeeping|inspection records?|training records?|toolbox|tailgate|supervisor safety meetings?|code of safe practices|emergency procedures|hazard[-\s]?specific programs?|appendices)\b/i,
   worker_conduct_fit_for_duty_disciplinary_program:
     /\b(fit[-\s]?for[-\s]?duty|drug|alcohol|disciplin|unsafe act|site removal|fatigue|wellness|impairment)\b/i,
   hazard_control_modules:

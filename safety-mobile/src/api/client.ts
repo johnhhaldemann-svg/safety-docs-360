@@ -16,3 +16,22 @@ api.interceptors.request.use(async (config) => {
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const data = error?.response?.data as { error?: unknown; message?: unknown } | undefined;
+    const message = data?.error ?? data?.message;
+    if (typeof message === "string" && message.trim()) {
+      const apiError = new Error(message) as Error & { status?: number };
+      apiError.status = error?.response?.status;
+      return Promise.reject(apiError);
+    }
+    if (error?.response?.status) {
+      const apiError = new Error(`API returned ${error.response.status}.`) as Error & { status?: number };
+      apiError.status = error.response.status;
+      return Promise.reject(apiError);
+    }
+    return Promise.reject(error);
+  }
+);

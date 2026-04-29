@@ -116,6 +116,24 @@ describe("legacy PSHSEP DOCX export", () => {
     expect(documentXml).toContain("Owner Site Address");
     expect(documentXml).toContain("9 Industrial Way, Receiving Gate A");
   });
+
+  it("uses nested emergency map fields from the builder without leaking invalid image payloads", async () => {
+    const rendered = await generatePshsepDocx({
+      company_name: "Acme Safety",
+      project_name: "Riverside",
+      scope_of_work_selected: ["Excavation"],
+      emergency_map: {
+        aed_location: "Gate 2 AED cabinet",
+        first_aid_location: "Trailer first aid shelf",
+        site_map: "data:application/pdf;base64,AAAA",
+      },
+    });
+
+    const { documentXml } = await unzipDocx(new Uint8Array(rendered.body));
+    expect(documentXml).toContain("AED Location: Gate 2 AED cabinet");
+    expect(documentXml).toContain("First Aid Station Location: Trailer first aid shelf");
+    expect(documentXml).not.toContain("data:application/pdf");
+  });
 });
 
 /**
