@@ -5,6 +5,7 @@ import {
   hashIntakeToken,
   normalizeEmail,
   normalizePhone,
+  normalizeSmsPhoneNumber,
   parseExpirationMap,
 } from "./contractorTraining";
 
@@ -12,6 +13,13 @@ describe("contractor training helpers", () => {
   it("normalizes email and phone for reusable contractor employee matching", () => {
     expect(normalizeEmail("  WORKER@Example.COM ")).toBe("worker@example.com");
     expect(normalizePhone("(555) 123-9876")).toBe("5551239876");
+  });
+
+  it("formats phone invites for SMS delivery", () => {
+    expect(normalizeSmsPhoneNumber("(555) 123-9876")).toBe("+15551239876");
+    expect(normalizeSmsPhoneNumber("1-555-123-9876")).toBe("+15551239876");
+    expect(normalizeSmsPhoneNumber("+44 20 7123 4567")).toBe("+442071234567");
+    expect(normalizeSmsPhoneNumber("12345")).toBeNull();
   });
 
   it("hashes intake tokens without storing the raw token", () => {
@@ -49,4 +57,3 @@ describe("contractor training helpers", () => {
     ).toBe("expired");
   });
 });
-

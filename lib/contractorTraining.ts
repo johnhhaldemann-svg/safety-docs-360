@@ -26,6 +26,17 @@ export function normalizePhone(value?: string | null) {
   return digits || null;
 }
 
+export function normalizeSmsPhoneNumber(value?: string | null) {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  if (raw.startsWith("+")) return `+${digits}`;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return null;
+}
+
 export function normalizeTrainingTitle(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
@@ -168,13 +179,20 @@ export async function sendContractorIntakeSms(params: {
   const authToken = readEnv("TWILIO_AUTH_TOKEN");
   const fromNumber = readEnv("TWILIO_FROM_NUMBER");
   const messagingServiceSid = readEnv("TWILIO_MESSAGING_SERVICE_SID");
-  const toPhone = params.toPhone.trim();
+  const toPhone = normalizeSmsPhoneNumber(params.toPhone);
 
   if (!accountSid || !authToken || (!fromNumber && !messagingServiceSid)) {
     return {
       sent: false,
       warning:
         "Invite link created, but SMS delivery is not configured. Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER or TWILIO_MESSAGING_SERVICE_SID.",
+    };
+  }
+  if (!toPhone) {
+    return {
+      sent: false,
+      warning:
+        "Invite link created, but the phone number must include a valid US 10-digit number or an international number with a country code.",
     };
   }
 
