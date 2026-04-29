@@ -2,7 +2,7 @@
  * Single source of truth for app shell navigation (sidebar, quick links, setup flows).
  * Keep in sync with route files under app/ - see appNavigationIntegrity.test.ts.
  *
- * Company workspace rail (full product): Today, Field & Sites, Programs, Insights, Account.
+ * Company workspace rail (full product): Today, Audits, Documents, Field & Sites, Programs, Insights, Account.
  */
 
 import type { WorkspaceNavGroup } from "@/lib/workspaceNavGroup";
@@ -162,15 +162,20 @@ export const userSideSections: NavSection[] = [
     title: "Workspace",
     items: [
       { href: "/dashboard", label: "Home Dashboard", short: "HM" },
+    ],
+  },
+  {
+    title: "Documents",
+    items: [
       { href: "/library", label: "Document Library", short: "LB" },
       { href: "/submit", label: "Submit for Review", short: "SB" },
       { href: "/upload", label: "Upload Documents", short: "UP" },
       { href: "/search", label: "Search", short: "SR" },
-    ],
-  },
-  {
-    title: "Safety plans",
-    items: [
+      {
+        href: "/marketplace-preview-approvals",
+        label: "Preview Requests",
+        short: "PA",
+      },
       { href: "/peshep", label: SITE_SAFETY_BLUEPRINT_NAV_LABEL, short: "DS" },
       { href: "/csep", label: CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL, short: "DC" },
     ],
@@ -180,11 +185,6 @@ export const userSideSections: NavSection[] = [
     items: [
       { href: "/profile", label: "My Profile", short: "CP" },
       { href: "/purchases", label: "Purchases", short: "MP" },
-      {
-        href: "/marketplace-preview-approvals",
-        label: "Preview Requests",
-        short: "PA",
-      },
     ],
   },
 ];
@@ -194,7 +194,21 @@ export const adminSideSections: NavSection[] = [
     title: "Review & approvals",
     items: [
       { href: "/admin", label: "Admin dashboard", short: "AH" },
+    ],
+  },
+  {
+    title: "Documents",
+    items: [
       { href: "/admin/review-documents", label: "Review queue", short: "RQ" },
+      { href: "/admin/marketplace", label: "Marketplace", short: "MK" },
+      { href: "/admin/archive", label: "Archive", short: "AR" },
+      { href: "/library", label: "Library", short: "LB" },
+      { href: "/search", label: "Search", short: "SR" },
+    ],
+  },
+  {
+    title: "Audits",
+    items: [
       { href: "/admin/sor-audit", label: "SOR audit", short: "SA" },
       { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },
     ],
@@ -227,13 +241,11 @@ export const adminSideSections: NavSection[] = [
         label: "Compliance tracker",
         short: "OA",
       },
-      { href: "/admin/marketplace", label: "Marketplace", short: "MK" },
     ],
   },
   {
     title: "Operations",
     items: [
-      { href: "/admin/archive", label: "Archive", short: "AR" },
       { href: "/admin/transactions", label: "Transactions", short: "TX" },
       { href: "/admin/settings", label: "Settings", short: "ST" },
     ],
@@ -241,8 +253,6 @@ export const adminSideSections: NavSection[] = [
   {
     title: "Also available",
     items: [
-      { href: "/library", label: "Library", short: "LB" },
-      { href: "/search", label: "Search", short: "SR" },
       { href: "/profile", label: "Profile", short: "CP" },
     ],
   },
@@ -253,22 +263,37 @@ export const companyAdminSideSections: NavSection[] = [
     title: "Start here",
     items: [
       { href: "/dashboard", label: "Home Dashboard", short: "HM" },
+      { href: "/purchases", label: "Purchases & Credits", short: "CR" },
+      { href: "/jobsites", label: "Job Sites", short: "JS" },
+      { href: "/customer/billing", label: "Billing", short: "BL" },
+    ],
+  },
+  {
+    title: "Documents",
+    items: [
       { href: "/library", label: "Document Library", short: "DC" },
       {
         href: "/library?tab=marketplace",
         label: "Template Marketplace",
         short: "MK",
       },
-      { href: "/purchases", label: "Purchases & Credits", short: "CR" },
+      { href: "/search", label: "Search", short: "SR" },
+      { href: "/submit", label: "Submit for Review", short: "SD" },
+      { href: "/upload", label: "Upload Documents", short: "UF" },
       {
         href: "/marketplace-preview-approvals",
         label: "Preview Requests",
         short: "PA",
       },
-      { href: "/search", label: "Search", short: "SR" },
-      { href: "/jobsites", label: "Job Sites", short: "JS" },
+      { href: "/peshep", label: SITE_SAFETY_BLUEPRINT_NAV_LABEL, short: "DS" },
+      { href: "/csep", label: CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL, short: "DC" },
+    ],
+  },
+  {
+    title: "Audits",
+    items: [
       { href: "/audit-customers", label: "Audit Customers", short: "AC" },
-      { href: "/customer/billing", label: "Billing", short: "BL" },
+      { href: "/field-audits", label: "Field Audits", short: "FA" },
     ],
   },
   {
@@ -284,7 +309,6 @@ export const companyAdminSideSections: NavSection[] = [
     title: "Field work",
     items: [
       { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
-      { href: "/field-audits", label: "Field Audits", short: "FA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
       { href: "/permits", label: "Permit Center", short: "PM" },
       { href: "/incidents", label: "Incident Log", short: "IN" },
@@ -298,15 +322,6 @@ export const companyAdminSideSections: NavSection[] = [
       { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
       { href: "/analytics", label: "Safety analytics", short: "AN" },
       { href: "/reports", label: "Reports", short: "RP" },
-    ],
-  },
-  {
-    title: "Build & submit",
-    items: [
-      { href: "/submit", label: "Submit for Review", short: "SD" },
-      { href: "/upload", label: "Upload Documents", short: "UF" },
-      { href: "/peshep", label: SITE_SAFETY_BLUEPRINT_NAV_LABEL, short: "DS" },
-      { href: "/csep", label: CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL, short: "DC" },
     ],
   },
 ];
@@ -316,6 +331,15 @@ export const companyManagerSideSections: NavSection[] = [
     title: "Start here",
     items: [
       { href: "/dashboard", label: "Home Dashboard", short: "HM" },
+      { href: "/jobsites", label: "Job Sites", short: "JS" },
+      { href: "/customer/billing", label: "Billing", short: "BL" },
+      { href: "/purchases", label: "Purchases", short: "MP" },
+      { href: "/training-matrix", label: "Training Tracker", short: "TM" },
+    ],
+  },
+  {
+    title: "Documents",
+    items: [
       { href: "/library", label: "Document Library", short: "DC" },
       {
         href: "/library?tab=marketplace",
@@ -323,23 +347,28 @@ export const companyManagerSideSections: NavSection[] = [
         short: "MK",
       },
       { href: "/search", label: "Search", short: "SR" },
-      { href: "/jobsites", label: "Job Sites", short: "JS" },
-      { href: "/audit-customers", label: "Audit Customers", short: "AC" },
-      { href: "/customer/billing", label: "Billing", short: "BL" },
-      { href: "/purchases", label: "Purchases", short: "MP" },
+      { href: "/submit", label: "Submit for Review", short: "SD" },
+      { href: "/upload", label: "Upload Documents", short: "UF" },
       {
         href: "/marketplace-preview-approvals",
         label: "Preview Requests",
         short: "PA",
       },
-      { href: "/training-matrix", label: "Training Tracker", short: "TM" },
+      { href: "/peshep", label: SITE_SAFETY_BLUEPRINT_NAV_LABEL, short: "DS" },
+      { href: "/csep", label: CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL, short: "DC" },
+    ],
+  },
+  {
+    title: "Audits",
+    items: [
+      { href: "/audit-customers", label: "Audit Customers", short: "AC" },
+      { href: "/field-audits", label: "Field Audits", short: "FA" },
     ],
   },
   {
     title: "Field work",
     items: [
       { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
-      { href: "/field-audits", label: "Field Audits", short: "FA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
       { href: "/permits", label: "Permit Center", short: "PM" },
       { href: "/incidents", label: "Incident Log", short: "IN" },
@@ -353,15 +382,6 @@ export const companyManagerSideSections: NavSection[] = [
       { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
       { href: "/analytics", label: "Safety analytics", short: "AN" },
       { href: "/reports", label: "Reports", short: "RP" },
-    ],
-  },
-  {
-    title: "Build & submit",
-    items: [
-      { href: "/submit", label: "Submit for Review", short: "SD" },
-      { href: "/upload", label: "Upload Documents", short: "UF" },
-      { href: "/peshep", label: SITE_SAFETY_BLUEPRINT_NAV_LABEL, short: "DS" },
-      { href: "/csep", label: CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL, short: "DC" },
     ],
   },
   {
@@ -372,19 +392,26 @@ export const companyManagerSideSections: NavSection[] = [
 
 export const companyUserSideSections: NavSection[] = [
   {
-    title: "Home & documents",
+    title: "Home",
     items: [
       { href: "/dashboard", label: "Home Dashboard", short: "HM" },
+      { href: "/jobsites", label: "Job Sites", short: "JS" },
+      { href: "/customer/billing", label: "Billing", short: "BL" },
+      { href: "/purchases", label: "Purchases", short: "MP" },
+    ],
+  },
+  {
+    title: "Documents",
+    items: [
       { href: "/library", label: "Document Library", short: "DC" },
       {
         href: "/library?tab=marketplace",
         label: "Template Marketplace",
         short: "MK",
       },
-      { href: "/jobsites", label: "Job Sites", short: "JS" },
       { href: "/search", label: "Search", short: "SR" },
-      { href: "/customer/billing", label: "Billing", short: "BL" },
-      { href: "/purchases", label: "Purchases", short: "MP" },
+      { href: "/submit", label: "Submit for Review", short: "SD" },
+      { href: "/upload", label: "Upload Documents", short: "UF" },
       {
         href: "/marketplace-preview-approvals",
         label: "Preview Requests",
@@ -397,8 +424,6 @@ export const companyUserSideSections: NavSection[] = [
     items: [
       { href: "/field-audits", label: "Field Audits", short: "FA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
-      { href: "/submit", label: "Submit for Review", short: "SD" },
-      { href: "/upload", label: "Upload Documents", short: "UF" },
     ],
   },
   {

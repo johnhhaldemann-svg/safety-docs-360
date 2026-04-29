@@ -19,6 +19,8 @@ export type WorkspaceNavSection = NavSection & {
 /** Stable rail order for company workspace navigation (used by tests and layout). */
 export const WORKSPACE_NAV_GROUP_ORDER: readonly WorkspaceNavGroup[] = [
   "today",
+  "audits",
+  "documents",
   "fieldSites",
   "programs",
   "insights",
@@ -35,6 +37,16 @@ const SECTION_META: Record<
     description: "Dashboard, command hub, and submission inbox for daily work.",
     audience: "operator",
   },
+  audits: {
+    title: "Audits",
+    description: "Field audits, audit customers, and audit follow-up work.",
+    audience: "field",
+  },
+  documents: {
+    title: "Documents",
+    description: "Library, templates, uploads, submissions, search, and safety plan builders.",
+    audience: "operator",
+  },
   fieldSites: {
     title: "Field & Sites",
     description: "Job sites, JSAs, permits, incidents, and field issue tracking.",
@@ -42,17 +54,17 @@ const SECTION_META: Record<
   },
   programs: {
     title: "Programs",
-    description: "Safety Intelligence, inductions, forms, integrations, and blueprint builders.",
+    description: "Safety Intelligence, inductions, forms, integrations, and training readiness.",
     audience: "operator",
   },
   insights: {
     title: "Insights",
-    description: "Analytics, workflow activity, reports, library, and search.",
+    description: "Analytics, workflow activity, and reports.",
     audience: "leadership",
   },
   account: {
     title: "Account",
-    description: "Billing, team access, profile, purchases, and marketplace previews.",
+    description: "Billing, team access, profile, and purchases.",
     audience: "leadership",
   },
 };
@@ -77,9 +89,45 @@ const ITEM_META: Array<{
   },
   {
     matcher: (href) => href === "/submit" || href === "/upload",
-    group: "today",
+    group: "documents",
     description: "Prepare submissions and upload supporting files into review.",
     primaryActionLabel: "Open inbox",
+  },
+  {
+    matcher: (href) => href.startsWith("/library"),
+    group: "documents",
+    description: "Browse finished records, templates, and marketplace content.",
+    primaryActionLabel: "Open documents",
+  },
+  {
+    matcher: (href) => href === "/search",
+    group: "documents",
+    description: "Search documents, records, projects, and saved pages.",
+    primaryActionLabel: "Search now",
+  },
+  {
+    matcher: (href) => href === "/peshep" || href === "/csep",
+    group: "documents",
+    description: "Build guided safety document packages from one workflow.",
+    primaryActionLabel: "Build document",
+  },
+  {
+    matcher: (href) => href === "/marketplace-preview-approvals",
+    group: "documents",
+    description: "Review requested document and template previews.",
+    primaryActionLabel: "Open previews",
+  },
+  {
+    matcher: (href) => href === "/audit-customers",
+    group: "audits",
+    description: "Manage audit customers, report contacts, and linked audit jobsites.",
+    primaryActionLabel: "Open customers",
+  },
+  {
+    matcher: (href) => href === "/field-audits",
+    group: "audits",
+    description: "Run field audits, review observations, and manage audit findings.",
+    primaryActionLabel: "Open audits",
   },
   {
     matcher: (href) => href === "/jobsites" || href.startsWith("/jobsites/"),
@@ -149,12 +197,6 @@ const ITEM_META: Array<{
     primaryActionLabel: "Review gaps",
   },
   {
-    matcher: (href) => href === "/peshep" || href === "/csep",
-    group: "programs",
-    description: "Build guided safety document packages from one workflow.",
-    primaryActionLabel: "Build document",
-  },
-  {
     matcher: (href) => href === "/analytics/safety-intelligence",
     group: "insights",
     description:
@@ -175,18 +217,6 @@ const ITEM_META: Array<{
     primaryActionLabel: "Open reports",
   },
   {
-    matcher: (href) => href.startsWith("/library"),
-    group: "insights",
-    description: "Browse finished records, templates, and marketplace content.",
-    primaryActionLabel: "Open documents",
-  },
-  {
-    matcher: (href) => href === "/search",
-    group: "insights",
-    description: "Search documents, records, projects, and saved pages.",
-    primaryActionLabel: "Search now",
-  },
-  {
     matcher: (href) => href === "/customer/billing" || href === "/billing",
     group: "account",
     description: "Review billing activity, invoices, payment status, and account charges.",
@@ -205,9 +235,9 @@ const ITEM_META: Array<{
     primaryActionLabel: "Open profile",
   },
   {
-    matcher: (href) => href === "/purchases" || href === "/marketplace-preview-approvals",
+    matcher: (href) => href === "/purchases",
     group: "account",
-    description: "Open purchases, credits, preview requests, and previously unlocked records.",
+    description: "Open purchases, credits, and previously unlocked records.",
     primaryActionLabel: "Review history",
   },
   {

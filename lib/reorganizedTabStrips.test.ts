@@ -17,9 +17,11 @@ describe("Reorganized tab strips (release contracts)", () => {
     ]);
   });
 
-  it("workspace sidebar uses five ordered groups", () => {
+  it("workspace sidebar uses seven ordered groups", () => {
     expect([...WORKSPACE_NAV_GROUP_ORDER]).toEqual([
       "today",
+      "audits",
+      "documents",
       "fieldSites",
       "programs",
       "insights",

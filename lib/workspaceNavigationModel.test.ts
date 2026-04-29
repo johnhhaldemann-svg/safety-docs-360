@@ -14,19 +14,44 @@ describe("workspaceNavigationModel", () => {
           { href: "/dashboard", label: "Dashboard", short: "DB" },
           { href: "/command-center", label: "Command Center", short: "CC" },
           { href: "/library", label: "Documents", short: "DC" },
+          { href: "/field-audits", label: "Audits", short: "FA" },
           { href: "/jobsites", label: "Jobsites", short: "JS" },
           { href: "/reports", label: "Reports", short: "RP" },
         ],
       },
     ]);
 
-    expect(grouped.map((section) => section.group)).toEqual(["today", "fieldSites", "insights"]);
+    expect(grouped.map((section) => section.group)).toEqual([
+      "today",
+      "audits",
+      "documents",
+      "fieldSites",
+      "insights",
+    ]);
     expect(grouped.some((s) => s.group === "programs")).toBe(false);
     expect(grouped[0]?.items.map((item) => item.href)).toEqual(["/dashboard", "/command-center"]);
-    expect(grouped.find((s) => s.group === "insights")?.description).toContain("library");
+    expect(grouped.find((s) => s.group === "audits")?.items.map((item) => item.href)).toEqual([
+      "/field-audits",
+    ]);
+    expect(grouped.find((s) => s.group === "documents")?.items.map((item) => item.href)).toEqual([
+      "/library",
+    ]);
+    expect(grouped.find((s) => s.group === "insights")?.description).toContain("reports");
   });
 
   it("adds item-level descriptions and CTA copy for operator surfaces", () => {
+    expect(
+      getWorkspaceNavItemMeta({
+        href: "/audit-customers",
+        label: "Audit Customers",
+        short: "AC",
+      })
+    ).toMatchObject({
+      group: "audits",
+      description: "Manage audit customers, report contacts, and linked audit jobsites.",
+      primaryActionLabel: "Open customers",
+    });
+
     expect(
       getWorkspaceNavItemMeta({
         href: "/training-matrix",
@@ -43,8 +68,23 @@ describe("workspaceNavigationModel", () => {
         href: "/library",
         label: "Documents",
         short: "DC",
-      }).description
-    ).toContain("finished records");
+      })
+    ).toMatchObject({
+      group: "documents",
+      description: "Browse finished records, templates, and marketplace content.",
+      primaryActionLabel: "Open documents",
+    });
+
+    expect(
+      getWorkspaceNavItemMeta({
+        href: "/csep",
+        label: "Contractor Safety Plan",
+        short: "DC",
+      })
+    ).toMatchObject({
+      group: "documents",
+      primaryActionLabel: "Build document",
+    });
   });
 
   it("preserves section and item descriptions for grouped workspace navigation", () => {
@@ -62,15 +102,66 @@ describe("workspaceNavigationModel", () => {
 
     expect(grouped.map((section) => `${section.title}:${section.description}`)).toEqual([
       "Today:Dashboard, command hub, and submission inbox for daily work.",
+      "Documents:Library, templates, uploads, submissions, search, and safety plan builders.",
       "Field & Sites:Job sites, JSAs, permits, incidents, and field issue tracking.",
-      "Insights:Analytics, workflow activity, reports, library, and search.",
-      "Account:Billing, team access, profile, purchases, and marketplace previews.",
+      "Account:Billing, team access, profile, and purchases.",
     ]);
     expect(grouped[0]?.items[0]).toMatchObject({
       href: "/command-center",
       description: "Current risk, open work, and recommended next steps.",
     });
+    expect(grouped[1]?.items[0]).toMatchObject({
+      href: "/library",
+      description: "Browse finished records, templates, and marketplace content.",
+    });
     expect(grouped[3]?.items[0]).toMatchObject({
+      href: "/profile",
+      description: "Update your account profile, contact details, role context, and personal settings.",
+    });
+  });
+
+  it("keeps document workflows together when grouping company navigation", () => {
+    const grouped = groupCompanyWorkspaceSections([
+      {
+        title: "Mixed",
+        items: [
+          { href: "/submit", label: "Submit", short: "SB" },
+          { href: "/upload", label: "Upload", short: "UP" },
+          { href: "/search", label: "Search", short: "SR" },
+          { href: "/marketplace-preview-approvals", label: "Preview Requests", short: "PA" },
+          { href: "/peshep", label: "Site plan", short: "DS" },
+          { href: "/csep", label: "Contractor plan", short: "DC" },
+        ],
+      },
+    ]);
+
+    expect(grouped.map((section) => `${section.title}:${section.description}`)).toEqual([
+      "Documents:Library, templates, uploads, submissions, search, and safety plan builders.",
+    ]);
+    expect(grouped[0]?.items.map((item) => item.href)).toEqual([
+      "/submit",
+      "/upload",
+      "/search",
+      "/marketplace-preview-approvals",
+      "/peshep",
+      "/csep",
+    ]);
+  });
+
+  it("preserves account descriptions for grouped workspace navigation", () => {
+    const grouped = groupCompanyWorkspaceSections([
+      {
+        title: "Mixed",
+        items: [
+          { href: "/profile", label: "Profile", short: "PF" },
+        ],
+      },
+    ]);
+
+    expect(grouped.map((section) => `${section.title}:${section.description}`)).toEqual([
+      "Account:Billing, team access, profile, and purchases.",
+    ]);
+    expect(grouped[0]?.items[0]).toMatchObject({
       href: "/profile",
       description: "Update your account profile, contact details, role context, and personal settings.",
     });

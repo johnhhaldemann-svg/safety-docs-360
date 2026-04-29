@@ -34,6 +34,14 @@ describe("workspaceProduct", () => {
     expect(flat).toContain("/library");
   });
 
+  it("keeps the CSEP builder grouped with documents for CSEP-only workspaces", () => {
+    const documents = csepOnlyCompanySideSections.find((section) => section.title === "Documents");
+    const operations = csepOnlyCompanySideSections.find((section) => section.title === "Operations");
+
+    expect(documents?.items.map((item) => item.href)).toContain("/csep");
+    expect(operations?.items.map((item) => item.href)).not.toContain("/csep");
+  });
+
   it("CSEP-only nav hrefs resolve to real pages", () => {
     for (const section of csepOnlyCompanySideSections) {
       for (const item of section.items) {

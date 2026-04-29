@@ -16,6 +16,8 @@ type SectionWithGroup = NavSection & { group?: WorkspaceNavGroup };
 
 const GROUP_ICONS: Record<WorkspaceNavGroup, LucideIcon> = {
   today: LayoutDashboard,
+  audits: ClipboardList,
+  documents: FolderOpen,
   fieldSites: HardHat,
   programs: ClipboardList,
   insights: BarChart3,
@@ -24,7 +26,9 @@ const GROUP_ICONS: Record<WorkspaceNavGroup, LucideIcon> = {
 
 const TITLE_HINTS: Array<{ test: (t: string) => boolean; Icon: LucideIcon }> = [
   { test: (t) => /admin|platform/i.test(t), Icon: Shield },
+  { test: (t) => /document|library|template/i.test(t), Icon: FolderOpen },
   { test: (t) => /account|team|billing|report/i.test(t), Icon: Users },
+  { test: (t) => /audit/i.test(t), Icon: ClipboardList },
   { test: (t) => /review|queue/i.test(t), Icon: ClipboardList },
   { test: (t) => /setup|profile|company/i.test(t), Icon: Settings2 },
 ];
