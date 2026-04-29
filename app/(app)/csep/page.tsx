@@ -2729,11 +2729,6 @@ export default function CSEPPage() {
                     </div>
                   ) : null}
 
-                  {!csepHandoffComplete ? (
-                    <LegalAcceptanceBlock checked={agreedToSubmissionTerms} onChange={setAgreedToSubmissionTerms} />
-                  ) : (
-                    <InlineMessage tone="success">Terms, privacy, and waiver were accepted for this submission.</InlineMessage>
-                  )}
                   <div className="flex flex-wrap gap-2">
                     <StatusBadge label={previewReadyForSubmit ? "Draft approved" : "Draft approval required"} tone={previewReadyForSubmit ? "success" : "warning"} />
                     <StatusBadge label={canSubmitDocuments ? "Submit access ready" : "Submit access missing"} tone={canSubmitDocuments ? "success" : "warning"} />
@@ -2810,6 +2805,21 @@ export default function CSEPPage() {
               ) : null}
 
               <div className="sticky bottom-3 z-20 -mx-2 mt-2 rounded-2xl border border-[var(--app-border-strong)] bg-white/95 px-3 py-3 shadow-xl shadow-slate-950/10 backdrop-blur supports-[backdrop-filter]:bg-white/85">
+                {step === workflowDefinition.length - 1 ? (
+                  <div className="mb-3">
+                    {!csepHandoffComplete ? (
+                      <LegalAcceptanceBlock
+                        checked={agreedToSubmissionTerms}
+                        onChange={setAgreedToSubmissionTerms}
+                        compact
+                      />
+                    ) : (
+                      <InlineMessage tone="success">
+                        Terms, privacy, and waiver were accepted for this submission.
+                      </InlineMessage>
+                    )}
+                  </div>
+                ) : null}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <div className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-text)]">
@@ -2863,7 +2873,11 @@ export default function CSEPPage() {
                   </div>
                 ) : step === workflowDefinition.length - 1 && !csepHandoffComplete && !previewReadyForSubmit ? (
                   <div className="mt-2 text-xs text-[var(--app-text)]">
-                    Submit unlocks after the draft is current, approved, and the required terms are accepted.
+                    Submit unlocks after: <span className="font-semibold text-[var(--app-text-strong)]">{nextRequiredInput}</span>
+                  </div>
+                ) : step === workflowDefinition.length - 1 && !csepHandoffComplete && !agreedToSubmissionTerms ? (
+                  <div className="mt-2 text-xs text-[var(--app-text)]">
+                    Submit unlocks after: <span className="font-semibold text-[var(--app-text-strong)]">Accept the legal terms before submitting the document.</span>
                   </div>
                 ) : null}
               </div>
