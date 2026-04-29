@@ -26,6 +26,7 @@ dist-electron-out.orphan-*/
 docs/
 .github/
 scripts/
+tmp_*.docx
 
 # Supabase SQL — applied with `supabase db push`, not at Vercel build time
 supabase/migrations/
