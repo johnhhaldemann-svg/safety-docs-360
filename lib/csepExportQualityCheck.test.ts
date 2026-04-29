@@ -63,6 +63,14 @@ describe("assertCsepExportQuality", () => {
     expect(() => assertCsepExportQuality(model, { draft })).toThrow(/permit_coverage/i);
   });
 
+  it("matches selected permit ids against normalized permit labels in the export", () => {
+    const draft = minimalSteelDraft();
+    draft.ruleSummary.permitTriggers = ["elevated_work_notice", "hot_work_permit"];
+    draft.operations[0]!.permitTriggers = ["hot_work_permit"];
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/permit_coverage/i);
+  });
+
   it("does not treat normal ladder program slices as duplicate ladder programs", () => {
     const draft = minimalSteelDraft();
     const model = buildCsepRenderModelFromGeneratedDraft(draft);
@@ -102,6 +110,34 @@ describe("assertCsepExportQuality", () => {
       items: ["Workers shall wear task-appropriate work attire and report fit-for-duty concerns to supervision."],
     });
     expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/iipp_isolation/i);
+  });
+
+  it("allows emergency response to contain brief IIPP and HazCom cross-references", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const emergency = model.sections.find((section) => section.key === "emergency_response_and_rescue")!;
+    emergency.subsections.push({
+      title: "Stop and notification triggers",
+      items: [
+        "Stop or modify work when on-site conditions no longer match the JHA, permit, SDS, or manufacturer limits.",
+        "Report injuries, near misses, and significant near-miss weather events to supervision per the IIPP.",
+      ],
+    });
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/hazcom_isolation|iipp_isolation/i);
+  });
+
+  it("allows repeated Appendix E baseline fire-watch and fall-protection controls", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    model.appendixSections.push(
+      appendixETaskHazardMatrixSectionWithControlColumn(
+        "Fire watch remove combustibles spark containment fire watch spark containment flammable clearance."
+      ),
+      appendixETaskHazardMatrixSectionWithControlColumn(
+        "Guardrails PFAS pre task planning guardrails PFAS pre task planning."
+      )
+    );
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/appendix_e_duplicate_controls/i);
   });
 
   it("allows Appendix E when hot work / fire watch boilerplate repeats across many tasks", () => {

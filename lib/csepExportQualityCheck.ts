@@ -5,6 +5,7 @@
 
 import { CSEP_APPENDIX_REGULATORY_REFERENCES_KEY } from "@/lib/csepRegulatoryReferenceIndex";
 import { CANONICAL_CSEP_SECTION_ORDER } from "@/lib/csep/csep-section-order";
+import { normalizePermitList } from "@/lib/csepFinalization";
 import type {
   CsepRenderModel,
   CsepTemplateSection,
@@ -127,7 +128,11 @@ const IIPP_REFERENCE_ALLOWLIST = [
   "Follow the project IIPP, Incident Reporting, and Corrective Action requirements defined in the IIPP, Incident Reporting, and Corrective Action section.",
 ];
 const OWNERSHIP_COMPANION_KEYS: Record<string, readonly string[]> = {
+  hazard_communication_and_environmental_protection: [
+    "emergency_response_and_rescue",
+  ],
   iipp_incident_reporting_corrective_action: [
+    "emergency_response_and_rescue",
     "high_risk_programs",
     "training_competency_and_certifications",
     "worker_conduct_fit_for_duty_disciplinary_program",
@@ -450,7 +455,7 @@ function checkOwnedTopicIsolation(
 
 function checkPermitCoverageAndPlacement(model: CsepRenderModel, draft?: GeneratedSafetyPlanDraft): string[] {
   if (!draft) return [];
-  const selectedPermits = Array.from(
+  const selectedPermits = normalizePermitList(Array.from(
     new Set(
       [
         ...(draft.ruleSummary?.permitTriggers ?? []),
@@ -459,7 +464,7 @@ function checkPermitCoverageAndPlacement(model: CsepRenderModel, draft?: Generat
         .map((value) => value.trim())
         .filter(Boolean)
     )
-  );
+  ));
   if (!selectedPermits.length) return [];
 
   const allSections = [...model.frontMatterSections, ...model.sections];
@@ -620,6 +625,12 @@ function controlTextIsLegitimatelyReusableAcrossTasks(normalizedControl: string)
   if (/\bhot\s+work\b/.test(normalizedControl) && /\bfire\s+watch\b/.test(normalizedControl)) return true;
   if (/\bhot\s+work\b/.test(normalizedControl) && /\b(permit|posted|authorization)\b/.test(normalizedControl))
     return true;
+  if (/\bfire\s+watch\b/.test(normalizedControl) && /\b(spark|combustible|flammable|containment|clearance)\b/.test(normalizedControl)) {
+    return true;
+  }
+  if (/\b(guardrail|guardrails)\b/.test(normalizedControl) && /\b(pfas|personal\s+fall|fall\s+arrest|pre\s+task|pretask|planning)\b/.test(normalizedControl)) {
+    return true;
+  }
   if (
     /\b(welding|cutting|grinding|torch|brazing)\b/.test(normalizedControl) &&
     /\b(hot\s+work|fire\s+watch|combustible|spark|ignite)\b/.test(normalizedControl)
