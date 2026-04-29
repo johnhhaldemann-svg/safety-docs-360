@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Check, MessageSquareText, Plus, Save, X } from "lucide-react";
+import { Archive, Check, Mail, MessageSquareText, Plus, Save, X } from "lucide-react";
 import {
   EmptyState,
   InlineMessage,
@@ -55,6 +55,7 @@ type Payload = {
   contractors?: Contractor[];
   assignments?: Assignment[];
   capabilities?: { canManage?: boolean };
+  delivery?: { sentChannels?: string[]; warnings?: string[] };
   error?: string;
 };
 
@@ -86,6 +87,7 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
   const [requirementTrade, setRequirementTrade] = useState("");
   const [requirementPosition, setRequirementPosition] = useState("");
   const [invitePhone, setInvitePhone] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
   const [trainingDrafts, setTrainingDrafts] = useState<Record<string, { completedOn: string; expiresOn: string; notes: string }>>({});
 
   const canManage = Boolean(payload.capabilities?.canManage);
@@ -150,11 +152,13 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
       },
       body: JSON.stringify(body),
     });
-    const data = (await res.json().catch(() => null)) as Payload & { warning?: string; intakeUrl?: string; sent?: boolean };
+    const data = (await res.json().catch(() => null)) as Payload & { warning?: string | null; intakeUrl?: string; sent?: boolean };
     if (!res.ok) throw new Error(data?.error || "Action failed.");
     setPayload((current) => ({ ...current, ...data }));
     setTone(data.warning ? "warning" : "success");
-    setMessage(data.warning || (data.intakeUrl ? `${success} ${data.intakeUrl}` : success));
+    const sentChannels = data.delivery?.sentChannels ?? [];
+    const deliveryNote = sentChannels.length ? ` Sent by ${sentChannels.join(" and ")}.` : "";
+    setMessage(data.warning || (data.intakeUrl ? `${success}${deliveryNote} ${data.intakeUrl}` : `${success}${deliveryNote}`));
   }
 
   async function addRequirement() {
@@ -184,10 +188,12 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
         {
           action: "inviteByPhone",
           phone: invitePhone,
+          email: inviteEmail,
         },
         "Invite sent."
       );
       setInvitePhone("");
+      setInviteEmail("");
     } catch (error) {
       setTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to send contractor invite.");
@@ -331,22 +337,34 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
             </div>
           </SectionCard>
 
-          <SectionCard title="Send Contractor Invite" description="Enter only the contractor employee's phone number. They fill out their own profile, company, trade, position, and training from the secure intake link.">
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <SectionCard title="Send Contractor Invite" description="Send a secure intake link by text, email, or both. The contractor employee fills out their own profile, company, trade, position, and training.">
+            <div className="grid gap-3">
               <input
                 value={invitePhone}
                 onChange={(event) => setInvitePhone(event.target.value)}
-                placeholder="Phone number"
+                placeholder="Phone number for text invite"
                 inputMode="tel"
+                className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm"
+              />
+              <input
+                value={inviteEmail}
+                onChange={(event) => setInviteEmail(event.target.value)}
+                placeholder="Email address for email invite"
+                inputMode="email"
+                type="email"
                 className="rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm"
               />
               <button
                 type="button"
                 onClick={() => void sendPhoneInvite()}
-                disabled={!invitePhone.trim()}
+                disabled={!invitePhone.trim() && !inviteEmail.trim()}
                 className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:opacity-50`}
               >
-                <MessageSquareText className="h-4 w-4" aria-hidden />
+                {inviteEmail.trim() && !invitePhone.trim() ? (
+                  <Mail className="h-4 w-4" aria-hidden />
+                ) : (
+                  <MessageSquareText className="h-4 w-4" aria-hidden />
+                )}
                 Send Invite
               </button>
             </div>

@@ -12,6 +12,7 @@ import {
   normalizeTrainingTitle,
   parseExpirationMap,
   parseStringArray,
+  sendContractorIntakeEmail,
   sendContractorIntakeSms,
 } from "@/lib/contractorTraining";
 import {
@@ -41,6 +42,21 @@ function asNullableString(value: unknown) {
 function asDateString(value: unknown) {
   const text = asString(value);
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function summarizeDelivery(results: Array<{ channel: string; sent?: boolean; warning?: string | null }>) {
+  const sentChannels = results.filter((result) => result.sent).map((result) => result.channel);
+  const warnings = results
+    .filter((result) => !result.sent && result.warning)
+    .map((result) => `${result.channel}: ${result.warning}`);
+  return {
+    sent: sentChannels.length > 0,
+    delivery: {
+      sentChannels,
+      warnings,
+    },
+    warning: sentChannels.length > 0 ? null : warnings.join(" ") || "Invite link created, but delivery failed.",
+  };
 }
 
 function isRequirementInScope(
@@ -421,14 +437,30 @@ export async function POST(request: Request, { params }: { params: Promise<Param
       if (result.error) throw new Error(result.error.message);
     } else if (action === "inviteByPhone") {
       const phone = asNullableString(body?.phone);
+      const email = asNullableString(body?.email);
       const phoneNormalized = normalizePhone(phone);
-      if (!phone || !phoneNormalized) return NextResponse.json({ error: "Phone number is required." }, { status: 400 });
+      const emailNormalized = normalizeEmail(email);
+      if (!phoneNormalized && !emailNormalized) {
+        return NextResponse.json({ error: "Phone number or email is required." }, { status: 400 });
+      }
 
-      const existing = await scoped.db
-        .from("contractor_employee_profiles")
-        .select("id")
-        .eq("phone_normalized", phoneNormalized)
-        .maybeSingle();
+      const existingByEmail = emailNormalized
+        ? await scoped.db
+            .from("contractor_employee_profiles")
+            .select("id")
+            .eq("email_normalized", emailNormalized)
+            .maybeSingle()
+        : { data: null, error: null };
+      if (existingByEmail.error) throw new Error(existingByEmail.error.message);
+      const existing = existingByEmail.data
+        ? existingByEmail
+        : phoneNormalized
+          ? await scoped.db
+              .from("contractor_employee_profiles")
+              .select("id")
+              .eq("phone_normalized", phoneNormalized)
+              .maybeSingle()
+          : { data: null, error: null };
       if (existing.error) throw new Error(existing.error.message);
 
       let employeeId = existing.data?.id ? String(existing.data.id) : "";
@@ -438,6 +470,8 @@ export async function POST(request: Request, { params }: { params: Promise<Param
           .insert({
             full_name: "Pending Contractor",
             phone,
+            email,
+            email_normalized: emailNormalized,
             phone_normalized: phoneNormalized,
             readiness_status: "onboarding",
             created_by: scoped.auth.user.id,
@@ -454,7 +488,7 @@ export async function POST(request: Request, { params }: { params: Promise<Param
       if (existing.data?.id) {
         const updateProfile = await scoped.db
           .from("contractor_employee_profiles")
-          .update({ phone, phone_normalized: phoneNormalized, updated_by: scoped.auth.user.id })
+          .update({ phone, email, email_normalized: emailNormalized, phone_normalized: phoneNormalized, updated_by: scoped.auth.user.id })
           .eq("id", employeeId);
         if (updateProfile.error) throw new Error(updateProfile.error.message);
       }
@@ -492,14 +526,30 @@ export async function POST(request: Request, { params }: { params: Promise<Param
       });
       if (tokenInsert.error) throw new Error(tokenInsert.error.message);
 
-      const smsResult = await sendContractorIntakeSms({
-        toPhone: phone,
-        companyName: scoped.companyScope.companyName ?? "Your company",
-        jobsiteName: scoped.jobsite.name,
-        intakeUrl,
-      });
+      const companyName = scoped.companyScope.companyName ?? "Your company";
+      const deliveryResults = [];
+      if (phone) {
+        const smsResult = await sendContractorIntakeSms({
+          toPhone: phone,
+          companyName,
+          jobsiteName: scoped.jobsite.name,
+          intakeUrl,
+        });
+        deliveryResults.push({ channel: "sms", ...smsResult });
+      }
+      if (email) {
+        const emailResult = await sendContractorIntakeEmail({
+          toEmail: email,
+          employeeName: "Contractor employee",
+          companyName,
+          jobsiteName: scoped.jobsite.name,
+          intakeUrl,
+        });
+        deliveryResults.push({ channel: "email", ...emailResult });
+      }
+      const deliverySummary = summarizeDelivery(deliveryResults);
       const payload = await loadMatrix(scoped.db, companyId, scoped.jobsite.id);
-      return NextResponse.json({ success: true, intakeUrl, ...smsResult, ...payload });
+      return NextResponse.json({ success: true, intakeUrl, ...deliverySummary, ...payload });
     } else if (action === "sendIntake") {
       const assignmentId = asString(body?.assignmentId);
       if (!assignmentId) return NextResponse.json({ error: "assignmentId is required." }, { status: 400 });
@@ -514,12 +564,14 @@ export async function POST(request: Request, { params }: { params: Promise<Param
       if (!assignmentResult.data) return NextResponse.json({ error: "Assignment not found." }, { status: 404 });
       const employeeResult = await scoped.db
         .from("contractor_employee_profiles")
-        .select("id, full_name, phone")
+        .select("id, full_name, email, phone")
         .eq("id", assignmentResult.data.contractor_employee_id)
         .maybeSingle();
       if (employeeResult.error) throw new Error(employeeResult.error.message);
-      const employee = employeeResult.data as { id: string; full_name: string; phone: string | null } | null;
-      if (!employee?.phone) return NextResponse.json({ error: "This contractor employee needs a phone number before an intake link can be sent." }, { status: 400 });
+      const employee = employeeResult.data as { id: string; full_name: string; email: string | null; phone: string | null } | null;
+      if (!employee?.phone && !employee?.email) {
+        return NextResponse.json({ error: "This contractor employee needs a phone number or email before an intake link can be sent." }, { status: 400 });
+      }
 
       const token = generateIntakeToken();
       const intakeUrl = buildContractorIntakeUrl(token);
@@ -534,13 +586,28 @@ export async function POST(request: Request, { params }: { params: Promise<Param
         created_by: scoped.auth.user.id,
       });
       if (tokenInsert.error) throw new Error(tokenInsert.error.message);
-      const smsResult = await sendContractorIntakeSms({
-        toPhone: employee.phone,
-        companyName: scoped.companyScope.companyName ?? "Your company",
-        jobsiteName: scoped.jobsite.name,
-        intakeUrl,
-      });
-      return NextResponse.json({ success: true, intakeUrl, ...smsResult });
+      const companyName = scoped.companyScope.companyName ?? "Your company";
+      const deliveryResults = [];
+      if (employee.phone) {
+        const smsResult = await sendContractorIntakeSms({
+          toPhone: employee.phone,
+          companyName,
+          jobsiteName: scoped.jobsite.name,
+          intakeUrl,
+        });
+        deliveryResults.push({ channel: "sms", ...smsResult });
+      }
+      if (employee.email) {
+        const emailResult = await sendContractorIntakeEmail({
+          toEmail: employee.email,
+          employeeName: employee.full_name || "Contractor employee",
+          companyName,
+          jobsiteName: scoped.jobsite.name,
+          intakeUrl,
+        });
+        deliveryResults.push({ channel: "email", ...emailResult });
+      }
+      return NextResponse.json({ success: true, intakeUrl, ...summarizeDelivery(deliveryResults) });
     } else {
       return NextResponse.json({ error: "Unknown contractor training action." }, { status: 400 });
     }
