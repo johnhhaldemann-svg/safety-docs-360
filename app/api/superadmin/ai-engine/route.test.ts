@@ -21,6 +21,17 @@ vi.mock("@/lib/superadmin/aiEngineOperations", () => ({
   getAiEngineFeedback: vi.fn(async () => ({ rows: [], count: 0 })),
   recordAiEngineFeedback: vi.fn(async () => ({ ok: true, feedback: { id: 1 } })),
   getAiEngineEvalSummary: vi.fn(() => ({ totalFixtures: 0, surfaces: [] })),
+  getAiEngineRecommendationSnapshot: vi.fn(async () => ({
+    snapshot: null,
+    stale: true,
+    recommendations: [],
+    summary: "No snapshot.",
+  })),
+  refreshAiEngineRecommendationSnapshot: vi.fn(async () => ({
+    ok: true,
+    recommendations: [],
+    summary: "Snapshot refreshed.",
+  })),
 }));
 
 import { authorizeRequest } from "@/lib/rbac";
@@ -28,6 +39,8 @@ import * as metricsRoute from "./metrics/route";
 import * as callsRoute from "./calls/route";
 import * as feedbackRoute from "./feedback/route";
 import * as evalsRoute from "./evals/route";
+import * as recommendationsRoute from "./recommendations/route";
+import * as aiEngineOperations from "@/lib/superadmin/aiEngineOperations";
 
 const mockedAuthorize = vi.mocked(authorizeRequest);
 
@@ -68,6 +81,13 @@ describe("/api/superadmin/ai-engine", () => {
         allowPending: true,
         allowSuspended: true,
       });
+
+      const recommendationsResponse = expectResponse(
+        await recommendationsRoute.GET(
+          new Request("https://example.com/api/superadmin/ai-engine/recommendations")
+        )
+      );
+      expect(recommendationsResponse.status).toBe(403);
     }
   );
 
@@ -85,6 +105,9 @@ describe("/api/superadmin/ai-engine", () => {
     ).resolves.toMatchObject({ status: 200 });
     await expect(
       evalsRoute.GET(new Request("https://example.com/api/superadmin/ai-engine/evals"))
+    ).resolves.toMatchObject({ status: 200 });
+    await expect(
+      recommendationsRoute.GET(new Request("https://example.com/api/superadmin/ai-engine/recommendations"))
     ).resolves.toMatchObject({ status: 200 });
   });
 
@@ -109,5 +132,36 @@ describe("/api/superadmin/ai-engine", () => {
 
     expect(response.status).toBe(201);
     expect(body.feedback.id).toBe(1);
+  });
+
+  it("refreshes recommendation snapshots only for super admins", async () => {
+    mockedAuthorize.mockResolvedValue(authForRole("super_admin"));
+
+    const response = expectResponse(
+      await recommendationsRoute.POST(
+        new Request("https://example.com/api/superadmin/ai-engine/recommendations", {
+          method: "POST",
+          body: JSON.stringify({ surface: "all", windowDays: 7 }),
+        })
+      )
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.summary).toBe("Snapshot refreshed.");
+  });
+
+  it("reads recommendation snapshots without recomputing", async () => {
+    mockedAuthorize.mockResolvedValue(authForRole("super_admin"));
+
+    const response = expectResponse(
+      await recommendationsRoute.GET(
+        new Request("https://example.com/api/superadmin/ai-engine/recommendations?surface=all&windowDays=7")
+      )
+    );
+
+    expect(response.status).toBe(200);
+    expect(aiEngineOperations.getAiEngineRecommendationSnapshot).toHaveBeenCalledTimes(1);
+    expect(aiEngineOperations.refreshAiEngineRecommendationSnapshot).not.toHaveBeenCalled();
   });
 });
