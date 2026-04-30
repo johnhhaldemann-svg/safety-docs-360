@@ -294,8 +294,8 @@ export default function SuperadminAiEnginePage() {
             </div>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">AI Engine Operations</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-300">
-              Service-role telemetry, fallback health, learning signals, and eval coverage for the platform AI
-              control plane.
+              Runtime telemetry, recovery health, learning signals, and evaluation coverage for the platform AI
+              operations panel.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -340,7 +340,7 @@ export default function SuperadminAiEnginePage() {
 
         {metrics?.unavailable ? (
           <div className="rounded-md border border-amber-500/50 bg-amber-950/40 p-4 text-sm text-amber-100">
-            Service-role telemetry is not configured: {metrics.unavailableReason}
+            Runtime telemetry is not configured: {metrics.unavailableReason}
           </div>
         ) : null}
 
